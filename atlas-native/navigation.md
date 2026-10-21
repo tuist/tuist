@@ -58,6 +58,48 @@ ASCII underscore hosts accepted by the Rust authentication contract are preserve
 raw Unicode host values must instead use punycode. The link never changes the selected server, initiates login, or fills a server
 prompt. A mismatched link is dropped with a plain-text explanation.
 
+## HTTPS links and browser handoff
+
+Both native clients also accept allowlisted HTTPS URLs through the same typed
+intent, authentication checks, pending lifecycle, and draft protection. The HTTPS
+origin comes from the URL authority, never a query parameter. Query strings and
+fragments are ignored and never forwarded; credentials, ambiguous/encoded paths,
+unsupported child routes, and noncanonical record IDs are rejected.
+
+On `atlas.tuist.dev`, iOS Universal Links and Android App Links claim:
+
+- `/tasks`, `/commercial/sales/accounts`, and `/commercial/sales/accounts/<uuid>`
+- `/people`, `/people/time-off`, and `/settings` (exact pages, not descendants)
+- `/open/<screen>` for all six screen keys, and `/open/<screen>/<uuid>` for the
+  three record-capable screens
+
+`AtlasDestination.webURL` emits the canonical `/open/<screen>[/<uuid>]` form.
+These public landing pages offer explicit **Open in Atlas** and **Continue in
+browser** actions without reading a record, redirecting automatically, or needing
+a session. The fallback uses the real account detail where one exists; Tasks and
+Invoices fall back to their browser collection pages. Unsupported normal web
+routes stay in the browser. In particular, the broader `/commercial/finance`
+dashboard is not automatically claimed, even though the explicit header action
+and a directly delivered native intent can map it to native invoices.
+
+The authenticated web header offers **Open in Atlas** for corresponding pages,
+including after LiveView navigation. The native screens offer **Open in browser**
+for richer web functionality. iOS uses embedded Safari and dismisses it when a new
+link is handled; Android selects an explicit browser component, avoiding an
+immediate verified-link loop. Browser sign-in is separate from native OAuth.
+
+OS handoff is not a forced redirect: installation, domain verification, browser
+context, and the user's link preferences still matter. Safari normally keeps
+same-domain browsing in Safari, and typing a URL or already viewing a page does
+not automatically open an app. The explicit web action covers these cases and
+self-hosted servers. Arbitrary self-hosted domains are not claimed by the shipped
+apps; their custom-scheme links remain origin-bound and unverified.
+
+Association endpoints fail closed until trusted identities are configured. Device
+signing and verification require operator setup; see the
+[deployment runbook](../atlas/deploy/native-links.md). Never trust a CI debug
+certificate or describe fixture/simulator tests as proof of live verification.
+
 ## Producers and lifecycle
 
 Notifications and other systems should carry a `destination_url` containing the
@@ -130,13 +172,13 @@ business detail APIs, draft ownership and Android recreation paths.
   motivates building the expected parent stack, not merely displaying an isolated
   detail. This app uses platform widgets, so it does not need Jetpack Navigation
   solely to handle a small typed route contract.
-- Verified HTTPS Universal/App Links are preferable for public shareable links
-  when a domain association and web fallback exist. Atlas has arbitrary
-  self-hosted origins, and Tasks/Invoices have no equivalent web detail route.
-  A custom scheme is the smallest useful transport now. It is **not verified**:
-  another app can register it. The payload is therefore untrusted, origin-bound,
-  credential-free, read-only, and reauthorized by the server. Verified HTTPS can
-  later be another adapter into the same destination type.
+- Apple's [associated-domain guidance](https://developer.apple.com/documentation/xcode/supporting-associated-domains)
+  and Android's [verified App Links guidance](https://developer.android.com/training/app-links/verify-applinks)
+  motivate the hosted HTTPS adapter and explicit browser fallback. The `/open`
+  landing gives Tasks/Invoices a shareable URL even without a web record page.
+  The custom scheme remains useful for arbitrary self-hosted origins, but is
+  **not verified**: another app can register it. Both transports are untrusted,
+  origin-bound, credential-free, read-only, and reauthorized by the server.
 - A global UUID resolver would add a server lookup/authorization surface, latency
   and ambiguity across deployments. Typed references avoid all three.
 - A universal navigation/state framework or serialized feature models would

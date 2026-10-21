@@ -18,6 +18,9 @@ struct AtlasApp: App {
             .environment(\.atlasNavigation, navigation)
             .task { await authentication.restore(); navigation.resolve(server: authentication.server) }
             .onOpenURL { navigation.receive($0, server: authentication.server) }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { navigation.receive(url, server: authentication.server) }
+            }
             .onChange(of: authentication.server) { previous, server in
                 if previous != nil, server == nil { navigation.reset() }
                 navigation.resolve(server: server)
@@ -44,6 +47,7 @@ struct AtlasApp: App {
                 }
             }
             .tint(AtlasSettingsStyle.tint)
+            .environment(\.atlasServer, server)
         }
     }
 }

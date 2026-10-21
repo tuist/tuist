@@ -31,6 +31,8 @@ selected server. OAuth tokens are not browser cookies.
 - `cli/`: host Rust executable sharing the catalog; see `cli/AGENTS.md`.
 - `core/include/`: authored C header and Clang module map imported by Swift.
 - `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
+- `android/distribution/`: stable-key Android signing and publication guard; see
+  `android/distribution/AGENTS.md`. PR/debug builds must never supply verified-link identities.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions.
@@ -92,6 +94,8 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 
 - See [navigation.md](navigation.md) for the contract, research/tradeoffs, notification payload and agent automation commands. `core/src/destinations.rs` owns the linkable screen allowlist and record capabilities, exposed through a separate immutable C/primitive JNI descriptor table. Keep existing section/group fields unchanged. Screen keys are public, frozen route identifiers; titles and catalog placement can evolve independently.
 - `dev.tuist.atlas://navigate/<screen>[/<uuid>]?server=<encoded-https-origin>` is an untrusted, read-only intent, never an API path or server switch. Native adapters validate the exact grammar and compare the authenticated HTTPS origin (host case/default 443/root slash normalized, nondefault ports distinct). OAuth callbacks remain separate. The server still authorizes every direct record read.
+- HTTPS Universal/App Links for the hosted domain enter the same destination contract. C/JNI destination fields 2–3 expose existing browser pages and accepted record prefixes. Canonical share URLs use `/open/<screen>[/<uuid>]`; registrations claim only the exact equivalent web pages and these landing paths, never entire web hierarchies. The broader finance dashboard is explicit-open only. Keep the Android manifest in sync with `AtlasWeb.NativeLinks.claimed_paths/0`; only the native parser validates lowercase UUIDs. Do not forward query/fragment data, trust Host headers, or infer server changes from links. See `atlas/deploy/native-links.md` for trusted identities and rollout.
+- Native browser escape uses embedded Safari on iOS and explicit browser components on Android to avoid immediately handing a verified URL back to Atlas. Keep browser auth separate from native OAuth; browser presentation must not erase native drafts. Dismiss embedded Safari on a new handled link or link error.
 - The shell owns only a latest-wins, memory-only pending destination and native parent stack. Retain Android pending state across rotation, never replay Recents intents, and discard on session end. Do not persist destinations across users or put credentials in URLs. Reject links during drafts/saves/AI setup with an explanation rather than discarding work or silently navigating after save. Features still own state and fetch records by UUID, not by searching loaded pages; loading/failure states must never expose mutation controls.
 - `AtlasNavigationTests`, Rust capability/ABI tests and Android preview startup checks cover grammar/lifecycle/direct lookup. `AtlasNavigationUITests` exercises the production iOS destination views using isolated fixture data. Keep all fixture URL launch arguments outside production source globs.
 
@@ -163,7 +167,7 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   with the manifest, and smoke-test simulator installation after changes.
 - Mobile builds are arm64 Android debug APKs, arm64 iOS simulator apps and arm64
   iOS device apps. `AtlasIOSDevice` uses separate device Rust targets and shared
-  production Swift sources; do not ship screenshot fixtures. CI device builds use
+  production Swift sources; do not ship screenshot fixtures. CI Android and iOS device builds use
   only the local cache, not the shared cache accessible to PRs. Main-branch delivery
   provisions/re-signs a copy as an ad-hoc IPA outside Once's cache. Store delivery
   still requires store setup.

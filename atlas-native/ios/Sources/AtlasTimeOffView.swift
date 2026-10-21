@@ -70,6 +70,7 @@ struct AtlasTimeOffView: View {
             } else if model.busy { ProgressView("Loading holidays…") }
         }
         .navigationTitle(title)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "time-off") } }
         .disabled(model.busy)
         .protectsAtlasNavigation(model.mutating && editor == nil)
         .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)

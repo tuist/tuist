@@ -177,7 +177,7 @@ mod tests {
             atlas_destination_count()
         );
         for destination in 0..atlas_destination_count() {
-            for field in 0..2 {
+            for field in 0..4 {
                 let expected = crate::destinations::field(destination, field).unwrap();
                 assert_eq!(
                     atlas_destination_field(destination, field),
@@ -204,7 +204,7 @@ mod tests {
                 assert_eq!(atlas_destination_field_byte(destination, field, len), -1);
             }
         }
-        for (destination, field) in [(-1, 0), (atlas_destination_count(), 0), (0, -1), (0, 2)] {
+        for (destination, field) in [(-1, 0), (atlas_destination_count(), 0), (0, -1), (0, 4)] {
             assert!(atlas_destination_field(destination, field).is_null());
             assert_eq!(
                 Java_dev_tuist_atlas_AtlasCore_destinationFieldLength(

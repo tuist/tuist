@@ -36,6 +36,8 @@ data class AtlasGroup(
 data class AtlasDestinationCapability(
     val screen: String,
     val records: Boolean,
+    val webPath: String,
+    val recordPath: String,
 )
 
 data class AtlasDestination(
@@ -46,7 +48,28 @@ data class AtlasDestination(
     data class Link(
         val destination: AtlasDestination,
         val server: String,
-    )
+    ) {
+        fun browserURL(capabilities: List<AtlasDestinationCapability>): String? {
+            val capability = capabilities.firstOrNull { it.screen == destination.screen } ?: return null
+            if (destination.recordId != null && (!capability.records || !uuid.matches(destination.recordId))) return null
+            val origin = canonicalServer(server) ?: return null
+            val path =
+                if (destination.recordId != null && !capability.recordPath.startsWith("/open/")) {
+                    "${capability.recordPath}/${destination.recordId}"
+                } else {
+                    capability.webPath
+                }
+            return origin + path.removePrefix("/")
+        }
+
+        fun webURL(capabilities: List<AtlasDestinationCapability>): String? {
+            val capability = capabilities.firstOrNull { it.screen == destination.screen } ?: return null
+            val id = destination.recordId
+            if (id != null && (!capability.records || !uuid.matches(id))) return null
+            val origin = canonicalServer(server) ?: return null
+            return origin + "open/" + destination.screen + (id?.let { "/$it" } ?: "")
+        }
+    }
 
     companion object {
         private const val PREFIX = "dev.tuist.atlas://navigate/"
@@ -63,7 +86,9 @@ data class AtlasDestination(
             link: String,
             capabilities: List<AtlasDestinationCapability>,
         ): Link? {
-            if (link.length > 2048 || !link.regionMatches(0, PREFIX, 0, PREFIX.length, ignoreCase = true)) return null
+            if (link.length > 2048) return null
+            if (link.startsWith("https://", ignoreCase = true)) return parseWeb(link, capabilities)
+            if (!link.regionMatches(0, PREFIX, 0, PREFIX.length, ignoreCase = true)) return null
             val parts = link.substring(PREFIX.length).split('?')
             if (parts.size != 2 || '#' in parts[1] || !parts[1].startsWith("server=")) return null
             val segments = parts[0].split('/')
@@ -75,18 +100,46 @@ data class AtlasDestination(
             return Link(AtlasDestination(capability.screen, record), server)
         }
 
+        private fun parseWeb(
+            link: String,
+            capabilities: List<AtlasDestinationCapability>,
+        ): Link? {
+            val uri = runCatching { URI(link) }.getOrNull() ?: return null
+            if (uri.rawUserInfo != null) return null
+            val path = uri.rawPath ?: return null
+            if ('%' in path || '\\' in path) return null
+            val authority = uri.rawAuthority ?: return null
+            val server = canonicalServer("${uri.scheme}://$authority/") ?: return null
+            capabilities.firstOrNull { it.webPath == path }?.let { return Link(AtlasDestination(it.screen), server) }
+            val parts = path.split('/')
+            if (parts.size in 3..4 && parts[0].isEmpty() && parts[1] == "open") {
+                val capability = capabilities.firstOrNull { it.screen == parts[2] } ?: return null
+                val id = parts.getOrNull(3)
+                if (id != null && (!capability.records || !uuid.matches(id))) return null
+                return Link(AtlasDestination(capability.screen, id), server)
+            }
+            capabilities.firstOrNull { it.recordPath.isNotEmpty() && path.startsWith(it.recordPath + "/") }?.let {
+                val id = path.removePrefix(it.recordPath + "/")
+                if (it.records && uuid.matches(id)) return Link(AtlasDestination(it.screen, id), server)
+            }
+            return null
+        }
+
         // Returns https://<lowercase host>[:port]/, omitting the default port. java.net.URI validates hostnames
         // and IPv6 literals without DNS lookups; non-ASCII (non-punycode) hosts are rejected.
         fun canonicalServer(value: String): String? {
             if (value.any { it.code !in 33..126 } || '\\' in value || '%' in value) return null
             val uri = runCatching { URI(value) }.getOrNull() ?: return null
-            val host = uri.host ?: return null
-            if (!uri.scheme.equals("https", ignoreCase = true) || uri.rawUserInfo != null || uri.rawQuery != null ||
+            // Rust accepts ASCII underscore hosts. Validate their structure without relaxing other URI rules.
+            val validated = runCatching { URI(value.replace('_', 'a')) }.getOrNull() ?: return null
+            if (validated.host == null) return null
+            val host = uri.host ?: uri.rawAuthority?.substringBefore(':') ?: return null
+            if (!uri.scheme.equals("https", ignoreCase = true) || validated.rawUserInfo != null || uri.rawQuery != null ||
                 uri.rawFragment != null || uri.rawPath !in listOf("", "/")
             ) {
                 return null
             }
-            val port = if (uri.port == -1) 443 else uri.port.takeIf { it in 1..65535 } ?: return null
+            val port = if (validated.port == -1) 443 else validated.port.takeIf { it in 1..65535 } ?: return null
             return "https://${host.lowercase(Locale.ROOT)}" + (if (port == 443) "" else ":$port") + "/"
         }
 
@@ -225,7 +278,12 @@ class AtlasCore {
         List(destinationCount()) { destination ->
             val records = readField(destination, 1, Table.DESTINATION)
             check(records == "1" || records == "0") { "Invalid Atlas destination capability" }
-            AtlasDestinationCapability(readField(destination, 0, Table.DESTINATION), records == "1")
+            AtlasDestinationCapability(
+                readField(destination, 0, Table.DESTINATION),
+                records == "1",
+                readField(destination, 2, Table.DESTINATION),
+                readField(destination, 3, Table.DESTINATION),
+            )
         }
 
     private enum class Table { SECTION, GROUP, DESTINATION }

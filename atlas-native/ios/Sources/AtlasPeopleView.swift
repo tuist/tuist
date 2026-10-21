@@ -31,6 +31,7 @@ struct AtlasPeopleView: View {
             }
         }
         .navigationTitle("People")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "people") } }
         .onAppear { presence.show(resource: "people") }
     }
 }

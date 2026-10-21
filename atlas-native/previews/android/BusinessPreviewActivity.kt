@@ -252,7 +252,7 @@ class BusinessPreviewActivity : Activity() {
                                 ),
                             )
                         }.also { state.accounts = it }
-                    val screen = AtlasAIAccountsScreen(this, "https://atlas.example.org", accounts, {}, { back() }, { finish() })
+                    val screen = AtlasAIAccountsScreen(this, "https://atlas.example.org", accounts, {}, { back() }, signOut = { finish() })
                     profile = screen
                     screen.profile(identity, ::updateNavigation)
                     screen.view

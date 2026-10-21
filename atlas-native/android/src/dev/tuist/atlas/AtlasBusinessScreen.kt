@@ -55,6 +55,7 @@ class AtlasBusinessScreen(
     private val navigationChanged: () -> Unit = {},
     private val presence: AtlasPresenceModel? = null,
     private val logoLoader: (String, (Bitmap?) -> Unit) -> (() -> Unit) = AccountLogos::load,
+    private val webPage: ((String?) -> Unit)? = null,
 ) {
     val toolbar = Toolbar(activity)
     private val alsoHere =
@@ -224,6 +225,7 @@ class AtlasBusinessScreen(
         search.isEnabled = true
         if (!model.busy && model.query.isEmpty() && search.query.isNotEmpty() && !search.hasFocus()) search.setQuery("", false)
         toolbar.menu.clear()
+        if (draft == null) toolbar.browserAction(webPage?.let { open -> { open(selected?.id) } })
         if (draft == null && selected == null) {
             toolbar.menu.add("Filters").apply {
                 setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)

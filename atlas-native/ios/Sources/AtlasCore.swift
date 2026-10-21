@@ -83,6 +83,16 @@ enum AtlasCore {
         return result
     }
 
+    static func destinationPaths(records: Bool = false) -> [String: String] {
+        var result: [String: String] = [:]
+        for index in 0..<atlas_destination_count() {
+            guard let screen = atlas_destination_field(index, 0),
+                  let path = atlas_destination_field(index, records ? 3 : 2) else { continue }
+            result[String(cString: screen)] = String(cString: path)
+        }
+        return result
+    }
+
     static func sections() -> [AtlasSection] {
         (0..<atlas_section_count()).compactMap { index in
             guard

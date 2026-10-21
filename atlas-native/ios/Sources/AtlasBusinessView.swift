@@ -105,6 +105,7 @@ struct AtlasBusinessView: View {
         }
         .onAppear { presence?.show(resource: model.resource.rawValue) }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: model.resource.rawValue) }
             ToolbarItem(placement: .topBarTrailing) {
                 filterMenu.disabled(model.busy && !model.loading)
             }
@@ -305,6 +306,7 @@ struct AtlasBusinessDetail: View {
         }
         .navigationTitle(model.resource.singular).navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: model.resource.rawValue, recordID: item.id) }
             ToolbarItem(placement: .topBarTrailing) {
                 if item.canEdit { Button("Edit") { editing = true }.disabled(model.busy || model.page == nil) }
             }

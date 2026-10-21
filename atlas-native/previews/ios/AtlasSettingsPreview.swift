@@ -57,6 +57,7 @@ struct AtlasSettingsPreview: App {
                 }
             }
             .environment(\.atlasNavigation, navigation)
+            .environment(\.atlasServer, URL(string: "https://atlas.example.org")!)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background { backgrounded = true }
                 if phase == .active, backgrounded {

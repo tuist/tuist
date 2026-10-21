@@ -274,7 +274,7 @@ class MainActivity : Activity() {
                     recoveredLoginId = null
                     val identity = profile ?: AtlasProfileModel(authentication::business).also { profile = it }
                     val screen =
-                        AtlasAIAccountsScreen(this, server, model, ::openBrowser, ::back) {
+                        AtlasAIAccountsScreen(this, server, model, ::openBrowser, ::back, webPage = { openWebPage("profile") }) {
                             presence?.stop {
                                 closeScreen()
                                 clearModels()
@@ -290,7 +290,15 @@ class MainActivity : Activity() {
                 }
                 else -> {
                     val model = businesses.getOrPut(tab) { AtlasBusinessModel(tab, authentication::business) }
-                    val screen = AtlasBusinessScreen(this, titles.getValue(tab), model, ::updateBack, presence)
+                    val screen =
+                        AtlasBusinessScreen(
+                            this,
+                            titles.getValue(tab),
+                            model,
+                            ::updateBack,
+                            presence,
+                            webPage = { id -> openWebPage(model.resource, id) },
+                        )
                     business = screen
                     setActionBar(screen.toolbar)
                     screen.view
@@ -380,7 +388,7 @@ class MainActivity : Activity() {
         closeScreen()
         presence?.show("time_off")
         val model = holidays ?: AtlasTimeOffModel(authentication::timeOff).also { holidays = it }
-        val screen = AtlasTimeOffScreen(this, title, model)
+        val screen = AtlasTimeOffScreen(this, title, model, webPage = { openWebPage("time-off") })
         timeOff = screen
         setActionBar(screen.toolbar)
         setContentView(screen.view)
@@ -391,7 +399,7 @@ class MainActivity : Activity() {
     private fun showPeople() {
         closeScreen()
         val model = presence ?: return
-        val screen = AtlasPeopleScreen(this, model)
+        val screen = AtlasPeopleScreen(this, model, webPage = { openWebPage("people") })
         people = screen
         setActionBar(screen.toolbar)
         setContentView(screen.view)
@@ -430,6 +438,16 @@ class MainActivity : Activity() {
             .setPositiveButton("Sign in") { _, _ -> authentication.signIn(field.text.toString(), true) }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun openWebPage(
+        screen: String,
+        id: String? = null,
+    ) {
+        val server = authentication.server ?: return
+        AtlasDestination.Link(AtlasDestination(screen, id), server).browserURL(AtlasCore().destinations())?.let {
+            openAtlasWebPage(it, getString(R.string.no_browser))
+        }
     }
 
     private fun openBrowser(uri: Uri) {

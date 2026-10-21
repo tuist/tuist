@@ -38,8 +38,13 @@ Both clients accept server-bound native object links for Tasks, Accounts, Financ
 Time off, People and Profile. A link can open a task, account or invoice directly
 by UUID, independently of loaded list pages. Notifications, other systems and UI
 agents use the same read-only destination contract and normal authentication.
-See [Native object navigation](navigation.md) for the protocol, lifecycle,
-security boundaries, platform research and simulator/emulator commands.
+Supported hosted HTTPS links use iOS Universal Links and Android App Links, with
+explicit **Open in Atlas** and browser fallback actions on the web. Native screens
+also offer **Open in browser** for richer web functionality. Automatic handoff
+requires an installed build and verified signing/domain setup; self-hosted
+instances use the server-bound custom scheme.
+See [Native object navigation](navigation.md) for supported paths, the protocol,
+lifecycle, security boundaries, platform research and simulator/emulator commands.
 
 ## Develop
 
@@ -127,8 +132,9 @@ adb shell am start -n dev.tuist.atlas/.MainActivity
 ```
 
 The APK includes `libatlas_core.so` for `arm64-v8a` and supports Android 8.0+.
-Use an arm64 emulator or device. Once signs previews with a debug key; these are
-not Play Store release bundles.
+Use an arm64 emulator or device. Local/CI builds use a debug key; protected nightly
+distribution uses a separately provisioned stable key so Android App Links can
+verify the app identity. These are not Play Store release bundles.
 
 ### iOS
 
@@ -155,7 +161,8 @@ Tuist app's existing profile cannot sign Atlas.
 
 One-time setup in Apple Developer (Tuist GmbH, team `U6LC622NKF`):
 
-1. Register the explicit app identifier `dev.tuist.atlas`.
+1. Register the explicit app identifier `dev.tuist.atlas` and enable its
+   **Associated Domains** capability before generating the profile.
 2. Register each team iPhone/iPad's UDID (or select the devices already registered
    for the Tuist app).
 3. Create an **Ad Hoc** profile named **Atlas App Ad Hoc** for that identifier,
@@ -234,16 +241,18 @@ mise run build:android
   artifacts for 14 days. The CLI archive preserves executable permissions and
   its artifact name identifies the build host's OS and architecture.
 - Uses shared caching in trusted jobs when authentication succeeds, except for
-  device builds. Device builds use only the local cache so distribution signing
+  Android and iOS device builds. These use only the local cache so distribution signing
   never consumes outputs from the shared cache used by pull requests. Forks also
   use only the local cache and have no OIDC permission.
 - Publishes the APK, simulator app and signed device IPA to Tuist's `nightly`
   preview track only after all main-branch build, test and lint jobs pass.
   A manual dispatch on `main` also publishes previews. Device signing requires
   the one-time profile setup above and fails visibly if credentials are missing.
-  Signing completes before any previews are uploaded, so signing failures do not
-  publish a simulator-only nightly. Credential-free keychain and icon-packaging
-  tests also gate publication. Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION`
+  Android distribution requires a stable signing identity; until configured,
+  debug APKs remain CI artifacts rather than nightly downloads. Android and
+  simulator publication precede device signing, so an iOS provisioning-profile
+  update does not prevent the other previews from publishing. Credential-free
+  signing guards, keychain and icon-packaging tests also gate publication. Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION`
   with a fresh timestamp so cached binaries and delivery reruns do not collide
   with an existing preview. This changes only preview metadata, leaving the app's
   internal build version and signature unchanged. Device packaging already stamps

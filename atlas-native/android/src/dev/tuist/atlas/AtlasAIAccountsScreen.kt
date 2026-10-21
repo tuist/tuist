@@ -24,6 +24,7 @@ class AtlasAIAccountsScreen(
     private val accounts: AtlasAIAccountsModel,
     private val openBrowser: (Uri) -> Unit,
     private val navigateUp: () -> Unit,
+    private val webPage: (() -> Unit)? = null,
     private val signOut: () -> Unit,
 ) {
     private val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -114,6 +115,8 @@ class AtlasAIAccountsScreen(
                 "chatgpt" -> "ChatGPT"
                 else -> if (profile != null) "Profile" else "Settings"
             }
+        toolbar.menu.clear()
+        if (accounts.page == "settings") toolbar.browserAction(webPage)
         when (accounts.page) {
             "settings" -> {
                 val identity = profile

@@ -39,8 +39,29 @@ pub fn field(destination: i32, field: i32) -> Option<&'static CStr> {
     match field {
         0 => Some(destination.screen),
         1 => Some(if destination.records { c"1" } else { c"0" }),
+        2 => web_path(destination.screen),
+        3 => Some(match destination.screen {
+            screen if screen == c"accounts" => c"/commercial/sales/accounts",
+            screen if screen == c"tasks" => c"/open/tasks",
+            screen if screen == c"invoices" => c"/open/invoices",
+            _ => c"",
+        }),
         _ => None,
     }
+}
+
+fn web_path(screen: &CStr) -> Option<&'static CStr> {
+    if screen == c"profile" {
+        return Some(c"/settings");
+    }
+    let section = crate::navigation::SECTIONS
+        .iter()
+        .find(|section| section.screen == screen)?;
+    let path = section
+        .url
+        .to_bytes_with_nul()
+        .strip_prefix(b"https://atlas.tuist.dev")?;
+    CStr::from_bytes_with_nul(path).ok()
 }
 
 #[cfg(test)]
@@ -70,6 +91,21 @@ mod tests {
         }
         assert!(field(-1, 0).is_none());
         assert!(field(DESTINATIONS.len() as i32, 0).is_none());
-        assert!(field(0, 2).is_none());
+        assert!(field(0, 4).is_none());
+        let paths: Vec<_> = (0..DESTINATIONS.len() as i32)
+            .map(|index| field(index, 2).unwrap())
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                c"/tasks",
+                c"/commercial/sales/accounts",
+                c"/commercial/finance",
+                c"/people/time-off",
+                c"/people",
+                c"/settings"
+            ]
+        );
+        assert_eq!(paths.iter().collect::<HashSet<_>>().len(), paths.len());
     }
 }

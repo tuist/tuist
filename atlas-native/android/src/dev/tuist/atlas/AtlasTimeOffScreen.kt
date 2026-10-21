@@ -16,6 +16,7 @@ class AtlasTimeOffScreen(
     private val activity: Activity,
     title: String,
     private val model: AtlasTimeOffModel,
+    private val webPage: (() -> Unit)? = null,
 ) {
     val toolbar = Toolbar(activity).apply { this.title = title }
     private val content =
@@ -100,6 +101,8 @@ class AtlasTimeOffScreen(
         }
         if (model.busy) text("Updating holidays…")
         val draft = model.draft
+        toolbar.menu.clear()
+        if (draft == null) toolbar.browserAction(webPage)
         if (draft != null) {
             text(if (draft.id == null) "Request holiday" else "Edit request", true)
             text("Dates are inclusive. Changing approved dates requires approval again.")

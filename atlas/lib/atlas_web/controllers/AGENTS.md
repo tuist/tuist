@@ -15,3 +15,9 @@ Invalid/missing path UUIDs return 404. Invalid fields return 422 with sanitized 
 `GET /api/native/profile` returns only `{server_version, user: {name, email}}` for the bearer caller. Its version is the running OTP application's `Application.spec(:atlas, :vsn)`, compiled from `ATLAS_VERSION` in `mix.exs`; do not substitute MCP's protocol version or invent a revision. It accepts no user selector and grants no profile/settings writes. AI connections reuse `/api/me/llm-providers`.
 
 Controller regressions live in `test/atlas_web/controllers/native_controller_test.exs`. These are backend endpoints; no new database, schema migration, or seed data is needed.
+
+# Native link endpoints
+
+`AtlasWeb.NativeLinksController` serves the app association files and the `/open` landing from the `:native_links` pipeline (secure headers only; no Accept negotiation, session, CSRF, or user lookup). Association files return 404 until `AtlasWeb.NativeLinks.Config` lists verified identities, and set public caching. The Android statement delegates `handle_all_urls` to the fixed `dev.tuist.atlas` package. `/open` validates `screen` and the optional UUID against `AtlasWeb.NativeLinks` and returns 404 otherwise, including encoded slashes and extra segments.
+
+Coverage lives in `test/atlas_web/native_links_test.exs` (allowlist, claimed paths, configuration parsing), `test/atlas_web/controllers/native_links_controller_test.exs` (association files, landing, host-header independence, demo denial), and `test/atlas_web/components/account_menu_test.exs` (header action across LiveView navigation and live patches within one LiveView). Tests stub `AtlasWeb.NativeLinks.Config` with Mimic rather than changing the application environment.

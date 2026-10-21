@@ -17,6 +17,46 @@ struct AtlasNavigationTests {
         }
     }
 
+    @Test func webLinksRoundTripForEveryNativeCapability() throws {
+        for (screen, acceptsRecords) in AtlasCore.destinations() {
+            let page = try #require(AtlasDestination(screen: screen, server: server))
+            #expect(AtlasDestination(url: page.webURL) == page)
+            #expect(AtlasDestination(url: URL(string: "https://atlas.example.org/open/\(screen)")!) == page)
+            if acceptsRecords {
+                let record = try #require(AtlasDestination(screen: screen, recordID: recordID, server: server))
+                #expect(AtlasDestination(url: record.webURL) == record)
+                #expect(AtlasDestination(url: URL(string: "https://atlas.example.org/open/\(screen)/\(recordID)")!) == record)
+                let browser = screen == "accounts" ? URL(string: "https://atlas.example.org/commercial/sales/accounts/\(recordID)")!
+                    : page.browserURL
+                #expect(record.browserURL == browser)
+                if screen == "accounts" { #expect(AtlasDestination(url: record.browserURL) == record) }
+            }
+            #expect(AtlasDestination(url: page.browserURL) == page)
+        }
+    }
+
+    @Test func webLinksNeverInterpretQueryOrFragmentAsCredentialsOrServerOverrides() throws {
+        let url = try #require(URL(string: "https://ATLAS.example.org:443/tasks?token=secret&server=https://evil.example#delete"))
+        let destination = try #require(AtlasDestination(url: url))
+        #expect(destination == AtlasDestination(screen: "tasks", server: server))
+        #expect(destination.webURL.absoluteString == "https://atlas.example.org/open/tasks")
+        #expect(!destination.url.absoluteString.contains("secret"))
+    }
+
+    @Test func rejectsUnsupportedWebRoutesAndAmbiguousPaths() throws {
+        let paths = ["/", "/tasks/", "/tasks/\(recordID)", "/tasks/new", "/settings/ai-providers",
+                     "/auth/login", "/open/people/\(recordID)", "/open/tasks/not-a-uuid", "/open/tasks/\(recordID)/edit",
+                     "/commercial/sales/accounts/new", "/commercial/sales/accounts/\(recordID)/notes",
+                     "/%74asks", "//tasks", "/open/tasks/%2e%2e", "/open/tasks/123E4567-E89B-12D3-A456-426614174000"]
+        for path in paths {
+            #expect(AtlasDestination(url: URL(string: "https://atlas.example.org" + path)!) == nil, "Accepted: \(path)")
+        }
+        for address in ["https:///tasks", "http://atlas.example.org/tasks", "https://user:password@atlas.example.org/tasks",
+                        "https://atlas.example.org:0/tasks", "https://atlas.example.org:65536/tasks"] {
+            #expect(AtlasDestination(url: URL(string: address)!) == nil)
+        }
+    }
+
     @Test func rejectsMalformedAndUntrustedLinks() throws {
         let suffix = "?server=https%3A%2F%2Fatlas.example.org"
         let prefix = "dev.tuist.atlas://navigate/"
@@ -28,7 +68,7 @@ struct AtlasNavigationTests {
             prefix + "tasks", prefix + "tasks" + suffix + "&server=https://atlas.example.org",
             prefix + "tasks" + suffix + "&action=delete", prefix + "tasks" + suffix + "#fragment",
             "dev.tuist.atlas://user@navigate/tasks" + suffix, "dev.tuist.atlas://navigate:443/tasks" + suffix,
-            "https://navigate/tasks" + suffix, "dev.tuist.atlas://oauth-callback/tasks" + suffix,
+            "dev.tuist.atlas://oauth-callback/tasks" + suffix,
             prefix + "tasks?server=http://atlas.example.org", prefix + "tasks?server=https://user@atlas.example.org",
             prefix + "tasks?server=https://atlas.example.org/other", prefix + "tasks?server=https://atlas.example.org%3Fx=1",
             prefix + "tasks?server=https://atlas.example.org%23fragment", prefix + "tasks?server=https://atlas.example.org:0",
@@ -63,9 +103,9 @@ struct AtlasNavigationTests {
         let navigation = AtlasNavigation()
         let task = try #require(AtlasDestination(screen: "tasks", recordID: recordID, server: server))
         let account = try #require(AtlasDestination(screen: "accounts", recordID: recordID, server: server))
-        navigation.receive(task.url, server: nil)
+        navigation.receive(task.webURL, server: nil)
         #expect(navigation.destination == nil)
-        navigation.receive(account.url, server: nil)
+        navigation.receive(account.webURL, server: nil)
         navigation.resolve(server: server)
         #expect(navigation.destination == account)
         #expect(navigation.selection == "accounts")

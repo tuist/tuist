@@ -65,7 +65,6 @@ internal fun checkDestinations() {
             "dev.tuist.atlas://oauth-callback/tasks$server",
             "dev.tuist.atlas://user@navigate/tasks$server",
             "dev.tuist.atlas://navigate:80/tasks$server",
-            "https://atlas.tuist.dev/tasks$server",
             "dev.tuist.atlas://navigate/tasks?server=http://atlas.tuist.dev",
             "dev.tuist.atlas://navigate/tasks?server=https://atlas.tuist.dev:0",
             "dev.tuist.atlas://navigate/tasks?server=https://atlas.tuist.dev:65536",
@@ -116,9 +115,67 @@ internal fun checkDestinations() {
     check(parse("dev.tuist.atlas://navigate/tasks?server=https%3A%2F%2Fatlas.tuist.dev%3A8443")?.server == "https://atlas.tuist.dev:8443/")
 
     checkIOSParity(capabilities)
+    checkWebDestinations(capabilities)
 
     checkDestinationRouter()
     checkRecordLinks()
+}
+
+private fun checkWebDestinations(capabilities: List<dev.tuist.atlas.AtlasDestinationCapability>) {
+    fun parse(url: String) = AtlasDestination.parse(url, capabilities)
+    capabilities.forEach { capability ->
+        val page = AtlasDestination.Link(AtlasDestination(capability.screen), HOSTED)
+        check(parse(requireNotNull(page.webURL(capabilities))) == page)
+        check(parse("${HOSTED}open/${capability.screen}") == page)
+        check(parse(requireNotNull(page.browserURL(capabilities))) == page)
+        if (capability.records) {
+            val record = AtlasDestination.Link(AtlasDestination(capability.screen, RECORD), HOSTED)
+            check(parse(requireNotNull(record.webURL(capabilities))) == record)
+            check(parse("${HOSTED}open/${capability.screen}/$RECORD") == record)
+            if (capability.screen == "accounts") check(parse(requireNotNull(record.browserURL(capabilities))) == record)
+            check(
+                record.browserURL(capabilities) ==
+                    if (capability.screen == "accounts") "${HOSTED}commercial/sales/accounts/$RECORD" else page.browserURL(capabilities),
+            )
+        }
+    }
+    val secretQuery = parse("https://ATLAS.tuist.dev:443/tasks?token=secret&server=https://evil.example#delete")
+    check(secretQuery == AtlasDestination.Link(AtlasDestination("tasks"), HOSTED))
+    check(secretQuery?.webURL(capabilities) == "${HOSTED}open/tasks")
+    val invalidPaths =
+        listOf(
+            "/",
+            "/tasks/",
+            "/tasks/$RECORD",
+            "/tasks/new",
+            "/settings/ai-providers",
+            "/auth/login",
+            "/open/people/$RECORD",
+            "/open/tasks/not-a-uuid",
+            "/open/tasks/$RECORD/edit",
+            "/commercial/sales/accounts/new",
+            "/commercial/sales/accounts/$RECORD/notes",
+            "/%74asks",
+            "//tasks",
+            "/open/tasks/%2e%2e",
+            "/open/tasks/${RECORD.uppercase()}",
+        )
+    invalidPaths.forEach { check(parse(HOSTED.removeSuffix("/") + it) == null) { "Accepted web path $it" } }
+    listOf(
+        "https:///tasks",
+        "http://atlas.tuist.dev/tasks",
+        "https://user:password@atlas.tuist.dev/tasks",
+        "https://atlas.tuist.dev:0/tasks",
+        "https://atlas.tuist.dev:65536/tasks",
+    ).forEach { check(parse(it) == null) }
+    val accountPattern =
+        android.os.PatternMatcher(
+            "/commercial/sales/accounts/........-....-....-....-............",
+            android.os.PatternMatcher.PATTERN_SIMPLE_GLOB,
+        )
+    check(accountPattern.match("/commercial/sales/accounts/$RECORD"))
+    check(!accountPattern.match("/commercial/sales/accounts/new"))
+    check(!accountPattern.match("/commercial/sales/accounts/$RECORD/notes"))
 }
 
 private fun checkDestinationRouter() {
@@ -306,7 +363,6 @@ private fun checkIOSParity(capabilities: List<dev.tuist.atlas.AtlasDestinationCa
                 prefix + "tasks" + suffix + "#fragment",
                 "dev.tuist.atlas://user@navigate/tasks$suffix",
                 "dev.tuist.atlas://navigate:443/tasks$suffix",
-                "https://navigate/tasks$suffix",
                 "dev.tuist.atlas://oauth-callback/tasks$suffix",
                 prefix + "tasks?server=http://atlas.example.org",
                 prefix + "tasks?server=https://user@atlas.example.org",

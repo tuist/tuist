@@ -18,6 +18,10 @@ struct AtlasDestination: Equatable, Hashable {
     }
 
     init?(url: URL) {
+        if url.scheme?.lowercased() == "https" {
+            self.init(webURL: url)
+            return
+        }
         guard url.absoluteString.utf8.count <= 2048,
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               components.scheme?.lowercased() == "dev.tuist.atlas",
@@ -31,6 +35,47 @@ struct AtlasDestination: Equatable, Hashable {
         let parts = components.path.split(separator: "/", omittingEmptySubsequences: false)
         guard parts.count == 2 || parts.count == 3, parts[0].isEmpty else { return nil }
         self.init(screen: String(parts[1]), recordID: parts.count == 3 ? String(parts[2]) : nil, server: server)
+    }
+
+    private init?(webURL: URL) {
+        guard webURL.absoluteString.utf8.count <= 2048,
+              var components = URLComponents(url: webURL, resolvingAgainstBaseURL: false),
+              components.user == nil, components.password == nil,
+              !components.percentEncodedPath.contains("%"), !components.path.contains("\\") else { return nil }
+        let path = components.path
+        components.path = "/"
+        components.query = nil
+        components.fragment = nil
+        guard let server = components.url, Self.origin(server.absoluteString) != nil else { return nil }
+        let pages = AtlasCore.destinationPaths()
+        if let screen = pages.first(where: { $0.value == path })?.key {
+            self.init(screen: screen, server: server)
+            return
+        }
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        if parts.count == 3 || parts.count == 4, parts.first == "", parts[1] == "open" {
+            self.init(screen: String(parts[2]), recordID: parts.count == 4 ? String(parts[3]) : nil, server: server)
+            return
+        }
+        for (screen, prefix) in AtlasCore.destinationPaths(records: true) where !prefix.isEmpty {
+            if path.hasPrefix(prefix + "/") {
+                self.init(screen: screen, recordID: String(path.dropFirst(prefix.count + 1)), server: server)
+                return
+            }
+        }
+        return nil
+    }
+
+    var webURL: URL {
+        URL(string: server + "open/" + screen + (recordID.map { "/" + $0 } ?? ""))!
+    }
+
+    // Do not send the browser escape back through an app-only landing route.
+    var browserURL: URL {
+        let prefix = AtlasCore.destinationPaths(records: true)[screen]!
+        let path = recordID.flatMap { !prefix.isEmpty && !prefix.hasPrefix("/open/") ? "\(prefix)/\($0)" : nil }
+            ?? AtlasCore.destinationPaths()[screen]!
+        return URL(string: server + path.dropFirst())!
     }
 
     var url: URL {

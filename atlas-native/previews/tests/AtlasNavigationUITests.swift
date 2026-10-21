@@ -19,6 +19,19 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertEqual(app.tabBars.buttons.count, 5)
     }
 
+    @MainActor func testHTTPSRecordLinkOpensNativeDetailWithBrowserEscape() {
+        let app = launch(path: "tasks/\(recordID)", web: true)
+        defer { app.terminate() }
+        XCTAssertTrue(app.staticTexts["Deep-linked task beyond the first page"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Open in browser"].exists)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "ios-https-link-native-detail-preview"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["Tasks"].waitForExistence(timeout: 5))
+    }
+
     @MainActor func testMissingRecordHasRetryAndBackWithoutMutationControls() {
         let app = launch(path: "tasks/00000000-0000-0000-0000-000000000000")
         defer { app.terminate() }
@@ -52,9 +65,16 @@ final class AtlasNavigationUITests: XCTestCase {
     }
 
     @MainActor func testWarmRecordLinkReplacesAnExistingDetailAndBackReturnsToList() {
+        exerciseWarmRecordLink("dev.tuist.atlas://navigate/tasks/\(recordID)?server=https%3A%2F%2Fatlas.example.org")
+    }
+
+    @MainActor func testWarmHTTPSRecordLinkReplacesAnExistingDetail() {
+        exerciseWarmRecordLink("https://atlas.example.org/open/tasks/\(recordID)?token=ignored#detail")
+    }
+
+    @MainActor private func exerciseWarmRecordLink(_ url: String) {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
-        app.launchArguments = ["--workspace", "--deep-links", "--resume-destination",
-                               "dev.tuist.atlas://navigate/tasks/\(recordID)?server=https%3A%2F%2Fatlas.example.org"]
+        app.launchArguments = ["--workspace", "--deep-links", "--resume-destination", url]
         app.launch()
         defer { app.terminate() }
         XCUIDevice.shared.orientation = .portrait
@@ -94,10 +114,10 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Claude"].exists)
     }
 
-    @MainActor private func launch(path: String, server: String = "atlas.example.org") -> XCUIApplication {
+    @MainActor private func launch(path: String, server: String = "atlas.example.org", web: Bool = false) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
-        app.launchArguments = ["--workspace", "--deep-links", "--business-pagination", "--destination",
-                               "dev.tuist.atlas://navigate/\(path)?server=https%3A%2F%2F\(server)"]
+        let url = web ? "https://\(server)/open/\(path)" : "dev.tuist.atlas://navigate/\(path)?server=https%3A%2F%2F\(server)"
+        app.launchArguments = ["--workspace", "--deep-links", "--business-pagination", "--destination", url]
         app.launch()
         XCUIDevice.shared.orientation = .portrait
         return app
