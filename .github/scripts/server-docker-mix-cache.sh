@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cache="${RUNNER_TEMP:?}/server-docker-mix-cache"
+cache="${HOME:?}/.cache/tuist-server-docker-mix"
 
 case "${1:-}" in
   prepare)

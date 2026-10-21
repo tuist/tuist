@@ -49,7 +49,7 @@ jobs:
         uses: tuist/cache-volume@v1
         with:
           key: server-image-prod-amd64-mix-benchmark-v1
-          path: ${{ runner.temp }}/server-docker-mix-cache
+          path: ~/.cache/tuist-server-docker-mix
       - name: Seed the shared registry cache and production project snapshot
         run: bash .github/scripts/server-docker-mix-benchmark.sh seed
 
@@ -84,12 +84,12 @@ jobs:
         uses: tuist/cache-volume@v1
         with:
           key: server-image-prod-amd64-mix-benchmark-v1
-          path: ${{ runner.temp }}/server-docker-mix-cache
+          path: ~/.cache/tuist-server-docker-mix
       - name: Require an actual cross-job cache restore
         if: matrix.variant == 'after'
         run: |
           test "$CACHE_HIT" = true
-          test "$(< "$RUNNER_TEMP/server-docker-mix-cache/current/.run-id")" = "$GITHUB_RUN_ID"
+          test "$(< "$HOME/.cache/tuist-server-docker-mix/current/.run-id")" = "$GITHUB_RUN_ID"
           bash .github/scripts/server-docker-mix-cache.sh prepare
         env:
           CACHE_HIT: ${{ steps.mix-cache.outputs.cache-hit }}

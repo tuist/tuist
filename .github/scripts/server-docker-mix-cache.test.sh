@@ -4,9 +4,9 @@ set -euo pipefail
 script="$(cd "$(dirname "$0")" && pwd)/server-docker-mix-cache.sh"
 fixture="$(mktemp -d)"
 trap 'rm -rf "$fixture"' EXIT
-export RUNNER_TEMP="$fixture/path with spaces"
+export HOME="$fixture/path with spaces"
 export GITHUB_OUTPUT="$fixture/output"
-cache="$RUNNER_TEMP/server-docker-mix-cache"
+cache="$HOME/.cache/tuist-server-docker-mix"
 
 bash "$script" prepare
 test -d "$cache/current/_build"

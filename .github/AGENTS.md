@@ -300,6 +300,10 @@ passes `--derived-data-path`, because the coverage export reads the test
 products and the profile from derived data, and the result-bundle fallback it
 takes without one never covers cached code.
 
+Keep persistent cache mounts outside `RUNNER_TEMP`: GitHub's end-of-job temp
+cleanup deletes their contents before the cache-volume backend publishes them.
+A warm attachment alone does not prove the snapshot retained the intended files.
+
 `server-docker-mix-cache.yml` tests the production Mix snapshot bridge. Its manual
 benchmark seeds one shared registry cache and compares the same Dockerfile and
 app change with/without project-build state on fresh large runners. Require a

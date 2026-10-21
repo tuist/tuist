@@ -2,7 +2,7 @@
 set -euo pipefail
 
 scripts="$(cd "$(dirname "$0")" && pwd)"
-cache="${RUNNER_TEMP:?}/server-docker-mix-cache"
+cache="${HOME:?}/.cache/tuist-server-docker-mix"
 registry="ghcr.io/${GITHUB_REPOSITORY,,}-mix-benchmark"
 ref="$registry:${GITHUB_RUN_ID:?}"
 
