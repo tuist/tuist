@@ -109,6 +109,20 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.file_detail(project.id, "abc123", "Missing.swift") == nil
   end
 
+  test "reads the line counts of more paths than one query parameter holds", %{project: project, account: account} do
+    # About 180 KiB of paths bound as one list, past ClickHouse's 128 KiB
+    # `http_max_field_value_size`.
+    paths = for index <- 1..3_000, do: "Sources/Feature#{div(index, 40)}/Implementation/File#{index}.swift"
+    CoverageFixtures.run_with_coverage(project, account, Enum.map(paths, &file(&1, [1, 0])))
+    CoverageFixtures.run_with_coverage(project, account, [file(List.last(paths), [2, 3])], %{scheme: "Other"})
+
+    counts = Commits.line_counts(project.id, "abc123", ["Sources/Missing.swift" | paths])
+
+    assert map_size(counts) == length(paths)
+    assert counts[hd(paths)] == [{1, 1}, {2, 0}]
+    assert counts[List.last(paths)] == [{1, 3}, {2, 3}]
+  end
+
   test "reads a run's scheme off the run, which a client-reported run gets after its coverage published", %{
     project: project,
     account: account

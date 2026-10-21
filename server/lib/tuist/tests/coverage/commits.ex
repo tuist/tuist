@@ -1468,7 +1468,9 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   The merged per-line execution counts of the given paths at the commit,
-  keyed by path, as `{line, count}` pairs in line order.
+  keyed by path, as `{line, count}` pairs in line order. The paths are read
+  in chunks: a list is bound as one parameter, and ClickHouse refuses a
+  parameter longer than `http_max_field_value_size` (128 KiB by default).
   """
   def line_counts(project_id, sha, paths, opts \\ [])
 
@@ -1480,15 +1482,19 @@ defmodule Tuist.Tests.Coverage.Commits do
         %{}
 
       ids ->
-        from(
-          f in Coverage.without_excluded(
-            Coverage.report_files_for_runs(project_id, ids),
-            Coverage.excluded(project_id, opts)
-          ),
-          where: f.path in ^paths and not f.is_test,
-          select: {f.path, f.line_numbers, f.execution_counts}
-        )
-        |> ClickHouseRepo.all()
+        files =
+          Coverage.without_excluded(Coverage.report_files_for_runs(project_id, ids), Coverage.excluded(project_id, opts))
+
+        paths
+        |> Coverage.id_chunks()
+        |> Enum.flat_map(fn chunk ->
+          ClickHouseRepo.all(
+            from(f in files,
+              where: f.path in ^chunk and not f.is_test,
+              select: {f.path, f.line_numbers, f.execution_counts}
+            )
+          )
+        end)
         |> Enum.group_by(&elem(&1, 0), fn {_path, lines, counts} -> Enum.zip(lines, counts) end)
         |> Map.new(fn {path, rows} ->
           {path,
