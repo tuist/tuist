@@ -9,13 +9,21 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
 
   @moduletag :tmp_dir
 
+  setup do
+    stub(HTTP, :request, fn :get, url, nil ->
+      assert String.ends_with?(url, "/.well-known/tuist.json")
+      {:ok, 200, %{"network_trusted_report_publishing" => true}}
+    end)
+
+    :ok
+  end
+
   defp options(directory, overrides \\ %{}) do
     values =
       Map.merge(
         %{
           "TUIST_URL" => "https://tuist.example",
           "TUIST_PROJECT" => "acme/widgets",
-          "TUIST_NETWORK_TRUSTED_PUBLISHING" => "true",
           "XDG_CONFIG_HOME" => directory,
           "TUIST_ACTOR_ID" => "developer-123",
           "USER" => "developer-123"
@@ -130,7 +138,11 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     end
   end
 
-  test "supplied credentials retain authenticated publishing", %{tmp_dir: directory} do
+  test "supplied credentials retain authenticated publishing without discovery", %{
+    tmp_dir: directory
+  } do
+    reject(HTTP, :request, 3)
+
     expect(HTTP, :request, fn :post, _url, _body, headers ->
       assert {"authorization", "Bearer supplied-token"} in headers
       {:ok, 201, %{}}
@@ -147,6 +159,7 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
        %{tmp_dir: directory} do
     path = Path.join([directory, "tuist", "credentials", "tuist.example.json"])
     File.mkdir_p!(Path.dirname(path))
+    reject(HTTP, :request, 3)
     reject(HTTP, :request, 4)
 
     for contents <- [
@@ -252,6 +265,21 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
       assert {:error, message} = Auth.reporting_token(options(directory, %{"TUIST_URL" => url}))
       assert message =~ "self-hosted"
     end
+  end
+
+  test "hosted CI keeps ordinary token caching and skips network-mode discovery", %{
+    tmp_dir: directory
+  } do
+    opts =
+      options(directory, %{
+        "TUIST_URL" => "https://tuist.dev",
+        "CIRCLE_OIDC_TOKEN_V2" => "identity"
+      })
+
+    reject(HTTP, :request, 3)
+    expect(Auth, :token, fn ^opts -> {:ok, "cached-ci-token"} end)
+    refute Auth.network_publishing?(opts)
+    assert {:ok, "cached-ci-token"} = Auth.reporting_token(opts)
   end
 
   test "supplied CI identity is exchanged and never silently ignored", %{tmp_dir: directory} do
@@ -369,12 +397,25 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     assert message =~ "GitHub Actions identity token request"
   end
 
-  test "explicit opt-out keeps ordinary authentication", %{tmp_dir: directory} do
-    expect(Auth, :token, fn _ -> {:error, "authentication required"} end)
+  test "disabled, old, malformed and unavailable servers do not permit unsigned reports", %{
+    tmp_dir: directory
+  } do
+    for response <- [
+          {:ok, 200, %{"network_trusted_report_publishing" => false}},
+          {:ok, 200, %{"network_trusted_report_publishing" => "true"}},
+          {:ok, 200, %{}},
+          {:ok, 404, %{}},
+          {:ok, 302, %{}},
+          {:ok, 503, %{}},
+          {:error, :timeout}
+        ] do
+      expect(HTTP, :request, fn :get, "https://tuist.example/.well-known/tuist.json", nil ->
+        response
+      end)
 
-    assert {:error, "authentication required"} =
-             Auth.reporting_token(
-               options(directory, %{"TUIST_NETWORK_TRUSTED_PUBLISHING" => "false"})
-             )
+      reject(HTTP, :request, 4)
+      assert {:error, message} = Auth.reporting_token(options(directory))
+      assert message =~ "requires authentication"
+    end
   end
 end

@@ -1,9 +1,12 @@
 import Foundation
-import TuistEnvironment
+
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 
 public enum ServerReportPublishingMode {
-    public static var enabled: Bool {
-        Environment.current.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] == "true"
+    @TaskLocal public static var serverAllowsNetworkPublishing: @Sendable (URL) async throws -> Bool = {
+        try await discover($0)
     }
 
     public static func validateDestination(_ url: URL) throws {
@@ -19,15 +22,52 @@ public enum ServerReportPublishingMode {
         serverURL: URL,
         authenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
     ) async throws -> Bool {
-        guard enabled else { return false }
-        // Errors, including corrupt credentials and failed refreshes, never mean signed out.
-        if let token = try await authenticationController.authenticationToken(serverURL: serverURL) {
+        guard (try? validateDestination(serverURL)) != nil else { return false }
+        let token = try await ServerAuthenticationConfig.$current.withValue(.init(backgroundRefresh: false)) {
+            try await authenticationController.authenticationToken(serverURL: serverURL)
+        }
+        if let token {
             guard !token.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             else { throw ServerReportPublishingError.invalidCredentials }
             return false
         }
-        try validateDestination(serverURL)
-        return true
+        return try await serverAllowsNetworkPublishing(serverURL)
+    }
+
+    static func discover(
+        _ serverURL: URL,
+        perform: @Sendable (URLRequest) async throws -> (Data, URLResponse) = performDiscovery
+    ) async throws -> Bool {
+        let url = serverURL.appendingPathComponent(".well-known/tuist.json")
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await perform(request)
+        guard let response = response as? HTTPURLResponse, response.statusCode == 200 else { return false }
+        struct Capabilities: Decodable {
+            let networkTrustedReportPublishing: Bool?
+        }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return (try? decoder.decode(Capabilities.self, from: data))?.networkTrustedReportPublishing == true
+    }
+
+    private static func performDiscovery(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        configuration.urlCredentialStorage = nil
+        let session = URLSession(configuration: configuration, delegate: NoDiscoveryRedirects(), delegateQueue: nil)
+        defer { session.finishTasksAndInvalidate() }
+        return try await session.data(for: request)
+    }
+}
+
+private final class NoDiscoveryRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _: URLSession, task _: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
     }
 }
 

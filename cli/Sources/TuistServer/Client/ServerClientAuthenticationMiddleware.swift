@@ -44,14 +44,20 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         let config = ServerAuthenticationConfig.current
         let reportOperation = networkTrustedReports &&
             ["createBuild", "createBuild (2)", "createTest"].contains(operationID)
-        let networkReport = reportOperation && ServerReportPublishingMode.enabled
 
         let token: AuthenticationToken?
         do {
-            token = try await serverAuthenticationController.authenticationToken(
-                serverURL: urlForAuthentication,
-                refreshIfNeeded: true
-            )
+            token = try await ServerAuthenticationConfig.$current.withValue(
+                .init(
+                    backgroundRefresh: reportOperation ? false : config.backgroundRefresh,
+                    optionalAuthentication: config.optionalAuthentication
+                )
+            ) {
+                try await serverAuthenticationController.authenticationToken(
+                    serverURL: urlForAuthentication,
+                    refreshIfNeeded: true
+                )
+            }
         } catch {
             if config.optionalAuthentication, !reportOperation {
                 return try await next(request, body, baseURL)
@@ -60,16 +66,18 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         }
 
         guard let token else {
-            if networkReport {
+            if reportOperation {
                 try ServerReportPublishingMode.validateDestination(baseURL)
-                return try await next(request, body, baseURL)
+                if try await ServerReportPublishingMode.serverAllowsNetworkPublishing(baseURL) {
+                    return try await next(request, body, baseURL)
+                }
             }
             if config.optionalAuthentication, !reportOperation {
                 return try await next(request, body, baseURL)
             }
             throw ClientAuthenticationError.notAuthenticated
         }
-        if networkReport, token.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if reportOperation, token.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw ServerReportPublishingError.invalidCredentials
         }
         addAuthorizationHeader(to: &request, token: token)

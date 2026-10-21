@@ -46,23 +46,19 @@ defmodule TuistEx.Auth do
   def reporting_token(options \\ []) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
 
-    if network_publishing_enabled?(options, environment) do
-      server_url = server_url(options, environment)
+    server_url = server_url(options, environment)
 
-      case environment.("TUIST_TOKEN") do
-        nil ->
-          stored_or_network_token(server_url, environment, options)
+    case environment.("TUIST_TOKEN") do
+      nil ->
+        stored_or_network_token(server_url, environment, options)
 
-        token when is_binary(token) ->
-          if String.trim(token) == "",
-            do: {:error, "TUIST_TOKEN must not be blank"},
-            else: {:ok, token}
+      token when is_binary(token) ->
+        if String.trim(token) == "",
+          do: {:error, "TUIST_TOKEN must not be blank"},
+          else: {:ok, token}
 
-        _ ->
-          {:error, "Invalid TUIST_TOKEN"}
-      end
-    else
-      __MODULE__.token(options)
+      _ ->
+        {:error, "Invalid TUIST_TOKEN"}
     end
   end
 
@@ -84,22 +80,8 @@ defmodule TuistEx.Auth do
   def network_publishing?(options) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
 
-    network_publishing_enabled?(options, environment) and
+    not hosted_destination?(server_url(options, environment)) and
       __MODULE__.reporting_token(options) == {:ok, nil}
-  end
-
-  defp network_publishing_enabled?(options, environment) do
-    case environment.("TUIST_NETWORK_TRUSTED_PUBLISHING") do
-      nil ->
-        Keyword.get(
-          options,
-          :network_trusted_publishing,
-          Keyword.get(Config.project_tuist_config(options), :network_trusted_publishing, false)
-        ) == true
-
-      value ->
-        value == "true"
-    end
   end
 
   defp provider_or_network_token(server_url, environment, options) do
@@ -111,18 +93,23 @@ defmodule TuistEx.Auth do
         &(not is_nil(environment.(&1)))
       )
 
-    if supplied do
-      case identity_token(environment, options) do
-        {:ok, identity} -> exchange(server_url, identity)
-        {:error, _} = error -> error
-        :unsupported -> {:error, "Invalid OpenID Connect environment"}
-      end
-    else
-      network_token(server_url)
+    cond do
+      supplied and hosted_destination?(server_url) ->
+        __MODULE__.token(options)
+
+      supplied ->
+        case identity_token(environment, options) do
+          {:ok, identity} -> exchange(server_url, identity)
+          {:error, _} = error -> error
+          :unsupported -> {:error, "Invalid OpenID Connect environment"}
+        end
+
+      true ->
+        network_token(server_url)
     end
   end
 
-  defp network_token(server_url) do
+  defp hosted_destination?(server_url) do
     host =
       server_url
       |> URI.parse()
@@ -130,11 +117,22 @@ defmodule TuistEx.Auth do
       |> String.downcase()
       |> String.trim_trailing(".")
 
-    if host in ["tuist.dev", "tuist.io", "cloud.tuist.io", "cloud.tuist.dev"] or
-         String.ends_with?(host, ".tuist.dev") or String.ends_with?(host, ".tuist.io") do
+    host in ["tuist.dev", "tuist.io", "cloud.tuist.io", "cloud.tuist.dev"] or
+      String.ends_with?(host, ".tuist.dev") or String.ends_with?(host, ".tuist.io")
+  end
+
+  defp network_token(server_url) do
+    if hosted_destination?(server_url) do
       {:error, "Credential-free publishing requires a configured self-hosted Tuist server URL."}
     else
-      {:ok, nil}
+      case HTTP.request(:get, server_url <> "/.well-known/tuist.json", nil) do
+        {:ok, 200, %{"network_trusted_report_publishing" => true}} ->
+          {:ok, nil}
+
+        _ ->
+          {:error,
+           "This Tuist server requires authentication to publish reports. Sign in to continue."}
+      end
     end
   end
 

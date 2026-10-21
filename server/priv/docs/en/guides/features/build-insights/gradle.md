@@ -57,14 +57,11 @@ Configure the destination once in the repository:
 tuist {
     project = "organization/project"
     url = "https://tuist.internal.example"
-    buildInsights {
-        networkTrustedPublishing = true
-    }
     buildCache { enabled = false }
 }
 ```
 
-Build and test reporting do not require authenticated cache endpoint discovery. Cache access still requires credentials: disable the cache if developers are not provisioning tokens. Unsigned test reports omit shard and existing-build references and do not drive quarantine or flakiness automations. Quarantine lookup is skipped when credentials are genuinely absent; with valid credentials, existing authenticated behavior is preserved. If credentials are present, they are still used and invalid credentials fail rather than falling back to credential-free publishing. Older servers reject credential-free reports with their normal authentication error; authenticated publishing remains compatible. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=true` as an alternative client opt-in, or `false` to override the configuration and disable credential-free reporting. An explicitly empty `TUIST_TOKEN` fails closed rather than enabling credential-free publication. For fork or Dependabot jobs without secrets, remove that variable instead of defining it as an empty string.
+Build and test reporting do not require authenticated cache endpoint discovery. Cache access still requires credentials: disable the cache if developers are not provisioning tokens. Unsigned test reports omit shard and existing-build references and do not drive quarantine or flakiness automations. Quarantine lookup is skipped when credentials are genuinely absent; with valid credentials, existing authenticated behavior is preserved. If credentials are present, they are still used and invalid credentials fail rather than falling back to credential-free publishing. When credentials are absent, the plugin automatically discovers whether the self-hosted server permits credential-free reporting. No client flag or `buildInsights` setting is required. Older servers without discovery, disabled instances, and discovery errors still require authentication; authenticated publishing remains compatible. An explicitly empty `TUIST_TOKEN` fails closed rather than enabling credential-free publication. For fork or Dependabot jobs without secrets, remove that variable instead of defining it as an empty string.
 
 The server assigns credential-free report IDs. Repeating a submission can create a second report; this mode does not promise idempotent retries or correlation with authenticated test reports. Such reports cannot trigger VCS comments or automatic failure-agent events. Network access is the publishing trust boundary, not proof of the reported actor's identity.
 

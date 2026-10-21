@@ -133,12 +133,13 @@ struct BazelSetupCommandServiceTests {
     func network_reporting_needs_no_login_or_cache_discovery() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
-        environment.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] = "true"
         environment.variables["TUIST_BAZEL_BES_BACKEND"] = "grpcs://cache.example:443"
         let (subject, authentication, _, probe) = makeSubject(serverURL: try #require(URL(string: "https://tuist.example")))
         given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
         try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
-        try await subject.run(directory: directory.pathString)
+        try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+            try await subject.run(directory: directory.pathString)
+        }
         let contents = try await fileSystem.readTextFile(at: directory.appending(component: ".bazelrc.tuist"))
         #expect(contents.contains("--bes_backend=grpcs://cache.example:443"))
         #expect(contents.contains("--bes_header=x-tuist-network-trusted-publishing=true"))
