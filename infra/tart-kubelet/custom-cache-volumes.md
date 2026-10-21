@@ -49,7 +49,11 @@ forced detach and abrupt shutdown produce no eligible marker. The host waits
 for API Pod absence **and** a stopped Tart process before inspecting the image.
 It attaches the disk device with `hdiutil -readonly -nomount -noautofsck`, checks
 the raw APFS partition with `fsck_apfs -n` without mounting its filesystem in the
-host kernel, persists a verification guard, uploads the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
+host kernel, and reads the container's `Capacity In Use By Volumes` from
+`diskutil apfs list` on that unmounted container. An image holding clearly less
+than the guest measured before detaching is poisoned (result `incomplete`): it
+passes fsck but mounts as an older state of the volume, empty for a new one.
+It then persists a verification guard, uploads the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
 Only an accepted image becomes a local master. A failed upload retries without
 reformatting or consuming another verification; a crash during verification
 poisons the branch. Expired or cleared generations cannot publish later.

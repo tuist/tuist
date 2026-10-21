@@ -18,7 +18,7 @@ func newAPFS(t *testing.T) (*APFSImages, *testTransfer) {
 			t.Fatal(size)
 		}
 		return os.WriteFile(path, []byte("cold APFS"), 0600)
-	}, Verify: func(string) error { return nil }}
+	}, Verify: func(string) (int64, error) { return 1 << 40, nil }}
 	b.Run = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		if name != "cp" || args[0] != "-c" {
 			t.Fatalf("unexpected %s %v", name, args)
@@ -166,7 +166,7 @@ func TestAPFSNoPublicationWithoutCleanDetach(t *testing.T) {
 				detached(t, path, "other")
 			case "failed verification":
 				detached(t, path, slot.ID)
-				b.Verify = func(string) error { return errors.New("disk failure") }
+				b.Verify = func(string) (int64, error) { return 0, errors.New("disk failure") }
 			case "interrupted verification":
 				detached(t, path, slot.ID)
 				_ = os.WriteFile(b.image(slot)+".checking", nil, 0600)

@@ -83,6 +83,10 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Publication requires API pod absence, stopped Tart VM, guest clean-detach
   proof, userspace APFS verification on an unmounted device and server publication eligibility. A webhook
   or terminal pod phase alone never fences writers.
+  `verifyCustomImage` also returns the unmounted container's in-use bytes
+  (`diskutil apfs list`), which `Seal` compares with the guest's measurement:
+  writes the guest made through its share can be lost, and such an image passes
+  fsck (result `incomplete`, see `runner-cache/AGENTS.md`).
   The guest side of the clean detach (`tuist-cache-volume --detach-all`, and
   `dispatch-poll.sh` stopping the Tuist CLI's launch agents first) ships in the
   runner image, not with tart-kubelet, so it rolls out with an image release.

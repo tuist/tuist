@@ -21,8 +21,10 @@ type APFSImages struct {
 	LocalImages
 	Create  func(context.Context, string, int64) error
 	Reserve func(context.Context, Slot) (func(bool), error)
-	Verify  func(string) error
-	Detach  func(string) error
+	// Verify checks a detached branch image on an unmounted read-only device and
+	// returns the bytes its APFS container holds.
+	Verify func(string) (int64, error)
+	Detach func(string) error
 	// Grow extends a private copy's image to the given capacity before the guest
 	// sees it, never shrinking it and never attaching its filesystem. The guest
 	// grows the APFS container. Nil leaves copies at their saved size.
@@ -319,6 +321,29 @@ func (b *APFSImages) MarkPressure(slot Slot) error {
 // publish its untouched clone.
 var ErrReplaced = fmt.Errorf("%w: cache share image was replaced", ErrPoisoned)
 
+// ErrIncomplete poisons a branch whose image holds clearly less than the guest
+// measured before its clean detach: writes the guest made through its share,
+// or the checkpoint recording them, never reached the host, so the image would
+// restore an older state of the volume, empty for a new one.
+var ErrIncomplete = fmt.Errorf("%w: image holds less than the guest wrote", ErrPoisoned)
+
+// incompleteSlackBytes is how far below the guest's measurement the host's may
+// fall before a branch is incomplete. An intact image measures the same.
+const incompleteSlackBytes = 32 << 20
+
+// verifyHolds verifies a detached branch image and checks that it holds what
+// the guest measured.
+func (b *APFSImages) verifyHolds(image string, usage GuestUsage) error {
+	held, err := b.Verify(image)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrPoisoned, err)
+	}
+	if usage.Used-held > max(incompleteSlackBytes, usage.Used/100) {
+		return fmt.Errorf("%w: %d of %d bytes", ErrIncomplete, held, usage.Used)
+	}
+	return nil
+}
+
 // sharedImage checks that the share directory still exposes image itself.
 func sharedImage(image string, dir *os.File) error {
 	var source, destination unix.Stat_t
@@ -381,7 +406,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if !usage.Changed {
 		// A branch cloned from an older generation holds that generation's content.
 		if b.MountedGeneration(slot) == 0 {
-			b.keepUnchanged(slot, func() error { return b.Verify(image) })
+			b.keepUnchanged(slot, func() error { return b.verifyHolds(image, usage) })
 		}
 		return ErrUnchanged
 	}
@@ -400,8 +425,8 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 		if err = syncFile(filepath.Dir(image)); err != nil {
 			return err
 		}
-		if err := b.Verify(image); err != nil {
-			return fmt.Errorf("%w: %v", ErrPoisoned, err)
+		if err := b.verifyHolds(image, usage); err != nil {
+			return err
 		}
 		metrics, _ := json.Marshal([2]int64{usage.Used, usage.Capacity})
 		if err = os.WriteFile(image+".metrics", metrics, 0600); err != nil {

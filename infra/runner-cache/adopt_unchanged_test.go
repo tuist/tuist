@@ -56,7 +56,7 @@ func TestAPFSKeepsTheMasterAnUnchangedBranchWasClonedFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 	verified := false
-	b.Verify = func(string) error { verified = true; return nil }
+	b.Verify = func(string) (int64, error) { verified = true; return 1 << 40, nil }
 
 	if err := b.Seal(slot, path); Result(err) != "unchanged" {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestAPFSNeverKeepsAnUnchangedBranchOfAnOlderGeneration(t *testing.T) {
 func TestAPFSNeverKeepsAnUnchangedBranchThatFailsVerification(t *testing.T) {
 	b, _, slot, path := finishedClone(t, map[string]any{"used_bytes": 3, "capacity_bytes": 20_000_000_000, "changed": false})
 	evictMaster(t, &b.LocalImages, slot)
-	b.Verify = func(string) error { return errors.New("fsck failed") }
+	b.Verify = func(string) (int64, error) { return 0, errors.New("fsck failed") }
 
 	if err := b.Seal(slot, path); Result(err) != "unchanged" {
 		t.Fatal(err)

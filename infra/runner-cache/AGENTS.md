@@ -90,6 +90,16 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `publish` withholds a branch whose content digest equals its base's
   (`ErrIdentical`, result `identical`): the guest reported changes that never
   reached the host, and publishing would only advance the generation.
+- APFS `Verify` returns the bytes the image's container holds, which equals
+  the guest's `.usage` `used_bytes` (statfs before detach) when every write
+  arrived. `Seal` and `keepUnchanged` poison a branch holding more than
+  max(32 MiB, 1%) less (`ErrIncomplete`, result `incomplete`). This also
+  catches a cold branch, which has no base digest for `ErrIdentical`. Evidence:
+  on 2026-10-21 a guest wrote 100 MB into a new volume and measured 149,708,800
+  bytes; the published image held every data band (114,298,880 allocated bytes)
+  but mounted as the formatted volume (49,688,576 bytes), and the next job
+  restored it empty. The guest halts gracefully after detaching, so the writes
+  were lost, not left in its cache: a stronger guest flush would not help.
 - `LocalImages` (Linux) decides the same on the host, while the volume is still
   mounted and before verification: `ErrFull` from `MeasureFS`, `ErrUnchanged`
   when the top-level entries match `<image>.entries` and no entry's ctime is
