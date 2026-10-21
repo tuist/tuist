@@ -263,7 +263,7 @@ jobs:
           test "$(command -v tuist-cache-volume)" = "$RUNNER_TEMP/bin/tuist-cache-volume"
           requested=$(( ${SIZE%[gG][bB]} * 1000000000 ))
           paths=(.tuist-sizes-smoke/one .tuist-sizes-smoke/two "$HOME/.tuist-sizes-smoke")
-          capacity() { df -Pk "$1/" | awk 'NR == 2 { print $2 * 1024 }'; }
+          capacity() { echo $(( $(df -Pk "$1/" | awk 'NR == 2 { print $2 }') * 1024 )); }
           sized=$(capacity "${paths[0]}")
           default=$(capacity .tuist-sizes-smoke/default)
           for path in "${paths[@]:1}"; do
