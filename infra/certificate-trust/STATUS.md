@@ -92,6 +92,20 @@ application verification paths must be assessed separately.
   not the default session's certificate-untrusted error. This is scoped source
   and current-macOS evidence, not a released client or Linux/iOS qualification.
 
+- Android embeds the policy in authenticated/plain clients and the separate
+  singleton image loader, with service-loader network fallback disabled. Original
+  socket/engine checks precede the deny over the native complete path; reflective
+  methods are kept by R8 and the API-28 method is guarded for minSdk 26. All 58
+  unit tests pass, including 18 policy cases across Robolectric 26/28/35. Debug
+  APK/native-test APK and release R8 compilation pass. Six real API 35 arm64
+  emulator tests pass: constructed anchors, root/leaf denies through private
+  `TrustManagerImpl` and default NSC `RootTrustManager`, hostname, unknown CA,
+  expiry, bad signature, twelve public negatives and unrelated HTTPS.
+  Native reference TLS already rejects all twelve public controls, so those
+  negatives alone do not prove our deny; injected-key cases do. The API generator
+  empty-enum build failure was fixed without wire-value changes. API26/28 devices,
+  physical devices, per-domain NSC, CT-enabled/target changes and signed release
+  artifacts remain open; browser OAuth and installed clients are separate gates.
 - Gradle now applies a per-client `X509ExtendedTrustManager` to both OkHttp and
   HTTPS URL connections. It retains the original validator and socket/engine
   context, rejects the twelve keys, and performs additional validation against

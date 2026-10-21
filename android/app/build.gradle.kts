@@ -19,6 +19,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -73,6 +74,7 @@ android {
     }
 
     sourceSets["main"].java.srcDir("${layout.buildDirectory.get()}/generated/openapi/src/main/kotlin")
+    sourceSets["androidTest"].assets.srcDir("src/test/resources")
 }
 
 play {
@@ -126,7 +128,13 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.okhttp.tls)
     testImplementation(libs.robolectric)
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(libs.okhttp.tls)
 }
 
 openApiGenerate {
