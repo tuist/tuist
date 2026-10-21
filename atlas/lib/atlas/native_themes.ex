@@ -47,14 +47,18 @@ defmodule Atlas.NativeThemes do
   def validate(_), do: :error
 
   defp theme?(theme) when is_map(theme) do
-    text?(theme["id"], 64) and Regex.match?(~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/, theme["id"]) and
-      theme["id"] != "server-default" and
+    id?(theme["id"]) and
       text?(theme["name"], 80) and text?(theme["description"], 160) and
       theme["typography"] in ~w(standard strong rounded) and radius?(theme["button_radius"], 24) and
       radius?(theme["card_radius"], 32) and palette?(theme["light"]) and palette?(theme["dark"])
   end
 
   defp theme?(_), do: false
+
+  defp id?(value) do
+    text?(value, 64) and value != "server-default" and
+      Regex.match?(~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/, value)
+  end
 
   defp text?(value, max),
     do: is_binary(value) and byte_size(value) in 1..max and String.trim(value) != ""

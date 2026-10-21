@@ -147,11 +147,13 @@ config :atlas, AtlasWeb.Endpoint, endpoint_config
 config :atlas, :demo_mode, demo_mode
 
 if native_themes = System.get_env("ATLAS_NATIVE_THEME_CATALOG") do
-  config :atlas, :native_theme_catalog,
+  catalog =
     case Jason.decode(native_themes) do
       {:ok, catalog} -> catalog
       {:error, _} -> nil
     end
+
+  config :atlas, :native_theme_catalog, catalog
 end
 
 config :atlas, :gtm_email,

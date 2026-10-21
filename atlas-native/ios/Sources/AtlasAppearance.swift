@@ -136,8 +136,9 @@ final class AtlasAppearance: ObservableObject {
     }
 
     nonisolated static func bridge(_ action: [String: Any]) async throws -> Data {
-        let input = try JSONSerialization.data(withJSONObject: action)
-        let output = try await AtlasAuthBridge.execute(String(decoding: input, as: UTF8.self))
+        let data = try JSONSerialization.data(withJSONObject: action)
+        guard let input = String(bytes: data, encoding: .utf8) else { throw CancellationError() }
+        let output = try await AtlasAuthBridge.execute(input)
         let envelope = try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
         guard let value = envelope?["ok"] else { throw CancellationError() }
         return try JSONSerialization.data(withJSONObject: value)
@@ -159,9 +160,10 @@ struct AtlasPrimaryAction: ViewModifier {
     @Environment(\.atlasTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.isEnabled) private var enabled
 
     @ViewBuilder func body(content: Content) -> some View {
-        if contrast == .increased {
+        if contrast == .increased || !enabled {
             content
         } else {
             let palette = theme?.palette(scheme)
@@ -190,7 +192,8 @@ struct AtlasThemeScope: ViewModifier {
         let active = server != nil && server == appearance.server
         let theme = active ? appearance.theme : nil
         let palette = theme?.palette(appearance.mode.scheme ?? scheme)
-        let tint = contrast == .increased ? Color(uiColor: .systemBlue) : palette.map { Color(atlasHex: $0.tint) } ?? AtlasSettingsStyle.tint
+        let tint = contrast == .increased ? Color(uiColor: .systemBlue)
+            : palette.map { Color(atlasHex: $0.tint) } ?? AtlasSettingsStyle.tint
         content
             .environmentObject(appearance)
             .environment(\.atlasTheme, contrast == .increased ? nil : theme)
