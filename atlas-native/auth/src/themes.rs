@@ -89,8 +89,8 @@ pub(crate) fn validate(value: Value) -> Result<Value> {
                 && matches!(theme.typography.as_str(), "standard" | "strong" | "rounded")
                 && (0.0..=24.0).contains(&theme.button_radius)
                 && (0.0..=32.0).contains(&theme.card_radius)
-                && palette(&theme.light)
-                && palette(&theme.dark)
+                && palette(&theme.light, "#FFFFFF")
+                && palette(&theme.dark, "#1C1C1E")
         })
         || !ids.contains(&catalog.default_theme_id)
     {
@@ -103,7 +103,7 @@ fn text(value: &str, max: usize) -> bool {
     !value.trim().is_empty() && value.len() <= max
 }
 
-fn palette(palette: &Palette) -> bool {
+fn palette(palette: &Palette, native_surface: &str) -> bool {
     let colors = [
         &palette.background,
         &palette.surface,
@@ -126,6 +126,7 @@ fn palette(palette: &Palette) -> bool {
                 .all(|color| contrast(color, surface) >= 4.5)
         })
         && contrast(&palette.accent, &palette.on_accent) >= 4.5
+        && contrast(&palette.tint, native_surface) >= 4.5
 }
 
 fn contrast(left: &str, right: &str) -> f64 {
@@ -217,6 +218,23 @@ mod tests {
             ))
             .unwrap();
             assert_eq!(output["error"]["kind"], "invalid_theme", "{path}");
+        }
+        for (mode, surface, text) in [
+            ("light", "#000000", "#FFFFFF"),
+            ("dark", "#FFFFFF", "#000000"),
+        ] {
+            let mut catalog = defaults();
+            for token in ["background", "surface"] {
+                catalog["themes"][0][mode][token] = json!(surface);
+            }
+            for token in ["text", "secondary_text", "tint"] {
+                catalog["themes"][0][mode][token] = json!(text);
+            }
+            let output: Value = serde_json::from_str(&bridge::execute(
+                &json!({"operation": "validate_themes", "catalog": catalog}).to_string(),
+            ))
+            .unwrap();
+            assert_eq!(output["error"]["kind"], "invalid_theme", "{mode}");
         }
         let mut duplicate = defaults();
         duplicate["themes"]

@@ -19,6 +19,28 @@ defmodule Atlas.NativeThemesTest do
     assert NativeThemes.catalog(company) == company
   end
 
+  test "native control tint stays readable when company surfaces differ from system rows" do
+    defaults = NativeThemes.catalog(nil)
+
+    for {mode, surface, text} <- [{"light", "#000000", "#FFFFFF"}, {"dark", "#FFFFFF", "#000000"}] do
+      palette =
+        defaults["themes"]
+        |> hd()
+        |> Map.fetch!(mode)
+        |> Map.merge(%{
+          "background" => surface,
+          "surface" => surface,
+          "text" => text,
+          "secondary_text" => text,
+          "tint" => text
+        })
+
+      catalog = put_in(defaults, ["themes", Access.at(0), mode], palette)
+      assert :error = NativeThemes.validate(catalog)
+      assert NativeThemes.catalog(catalog) == defaults
+    end
+  end
+
   test "invalid versions, defaults, duplicate IDs, and unreadable colors fall back safely" do
     defaults = NativeThemes.catalog(nil)
 

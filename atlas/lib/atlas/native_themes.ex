@@ -45,7 +45,7 @@ defmodule Atlas.NativeThemes do
     id?(theme["id"]) and
       text?(theme["name"], 80) and text?(theme["description"], 160) and
       theme["typography"] in ~w(standard strong rounded) and radius?(theme["button_radius"], 24) and
-      radius?(theme["card_radius"], 32) and palette?(theme["light"]) and palette?(theme["dark"])
+      radius?(theme["card_radius"], 32) and palette?(theme["light"], "#FFFFFF") and palette?(theme["dark"], "#1C1C1E")
   end
 
   defp theme?(_), do: false
@@ -59,16 +59,17 @@ defmodule Atlas.NativeThemes do
 
   defp radius?(value, max), do: is_number(value) and value >= 0 and value <= max
 
-  defp palette?(palette) when is_map(palette) do
+  defp palette?(palette, native_surface) when is_map(palette) do
     Enum.all?(@palette_keys, fn key ->
       is_binary(palette[key]) and Regex.match?(~r/\A#[0-9a-fA-F]{6}\z/, palette[key])
     end) and
       Enum.all?(~w(background surface), fn surface ->
         Enum.all?(~w(text secondary_text tint), &(contrast(palette[&1], palette[surface]) >= 4.5))
-      end) and contrast(palette["accent"], palette["on_accent"]) >= 4.5
+      end) and contrast(palette["accent"], palette["on_accent"]) >= 4.5 and
+      contrast(palette["tint"], native_surface) >= 4.5
   end
 
-  defp palette?(_), do: false
+  defp palette?(_, _), do: false
 
   defp contrast(left, right) do
     a = luminance(left)
