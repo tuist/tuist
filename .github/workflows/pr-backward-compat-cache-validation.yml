@@ -108,6 +108,33 @@ jobs:
           "$TUIST_EXECUTABLE" generate App --path "$work/app" --no-open 2>&1 | tail -4
           grep -c xcframework "$work"/app/*.xcodeproj/project.pbxproj || true
           grep -oE 'path = [^;]*xcframework[^;]*' "$work"/app/*.xcodeproj/project.pbxproj | sort -u | head
+      - name: "Diagnostics: the original flow against canary, tracking every binary it writes"
+        continue-on-error: true
+        env:
+          TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
+        run: |
+          work="$RUNNER_TEMP/bc-remote"
+          rm -rf "$work" && mkdir -p "$work/xdg"
+          cp -R e2e/fixtures/module_cache_app "$work/app"
+          handle="tuist/bc-diag-$(uuidgen | tr 'A-Z' 'a-z' | tr -d '-' | cut -c1-10)"
+          printf 'import ProjectDescription\n\nlet tuist = Tuist(fullHandle: "%s", url: "%s")\n' "$handle" "$TUIST_URL" > "$work/app/Tuist.swift"
+          export XDG_CACHE_HOME="$work/xdg/cache" XDG_STATE_HOME="$work/xdg/state" XDG_CONFIG_HOME="$work/xdg/config"
+          cd "$work/app"
+          "$TUIST_EXECUTABLE" auth login --email "$TUIST_AUTH_EMAIL" --password "$TUIST_AUTH_PASSWORD" --url "$TUIST_URL" >/dev/null
+          "$TUIST_EXECUTABLE" project create "$handle" --path "$work/app" --build-system xcode >/dev/null
+          marker="$work/marker" && touch "$marker"
+          "$TUIST_EXECUTABLE" cache --path "$work/app" 2>&1 | grep -E 'stored|Failed|failed' || true
+          echo "-- Framework xcframeworks written by tuist cache, outside the fixture"
+          find "$HOME" "$RUNNER_TEMP" /tmp /private/var/folders -newer "$marker" -type d -name 'Framework.xcframework' -not -path "$work/app/*" 2>/dev/null | head -20
+          rm -rf "${XDG_CACHE_HOME:?}"/*
+          touch "$marker"
+          "$TUIST_EXECUTABLE" generate App --path "$work/app" --no-open 2>&1 | grep -E 'Using cache|failed|Unable|Total time' || true
+          echo "-- xcframework references in the generated project: $(grep -c xcframework "$work"/app/*.xcodeproj/project.pbxproj || true)"
+          grep -oE 'path = [^;]*xcframework[^;]*' "$work"/app/*.xcodeproj/project.pbxproj | sort -u | head
+          echo "-- Framework xcframeworks written by generate"
+          find "$HOME" "$RUNNER_TEMP" /tmp /private/var/folders -newer "$marker" -type d -name 'Framework.xcframework' -not -path "$work/app/*" 2>/dev/null | head -20
+          "$TUIST_EXECUTABLE" project delete "$handle" --path "$work/app" >/dev/null 2>&1 || true
+          "$TUIST_EXECUTABLE" auth logout --url "$TUIST_URL" >/dev/null 2>&1 || true
       - name: Run backward-compatibility acceptance test
         env:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
