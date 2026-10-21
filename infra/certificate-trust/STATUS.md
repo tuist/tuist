@@ -1,6 +1,7 @@
 # eMudhra remediation handoff
 
-Recorded **2026-10-21**. This is source work, not fleet remediation. See the
+Recorded **2026-10-21**, updated after staging application qualification. This
+is not complete fleet remediation. See the
 [warm-rollout runbook](README.md). **Do not merge the aggregate change as one
 fleet rollout.** Main path filters fan out to independent deployment owners.
 
@@ -21,9 +22,46 @@ fleet rollout.** Main path filters fan out to independent deployment owners.
   Image pins are not blindly reverted, which could downgrade an already patched
   deployment. A differing serving image still requires explicit qualification.
 
-**No images were published or deployed by this work. No active jobs were killed,
-Kubernetes Secrets read, Pods executed, elevation approved, admin kubeconfig
-retrieved or developer-host trust settings changed.**
+**Staging application images were built, published and deployed.** No active
+jobs were manually killed, Kubernetes Secrets read locally, elevation approved,
+admin kubeconfig retrieved or developer-host trust settings changed. Bounded
+checks ran inside the deployed staging server container.
+
+## Verified staging application rollout
+
+[Deployment run 39620482312](https://github.com/tuist/tuist/actions/runs/39620482312)
+successfully deployed `1f29911425` as `sha-1f29911425d1`. Server, processor,
+registry sync, Registry and Codebase Search reached full Ready replicas with
+zero restarts; migrations and workflow smoke tests passed. Public readiness,
+homepage and Registry checks, plus the allowed Codebase Search client check,
+returned HTTP 200.
+
+The running server container's OS bundle passed all 12 SPKI checks, rejected the
+AAA-issued negative control and accepted the ISRG R11 positive control. A fresh
+OTP process in that deployed image passed the same policy and verified HTTPS to
+Let's Encrypt and GitHub. Distribution is intentionally disabled for this
+single-replica server, so this was `eval`, not inspection of the running BEAM's
+existing CA cache. Root removal is containment, not a compiled intermediate-key
+verifier patch.
+
+Platform, observability and Tailscale installs were skipped. Kura, CAPI,
+runners-controller/cache agent, egress agent, Linux runner and xcresult versions
+were explicitly pinned. Normal workflow resolution advanced macOS runner pins
+to released `0.43.1`; warm floors were unchanged and observed 26.5/26.6 runners
+were Ready and polling. Those guests are not fresh builds of this mitigation.
+The independent `kura-spec98` experiments were not mutated by this session.
+
+One registry-sync startup telemetry error was observed:
+`Finch.get_pool_status(Tuist.Finch, nil)` raises `function_clause`. The worker
+remains Ready with zero restarts; its metrics plugin and Finch dependencies
+are unchanged from the previous staging deployment. Do not describe this as an
+all-error-free run.
+
+Follow-up CI fixes align Grafana's Go lock metadata with 1.26.10 and check that
+alignment in the policy suite, apply the reported certifi/runtime formatting,
+and use the larger runner for Linux image validation after a lost-runner failure.
+The PR contains a scoped staging-test admonition. Canary/production and the
+remaining host/guest/vendor paths are not qualified by that note.
 
 ## Validation and limits
 

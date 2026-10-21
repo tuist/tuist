@@ -50,7 +50,8 @@ only — they are intentionally not part of the generated CLI client.
   The public `docker-compose.yaml` overrides the generated harness's old
   `GO_VERSION` default with 1.26.10; use Compose rather than building `.config/`
   directly without that argument. Qualify new SDKs with the certificate-trust
-  Go verifier, not release-number ordering.
+  Go verifier, not release-number ordering. Refresh the Go entries in `mise.lock`
+  with `mise lock go` whenever changing the SDK pin; CI installs in locked mode.
 
 ## Releasing / publishing
 

@@ -69,7 +69,7 @@ jobs:
   build:
     needs: cache-mounts
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    runs-on: tuist-linux
+    runs-on: tuist-linux-large
     steps:
       - uses: actions/checkout@v4
 

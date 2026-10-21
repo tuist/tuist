@@ -11,6 +11,8 @@ owner-driven warm rollout runbook. See `README.md` and the dated `STATUS.md`.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight
   intermediate-key controls; Go 1.27.1 fails. Qualify replacement SDKs by actual
   behavior and update the explicit CI/test allowlist, not numeric ordering.
+  Keep configured Go SDK pins and their `mise.lock` versions/download URLs aligned;
+  locked CI installation must not silently select the previous SDK.
 - `pem-store.sh` requires OpenSSL and awk. Never filter private-key material or
   protective TRUSTED CERTIFICATE AUX data as ordinary public roots.
 - `java-store.sh` is only for password-changeit public SDK cacerts. Refuse private

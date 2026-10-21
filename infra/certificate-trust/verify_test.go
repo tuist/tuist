@@ -150,7 +150,27 @@ func TestPinnedSDKsRequireQualification(t *testing.T) {
 				t.Errorf("Go SDK needs an explicit patch pin in %s", path)
 			}
 			for _, match := range matches {
-				pins = append(pins, string(match[1]))
+				pin := string(match[1])
+				pins = append(pins, pin)
+				lockPath := filepath.Join(filepath.Dir(path), "mise.lock")
+				lock, err := os.ReadFile(lockPath)
+				if os.IsNotExist(err) {
+					continue
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				section := regexp.MustCompile(`(?ms)^\[\[tools\.go\]\]\s*\n(.*?)(?:^\[\[tools\.|\z)`).FindSubmatch(lock)
+				if len(section) != 2 || !bytes.Contains(section[1], []byte(`version = "`+pin+`"`)) {
+					t.Errorf("Go SDK lock does not match %s in %s", pin, lockPath)
+				}
+				if len(section) == 2 {
+					for _, entry := range regexp.MustCompile(`(?m)^url = "https://dl\.google\.com/go/go([^"/]+)\.(?:linux|darwin|windows)-`).FindAllSubmatch(section[1], -1) {
+						if string(entry[1]) != pin {
+							t.Errorf("Go SDK download does not match %s in %s", pin, lockPath)
+						}
+					}
+				}
 			}
 		} else if strings.HasPrefix(name, "dockerfile") && !strings.HasSuffix(name, "dockerignore") {
 			data := read(t, path)
