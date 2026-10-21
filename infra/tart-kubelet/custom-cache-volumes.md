@@ -237,7 +237,13 @@ job's tools update the contents and it may still publish (last publication wins)
 The guest records the volume's top-level entries when it mounts it. At detach,
 a volume changed if those entries differ or any entry's ctime is newer than
 `.tuist-volume`, written at mount; the walk stops at the first such entry and
-nothing is walked at mount. The guest reports `changed` in `.usage`. Sealing withholds a branch the job left unchanged, or one
+nothing is walked at mount. The managed cache volumes (`tuist-xcode`,
+`tuist-module`) compare content instead: the guest digests every file's path and
+size and every symlink's target at mount and again at detach, skipping
+dot-entries, and the volume changed if the digests differ. Reading those caches
+writes (the CLI refreshes the modification time of each entry it hits, and a
+compilation cache store regrows and truncates its files on every open), so a
+ctime walk would save almost every job's volume. The guest reports `changed` in `.usage`. Sealing withholds a branch the job left unchanged, or one
 at least 99% full that may hold partial writes. Both are still measured, so the
 server's out-of-space reset sees a clone that filled its volume.
 The host reports the generation it mounted; the dashboard shows "Older copy".

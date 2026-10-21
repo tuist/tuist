@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -90,8 +92,8 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	}
 	// Without a baseline the volume reports itself changed, so it is still saved.
 	_ = os.Remove(baselinePath(mountRoot, response.Directory))
-	if names, err := topLevelEntries(base); err == nil {
-		_ = os.WriteFile(baselinePath(mountRoot, response.Directory), []byte(names), 0644)
+	if baseline, err := mountBaseline(key, base); err == nil {
+		_ = os.WriteFile(baselinePath(mountRoot, response.Directory), []byte(baseline), 0644)
 	}
 	if err = os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
@@ -200,7 +202,8 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			if err != nil {
 				break
 			}
-			changed = changed || changedSinceMount(base, baseline)
+			// A store a holder still had open is measured again once it is released.
+			changed = changedSinceMount(base, baseline)
 			err = command("detach", base, "-quiet")
 			if err == nil {
 				break
@@ -339,9 +342,71 @@ func checkoutMacAt(ctx context.Context, workspace, share, statePath string, comm
 	return "reused"
 }
 
-// baselinePath records a mounted volume's top-level entries outside the volume.
+// baselinePath records a mounted volume's baseline outside the volume.
 func baselinePath(mountRoot, dir string) string {
 	return filepath.Join(mountRoot, "."+dir+".inventory")
+}
+
+// contentComparedKeys are the volumes that hold the runner's managed caches.
+// Their stores are content-addressed and append-only, and reading them writes:
+// the CLI refreshes the modification time of every entry it hits, rewrites
+// per-run bookkeeping, and a compilation cache store regrows and truncates its
+// files on every open. So they count as changed only when their files did.
+var contentComparedKeys = map[string]bool{"tuist-xcode": true, "tuist-module": true}
+
+const contentBaselinePrefix = "content "
+
+// mountBaseline records what detach compares the volume against.
+func mountBaseline(key, base string) (string, error) {
+	if contentComparedKeys[key] {
+		inventory, err := contentInventory(base)
+		return contentBaselinePrefix + inventory, err
+	}
+	return topLevelEntries(base)
+}
+
+// contentInventory digests the path and size of every file and the target of
+// every symlink in the volume. Entries that start with a dot are bookkeeping of
+// Tuist or macOS. Timestamps never count.
+func contentInventory(base string) (string, error) {
+	hash := sha256.New()
+	err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == base {
+			return nil
+		}
+		if strings.HasPrefix(entry.Name(), ".") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		relative, err := filepath.Rel(base, path)
+		if err != nil {
+			return err
+		}
+		switch {
+		case entry.Type().IsRegular():
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(hash, "f %q %d\n", relative, info.Size())
+		case entry.Type()&fs.ModeSymlink != 0:
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(hash, "l %q %q\n", relative, target)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // topLevelEntries lists the volume root. Entries that start with a dot belong
@@ -365,8 +430,13 @@ var errChangedSinceMount = errors.New("changed since mount")
 // changedSinceMount reports whether anything in the volume changed after it was
 // mounted. Writing, renaming, deleting or changing the metadata of an entry
 // updates its ctime or its parent's, which no tool can set back, so the walk
-// stops at the first entry newer than `.tuist-volume`, written at mount.
+// stops at the first entry newer than `.tuist-volume`, written at mount. A
+// content baseline is compared with the volume's content inventory instead.
 func changedSinceMount(base string, baseline []byte) bool {
+	if recorded, ok := strings.CutPrefix(string(baseline), contentBaselinePrefix); ok {
+		inventory, err := contentInventory(base)
+		return err != nil || inventory != recorded
+	}
 	var mounted unix.Stat_t
 	if len(baseline) == 0 || unix.Lstat(filepath.Join(base, ".tuist-volume"), &mounted) != nil {
 		return true
