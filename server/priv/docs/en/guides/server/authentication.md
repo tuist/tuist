@@ -63,6 +63,8 @@ GitHub Actions, CircleCI, and Bitrise issuers are reserved for the repository-ba
 
 In the Tuist dashboard, open your account's **Settings** > **Authentication** and find the **Workload identities** section. You must be an account administrator (or the owner of a personal account). Each account can have up to 20 policies. Configure an identity once and explicitly select the projects it can access; no projects are selected by default.
 
+Use **Show configuration** beside the section title to open the policy form. Hiding the form preserves your draft and does not disable workload authentication: saved identities, their project grants, and login instructions stay visible.
+
 Choose **Custom provider** to enter the fields below, or **Fly.io Machines** to generate them from your organization slug and numeric organization and application IDs. The Fly template keeps the generated issuer, JWKS URL, and claims editable under **Advanced configuration**. Changing templates or helper values preserves fields you have manually edited. If your issuer, JWKS URL, or claims override the template, Tuist expands **Advanced configuration** and shows a warning so you can review the policy that will be saved. Switch back to **Custom provider** to continue without the Fly helpers. Templates only fill configuration and don't change how Tuist verifies tokens.
 
 | Field | Description |

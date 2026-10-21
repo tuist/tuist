@@ -1,7 +1,19 @@
 <section id="account-workload-identities">
   <.card_section id="oidc-trust-policies" data-part="oidc-card-section">
     <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_account", "Workload identities")}</span>
+      <div data-part="heading">
+        <span id="oidc-workload-title" data-part="title">
+          {dgettext("dashboard_account", "Workload identities")}
+        </span>
+        <.toggle
+          id="oidc-configuration-toggle"
+          label={dgettext("dashboard_account", "Show configuration")}
+          checked={@oidc_configuration_visible}
+          data-on-checked-change="toggle_oidc_configuration"
+          aria-controls="oidc-trust-policy-form"
+          aria-expanded={to_string(@oidc_configuration_visible)}
+        />
+      </div>
       <span data-part="subtitle">
         {dgettext(
           "dashboard_account",
@@ -15,7 +27,10 @@
         {dgettext("dashboard_account", "Learn about workload identities")}
       </.link>
     </div>
-    <div data-part="content">
+    <div
+      data-part="content"
+      hidden={not @oidc_configuration_visible and @oidc_trust_policies == []}
+    >
       <div
         :for={policy <- @oidc_trust_policies}
         id={"oidc-trust-policy-#{policy.id}"}
@@ -71,6 +86,8 @@
         for={@oidc_trust_policy_form}
         id="oidc-trust-policy-form"
         data-part="form"
+        hidden={not @oidc_configuration_visible}
+        aria-labelledby="oidc-workload-title"
         phx-change="change_oidc_trust_policy"
         phx-submit="create_oidc_trust_policy"
       >

@@ -94,6 +94,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   @impl true
   def handle_event(event, params, socket)
       when event in [
+             "toggle_oidc_configuration",
              "select_oidc_template",
              "change_oidc_trust_policy",
              "create_oidc_trust_policy",
