@@ -24,6 +24,7 @@ type checkoutGrant struct {
 	DefaultBranch    string `json:"default_branch"`
 	Commit           string `json:"commit"`
 	DefaultBranchJob bool   `json:"default_branch_job"`
+	MayStartMaster   bool   `json:"may_start_master"`
 	VolumeKey        string `json:"volume_key"`
 }
 
@@ -130,7 +131,7 @@ func (a *agent) checkout(ctx context.Context, input checkoutRequest) (map[string
 	}
 	task := cachevolumes.CheckoutTask{
 		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
+		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, MayStartMaster: grant.MayStartMaster, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
 		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
 	}
 	// The job's branch is a clone of this host's master; the HEAD only restores it.

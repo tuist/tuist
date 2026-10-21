@@ -105,6 +105,9 @@ type Slot struct {
 	// MountedGeneration is the older generation a branch was cloned from because
 	// its base was not on the host, or 0.
 	MountedGeneration int64 `json:"mounted_generation,omitempty"`
+	// PublishCold is set for one seal when the server lets a branch that started
+	// empty replace its lineage's HEAD (the "publish" decision).
+	PublishCold bool `json:"-"`
 }
 
 // Backend owns storage operations and must make every operation restart-safe.
@@ -426,11 +429,13 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		return s.save(slot)
 	}
 	switch action {
-	case "seal":
+	case "seal", "publish":
 		if slot.State != "active" || !slot.CanPublish {
 			return errors.New("invalid seal decision")
 		}
-		if err = s.backend.Seal(slot, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
+		sealed := slot
+		sealed.PublishCold = action == "publish"
+		if err = s.backend.Seal(sealed, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
 			if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
 				return err
 			}

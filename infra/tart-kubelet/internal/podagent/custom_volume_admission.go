@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
@@ -18,6 +19,28 @@ const customCapacity = 20_000_000_000
 
 func customVolumeBytes(slot cachevolumes.Slot) uint64 {
 	return uint64(slot.VolumeSize(customCapacity))
+}
+
+// CacheCapacityNodeLabel advertises the cache disk capacity in whole GiB. The
+// server subtracts the volumes of the jobs it placed here, attached or not yet,
+// and prefers this host for a job only while its volumes fit: admission reserves
+// a volume's full capacity, and a second job that cannot get it runs cold.
+const CacheCapacityNodeLabel = "tuist.dev/cache-volume-capacity-gib"
+
+// CapacityNodeLabels returns the label advertising the cache disk's capacity
+// within its budget, or none while the cache filesystem is not mounted.
+func (c *CustomVolumes) CapacityNodeLabels() (map[string]string, error) {
+	labels := map[string]string{}
+	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	if err != nil || !mounted {
+		return labels, err
+	}
+	capacity, err := c.Builtins.volumeCapacityBytes()
+	if err != nil {
+		return nil, err
+	}
+	labels[CacheCapacityNodeLabel] = strconv.FormatUint(capacity>>30, 10)
+	return labels, nil
 }
 
 // Custom masters are reclaimed by the shared backend first. If that is not

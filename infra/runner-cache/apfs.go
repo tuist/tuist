@@ -94,8 +94,8 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			unlock()
 			if errors.Is(err, errNoLocalCopy) {
 				// A job never waits for a download: it starts empty, the HEAD is fetched
-				// in the background, and this branch is withheld from publication so it
-				// cannot replace the saved version.
+				// in the background, and this branch is withheld from publication unless
+				// the server lets it replace the saved version.
 				source, cold, err = "cold", true, os.WriteFile(image+".cold", nil, 0600)
 			}
 			if err != nil {
@@ -224,7 +224,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if !APFSMarker(path, ".detached", slot.ID) {
 		return ErrPoisoned
 	}
-	if b.Cold(slot) {
+	if b.Cold(slot) && !slot.PublishCold {
 		return ErrWithheld
 	}
 	if err := shareExposes(image, path); err != nil {
