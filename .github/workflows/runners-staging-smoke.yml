@@ -325,6 +325,12 @@ jobs:
             exit 1
           fi
           sync
+      - name: Detach with this branch's client
+        # Runner images released before the guest flushed detached images through
+        # the VM share can lose the job's last writes. Detaching here keeps the
+        # smoke independent of the image; its own teardown then finds nothing.
+        if: runner.os == 'macOS'
+        run: tuist-cache-volume --detach-all
 
   # A runner VM runs customer code, so it must reach the internet and its
   # cache carve-outs and nothing else: not the host's own listeners on any of
