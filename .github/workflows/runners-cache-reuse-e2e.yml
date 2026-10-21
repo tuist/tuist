@@ -57,6 +57,7 @@ on:
     paths:
       - .github/workflows/runners-cache-reuse-e2e.yml
       - .github/workflows/runners-cache-reuse-e2e-probe.yml
+      - .github/runners-cache-reuse-e2e.trigger
 
 permissions:
   contents: read
