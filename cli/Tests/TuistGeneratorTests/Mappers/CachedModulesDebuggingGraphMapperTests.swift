@@ -167,6 +167,142 @@ struct CachedModulesDebuggingGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func map_attachesProjectSchemeTestActionToATargetOfTheSchemeProject() async throws {
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
+        let appProjectPath = rootPath.appending(component: "App")
+        let agentsProjectPath = rootPath.appending(component: "Agents")
+        let agentsTests = TargetReference(projectPath: agentsProjectPath, name: "AgentsTests")
+        let appTests = TargetReference(projectPath: appProjectPath, name: "AppTests")
+        let scheme = Scheme.test(
+            name: "App",
+            buildAction: nil,
+            testAction: TestAction.test(
+                targets: [],
+                testPlans: [TestPlan(
+                    path: appProjectPath.appending(component: "App.xctestplan"),
+                    testTargets: [TestableTarget(target: agentsTests), TestableTarget(target: appTests)],
+                    isDefault: true
+                )]
+            ),
+            runAction: nil
+        )
+        let graph = Graph.test(
+            workspace: Workspace.test(
+                path: rootPath,
+                schemes: [Scheme.test(
+                    name: "All",
+                    buildAction: nil,
+                    testAction: scheme.testAction,
+                    runAction: nil
+                )]
+            ),
+            projects: [
+                appProjectPath: Project.test(
+                    path: appProjectPath,
+                    sourceRootPath: appProjectPath,
+                    targets: [Target.test(name: "AppTests", product: .unitTests)],
+                    schemes: [scheme]
+                ),
+                agentsProjectPath: Project.test(
+                    path: agentsProjectPath,
+                    sourceRootPath: agentsProjectPath,
+                    targets: [Target.test(name: "AgentsTests", product: .unitTests)]
+                ),
+            ]
+        )
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        let projectTestAction = try #require(mappedGraph.projects[appProjectPath]?.schemes.first?.testAction)
+        #expect(projectTestAction.preActions.first?.target == appTests)
+        #expect(projectTestAction.customLLDBInitFile?.isDescendant(of: appProjectPath) == true)
+        let workspaceTestAction = try #require(mappedGraph.workspace.schemes.first?.testAction)
+        #expect(workspaceTestAction.preActions.first?.target == agentsTests)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_attachesProjectSchemeTestActionToABuildTargetWhenItsTestPlanOnlyHasOtherProjectsTargets() async throws {
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
+        let appProjectPath = rootPath.appending(component: "App")
+        let agentsProjectPath = rootPath.appending(component: "Agents")
+        let app = TargetReference(projectPath: appProjectPath, name: "App")
+        let scheme = Scheme.test(
+            name: "App",
+            buildAction: BuildAction(targets: [app]),
+            testAction: TestAction.test(
+                targets: [],
+                testPlans: [TestPlan(
+                    path: appProjectPath.appending(component: "App.xctestplan"),
+                    testTargets: [TestableTarget(target: TargetReference(projectPath: agentsProjectPath, name: "AgentsTests"))],
+                    isDefault: true
+                )]
+            ),
+            runAction: nil
+        )
+        let graph = Graph.test(
+            projects: [
+                appProjectPath: Project.test(
+                    path: appProjectPath,
+                    sourceRootPath: appProjectPath,
+                    targets: [Target.test(name: "App", product: .app)],
+                    schemes: [scheme]
+                ),
+                agentsProjectPath: Project.test(
+                    path: agentsProjectPath,
+                    sourceRootPath: agentsProjectPath,
+                    targets: [Target.test(name: "AgentsTests", product: .unitTests)]
+                ),
+            ]
+        )
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        let testAction = try #require(mappedGraph.projects[appProjectPath]?.schemes.first?.testAction)
+        #expect(testAction.preActions.first?.target == app)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_skipsTargetsOfPrunedProjectsInWorkspaceSchemes() async throws {
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
+        let sharedProjectPath = rootPath.appending(component: "Shared")
+        let prunedProjectPath = rootPath.appending(component: "Mac")
+        let sharedTests = TargetReference(projectPath: sharedProjectPath, name: "SharedTests")
+        let macTests = TargetReference(projectPath: prunedProjectPath, name: "MacTests")
+        let scheme = Scheme.test(
+            name: "Mac",
+            buildAction: nil,
+            testAction: TestAction.test(
+                targets: [],
+                testPlans: [TestPlan(
+                    path: rootPath.appending(component: "Mac.xctestplan"),
+                    testTargets: [TestableTarget(target: macTests), TestableTarget(target: sharedTests)],
+                    isDefault: true
+                )]
+            ),
+            runAction: RunAction.test(executable: TargetReference(projectPath: prunedProjectPath, name: "Mac"))
+        )
+        let graph = Graph.test(
+            workspace: Workspace.test(path: rootPath, schemes: [scheme]),
+            projects: [
+                sharedProjectPath: Project.test(
+                    path: sharedProjectPath,
+                    sourceRootPath: sharedProjectPath,
+                    targets: [Target.test(name: "SharedTests", product: .unitTests)]
+                ),
+            ]
+        )
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        let mappedScheme = try #require(mappedGraph.workspace.schemes.first)
+        #expect(mappedScheme.runAction?.preActions.isEmpty == true)
+        #expect(mappedScheme.testAction?.preActions.first?.target == sharedTests)
+    }
+
+    @Test(.inTemporaryDirectory)
     func map_doesNotConfigureRunActionUsingCachedModulesFromALaterBuildTarget() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let cachedFrameworkPath = projectPath.appending(
