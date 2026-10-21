@@ -493,9 +493,13 @@ func main() {
 
 	// A host joining the cluster pulls its fleet's in-demand runner images
 	// before it takes Pods, through the same golden path a Pod's first VM
-	// takes. The gate taints only a Node this process creates; see
-	// nodeagent.PrewarmGate.
+	// takes. The gate taints a Node this process creates, or one whose host
+	// holds no golden base; see nodeagent.PrewarmGate.
 	prewarmGate := nodeagent.NewPrewarmGate()
+	prewarmGate.HostEmpty = func(ctx context.Context) (bool, error) {
+		labels, err := podagent.GoldenNodeLabels(ctx, tartClient)
+		return len(labels) == 0, err
+	}
 	if err := mgr.Add(&podagent.Prewarmer{
 		K8s:     mgr.GetAPIReader(),
 		Goldens: reconciler,
