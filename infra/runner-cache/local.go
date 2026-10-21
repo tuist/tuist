@@ -308,14 +308,16 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	}()
 	image := b.image(slot)
 	if _, err := os.Stat(image); os.IsNotExist(err) {
-		// A checkout clone holds the job's whole workspace, so the reserve must cover
-		// what it can grow to, as it covers one custom volume.
-		minimum := b.MinFreeBytes
-		if slot.Kind == KindCheckout {
-			minimum = max(minimum, CheckoutCapacity)
-		}
-		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
+		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
 			return err
+		}
+		// A checkout clone holds the job's whole workspace, so free space must cover
+		// what it can grow to, as the reserve covers one custom volume. A checkout is
+		// optional, so it never evicts anything for that room.
+		if slot.Kind == KindCheckout {
+			if err = b.operation("admission", "none", func() error { return b.reserveSpare(ctx, CheckoutCapacity) }); err != nil {
+				return err
+			}
 		}
 		tmp := image + ".tmp"
 		_ = os.Remove(tmp)

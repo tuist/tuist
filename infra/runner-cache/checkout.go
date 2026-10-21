@@ -1049,3 +1049,20 @@ func checkoutRename(src, dst string) error {
 func (c *Checkouts) inUse(scope string) bool {
 	return c.InUse != nil && c.InUse(scope)
 }
+
+// DiscardWaiting drops the exports of builds that are waiting for room, and
+// reports how many it dropped. Newer exports take their place.
+func (c *Checkouts) DiscardWaiting() int {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	dropped := 0
+	for scope, task := range c.waiting {
+		c.discard(task)
+		delete(c.waiting, scope)
+		dropped++
+	}
+	return dropped
+}

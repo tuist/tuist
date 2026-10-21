@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,30 +222,25 @@ func gnuSparsePack(t *testing.T, size int64) *bytes.Buffer {
 	var buffer bytes.Buffer
 	head := exportArchive(t, [2]string{"head", checkoutTestCommit})
 	buffer.Write(head.Bytes()[:head.Len()-1024])
-	block := make([]byte, 512)
-	copy(block[0:], "pack")
-	copy(block[100:], "0000644\x00")
-	copy(block[108:], "0000000\x00")
-	copy(block[116:], "0000000\x00")
-	copy(block[124:], "00000000000\x00")
-	copy(block[136:], "00000000000\x00")
-	block[156] = 'S'
+	block := rawHeader("pack", 'S', 0)
 	copy(block[257:], "ustar  \x00")
 	// One sparse map entry: no data, then the declared real size.
 	copy(block[386:], fmt.Sprintf("%011o\x00%011o\x00", size, 0))
 	copy(block[483:], fmt.Sprintf("%011o\x00", size))
-	copy(block[148:], "        ")
-	sum := 0
-	for _, b := range block {
-		sum += int(b)
-	}
-	copy(block[148:], fmt.Sprintf("%06o\x00 ", sum))
+	checksum(block)
 	buffer.Write(block)
 	buffer.Write(make([]byte, 1024))
 	return &buffer
 }
 
 func TestReceivedExportsRefuseSparseEntries(t *testing.T) {
+	reader := tar.NewReader(gnuSparsePack(t, 1<<30))
+	if _, err := reader.Next(); err != nil {
+		t.Fatal(err)
+	}
+	if pack, err := reader.Next(); err != nil || pack.Typeflag != tar.TypeGNUSparse || pack.Size != 1<<30 {
+		t.Fatalf("not a GNU sparse file: %+v %v", pack, err)
+	}
 	dst := filepath.Join(t.TempDir(), "export")
 	err := ReceiveCheckoutExport(gnuSparsePack(t, 1<<30), dst, nil)
 	if err == nil {
@@ -309,4 +305,147 @@ func TestPressureEvictionSkipsMastersWithLiveClones(t *testing.T) {
 	if c.Master(checkoutTestScope, 1) == "" || c.Master(other.Scope, 1) != "" {
 		t.Fatal("pressure eviction removed a master a job clones")
 	}
+}
+
+// rawHeader is a ustar header block, which tests need where tar.Writer refuses
+// to write what a guest could send.
+func rawHeader(name string, typeflag byte, size int64) []byte {
+	block := make([]byte, 512)
+	copy(block[0:], name)
+	copy(block[100:], "0000644\x00")
+	copy(block[108:], "0000000\x00")
+	copy(block[116:], "0000000\x00")
+	copy(block[124:], fmt.Sprintf("%011o\x00", size))
+	copy(block[136:], "00000000000\x00")
+	block[156] = typeflag
+	copy(block[257:], "ustar\x0000")
+	checksum(block)
+	return block
+}
+
+func checksum(block []byte) {
+	copy(block[148:], "        ")
+	sum := 0
+	for _, b := range block {
+		sum += int(b)
+	}
+	copy(block[148:], fmt.Sprintf("%06o\x00 ", sum))
+}
+
+func padded(data []byte) []byte {
+	return append(data, make([]byte, (512-len(data)%512)%512)...)
+}
+
+// paxSparsePack is a tar stream whose "pack" is a PAX 1.0 sparse file: a regular
+// file whose GNU.sparse records and 512-byte sparse map declare size bytes, all
+// of them a hole. tar.Writer drops GNU.sparse records, so it is written by hand.
+func paxSparsePack(t *testing.T, size int64) *bytes.Buffer {
+	t.Helper()
+	var buffer bytes.Buffer
+	head := exportArchive(t, [2]string{"head", checkoutTestCommit})
+	buffer.Write(head.Bytes()[:head.Len()-1024])
+	var records string
+	for _, record := range [][2]string{{"GNU.sparse.major", "1"}, {"GNU.sparse.minor", "0"}, {"GNU.sparse.name", "pack"}, {"GNU.sparse.realsize", fmt.Sprint(size)}} {
+		records += paxRecord(record[0], record[1])
+	}
+	buffer.Write(rawHeader("PaxHeaders/pack", 'x', int64(len(records))))
+	buffer.Write(padded([]byte(records)))
+	sparseMap := padded([]byte(fmt.Sprintf("1\n%d\n0\n", size)))
+	buffer.Write(rawHeader("pack", '0', int64(len(sparseMap))))
+	buffer.Write(sparseMap)
+	buffer.Write(make([]byte, 1024))
+	return &buffer
+}
+
+func TestReceivedExportsRefusePAXSparseEntries(t *testing.T) {
+	// The reader presents the entry as a regular file of the declared size.
+	reader := tar.NewReader(paxSparsePack(t, 1<<30))
+	if _, err := reader.Next(); err != nil {
+		t.Fatal(err)
+	}
+	pack, err := reader.Next()
+	if err != nil || pack.Typeflag != tar.TypeReg || pack.Size != 1<<30 {
+		t.Fatalf("not a sparse regular file: %+v %v", pack, err)
+	}
+	dst := filepath.Join(t.TempDir(), "export")
+	if err := ReceiveCheckoutExport(paxSparsePack(t, 1<<30), dst, nil); err == nil {
+		t.Fatal("a PAX sparse entry was accepted")
+	}
+	if _, err := os.Stat(dst + ".part"); !os.IsNotExist(err) {
+		t.Fatal("left the partial export behind")
+	}
+}
+
+func TestCarriedWriterRefusesBytesTheStreamDidNotCarry(t *testing.T) {
+	carried := &countingReader{reader: strings.NewReader("abcd")}
+	if _, err := io.ReadAll(carried); err != nil {
+		t.Fatal(err)
+	}
+	var written int64
+	var out bytes.Buffer
+	writer := &carriedWriter{file: &out, carried: carried, written: &written}
+	if _, err := writer.Write([]byte("abc")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Write([]byte("de")); err == nil {
+		t.Fatal("wrote more than the stream carried")
+	}
+	if out.String() != "abc" || written != 3 {
+		t.Fatalf("wrote %q (%d)", out.String(), written)
+	}
+}
+
+func TestLocalCheckoutClonesNeverEvictForTheirRoom(t *testing.T) {
+	b, _ := newLocal(t)
+	b.MinFreeBytes = 10
+	b.FreeBytes = func(string) (uint64, error) { return CheckoutCapacity - 1, nil }
+	b.Seed = func(_ context.Context, _ Slot, dst string) error { return os.WriteFile(dst, nil, 0600) }
+	master := filepath.Join(b.Root, "masters", strings.Repeat("c", 64), "00000000000000000001-"+strings.Repeat("d", 64)+".img")
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(master, []byte("custom master"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	reclaimed := false
+	b.Reclaim = func(context.Context, uint64) error { reclaimed = true; return nil }
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	slot.Kind, slot.Generation = KindCheckout, 1
+	if err := b.Attach(context.Background(), slot, t.TempDir()); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("got %v", err)
+	}
+	if _, err := os.Stat(master); err != nil || reclaimed {
+		t.Fatal("a checkout clone evicted for its room")
+	}
+}
+
+func TestDiscardWaitingDropsTheExportsOfBuildsWithoutRoom(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	c.Room = func(context.Context, uint64) (func(), error) { return nil, ErrCapacity }
+	task := exportFrom(t, c, "job", checkoutTestCommit, nil)
+	c.Process(context.Background(), task)
+	if _, err := os.Stat(task.Export); err != nil {
+		t.Fatal("the waiting build lost its export")
+	}
+	if dropped := c.DiscardWaiting(); dropped != 1 {
+		t.Fatalf("dropped %d", dropped)
+	}
+	if _, err := os.Stat(task.Export); !os.IsNotExist(err) {
+		t.Fatal("kept a discarded export")
+	}
+	c.Maintain()
+	if c.Queued() != 0 {
+		t.Fatal("a discarded build was retried")
+	}
+}
+
+// paxRecord is "<length> <key>=<value>\n", where length counts itself.
+func paxRecord(key, value string) string {
+	line := " " + key + "=" + value + "\n"
+	length := len(line) + 1
+	for len(fmt.Sprint(length))+len(line) != length {
+		length = len(fmt.Sprint(length)) + len(line)
+	}
+	return fmt.Sprint(length) + line
 }

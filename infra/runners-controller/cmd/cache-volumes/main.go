@@ -47,6 +47,7 @@ type agent struct {
 	space                                  *checkoutSpace
 	grants                                 checkoutGrants
 	exports                                chan struct{}
+	checkoutRequests                       chan struct{}
 }
 type request struct {
 	PodName      string `json:"pod_name"`
@@ -255,7 +256,7 @@ func main() {
 		log.Fatal(err)
 	}
 	store.MaxSlots = *maxSlots
-	a := &agent{checkouts: checkouts, space: space, exports: make(chan struct{}, 2), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	a := &agent{checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)

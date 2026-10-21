@@ -120,7 +120,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   files, and chowns it to the job's UID. git runs as root on that tree, so the
   populator passes `safe.directory=*` per command. A Linux checkout slot is
   seeded through `LocalImages.Seed`, never formatted, and admitted only while
-  free space covers the whole checkout image: it holds the job's workspace.
+  free space covers the whole checkout image, since it holds the job's workspace.
+  That check never evicts (`reserveSpare`); the usual reserve admission does.
 - `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
   off masters a job holds or is attaching: their blocks are shared, so evicting
   them frees nothing and the attaching job loses its seed.

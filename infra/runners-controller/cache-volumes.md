@@ -423,8 +423,8 @@ on Linux too, built by the same shared populator as on macOS
   master for the volume's clear generation, admits and mounts a reflink clone at
   `pods/<uid>/<scope>` like a custom volume, with the tree in `checkout/` owned
   by the job's UID. Without a master it answers `cold`, ends the use, and
-  restores the volume's HEAD in the background when there is one. It shares
-  `/acquire`'s four request slots and answers `busy` past them.
+  restores the volume's HEAD in the background when there is one. It has four
+  request slots of its own and answers `busy` past them.
 - takes `POST /checkout-export` once per granted pod: a tar the runner streams
   after its job, unpacked by `cachevolumes.ReceiveCheckoutExport` into
   `checkouts/.incoming/<uid>` and verified again by the build (`git index-pack
@@ -434,7 +434,8 @@ on Linux too, built by the same shared populator as on macOS
   as the volume's HEAD.
 - bounds what exports hold: each entry is admitted above the job reserve,
   exports waiting for a build hold at most one maximal export (30 GB) per host,
-  sparse entries are refused, and nothing is written that the stream did not
+  a newer export displaces builds still waiting for room, sparse entries are
+  refused, and nothing is written that the stream did not
   carry. It checks the pod before taking one of two intake slots, so a busy
   host keeps the pod's grant.
 - keeps masters under `<root>/checkouts`, on the dedicated filesystem. Builds
@@ -452,4 +453,5 @@ on Linux too, built by the same shared populator as on macOS
 Everything a job writes under its workspace lands in its clone, on the cache
 filesystem rather than the pod's work volume. A clone is therefore admitted only
 while free space covers the whole checkout image (60 GB), as the reserve covers
-one custom volume.
+one custom volume. It never evicts anything for that room: without it the job
+checks out as usual.

@@ -93,11 +93,12 @@ func (a *agent) serveCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	// Checkouts share the acquisition slots, so a job cannot flood the agent.
-	if a.requests != nil {
+	// Checkouts have their own slots: a job cannot flood the agent, and a checkout
+	// waiting on GitHub's execution binding never crowds out a volume.
+	if a.checkoutRequests != nil {
 		select {
-		case a.requests <- struct{}{}:
-			defer func() { <-a.requests }()
+		case a.checkoutRequests <- struct{}{}:
+			defer func() { <-a.checkoutRequests }()
 		default:
 			_ = json.NewEncoder(w).Encode(checkoutUnavailable("busy"))
 			return
@@ -308,16 +309,11 @@ func (s *checkoutSpace) intake(path string) func(int64) (func(), error) {
 		bytes := uint64(size)
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if s.incoming == nil {
-			s.incoming = map[string]uint64{}
-		}
-		var held uint64
-		for export, size := range s.incoming {
-			if !exists(export) && !exists(export+".part") {
-				delete(s.incoming, export)
-				continue
-			}
-			held += size
+		held := s.heldLocked()
+		// Builds waiting for room hold their exports for up to an hour; a newer
+		// export takes their place rather than wait behind them.
+		if held+bytes > checkoutIncomingLimit && s.checkouts.DiscardWaiting() > 0 {
+			held = s.heldLocked()
 		}
 		if held+bytes > checkoutIncomingLimit {
 			return nil, cachevolumes.ErrCapacity
@@ -366,4 +362,21 @@ func pinnedGitLFS(version func(context.Context) ([]byte, error)) func(context.Co
 		}
 		return nil
 	}
+}
+
+// heldLocked is what received exports still hold on disk, forgetting those
+// whose directory is gone.
+func (s *checkoutSpace) heldLocked() uint64 {
+	if s.incoming == nil {
+		s.incoming = map[string]uint64{}
+	}
+	var held uint64
+	for export, size := range s.incoming {
+		if !exists(export) && !exists(export+".part") {
+			delete(s.incoming, export)
+			continue
+		}
+		held += size
+	}
+	return held
 }

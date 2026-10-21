@@ -271,10 +271,17 @@ func TestCheckoutMastersMakeRoomForJobs(t *testing.T) {
 	}
 }
 
-func TestCheckoutRequestsShareTheAcquisitionSlots(t *testing.T) {
+func TestCheckoutRequestsHaveTheirOwnSlots(t *testing.T) {
 	a, server := checkoutAgent(t, checkoutGrantJSON(1), true)
 	a.requests = make(chan struct{}, 1)
 	a.requests <- struct{}{}
+	installMaster(t, a)
+	if _, response := requestCheckout(t, a, "10.0.0.5"); response["id"] != checkoutUse {
+		t.Fatalf("busy acquisitions held off a checkout: %v", response)
+	}
+	a.checkoutRequests = make(chan struct{}, 1)
+	a.checkoutRequests <- struct{}{}
+	server.paths = nil
 	if _, response := requestCheckout(t, a, "10.0.0.5"); response["reason"] != "busy" || len(server.paths) != 0 {
 		t.Fatalf("%v after %v", response, server.paths)
 	}
@@ -363,5 +370,36 @@ func TestCheckoutsOnlyRunThePinnedGitLFS(t *testing.T) {
 	missing := pinnedGitLFS(func(context.Context) ([]byte, error) { return nil, os.ErrNotExist })
 	if missing(context.Background()) == nil {
 		t.Error("a host without git-lfs serves checkouts")
+	}
+}
+
+func TestCheckoutExportsDisplaceBuildsWaitingForRoom(t *testing.T) {
+	a, _ := checkoutAgent(t, checkoutGrantJSON(0), true)
+	a.checkouts.Room = func(context.Context, uint64) (func(), error) { return nil, cachevolumes.ErrCapacity }
+	space := &checkoutSpace{root: a.checkouts.Root, checkouts: a.checkouts, freeBytes: func(string) (uint64, error) { return 1 << 50, nil }}
+	waiting := a.checkouts.Incoming("waiting")
+	if err := os.MkdirAll(waiting, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"head": checkoutCommit, "pack": "PACK"} {
+		if err := os.WriteFile(filepath.Join(waiting, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	release, err := space.intake(waiting)(checkoutIncomingLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+	task := cachevolumes.CheckoutTask{Scope: checkoutScope, Generation: 1, CloneURL: "https://github.com/org/repo", DefaultBranch: "main", Commit: checkoutCommit, DefaultBranchJob: true, Use: checkoutUse, Export: waiting}
+	a.checkouts.Process(context.Background(), task)
+	if _, err := os.Stat(waiting); err != nil {
+		t.Fatal("the build refused for room did not keep its export")
+	}
+	if _, err := space.intake(a.checkouts.Incoming("next"))(10); err != nil {
+		t.Fatalf("a waiting build blocked a newer export: %v", err)
+	}
+	if _, err := os.Stat(waiting); !os.IsNotExist(err) {
+		t.Fatal("the displaced export was kept")
 	}
 }
