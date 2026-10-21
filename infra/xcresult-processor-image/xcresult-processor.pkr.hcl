@@ -79,6 +79,18 @@ source "tart-cli" "xcresult_processor" {
 build {
   sources = ["source.tart-cli.xcresult_processor"]
 
+  # Apple revocation updates do not protect /usr/bin/curl's PEM trust store.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "awk '/^(###|===) /{skip=0} /^=== .*\\/CN=(AAA Certificate Services|emSign ECC Root CA - G3)$/{skip=1} !skip' /etc/ssl/cert.pem > /tmp/tuist-cacerts.pem",
+      "echo 'admin' | sudo -S install -m 0644 /tmp/tuist-cacerts.pem /etc/ssl/cert.pem",
+      "rm /tmp/tuist-cacerts.pem",
+      "/opt/homebrew/bin/brew update",
+      "/opt/homebrew/bin/brew upgrade ca-certificates"
+    ]
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",

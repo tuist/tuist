@@ -4,8 +4,8 @@
 # the chart's release namespace (one Deployment + leader election);
 # Pods + SAs it materializes land in tuist-runners.
 
-ARG GO_VERSION=1.25
-ARG ALPINE_VERSION=3.22
+ARG GO_VERSION=1.26.10
+ARG ALPINE_VERSION=3.23
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
 
@@ -30,12 +30,14 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # those out of the controller's distroless runtime.
 FROM debian:bookworm-slim AS cache-volumes
 RUN apt-get update && apt-get install -y --no-install-recommends coreutils util-linux e2fsprogs ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /out/cache-volumes /usr/local/bin/cache-volumes
 COPY infra/runners-controller/scripts/provision-cache-filesystem.sh /usr/local/bin/provision-cache-filesystem
 ENTRYPOINT ["/usr/local/bin/cache-volumes"]
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087
 
 COPY --from=builder /out/manager /usr/local/bin/manager
 

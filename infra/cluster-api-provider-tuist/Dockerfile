@@ -18,8 +18,8 @@
 #     /usr/local/lib/tart/<version>.
 # One image, one URL pin in the chart, no separate release artifact.
 
-ARG GO_VERSION=1.26
-ARG ALPINE_VERSION=3.22
+ARG GO_VERSION=1.26.10
+ARG ALPINE_VERSION=3.23
 
 # Tart releases the image carries, as <version>:<sha256 of tart.tar.gz>.
 # Every one of them can be installed in place on an existing Mac mini
@@ -239,7 +239,7 @@ RUN apk add --no-cache curl \
  && test -s /out/snponly-shim.efi && test -s /out/snponly.efi
 
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:516757106de35205efb70b91ba03f6f1298424a0678c603255cf2852a7000087
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=manager-builder /out/rack-boot /usr/local/bin/rack-boot

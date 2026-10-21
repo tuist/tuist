@@ -30,6 +30,8 @@ Noora is published to [Hex](https://hex.pm/) for Phoenix LiveView consumers and 
 
 Web component metadata and documentation are generated from `components/*.json` with `aube run generate:web-components`. Run `aube run check:generated` when changing a component contract.
 
+The server, Atlas, Slack, and Storybook Docker asset stages rebuild pinned Aube 1.6.2 with patched WebPKI dependencies. Aube is a native Rust binary with embedded roots; Node's CA settings cannot secure its downloads. Keep these stages aligned until a compatible upstream release includes the eMudhra fix. Elixir builders use the patched OS bundle for Hex and keep Rebar offline after Mix fetches dependencies because Rebar embeds a separate certifi store.
+
 Do not bootstrap the npm package from a local machine. The first automated release reads a granular access token with permission to publish under the `@tuist` scope from `op://tuist/NPM_TOKEN/password` using `OP_SERVICE_ACCOUNT_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `noora-release.yml` workflow, allow `npm publish`, verify a release, revoke the long-lived token, and remove its 1Password item.
 
 ## Conventions

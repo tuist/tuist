@@ -66,6 +66,18 @@ env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${BUILDKITE_JOB_ENV_PATH}" TUIST_RUNNE
   bash -ec 'source buildkite-hooks/environment; test "$EXISTING_BUILD_SETTING" = preserved; test "$TUIST_CACHE_VOLUME_URL" = "http://runner-cache-volumes:8090"; test "$TUIST_CACHE_VOLUME_POD" = "pod-test"; test "$TUIST_CACHE_VOLUME_UID" = "uid-test"'
 echo "ok: Buildkite restores cache-volume routing after environment sanitization"
 
+for platform in linux-runner-image runner-image; do
+  case "$platform" in
+    linux-runner-image) bundle=/etc/ssl/certs/ca-certificates.crt ;;
+    runner-image) bundle=/etc/ssl/cert.pem ;;
+  esac
+  env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${fixtures}/missing-env" TUIST_RUNNER_STATE_DIR="${fixtures}/state" \
+    NODE_OPTIONS=--max-old-space-size=512 EXPECTED_BUNDLE="$bundle" \
+    bash -ec 'source "$1"; test "$NODE_OPTIONS" = "--max-old-space-size=512 --use-openssl-ca"; test "$SSL_CERT_FILE" = "$EXPECTED_BUNDLE"; test "$PIP_CERT" = "$EXPECTED_BUNDLE"; test "$REQUESTS_CA_BUNDLE" = "$EXPECTED_BUNDLE"' \
+    bash "../${platform}/buildkite-hooks/environment"
+done
+echo "ok: Buildkite jobs use the remediated trust store after environment sanitization"
+
 # Run the production launch command with an agent stub. The standalone binary
 # has no packaged config to supply a plugin checkout directory.
 awk '/^  exec \/usr\/local\/bin\/buildkite-agent start/ {

@@ -136,7 +136,7 @@ variable "buildkite_agent_sha256_darwin_arm64" {
   # Carried with `buildkite_agent_version`: the download is verified
   # against this before extraction, so a stale value fails the build
   # rather than installing an unchecked binary.
-  default = "67bd0dbe9417776a9f7bee02bcbf840e169f37e28ae36dd0a5184c61312438b2"
+  default = "67a27bd51a5b67cebf81470414ec9e6158a112cf7560159c698a22cd9b4042f6"
 }
 
 variable "buildkite_agent_version" {
@@ -145,7 +145,7 @@ variable "buildkite_agent_version" {
   # Same pinning rationale as `runner_version`, and the same Renovate
   # flow keeps it current.
   # renovate: datasource=github-releases depName=buildkite/agent
-  default = "3.138.0"
+  default = "3.138.2"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
@@ -205,6 +205,18 @@ source "tart-cli" "runner" {
 
 build {
   sources = ["source.tart-cli.runner"]
+
+  # Apple revocation updates do not protect /usr/bin/curl's PEM trust store.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "awk '/^(###|===) /{skip=0} /^=== .*\\/CN=(AAA Certificate Services|emSign ECC Root CA - G3)$/{skip=1} !skip' /etc/ssl/cert.pem > /tmp/tuist-cacerts.pem",
+      "echo 'admin' | sudo -S install -m 0644 /tmp/tuist-cacerts.pem /etc/ssl/cert.pem",
+      "rm /tmp/tuist-cacerts.pem",
+      "/opt/homebrew/bin/brew update",
+      "/opt/homebrew/bin/brew upgrade ca-certificates"
+    ]
+  }
 
   # Create the `runner` user. macos-tahoe-base (inherited via
   # the macos-tahoe-xcode base) ships with `admin` as its working

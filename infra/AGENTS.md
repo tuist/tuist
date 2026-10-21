@@ -2,6 +2,18 @@
 
 Deployment assets for the Tuist stack — both the managed cluster we operate and the self-host chart our customers install.
 
+## Certificate trust
+
+The October 2026 eMudhra compromise requires updates to OS bundles AND bundled
+TLS libraries. First-party Go binaries require Go 1.26.10 or newer; static
+controller images pin the inspected Debian 13 Distroless bundle. Debian/Ubuntu
+image builds explicitly distrust the affected roots before network fetches.
+Node uses `--use-openssl-ca` (not the additive `--use-system-ca`) until its
+embedded roots are fixed. The runner and xcresult Packer builds also remove the
+roots from macOS curl's independent `/etc/ssl/cert.pem`; Apple revocation updates
+alone do not protect that file. Rebuilding is not remediation until the new
+digests have rolled out and their trust stores have been checked.
+
 ## What we are aiming at
 
 Two properties, stated because they decide arguments that would otherwise be

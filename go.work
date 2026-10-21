@@ -16,7 +16,7 @@
 // the fleet. macos-host-sensors takes one small dependency, purego, which
 // is what lets it call IOKit without cgo; it builds to about 2 MB.
 
-go 1.25.0
+go 1.26.10
 
 use (
 	./infra/cloudflare-operator

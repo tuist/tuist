@@ -16,7 +16,7 @@
 # Renovate auto-bumps RUNNER_VERSION via `renovate.json` config
 # matching the same pattern as the macOS image.
 
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26.10
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS runner-shell-agent-builder
 
@@ -237,8 +237,15 @@ RUN apt-get update \
         python3 \
         python3-pip \
         python3-venv \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 # kubectl + helm + gh: GitHub's Ubuntu runner image pre-installs all
 # three (kubectl/helm via `install-kubernetes-tools.sh`, gh via
@@ -351,13 +358,13 @@ USER root
 # job should be the version we baked. The agent has no self-update, so
 # pinning here is the whole mechanism. Renovate bumps it the same way.
 # renovate: datasource=github-releases depName=buildkite/agent
-ARG BUILDKITE_AGENT_VERSION=3.138.0
+ARG BUILDKITE_AGENT_VERSION=3.138.2
 # From the release's own `buildkite-agent-<version>.SHA256SUMS`. A version
 # bump has to carry these with it: the download is verified against them
 # before anything is extracted, so a stale pair fails the build rather
 # than installing an unchecked binary.
-ARG BUILDKITE_AGENT_SHA256_AMD64=90017b67de70675c4330ae18b55c21397247fb157831549f0896dffa4ce04b7f
-ARG BUILDKITE_AGENT_SHA256_ARM64=1d8445221b67f20e04b962a7a00855023f32423662e1ab3be88c564d4af87c87
+ARG BUILDKITE_AGENT_SHA256_AMD64=a5fa9b1190cb622cb446b77ced62e8a92d4b149c7816e1aaeaaa81fa6481b10f
+ARG BUILDKITE_AGENT_SHA256_ARM64=95e4b60858bcdd5eb4a9341ec1d9ea0d7965a456cf3615c42e329a34c524a84e
 RUN set -eux; \
     case "$(dpkg --print-architecture)" in \
       amd64) bk_arch=amd64; bk_sha="${BUILDKITE_AGENT_SHA256_AMD64}" ;; \

@@ -14,6 +14,19 @@ ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}
 ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 
+# Aube embeds WebPKI roots; Node's CA settings cannot patch its native binary.
+FROM rust:1.94-bookworm AS aube-builder
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /aube
+RUN git init . && git remote add origin https://github.com/endevco/aube.git \
+    && git fetch --depth 1 origin e7b898917c43ba72da002d12f2588f7bfa7e6890 \
+    && git checkout --detach FETCH_HEAD \
+    && cargo update -p rustls-webpki --precise 0.103.16 \
+    && cargo update -p webpki-roots --precise 1.0.10 \
+    && cargo build --release --locked --bin aube
+
 # ========================================
 # Stage: Swift parser builder
 # Builds the native xcactivitylog parser. It ships as a standalone executable
@@ -23,7 +36,9 @@ ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 # ========================================
 FROM ${SWIFT_IMAGE} AS swift-builder
 
-RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+RUN apt-get update -qq && apt-get install -y -qq unzip ca-certificates > /dev/null 2>&1 \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /nif
@@ -45,7 +60,12 @@ RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-p
 FROM ${NODE_IMAGE} AS npm-deps
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
-RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
@@ -65,8 +85,12 @@ WORKDIR /app
 FROM ${BUILDER_IMAGE} AS deps-builder
 
 RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential ca-certificates curl git \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 WORKDIR /app
 
 RUN mix local.hex --force && \
@@ -200,6 +224,8 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get upgrade -y && \
   apt-get install -y curl build-essential chromium fonts-noto-cjk fonts-noto-core gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen

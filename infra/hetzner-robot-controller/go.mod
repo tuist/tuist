@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/hetzner-robot-controller
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/syself/hrobot-go v0.2.6

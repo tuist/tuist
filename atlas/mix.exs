@@ -40,6 +40,13 @@ defmodule Atlas.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:castore, "~> 1.0.22"},
+      # Remove the eMudhra roots until certifi publishes https://github.com/certifi/erlang-certifi/pull/56.
+      {:certifi,
+       github: "certifi/erlang-certifi",
+       ref: "f5d808c59ee727ddcfe8abaff7f4ea036950c8e9",
+       depth: 1,
+       override: true},
       {:phoenix, "~> 1.8.4"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},

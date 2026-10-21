@@ -7,9 +7,13 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM ${BUILDER_IMAGE} AS builder
 
-RUN apt-get update -y && apt-get install -y build-essential git zip \
+RUN apt-get update -y && apt-get install -y build-essential git zip ca-certificates \
+	&& sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+	&& update-ca-certificates \
 	&& apt-get clean && rm -f /var/lib/apt/lists/*_*
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 WORKDIR /app
 
 RUN mix local.hex --force && \
@@ -42,6 +46,8 @@ FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
 	apt-get install -y libstdc++6 openssl locales ca-certificates \
+	&& sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+	&& update-ca-certificates \
 	&& apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen

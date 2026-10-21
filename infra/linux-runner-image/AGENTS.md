@@ -210,7 +210,11 @@ base, so the sampler's byte formatting is exercised against mawk
 rather than whichever awk the CI runner happens to ship.
 
 `run-job_test.sh` exercises the generated job-start hook, including
-late environment-file expansion and jobs without a cache endpoint.
+late environment-file expansion, jobs without a cache endpoint, and the
+Linux/macOS Buildkite hooks' TLS settings after environment sanitization.
+The image removes the compromised eMudhra roots from its OS bundle and
+directs Node/Python to that store. The GitLab executor forwards those settings
+explicitly, because its generated job environment is sanitized too.
 `.github/workflows/linux-runners-staging-smoke.yml` with `gradle_cache`
 enabled validates a deployed image with a real Docker job container. Select the runner
 profile, matching server URL, and an existing Gradle project authorized

@@ -112,7 +112,7 @@ func execute(job assignment, buildsDir, resultFile string) error {
 			Executor: "shell", Shell: "bash", BuildsDir: buildsDir,
 			CacheDir:    filepath.Join(buildsDir, ".gitlab-cache"),
 			Cache:       cacheConfig(),
-			Environment: cacheVolumeEnvironment(),
+			Environment: jobEnvironment(),
 		},
 	}
 	credentials := &common.JobCredentials{ID: job.Payload.ID, Token: job.Payload.Token}
@@ -300,10 +300,13 @@ func main() {
 	}
 }
 
-// Forward only pod-local volume routing to GitLab's generated job environment.
-func cacheVolumeEnvironment() []string {
+// Forward volume routing and the image's patched TLS trust configuration.
+func jobEnvironment() []string {
 	var env []string
-	for _, name := range []string{"TUIST_CACHE_VOLUME_URL", "TUIST_CACHE_VOLUME_POD", "TUIST_CACHE_VOLUME_UID"} {
+	for _, name := range []string{
+		"TUIST_CACHE_VOLUME_URL", "TUIST_CACHE_VOLUME_POD", "TUIST_CACHE_VOLUME_UID",
+		"NODE_OPTIONS", "SSL_CERT_FILE", "SSL_CERT_DIR", "PIP_CERT", "REQUESTS_CA_BUNDLE",
+	} {
 		if value := os.Getenv(name); value != "" {
 			env = append(env, name+"="+value)
 		}

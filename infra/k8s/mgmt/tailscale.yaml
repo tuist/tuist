@@ -156,7 +156,7 @@ spec:
         node-role.kubernetes.io/control-plane: ""
       containers:
         - name: tailscale
-          image: ghcr.io/tailscale/tailscale:v1.84.0
+          image: ghcr.io/tailscale/tailscale:v1.104.2@sha256:b11583ad2e93e4671128538c88cf11f460444a5d7e449311dd1933a400ab849d
           imagePullPolicy: IfNotPresent
           env:
             - name: TS_AUTHKEY

@@ -2,6 +2,8 @@ FROM typesense/typesense:27.1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl jq ca-certificates cron \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 COPY bin/index-docc /opt/docsearch/index-docc

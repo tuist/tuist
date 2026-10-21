@@ -18,9 +18,27 @@ ARG DEBIAN_VERSION=bookworm-20260406-slim
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
+# Aube embeds WebPKI roots; Node's CA settings cannot patch its native binary.
+FROM rust:1.94-bookworm AS aube-builder
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /aube
+RUN git init . && git remote add origin https://github.com/endevco/aube.git \
+    && git fetch --depth 1 origin e7b898917c43ba72da002d12f2588f7bfa7e6890 \
+    && git checkout --detach FETCH_HEAD \
+    && cargo update -p rustls-webpki --precise 0.103.16 \
+    && cargo update -p webpki-roots --precise 1.0.10 \
+    && cargo build --release --locked --bin aube
+
 FROM node:24-slim AS npm-deps
 ENV CI=1
-RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 
 COPY package.json aube-lock.yaml /app/noora/
 COPY js/ /app/noora/js/
@@ -40,9 +58,13 @@ RUN ./node_modules/.bin/esbuild css/noora.css --bundle --minify --outfile=./priv
 FROM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
-RUN apt-get update -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get install -y build-essential git ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 # prepare build dir - mirror local layout: noora at /app, storybook at /app/storybook
 WORKDIR /app/storybook
 
@@ -93,6 +115,8 @@ FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
     apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Set the locale

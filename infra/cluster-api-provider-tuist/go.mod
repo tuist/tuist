@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/cluster-api-provider-tuist
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.3

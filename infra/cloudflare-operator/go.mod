@@ -1,6 +1,6 @@
 module github.com/tuist/tuist/infra/cloudflare-operator
 
-go 1.25
+go 1.26.10
 
 require (
 	github.com/go-logr/logr v1.4.2

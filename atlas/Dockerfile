@@ -18,6 +18,19 @@
 ARG BUILDER_IMAGE=hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-slim@sha256:4ced3cb72e20ff8ad8315ec05af520c43431ea2ae459a205f5217670df45f2cf
 ARG RUNNER_IMAGE=debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
+# Aube embeds WebPKI roots; Node's CA settings cannot patch its native binary.
+FROM rust:1.94-bookworm AS aube-builder
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /aube
+RUN git init . && git remote add origin https://github.com/endevco/aube.git \
+    && git fetch --depth 1 origin e7b898917c43ba72da002d12f2588f7bfa7e6890 \
+    && git checkout --detach FETCH_HEAD \
+    && cargo update -p rustls-webpki --precise 0.103.16 \
+    && cargo update -p webpki-roots --precise 1.0.10 \
+    && cargo build --release --locked --bin aube
+
 # ========================================
 # Stage: noora asset builder
 # Builds noora's CSS/JS from source so Atlas can embed the digested output
@@ -29,12 +42,18 @@ FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
 
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+ENV NODE_OPTIONS=--use-openssl-ca \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
 # aube 1.6.2 is the version server/Dockerfile uses to build noora
 # assets today. Atlas's inbox worker uses 1.41.0 for its own tests,
 # but that newer aube regressed how it invokes esbuild's binary in
 # this Docker layer (ELF vs. JS shim mismatch), and pinning to server's
 # proven version here keeps this build path stable.
-RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
+COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 
 # Install from the manifest alone so the install layer survives source
 # changes, then copy only what the build reads: the web component generator
@@ -56,9 +75,13 @@ RUN aube run build
 # ========================================
 FROM ${BUILDER_IMAGE} AS builder
 
-RUN apt-get update -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get install -y build-essential git ca-certificates \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
+ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
+ENV REBAR_OFFLINE=1
 WORKDIR /app
 
 RUN mix local.hex --force && \
@@ -127,6 +150,8 @@ ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
   apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates poppler-utils pandoc chromium fonts-liberation \
+  && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+  && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_* \
   && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
   && mkdir -p /app && chown nobody /app
