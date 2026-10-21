@@ -44,8 +44,9 @@ struct AtlasAppearanceView: View {
             HStack(spacing: 12) {
                 if let palette = theme?.palette(scheme) {
                     HStack(spacing: -4) {
-                        ForEach([palette.accent, palette.surface, palette.text], id: \.self) { color in
-                            Circle().fill(Color(atlasHex: color)).frame(width: 18, height: 18)
+                        let swatches = [palette.accent, palette.surface, palette.text]
+                        ForEach(swatches.indices, id: \.self) { index in
+                            Circle().fill(Color(atlasHex: swatches[index])).frame(width: 18, height: 18)
                                 .overlay(Circle().stroke(.secondary.opacity(0.3), lineWidth: 0.5))
                         }
                     }.accessibilityHidden(true)
