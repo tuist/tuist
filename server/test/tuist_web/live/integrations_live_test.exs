@@ -56,7 +56,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
   end
 
   describe "Origin visibility" do
-    test "shows unconfigured Origin in development without enabling installation", %{
+    test "hides unconfigured Origin in development", %{
       conn: conn,
       organization: organization
     } do
@@ -65,16 +65,14 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
       {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
-      assert has_element?(lv, "[data-part=origin-card-section]")
-      assert html =~ "Origin app not configured"
-      assert html =~ "TUIST_ORIGIN_APP_ID"
-      assert html =~ "TUIST_ORIGIN_APP_PRIVATE_KEY"
-      assert has_element?(lv, "[data-part=origin-card-section] button[data-variant=primary][disabled]", "Connect")
-      refute has_element?(lv, "[data-part=origin-card-section] a", "Connect")
+      refute has_element?(lv, "[data-part=origin-card-section]")
+      refute html =~ "Origin app not configured"
+      refute html =~ "TUIST_ORIGIN_APP_ID"
+      refute html =~ "TUIST_ORIGIN_APP_PRIVATE_KEY"
       refute has_element?(lv, "#add-origin-connection-modal")
     end
 
-    test "hides unconfigured Origin outside development", %{conn: conn, organization: organization} do
+    test "hides unconfigured Origin on a self-hosted release", %{conn: conn, organization: organization} do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(OriginClient, :configured?, fn -> false end)
 
@@ -83,7 +81,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       refute has_element?(lv, "[data-part=origin-card-section]")
     end
 
-    test "enables installation when Origin is configured", %{
+    test "shows configured Origin after GitHub and enables installation", %{
       conn: conn,
       organization: organization,
       account: account
@@ -99,6 +97,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
                "Connect"
              )
 
+      assert has_element?(lv, "#integrations > [data-part=github-card-section] + [data-part=origin-card-section]")
       refute html =~ "Origin app not configured"
     end
   end
@@ -136,12 +135,22 @@ defmodule TuistWeb.IntegrationsLiveTest do
     test "shows an account connection and Noora repository modal instead of raw inputs", %{
       conn: conn,
       organization: organization,
-      account: account
+      account: account,
+      origin_installation: installation
     } do
       {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
       render_async(lv)
       assert has_element?(lv, "[data-part=installation-card-section] [data-part=label]", "acme")
-      assert has_element?(lv, "[data-part=installation-card-section] button", "Disconnect")
+      assert has_element?(lv, "[data-part=installation-card-section] .noora-inline-dropdown", "Manage")
+      refute has_element?(lv, "[data-part=installation-card-section] .noora-button", "Disconnect")
+
+      assert has_element?(
+               lv,
+               "#origin-installation-actions-#{installation.id} " <>
+                 "[phx-click=disconnect-origin][phx-value-id='#{installation.id}']" <>
+                 "[data-confirm='Disconnect this Origin account and remove its project connections?']",
+               "Disconnect"
+             )
 
       assert has_element?(
                lv,
@@ -286,12 +295,37 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
       {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
       render_async(lv)
-      render_click(lv, "disconnect-origin", %{"id" => installation.id})
+      lv
+      |> element("#origin-installation-actions-#{installation.id} [phx-click=disconnect-origin]")
+      |> render_click()
+
       render_async(lv)
       refute Repo.get(OriginInstallation, installation.id)
       refute Repo.get(Projects.VCSConnection, connection.id)
       assert has_element?(lv, "[data-part=origin-card-section] a[data-variant=primary]", "Connect")
       refute has_element?(lv, "#add-origin-connection-modal")
+    end
+
+    test "keeps existing installations manageable when server credentials are missing", %{
+      conn: conn,
+      organization: organization,
+      origin_installation: installation
+    } do
+      stub(OriginClient, :configured?, fn -> false end)
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+      render_async(lv)
+
+      assert has_element?(lv, "[data-part=origin-card-section]")
+      assert html =~ "Origin app not configured"
+      assert html =~ "TUIST_ORIGIN_APP_ID"
+      assert html =~ "TUIST_ORIGIN_APP_PRIVATE_KEY"
+      assert has_element?(lv, "[data-part=origin-card-section] button[disabled]", "Manage integration")
+      assert has_element?(lv, "#origin-installation-actions-#{installation.id}", "Manage")
+
+      render_click(lv, "disconnect-origin", %{"id" => installation.id})
+      render_async(lv)
+      refute Repo.get(OriginInstallation, installation.id)
+      refute has_element?(lv, "[data-part=origin-card-section]")
     end
 
     test "does not expose or disconnect another account's installation", %{conn: conn, organization: organization} do
