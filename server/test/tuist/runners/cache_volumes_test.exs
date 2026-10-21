@@ -4,7 +4,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
   import Mimic
 
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
@@ -1582,7 +1581,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
       })
 
       installation = %{installation_id: "99", client_url: nil}
-      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> true end)
       stub(VCS, :get_github_app_installation_for_account, fn _ -> {:ok, installation} end)
       stub(VCS, :installation_api_url, fn _ -> "https://api.github.com" end)
 
@@ -1739,11 +1737,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       profile |> Ecto.Changeset.change(cached_checkouts: true) |> Repo.update!()
       assert {:ok, _} = CacheVolumes.allocate_checkout(params)
-    end
-
-    test "is unavailable unless the account has cached checkouts", %{params: params} do
-      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> false end)
-      assert {:error, :unavailable} = CacheVolumes.allocate_checkout(params)
     end
 
     test "is unavailable for GitHub Enterprise Server installations", %{params: params} do

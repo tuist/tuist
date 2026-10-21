@@ -10,9 +10,7 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   import Ecto.Query
 
-  alias Tuist.Accounts
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -93,8 +91,6 @@ defmodule Tuist.Runners.CacheVolumes do
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
          {:ok, %WorkflowJob{provider: "github"} = job, platform} <- executing_job(pod, node),
-         {:ok, account} <- Accounts.get_account_by_id(job.account_id),
-         true <- FeatureFlags.runner_cached_checkouts_enabled?(account),
          true <- profile_cached_checkouts?(job),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",

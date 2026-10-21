@@ -185,7 +185,7 @@
             <.line_divider />
 
             <div
-              :if={@cached_checkouts_enabled? and @form_platform == "macos"}
+              :if={@form_platform == "macos"}
               data-part="cached-checkouts"
             >
               <.toggle
@@ -202,7 +202,7 @@
               />
             </div>
 
-            <.line_divider :if={@cached_checkouts_enabled? and @form_platform == "macos"} />
+            <.line_divider :if={@form_platform == "macos"} />
 
             <section data-part="cache-saving-section">
               <button
