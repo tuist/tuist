@@ -89,7 +89,7 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config). Applied by `mgmt-cluster-apply.yml` (immutable templates stay out of Flux — see below).
 - `clusters/workloads/<cluster>/{cluster.yaml,kustomization.yaml}` — the per-cluster `Cluster` CRs **reconciled by Flux** (`infra/flux/mgmt/`): `staging` / `canary` / `production` plus the `hive` / `once` / `atlas` tenants (migrated in from `tuist/{hive,once,atlas}`, all reuse `org-tuist` + the `hetzner` Secret). One subdir per cluster so each has its own Flux `Kustomization` + health gate.
 - Canary's general-purpose `md-0` pool has three workers to leave capacity for deployment hooks and rolling updates alongside two CNPG instances. Keep this headroom when sizing the pool; see `k8s/clusters/README.md` for the deployment retry sequence.
-- `clusters/cluster-preview.yaml` and `clusters/cluster-pentest.yaml` — the preview and isolated security-assessment Cluster CRs, still on `mgmt-cluster-apply.yml`, not Flux (preview's replicas are mutated out-of-band by the preview workflows). Control-plane `MachineHealthCheck` remediation is defined once in the shared ClusterClass (`clusterclass-tuist.yaml`); a degraded control plane also pages via Pillar 2. See [hive/specs/72](https://hive.tuist.dev/specs/72).
+- `clusters/cluster-preview.yaml` — the preview Cluster CR, still on `mgmt-cluster-apply.yml`, not Flux (its replicas are mutated out-of-band by the preview workflows). Control-plane `MachineHealthCheck` remediation is defined once in the shared ClusterClass (`clusterclass-tuist.yaml`); a degraded control plane also pages via Pillar 2. See [hive/specs/72](https://hive.tuist.dev/specs/72).
 - `clusters/bare-metal.yaml` and `clusters/bare-metal-stateful.yaml`: Hetzner Robot substrates. The first backs the `bare-metal-worker` class (runner-shaped: Kata pre-baked, root takes the whole array); the second backs `stateful-worker` (database-shaped: capped root plus a separate `/data`, no Kata, and a per-cluster `statefulRaidLevel` because SWRAIDLEVEL 1 on a four-disk box installs as a four-way mirror). Both are applied by a `bare-metal*.yaml` glob in `mgmt-cluster-apply.yml`. Host CRs come from `hetzner-robot-controller`, which stamps only managed-by + cluster, so any bare-metal MachineDeployment in an env can claim any host in it.
 - Production Kura regions are node pools in `clusters/workloads/production/cluster.yaml` (US East/West moved to OVH fleets in the tuist chart), not separate workload clusters.
 - The preview cluster also hosts Slack-requested preview environments:
@@ -97,10 +97,9 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
   preview worker pool (`role=preview`, with the preview toleration on the
   KuraInstance). The Kura controller itself runs once cluster-wide in the
   `kura` namespace; each preview's `KuraInstance` is created there.
-- `clusters/cluster-pentest.yaml` is the isolated security-assessment cluster.
-  Its data volumes and application namespace are not shared with preview or
-  any managed environment. It has no runner, Mac, or Kura worker pools;
-  `values-pentest.yaml` keeps its embedded data services persistent.
+- The isolated security-assessment cluster (`tuist-pentest`) is retired: its
+  Cluster CR was removed, and **Pentest Cluster Retirement** deletes the live
+  cluster. Its pentest workflows and values files remain until that has run.
 - `clusters/README.md` — reconciliation ownership (Flux vs `mgmt-cluster-apply.yml`), ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/external-secrets.yaml` + `mgmt/flux-git-externalsecret.yaml` — ESO on the mgmt cluster (Flux bootstrap prerequisite): the `onepassword` `ClusterSecretStore` for the `tuist-k8s-mgmt` vault, and Flux's git (GitHub App) credential synced from it.
