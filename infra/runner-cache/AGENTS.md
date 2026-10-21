@@ -99,6 +99,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   used in the last day while its successor is queued, instead of removing it.
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
+- Pressure eviction (`reserveBytes`, `evictionOrder`) removes, in order: generations a
+  newer local master of their lineage supersedes; speculative masters (`<master>.spare`,
+  written by a spare prefetch of a lineage with no used copy here, removed by the
+  first clone); the rest least recently used first (mtime). Lineages
+  `LocalImages.InUse` (each host passes `Store.InUse`) reports held or attaching go
+  last: their clones share the masters' blocks, and an attaching job would lose its
+  base and go cold. The order never changes what admission can free, only what goes
+  first. Each removal is an `evict` observation whose source is the reason.
 - `MasterNodeLabels(root)` advertises one `tuist.dev/cache-volume-<first 48 hex of
   scope>` label per lineage with an installed `*.img` master. tart-kubelet
   publishes it on the node heartbeat and the Linux agent merges it into its Node
