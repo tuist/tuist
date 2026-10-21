@@ -602,6 +602,17 @@ func (c *Client) Delete(ctx context.Context, name string) error {
 	return err
 }
 
+// CollectContent removes the files in Tart's content store that no VM or
+// cached image references any more: the read-only bases and overlays stacked
+// images share. Deleting a cached image collects them, deleting a local VM
+// does not, so a reaped stacked golden frees its base only after this.
+func (c *Client) CollectContent(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+	_, err := c.run(ctx, c.Binary, "prune", "--gc")
+	return err
+}
+
 // Get returns one VM's metadata, or (nil, nil) if it doesn't exist.
 func (c *Client) Get(ctx context.Context, name string) (*VM, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeout)

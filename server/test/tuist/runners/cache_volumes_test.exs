@@ -4,7 +4,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
   import Mimic
 
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
@@ -1582,7 +1581,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
       })
 
       installation = %{installation_id: "99", client_url: nil}
-      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> true end)
       stub(VCS, :get_github_app_installation_for_account, fn _ -> {:ok, installation} end)
       stub(VCS, :installation_api_url, fn _ -> "https://api.github.com" end)
 
@@ -1628,6 +1626,71 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert checkout.generation == Repo.get!(Volume, Repo.get!(Usage, checkout.id).volume_id).generation
       assert volume(account).key == "checkout"
       assert volume(account).platform == "macos"
+    end
+
+    test "allocates a Linux job's checkout volume on its own platform and architecture", %{
+      account: account,
+      job: job,
+      params: params
+    } do
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: job.workflow_job_id,
+        executed_workflow_job_id: job.workflow_job_id,
+        fleet_name: "linux",
+        pod_name: "linux-pod",
+        node_name: "linux-node",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: DateTime.utc_now()
+      })
+
+      {:ok, mac} = CacheVolumes.allocate_checkout(params)
+
+      assert {:ok, linux} =
+               CacheVolumes.allocate_checkout(%{
+                 params
+                 | "pod_name" => "linux-pod",
+                   "pod_uid" => "linux-uid",
+                   "node_name" => "linux-node",
+                   "architecture" => "amd64",
+                   "uid" => 1000
+               })
+
+      assert linux.clone_url == "https://github.com/org/repo"
+      assert linux.default_branch_job
+      refute linux.can_publish
+      assert linux.scope != mac.scope
+      assert linux.volume_key != mac.volume_key
+
+      volume = Repo.get!(Volume, Repo.get!(Usage, linux.id).volume_id)
+      assert {volume.key, volume.platform, volume.architecture, volume.uid} == {"checkout", "linux", "amd64", 1000}
+      assert CacheVolumes.storage_name(volume) =~ ~r/^linux-/
+
+      # The Linux host publishes its master as the volume's HEAD, and a cold Linux host restores it.
+      digest = String.duplicate("e", 40)
+      content = String.duplicate("f", 64)
+
+      assert {:ok, %{generation: 1}} =
+               CacheVolumes.image("linux-node", linux.id, %{
+                 "operation" => "publish",
+                 "image_digest" => digest,
+                 "content_digest" => content
+               })
+
+      assert {:ok, next} =
+               CacheVolumes.allocate_checkout(%{
+                 params
+                 | "pod_name" => "linux-pod",
+                   "pod_uid" => "next-linux-uid",
+                   "node_name" => "linux-node",
+                   "architecture" => "amd64",
+                   "uid" => 1000
+               })
+
+      assert {next.base_generation, next.content_digest} == {1, content}
     end
 
     test "never lets a use of the checkout volume publish, even from the default branch", %{params: params} do
@@ -1739,11 +1802,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       profile |> Ecto.Changeset.change(cached_checkouts: true) |> Repo.update!()
       assert {:ok, _} = CacheVolumes.allocate_checkout(params)
-    end
-
-    test "is unavailable unless the account has cached checkouts", %{params: params} do
-      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> false end)
-      assert {:error, :unavailable} = CacheVolumes.allocate_checkout(params)
     end
 
     test "is unavailable for GitHub Enterprise Server installations", %{params: params} do

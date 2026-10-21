@@ -726,6 +726,18 @@ server:
       role: tuist_ops_readonly
       existingSecret: ""
       passwordKey: password
+    # The bounded ClickHouse identity Grafana Cloud's data source signs in
+    # as, through the PDC agent (add the ClickHouse Service to
+    # `pdcAgent.permitRemoteOpen`). Reconciled by the migration Job like
+    # `opsClickHouse`. The password comes from 1Password (`item`/`field`
+    # through the managed external secrets, so `managedSecrets` must be on)
+    # because the same value is entered on the Grafana data source.
+    grafanaClickHouse:
+      enabled: false
+      username: tuist_grafana
+      role: tuist_grafana_readonly
+      item: CLICKHOUSE_GRAFANA
+      field: password
     # Newsletter signups go to Atlas, which is our own deployment. Only the
     # environment that owns the production audience should write to it, so
     # this stays off everywhere else and the client then has no key to use.
@@ -1864,6 +1876,13 @@ rackFleet:
   # macOS.
   runners:
     enabled: false
+    # Run each Xcode's stacked runner image (`runnersFleet
+    # .runnerImageStackedDigests`) on this fleet, so a release on an unchanged
+    # base pulls only its overlay. Every host of the fleet, and every host it
+    # borrows, must run macOS 27 and Tart 2.36 or newer: older hosts can pull a
+    # stacked image but not boot it. An Xcode without a stacked digest, or with
+    # an `imageTag` override, keeps its standalone image.
+    stackedImages: false
     # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
     # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
     # guestCapacity); the allocator caps the pools' joint sum.
@@ -2751,6 +2770,12 @@ runnersFleet:
   # releases. Tart-kubelet names goldens after the ref string and the
   # runners-controller rolls Pods whose ref differs from the pool's.
   runnerImageDigests: {}
+  # Manifest digest of each Xcode's stacked image
+  # (`macos-<xcode-dashes>-<runnerImageSemver>-stacked`), keyed by
+  # `xcodeVersion`, for the rack pools `rackFleet.runners.stackedImages`
+  # turns on. `server-deployment.yml` resolves the ones the release
+  # published. An Xcode with no entry runs its standalone image everywhere.
+  runnerImageStackedDigests: {}
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.
@@ -3558,20 +3583,13 @@ clickhouse:
   # embedded | external | managed
   #
   # `embedded` is one unreplicated pod for self-hosters and previews.
-  # `external` points at a URL somebody else operates (ClickHouse Cloud today).
+  # `external` points at a URL somebody else operates.
   # `managed` makes the in-cluster server below the system of record: every
-  # workload gets TUIST_CLICKHOUSE_URL from its credentials Secret, and nothing
-  # is mirrored. It requires `managed.enabled`, and it replaces ClickHouse Cloud
-  # without copying anything, so run the migration steps before switching.
+  # workload gets TUIST_CLICKHOUSE_URL from its credentials Secret. It requires
+  # `managed.enabled`.
   mode: embedded
   # In-cluster ClickHouse operated by Tuist: replicated tables on bare metal
   # with a Keeper quorum. See `templates/clickhouse-managed.yaml`.
-  #
-  # Deliberately gated on its own `enabled` rather than on `mode`, because the
-  # migration needs both at once: during the dual-run the application still
-  # reads and writes ClickHouse Cloud (`mode: external`) while this workload
-  # runs alongside it, taking backfilled history and shadow writes. Flipping
-  # `mode` is the last step, not the first.
   managed:
     enabled: false
     # ClickHouse replicas, each on its own node from
@@ -3585,15 +3603,6 @@ clickhouse:
     # `ENGINE = Replicated`, and `default` already exists as an ordinary
     # Atomic database on a fresh server.
     database: tuist
-    # Mirror every ClickHouse write onto the in-cluster server as well as the
-    # system of record. Switched on separately from the URL, and after the
-    # schema clone: a destination with no tables rejects every mirrored write,
-    # so a single switch would fill the logs on the deploy that first brings
-    # the server up. Cloud stays the system of record either way; a failed
-    # mirror is counted and ignored, never surfaced to a request. Ignored in
-    # `managed` mode, where there is nothing left to mirror to.
-    shadowWrites:
-      enabled: false
     # Backups of the in-cluster server to object storage, as a weekly full and
     # a daily incremental based on that week's full. See
     # `templates/clickhouse-backup.yaml` for why the chain is two long, why the
@@ -3629,68 +3638,6 @@ clickhouse:
           memory: 256Mi
         limits:
           memory: 1Gi
-    # One step of the migration off ClickHouse Cloud, run as a post-upgrade
-    # hook. An operator advances the migration by changing `task` and
-    # deploying, so each step is recorded in the release history.
-    #
-    #   Tuist.Release.clone_clickhouse_schema  copy the schema across
-    #   Tuist.Release.backfill_clickhouse      copy the rows that exist
-    #   Tuist.Release.check_clickhouse_parity  assert the two agree
-    #
-    # All three are idempotent and safe to re-run: the clone emits
-    # `IF NOT EXISTS`, the backfill skips chunks its ledger records as done,
-    # and the parity check only reads.
-    migration:
-      enabled: false
-      # Part of the Job's name, so changing the task creates a new Job rather
-      # than colliding with the immutable pod template of the previous one.
-      name: schema-clone
-      task: Tuist.Release.clone_clickhouse_schema
-      # The instant the backfill copies up to, and the one shadow writes take
-      # over from. Set it to when the deploy that enabled shadow writes
-      # finished rolling out, and enable shadow writes first: the backfill
-      # covers what came before, the dual write covers what comes after, and
-      # naming the boundary is what stops the two from either overlapping or
-      # leaving a gap between them. RFC 3339, for example
-      # "2026-09-04T07:30:00Z". The backfill refuses to run without it.
-      cutoff: ""
-      # BROKEN under helm 4, and left here only so the values keep their shape
-      # while a replacement is chosen. Do not set it to true.
-      #
-      # The intent was to run the step as an ordinary Job rather than a deploy
-      # hook, so the release would not wait for it: waiting is what makes the
-      # deploy's result meaningful for the schema clone and the parity checks,
-      # which take seconds to minutes, and is the opposite of what a
-      # production-sized copy wants.
-      #
-      # That relied on helm 3, whose `--wait` covered pods and workloads but
-      # not Jobs. Helm 4 waits on Jobs too, so an ordinary Job is not
-      # background at all: the release blocks on it, and a Job that fails
-      # fails the release. Arming it on canary rolled back three releases in a
-      # row on `resource Job/... not ready. status: Failed`.
-      #
-      # The task takes an advisory lock, so a second deploy while a copy is
-      # running starts a Job that exits immediately rather than a second copy.
-      background: false
-      # Only used by a background Job, which is not deleted by the deploy that
-      # follows it. Long enough to read the logs of one that failed overnight.
-      ttlSecondsAfterFinished: 86400
-      # How many five-second attempts the init container makes at reaching the
-      # server before giving up. Five minutes covers a StatefulSet rolling a
-      # replica, which is what this exists for, and still fails inside the
-      # step's own deadline if the server is genuinely down.
-      waitAttempts: 60
-      # No retries. These steps are resumable, so a failure should be read
-      # and re-run deliberately rather than repeated automatically against a
-      # database.
-      backoffLimit: 0
-      activeDeadlineSeconds: 21600
-      resources:
-        requests:
-          cpu: 200m
-          memory: 512Mi
-        limits:
-          memory: 2Gi
     image:
       repository: clickhouse/clickhouse-server
       # Pin an LTS. 26.3 is the current one; the ingest migrations need 26.1 or
@@ -3728,9 +3675,7 @@ clickhouse:
     # Reachability for writers that are not on the pod network. The macOS
     # fleet's xcresult-processor runs in a Tart VM with a tailnet address, not
     # a pod IP, so it cannot resolve the in-cluster Service name the `url`
-    # secret carries. It wrote the whole test family to ClickHouse Cloud and
-    # mirrored none of it, which parity saw as six tables holding zero rows on
-    # the destination while the source had data.
+    # secret carries.
     #
     # Same mechanism the CNPG pooler already uses for the same fleet: the
     # Tailscale operator watches for `tailscale.com/expose` and fronts the
@@ -3867,9 +3812,8 @@ clickhouse:
       # Dropping needs no extra disk, and runs as DROP ... SYNC so the space
       # comes back at once rather than after the Atomic engine's deferred-drop
       # delay. There is deliberately no option to copy the rows back into the
-      # live table: ClickHouse Cloud does not do it either, and it would need
-      # transient disk plus a schema match that a ClickHouse upgrade
-      # breaks.
+      # live table: it would need transient disk plus a schema match that a
+      # ClickHouse upgrade breaks.
       supersededTables: ignore
     database: tuist
     username: default

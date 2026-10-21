@@ -3,7 +3,7 @@ import TuistCore
 import XcodeGraph
 import XCResultParser
 
-/// The build settings of a `tuist cache --coverage` warm, which builds the repository's own targets with
+/// The build settings of a `tuist cache` warm with coverage on, which builds the repository's own targets with
 /// coverage counters so a `tuist test` run that collects coverage measures the cached code it links.
 ///
 /// The settings are passed on the xcodebuild command line, where they beat every project and target

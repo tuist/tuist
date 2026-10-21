@@ -166,9 +166,13 @@ defmodule Cache.Authentication do
     end
   end
 
-  # Grants are complete and say which action they cover, so they are the whole
-  # answer. Tuist's server mints these; the shape is agreed with the cache
+  # Grants say which action they cover, so for a project they name they are the
+  # whole answer. Tuist's server mints these; the shape is agreed with the cache
   # nodes that read them back.
+  #
+  # A cache token's grants are complete. An access token's cover only the
+  # subject's most recently used projects when it was minted, so a project they
+  # leave out may still be reachable and is asked of the server.
   defp verify_granted_project(grants, claims, requested_handle, action) do
     account_handle = account_handle_of(requested_handle)
 
@@ -179,8 +183,11 @@ defmodule Cache.Authentication do
       payment_required?(Map.get(claims, "cache_payment_required", []), account_handle) ->
         {:error, :payment_required, account_handle}
 
-      true ->
+      Map.get(claims, "typ") == "cache" or granted?(grants, requested_handle, :read) ->
         {:error, :not_granted}
+
+      true ->
+        {:error, :project_not_in_jwt}
     end
   end
 

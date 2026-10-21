@@ -106,6 +106,7 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `mgmt/external-secrets.yaml` + `mgmt/flux-git-externalsecret.yaml` — ESO on the mgmt cluster (Flux bootstrap prerequisite): the `onepassword` `ClusterSecretStore` for the `tuist-k8s-mgmt` vault, and Flux's git (GitHub App) credential synced from it.
 - `mgmt/flux-diff-rbac.yaml` — least-privilege `flux-diff` SA/Role for the `flux diff` PR job (`.github/workflows/flux-diff.yml`); dry-run write on `clusters` only.
 - `mgmt/reconciliation-checks.yaml` — CronJob (+ scrape-target Pushgateway) that reports orphan Hetzner servers and stale (removed-from-git) Clusters as metrics; alerts via Pillar 2.
+- `mgmt/talos/` — Talos machine config patches for the single mgmt node, applied by hand with `talosctl` (not by CI or Flux). `control-plane-resources.yaml` sets memory limits on the control-plane static pods so Talos's userspace OOM controller never picks them. See `mgmt/talos/README.md`.
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
   The hcloud-csi node affinity excludes both Robot pools (`runners-linux` and `clickhouse`); these nodes lack the provider labels used by the other exclusions. Keep this list aligned when adding Robot pools, since Hetzner Cloud volumes and metadata are unavailable on bare metal.
 - `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
@@ -327,10 +328,11 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   idempotent provisioning init container for the bounded reflink filesystem.
   Host preparation and agent readiness precede volume attachment; runner scheduling
   only prefers ready hosts so ordinary jobs remain available. See
-  [workflow setup and rollout](runners-controller/cache-volumes.md).
+  [workflow setup and rollout](runners-controller/cache-volumes.md). The same agent builds and
+  serves cached checkouts (`checkout` volumes) with the shared runner-cache
+  populator.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - Shared runner-cache lifecycle: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).

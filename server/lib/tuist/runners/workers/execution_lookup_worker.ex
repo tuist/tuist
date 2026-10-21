@@ -94,7 +94,15 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorker do
     end
   end
 
-  defp record(nil, _session), do: :ok
+  # GitHub reports the job a runner picked up late, by webhook and API alike, so
+  # a miss here means the host may give up before the binding arrives. The job
+  # logged is the one the runner was minted for.
+  defp record(nil, %RunnerSession{} = session) do
+    Logger.info("runners: execution lookup found no job GitHub reports running on this runner",
+      runner_name: session.runner_name,
+      workflow_job_id: session.workflow_job_id
+    )
+  end
 
   defp record(executed_workflow_job_id, %RunnerSession{} = session) do
     outcome = Dispatch.record_execution(session.runner_name, executed_workflow_job_id, session.account_id)

@@ -23,10 +23,9 @@ file that sets the cache's location and size limit. If the step's environment
 already sets `XCODE_XCCONFIG_FILE`, that file is included last, so its settings
 win; a relative path is resolved against the checkout.
 
-Successful builds Tuist can verify as coming from your own repository save their
-changes. Builds from forks start empty and never save. The Xcode cache shares
-its storage and size budget with the module cache plugin, and Tuist prunes it to
-fit. Directories you keep with the `tuist/cache-volume` plugin are separate.
+Successful webhook and schedule builds on the pipeline.s default branch save
+their changes. Other builds use the cache and discard their changes. The cache
+holds up to 30 GB and Tuist prunes it to fit. Directories you keep with the `tuist/cache-volume` plugin are separate.
 
 On agents that are not Tuist macOS runners the hook does nothing. If the runner
 could not restore the cache, the hook warns and the build runs with an empty

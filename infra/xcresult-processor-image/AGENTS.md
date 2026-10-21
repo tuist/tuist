@@ -262,7 +262,7 @@ what made the two incidents above look alike from the outside.
 
 **Detection.** Readiness, when enabled, only gates rollouts; it pages nobody, and
 ExternalSecrets cannot see this class of failure at all, so it is caught
-in the metrics pipeline too. Five rules in
+in the metrics pipeline too. Six rules in
 [`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
 cover it, and they are cause-independent by design:
 
@@ -273,6 +273,7 @@ cover it, and they are cause-independent by design:
 | `xcresult processor guest metrics unavailable in canary or staging` | The same for the single-replica clusters, with a 30 minute pending period so a slow image pull during a deploy does not page. |
 | `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
 | `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
+| `xcresult processor rollout failed` | A production rollout that made no progress for `progressDeadlineSeconds`, such as a new release or image that never turns Ready. Production deploys do not wait for the rollout, so this is what reports it. |
 
 **Reading guest logs.** `kubectl logs` does not work here (the apiserver
 cannot resolve the Tailscale-only kubelet hostnames), and neither does

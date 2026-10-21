@@ -55,6 +55,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateInsurancePolicy
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
+  alias Atlas.MCP.Tools.CreateManualFinanceInvoice
   alias Atlas.MCP.Tools.CreateMCPServer
   alias Atlas.MCP.Tools.CreateNote
   alias Atlas.MCP.Tools.CreatePOC
@@ -75,6 +76,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
+  alias Atlas.MCP.Tools.DeleteManualFinanceInvoice
   alias Atlas.MCP.Tools.DeleteMCPServer
   alias Atlas.MCP.Tools.DeletePOC
   alias Atlas.MCP.Tools.DeletePOCTimelineEntry
@@ -84,6 +86,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteSocialPostRevision
   alias Atlas.MCP.Tools.DeleteSpec
   alias Atlas.MCP.Tools.DeleteSpecComment
+  alias Atlas.MCP.Tools.DeleteTask
   alias Atlas.MCP.Tools.DescribeTuistClickhouseTable
   alias Atlas.MCP.Tools.DescribeTuistPostgresTable
   alias Atlas.MCP.Tools.DetachDocumentFromFinancing
@@ -139,6 +142,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetGTMOpportunity
   alias Atlas.MCP.Tools.GetInsurancePolicy
   alias Atlas.MCP.Tools.GetMCPConnectionStatus
+  alias Atlas.MCP.Tools.GetMonthlyInvoiceTotals
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
   alias Atlas.MCP.Tools.GetOutreachContact
@@ -289,6 +293,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateFeatureInterestAccountContext
   alias Atlas.MCP.Tools.UpdateHoliday
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
+  alias Atlas.MCP.Tools.UpdateManualFinanceInvoice
   alias Atlas.MCP.Tools.UpdateNote
   alias Atlas.MCP.Tools.UpdatePOC
   alias Atlas.MCP.Tools.UpdatePOCTimelineEntry
@@ -364,6 +369,10 @@ defmodule Atlas.MCP.Server do
     ListFinanceAccounts,
     ListFinanceCategories,
     ListFinanceInvoices,
+    CreateManualFinanceInvoice,
+    UpdateManualFinanceInvoice,
+    DeleteManualFinanceInvoice,
+    GetMonthlyInvoiceTotals,
     ListFinanceTransactions,
     ListAccountInvoices,
     CreateStripeDraftInvoice,
@@ -612,6 +621,7 @@ defmodule Atlas.MCP.Server do
     CreateTask,
     UpdateTask,
     CompleteTask,
+    DeleteTask,
     ListUpcomingRenewals,
     CreateAccount,
     GetAccount,
@@ -630,6 +640,10 @@ defmodule Atlas.MCP.Server do
     ListFinanceAccounts,
     ListFinanceCategories,
     ListFinanceInvoices,
+    CreateManualFinanceInvoice,
+    UpdateManualFinanceInvoice,
+    DeleteManualFinanceInvoice,
+    GetMonthlyInvoiceTotals,
     ListFinanceTransactions,
     ListAccountContacts,
     ListAccountIncidentContacts,

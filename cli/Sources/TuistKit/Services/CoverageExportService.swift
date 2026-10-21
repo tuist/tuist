@@ -792,7 +792,7 @@ public enum CoverageExport {
 /// target's intermediates (`Build/Intermediates.noindex/<project>.build/<configuration>/
 /// <target>.build/`) maps the aliases the compiler recorded (`/^src`, `/^root`, `/^built`, …)
 /// back to the directories of this build. A coverage build maps only when the project opted in
-/// (`enableCoveragePrefixMapping`), since `xccov` drops mapped files.
+/// (`coverage.prefixMapping`), since `xccov` drops mapped files.
 struct CompilationPrefixMaps {
     /// Each target's entries, longest alias first, so the most specific one wins.
     private(set) var mapsByTarget: [String: [(alias: String, path: String)]] = [:]

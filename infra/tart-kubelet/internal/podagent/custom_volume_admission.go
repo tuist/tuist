@@ -62,7 +62,6 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 			total += cachevolumes.CheckoutGrowthBytes
 			continue
 		}
-		// Only a restore retains both an archive and an expanded master.
 		if slot.State != "active" {
 			total += customAdmissionBytes(slot)
 			continue
@@ -78,11 +77,13 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 	return total
 }
 
+// A job clones a local master or starts empty, so it needs one image of room.
+// Only a prefetch downloads, keeping its archive beside the restored image.
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
 	if slot.Kind == cachevolumes.KindCheckout {
 		return cachevolumes.CheckoutGrowthBytes
 	}
-	if slot.BaseGeneration > 0 {
+	if slot.ID == cachevolumes.PrefetchReservation {
 		return 2 * customVolumeBytes(slot)
 	}
 	return customVolumeBytes(slot)

@@ -73,15 +73,6 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's GitHub jobs get a cached checkout: a `checkout` volume the
-  runner host fills from GitHub and mounts at the job's workspace. Off unless the
-  `:runner_cached_checkouts` FunWithFlags toggle is enabled for the account.
-  """
-  def runner_cached_checkouts_enabled?(account) do
-    FunWithFlags.enabled?(:runner_cached_checkouts, for: account)
-  end
-
-  @doc """
   Whether code coverage (Xcode's and Mix's) is ingested, processed and shown
   for the given account. Canary and production require an explicit `:xcode_coverage`
   FunWithFlags toggle for the account while the feature is in early access, so
@@ -138,28 +129,6 @@ defmodule Tuist.FeatureFlags do
   """
   def runner_cache_volumes_per_repository_enabled? do
     Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_cache_volumes_per_repository)
-  end
-
-  @doc """
-  Whether the account's macOS runner jobs use the built-in Tuist and Xcode
-  caches only through the module-cache and xcode-cache GitHub actions, Buildkite
-  plugins and GitLab snippets.
-  Off, every job gets them automatically. Actor gates take precedence over the
-  boolean gate, so an account can be held on automatic caches after the flag is
-  enabled for everyone.
-  """
-  def runner_opt_in_caches_enabled?(account) do
-    FunWithFlags.enabled?(:runner_opt_in_caches, for: account)
-  end
-
-  @doc """
-  Whether the account's macOS runner jobs keep the Xcode and module caches on
-  their own custom volumes (`tuist-xcode`, `tuist-module`) instead of the
-  built-in volume. Only takes effect together with `:runner_opt_in_caches`,
-  because the caches are attached when the job's CI integration activates them.
-  """
-  def runner_managed_cache_volumes_enabled?(account) do
-    FunWithFlags.enabled?(:runner_managed_cache_volumes, for: account)
   end
 
   @doc """

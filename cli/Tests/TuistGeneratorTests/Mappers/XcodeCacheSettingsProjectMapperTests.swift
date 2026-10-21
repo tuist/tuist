@@ -126,7 +126,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         let tuist = Tuist(
             project: .generated(.test(generationOptions: .test(
                 enableCaching: enableCaching,
-                enableCoveragePrefixMapping: true
+                coverage: .init(prefixMapping: true)
             ))),
             fullHandle: nil,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
@@ -201,7 +201,7 @@ struct XcodeCacheSettingsProjectMapperTests {
     /// Earlier Xcodes don't define these settings and their build systems lack the
     /// mappings, so setting them would be inert noise in the generated project.
     @Test(.inTemporaryDirectory, .withMockedXcodeController, arguments: [false, true])
-    func map_whenXcodeOlderThan27_doesNotEnablePrefixMapping(enableCoveragePrefixMapping: Bool) async throws {
+    func map_whenXcodeOlderThan27_doesNotEnablePrefixMapping(coveragePrefixMapping: Bool) async throws {
         // Given
         try stubXcodeVersion(Version(26, 5, 0))
         let tuist = Tuist(
@@ -209,7 +209,7 @@ struct XcodeCacheSettingsProjectMapperTests {
                 .test(
                     generationOptions: .test(
                         enableCaching: true,
-                        enableCoveragePrefixMapping: enableCoveragePrefixMapping
+                        coverage: .init(prefixMapping: coveragePrefixMapping)
                     )
                 )
             ),

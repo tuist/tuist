@@ -39,6 +39,12 @@ Do not add README entries for internal operational details such as env var names
   client. Existing registrations retain their stored settings. Native registration,
   missing/wrong verifier rejection, browser-login continuation, and public refresh
   are covered by `test/atlas_web/controllers/oauth/registration_controller_test.exs`.
+  Authorization must store its full local continuation in `:return_to`, the same
+  session key consumed and cleared by `AuthController` after Google login. Do not
+  use `:user_return_to`, which leaves native clients at the dashboard. The optional
+  allowlisted `provider=google` authorization parameter skips the login page but
+  keeps the same client, callback, state, and PKCE flow. Browser-continuation tests
+  mock only the Google provider boundary and exchange the resulting native code.
 - Client → Atlas OAuth stores opaque `state` in `oauth_tokens.state` as PostgreSQL `text`, not Boruta's default `varchar(255)`. Preserve it verbatim in authorization-code storage and redirects; MCP clients may send longer values. PKCE and long-state exchange coverage lives in `test/atlas_web/controllers/oauth/authorize_controller_test.exs`.
 - `Atlas.MCP.Proxy` discovers tools using the current caller's upstream OAuth session and MCP tool groups. Client → Atlas authorization is separate from Atlas → upstream authorization; reconnect the specific upstream at `/admin/mcps` only when diagnostics support doing so.
 - `get_mcp_connection_status` performs fresh discovery for one permitted upstream. Discovery failures also expose `<server>__atlas_connection_status` instead of silently removing every trace of that upstream. Both return sanitized failure categories/stages or currently permitted tool schemas; neither calls an upstream business tool.
@@ -108,11 +114,15 @@ Do not add README entries for internal operational details such as env var names
 
 ## Invoice processing
 
+- Manual bookkeeping invoices use `Atlas.Finance.Invoices.create_manual_invoice/3`, `update_manual_invoice/4`, and `delete_manual_invoice/3`. Only entries with server-owned `metadata.source = "manual"`, no document, and no bank transaction link are mutable through these actions. A missing document alone never grants edit/delete access. Mutations lock and reload the row before checking provenance, and audit the caller/interface. These actions never change payments or bank data; MCP exposes the same finance-write-gated actions.
+- `monthly_invoice_totals/0` groups the entire invoice dataset by invoice date month and original currency without conversion. Native summary charts must be labeled monthly invoice totals, not cashflow; do not use the paginated/search-filtered list or the vendor cash-settlement analytics to calculate this summary.
 - Rule-based document classification must still run finance invoice extraction. Classifying a document as an invoice does not create its finance entry or line items.
 - `EnsureDocumentClassifications` also repairs ready classified invoices that have no finance entry or only an unconfigured-extractor fallback, using the existing pages and unique classification jobs. Repair jobs extract costs from the stored classification without rewriting document metadata. Documents without text get a visible failed finance entry without calling the model. Transient extraction errors retry before a final failure is recorded. Existing complete finance entries, including failed extractions, are excluded from this automatic recovery. Candidate ordering uses the last extraction attempt so persistent fallback entries rotate behind invoices that have not been attempted. Transient extraction errors during ingestion leave the document ready for the repair job. Successful entries are preserved during reclassification; an intentional refresh can use `Documents.process_document(id, force_invoice_extraction?: true)`.
 
 ## Model relay and support classification
 
+- Slack replies use `Atlas.LLMs.Runner.with_reply_stream/5`. In local mode, buffer the native Condukt model/tool run through Req's `LocalTransport` Plug, then deliver the final text through the existing Slack response pipeline. ReqLLM's Finch streaming transport does not honor the Plug adapter and must never receive the `atlas-local` sentinel URL. External-provider mode retains incremental streaming. Keep real Plug-backed model/tool-loop regression coverage, plus no-reply and supersession checks for buffered replies.
+- Classifier fallback diagnostics may unwrap known status, cause, and reason fields into fixed transport/output categories. Never persist or log arbitrary error strings, schema field names, invalid values, or request/response bodies.
 - When a provider requires streaming, preserve non-success response statuses and bodies from the streamed request. Only decode successful responses as streamed completions, so billing and credential failures remain distinguishable from transport failures. Assemble tool-call deltas by index, concatenating function-name and argument fragments and preserving the initial id/type. Remove stream-only indexes from the completed calls. Dropping these fragments makes native agents fail with `:no_result_submitted` even when the model requested tools.
 - Support classification failures must still notify `#support`. Persist and log a bounded explanation based on the failure status; never inspect the raw error into a support reason or log, because it can contain the full request and inbound email body. Condukt returns atom-keyed results when schema property keys are atoms; classifier normalization must accept these as well as string-keyed results. Keep allowed category/urgency atoms explicit and map validated strings against that finite set, rather than assuming `String.to_existing_atom/1` can find atoms created by some other module.
 
@@ -129,6 +139,10 @@ Do not add README entries for internal operational details such as env var names
 
 - General tasks and their scheduled Slack reminders live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
 - The task page is `/tasks`. Tasks may optionally reference an account and have a due date or reminder, but always have an Atlas user assignee when created. The task list uses the shared Noora filter and search controls; their state is encoded in the page URL.
+
+## Native API
+
+- Bearer-only `/api/native/tasks`, `/api/native/accounts`, and `/api/native/invoices` share string-field records and Flop page pagination through `Atlas.Native`. The native HTTP contract, permissions, audit context, and profile version source are documented in [the controller intent](lib/atlas_web/controllers/AGENTS.md). Native clients reuse the existing owner-scoped AI connection endpoints; the profile endpoint grants no settings or identity writes.
 
 ## Postal letters
 

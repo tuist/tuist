@@ -2,6 +2,9 @@
 include = ["once.toml"]
 exclude = ["**/Cargo.toml"]
 
+[modules]
+paths = ["modules/*.star"]
+
 [infrastructure.cache]
 provider = "tuist"
 
@@ -57,7 +60,7 @@ resolver_inputs = ["Cargo.toml", "Cargo.lock", "auth/Cargo.toml", "core/Cargo.to
 [[target]]
 name = "AtlasAuthIOS"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs"]
 deps = ["./AtlasAuthIOSDependencies"]
 
 [target.attrs]
@@ -71,7 +74,7 @@ crate_type = "staticlib"
 [[target]]
 name = "AtlasAuthIOSDevice"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs"]
 deps = ["./AtlasAuthIOSDeviceDependencies"]
 
 [target.attrs]
@@ -85,7 +88,7 @@ crate_type = "staticlib"
 [[target]]
 name = "AtlasAuthAndroid"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs"]
 deps = ["./AtlasAuthAndroidDependencies"]
 
 [target.attrs]
@@ -230,14 +233,28 @@ launch_activity = ".MainActivity"
 signing = "debug"
 
 [[target]]
+name = "AtlasSimulatorSDK"
+kind = "atlas_apple_sdk"
+
+[target.attrs]
+sdk = "iphonesimulator"
+
+[[target]]
+name = "AtlasDeviceSDK"
+kind = "atlas_apple_sdk"
+
+[target.attrs]
+sdk = "iphoneos"
+
+[[target]]
 name = "AtlasIOS"
 kind = "apple_application"
 srcs = ["ios/Sources/**/*.swift"]
-deps = ["./AtlasCore", "./AtlasAuthIOS", "./AtlasCoreFFI", "./AtlasAuthFFI"]
+deps = ["./AtlasCore", "./AtlasAuthIOS", "./AtlasCoreFFI", "./AtlasAuthFFI", "./AtlasSimulatorSDK"]
 
 [target.attrs]
 platform = "ios"
-sdk_frameworks = ["AuthenticationServices", "Security"]
+sdk_frameworks = ["AuthenticationServices", "Security", "Charts"]
 bundle_id = "dev.tuist.atlas"
 product_name = "Atlas"
 asset_catalogs = ["ios/Resources/Assets.xcassets"]
@@ -254,11 +271,11 @@ entitlements = "ios/AtlasSimulator.entitlements"
 name = "AtlasIOSDevice"
 kind = "apple_application"
 srcs = ["ios/Sources/**/*.swift"]
-deps = ["./AtlasCoreIOSDevice", "./AtlasAuthIOSDevice", "./AtlasCoreFFI", "./AtlasAuthFFI"]
+deps = ["./AtlasCoreIOSDevice", "./AtlasAuthIOSDevice", "./AtlasCoreFFI", "./AtlasAuthFFI", "./AtlasDeviceSDK"]
 
 [target.attrs]
 platform = "ios"
-sdk_frameworks = ["AuthenticationServices", "Security"]
+sdk_frameworks = ["AuthenticationServices", "Security", "Charts"]
 bundle_id = "dev.tuist.atlas"
 product_name = "Atlas"
 asset_catalogs = ["ios/Resources/Assets.xcassets"]
@@ -273,7 +290,7 @@ info_plist_substitutions = { ATLAS_SUPPORTED_PLATFORM = "iPhoneOS", ATLAS_PLATFO
 [[target]]
 name = "AtlasIOSTests"
 kind = "apple_test_bundle"
-srcs = ["ios/Tests/**/*.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasTimeOff.swift"]
+srcs = ["ios/Tests/**/*.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasBusiness.swift"]
 deps = ["./AtlasCore", "./AtlasAuthIOS", "./AtlasCoreFFI", "./AtlasAuthFFI"]
 
 [target.attrs]
@@ -287,12 +304,12 @@ swift_testing = true
 [[target]]
 name = "AtlasSettingsIOSPreview"
 kind = "apple_application"
-srcs = ["previews/ios/**/*.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasAIAccountViews.swift", "ios/Sources/AtlasBrand.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasTimeOffView.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasWorkspaceView.swift"]
-deps = ["./AtlasAuthIOS", "./AtlasAuthFFI", "./AtlasCore", "./AtlasCoreFFI"]
+srcs = ["previews/ios/**/*.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasAIAccountViews.swift", "ios/Sources/AtlasProfileView.swift", "ios/Sources/AtlasBrand.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasTimeOffView.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasWorkspaceView.swift", "ios/Sources/AtlasBusiness.swift", "ios/Sources/AtlasBusinessView.swift", "ios/Sources/AtlasBusinessEditor.swift"]
+deps = ["./AtlasAuthIOS", "./AtlasAuthFFI", "./AtlasCore", "./AtlasCoreFFI", "./AtlasSimulatorSDK"]
 
 [target.attrs]
 platform = "ios"
-sdk_frameworks = ["AuthenticationServices", "Security"]
+sdk_frameworks = ["AuthenticationServices", "Security", "Charts"]
 bundle_id = "dev.tuist.atlas.settings-preview"
 product_name = "AtlasSettingsPreview"
 minimum_os = "17.0"
@@ -316,7 +333,7 @@ ui_testing = true
 [[target]]
 name = "AtlasSettingsAndroidPreview"
 kind = "android_binary"
-srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt", "android/src/dev/tuist/atlas/AtlasTimeOffModel.kt", "android/src/dev/tuist/atlas/AtlasTimeOffScreen.kt", "android/src/dev/tuist/atlas/AtlasCore.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceModel.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceScreen.kt"]
+srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt", "android/src/dev/tuist/atlas/AtlasTimeOffModel.kt", "android/src/dev/tuist/atlas/AtlasTimeOffScreen.kt", "android/src/dev/tuist/atlas/AtlasCore.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceModel.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceScreen.kt", "android/src/dev/tuist/atlas/AtlasBusinessModel.kt", "android/src/dev/tuist/atlas/AtlasBusinessScreen.kt", "android/src/dev/tuist/atlas/AtlasHomeScreen.kt", "android/src/dev/tuist/atlas/AtlasProfileModel.kt"]
 deps = ["./AtlasAuthAndroid", "./AtlasCore"]
 
 [target.attrs]

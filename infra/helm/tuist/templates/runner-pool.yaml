@@ -241,7 +241,7 @@ recorded, billed and counted against concurrency limits at the shape the
 profile names, while its Pods are sized to the guest. A guest smaller than its
 shape fails the render, since a job would get less than its profile names.
 */}}
-{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict)) }}
+{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict) "stacked" ($rackRunners.stackedImages | default false)) }}
 {{- end }}
 {{- range $xcode := $xcodeVersions }}
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
@@ -252,6 +252,12 @@ shape fails the render, since a job would get less than its profile names.
 {{- $podCPU := dig "pod" "cpuMilli" $defaultCPU $imageOverride }}
 {{- $podMem := dig "pod" "memoryMB" $defaultMem $imageOverride }}
 {{- range $placement := $placements }}
+{{- $poolImage := $image }}
+{{- if $placement.stacked }}
+{{- with include "tuist.macosRunnerStackedImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
+{{- $poolImage = . }}
+{{- end }}
+{{- end }}
 {{- $override := dig $xcodeVersion (dict) $placement.overrides }}
 {{- $site := $placement.site }}
 {{- $sitePart := ternary "" (printf "%s-" $site) (eq $site "") }}
@@ -297,7 +303,7 @@ metadata:
 spec:
   labels: []
   replicas: {{ $replicas }}
-  image: {{ $image | quote }}
+  image: {{ $poolImage | quote }}
   os: darwin
   fleetSelector: {{ $placement.fleet | quote }}
   dispatchLabel: {{ printf "shape-macos-%s%s" $sitePart $xcodeTag | quote }}
@@ -379,7 +385,7 @@ metadata:
 spec:
   labels: []
   replicas: {{ dig "minWarmPoolFloor" 0 (default dict $shapeAutoscaling) }}
-  image: {{ $image | quote }}
+  image: {{ $poolImage | quote }}
   os: darwin
   fleetSelector: {{ $placement.fleet | quote }}
   dispatchLabel: {{ printf "shape-macos-%s%s-%s" $sitePart $xcodeTag $shapeKey | quote }}

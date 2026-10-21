@@ -160,7 +160,12 @@ func exportCheckoutAt(ctx context.Context, statePath, share string, git func(con
 	return "exported " + commit[:12] + " with " + strconv.Itoa(copied) + " LFS objects"
 }
 
+// copyFile links when it can: LFS objects are immutable, and git-lfs replaces
+// rather than rewrites them.
 func copyFile(src, dst string) error {
+	if os.Link(src, dst) == nil {
+		return nil
+	}
 	in, err := os.Open(src)
 	if err != nil {
 		return err

@@ -212,6 +212,17 @@ class AtlasAuthentication(
     fun timeOff(
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
+    ) = operation("time_off", action, completion)
+
+    fun business(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) = operation("business", action, completion)
+
+    private fun operation(
+        operation: String,
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
     ) {
         val identity = sessionIdentity
         if (closing) {
@@ -245,16 +256,18 @@ class AtlasAuthentication(
                 val saved = storage.load("session") ?: throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
                 val restored = command(JSONObject().put("operation", "restore").put("session", saved))
                 storage.save("session", restored)
-                // Only refresh/persistence is serialized. Holiday networking must not hold up sign-out.
+                // Only refresh/persistence is serialized. Networking must not hold up sign-out.
                 holidayWorker.execute {
                     val result =
                         runCatching {
                             if (identity != sessionIdentity) throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
-                            command(JSONObject(action.toString()).put("operation", "time_off").put("session", restored))
+                            command(JSONObject(action.toString()).put("operation", operation).put("session", restored))
                         }
                     finish(
                         result.fold({ Result.success(it) }, {
-                            Result.failure(if (it is AuthFailure) it else IllegalStateException("Could not update holidays. Try again."))
+                            Result.failure(
+                                if (it is AuthFailure) it else IllegalStateException("Could not complete the request. Try again."),
+                            )
                         }),
                     )
                 }

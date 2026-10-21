@@ -224,9 +224,31 @@ func TestCustomColdAdmissionBesideBuiltinOnM2(t *testing.T) {
 		t.Fatalf("concurrent allocation ignored reservation: %v", err)
 	}
 	finish(false)
-	slot.BaseGeneration = 1
-	if _, err := c.reserve(context.Background(), slot); !errors.Is(err, cachevolumes.ErrCapacity) {
-		t.Fatalf("restore ignored archive headroom: %v", err)
+	// A job clones a local master or starts empty; it never downloads an archive.
+	slot.BaseGeneration = 4
+	if finish, err = c.reserve(context.Background(), slot); err != nil {
+		t.Fatalf("saved volume reserved archive headroom a job never downloads: %v", err)
+	}
+	if got := c.reservedBytes(); got != customCapacity {
+		t.Fatalf("saved volume reserved %d bytes", got)
+	}
+	finish(false)
+	prefetch := slot
+	prefetch.ID = cachevolumes.PrefetchReservation
+	if _, err := c.reserve(context.Background(), prefetch); !errors.Is(err, cachevolumes.ErrCapacity) {
+		t.Fatalf("prefetch ignored archive headroom: %v", err)
+	}
+}
+
+func TestCustomAdmissionFollowsVolumeSizeAndOperation(t *testing.T) {
+	job := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", BaseGeneration: 4, VolumeBytes: 50_000_000_000}}
+	if got := customAdmissionBytes(job); got != 50_000_000_000 {
+		t.Fatalf("50 GB job admitted with %d bytes", got)
+	}
+	prefetch := job
+	prefetch.ID = cachevolumes.PrefetchReservation
+	if got := customAdmissionBytes(prefetch); got != 100_000_000_000 {
+		t.Fatalf("50 GB prefetch admitted with %d bytes", got)
 	}
 }
 

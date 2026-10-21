@@ -22,6 +22,10 @@ const macMountRoot = "/Users/runner/.tuist-custom-cache"
 
 var reasonPattern = regexp.MustCompile(`^[a-z_]{1,32}$`)
 
+const macAttachAttempts = 3
+
+var macAttachRetry = time.Second
+
 type macResponse struct {
 	Directory string `json:"directory"`
 	ID        string `json:"id"`
@@ -59,7 +63,11 @@ func macCommandContext(ctx context.Context, args ...string) error {
 		return strings.HasPrefix(variable, "RUNNER_TRACKING_ID=")
 	})
 	if out, err := command.CombinedOutput(); err != nil {
-		return fmt.Errorf("hdiutil: %w (%s)", err, out)
+		output := strings.TrimSpace(string(out))
+		if len(output) > 512 {
+			output = output[:512]
+		}
+		return fmt.Errorf("hdiutil %s: %w (%s)", args[0], err, output)
 	}
 	return nil
 }
@@ -82,7 +90,9 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if err = os.Remove(filepath.Join(shared, ".detached")); err != nil && !os.IsNotExist(err) {
 		return "", "", false, err
 	}
-	if err = command("attach", filepath.Join(shared, "cache.sparseimage"), "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", base); err != nil {
+	_ = os.Remove(filepath.Join(shared, ".attach-error"))
+	if err = attachMacImage(ctx, command, filepath.Join(shared, "cache.sparseimage"), base, "-owners", "off"); err != nil {
+		recordAttachError(shared, err)
 		return "", "", false, err
 	}
 	if err = os.WriteFile(filepath.Join(base, ".tuist-volume"), []byte(response.ID), 0644); err != nil {
@@ -214,6 +224,11 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
+		// Unflushed, the host would publish the image without this job's writes.
+		if err = syncSharedImage(filepath.Join(share, dir.Name(), "cache.sparseimage")); err != nil {
+			failures = append(failures, err)
+			continue
+		}
 		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity, "changed": changed})
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".usage"), usage, 0644); err != nil {
 			failures = append(failures, err)
@@ -327,7 +342,9 @@ func checkoutMacAt(ctx context.Context, workspace, share, statePath string, comm
 		return "unavailable (workspace)"
 	}
 	shared := filepath.Join(share, response.Directory)
-	if err := command("attach", filepath.Join(shared, "cache.sparseimage"), "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", workspace); err != nil {
+	_ = os.Remove(filepath.Join(shared, ".attach-error"))
+	if err := attachMacImage(ctx, command, filepath.Join(shared, "cache.sparseimage"), workspace, "-owners", "off"); err != nil {
+		recordAttachError(shared, err)
 		return "unavailable (attach)"
 	}
 	_ = recordCheckout(statePath, workspace, true)
@@ -396,4 +413,50 @@ func changedSinceMount(base string, baseline []byte) bool {
 		}
 		return nil
 	}) != nil
+}
+
+// attachMacImage mounts a shared image, retrying a failed attach: it fails
+// transiently with the image itself intact, and succeeds seconds later. hdiutil
+// runs without -quiet so a final failure carries its reason.
+func attachMacImage(ctx context.Context, command func(...string) error, image, mountpoint string, extra ...string) error {
+	args := append([]string{"attach", image}, extra...)
+	args = append(args, "-nobrowse", "-mountpoint", mountpoint)
+	var err error
+	for attempt := 1; attempt <= macAttachAttempts; attempt++ {
+		if err = command(args...); err == nil {
+			return nil
+		}
+		if attempt == macAttachAttempts {
+			break
+		}
+		// A failed attach can leave the device behind; the next one needs the mountpoint free.
+		_ = command("detach", mountpoint, "-force")
+		select {
+		case <-ctx.Done():
+			return errors.Join(err, ctx.Err())
+		case <-time.After(macAttachRetry):
+		}
+	}
+	return err
+}
+
+// recordAttachError leaves the final attach error beside the volume for the
+// host, which otherwise only learns that the guest never mounted it.
+func recordAttachError(shared string, err error) {
+	message := err.Error()
+	if len(message) > 1024 {
+		message = message[:1024]
+	}
+	_ = os.WriteFile(filepath.Join(shared, ".attach-error"), []byte(message), 0644)
+}
+
+// syncSharedImage flushes a detached image through the VM's share so the host
+// seals the bytes the job wrote, not a copy still missing them.
+func syncSharedImage(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return fullSync(f)
 }
