@@ -69,6 +69,18 @@ spec:
   {{- /* A host lent to another env: its Node registers in that env's cluster,
   with the kubeconfig that env issued (`rackFleet.joiningNodes` there), synced
   from 1Password by the ExternalSecret below. */}}
+  {{- /* A host lent to another env: that env's operator runs its runtime,
+  and this one keeps the site (see "A host lent to another env" in
+  infra/cluster-api-provider-tuist/AGENTS.md). */}}
+  {{- with $host.lendTo }}
+  {{- if or $host.nodeCluster $host.nodeFleet }}
+  {{- fail (printf "rackFleet.hosts[%s]: lendTo replaces nodeCluster and nodeFleet; set one or the other" $hostName) }}
+  {{- end }}
+  {{- if not (dig . "kubeconfigItem" "" ($.Values.rackFleet.borrowers | default dict)) }}
+  {{- fail (printf "rackFleet.hosts[%s].lendTo is %q, which rackFleet.borrowers has no kubeconfigItem for" $hostName .) }}
+  {{- end }}
+  lendTo: {{ . | quote }}
+  {{- end }}
   {{- with $host.nodeCluster }}
   nodeCluster:
     {{- /* Named after the item, so a new item is a new Secret, which drifts the

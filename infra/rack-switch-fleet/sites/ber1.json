@@ -1,6 +1,20 @@
 {
   "site": "ber1",
   "location": "Berlin, rack 1",
+  "contracted_power": [
+    {
+      "from": "2026-10-05",
+      "watts": 3000
+    },
+    {
+      "from": "2027-02-05",
+      "watts": 5000
+    },
+    {
+      "from": "2027-06-05",
+      "watts": 8000
+    }
+  ],
   "credentials": {
     "vault": "pqwnigzdk46jpjvofoqpeuhmgq",
     "username": "tuist",

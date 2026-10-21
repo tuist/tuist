@@ -1,0 +1,91 @@
+#!/bin/bash
+# tuist-runner-cache activate <module|xcode>
+#
+# Turns on one of the runner's built-in caches for the rest of the job. On
+# success it prints the cache's environment as NAME=VALUE lines on stdout for
+# the calling CI integration to export to later steps; messages go to stderr.
+#
+# dispatch-poll.sh stages the caches in RUNNER_CACHES_DIR (stage_runner_caches):
+# `mode` says whether the account gets them automatically or through this
+# command, and `<cache>.env` holds each mounted cache's environment. Activating
+# leaves `<cache>.used`, which lets teardown promote the job's changes.
+#
+# Exit status: 0 when the cache is active, either automatically or because this
+# activated it; 3 when the runner could not mount it, so the job runs on an
+# empty cache; 2 on a usage error.
+set -uo pipefail
+
+RUNNER_CACHES_DIR="${TUIST_RUNNER_CACHES_DIR:-/Users/runner/.tuist-runner-caches}"
+
+usage() {
+  echo "usage: tuist-runner-cache activate <module|xcode>" >&2
+  exit 2
+}
+
+[ "${1:-}" = "activate" ] || usage
+cache="${2:-}"
+case "${cache}" in
+  module) label="Tuist module cache" ;;
+  xcode) label="Xcode compilation cache" ;;
+  *) usage ;;
+esac
+
+case "$(cat "${RUNNER_CACHES_DIR}/mode" 2>/dev/null)" in
+  automatic)
+    echo "The ${label} is already enabled for every job on this runner." >&2
+    exit 0
+    ;;
+  opt-in) ;;
+  *)
+    echo "This runner does not provide the ${label}; nothing to set up." >&2
+    exit 0
+    ;;
+esac
+
+env_file="${RUNNER_CACHES_DIR}/${cache}.env"
+if [ ! -f "${env_file}" ]; then
+  echo "The ${label} is unavailable for this job; it runs with an empty cache." >&2
+  exit 3
+fi
+
+# On managed cache volumes the cache lives on its own custom volume, attached at
+# the path its environment names the first time the job activates it.
+volume_file="${RUNNER_CACHES_DIR}/${cache}.volume"
+if [ -f "${volume_file}" ] && [ ! -e "${RUNNER_CACHES_DIR}/${cache}.attached" ]; then
+  IFS=$'\t' read -r key path <"${volume_file}"
+  # The image installs the client beside this helper; a job's PATH may not
+  # include that directory.
+  client="$(dirname "$0")/tuist-cache-volume"
+  [ -x "${client}" ] || client=tuist-cache-volume
+  if ! "${client}" --key "${key}" --path "${path}" >&2; then
+    echo "The ${label} volume could not be attached; this job runs with an empty cache." >&2
+    exit 3
+  fi
+  : >"${RUNNER_CACHES_DIR}/${cache}.attached" 2>/dev/null || true
+fi
+
+if ! : >"${RUNNER_CACHES_DIR}/${cache}.used" 2>/dev/null; then
+  echo "Could not record the ${label} as used; this job's changes will not be saved." >&2
+fi
+
+if [ "${cache}" = "xcode" ]; then
+  # The runner's xcconfig carries the store location and its size limit. A
+  # workflow's own XCODE_XCCONFIG_FILE is included last so its settings win.
+  # Xcode resolves an #include against the including file's directory, so a
+  # path relative to the step's working directory has to be made absolute.
+  ours=$(sed -n 's/^XCODE_XCCONFIG_FILE=//p' "${env_file}")
+  theirs="${XCODE_XCCONFIG_FILE:-}"
+  case "${theirs}" in
+    "" | /*) ;;
+    *) theirs="${PWD}/${theirs}" ;;
+  esac
+  if [ -n "${ours}" ] && [ -n "${theirs}" ] && [ "${theirs}" != "${ours}" ] && [ -f "${theirs}" ]; then
+    include="#include \"${theirs}\""
+    if ! grep -qxF "${include}" "${ours}" 2>/dev/null; then
+      printf '%s\n' "${include}" >>"${ours}"
+    fi
+  fi
+fi
+
+cat "${env_file}"
+echo "The ${label} is enabled." >&2

@@ -1,4 +1,4 @@
-use crate::{PendingLogin, Registration, Session, begin, complete, error, restore};
+use crate::{LoginProvider, PendingLogin, Registration, Session, begin, complete, error, restore};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::ffi::{CStr, CString, c_char};
@@ -9,6 +9,7 @@ enum Command {
     Begin {
         server: String,
         registration: Option<Registration>,
+        provider: Option<LoginProvider>,
     },
     Complete {
         pending: PendingLogin,
@@ -16,6 +17,22 @@ enum Command {
     },
     Restore {
         session: Session,
+    },
+    Business {
+        session: Session,
+        resource: crate::business::Resource,
+        #[serde(flatten)]
+        action: crate::business::Action,
+    },
+    TimeOff {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::time_off::Action,
+    },
+    AiAccounts {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::accounts::Action,
     },
 }
 
@@ -29,11 +46,25 @@ pub fn execute(input: &str) -> String {
             Command::Begin {
                 server,
                 registration,
-            } => serde_json::to_value(begin(&server, registration)?),
+                provider,
+            } => serde_json::to_value(begin(&server, registration, provider)?),
             Command::Complete { pending, callback } => {
                 serde_json::to_value(complete(pending, &callback)?)
             }
             Command::Restore { session } => serde_json::to_value(restore(session)?),
+            Command::Business {
+                session,
+                resource,
+                action,
+            } => {
+                return crate::business::execute(session, resource, action);
+            }
+            Command::TimeOff { session, action } => {
+                return crate::time_off::execute(session, action);
+            }
+            Command::AiAccounts { session, action } => {
+                return crate::accounts::execute(session, action);
+            }
         }
         .map_err(|_| crate::invalid())
     })

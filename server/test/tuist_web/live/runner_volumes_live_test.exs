@@ -93,7 +93,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert html =~ "request_delete"
   end
 
-  test "built-in volumes use the same presentation and measured sizes without a type label" do
+  test "built-in volumes are named after the caches they hold" do
     assigns = assigns(true)
 
     volume = %{
@@ -109,7 +109,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     data = %{data | volumes: [volume], stats: stats}
     assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
     detail = render_component(&RunnerVolumesLive.render/1, assigns)
-    assert detail =~ "tuist-cache"
+    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Xcode and module caches"
     assert detail =~ "macOS"
     assert detail =~ "20.0 GB"
     refute detail =~ "Automatic"
@@ -118,9 +118,25 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute badges =~ "Custom"
     refute detail =~ "phx-click=\"request_delete\""
     inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
-    assert inventory =~ "tuist-cache"
+    cell = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
+    assert Floki.text(cell) =~ "Xcode and module caches"
+    refute inventory =~ "tuist-cache"
     assert inventory =~ "20.0 GB"
     assert inventory =~ "/runners/volumes/#{volume.id}"
+  end
+
+  test "the managed Gradle cache is named after its tool, and other keys stay as they are" do
+    assigns = assigns(true)
+    gradle = %{assigns.selected | key: "tuist-gradle"}
+    custom = %{assigns.selected | id: Ecto.UUID.generate(), key: "gradle"}
+    data = %{assigns.data.result | volumes: [gradle, custom]}
+
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
+    names = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child") |> Enum.map(&Floki.text/1)
+    assert Enum.map(names, &String.trim/1) == ["Gradle cache", "gradle"]
+
+    detail = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: gradle})
+    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Gradle cache"
   end
 
   test "inventory truncates long volume names and keeps the full name in the title" do
@@ -413,6 +429,15 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: ""}) == "Unknown"
     assert jobs =~ "Hit"
     refute jobs =~ "Cache status"
+    refute jobs =~ "Older copy"
+
+    older = %{usage | base_generation: 3, mounted_generation: 2}
+    data = %{assigns.data.result | history: [older]}
+
+    older_jobs =
+      render_component(&RunnerVolumesLive.render/1, %{assigns | selected_tab: "jobs", data: AsyncResult.ok(data)})
+
+    assert older_jobs =~ "Older copy"
     refute jobs =~ ~s(id="volume-use-status-#{usage.id}")
     assert RunnerVolumesLive.job_label(%{usage | job_name: nil}) == "# 1024"
     assert RunnerVolumesLive.job_label(%{usage | job_name: ""}) == "# 1024"
@@ -508,7 +533,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   end
 
   test "confirmation rechecks authorization rather than trusting a stale admin assign" do
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> {:error, :unauthorized} end)
+    expect(Authorization, :authorize, fn :runners_update, :user, %{id: 1} -> {:error, :unauthorized} end)
 
     socket = %Socket{
       assigns: %{
@@ -530,67 +555,10 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("request_delete", %{"id" => id}, socket)
   end
 
-  test "only managers can edit GitHub custom-volume writer branches" do
-    assert render_component(&RunnerVolumesLive.render/1, assigns(true)) =~ "volume-writer-policy"
-    refute render_component(&RunnerVolumesLive.render/1, assigns(false)) =~ "volume-writer-policy"
-
-    for changes <- [%{builtin_name: "tuist-cache"}, %{provider: "gitlab"}] do
-      values = assigns(true)
-      volume = struct!(values.selected, changes)
-      refute render_component(&RunnerVolumesLive.render/1, %{values | selected: volume}) =~ "volume-writer-policy"
-    end
-  end
-
-  test "writer policy errors distinguish invalid names from missing access" do
-    values = assigns(true)
-    socket = %Socket{assigns: Map.merge(values, %{__changed__: %{}, current_user: :user, flash: %{}})}
-    stub(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> :ok end)
-
-    for {reason, message} <- [
-          {:invalid_parameters, "Use up to 20 exact branch names."},
-          {:not_found, "You do not have access to update this volume."}
-        ] do
-      expect(CacheVolumes, :update_writer_branches, fn 1, _, _ -> {:error, reason} end)
-
-      assert {:noreply, result} =
-               RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "feature"}, socket)
-
-      assert result.assigns.flash["error"] =~ message
-    end
-
-    reject(CacheVolumes, :update_writer_branches, 3)
-
-    assert {:noreply, result} =
-             RunnerVolumesLive.handle_event(
-               "save_writer_branches",
-               %{"writer_branches" => "feature"},
-               put_in(socket.assigns.selected, nil)
-             )
-
-    assert result.assigns.flash["error"] == "You do not have access to update this volume."
-  end
-
-  test "writer policy save reauthorizes and scopes the selected volume" do
-    values = assigns(true)
-    id = values.selected.id
-    socket = %Socket{assigns: Map.merge(values, %{__changed__: %{}, current_user: :user, flash: %{}})}
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> :ok end)
-
-    expect(CacheVolumes, :update_writer_branches, fn 1, ^id, ["codex/test"] ->
-      {:ok, %{values.selected | writer_branches: ["codex/test"]}}
-    end)
-
-    assert {:noreply, updated} =
-             RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "  codex/test\n\n"}, socket)
-
-    assert updated.assigns.selected.writer_branches == ["codex/test"]
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> {:error, :unauthorized} end)
-    reject(CacheVolumes, :update_writer_branches, 3)
-
-    assert {:noreply, rejected} =
-             RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "other"}, updated)
-
-    assert rejected.assigns.selected.writer_branches == ["codex/test"]
-    assert rejected.assigns.flash["error"] == "You do not have access to update this volume."
+  test "names the managed cache volumes" do
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-xcode"}) == "Xcode cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-module"}) == "Module cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-gradle"}) == "Gradle cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "npm"}) == "npm"
   end
 end

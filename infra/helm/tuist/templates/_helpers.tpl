@@ -1,19 +1,34 @@
+{{/*
+The chart name and the tuist release a resource belongs to. Names and
+selector labels derive from both, so infra/helm/xcresult-processor, which
+renders this chart's xcresult processor templates in a Helm release of its
+own, gives them the names and labels of the tuist release it names in
+`tuistRelease`.
+*/}}
 {{- define "tuist.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- default "tuist" .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "tuist.releaseName" -}}
+{{- if eq .Chart.Name "xcresult-processor" -}}
+{{- required "tuistRelease is required: the name of the tuist release whose xcresult processor this release installs" .Values.tuistRelease -}}
+{{- else -}}
+{{- .Release.Name -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "tuist.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
-{{- printf "%s-%s" .Release.Name (include "tuist.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-%s" (include "tuist.releaseName" .) (include "tuist.name" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "tuist.labels" -}}
 app.kubernetes.io/name: {{ include "tuist.name" . }}
 helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "tuist.releaseName" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- range $key, $value := .Values.global.commonLabels }}
 {{ $key }}: {{ $value | quote }}
@@ -22,7 +37,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{- define "tuist.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "tuist.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "tuist.releaseName" . }}
+{{- end -}}
+
+{{/*
+Whether this render owns the xcresult processor's Deployment and PDB. With
+`xcresultProcessor.ownRelease`, infra/helm/xcresult-processor renders them
+and the tuist release leaves them out; otherwise the tuist release renders
+them and the processor chart renders nothing.
+*/}}
+{{- define "tuist.rendersXcresultProcessor" -}}
+{{- if and .Values.xcresultProcessor.enabled (eq (.Values.xcresultProcessor.ownRelease | default false) (eq .Chart.Name "xcresult-processor")) -}}
+true
+{{- end -}}
 {{- end -}}
 
 {{- define "tuist.componentLabels" -}}
@@ -866,6 +893,22 @@ release converges the database user before the new pods start.
 {{- end -}}
 
 {{/*
+The Grafana identity's name and role, for the migration Job that reconciles
+it. Its password reaches the Job through the managed external secrets.
+*/}}
+{{- define "tuist.grafanaClickHouseEnv" -}}
+{{- if and .Values.server.enabled .Values.server.config.grafanaClickHouse.enabled }}
+{{- if not .Values.server.config.managedSecrets }}
+{{- fail "server.config.grafanaClickHouse needs server.config.managedSecrets: its password comes from the managed external secrets." }}
+{{- end }}
+- name: TUIST_GRAFANA_CLICKHOUSE_USERNAME
+  value: {{ required "server.config.grafanaClickHouse.username is required when enabled" .Values.server.config.grafanaClickHouse.username | quote }}
+- name: TUIST_GRAFANA_CLICKHOUSE_ROLE
+  value: {{ required "server.config.grafanaClickHouse.role is required when enabled" .Values.server.config.grafanaClickHouse.role | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
 ClickHouse repo pool sizes and the shared user memory budget are non-secret
 operational knobs. Render them from chart values so the server, migration,
 processor, and xcresult-processor pods stay aligned without relying on the
@@ -873,18 +916,9 @@ runtime secret bundle.
 */}}
 {{- /*
 The in-cluster ClickHouse, for every workload that reads or writes analytics.
-
-In `external` mode ClickHouse Cloud is the system of record, and this is the
-server the workload is migrating onto: the schema clone, the backfill and the
-shadow writes read it from TUIST_CLICKHOUSE_BARE_METAL_URL. Absent unless the
-managed workload is enabled, which is what keeps all of that inert everywhere
-else.
-
-In `managed` mode the in-cluster server is the system of record, so it is
-TUIST_CLICKHOUSE_URL instead, and nothing is mirrored.
 */ -}}
 {{- define "tuist.clickhouseManagedEnv" -}}
-{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url") }}
+{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" "url") }}
 {{- end }}
 
 {{/*
@@ -895,48 +929,45 @@ it.
 */}}
 {{- define "tuist.clickhouseManagedTailnetEnv" -}}
 {{- if .Values.clickhouse.managed.tailscale.enabled }}
-{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url-tailnet") }}
+{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" "url-tailnet") }}
 {{- else }}
-{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url") }}
-{{- end }}
-{{- end }}
-
-{{- define "tuist.clickhouseManagedEnvForKey" -}}
-{{- $key := .key }}
-{{- with .root }}
-{{- if eq .Values.clickhouse.mode "managed" }}
-{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" $key) }}
-{{- else if .Values.clickhouse.managed.enabled }}
-- name: TUIST_CLICKHOUSE_BARE_METAL_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}-credentials
-      key: {{ $key }}
-      # `optional` because the migration Job is a pre-upgrade hook and this
-      # Secret is an ordinary release resource, so on the deploy that first
-      # introduces the managed ClickHouse the Secret does not exist yet. A
-      # required reference makes that Job unable to start at all, which fails
-      # the whole deploy: without `optional` the pod stays Pending with
-      # `secret "…-clickhouse-credentials" not found` and `helm --wait` times
-      # out. Absent instead means the schema clone reads no destination and
-      # skips, and the next deploy has both the Secret and the server.
-      optional: true
-{{- if .Values.clickhouse.managed.shadowWrites.enabled }}
-- name: TUIST_CLICKHOUSE_SHADOW_WRITES_ENABLED
-  value: "1"
-{{- end }}
-{{- end }}
+{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" "url") }}
 {{- end }}
 {{- end }}
 
 {{/*
-TUIST_CLICKHOUSE_URL for the in-cluster server as the system of record. Set as
-`env`, which takes precedence over the URL the managed config Secret still
-carries through `envFrom`.
+The name writers off the pod network dial the in-cluster ClickHouse at: the
+full MagicDNS name, because the macOS VMs resolve tailnet names through a
+resolver scoped to `.ts.net` (infra/xcresult-processor-image/tailscale-up.sh).
+The bare name resolves only from a snapshot of peers taken at boot, which
+never contains a Tailscale Service and keeps an old address after the name
+moves to another device.
+*/}}
+{{- define "tuist.clickhouseTailnetHost" -}}
+{{- include "tuist.tailnetFQDN" (dict "root" . "host" (required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" .Values.clickhouse.managed.tailscale.hostname)) }}
+{{- end }}
 
-Not `optional`, unlike the destination above: a missing Secret has to keep the
-pod from starting, because the alternative is falling back to that other URL
-and writing to the wrong server.
+{{/*
+The same for the CNPG pooler the xcresult processor reaches over the tailnet.
+*/}}
+{{- define "tuist.poolerTailnetHost" -}}
+{{- include "tuist.tailnetFQDN" (dict "root" . "host" (required "postgresql.cnpg.pooler.tailscale.hostname is required when tailscale.enabled is true" .Values.postgresql.cnpg.pooler.tailscale.hostname)) }}
+{{- end }}
+
+{{- define "tuist.tailnetFQDN" -}}
+{{- $host := .host }}
+{{- with .root.Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+{{- $host = printf "%s.%s" $host . }}
+{{- end }}
+{{- $host }}
+{{- end }}
+
+{{/*
+TUIST_CLICKHOUSE_URL for the in-cluster server as the system of record. Set as
+`env`, which takes precedence over a URL an `envFrom` Secret may carry.
+
+Not `optional`: a missing Secret has to keep the pod from starting rather than
+let it fall back to another URL.
 */}}
 {{- define "tuist.clickhouseManagedUrlEnvForKey" -}}
 {{- $key := .key }}
@@ -1013,6 +1044,35 @@ The in-cluster ClickHouse's users configuration: the `default` profile and the
 Secret is mounted with `subPath`, which Kubernetes never refreshes, so a
 profile change reaches the server only through a restart.
 */}}
+{{/*
+The managed ClickHouse's `default` cluster: one shard holding every replica,
+each through its own Service on the native port. Replicas authenticate to
+each other with the interserver secret and run forwarded queries as the user
+who sent them, so `clusterAllReplicas('default', ...)` works for any user with
+the `REMOTE` grant, without a password per replica.
+
+`replicas` is passed in so the pod checksum can hash the cluster's shape
+without its membership (see the checksum in clickhouse-managed.yaml).
+*/}}
+{{- define "tuist.clickhouseManagedClusterXml" -}}
+<clickhouse>
+  <remote_servers replace="replace">
+    <default>
+      <secret from_env="INTERSERVER_HTTP_PASSWORD"></secret>
+      <shard>
+        <internal_replication>true</internal_replication>
+{{- range $i := until (int .replicas) }}
+        <replica>
+          <host>{{ $.name }}-{{ $i }}.{{ $.namespace }}.svc</host>
+          <port>9000</port>
+        </replica>
+{{- end }}
+      </shard>
+    </default>
+  </remote_servers>
+</clickhouse>
+{{- end }}
+
 {{- define "tuist.clickhouseManagedUsersXml" -}}
 <clickhouse>
   <profiles>
@@ -1199,12 +1259,17 @@ grpc
 {{- end -}}
 
 {{/*
-The runner image for a catalog Xcode version:
-`<runnersFleet.runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
-or the `imageTag` its `runnersFleet.xcodeOverrides` entry pins. The image is a
-property of the Xcode, not of the fleet it runs on, so every pool that runs an
-Xcode (the rented fleet's, a rack's, an explicit pool naming `xcodeVersion`)
-takes it from here and follows a release together.
+The runner image for a catalog Xcode version: the `imageTag` its
+`runnersFleet.xcodeOverrides` entry pins, else
+`<runnersFleet.runnerImageRepository>@<digest>` with the digest
+`runnersFleet.runnerImageDigests` resolves for it, else
+`<runnersFleet.runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+Deploys resolve the digests, so a release that re-tags an unchanged profile
+leaves its pools' image as it was: the controller does not roll their Pods
+and hosts keep the golden the ref names. The image is a property of the Xcode,
+not of the fleet it runs on, so every pool that runs an Xcode (the rented
+fleet's, a rack's, an explicit pool naming `xcodeVersion`) takes it from here
+and follows a release together.
 */}}
 {{- define "tuist.macosRunnerImage" -}}
 {{- $root := .root -}}
@@ -1212,13 +1277,42 @@ takes it from here and follows a release together.
 {{- $repo := $root.Values.runnersFleet.runnerImageRepository | default "" -}}
 {{- $semver := $root.Values.runnersFleet.runnerImageSemver | default "" -}}
 {{- $override := dig $xcodeVersion (dict) ($root.Values.runnersFleet.xcodeOverrides | default dict) -}}
+{{- $digest := get ($root.Values.runnersFleet.runnerImageDigests | default dict) $xcodeVersion | default "" | toString -}}
 {{- if not $repo -}}
   {{- fail "runnersFleet.runnerImageRepository required when runnersFleet.xcodeVersions is non-empty" -}}
 {{- end -}}
-{{- if and (not (dig "imageTag" "" $override)) (not $semver) -}}
-  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and override %s has no imageTag" $xcodeVersion) -}}
+{{- if dig "imageTag" "" $override -}}
+  {{- printf "%s:%s" $repo $override.imageTag -}}
+{{- else if $digest -}}
+  {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+    {{- fail (printf "runnersFleet.runnerImageDigests[%s] is %q, not a sha256:<64 hex> manifest digest" $xcodeVersion $digest) -}}
+  {{- end -}}
+  {{- printf "%s@%s" $repo $digest -}}
+{{- else if $semver -}}
+  {{- printf "%s:macos-%s-%s" $repo ($xcodeVersion | replace "." "-") $semver -}}
+{{- else -}}
+  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and Xcode %s has no runnerImageDigests entry or imageTag override" $xcodeVersion) -}}
 {{- end -}}
-{{- printf "%s:%s" $repo (dig "imageTag" (printf "macos-%s-%s" ($xcodeVersion | replace "." "-") $semver) $override) -}}
+{{- end -}}
+
+{{/*
+The stacked runner image for a catalog Xcode version:
+`<runnersFleet.runnerImageRepository>@<digest>` with the digest
+`runnersFleet.runnerImageStackedDigests` resolves for it, or empty when it has
+none or its `runnersFleet.xcodeOverrides` entry pins an `imageTag`, in which
+case the pool runs `tuist.macosRunnerImage`.
+*/}}
+{{- define "tuist.macosRunnerStackedImage" -}}
+{{- $root := .root -}}
+{{- $xcodeVersion := .xcodeVersion | toString -}}
+{{- $override := dig $xcodeVersion (dict) ($root.Values.runnersFleet.xcodeOverrides | default dict) -}}
+{{- $digest := get ($root.Values.runnersFleet.runnerImageStackedDigests | default dict) $xcodeVersion | default "" | toString -}}
+{{- if and $digest (not (dig "imageTag" "" $override)) -}}
+  {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+    {{- fail (printf "runnersFleet.runnerImageStackedDigests[%s] is %q, not a sha256:<64 hex> manifest digest" $xcodeVersion $digest) -}}
+  {{- end -}}
+  {{- printf "%s@%s" $root.Values.runnersFleet.runnerImageRepository $digest -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -1229,7 +1323,7 @@ names. `templates/runner-pool.yaml` renders exactly these, and the server
 learns them through TUIST_RUNNERS_SITE_POOLS, which is how it knows which
 profiles a site can serve. Empty unless `rackFleet.runners.enabled`, which
 does not need `rackFleet.enabled`: an env whose rack hosts are lent to it by
-another env (`rackFleet.joiningNodes`) runs the pools without owning the hosts.
+another env (`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
 {{- define "tuist.rackCatalogPools" -}}
 {{- $pools := list -}}
@@ -1254,6 +1348,41 @@ another env (`rackFleet.joiningNodes`) runs the pools without owning the hosts.
 {{- end -}}
 
 {{/*
+The Secret holding the credential this env's operator reaches a borrowing
+env's RackHostLeases with: `rackFleet.borrowers.<env>`.
+*/}}
+{{- define "tuist.rackBorrowerSecret" -}}
+{{- printf "%s-%s" (include "tuist.componentName" (dict "root" .root "component" "rack-borrower")) .env | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+The identity a lending env's operator writes this env's RackHostLeases with.
+*/}}
+{{- define "tuist.rackLenderName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "rack-lender") -}}
+{{- end -}}
+
+{{/*
+"true" unless the env racks its macOS catalog at a site
+(`tuist.rackCatalogPools`) and rents no Scaleway hosts for it
+(`runnersFleet.hostCount` and every `machineGroups[].hostCount` at 0). Without
+rented hosts the chart renders no rented macOS catalog pools, and the server
+(TUIST_RUNNERS_RENTED_MACOS_FLEET) keeps every site job at the site instead of
+falling back or spilling over to a fleet that is not there.
+*/}}
+{{- define "tuist.runnersFleetRentsMacOS" -}}
+{{- $hosts := int (.Values.runnersFleet.hostCount | default 0) -}}
+{{- range (.Values.runnersFleet.machineGroups | default list) -}}
+{{- $hosts = add $hosts (int (.hostCount | default 0)) -}}
+{{- end -}}
+{{- if and (eq (int $hosts) 0) (include "tuist.rackCatalogPools" . | fromJsonArray) -}}
+false
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
 The Secret a lent rack host's kubeconfig is synced into: the 1Password item's
 name as a Kubernetes name, so a rotated kubeconfig (a new item) is a new
 Secret, and the new name drifts the host onto it.
@@ -1264,4 +1393,46 @@ Secret, and the new name drifts the host onto it.
 {{- fail (printf "rackFleet.hosts[%s].nodeCluster.kubeconfigItem %q must be letters, digits and underscores" .host $item) -}}
 {{- end -}}
 {{- $item | lower | replace "_" "-" | trunc 63 -}}
+{{- end -}}
+
+{{/*
+The rack's VM image caches as tart-kubelet's `--image-mirror` entries,
+comma-separated in the order of `rackFleet.imageCache.nodes`: empty unless
+the caches run and the hosts are routed through them. The rack-nodes chart
+runs each cache at the same address and port.
+*/}}
+{{- define "tuist.rackImageMirrors" -}}
+{{- $cache := .Values.rackFleet.imageCache | default dict -}}
+{{- $mirrors := list -}}
+{{- if and $cache.enabled $cache.routeHosts -}}
+{{- $upstream := required "rackFleet.imageCache.upstream is required" $cache.upstream -}}
+{{- range $node := (required "rackFleet.imageCache.nodes needs a node to route the hosts to" $cache.nodes) -}}
+{{- $address := required (printf "rackFleet.imageCache.nodes[%s].address is required" $node.name) $node.address -}}
+{{- $mirrors = append $mirrors (printf "%s=http://%s:%d" $upstream $address (int $cache.port)) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $mirrors -}}
+{{- end -}}
+
+{{/*
+The rack hosts routed through the image caches, comma-separated, for
+`--rackhost-image-mirror-hosts`. Each is a `rackFleet.hosts[].name`, or `*`
+for every host; a name the inventory does not have fails the render rather
+than routing nothing.
+*/}}
+{{- define "tuist.rackImageMirrorHosts" -}}
+{{- $routed := .Values.rackFleet.imageCache.routeHosts | default list -}}
+{{- if not (kindIs "slice" $routed) -}}
+{{- fail "rackFleet.imageCache.routeHosts is a list of rackFleet.hosts[].name, or [\"*\"] for every host" -}}
+{{- end -}}
+{{- $known := list -}}
+{{- range (.Values.rackFleet.hosts | default list) -}}
+{{- $known = append $known .name -}}
+{{- end -}}
+{{- range $routed -}}
+{{- if and (ne . "*") (not (has . $known)) -}}
+{{- fail (printf "rackFleet.imageCache.routeHosts names %s, which is not in rackFleet.hosts" .) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $routed -}}
 {{- end -}}

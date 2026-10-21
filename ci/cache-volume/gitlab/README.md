@@ -32,6 +32,43 @@ test:
     - ./gradlew test
 ```
 
+Pass `--path` once per directory, or set `TUIST_VOLUME_PATH` to one path per
+line, to keep several directories in the same volume. Blank lines and
+surrounding whitespace are ignored.
+
+```yaml
+lint:
+  tags: [tuist-linux]
+  before_script:
+    - tuist-cache-volume --key python-tools --path ~/.cache/pip --path ~/.cache/pre-commit
+  script:
+    - pre-commit run --all-files
+```
+
+```yaml
+lint:
+  tags: [tuist-linux]
+  variables:
+    TUIST_VOLUME_KEY: python-tools
+    TUIST_VOLUME_PATH: |
+      ~/.cache/pip
+      ~/.cache/pre-commit
+  before_script:
+    - !reference [.tuist-cache-volume, before_script]
+  script:
+    - pre-commit run --all-files
+```
+
+- All paths share the volume's 20 GB capacity and are restored and saved together.
+- Group small, related directories. Give a large or fast-changing directory its
+  own volume.
+- Paths in one volume must not contain each other.
+- Each path is stored in its own directory inside the volume, identified by how
+  the path is written. Switching between one path and several, or adding,
+  removing or rewriting a path, changes that layout: the first job after the
+  change starts cold for the affected paths. Content of paths that are no
+  longer listed stays in the volume until you clear it.
+
 Relevant changes merged to the monorepo’s `main` automatically publish
 `tuist/cache-volume-gitlab` alongside the GitHub action and Buildkite plugin,
 using the same semantic version. `v1` follows the latest release in that major
@@ -40,8 +77,10 @@ the template. `SOURCE_COMMIT` records its monorepo source.
 
 You can also vendor `cache-volume.yml` and use `include:local`, or mirror it to
 your GitLab instance. Until the first release, use a reviewed monorepo commit.
-No GitLab.com-only Catalog component is required. For multiple directories, call
-the client once per key/path pair (maximum eight per job).
+No GitLab.com-only Catalog component is required. For separate volumes, call the
+client once per key (maximum eight per job). Keep keys stable,
+for example `gradle-dependencies`: a key is a volume name, not a content hash,
+so do not include lockfile, tool-version or commit hashes. A new key starts empty.
 
 Volume targets must be absent or empty. Remove overlapping `cache:paths` or
 artifact restoration paths; keep unrelated archive caches. GitLab restores
@@ -62,8 +101,9 @@ The GitLab instance must expose the job API's `pipeline.source` field (or the
 top-level `source` when the nested field is absent) and permit branch
 listing with that token. Missing source metadata never grants save permission;
 API failure declines attachment. Predefined-looking `CI_*` variables are not
-used to grant permission. Successful default-branch push, schedule and web
-pipelines can save; tags, merge requests, child and other pipelines cannot.
+used to grant permission. Successful push, schedule and web pipelines on any
+branch can save, narrowed by the runner profile's **Save cache from** setting;
+tags, merge requests, child and other pipelines cannot.
 Saved changes become available only after the job and local writers are gone.
 
 Tuist embeds GitLab Runner's shell executor in the isolated Linux or macOS runner.
@@ -77,8 +117,8 @@ or `~/.gradle/caches`; `node_modules` is rejected on macOS because npm replaces 
 Other tools that replace their cache directory are also incompatible on macOS.
 For a macOS
 workspace path, ignore the link without a trailing slash (for example `.gradle`,
-not `.gradle/`, in `.gitignore`). Paths must be a single line without control
-characters; use a plain YAML string instead of `path: |`.
+not `.gradle/`, in `.gitignore`). Each path must be a single line without control
+characters.
 
 On macOS, use a macOS runner profile. Native jobs are supported; Linux container
 examples do not apply to macOS. Volumes mount in the macOS guest, so a separate

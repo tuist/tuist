@@ -21,7 +21,10 @@ Measure clock agreement before granting authority. A host outside the bounded
 clock allowance must remain fenced; do not extend the grant lifetime to hide an
 NTP failure. Inspect `kura.serving_authority.unavailable` for lifetime rejection.
 
-A separate reconciliation queue renews 15-second grants. The runtime polls with
+A separate reconciliation queue on every controller replica renews 15-second
+grants, independently of leader election. Resource-version compare-and-swap
+serializes renewals and transitions, so an old replica cannot overwrite a newer
+fencing or promotion decision. The runtime polls with
 a one-second request timeout on a dedicated OS thread. It checks wall-clock and
 monotonic deadlines with a two-second safety allowance. Admission and metadata
 publication are checked separately, including detached blocking commits and
@@ -32,6 +35,16 @@ same holder is observed healthy before the two-second safety boundary. Expiry
 or an explicit refusal from that holder requires positive fencing. Authority HTTP
 errors include bounded cause chains and timeout/connect classification, so a
 transport failure is distinguishable from a rejected grant.
+
+A transport-only status observation gap keeps the primary Service's existing route
+only while the existing Serving or Quiescing grant remains valid and the live,
+Ready, nonterminating pod still matches its holder. The runtime process must
+predate the grant renewal, accounting for the two-second clock allowance.
+Other configured endpoints reconcile to the same acknowledged holder. This does
+not select a new holder, extend authority, or bypass runtime fencing. Interrupted
+response-body reads are transport failures, not fresh invalid runtime reports.
+HTTP failures, malformed status responses, fresh refusals, changed identities,
+expired grants and restarted pods withdraw routing rather than use this fallback.
 
 After an interruption during ordinary serving, a compatible **same live writer**
 can acknowledge `fenced_epoch`: it takes the publication mutex, closes admission
@@ -75,24 +88,54 @@ floor and remain prohibited after activation.
 `plannedHandover` names one destination pod UID and runtime incarnation. The
 controller waits for the source to report the current valid Serving grant before
 starting preparation, including after a live-writer resumption.
-The source rejects new mutations, drains admitted work, and freezes metadata
+
+When the destination advertises `preparation_supported`, the controller first
+publishes the named intent while leaving the source in `Serving`. The source
+continues accepting reads and writes with normal 15-second lease renewal. The
+destination performs bounded retained-index catch-up with normal background
+bandwidth admission and no corpus hold. It completes one retained walk; live
+eviction does not restart preparation. Requiring an eviction-free pass here can
+keep chasing concurrent writes until the preparation deadline. Final Quiescing
+repair still repeats on eviction before atomically taking its retained-corpus hold.
+The source remains mutable: writes and existing peer-read promotions can cause
+normal cache eviction during preparation. The retained-data guarantee covers the
+corpus frozen in Quiescing, not every entry present when preparation began.
+This phase has its own fixed 20-minute deadline, preserved across reconciliation
+and controller restart. Failure, cancellation, changed destination identity or
+timeout clears the pending intent without pausing the primary; a new request ID is
+required to retry. Source expiry still requires positive fencing.
+
+Only a fresh completion report matching the exact intent, source epoch and both
+identities starts `Quiescing` with its original 300-second deadline. Preparation
+is not a retained-data receipt: live writes and eviction can change either corpus,
+so every existing barrier and revocation check still runs. Older destinations
+retain the direct-quiescence path. Upgrade all controller replicas and the clean
+standby before requesting this flow; the source may remain on the earlier runtime.
+
+The source then rejects new mutations, drains admitted work, and freezes metadata
 publication and eviction. The destination must have durably reached the source's
 final feed incarnation/head, then reconcile the source's complete retained index
 before freezing its retained corpus. This bounded replication pass fetches missing
 records outside the normal bootstrap horizon without echoing them into the sibling
-feed. It preserves resource admission, capacity, version and tombstone checks;
+feed. It preserves resource admission, store capacity, version and tombstone checks;
 an incompatible or undersized destination can still fail the final barrier.
-Repair applies the capacity check separately to each record at listing and
-dispatch, preserving newer queued records when the listing reaches an older
-capacity-rejected record. It does not increase ring capacity or guarantee that
-equal-sized fragmented replicas can hold the same corpus.
+Named repair bypasses the recency cutoff at listing and dispatch: an older
+missing record still belongs to the source's retained corpus. Ordinary catch-up
+keeps its recency policy. Repair does not increase ring capacity or bypass disk
+admission. If rotation evicts records during a repair pass, the destination walks
+the retained index again before taking its hold; this also repairs action-cache
+entries cascaded away by blob eviction after an earlier presence check. A pass
+without eviction acquires the hold atomically with its eviction-generation check.
+All Quiescing repair passes share its original 300-second deadline. Equal-sized fragmented
+replicas are not guaranteed to converge; the final full-corpus check still
+refuses promotion when required data remains missing.
 Only one repair runs per destination, and an abort, changed intent or deadline
 cancels it. A retry after the destination is frozen does not repair or release
 that hold. Older destinations keep their verify-only behavior. Verification
 walks the complete retained index in bounded pages, hashes metadata and bodies
 with a 64 KiB buffer, and verifies namespace tombstones against that destination.
 A bootstrapped state, cursor or consumer count alone cannot satisfy the barrier.
-Missing, capacity-skipped, changed or unreadable data fails preparation.
+Missing, capacity-skipped, changed or unreadable data fails retained-corpus verification.
 Compatible destinations advertise bounded batch verification on the initial
 response. The source sends at most 32 record descriptors, 64 KiB of descriptor
 JSON and 8 MiB of referenced bodies per batch (a single larger record travels
@@ -100,15 +143,15 @@ alone). Both peers still hash every byte sequentially with the same buffer and
 ordered receipt digest. This removes per-record network round trips without
 adding parallel readers. Older destinations use the individual-record path;
 older sources remain supported. Rejections name the failing record within a
-batch, and a partial batch acknowledgment cannot complete preparation.
+batch, and a partial batch acknowledgment cannot complete verification.
 
 Both nodes fsync the same named receipt. The source then positively acknowledges
 revocation while holding the same publication mutex used by public writes.
 Only that acknowledgment allows the next epoch. A restarted destination cannot
 reuse an old receipt: receipt ownership and the retained-corpus hold are specific
 to the live runtime incarnation. An authoritative abort or completed transfer
-releases the holds. Preparation has a 300-second deadline; a healthy source is
-restored on preparation timeout. A source lost during preparation requires
+releases the holds. Quiescing has a 300-second deadline; a healthy source is
+restored on verification timeout. A source lost during Quiescing requires
 external fencing. Large corpora may exceed the deadline because this initial
 implementation verifies every retained byte; do not increase it casually.
 
@@ -169,7 +212,11 @@ Turning off the account flag does not restore legacy selection. Disabling the
 controller flag stops renewal and eventually serving. Keep the capable controller
 and runtime pair; an old controller is below the rollback floor. Qualifying a new
 runtime image and deliberately updating the pin is an operator procedure while
-automatic rolling replacement stays paused.
+automatic rolling replacement stays paused. A newer requested image does not
+stop ordinary workload reconciliation: the template remains at the qualified
+runtime pin and the instance reports Pending with the held-image reason. The
+requested image remains unchanged, and only an explicitly updated pin permits
+the template to adopt it. OnDelete and volume retention remain in force.
 For an already activated instance, replace the clean standby first, then perform
 a named handover before replacing the positively revoked old primary. Do not
 restart an active primary onto its marked volume. The first handover from an old
@@ -187,10 +234,14 @@ Controller metrics expose phase gauges and the latest valid-holder observation.
 `serving-authority-alerts.yaml` supplies example rules for fencing, an
 unacknowledged holder and a stalled rebuild; install them in the environment's
 alerting system before activation. They are not installed by the staging fixture.
-The authority-enabled controller uses 5/3/1-second leader lease/renew/retry
-timings and releases leadership on graceful cancellation. A longer interruption
-still expires authority and requires positive fencing. Upgrade runtime and
-controller in either order: old runtimes cannot acknowledge live-writer fencing,
+The workload controller uses 5/3/1-second leader lease/renew/retry timings and
+releases leadership after graceful shutdown. Authority reconciliation runs on
+all replicas because unrelated workers can keep that lease while draining after
+grant renewal has stopped. A surviving replica can continue renewing during
+that interval. Loss of all authority reconcilers still expires grants and
+requires positive fencing. Run at least two controller replicas for rollout
+continuity; a single replica cannot renew grants while its only process restarts.
+Upgrade runtime and controller in either order: old runtimes cannot acknowledge live-writer fencing,
 and old controllers ignore that additive report. Recovery becomes automatic only
 when both support it; rollback to either old component leaves an expired writer
 closed and needing the original external recovery procedure.

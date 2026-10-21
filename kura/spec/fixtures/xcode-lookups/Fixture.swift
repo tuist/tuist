@@ -7,11 +7,13 @@ import CoreData
 import CoreImage
 import CoreLocation
 import MapKit
+import LookupDependency
 import Network
 import SwiftUI
 import WebKit
 
 public struct LookupFixture {
     public var name: String
+    public var dependencyValue: Int { LookupDependency.value }
     public init(name: String) { self.name = name }
 }

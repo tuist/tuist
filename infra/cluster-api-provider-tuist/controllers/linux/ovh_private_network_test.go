@@ -2,6 +2,10 @@ package linux
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,9 +14,12 @@ import (
 	"testing"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -198,5 +205,89 @@ func TestPrivateNetworkFailedRetirementRetainsIntent(t *testing.T) {
 	}
 	if !strings.Contains(string(owners), "retired/uid") {
 		t.Fatal("failed retirement lost its owner")
+	}
+}
+
+type fakeOVHVRackAPI struct{ fakeOVHAPI }
+
+func (f *fakeOVHVRackAPI) GetWithContext(_ context.Context, path string, res any) error {
+	var body any
+	switch {
+	case strings.HasSuffix(path, "/networkInterfaceController?linkType=private"):
+		body = []string{"aa:bb:cc:dd:ee:01"}
+	case strings.Contains(path, "/networkInterfaceController/"):
+		body = map[string]string{"virtualNetworkInterface": "vni-1"}
+	case strings.Contains(path, "/virtualNetworkInterface/"):
+		body = map[string]any{"enabled": true, "mode": "vrack", "vrack": "pn-test"}
+	default:
+		return fmt.Errorf("unexpected OVH GET %s", path)
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(encoded, res)
+}
+
+func TestPrivateNetworkWaitingOnPeerIsPendingNotFailure(t *testing.T) {
+	ctx := context.Background()
+	machine := func(name, service, ip string) *infrav1.OVHDedicatedMachine {
+		return &infrav1.OVHDedicatedMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "tuist", UID: types.UID(name + "-uid")},
+			Spec:       infrav1.OVHDedicatedMachineSpec{NodeTaints: []corev1.Taint{{Key: "tuist.dev/kura-cache", Effect: corev1.TaintEffectNoSchedule}}},
+			Status:     infrav1.OVHDedicatedMachineStatus{ServiceName: service, Addresses: []clusterv1.MachineAddress{{Type: clusterv1.MachineExternalIP, Address: ip}}},
+		}
+	}
+	local, lagging, stale := machine("a", "server-a", "198.51.100.1"), machine("b", "server-b", "198.51.100.2"), machine("c", "server-c", "198.51.100.3")
+	config := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "private-network", Namespace: "tuist"}, Data: map[string]string{"vrackID": "pn-test", "cidr": "172.30.241.0/24"}}
+	node := func(name string) *corev1.Node {
+		return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}, Status: corev1.NodeStatus{NodeInfo: corev1.NodeSystemInfo{BootID: name + "-boot"}}}
+	}
+	c := fake.NewClientBuilder().WithScheme(releaseScheme(t)).WithObjects(local, lagging, stale, config, node("a"), node("b"), node("c")).Build()
+	r := &OVHDedicatedMachineReconciler{Client: c, OVHClient: &ovh.Client{API: &fakeOVHVRackAPI{}}, PrivateNetworkConfigName: "private-network", PrivateNetworkNamespace: "tuist"}
+
+	// The local host already installed the current membership; its peers still
+	// carry an older one, so it can only wait for them.
+	reservations, machines, err := r.reservePrivateNetwork(ctx, local, "pn-test", "172.30.241.0/24")
+	if err != nil {
+		t.Fatal(err)
+	}
+	peers, members, owners := ovhPrivateParticipants("server-a", machines, reservations)
+	membership := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(members, "\n"))))
+	script := renderPrivateNetworkScript("aa:bb:cc:dd:ee:01", reservations.Addresses["server-a"], 24, "198.51.100.1", peers, owners)
+	for name, annotations := range map[string]map[string]string{
+		"a": {privateNetworkAnnotation: "pn-test", privateNetworkMembers: membership, privateNetworkRevision: fmt.Sprintf("%x:a-boot", sha256.Sum256([]byte(script)))},
+		"b": {privateNetworkAnnotation: "pn-test", privateNetworkMembers: "older"},
+		"c": {privateNetworkAnnotation: "pn-test", privateNetworkMembers: "older"},
+	} {
+		n := &corev1.Node{}
+		if err := c.Get(ctx, types.NamespacedName{Name: name}, n); err != nil {
+			t.Fatal(err)
+		}
+		n.Annotations = annotations
+		if err := c.Update(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	current := &corev1.Node{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "a"}, current); err != nil {
+		t.Fatal(err)
+	}
+
+	err = r.reconcilePrivateNetwork(ctx, local, current)
+
+	var pending *privateNetworkPending
+	if !errors.As(err, &pending) {
+		t.Fatalf("waiting on peers must be reported as pending, got %v", err)
+	}
+	if !reflect.DeepEqual(pending.peers, []string{"b", "c"}) {
+		t.Fatalf("pending must name every lagging peer, got %v", pending.peers)
+	}
+	condition := conditions.Get(local, privateNetworkReady)
+	if condition == nil || condition.Status != corev1.ConditionFalse || condition.Reason != "WaitingForPeerRoutes" || condition.Severity != clusterv1.ConditionSeverityInfo {
+		t.Fatalf("unexpected condition %+v", condition)
+	}
+	if current.Labels[privateNetworkAnnotation] != "" {
+		t.Fatal("topology advertised before every peer installed the membership")
 	}
 }

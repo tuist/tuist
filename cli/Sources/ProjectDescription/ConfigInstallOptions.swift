@@ -38,7 +38,19 @@ extension Config {
                 self.excludedVariablePatterns = excludedVariablePatterns
             }
 
-            /// Uses provider-specific defaults to hide volatile continuous-integration values.
+            /// Hides CI inputs that would otherwise invalidate reusable dependency manifests.
+            ///
+            /// On GitHub Actions, excludes `GITHUB_*`, `ACTIONS_*`, `RUNNER_*`, `SSH_AUTH_SOCK` and
+            /// `MISE_GITHUB_TOKEN`, retaining `GITHUB_ACTIONS`, `RUNNER_OS` and `RUNNER_ARCH`. Other
+            /// providers use selected volatile execution identifiers. Shell bookkeeping (`SHLVL`, `_`,
+            /// `OLDPWD`) and Tuist runner/cache settings are excluded everywhere.
+            /// Toolchain settings and application-defined inputs remain visible and fingerprinted.
+            ///
+            /// Known GitHub/SSH credentials remain available to native dependency resolution, which
+            /// also evaluates manifests while fetching packages. Cached manifest evaluation excludes
+            /// them. Manifests that intentionally depend on CI metadata or credentials should restore
+            /// those inputs with `automatic(including:)`, or use `all`, to use the same inputs on both paths.
+            /// Explicit exclusions apply to native resolution too and can disable authentication.
             public static let automatic = Self(usesAutomaticProviderDefaults: true)
 
             /// Preserves the complete process environment.

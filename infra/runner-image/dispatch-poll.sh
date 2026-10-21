@@ -188,8 +188,8 @@ filter_tcc_log() {
 }
 
 # report_finder_automation appends the state behind scripted Finder
-# access to `${LOG}` on the way out. The Finder approval written at boot
-# (approve_finder_automation) still fails on some jobs with an immediate
+# access to `${LOG}` on the way out. When the Finder approval was written
+# at boot, some jobs failed with an immediate
 # `Not authorized to send Apple events to Finder (-1743)`, and nothing
 # from those VMs survives them. Written last, after the job's own
 # output, it lands in the bounded tail that publish_runner_log hands to
@@ -278,73 +278,24 @@ keep_desktop_interactive() {
 
 keep_desktop_interactive
 
-# approve_finder_automation records a standing approval for scripting
-# Finder, which `create-dmg` and any other `osascript`-driven window
-# styling needs. Without one, the first AppleEvent to Finder waits on a
-# consent prompt nobody can answer and the send fails as `AppleEvent
-# timed out (-1712)`.
-#
-# The decision is read from the session user's TCC database, which tccd
-# only creates once `runner` has logged in, so it cannot be seeded at
-# image build. The system database is not consulted for it.
-#
-# TCC charges the event to the responsible process, not to `osascript`:
-# `Runner.Listener` for GitHub jobs, and this script's `/bin/bash` for
-# the agents it launches directly. A row only matches when it carries
-# Finder's code requirement as `indirect_object_code_identity`.
-#
-# tccd is still writing the database right after login, and the sqlite3
-# CLI fails at once on a lock unless given a busy timeout. Without one,
-# some boots lost the approval to `database is locked`.
-#
-# Best-effort: a job that never scripts Finder must not wait on this.
-approve_finder_automation() {
-  local db="${RUNNER_TCC_DB}"
-  local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
-  local waited=0 failed=0 client
-  while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
-    sleep 1
-    waited=$((waited + 1))
-  done
-  if [ ! -f "${db}" ]; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING per-user TCC.db missing; Finder automation will prompt"
-    return 0
-  fi
-  for client in /Users/runner/actions-runner/bin/Runner.Listener /bin/bash; do
-    if ! /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"; then
-      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Finder automation for ${client}"
-      failed=1
-    fi
-  done
-  [ "${failed}" -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: Finder automation approved"
-  return 0
-}
-
-# approve_simulator_microphone records a standing microphone approval
-# for iOS Simulator apps. A simulator app that records audio (a video
-# call, `AVAudioSession` in `.playAndRecord`, an `AVCaptureSession` with
-# an audio input) reaches the host microphone through CoreSimulator, and
-# TCC charges that to `com.apple.CoreSimulator.SimulatorTrampoline`.
-# Without a row the request waits on a consent prompt nobody can answer,
-# the app's main thread stalls, and XCUITest fails with `Failed to get
-# matching snapshots: Timed out while evaluating UI query`.
-#
-# Same database, timing, and lock handling as approve_finder_automation,
-# which runs first and waits for the database to appear.
-approve_simulator_microphone() {
-  local db="${RUNNER_TCC_DB}"
-  [ -f "${db}" ] || return 0
-  if /usr/bin/sqlite3 -cmd ".timeout 10000" "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceMicrophone', 'com.apple.CoreSimulator.SimulatorTrampoline', 0, 2, 3, 1, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: Simulator microphone approved"
+# check_tcc_approvals logs whether the standing TCC approvals the image
+# build seeded into runner's TCC.db (scripting Finder for `create-dmg`,
+# the iOS Simulator's microphone) are still there. It only reads; see
+# infra/runner-image/AGENTS.md for why the rows are written at build.
+# A missing row means a job that needs it waits on a consent prompt
+# nobody can answer.
+check_tcc_approvals() {
+  local result
+  if result=$(/opt/tuist/tcc-approvals.sh check 2>&1); then
+    echo "$(date -u +%FT%TZ) dispatch-poll: ${result}"
   else
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Simulator microphone access"
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING ${result}"
   fi
   return 0
 }
 
 stream_tcc_log
-approve_finder_automation
-approve_simulator_microphone
+check_tcc_approvals
 
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
@@ -506,6 +457,31 @@ CAS_LIMIT_BYTES=""
 # The file stage_cache_limits appends the division to for the host to turn into
 # metrics. Nothing on the guest reads it back.
 CACHE_LIMITS_FILE="cache-limits"
+# An account on opt-in caches still gets the image mounted and bounded at
+# dispatch, but its job reaches each cache only through that cache's CI entry
+# point (the module-cache and xcode-cache GitHub actions, Buildkite plugins and
+# GitLab snippets), which reads the environment stage_runner_caches leaves here
+# through tuist-runner-cache. A job that uses
+# neither is withdrawn from promotion and usage reporting.
+RUNNER_CACHES_DIR="/Users/runner/.tuist-runner-caches"
+AUTOMATIC_CACHES=1
+# An account on managed cache volumes keeps each cache on its own custom volume
+# (`tuist-xcode`, `tuist-module`) instead of the built-in image, which this job
+# never attaches. tuist-runner-cache attaches a volume when the job activates its
+# cache; teardown drains and prunes the compilation cache on it before
+# `tuist-cache-volume --detach-all` saves the volumes.
+MANAGED_CACHE_VOLUMES=0
+MANAGED_XCODE_CACHE="/Users/runner/.tuist-compilation-cache"
+MANAGED_MODULE_CACHE="/Users/runner/.tuist-module-cache"
+MANAGED_XCCONFIG="/Users/runner/.tuist-managed-cas.xcconfig"
+# The server allocates `tuist-xcode` at 30 GB and `tuist-module` at 20 GB. Each
+# limit leaves the room a job grows into before the next prune, under the 99%
+# fill at which a volume is no longer saved.
+MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000
+MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
+# The compilation cache root teardown drains and prunes. Empty means the built-in
+# image's folded store (see cas_store_root).
+CAS_STORE_ROOT=""
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -605,7 +581,7 @@ attach_cache_image() {
     return 1
   fi
   mkdir -p "${CACHE_MOUNTPOINT}" 2>/dev/null || true
-  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -owners off -nobrowse -noverify -quiet \
+  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -owners off -nobrowse -noverify \
     -mountpoint "${CACHE_MOUNTPOINT}" 2>&1); then
     cache_diag "hdiutil attach ${CACHE_IMAGE}: ${err}"
     return 1
@@ -654,6 +630,48 @@ detach_cache_image() {
   fi
   CACHE_MOUNT=""
   return 1
+}
+
+# stop_tuist_launch_agents boots out the launch agents the Tuist CLI installed
+# during the job: the compilation-cache proxy, the retired per-project cache
+# daemons, the metrics sampler. The runner reaps only its own process tree, so
+# they outlive the job, still holding files open on the volumes teardown is
+# about to detach. The proxy holds the compilation-cache store in the cache
+# image, and a Tuist installed onto a custom volume (mise's install directory,
+# for example) runs every one of them from that volume. A busy cache image is
+# force-detached; a busy custom volume is not published at all. Booting out, and
+# not killing, because the agents restart on an unsuccessful exit.
+#
+# `launchctl bootout` returns before the process exits, so this then waits up to
+# TUIST_AGENT_STOP_TIMEOUT for each one that was running to be gone.
+#
+# Labels starting `tuist.` are the CLI's; the image's own agents, this script's
+# among them, are `dev.tuist.`.
+TUIST_AGENT_STOP_TIMEOUT=10
+stop_tuist_launch_agents() {
+  local domain agents pid label pids="" polls=0
+  domain="gui/$(id -u)"
+  agents=$(launchctl list 2>/dev/null | awk 'NR > 1 && $3 ~ /^tuist\./ { print $1, $3 }')
+  [ -n "${agents}" ] || return 0
+  while read -r pid label; do
+    if launchctl bootout "${domain}/${label}" 2>/dev/null; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: stopped launch agent ${label}"
+      case "${pid}" in ''|*[!0-9]*) ;; *) pids="${pids} ${pid}" ;; esac
+    else
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not stop launch agent ${label}"
+    fi
+  done <<EOF_AGENTS
+${agents}
+EOF_AGENTS
+  for pid in ${pids}; do
+    while kill -0 "${pid}" 2>/dev/null && [ "${polls}" -lt $((TUIST_AGENT_STOP_TIMEOUT * 5)) ]; do
+      sleep 0.2
+      polls=$((polls + 1))
+    done
+    if kill -0 "${pid}" 2>/dev/null; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING launch agent process ${pid} still running after ${TUIST_AGENT_STOP_TIMEOUT}s"
+    fi
+  done
 }
 
 # mark_cache_not_promotable withdraws this job's cache image from both promotion
@@ -826,8 +844,22 @@ CAS_PROXY_SOCKET="${HOME:-/Users/runner}/.local/state/tuist/cas-proxy.sock"
 # the gate a no-op: a plain `xcodebuild` job runs Xcode's builtin lane, which
 # has no remote and nothing to publish.
 cas_spool_dirs() {
-  [ -n "${CACHE_MOUNT}" ] || return 0
-  find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -type d -name tuist-spool 2>/dev/null
+  local root
+  root=$(cas_store_root)
+  [ -n "${root}" ] || return 0
+  find "${root}/" -type d -name tuist-spool 2>/dev/null | sed 's|//|/|'
+}
+
+# cas_store_root prints the compilation cache root this job used: the managed
+# volume's store when CAS_STORE_ROOT names one, else the store folded into the
+# built-in image, else nothing. A managed store is a symlink into its volume, so
+# callers search under "<root>/".
+cas_store_root() {
+  if [ -n "${CAS_STORE_ROOT}" ]; then
+    printf '%s' "${CAS_STORE_ROOT}"
+  elif [ -n "${CACHE_MOUNT}" ]; then
+    printf '%s' "${CACHE_MOUNT}/${CAS_STORE_DIR}"
+  fi
 }
 
 # cas_spool_records counts what a spool still owes the remote. A record is
@@ -842,10 +874,10 @@ cas_spool_records() {
 # the gate waits on the publisher itself instead of sampling a directory) and to
 # prune (so the compilation cache is bounded at all).
 #
-# The launch agent `tuist setup cache` installed is the reliable pointer: its
-# `Program` IS the tuist whose bundle serves this machine's socket, and the proxy
-# binary ships beside it. It is preferred over the image's own copy because it
-# matches the proxy actually running, which is what a drain has to talk to.
+# Follow the installed agent's custom proxy or stable launch target before PATH
+# and the image fallback. Legacy agents name the CLI in Program; stable agents
+# run /bin/sh and name their JSON pointer in ProgramArguments[2]. The drain wire
+# operation remains compatible while the old proxy drains before adopting it.
 #
 # The image's copy at /opt/tuist is the LAST resort, and it exists for the jobs
 # that have neither: a plain `xcodebuild` workflow never runs Tuist, so it
@@ -855,17 +887,31 @@ cas_spool_records() {
 # could ever prune, which is the unbounded growth this path exists to stop. (The
 # drain is a legitimate no-op for them: no plugin means no spool.)
 cas_proxy_client() {
-  local candidate program plist
+  local candidate program plist target configured_proxy
   plist="${HOME:-/Users/runner}/Library/LaunchAgents/tuist.cas-proxy.plist"
   program=""
+  configured_proxy=""
   if [ -r "${plist}" ]; then
     program=$(/usr/libexec/PlistBuddy -c 'Print :Program' "${plist}" 2>/dev/null)
+    configured_proxy=$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:TUIST_CAS_PROXY_PATH' "${plist}" 2>/dev/null)
+    if [ "${program}" = /bin/sh ]; then
+      target=$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:2' "${plist}" 2>/dev/null)
+      case "${target}" in
+        */cas-launch-target.json)
+          program=$(/usr/bin/plutil -extract executable raw -o - "${target}" 2>/dev/null)
+          ;;
+        *)
+          program=$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:4' "${plist}" 2>/dev/null)
+          ;;
+      esac
+    fi
   fi
   for candidate in \
     "${TUIST_CAS_PROXY_PATH:-}" \
-    "$(command -v tuist-cas-proxy 2>/dev/null)" \
+    "${configured_proxy}" \
     "${program:+$(dirname "${program}")/tuist-cas-proxy}" \
     "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}" \
+    "$(command -v tuist-cas-proxy 2>/dev/null)" \
     /opt/tuist/tuist-cas-proxy; do
     if [ -n "${candidate}" ] && [ -x "${candidate}" ]; then
       printf '%s' "${candidate}"
@@ -898,7 +944,7 @@ cas_proxy_client() {
 # it.
 #
 # It runs for a failed job too. A job that did not succeed never promotes
-# (report_cache_dirty and report_volume_head both gate on JOB_PASSED), so its
+# (report_cache_dirty and report_volume_head both gate on CACHE_PASSED), so its
 # verdict gates nothing there, but setup_cas_store told the job's compiles not to
 # wait for their uploads because this wait would, and the next job's warm cache
 # is made of those uploads whether this one passed or not.
@@ -907,7 +953,7 @@ cas_proxy_client() {
 # guard: a host that panics, or a job cancelled mid-upload, promotes without ever
 # reaching this.
 drain_cas_publications() {
-  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -n "$(cas_store_root)" ] || return 0
   local spools
   spools=$(cas_spool_dirs)
   [ -n "${spools}" ] || return 0
@@ -974,8 +1020,10 @@ EOF
 # compilers and `generic` for Swift Build itself), so discover them by that shape
 # rather than assume the set. All need bounding.
 cas_store_dirs() {
-  [ -n "${CACHE_MOUNT}" ] || return 0
-  find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -maxdepth 3 -type d -name 'v1.*' 2>/dev/null |
+  local root
+  root=$(cas_store_root)
+  [ -n "${root}" ] || return 0
+  find "${root}/" -maxdepth 3 -type d -name 'v1.*' 2>/dev/null | sed 's|//|/|' |
     while IFS= read -r generation; do dirname "${generation}"; done | sort -u
 }
 
@@ -1113,7 +1161,7 @@ EOF
 # sample_cache_fill's ceiling already guards. It never fails the job or blocks
 # promotion.
 #
-# The teardown call site applies the JOB_PASSED gate; the attach one does not
+# The teardown call site applies the CACHE_PASSED gate; the attach one does not
 # need it (nothing has been drained yet because nothing has been written yet).
 #
 # `$1` names the call site and is echoed into every line this emits. The two
@@ -1122,7 +1170,7 @@ EOF
 # store over budget) or merely kept tidy on the way OUT.
 prune_cas_stores() {
   local when="${1:-teardown}"
-  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -n "$(cas_store_root)" ] || return 0
   local stores
   stores=$(cas_store_dirs)
   [ -n "${stores}" ] || return 0
@@ -1387,6 +1435,90 @@ wait_for_cache_ready() {
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
+# stage_runner_caches records how this job reaches the caches, after
+# wait_for_cache_ready and before the runner starts. On opt-in caches it moves
+# each cache's environment out of the one the runner inherits into a file its
+# action reads, and drops the attach-time usage sample so a job that never uses
+# the caches is not reported as a volume use. Nothing after the runner starts
+# reads these variables; teardown works from the CACHE_* and CAS_* state.
+stage_runner_caches() {
+  # Without the directory no action can activate a cache, so the job keeps
+  # them automatically rather than losing them.
+  if ! mkdir -p "${RUNNER_CACHES_DIR}" 2>/dev/null; then
+    AUTOMATIC_CACHES=1
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING cannot stage opt-in caches; keeping them automatic"
+    return 0
+  fi
+  if [ "${AUTOMATIC_CACHES}" = "1" ]; then
+    printf 'automatic' >"${RUNNER_CACHES_DIR}/mode" 2>/dev/null || true
+    return 0
+  fi
+  if [ "${MANAGED_CACHE_VOLUMES:-0}" = "1" ]; then
+    stage_managed_cache_volumes
+  elif [ -n "${CACHE_MOUNT}" ]; then
+    {
+      printf 'TUIST_XDG_CACHE_HOME=%s\n' "${TUIST_XDG_CACHE_HOME:-}"
+      if [ -n "${TUIST_CACHE_MAX_BYTES:-}" ]; then
+        printf 'TUIST_CACHE_MAX_BYTES=%s\n' "${TUIST_CACHE_MAX_BYTES}"
+      fi
+    } >"${RUNNER_CACHES_DIR}/module.env" 2>/dev/null || true
+    if [ -n "${TUIST_COMPILATION_CACHE_CAS_PATH:-}" ]; then
+      {
+        printf 'XCODE_XCCONFIG_FILE=%s\n' "${XCODE_XCCONFIG_FILE:-}"
+        printf 'TUIST_COMPILATION_CACHE_CAS_PATH=%s\n' "${TUIST_COMPILATION_CACHE_CAS_PATH}"
+        printf 'TUIST_CAS_DRAINED_STORE=%s\n' "${TUIST_CAS_DRAINED_STORE:-}"
+      } >"${RUNNER_CACHES_DIR}/xcode.env" 2>/dev/null || true
+    fi
+  fi
+  rm -f "${STATUS_SHARE}/cache-usage.json" 2>/dev/null || true
+  unset TUIST_XDG_CACHE_HOME TUIST_CACHE_MAX_BYTES XCODE_XCCONFIG_FILE \
+    TUIST_COMPILATION_CACHE_CAS_PATH TUIST_CAS_DRAINED_STORE
+  printf 'opt-in' >"${RUNNER_CACHES_DIR}/mode" 2>/dev/null || true
+  echo "$(date -u +%FT%TZ) dispatch-poll: caches are opt-in; staged for tuist/module-cache and tuist/xcode-cache"
+}
+
+# stage_managed_cache_volumes stages each cache on its own custom volume: the
+# volume tuist-runner-cache attaches (`<cache>.volume`, key and path) and the
+# environment that points the cache at it. The compilation cache gets its own
+# xcconfig, bounded to its volume, with the store on the volume's path.
+stage_managed_cache_volumes() {
+  printf 'tuist-module\t%s\n' "${MANAGED_MODULE_CACHE}" >"${RUNNER_CACHES_DIR}/module.volume" 2>/dev/null || true
+  {
+    printf 'TUIST_XDG_CACHE_HOME=%s\n' "${MANAGED_MODULE_CACHE}"
+    printf 'TUIST_CACHE_MAX_BYTES=%s\n' "${MANAGED_MODULE_CACHE_MAX_BYTES}"
+  } >"${RUNNER_CACHES_DIR}/module.env" 2>/dev/null || true
+  if {
+    printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${MANAGED_XCODE_CACHE}"
+    printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
+    printf 'COMPILATION_CACHE_LIMIT_SIZE = %s\n' "${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
+  } >"${MANAGED_XCCONFIG}" 2>/dev/null; then
+    printf 'tuist-xcode\t%s\n' "${MANAGED_XCODE_CACHE}" >"${RUNNER_CACHES_DIR}/xcode.volume" 2>/dev/null || true
+    {
+      printf 'XCODE_XCCONFIG_FILE=%s\n' "${MANAGED_XCCONFIG}"
+      printf 'TUIST_COMPILATION_CACHE_CAS_PATH=%s\n' "${MANAGED_XCODE_CACHE}"
+      printf 'TUIST_CAS_DRAINED_STORE=%s\n' "${MANAGED_XCODE_CACHE}"
+    } >"${RUNNER_CACHES_DIR}/xcode.env" 2>/dev/null || true
+  fi
+}
+
+# runner_caches_used says whether the job reached the caches: always with
+# automatic caches, otherwise once tuist-runner-cache activated one of them.
+runner_caches_used() {
+  [ "${AUTOMATIC_CACHES}" = "1" ] && return 0
+  [ -e "${RUNNER_CACHES_DIR}/module.used" ] || [ -e "${RUNNER_CACHES_DIR}/xcode.used" ]
+}
+
+# cache_passed prints 1 when the job may promote the caches: it succeeded and
+# reached them. On opt-in caches, a job that used neither action left nothing of
+# its own in the image.
+cache_passed() {
+  if [ "${JOB_PASSED}" = "1" ] && runner_caches_used; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
 # Measure the mounted APFS filesystem, not the sparse image's host allocation.
 # The host supplies identity/outcome and sends this after fencing the guest.
 stage_volume_usage() {
@@ -1416,27 +1548,51 @@ stage_volume_usage() {
 # account is then wedged from the inside, because a failing job never promotes a
 # replacement. Refusing costs the account one job's warmth and keeps the last
 # master that still had room.
+#
+# The ceiling is the backstop for a host that stages no budget. With one, the
+# budget is the tighter bound: the image less the budget is the room every job
+# starts with, so a master holding more than the budget hands the next job less
+# than that room. A build that needs the room then fails with ENOSPC, and the
+# failure is never promoted, which wedges the account well below this ceiling.
 CACHE_FILL_PROMOTE_CEILING=98
+
+# Why sample_cache_fill refused the image, for the teardown's log line.
+CACHE_PROMOTE_REFUSAL=""
 
 # sample_cache_fill records the image's post-job fill % (binary cache + CAS +
 # overhead) for the host's fill histogram — the signal for whether the reserve is
 # holding or the volume is running near ENOSPC. Must run while the image is still
-# MOUNTED, since `df` reports on a mount. `df -P` for the portable one-line
-# format; column 5 is Use%.
+# MOUNTED, since `df` reports on a mount. `df -kP` for the portable one-line
+# format in KiB; column 3 is used, column 5 is Use%.
 #
-# Returns non-zero once the fill reaches CACHE_FILL_PROMOTE_CEILING so teardown
-# can withdraw the branch. An unreadable fill returns 0: the gauge is the only
-# evidence here, and refusing to promote every image whose `df` did not parse
-# would freeze the account's cache on a reporting failure.
+# Returns non-zero, with the reason in CACHE_PROMOTE_REFUSAL, once the fill
+# reaches CACHE_FILL_PROMOTE_CEILING or the image holds more than the budget
+# (CACHE_BUDGET_BYTES), so teardown can withdraw the branch. An unreadable
+# sample returns 0: the gauge is the only evidence here, and refusing to promote
+# every image whose `df` did not parse would freeze the account's cache on a
+# reporting failure.
 sample_cache_fill() {
+  CACHE_PROMOTE_REFUSAL=""
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
-  local fill
-  fill=$(df -P "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
+  local sample fill used
+  sample=$(df -kP "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); printf "%s %.0f", $5, $3 * 1024}')
+  fill=${sample%% *}
+  used=${sample#* }
   case "${fill}" in ''|*[!0-9]*) fill="" ;; esac
-  [ -n "${fill}" ] || return 0
-  printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
-  [ "${fill}" -lt "${CACHE_FILL_PROMOTE_CEILING}" ]
+  case "${used}" in ''|*[!0-9]*) used="" ;; esac
+  if [ -n "${fill}" ]; then
+    printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+    if [ "${fill}" -ge "${CACHE_FILL_PROMOTE_CEILING}" ]; then
+      CACHE_PROMOTE_REFUSAL="cache volume ${fill}% full"
+      return 1
+    fi
+  fi
+  if [ -n "${used}" ] && [ -n "${CACHE_BUDGET_BYTES}" ] && [ "${used}" -gt "${CACHE_BUDGET_BYTES}" ]; then
+    CACHE_PROMOTE_REFUSAL="cache volume holds ${used}B, over its ${CACHE_BUDGET_BYTES}B budget"
+    return 1
+  fi
+  return 0
 }
 
 # Where the detached image is re-attached to be measured. Deliberately not
@@ -1472,7 +1628,7 @@ capture_settled_inventory() {
   [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   mkdir -p "${CACHE_VERIFY_MOUNTPOINT}" 2>/dev/null || true
   local err
-  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -readonly -owners off -nobrowse -noverify -quiet \
+  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -readonly -owners off -nobrowse -noverify \
     -mountpoint "${CACHE_VERIFY_MOUNTPOINT}" 2>&1); then
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING settled cache image would not attach read-only: ${err}"
     return 1
@@ -1584,7 +1740,7 @@ buildkite_job_result() {
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
 # share so the reconciler can decide promote-vs-discard. "1" iff the job
-# succeeded (JOB_PASSED) AND the cache inventory changed; "0" for a read-only /
+# succeeded and reached the caches (CACHE_PASSED) AND the cache inventory changed; "0" for a read-only /
 # pure-hit job OR a job that failed, was cancelled, or left no result.
 #
 # It MUST run AFTER a successful detach. The marker is what authorizes the host
@@ -1978,6 +2134,12 @@ while true; do
         echo "$(date -u +%FT%TZ) dispatch-poll: cache signing grant delivered"
         export TUIST_CACHE_SIGNING_GRANT="${cache_grant}"
       fi
+      if "${JQ}" -e '.automatic_caches == false' /tmp/dispatch.json >/dev/null 2>&1; then
+        AUTOMATIC_CACHES=0
+        if "${JQ}" -e '.managed_cache_volumes == true' /tmp/dispatch.json >/dev/null 2>&1; then
+          MANAGED_CACHE_VOLUMES=1
+        fi
+      fi
       # The GitHub runner inherits this process's environment, so exporting
       # is enough there. The Buildkite agent sanitizes the job environment
       # instead, so anything the build needs has to be re-exported from
@@ -2034,7 +2196,12 @@ while true; do
       else
         echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
       fi
-      wait_for_cache_ready
+      # On managed cache volumes the job keeps its caches on custom volumes the
+      # helper attaches; the built-in image is never attached.
+      if [ "${MANAGED_CACHE_VOLUMES}" != "1" ]; then
+        wait_for_cache_ready
+      fi
+      stage_runner_caches
       # Fork the machine-metrics sampler so it runs for the job's
       # duration and POSTs CPU/memory/network/disk to the server. It
       # dies with the VM when the EXIT trap halts us after the runner
@@ -2065,11 +2232,18 @@ while true; do
       JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
       WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
       rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
+      # The hook also mounts the job's cached checkout at its workspace before
+      # the first step, so a stock actions/checkout reuses it instead of
+      # cloning. The host decides whether there is one; any miss leaves the
+      # workspace empty and the job checks out exactly as before.
       cat >"${JOB_STARTED_HOOK}" <<HOOK
 #!/bin/bash
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+  /usr/local/bin/tuist-cache-volume --checkout "\${GITHUB_WORKSPACE}" || true
+fi
 exit 0
 HOOK
       chmod +x "${JOB_STARTED_HOOK}"
@@ -2238,6 +2412,8 @@ HOOK
       #      the account wedges. After the drain (a prune must not delete an
       #      object the spool still owed) and before the fill sample (so the
       #      gauge describes the image that gets published);
+      #   0c. stop the Tuist CLI's launch agents, which the drain and the prune
+      #      still needed, so nothing holds the volumes busy at detach;
       #   1. sample the signals that need a live mount (fill %), but withhold the
       #      promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn
@@ -2252,28 +2428,32 @@ HOOK
       #   4. ONLY then authorize promotion (dirty marker) and upload the settled
       #      image as the account's new HEAD. A detach failure, an unmeasurable
       #      image, or an early exit leaves no dirty marker, so the host discards.
-      # JOB_PASSED gates promotion: only a job that succeeded advances the master.
+      # CACHE_PASSED gates promotion (see cache_passed).
+      CACHE_PASSED=$(cache_passed)
+      if ! runner_caches_used; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: no cache action used the caches; host will discard this branch"
+      fi
       # If the CAS feature was turned off, drop its stale store from the image
       # BEFORE the image is measured, so the removal promotes a cleaned master
       # instead of masters carrying dead CAS bytes forever.
       reclaim_cas_if_disabled
       # After the reclaim: a store that was just dropped has no spool left to
       # wait on, so a disabled-CAS teardown never pays for this gate.
-      if ! drain_cas_publications && [ "${JOB_PASSED}" = "1" ]; then
+      if ! drain_cas_publications && [ "${CACHE_PASSED}" = "1" ]; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
       # Bound the compilation cache before the image is measured: nothing else
       # ever collects the generations that fall out of its chain, and an
       # unbounded store is what fills this volume and wedges the account.
       #
-      # Gated on JOB_PASSED. A job that did not succeed never promotes, so there
+      # Gated on CACHE_PASSED. A job that did not succeed never promotes, so there
       # is no image for this to shrink, and the drain's verdict gates nothing
       # for it, so the spool may still owe the remote objects this would delete.
       # Nothing inherits those associations (the branch is discarded), but
       # "prune only what has been drained" is the invariant
       # worth being unable to get wrong later. The attach-time prune is what
       # covers a failing job, from the other end.
-      if [ "${JOB_PASSED}" = "1" ]; then
+      if [ "${CACHE_PASSED}" = "1" ]; then
         # Divide the budget again first: the binary cache may have grown to its
         # attach-time share during the job, and nothing prunes it here, so the
         # compilation cache has to fit beside what it holds now.
@@ -2281,6 +2461,9 @@ HOOK
         stage_cache_limits teardown
         prune_cas_stores teardown
       fi
+      # After the drain and the prune, which both ask the proxy, and before any
+      # detach, which a still-running agent would hold busy.
+      stop_tuist_launch_agents
       # A full image is withheld from BOTH channels, so the detach still runs
       # (the host must be handed a settled file either way) but the reporting
       # that would authorize a promote is skipped. report_cache_dirty writes the
@@ -2288,10 +2471,12 @@ HOOK
       # rather than left to mark_cache_not_promotable's provisional "0".
       cache_within_fill_ceiling=1
       if ! sample_cache_fill; then
-        mark_cache_not_promotable "cache volume $(cat "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null)% full"
+        mark_cache_not_promotable "${CACHE_PROMOTE_REFUSAL}"
         cache_within_fill_ceiling=0
       fi
-      stage_volume_usage teardown
+      if runner_caches_used; then
+        stage_volume_usage teardown
+      fi
       if ! detach_cache_image; then
         mark_cache_not_promotable "detach failed"
       elif ! capture_settled_inventory; then
@@ -2299,14 +2484,37 @@ HOOK
       elif [ "${cache_within_fill_ceiling}" = "1" ]; then
         # Only a changed image from a successful job is promoted, so only that one
         # is worth the teardown time a compaction costs.
-        if [ "${JOB_PASSED}" = "1" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
+        if [ "${CACHE_PASSED}" = "1" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
           compact_cache_image
         fi
         capture_content_digest
-        report_cache_dirty "${JOB_PASSED}"
-        report_volume_head "${JOB_PASSED}"
+        report_cache_dirty "${CACHE_PASSED}"
+        report_volume_head "${CACHE_PASSED}"
       fi
-      if [ "${JOB_PASSED}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
+      # Hand the host what the job's checkout added; the host verifies it and
+      # builds the next cached checkout from it. Never affects the exit code.
+      if [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
+        /usr/local/bin/tuist-cache-volume --checkout-export || true
+      fi
+      # A managed compilation cache follows the built-in image's order: its
+      # publications reach the remote before the volume holding their store is
+      # saved, and the store is bounded before the volume is measured. The drain
+      # runs for every job that used the cache, the prune only for one whose
+      # volumes are saved. A drain that cannot finish withholds the job's volumes,
+      # as it withholds the built-in image.
+      custom_volumes_savable="${JOB_PASSED}"
+      if [ "${MANAGED_CACHE_VOLUMES}" = "1" ] && [ -e "${RUNNER_CACHES_DIR}/xcode.used" ]; then
+        CAS_STORE_ROOT="${MANAGED_XCODE_CACHE}"
+        if ! drain_cas_publications; then
+          custom_volumes_savable=0
+          echo "$(date -u +%FT%TZ) dispatch-poll: WARNING compilation cache publications did not drain; this job's cache volumes will not be saved"
+        elif [ "${JOB_PASSED}" = "1" ]; then
+          CAS_LIMIT_BYTES="${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
+          prune_cas_stores managed-teardown
+        fi
+        CAS_STORE_ROOT=""
+      fi
+      if [ "${custom_volumes_savable}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
         if ! /usr/local/bin/tuist-cache-volume --detach-all; then
           echo "$(date -u +%FT%TZ) dispatch-poll: WARNING custom cache detach failed; affected volumes will not be published" >&2
         fi

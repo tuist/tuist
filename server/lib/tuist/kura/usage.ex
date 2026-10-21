@@ -23,7 +23,7 @@ defmodule Tuist.Kura.Usage do
   """
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
     account_ids_by_handle = events |> Enum.map(& &1["tenant_id"]) |> Identity.account_ids()
-    result = insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0))
+    result = insert_events(events, &Map.get(account_ids_by_handle, &1["tenant_id"], 0), trust_origin: true)
     record_managed_demand(events, account_ids_by_handle)
     result
   end
@@ -32,16 +32,18 @@ defmodule Tuist.Kura.Usage do
 
   @doc """
   Persists usage rollups from a self-hosted node, attributed to the `account` its
-  credential authenticated as.
+  credential authenticated as. Origins are dropped: placement reads them as
+  evidence about hosted regions, which a self-hosted node does not speak for.
   """
   def create_events(events, %Account{id: account_id}) when is_list(events) and length(events) <= @max_events_per_batch do
-    insert_events(events, fn _event -> account_id end)
+    insert_events(events, fn _event -> account_id end, trust_origin: false)
   end
 
   def create_events(events, %Account{}) when is_list(events), do: {:error, :too_many_events}
 
   # Only trusted managed-node traffic refreshes hosted capacity. Replayed old
   # rollups, replication, storage snapshots and self-hosted reports do not.
+  # This is the traffic clock's main source: bytes a client actually moved.
   defp record_managed_demand(events, account_ids) do
     now = System.system_time(:second)
 
@@ -56,10 +58,10 @@ defmodule Tuist.Kura.Usage do
     |> Enum.map(&Map.get(account_ids, &1["tenant_id"]))
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
-    |> Enum.each(&Demand.record/1)
+    |> Enum.each(&Demand.record(&1, nil, traffic: true))
   end
 
-  defp insert_events(events, account_id_for) do
+  defp insert_events(events, account_id_for, trust_origin: trust_origin?) do
     attributed = Enum.map(events, &{&1, account_id_for.(&1)})
 
     project_ids =
@@ -74,7 +76,12 @@ defmodule Tuist.Kura.Usage do
       |> Projects.project_ids_by_account_and_handle()
 
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-    rows = Enum.map(attributed, fn {event, account_id} -> build_row(event, account_id, project_ids, now) end)
+
+    rows =
+      Enum.map(attributed, fn {event, account_id} ->
+        event = if trust_origin?, do: event, else: Map.delete(event, "origin")
+        build_row(event, account_id, project_ids, now)
+      end)
 
     if rows != [] do
       IngestRepo.insert_all(UsageEvent, rows)
@@ -97,11 +104,20 @@ defmodule Tuist.Kura.Usage do
       artifact_kind: event["artifact_kind"],
       bytes: event["bytes"],
       request_count: event["request_count"],
+      origin: origin(event["origin"]),
       window_start: unix_seconds_to_naive_datetime(event["window_start_unix_seconds"]),
       window_seconds: event["window_seconds"],
       inserted_at: now
     }
   end
+
+  # A label a node read off a credential the control plane signed, checked for
+  # shape here as well so nothing else reaches a column placement groups on.
+  defp origin(origin) when is_binary(origin) do
+    if origin =~ ~r/\A[A-Z]{2}(-[A-Z0-9]{1,3})?\z/, do: origin, else: ""
+  end
+
+  defp origin(_origin), do: ""
 
   defp unix_seconds_to_naive_datetime(seconds) when is_integer(seconds) do
     seconds

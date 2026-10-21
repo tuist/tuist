@@ -79,6 +79,41 @@ func TestRackPDUForgetsItsOutletsWhenTheCardStopsAnswering(t *testing.T) {
 	}
 }
 
+// capt_rackpdu_chain names the transfer switch whose output the PDU's outlet
+// readings already cover, only while it reports draw: a PDU that stops
+// answering hands its load back to the switch's meter.
+func TestRackPDUNamesItsChainWhileItReportsDraw(t *testing.T) {
+	rackPDUChainGauge.Reset()
+	h := newPDUHarness(t, rackPDU())
+	h.reconcile()
+	h.reconcile()
+	if got := testutil.ToFloat64(rackPDUChainGauge.WithLabelValues("ber1-pdu-b", "ber1", "ber1-ats-3")); got != 1 {
+		t.Fatalf("capt_rackpdu_chain{ats=ber1-ats-3} = %v while the PDU reports draw, want 1", got)
+	}
+	if n := testutil.CollectAndCount(rackPDUChainGauge); n != 1 {
+		t.Fatalf("%d chain series, want one", n)
+	}
+
+	h.card.Close()
+	h.reconcile()
+	if n := testutil.CollectAndCount(rackPDUChainGauge); n != 0 {
+		t.Fatalf("%d chain series after the card stopped answering", n)
+	}
+}
+
+func TestRackPDUWithoutAChainNamesNone(t *testing.T) {
+	rackPDUChainGauge.Reset()
+	h := newPDUHarness(t, rackPDU(func(p *infrav1.RackPDU) { p.Spec.Chain = "" }))
+	h.reconcile()
+	h.reconcile()
+	if len(h.pdu().Status.Outlets) == 0 {
+		t.Fatal("no outlets read from a reachable card")
+	}
+	if n := testutil.CollectAndCount(rackPDUChainGauge); n != 0 {
+		t.Fatalf("%d chain series for a PDU without a chain", n)
+	}
+}
+
 // pduWithOutlet3 is a Ready RackPDU whose status read outlet 3 at readAt.
 func pduWithOutlet3(m power.Measures, readAt time.Time) *infrav1.RackPDU {
 	pdu := readyPDU(true)
@@ -120,5 +155,41 @@ func TestAHostIgnoresAStaleRackPDUReading(t *testing.T) {
 	}
 	if host.Status.OutletDraw != nil {
 		t.Fatalf("OutletDraw = %+v, want none from a stale reading", host.Status.OutletDraw)
+	}
+}
+
+// On 2026-10-15 five hosts' own outlet reads failed for three minutes while
+// ber1-pdu-b's reading of the same outlets stayed current, and their
+// HostDrawing went Unknown with it.
+func TestAFailedOutletReadKeepsTheRackPDUsReading(t *testing.T) {
+	r := newRackHostReconciler(t, nil, pduHost("mini-01"), pduWithOutlet3(runningMini, time.Now()), pduCredentials())
+	r.Power = eatonRegistry(erroringDriver{})
+
+	reconcileHost(t, r, "mini-01")
+
+	host := readHost(t, r, "mini-01")
+	if cond := conditionOf(host, PowerReachableCondition); cond == nil || cond.Status != corev1.ConditionFalse {
+		t.Fatalf("PowerReachable = %+v, want False for a failed read", cond)
+	}
+	if cond := conditionOf(host, HostDrawingCondition); cond == nil || cond.Status != corev1.ConditionTrue {
+		t.Fatalf("HostDrawing = %+v, want True from the PDU's reading", cond)
+	}
+	if host.Status.OutletDraw == nil || host.Status.OutletDraw.ActivePowerWatts.String() != "38" {
+		t.Fatalf("OutletDraw = %+v, want the PDU's 38 W", host.Status.OutletDraw)
+	}
+}
+
+// An outlet of the host's own has no other reading to fall back on.
+func TestAFailedReadOfAnOutletOfItsOwnLeavesTheDrawUnknown(t *testing.T) {
+	r := newRackHostReconciler(t, erroringDriver{}, rackHost("mini-01"))
+
+	reconcileHost(t, r, "mini-01")
+
+	host := readHost(t, r, "mini-01")
+	if cond := conditionOf(host, HostDrawingCondition); cond == nil || cond.Status != corev1.ConditionUnknown {
+		t.Fatalf("HostDrawing = %+v, want Unknown", cond)
+	}
+	if host.Status.OutletDraw != nil {
+		t.Fatalf("OutletDraw = %+v, want none", host.Status.OutletDraw)
 	}
 }

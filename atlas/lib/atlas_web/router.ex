@@ -80,6 +80,14 @@ defmodule AtlasWeb.Router do
     plug MCPAuth
   end
 
+  pipeline :native do
+    plug :native_no_store
+    plug :accepts, ["json"]
+    plug MCPAuth
+  end
+
+  defp native_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
+
   pipeline :inference do
     plug :accepts, ["json", "event-stream"]
     plug InferenceAuthentication
@@ -157,8 +165,32 @@ defmodule AtlasWeb.Router do
     post "/:project_id/envelope/", EnvelopeController, :create
   end
 
+  scope "/api/native", AtlasWeb do
+    pipe_through :native
+
+    get "/profile", NativeController, :profile
+    get "/:resource", NativeController, :index
+    post "/:resource", NativeController, :create
+    get "/:resource/:id", NativeController, :show
+    patch "/:resource/:id", NativeController, :update
+    delete "/:resource/:id", NativeController, :delete
+    post "/:resource/:id/complete", NativeController, :complete
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
+
+    get "/me/time-off", TimeOffController, :index
+    post "/me/time-off", TimeOffController, :create
+    patch "/me/time-off/:id", TimeOffController, :update
+    delete "/me/time-off/:id", TimeOffController, :delete
+
+    get "/me/llm-providers", LLMConnectionsController, :index
+    put "/me/llm-providers/claude", LLMConnectionsController, :connect_claude
+    post "/me/llm-providers/chatgpt/login", LLMConnectionsController, :start_chatgpt
+    post "/me/llm-providers/chatgpt/login/poll", LLMConnectionsController, :poll_chatgpt
+    delete "/me/llm-providers/chatgpt/login", LLMConnectionsController, :cancel_chatgpt
+    delete "/me/llm-providers/:provider", LLMConnectionsController, :delete
 
     get "/notes", NotesController, :index
     post "/notes", NotesController, :create
@@ -239,12 +271,23 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
 
+    post "/settings/llm-providers/claude", LLMConnectionsController, :save_claude_browser
+
+    live_session :authenticated_account,
+      on_mount: [{AtlasWeb.LayoutLive, :default}],
+      layout: {AtlasWeb.Layouts, :account} do
+      live "/settings", AccountSettingsLive, :index
+      live "/settings/llm-providers", LLMProviderSettingsLive, :index
+    end
+
     live_session :authenticated_dashboard,
       on_mount: [{AtlasWeb.LayoutLive, :default}],
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/", OverviewLive, :index
       live "/demo", DemoLive, :index
       live "/tasks", TasksLive, :index
+      live "/people/time-off", TimeOffLive, :index
+      live "/people/time-off/settings", TimeOffLive, :settings
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show

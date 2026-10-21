@@ -74,9 +74,13 @@ struct AtlasLoginView: View {
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
-            AtlasSignInButton(title: "Sign in with Atlas", primary: true) {
+            AtlasSignInButton(title: "Sign in with Atlas", primary: true, image: "AtlasMark") {
                 Task { await authentication.signIn() }
             }
+            AtlasSignInButton(title: "Sign in with Google", image: "GoogleLogo") {
+                Task { await authentication.signIn(provider: .google) }
+            }
+            .accessibilityIdentifier("atlas.sign-in.google")
             HStack(spacing: 8) {
                 line
                 Text("or")

@@ -10,7 +10,7 @@
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
 > [!IMPORTANT] REQUIREMENTS
-> - <.localized_link href="/guides/features/test-insights/elixir">Test insights</.localized_link> must be configured
+> - Complete the <.localized_link href="/guides/get-started/elixir-project">shared Elixir setup</.localized_link> to report your test runs
 
 ![Flaky tests of a Phoenix application](/images/guides/features/elixir/flaky-tests.png)
 
@@ -22,10 +22,10 @@ Tuist detects flaky tests in two ways:
 
 ExUnit runs every test once, so a test that fails intermittently looks the same as one that is broken. With retries enabled, the Hex package runs the tests that failed again, up to the number of times you set. A test that passes on a retry is reported as flaky, and the run succeeds if every failed test eventually passes.
 
-Retries are off by default. Enable them for the whole project in your `mix.exs`:
+Retries are off by default. Add `test_retries` to your existing Tuist options in `mix.exs` to enable them:
 
 ```elixir
-tuist: [project: "account/project", test_retries: 2]
+tuist: [project: "account/project", cache: true, test_retries: 2]
 ```
 
 Or for a single run, with a flag or an environment variable:
@@ -37,7 +37,7 @@ TUIST_TEST_RETRIES=2 mix test
 
 The flag takes precedence over the environment variable, and the environment variable over `mix.exs`.
 
-Only the tests that failed run again, the way `mix test --failed` runs them, and the dashboard shows each attempt of a test and how long it took. A run that ExUnit stopped early because of `--max-failures` is not retried. Retries are also skipped with `--warnings-as-errors`, which `mix test` would no longer enforce, and from the root of an umbrella project; run the tests inside one of its applications to retry them.
+Only the tests that failed run again, the way `mix test --failed` runs them, and the dashboard shows each attempt of a test and how long it took. A run that ExUnit stopped early because of `--max-failures` is not retried. A run whose failed tests all timed out is not retried either, since each retry would wait out every timeout again. Retries are also skipped with `--warnings-as-errors`, which `mix test` would no longer enforce, and from the root of an umbrella project; run the tests inside one of its applications to retry them.
 
 ![A flaky ExUnit test and its history](/images/guides/features/elixir/flaky-test-case.png)
 
@@ -69,4 +69,4 @@ Get notified instantly when a test becomes flaky by setting up <.localized_link 
 
 ## Querying flaky state {#querying}
 
-The data is available over HTTP. See the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. State changes (mark or unmark flaky) currently happen from the dashboard, not through the public REST API.
+The data is available over HTTP. See the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. To mark or unmark a test case as flaky, send `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` with `is_flaky`, or use the `update_test_case` Model Context Protocol tool.

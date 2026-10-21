@@ -46,6 +46,7 @@ var tuistDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     "TuistAuthCommand",
     "TuistCacheCommand",
+    "TuistCargoCommand",
     "TuistBazelCommand",
     "TuistVersionCommand",
     "TuistAccountCommand",
@@ -66,6 +67,27 @@ var tuistDependencies: [Target.Dependency] = [
     pathDependency,
     fileSystemDependency,
     swiftToolsSupportDependency,
+]
+#if os(Linux)
+let tuistCargoCacheDependency: Target.Dependency = "TuistCoreCache"
+#else
+let tuistCargoCacheDependency: Target.Dependency = "TuistCore"
+#endif
+var tuistCargoCommandDependencies: [Target.Dependency] = [
+    "TuistCAS",
+    tuistCargoCacheDependency,
+    "TuistREAPI",
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+    processDependency,
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    tomlDecoderDependency,
+    "TuistAlert",
+    "TuistConfigLoader",
+    "TuistEnvironment",
+    "TuistServer",
+    "TuistCI",
 ]
 var tuistBazelCommandDependencies: [Target.Dependency] = [
     processDependency,
@@ -155,6 +177,9 @@ var tuistHTTPDependencies: [Target.Dependency] = [
     .product(name: "HTTPTypes", package: "apple.swift-http-types"),
 ]
 var tuistCASDependencies: [Target.Dependency] = [
+    fileSystemDependency,
+    pathDependency,
+    swiftToolsSupportDependency,
     "TuistServer",
     "TuistHTTP",
     "TuistEnvironment",
@@ -731,6 +756,26 @@ var targets: [Target] = [
         path: "cli/Sources/TuistCacheCommand"
     ),
     .target(
+        name: "TuistCI",
+        dependencies: [
+            "TuistEnvironment",
+            "TuistSupport",
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistCI",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistCargoCommand",
+        dependencies: tuistCargoCommandDependencies,
+        path: "cli/Sources/TuistCargoCommand",
+        exclude: ["AGENTS.md"]
+    ),
+    .target(
         name: "TuistBazelCommand",
         dependencies: tuistBazelCommandDependencies,
         path: "cli/Sources/TuistBazelCommand"
@@ -1057,8 +1102,11 @@ var targets: [Target] = [
     .testTarget(
         name: "TuistCASTests",
         dependencies: [
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             "TuistCAS",
             "TuistEnvironment",
+            "TuistProcess",
             "TuistServer",
             "TuistTesting",
             mockableDependency,
@@ -1222,6 +1270,15 @@ var targets: [Target] = [
         name: "TuistRunnerCommandTests",
         dependencies: [
             "TuistRunnerCommand",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            "TuistHTTP",
+            "TuistNooraTesting",
+            "TuistServer",
+            argumentParserDependency,
+            mockableDependency,
         ],
         path: "cli/Tests/TuistRunnerCommandTests"
     ),
@@ -1310,6 +1367,40 @@ targets.append(contentsOf: [
         ]
     ),
 ])
+
+// A separate module keeps canImport(TuistCore) reserved for Xcode-specific functionality.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "TuistCoreCache",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+            mockableDependency,
+            "TuistEnvironment",
+            "TuistSupport",
+        ],
+        path: "cli/Sources/TuistCore/Cache",
+        exclude: [
+            "BinaryCacheVariant.swift",
+            "CacheItem.swift",
+            "FileContentHashing.swift",
+            "GenerationMetadataStore.swift",
+            "ModuleCacheOutput.swift",
+            "TargetContentHashSubhashes.swift",
+        ],
+        sources: [
+            "CacheBudget.swift",
+            "CacheCategory.swift",
+            "CacheDirectoriesProvider.swift",
+            "SupportCachePruner.swift",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    )
+)
+#endif
 
 // MARK: - macOS-only targets
 
@@ -1744,19 +1835,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistXcodeProjectOrWorkspacePathLocator",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistCI",
-        dependencies: [
-            "TuistSupport",
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistCI",
         exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),

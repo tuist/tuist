@@ -2,10 +2,19 @@ defmodule Tuist.FeatureFlags do
   @moduledoc false
 
   alias Tuist.Environment
+  alias Tuist.Projects.Project
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account) do
     FunWithFlags.enabled?(:kura_positive_fence, for: account)
+  end
+
+  @doc """
+  Default-off account opt-in to placement reading what each region served, not
+  only where runs report from. Off, placement decides exactly as it did before.
+  """
+  def kura_placement_served_signal_enabled?(account) do
+    FunWithFlags.enabled?(:kura_placement_served_signal, for: account)
   end
 
   @doc """
@@ -56,9 +65,11 @@ defmodule Tuist.FeatureFlags do
   job queued while the site is down moves to the rented fleet
   (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
   node in the site's runner-cache region, as `:runner_site_cache` gives one.
+  Staging and canary run their macOS jobs at a site, so it is on for every
+  account there.
   """
   def runner_site_enabled?(account) do
-    FunWithFlags.enabled?(:runner_site, for: account)
+    Environment.env() in [:stag, :can] or FunWithFlags.enabled?(:runner_site, for: account)
   end
 
   @doc """
@@ -162,6 +173,18 @@ defmodule Tuist.FeatureFlags do
   def public_page_challenge_enabled? do
     Environment.public_page_challenge_required?() and
       not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
+  end
+
+  @doc """
+  Persistent build inventories are opt-in per project. The kill switch stops
+  derivation and hides the new surfaces without changing native ingestion.
+  """
+  def build_entities_enabled?(project_id) when is_integer(project_id),
+    do: build_entities_enabled?(%Project{id: project_id})
+
+  def build_entities_enabled?(%Project{} = project) do
+    not FunWithFlags.enabled?(:build_entities_kill_switch) and
+      FunWithFlags.enabled?(:build_entities, for: project)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

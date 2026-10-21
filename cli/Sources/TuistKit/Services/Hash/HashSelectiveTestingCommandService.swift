@@ -59,7 +59,8 @@ struct HashSelectiveTestingCommandService {
             ignoreSelectiveTesting: true,
             cacheStorage: cacheStorage,
             destination: nil,
-            schemeName: nil
+            schemeName: nil,
+            coverage: .resolved(config: config)
         )
         let (_, environment) = try await generator.loadWithEnvironment(
             path: absolutePath,

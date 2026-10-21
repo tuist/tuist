@@ -1,7 +1,12 @@
 defmodule TuistWeb.RateLimit do
   @moduledoc """
-  Applies rate limits using Valkey with an in-memory fallback.
+  Applies shared rate limits using Valkey. Shared failures deny by default;
+  explicitly selected fixed-window callers may use a reduced node-local outage budget.
+  Installations without Valkey use an approximate in-memory limiter.
 
+  Set `:fallback` to false to distinguish configured Valkey backend failures
+  from quota denials. Such failures return `{:error, :unavailable}` and never
+  use a local outage budget, even when `:failure_policy` is `:local`.
   Fixed-window limits use the `:limit` and `:window` options. Token-bucket
   limits use the `:capacity`, `:refill_rate`, and optional `:cost` options.
   """
@@ -44,7 +49,7 @@ defmodule TuistWeb.RateLimit do
   end
 
   defp check(key, limit, window) do
-    case __MODULE__.hit(key, limit: limit, window: window) do
+    case __MODULE__.hit(key, limit: limit, window: window, failure_policy: :local) do
       {:allow, _count} -> :ok
       {:deny, _limit} -> :deny
     end
@@ -76,9 +81,9 @@ defmodule TuistWeb.RateLimit do
     limit = Keyword.fetch!(opts, :limit)
     increment = Keyword.get(opts, :increment, 1)
 
-    with_in_memory_fallback(
+    with_failure_denial(
       fn -> PersistentFixedWindow.hit(key, window, limit, increment) end,
-      fn -> InMemory.hit(key, window, limit, increment) end
+      fn -> fixed_window_failure(key, opts, window) end
     )
   end
 
@@ -87,9 +92,13 @@ defmodule TuistWeb.RateLimit do
     capacity = Keyword.fetch!(opts, :capacity)
     cost = Keyword.get(opts, :cost, 1)
 
-    with_in_memory_fallback(
+    with_failure_denial(
       fn -> PersistentTokenBucket.hit(key, refill_rate, capacity, cost) end,
-      fn -> InMemory.hit_token_bucket(key, refill_rate, capacity, cost) end
+      fn ->
+        shared_failure(:token_bucket, :deny, fn ->
+          if opts[:fallback] == false, do: {:error, :unavailable}, else: {:deny, ceil(cost / refill_rate * 1000)}
+        end)
+      end
     )
   end
 
@@ -111,12 +120,66 @@ defmodule TuistWeb.RateLimit do
     )
   end
 
-  defp with_in_memory_fallback(persistent, in_memory) do
-    persistent.()
+  defp with_failure_denial(persistent, fallback) do
+    result =
+      try do
+        persistent.()
+      rescue
+        _error in [MatchError, Redix.ConnectionError, Redix.Error] -> :unavailable
+      catch
+        :exit, _reason -> :unavailable
+      end
+
+    case result do
+      {:allow, count} when is_integer(count) and count >= 0 -> result
+      {:deny, retry_after} when is_integer(retry_after) and retry_after >= 0 -> result
+      _other -> fallback.()
+    end
+  end
+
+  defp fixed_window_failure(key, opts, window) do
+    policy = if opts[:failure_policy] == :local and opts[:fallback] != false, do: :local, else: :deny
+
+    shared_failure(:fixed_window, policy, fn ->
+      cond do
+        opts[:fallback] == false -> {:error, :unavailable}
+        policy == :local -> hit_local(key, opts, window)
+        true -> {:deny, window}
+      end
+    end)
+  end
+
+  defp hit_local(key, opts, window) do
+    configured = Environment.rate_limit_fallback_replicas()
+
+    if is_integer(configured) and configured >= 5 do
+      replicas = max(configured, length(Node.list()) + 1)
+      budget = div(Keyword.fetch!(opts, :limit), replicas)
+
+      if budget > 0 do
+        InMemory.Local.hit({:fallback, key}, window, budget, Keyword.get(opts, :increment, 1))
+      else
+        {:deny, window}
+      end
+    else
+      {:deny, window}
+    end
   rescue
-    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> in_memory.()
+    ArgumentError -> {:deny, window}
   catch
-    :exit, _reason -> in_memory.()
+    :exit, _reason -> {:deny, window}
+  end
+
+  defp shared_failure(algorithm, policy, fallback) do
+    {outcome, _value} = result = fallback.()
+
+    :telemetry.execute([:tuist, :rate_limit, :shared_failure], %{count: 1}, %{
+      algorithm: algorithm,
+      policy: policy,
+      outcome: outcome
+    })
+
+    result
   end
 
   defp requester_key(conn) do

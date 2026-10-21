@@ -7,4 +7,4 @@ ARG ALPINE_VERSION=3.22
 
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add --no-cache dnsmasq iproute2 nftables keepalived tailscale
+RUN apk add --no-cache dnsmasq ethtool iproute2 nftables keepalived tailscale

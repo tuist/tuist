@@ -69,6 +69,11 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+	// teardownTerminationGraceSeconds stops the pods of a deleted instance.
+	// Every path that deletes a KuraInstance has already moved its traffic
+	// away and deletes its data with it, so there is nothing to drain, and an
+	// instance recreated under the same name waits for the old claims.
+	teardownTerminationGraceSeconds int64 = 5
 	// A liveness failure means the serving process is already unable to make
 	// progress. It must not inherit the rollout drain budget: Kubernetes runs
 	// preStop for liveness restarts too, so this gives the hook time to remove
@@ -234,6 +239,7 @@ func (tlsPeerPathProber) Probe(ctx context.Context, address string, serverName s
 }
 
 type runtimeStatus struct {
+	invalidObservation         bool
 	ServingAuthority           servingReport `json:"serving_authority"`
 	Ready                      bool          `json:"ready"`
 	State                      string        `json:"state"`
@@ -475,6 +481,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.reclaimDataVolumes(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+		if err := r.releaseWorkload(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 		r.forgetPodSamples(instance)
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
@@ -670,6 +679,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	if image, held := heldRuntimeImage(instance); held {
+		instance.Status.Phase = "Pending"
+		instance.Status.Message = fmt.Sprintf("Requested runtime image %s is held at qualified image %s; qualify the new image before updating the fenced runtime pin", instance.Spec.Image, image)
+	}
 	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
 		instance.Status.Phase = "Pending"
 		instance.Status.Message = "No acknowledged serving authority; inspect the durable serving grant"
@@ -2403,9 +2416,12 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 		status, err := statusClient.Status(ctx, pods[i])
 		if err != nil {
 			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+		}
+		observation, observed := observedRuntimeStatus(status, err)
+		if !observed {
 			continue
 		}
-		fresh[pods[i].Name] = status
+		fresh[pods[i].Name] = observation
 		uids[pods[i].Name] = pods[i].UID
 	}
 
@@ -2423,6 +2439,9 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 		r.podSamples[key] = samples
 	}
 	for name, status := range fresh {
+		if status.invalidObservation {
+			continue
+		}
 		sample := samples[name]
 		if sample == nil {
 			sample = &podRuntimeSample{}
@@ -2524,7 +2543,7 @@ func primaryPodHealthFromSamples(
 			fallbackReady[pods[i].Name] = true
 		}
 		status, ok := samples[pods[i].Name]
-		if !ok {
+		if !ok || status.invalidObservation {
 			continue
 		}
 		runtimeStatuses++
@@ -2741,19 +2760,6 @@ func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (r
 		return runtimeStatus{}, err
 	}
 	return decodeRuntimeStatus(response)
-}
-
-func decodeRuntimeStatus(response *http.Response) (runtimeStatus, error) {
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return runtimeStatus{}, fmt.Errorf("unexpected status %d", response.StatusCode)
-	}
-	var status runtimeStatus
-	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
-		return runtimeStatus{}, err
-	}
-	return status, nil
 }
 
 func runtimeStatusServing(status runtimeStatus) bool {
@@ -3371,8 +3377,9 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 // applyStatefulSet creates or updates the instance's StatefulSet. With
 // createHeld, a StatefulSet it creates starts on the resize's rollout hold.
 func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance *kurav1alpha1.KuraInstance, createHeld bool) error {
-	if floor := instance.Annotations["kura.tuist.dev/fenced-runtime-image"]; fencedServing(instance) && floor != "" && floor != instance.Spec.Image {
-		return fmt.Errorf("fenced runtime image is pinned to %s; qualify a new image before changing the rollback floor", floor)
+	if image, held := heldRuntimeImage(instance); held {
+		instance = instance.DeepCopy()
+		instance.Spec.Image = image
 	}
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	sharedSecretsResourceVersion, err := r.sharedSecretsResourceVersion(ctx, instance.Namespace)
@@ -3761,6 +3768,26 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 		before := pv.DeepCopy()
 		pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimDelete
 		if err := r.Patch(ctx, pv, client.MergeFrom(before)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// releaseWorkload stops a deleted instance's pods on the teardown grace rather
+// than the rollout drain budget garbage collection would give them. The
+// StatefulSet goes first so it cannot replace them.
+func (r *KuraInstanceReconciler) releaseWorkload(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+	for i := range pods.Items {
+		if err := r.Delete(ctx, &pods.Items[i], client.GracePeriodSeconds(teardownTerminationGraceSeconds)); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}

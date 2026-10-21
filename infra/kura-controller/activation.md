@@ -123,10 +123,14 @@ account. The fallback does not require retaining a dormant KuraInstance or PVC.
 
 ## Deployment and validation
 
-Both `kuraActivation.enabled` in the Tuist chart and
-`cacheDNS.activationIngressClass` in the platform chart are off in every
-checked-in overlay. Merging the draft does not deploy the gateway or publish the
-wildcard. The internal handler and usage-based demand tracking are additive.
+The production overlay enables `kuraActivation.enabled` as the single global
+owner, with both pods pinned to the general worker pool. Staging, canary and
+self-hosted defaults remain disabled. Production platform
+`cacheDNS.activationIngressClass: nginx-grpc` publishes the wildcard through the
+same ingress after pinned production HTTP/gRPC and TLS validation. Other
+environments keep ingress DNS sourcing disabled. When bootstrapping another
+owner or changing ingress, deploy and validate the gateway before switching
+DNS. The internal handler and usage-based demand tracking are additive.
 
 Before releasing the new CLI:
 

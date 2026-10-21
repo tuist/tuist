@@ -5,15 +5,11 @@ branding:
   color: purple
 inputs:
   key:
-    description: Stable volume key, shared across jobs and branches in this repository.
+    description: Stable volume name, shared across jobs and branches in this repository. Not a content hash; do not include lockfile or tool-version hashes.
     required: true
   path:
-    description: Directory to retain. Supports absolute paths, workspace-relative paths, and ~/.
+    description: Directories to retain, one per line. Supports absolute paths, workspace-relative paths, and ~/. Several paths share one volume.
     required: true
-  commit:
-    description: Save intent (auto, true, false). Publication still requires a successful job permitted by the volume writer policy.
-    required: false
-    default: auto
 outputs:
   cache-hit:
     description: Whether the job attached a previously committed snapshot.
@@ -26,6 +22,5 @@ runs:
       env:
         TUIST_VOLUME_KEY: ${{ inputs.key }}
         TUIST_VOLUME_PATH: ${{ inputs.path }}
-        TUIST_VOLUME_COMMIT: ${{ inputs.commit }}
         TUIST_ACTION_PATH: ${{ github.action_path }}
       run: bash "$TUIST_ACTION_PATH/attach.sh"

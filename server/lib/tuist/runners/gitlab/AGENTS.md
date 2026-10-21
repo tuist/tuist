@@ -35,7 +35,8 @@ assignment upstream if persistence fails.
 - Shared macOS account cache volumes/signing grants remain withheld. Opt-in
   Linux directory volumes use `../cache_volumes/identity.ex`: verify GET /job
   against the assignment, then list the exact branch to establish default-branch
-  eligibility. Job token API responses, never CI variables, supply authority.
+  eligibility. Push, schedule and web branch pipelines also carry their ref as
+  the writer branch for the runner profile's policy; merge request pipelines never do. Job token API responses, never CI variables, supply authority.
   Branch listing returns arrays; preserve the existing response size/SSRF bounds.
 - GitLab's `cache:` keyword is backed by `Cache` through
   `RunnerJobCacheController` (`/runners/jobs/cache/*`): a presigned download

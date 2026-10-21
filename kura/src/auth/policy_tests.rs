@@ -1497,6 +1497,55 @@ fn cache_token(signing_key: &str) -> String {
     .expect("a signed cache token")
 }
 
+fn cache_token_issued_in(signing_key: &str, origin: &str) -> String {
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(Algorithm::ES256),
+        &json!({
+            "sub": "1",
+            "iss": "tuist",
+            "typ": "cache",
+            "exp": 4_000_000_000u64,
+            "scopes": ["account_cache_read"],
+            "cache_grants": { "project": { "write": ["acme/ios"] } },
+            "cache_origin": origin,
+        }),
+        &jsonwebtoken::EncodingKey::from_ec_pem(signing_key.as_bytes())
+            .expect("a readable cache-token signing key"),
+    )
+    .expect("a signed cache token")
+}
+
+// Usage attribution reads the origin back for a credential the engine allowed,
+// and never for one it refused: a request that reaches usage was authorized by
+// the credential its origin came from.
+#[tokio::test]
+async fn keeps_the_origin_of_a_confirmed_credential_only() {
+    let base = spawn_tuist_auth_mock(
+        |_headers, _payload| {
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_verifying_cache_tokens(&base);
+    let allowed = format!("Bearer {}", cache_token_issued_in(SIGNING_KEY, "US-IL"));
+
+    assert_eq!(engine.origin(&allowed), None);
+    let decision = engine.evaluate_access(&project_request(&allowed)).await;
+    assert!(matches!(decision, AccessDecision::Allow));
+    assert_eq!(engine.origin(&allowed).as_deref(), Some("US-IL"));
+
+    let refused = format!("Bearer {}", cache_token_issued_in(SIGNING_KEY, "NL"));
+    let mut other_project = project_request(&refused);
+    other_project.namespace_id = Some("android".into());
+    let decision = engine.evaluate_access(&other_project).await;
+    assert!(matches!(decision, AccessDecision::Deny(_)));
+    assert_eq!(engine.origin(&refused), None);
+}
+
 fn project_request(authorization: &str) -> RequestContext {
     let mut context = ctx();
     context.tenant_id = Some("acme".into());

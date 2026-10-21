@@ -88,6 +88,19 @@ defmodule Tuist.Runners.Workers.SiteSpilloverWorkerTest do
     assert :ok = perform_job(SiteSpilloverWorker, %{})
   end
 
+  test "leaves the jobs of a site pool that is down when the env rents no macOS fleet", %{
+    prefix: prefix,
+    account: account
+  } do
+    stub(Tuist.Environment, :runners_rented_macos_fleet?, fn -> false end)
+    reject(&Sites.status/1)
+    queue(account, 920_008, "#{prefix}-ber1-26-6", 3_600)
+
+    assert :ok = perform_job(SiteSpilloverWorker, %{})
+
+    assert fleet(920_008) == "#{prefix}-ber1-26-6"
+  end
+
   test "leaves an explicit site pool, which has no rented twin", %{account: account} do
     reject(&Sites.status/1)
     queue(account, 920_007, "tuist-runner-pool-ber1", 300)

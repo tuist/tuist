@@ -38,6 +38,22 @@ cmp "$fixture/expected" "$CAPTURE_ARGS"
 [[ ! -e injected ]]
 echo 'ok: inputs remain literal arguments'
 
+export TUIST_VOLUME_PATH=$'  .npm\n\n\t~/.gradle/caches  \r\n   \n cache dir/$(touch injected);* \n'
+attach
+printf '%s\n' --key gradle-caches --path .npm --path '~/.gradle/caches' --path 'cache dir/$(touch injected);*' > "$fixture/expected"
+cmp "$fixture/expected" "$CAPTURE_ARGS"
+[[ ! -e injected ]]
+echo 'ok: each nonblank line becomes one trimmed path argument'
+
+export TUIST_VOLUME_PATH=$' \n\t\n'
+rm "$CAPTURE_ARGS"
+status=0
+attach > "$fixture/error" 2>&1 || status=$?
+[[ "$status" != 0 && ! -e "$CAPTURE_ARGS" ]]
+grep -q 'at least one path' "$fixture/error"
+echo 'ok: blank paths fail before calling the client'
+export TUIST_VOLUME_PATH=cache
+
 status=0
 CLIENT_EXIT=42 attach || status=$?
 [[ "$status" == 42 ]]
@@ -60,20 +76,3 @@ if bash "$action/scripts/package.sh" "$package" > "$fixture/error" 2>&1; then
 fi
 [[ $(cat "$package/keep") == 'existing files' ]]
 echo 'ok: packaging never overwrites an existing directory'
-
-mkdir -p "$fixture/bin"
-cat > "$fixture/bin/tuist-cache-volume" <<'CLIENT'
-#!/bin/bash
-printf '%s\n' "$@" > "$CAPTURE_ARGS"
-CLIENT
-chmod +x "$fixture/bin/tuist-cache-volume"
-for mode in true false; do
-  TUIST_VOLUME_COMMIT="$mode" attach
-  printf '%s\n' --key "$TUIST_VOLUME_KEY" --path "$TUIST_VOLUME_PATH" --commit "$mode" > "$fixture/expected"
-  cmp "$fixture/expected" "$CAPTURE_ARGS"
-done
-if TUIST_VOLUME_COMMIT='false; touch injected' attach; then
-  echo 'FAIL: accepted invalid commit mode' >&2; exit 1
-fi
-[[ ! -e injected ]]
-echo 'ok: commit intent is validated and passed literally'

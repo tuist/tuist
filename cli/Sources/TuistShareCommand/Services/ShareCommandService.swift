@@ -148,7 +148,8 @@ struct ShareCommandService {
             platforms: [Platform],
             derivedDataPath: String?,
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String? = nil
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -178,7 +179,8 @@ struct ShareCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     json: json,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
             } else if appPaths.contains(where: { $0.extension == "ipa" }) {
                 try await shareIPA(
@@ -187,7 +189,8 @@ struct ShareCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     json: json,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
             } else if appPaths.contains(where: { $0.extension == "app" }) {
                 try await shareAppBundles(
@@ -196,7 +199,8 @@ struct ShareCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     json: json,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
             } else {
                 guard apps.count < 2 else { throw ShareCommandServiceError.multipleAppsSpecified(apps) }
@@ -219,7 +223,8 @@ struct ShareCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     json: json,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
             }
         }
@@ -232,7 +237,8 @@ struct ShareCommandService {
             path: String?,
             apps: [String],
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String? = nil
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -259,7 +265,8 @@ struct ShareCommandService {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json,
-                track: track
+                track: track,
+                releaseNotes: releaseNotes
             )
         }
     #endif
@@ -272,7 +279,8 @@ struct ShareCommandService {
         fullHandle: String,
         serverURL: URL,
         json: Bool,
-        track: String?
+        track: String?,
+        releaseNotes: String?
     ) async throws {
         guard appPaths.count == 1,
               let apkPath = appPaths.first
@@ -295,6 +303,7 @@ struct ShareCommandService {
                 gitCommitSHA: gitInfo.sha,
                 gitRef: gitInfo.ref,
                 track: track,
+                releaseNotes: releaseNotes,
                 updateProgress: updateProgress
             )
         }
@@ -320,7 +329,8 @@ struct ShareCommandService {
             fullHandle: String,
             serverURL: URL,
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String?
         ) async throws {
             guard appPaths.count == 1,
                   let ipaPath = appPaths.first
@@ -335,7 +345,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                track: track
+                track: track,
+                releaseNotes: releaseNotes
             )
 
             outputResult(preview, displayName: displayName, json: json)
@@ -347,7 +358,8 @@ struct ShareCommandService {
             fullHandle: String,
             serverURL: URL,
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String?
         ) async throws {
             let appBundles = try await appPaths.concurrentMap {
                 try await appBundleLoader.load($0)
@@ -365,7 +377,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                track: track
+                track: track,
+                releaseNotes: releaseNotes
             )
 
             outputResult(preview, displayName: appName, json: json)
@@ -401,7 +414,8 @@ struct ShareCommandService {
             fullHandle: String,
             serverURL: URL,
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String?
         ) async throws {
             try await fileSystem.runInTemporaryDirectory(prefix: "share") { temporaryPath in
                 let builtAppBundles = try await buildProductService.appBundles(
@@ -433,7 +447,8 @@ struct ShareCommandService {
                     path: path,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
 
                 outputResult(preview, displayName: app, json: json)
@@ -446,7 +461,8 @@ struct ShareCommandService {
             path: AbsolutePath,
             fullHandle: String,
             serverURL: URL,
-            track: String?
+            track: String?,
+            releaseNotes: String?
         ) async throws -> Components.Schemas.Preview {
             let gitInfo = await resolveGitInfo(at: path)
 
@@ -463,6 +479,7 @@ struct ShareCommandService {
                     gitCommitSHA: gitInfo.sha,
                     gitRef: gitInfo.ref,
                     track: track,
+                    releaseNotes: releaseNotes,
                     updateProgress: updateProgress
                 )
             }

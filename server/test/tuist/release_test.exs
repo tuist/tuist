@@ -2,127 +2,7 @@ defmodule Tuist.ReleaseTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Tuist.ClickHouse.Backfill
-  alias Tuist.ClickHouse.Parity
   alias Tuist.Release
-
-  describe "check_clickhouse_parity/0" do
-    setup do
-      stub(System, :put_env, fn _key, _value -> :ok end)
-      stub(Tuist.Environment, :migration_database_url, fn -> nil end)
-      :ok
-    end
-
-    defp parity_report(migrations) do
-      %{
-        compared: 2,
-        skipped: [],
-        matching: ["build_runs", "test_case_runs"],
-        differing: [],
-        schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []},
-        migrations: migrations,
-        derived: %{compared: 0, matching: [], differing: []}
-      }
-    end
-
-    test "passes when the migration ledgers hold the same versions" do
-      stub(Parity, :compare, fn -> {:ok, parity_report(%{missing_on_destination: [], only_on_destination: []})} end)
-
-      assert Release.check_clickhouse_parity() == :ok
-    end
-
-    test "raises when the destination's ledger is missing a version" do
-      stub(Parity, :compare, fn ->
-        {:ok, parity_report(%{missing_on_destination: [20_260_910_150_000], only_on_destination: []})}
-      end)
-
-      assert_raise RuntimeError, ~r/schema_migrations.*20260910150000/, fn -> Release.check_clickhouse_parity() end
-    end
-
-    test "raises when the destination's ledger has a version the source does not" do
-      stub(Parity, :compare, fn ->
-        {:ok, parity_report(%{missing_on_destination: [], only_on_destination: [20_260_912_090_000]})}
-      end)
-
-      assert_raise RuntimeError, ~r/schema_migrations.*20260912090000/, fn -> Release.check_clickhouse_parity() end
-    end
-  end
-
-  describe "clickhouse_repair_window/3" do
-    test "parses the instants as UTC, to the second" do
-      assert Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:05:00.500Z") ==
-               {~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:05:00Z]}
-    end
-
-    test "converts an offset to UTC" do
-      assert Release.clickhouse_repair_window("2026-10-04T14:15:00-03:00", "2026-10-04T19:05:00Z") ==
-               {~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:05:00Z]}
-    end
-
-    test "raises on an instant that does not parse" do
-      assert_raise ArgumentError, fn -> Release.clickhouse_repair_window("2026-10-04 17:15", "2026-10-04T19:05:00Z") end
-    end
-
-    test "raises unless the span ended long enough ago for the mirror to have settled" do
-      now = ~U[2026-10-04 19:30:00Z]
-
-      assert Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:15:00Z", now) ==
-               {~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:15:00Z]}
-
-      assert_raise ArgumentError, ~r/15 minutes ago/, fn ->
-        Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T19:20:00Z", now)
-      end
-    end
-
-    test "raises unless the span starts before it ends" do
-      assert_raise ArgumentError, fn ->
-        Release.clickhouse_repair_window("2026-10-04T19:05:00Z", "2026-10-04T17:15:00Z")
-      end
-
-      assert_raise ArgumentError, fn ->
-        Release.clickhouse_repair_window("2026-10-04T17:15:00Z", "2026-10-04T17:15:00Z")
-      end
-    end
-  end
-
-  describe "repair_clickhouse/2" do
-    setup do
-      stub(System, :put_env, fn _key, _value -> :ok end)
-      stub(Tuist.Environment, :migration_database_url, fn -> nil end)
-      :ok
-    end
-
-    test "repairs the given span" do
-      expect(Backfill, :run, fn opts ->
-        assert opts == [windows: [{~U[2026-10-04 17:15:00Z], ~U[2026-10-04 19:05:00Z]}]]
-        {:ok, %{"test_runs" => %{copied: 1, skipped: 0, failed: 0}}}
-      end)
-
-      assert Release.repair_clickhouse("2026-10-04T17:15:00Z", "2026-10-04T19:05:00Z") == :ok
-    end
-
-    test "raises naming the tables a chunk failed in" do
-      stub(Backfill, :run, fn _opts ->
-        {:ok,
-         %{
-           "test_runs" => %{copied: 0, skipped: 0, failed: 1},
-           "test_cases" => %{copied: 1, skipped: 0, failed: 0}
-         }}
-      end)
-
-      assert_raise RuntimeError, ~r/failed chunks in: test_runs$/, fn ->
-        Release.repair_clickhouse("2026-10-04T17:15:00Z", "2026-10-04T19:05:00Z")
-      end
-    end
-
-    test "raises when the repair cannot start" do
-      stub(Backfill, :run, fn _opts -> {:error, :already_running} end)
-
-      assert_raise RuntimeError, ~r/already_running/, fn ->
-        Release.repair_clickhouse("2026-10-04T17:15:00Z", "2026-10-04T19:05:00Z")
-      end
-    end
-  end
 
   describe "ops_clickhouse_reconciliation_queries/4" do
     test "resets privileges and converges the restricted role and user" do
@@ -154,6 +34,7 @@ defmodule Tuist.ReleaseTest do
                "GRANT SELECT ON `tuist`.* TO `tuist_ops_readonly`",
                "GRANT SELECT ON system.tables TO `tuist_ops_readonly`",
                "GRANT SELECT ON system.columns TO `tuist_ops_readonly`",
+               "REVOKE SELECT ON `tuist`.grafana_query_log FROM `tuist_ops_readonly`",
                """
                CREATE USER IF NOT EXISTS `tuist_ops`
                IDENTIFIED WITH sha256_hash BY '#{String.duplicate("a", 64)}'
@@ -178,6 +59,74 @@ defmodule Tuist.ReleaseTest do
           "tuist_ops_readonly",
           String.duplicate("a", 64)
         )
+      end
+    end
+  end
+
+  describe "grafana_clickhouse_reconciliation_queries/4" do
+    test "converges a bounded read-only role" do
+      queries =
+        Release.grafana_clickhouse_reconciliation_queries(
+          "tuist",
+          "tuist_grafana",
+          "tuist_grafana_readonly",
+          String.duplicate("b", 64)
+        )
+
+      statements = Enum.map(queries, &elem(&1, 0))
+
+      assert statements == [
+               "CREATE ROLE IF NOT EXISTS `tuist_grafana_readonly`",
+               "REVOKE ALL ON *.* FROM `tuist_grafana_readonly`",
+               """
+               ALTER ROLE `tuist_grafana_readonly` SETTINGS
+                 readonly = 2,
+                 max_execution_time = 60 MIN 1 MAX 120,
+                 max_memory_usage = 8589934592 MIN 1 MAX 8589934592,
+                 max_threads = 8 MIN 1 MAX 8
+               """,
+               "GRANT SELECT ON `tuist`.* TO `tuist_grafana_readonly`",
+               "GRANT SELECT ON system.tables TO `tuist_grafana_readonly`",
+               "GRANT SELECT ON system.columns TO `tuist_grafana_readonly`",
+               """
+               CREATE USER IF NOT EXISTS `tuist_grafana`
+               IDENTIFIED WITH sha256_hash BY '#{String.duplicate("b", 64)}'
+               """,
+               """
+               ALTER USER `tuist_grafana`
+               IDENTIFIED WITH sha256_hash BY '#{String.duplicate("b", 64)}'
+               """,
+               "REVOKE ALL ON *.* FROM `tuist_grafana`",
+               "GRANT `tuist_grafana_readonly` TO `tuist_grafana`",
+               "ALTER USER `tuist_grafana` DEFAULT ROLE `tuist_grafana_readonly`"
+             ]
+    end
+
+    test "rejects identifiers that could change the access statements" do
+      assert_raise RuntimeError, ~r/TUIST_GRAFANA_CLICKHOUSE_ROLE must be a valid ClickHouse identifier/, fn ->
+        Release.grafana_clickhouse_reconciliation_queries(
+          "tuist",
+          "tuist_grafana",
+          "tuist_grafana_readonly TO default",
+          String.duplicate("b", 64)
+        )
+      end
+    end
+  end
+
+  describe "grafana_query_log_view_statement/1" do
+    test "reads every replica's recent initial queries with the definer's rights" do
+      statement = Release.grafana_query_log_view_statement("tuist")
+
+      assert statement =~ "CREATE OR REPLACE VIEW `tuist`.grafana_query_log"
+      assert statement =~ "DEFINER = default SQL SECURITY DEFINER"
+      assert statement =~ "FROM clusterAllReplicas('default', system.query_log)"
+      assert statement =~ "WHERE event_time >= now() - INTERVAL 1 DAY"
+    end
+
+    test "rejects a database name that could change the statement" do
+      assert_raise RuntimeError, ~r/ClickHouse database must be a valid ClickHouse identifier/, fn ->
+        Release.grafana_query_log_view_statement("tuist.x AS SELECT 1; --")
       end
     end
   end
@@ -269,7 +218,7 @@ defmodule Tuist.ReleaseTest do
                ~s(GRANT USAGE ON SCHEMA "public" TO "tuist_processor"),
                ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers, "public".test_case_run_flaky_corrections, "public".bazel_test_invocations, "public".bazel_test_results, "public".bazel_test_summaries TO "tuist_processor"),
                ~s(GRANT USAGE, SELECT ON SEQUENCE "public".oban_jobs_id_seq TO "tuist_processor"),
-               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags, "public".coverage_commits TO "tuist_processor"),
+               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags, "public".coverage_commits, "public".git_repositories, "public".git_refs, "public".git_commits TO "tuist_processor"),
                ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads TO "tuist_processor"|,
                ~s|GRANT SELECT (account_id, event_name, project_id, refresh_before) ON TABLE "public".mcp_event_subscriptions TO "tuist_processor"|,
                ~s(GRANT SELECT, INSERT ON TABLE "public".mcp_event_job_keys TO "tuist_processor")
@@ -284,7 +233,7 @@ defmodule Tuist.ReleaseTest do
         |> File.read!()
 
       expected_read_grant =
-        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits TO tuist_processor;)
+        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags, :"tuist_schema".coverage_commits, :"tuist_schema".git_repositories, :"tuist_schema".git_refs, :"tuist_schema".git_commits TO tuist_processor;)
 
       assert occurrences(sql, expected_read_grant) == 1
 

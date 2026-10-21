@@ -7,13 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/go-logr/logr"
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 	"golang.org/x/sys/unix"
@@ -33,15 +36,21 @@ type CustomVolumes struct {
 	Kube                                       kubernetes.Interface
 	Tart                                       *tart.Client
 	Builtins                                   *VolumeManager
+	Checkouts                                  *cachevolumes.Checkouts
 	Store                                      *cachevolumes.Store
 	HTTP                                       *http.Client
 	Running                                    func(context.Context, string) (bool, error)
 	shareMu                                    sync.Mutex
 	reservations                               map[string]cachevolumes.Slot
-	prefetch                                   *customPrefetcher
+	prefetch                                   atomic.Pointer[customPrefetcher]
 	tokenMu                                    sync.Mutex
 	tokenValue                                 string
 	tokenUntil                                 time.Time
+	checkoutReserved                           uint64
+	checkoutMu                                 sync.Mutex
+	checkoutJobs                               map[string]cachevolumes.CheckoutTask
+	// spare cancels the running background prefetch; guarded by Builtins.mu.
+	spare context.CancelCauseFunc
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -132,12 +141,24 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
 		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
-		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: 21_000_000_000, Token: c.token},
+		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: cachevolumes.MaxVolumeBytes, Token: c.token},
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
+		Displace:         c.displaceSpare,
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
+	if c.Checkouts != nil {
+		backend.Seed = c.Checkouts.Seed
+		c.Checkouts.Room = c.reserveCheckout
+		c.Checkouts.Observe = observeCustomCache
+		c.Checkouts.Log = slog.New(logr.ToSlogHandler(log.FromContext(ctx)))
+		// Checkout images are larger than custom ones, so their archives get their own bound.
+		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Token: c.token}
+	}
+	// A superseded master stays mountable until its successor is downloaded here.
+	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
 	c.Builtins.mu.Lock()
 	c.Builtins.CustomReserved = c.reservedBytes
+	c.Builtins.DisplaceCustom = c.displaceSpareLocked
 	c.Builtins.mu.Unlock()
 	if err := os.MkdirAll(c.Root, 0700); err != nil {
 		return err
@@ -159,16 +180,31 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	defer store.Close()
 	c.Store = store
+	if c.Checkouts != nil {
+		// Pressure eviction never takes a master a job holds or is cloning.
+		c.Checkouts.InUse = store.InUse
+	}
 	if err := c.refreshReservations(ctx); err != nil {
 		return err
 	}
 	prefetchCtx, stopPrefetch := context.WithCancel(ctx)
-	c.prefetch = &customPrefetcher{slots: make(chan struct{}, 1), budget: 2 * time.Minute, restore: backend.Prefetch}
+	prefetch := newCustomPrefetcher(prefetchCtx, func(ctx context.Context, slot cachevolumes.Slot, requested bool) error {
+		if requested {
+			return backend.Prefetch(ctx, slot)
+		}
+		return c.prefetchSpare(ctx, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
+	}, backend.HasMaster)
+	c.prefetch.Store(prefetch)
+	var builds sync.WaitGroup
 	defer func() {
+		c.prefetch.Store(nil)
 		stopPrefetch()
-		c.prefetch.wait.Wait()
+		prefetch.wait.Wait()
+		builds.Wait()
 	}()
-	c.prefetch.ctx = prefetchCtx
+	if c.Checkouts != nil {
+		builds.Go(func() { c.Checkouts.Start(prefetchCtx) })
+	}
 	requests := time.NewTicker(time.Second)
 	defer requests.Stop()
 	reports := time.NewTicker(30 * time.Second)
@@ -188,6 +224,22 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 	finished := make(chan string, 9)
 	active := make(map[string]bool)
 	publishing := false
+	// A finished job's branch can only be sealed once its VM has stopped, which
+	// trails the Pod by tens of seconds. Pods that stopped running are
+	// reconciled every few seconds until then instead of on the next report tick.
+	running := make(map[string]bool)
+	settling := make(map[string]time.Time)
+	var reconciled time.Time
+	reconcile := func() {
+		publishing = true
+		reconciled = time.Now()
+		workers.Go(func() {
+			if err := c.reconcile(ctx); err != nil {
+				log.FromContext(ctx).Error(err, "custom cache reconciliation")
+			}
+			finished <- ""
+		})
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -202,13 +254,7 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			if publishing {
 				continue
 			}
-			publishing = true
-			workers.Go(func() {
-				if err := c.reconcile(ctx); err != nil {
-					log.FromContext(ctx).Error(err, "custom cache reconciliation")
-				}
-				finished <- ""
-			})
+			reconcile()
 		case <-requests:
 			listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 			pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
@@ -216,6 +262,27 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			if err != nil {
 				log.FromContext(ctx).Error(err, "custom cache pod discovery")
 				continue
+			}
+			now := time.Now()
+			current := make(map[string]bool)
+			for _, pod := range pods.Items {
+				if pod.Labels["tuist.dev/runner"] == "true" && pod.Spec.NodeName == c.Node && pod.DeletionTimestamp == nil && pod.Status.Phase == corev1.PodRunning {
+					current[string(pod.UID)] = true
+				}
+			}
+			for uid := range running {
+				if !current[uid] {
+					settling[uid] = now.Add(customSettleWindow)
+				}
+			}
+			running = current
+			for uid, until := range settling {
+				if now.After(until) {
+					delete(settling, uid)
+				}
+			}
+			if len(settling) > 0 && !publishing && now.Sub(reconciled) >= customSettleInterval {
+				reconcile()
 			}
 			for _, pod := range pods.Items {
 				uid := string(pod.UID)
@@ -257,7 +324,7 @@ func (c *CustomVolumes) freeBytesLocked() (uint64, error) {
 		return 0, err
 	}
 	reserved := uint64(len(c.Builtins.reserved)) * c.Builtins.capBytes()
-	reserved += c.reservedBytes()
+	reserved += c.reservedBytes() + c.checkoutReserved
 	if c.Builtins.converging != nil {
 		reserved += c.Builtins.converging.remaining()
 	}
@@ -291,6 +358,9 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	path := filepath.Join(c.Root, "pods", slot.PodUID, slot.Scope)
 	if slot.State == "active" && !cachevolumes.APFSMarker(path, ".mounted", slot.ID) {
 		if gone {
+			if reason := attachError(path); reason != "" {
+				log.Log.WithName("custom-cache-volumes").Info("guest could not mount its volume; job ran cold", "pod", slot.PodName, "use", slot.ID, "error", reason)
+			}
 			return "delete", nil
 		}
 		return "hold", nil
@@ -300,7 +370,7 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	var result struct {
 		Action string `json:"action"`
 	}
-	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil}, &result)
+	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil, "mounted_generation": mountedGeneration(slot)}, &result)
 	return result.Action, err
 }
 
@@ -311,12 +381,17 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 	if err := c.Store.Reconcile(c.gone, c.report); err != nil {
 		return err
 	}
+	c.Checkouts.Maintain()
 	err := c.Store.CleanPods(func(uid string) (bool, error) {
 		name, err := os.ReadFile(filepath.Join(c.Root, "owners", uid))
 		if err != nil {
 			return false, err
 		}
-		return c.gone(string(name), uid)
+		gone, err := c.gone(string(name), uid)
+		if err == nil && gone {
+			c.collectCheckout(uid)
+		}
+		return gone, err
 	})
 	if err != nil {
 		return err
@@ -359,7 +434,7 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		return err
 	}
 	for _, name := range names {
-		if !strings.HasSuffix(name, ".request") && !strings.HasSuffix(name, ".commit-request") {
+		if !strings.HasSuffix(name, ".request") {
 			continue
 		}
 		if _, err := root.Stat(name + ".response"); err == nil {
@@ -375,59 +450,115 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var input struct {
-			Commit string `json:"commit"`
-			Key    string `json:"key"`
-			UID    int    `json:"uid"`
+			Key      string `json:"key"`
+			UID      int    `json:"uid"`
+			Checkout bool   `json:"checkout"`
 		}
 		err = json.NewDecoder(io.LimitReader(file, 4096)).Decode(&input)
 		file.Close()
 		if err != nil {
 			continue
 		}
-		deadline := time.Now().Add(25 * time.Second)
-		if requestDeadline := info.ModTime().Add(25 * time.Second); requestDeadline.Before(deadline) {
+		// A checkout never makes a job wait longer than a cold checkout would cost.
+		budget := customAcquireBudget
+		if input.Checkout {
+			budget = 15 * time.Second
+		}
+		deadline := time.Now().Add(budget)
+		if requestDeadline := info.ModTime().Add(budget); requestDeadline.Before(deadline) {
 			deadline = requestDeadline
 		}
 		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
-		var identity cachevolumes.Identity
-		operation := "authorize"
-		if cachevolumes.CommitMode(input.Commit) != "auto" {
-			operation = "authorize-commit"
-		}
-		status, err := c.request(acquireCtx, operation, map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID, "commit": cachevolumes.CommitMode(input.Commit)}, &identity)
-		if status == http.StatusTooEarly && acquireCtx.Err() == nil {
+		if input.Checkout {
+			response := map[string]any{"error": "unavailable", "reason": "error"}
+			if c.Checkouts != nil {
+				response = c.checkout(acquireCtx, pod, input.UID)
+			}
 			cancel()
+			if response == nil {
+				continue
+			}
+			data, _ := json.Marshal(response)
+			if published, err := publishResponse(root, name+".response", data); err != nil {
+				return err
+			} else if !published {
+				continue
+			}
+			if _, err := root.Stat(name); os.IsNotExist(err) {
+				_ = root.Remove(name + ".response")
+			}
 			continue
 		}
-		response := map[string]any{"error": "unavailable"}
-		if (status == http.StatusNotFound && operation == "authorize-commit") || (err == nil && !identity.AcceptsCommit(input.Commit)) {
-			response["error"] = "unsupported_commit"
+		var identity cachevolumes.Identity
+		body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}
+		status, err := c.request(acquireCtx, "authorize", body, &identity)
+		// 425 means GitHub has not yet reported which job this runner executes.
+		for status == http.StatusTooEarly {
+			select {
+			case <-acquireCtx.Done():
+			case <-time.After(customAuthorizeRetry):
+				status, err = c.request(acquireCtx, "authorize", body, &identity)
+			}
+			if acquireCtx.Err() != nil && status != http.StatusOK {
+				err = cachevolumes.ErrExecutionPending
+				break
+			}
 		}
-		if err == nil && identity.AcceptsCommit(input.Commit) {
+		// The reserved checkout name is only ever allocated through the checkout path.
+		identity.Kind, identity.Generation = "", 0
+		response := map[string]any{"error": "unavailable", "reason": "denied"}
+		if errors.Is(err, cachevolumes.ErrExecutionPending) {
+			response["reason"] = "execution_pending"
+			log.FromContext(ctx).Info("custom cache volume not authorized in time: GitHub has not reported the job running on this pod; job continues cold", "pod", pod.Name)
+		} else if err != nil {
+			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
+		} else {
 			warm, err := c.Store.Acquire(acquireCtx, identity, pod.Name, string(pod.UID))
 			if err == nil {
-				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm, "commit": identity.Commit, "can_publish": identity.CanPublish}
-			} else if errors.Is(err, context.DeadlineExceeded) {
-				c.prefetch.start(identity)
+				response = map[string]any{"id": identity.ID, "directory": identity.Scope, "warm": warm}
+				// A job that mounted an older generation leaves its HEAD to the background.
+				c.prefetch.Load().start(identity, true)
+			} else {
+				if errors.Is(err, context.DeadlineExceeded) {
+					c.prefetch.Load().start(identity, true)
+				}
+				response["reason"] = cachevolumes.Result(err)
+				log.FromContext(ctx).Info("custom cache volume unavailable; job continues cold",
+					"pod", pod.Name, "use", identity.ID, "generation", identity.BaseGeneration, "reason", response["reason"], "error", err.Error())
 			}
 		}
 		cancel()
 		data, _ := json.Marshal(response)
-		// O_EXCL prevents following a guest-created output symlink.
-		out, err := root.OpenFile(name+".response", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
-		if err != nil {
-			continue
-		}
-		_, err = out.Write(data)
-		out.Close()
-		if err != nil {
+		if published, err := publishResponse(root, name+".response", data); err != nil {
 			return err
+		} else if !published {
+			continue
 		}
 		if _, err := root.Stat(name); os.IsNotExist(err) {
 			_ = root.Remove(name + ".response")
 		}
 	}
 	return nil
+}
+
+// Guests only ever see complete responses. O_EXCL and link never follow or
+// replace a guest-created path, so an existing response is kept.
+func publishResponse(root *os.Root, name string, data []byte) (bool, error) {
+	temp := name + ".tmp"
+	_ = root.Remove(temp)
+	out, err := root.OpenFile(temp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		return false, nil
+	}
+	defer root.Remove(temp)
+	_, err = out.Write(data)
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return false, err
+	}
+	return root.Link(temp, name) == nil, nil
 }
 
 func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
@@ -444,4 +575,30 @@ func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
+}
+
+// mountedGeneration is the older generation a job mounted, or nil when it got
+// its base.
+func mountedGeneration(slot cachevolumes.Slot) any {
+	if slot.MountedGeneration <= 0 {
+		return nil
+	}
+	return slot.MountedGeneration
+}
+
+// attachError reads the reason the guest recorded for a mount that failed.
+// The share is guest-writable, so the read never follows it out of the pod's directory.
+func attachError(path string) string {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return ""
+	}
+	defer root.Close()
+	file, err := root.Open(filepath.Join(filepath.Base(path), ".attach-error"))
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	data, _ := io.ReadAll(io.LimitReader(file, 1024))
+	return strings.ToValidUTF8(strings.TrimSpace(string(data)), "?")
 }

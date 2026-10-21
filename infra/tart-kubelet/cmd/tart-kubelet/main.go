@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
@@ -80,7 +81,10 @@ func main() {
 		customCacheNamespace string
 		customCacheSA        string
 		cacheVolumeCapGiB    int
+		runnerCacheBudgetGiB int
 		cacheVolumeCASGiB    int
+		imageMirrors         imageMirrorList
+		imageMirrorSync      time.Duration
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
@@ -140,6 +144,10 @@ func main() {
 		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images. "+
 			"Empty (default) disables cache volumes entirely: every VM boots on the status-quo cold path. "+
 			"Host bootstrap sets this to the runner-cache volume it provisions (e.g. /var/lib/tart-cache).")
+	flag.IntVar(&runnerCacheBudgetGiB, "runner-cache-budget-gib", envIntOr("TART_KUBELET_RUNNER_CACHE_BUDGET_GIB", 0),
+		"Space (GiB) every cache on --runner-cache-root may take together. Admission, convergence and eviction "+
+			"measure against it below the volume's quota, so it can change without recreating the volume. "+
+			"0 (default) leaves the quota as the bound.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", envOr("TART_KUBELET_CUSTOM_CACHE_URL", ""), "Opt-in server /api/internal/runners/cache-volumes URL")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Runner namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
@@ -153,6 +161,12 @@ func main() {
 			"by what each cache holds. This value is the CAS's share of the fixed split that runner images older "+
 			"than that division apply, the binary cache getting the rest. Persisted across VMs, riding the binary "+
 			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
+	flag.Var(&imageMirrors, "image-mirror",
+		"<upstream>=<endpoint> (e.g. ghcr.io=http://10.10.0.11:5000): a registry serving the upstream's images under the same "+
+			"repository names, tried in order before the upstream when a golden base is pulled. May be repeated. An http endpoint is "+
+			"pulled with `tart pull --insecure`. A mirror that is down, does not hold the image or fails the pull falls back to the upstream.")
+	flag.DurationVar(&imageMirrorSync, "image-mirror-sync-timeout", 30*time.Minute,
+		"How long a Pod waits for an --image-mirror that is still fetching its image before the host pulls from the upstream instead.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -295,9 +309,21 @@ func main() {
 	tartClient := tart.New()
 	tartClient.Binary = tartBinary
 
+	var images *podagent.ImageSources
+	if len(imageMirrors) > 0 {
+		images = &podagent.ImageSources{Mirrors: imageMirrors, SyncTimeout: imageMirrorSync}
+		setupLog.Info("pulling golden bases through image mirrors", "mirrors", imageMirrors.String())
+	}
+
 	resolver := &envresolver.Resolver{K8s: mgr.GetAPIReader()}
 
 	store := podagent.NewStore()
+
+	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
+	if err != nil {
+		setupLog.Error(err, "parse --node-labels")
+		os.Exit(1)
+	}
 
 	// The orphan-VM GC reaps any local Tart VM not backed by a Pod on
 	// this Node. Builder-fleet Nodes never run Pods (they bake images
@@ -322,6 +348,8 @@ func main() {
 			GoldenRetention: 24 * time.Hour,
 			// 0 falls back to the collector's own default (1).
 			MinGoldensKept: minGoldensKept,
+			Images:         images,
+			Fleet:          nodeLabels["tuist.dev/fleet"],
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
@@ -335,6 +363,7 @@ func main() {
 	// Runnable so its watermark evictor + observability sampler run on a
 	// ticker alongside the reconciler.
 	volumes := podagent.NewVolumeManager(runnerCacheRoot, cacheVolumeCapGiB, nil)
+	volumes.BudgetGiB = runnerCacheBudgetGiB
 	volumes.CASGiB = cacheVolumeCASGiB
 	if cacheVolumeCASGiB >= cacheVolumeCapGiB && cacheVolumeCASGiB > 0 {
 		setupLog.Info("WARNING --cache-volume-cas-gib >= --cache-volume-cap-gib; the CAS budget is clamped so the binary cache and reserve keep a slice — lower cas-gib or raise cap-gib",
@@ -379,7 +408,10 @@ func main() {
 
 	var customVolumes *podagent.CustomVolumes
 	if customCacheURL != "" && volumes.Enabled() {
-		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes}
+		checkoutsRoot := filepath.Join(runnerCacheRoot, "custom", "checkouts")
+		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes,
+			// Checkout masters share the custom volumes' filesystem, admission and agent.
+			Checkouts: &cachevolumes.Checkouts{Root: checkoutsRoot, Images: &cachevolumes.APFSCheckoutImages{}, Tools: podagent.GitLFS(checkoutsRoot, nil)}}
 		if err := mgr.Add(customVolumes); err != nil {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)
@@ -397,6 +429,9 @@ func main() {
 		}
 		alongsideJobs := err == nil && podagent.ConvergeAlongsideJobs(physicalMemory, hostMemoryMB)
 		converge = podagent.NewConvergeWorker(volumes, alongsideJobs, &podagent.ServerPrefetch{Client: typedClient})
+		if customVolumes != nil {
+			converge.Custom = customVolumes
+		}
 		setupLog.Info("cache-volume convergence", "alongside-jobs", alongsideJobs,
 			"physical-memory-bytes", physicalMemory, "host-memory-mb", hostMemoryMB)
 		if err := mgr.Add(converge); err != nil {
@@ -405,7 +440,7 @@ func main() {
 		}
 	}
 
-	if err := (&podagent.Reconciler{
+	reconciler := &podagent.Reconciler{
 		CachedClient:       mgr.GetClient(),
 		NodeName:           nodeName,
 		NodeIP:             nodeIP,
@@ -428,14 +463,10 @@ func main() {
 		CustomVolumes: customVolumes,
 		Converge:      converge,
 		Recorder:      mgr.GetEventRecorderFor("tart-kubelet"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup pod reconciler")
-		os.Exit(1)
+		Images:        images,
 	}
-
-	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
-	if err != nil {
-		setupLog.Error(err, "parse --node-labels")
+	if err := reconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
 	}
 
@@ -460,16 +491,40 @@ func main() {
 		return labels, nil
 	}
 
+	// A host joining the cluster pulls its fleet's in-demand runner images
+	// before it takes Pods, through the same golden path a Pod's first VM
+	// takes. The gate taints only a Node this process creates; see
+	// nodeagent.PrewarmGate.
+	prewarmGate := nodeagent.NewPrewarmGate()
+	if err := mgr.Add(&podagent.Prewarmer{
+		K8s:     mgr.GetAPIReader(),
+		Goldens: reconciler,
+		Gate:    prewarmGate,
+		Fleet:   nodeLabels["tuist.dev/fleet"],
+		DiskFree: func() (float64, error) {
+			st, err := hostdisk.Root("/")
+			if err != nil {
+				return 0, err
+			}
+			return st.FreePercent(), nil
+		},
+	}); err != nil {
+		setupLog.Error(err, "add runner image prewarmer")
+		os.Exit(1)
+	}
+
 	if err := mgr.Add(&nodeagent.Maintainer{
-		Client:     mgr.GetClient(),
-		NodeName:   nodeName,
-		ProviderID: providerID,
-		NodeIP:     nodeIP,
-		NodeLabels: nodeLabels,
-		CPU:        hostCPU,
-		MemoryMB:   hostMemoryMB,
-		MaxPods:    maxPods,
-		Heartbeat:  30 * time.Second,
+		Client:         mgr.GetClient(),
+		NodeName:       nodeName,
+		ProviderID:     providerID,
+		NodeIP:         nodeIP,
+		NodeLabels:     nodeLabels,
+		CPU:            hostCPU,
+		MemoryMB:       hostMemoryMB,
+		MaxPods:        maxPods,
+		Heartbeat:      30 * time.Second,
+		PrewarmGate:    prewarmGate,
+		RuntimeVersion: tartClient.Version,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			// Host root volume first: it holds every Tart golden + clone,
 			// and a fill there silently breaks the operator's SSH config
@@ -491,6 +546,14 @@ func main() {
 			// costs at most a heartbeat of oldest-queued dispatch.
 			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
 				return volumes.CacheMasterNodeLabels()
+			}},
+			// The custom volume lineages this host holds a master of, so dispatch
+			// can prefer it for jobs that attach them.
+			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				if customVolumes == nil {
+					return map[string]string{}, nil
+				}
+				return cachevolumes.MasterNodeLabels(customVolumes.Root)
 			}},
 		},
 	}); err != nil {
@@ -897,3 +960,26 @@ func recoverState(
 // clientcmdConfig is an alias so the signature of recoverState reads
 // without dragging the rest-config dep into the main signature line.
 type clientcmdConfig = rest.Config
+
+// imageMirrorList implements flag.Value for repeated --image-mirror.
+type imageMirrorList []podagent.ImageMirror
+
+func (l *imageMirrorList) String() string {
+	if l == nil {
+		return ""
+	}
+	parts := make([]string, 0, len(*l))
+	for _, m := range *l {
+		parts = append(parts, m.String())
+	}
+	return joinComma(parts)
+}
+
+func (l *imageMirrorList) Set(value string) error {
+	m, err := podagent.ParseImageMirror(value)
+	if err != nil {
+		return err
+	}
+	*l = append(*l, m)
+	return nil
+}

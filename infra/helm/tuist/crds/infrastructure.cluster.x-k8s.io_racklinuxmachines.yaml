@@ -202,7 +202,8 @@ spec:
                           RackNodeFile is one file on a rack node. Group names what a change to it
                           takes: modules, sysctl, network (networkd reloaded), networkd or resolved
                           (systemd-networkd or systemd-resolved restarted, for their own
-                          configuration), systemd (systemd re-executed), containerd or kubelet
+                          configuration), systemd (systemd re-executed), units (systemd reloaded, for
+                          unit drop-ins, which leaves the units running), containerd or kubelet
                           (restarted), or none.
                         properties:
                           content:
@@ -215,6 +216,31 @@ spec:
                             type: string
                         required:
                           - path
+                        type: object
+                      type: array
+                    clusterNodeSets:
+                      description: |-
+                        ClusterNodeSets are nftables sets the node agent keeps equal to the
+                        IPv4 InternalIPs and ExternalIPs of the cluster's Cilium nodes, every
+                        apply and whenever they change. The addresses are not in the configuration, so a
+                        node joining or leaving the cluster changes no hash and restarts nothing
+                        here. A file in Nftables declares each set without flushing it.
+                      items:
+                        description: RackNodeNftSet names an nftables set of IPv4 addresses.
+                        properties:
+                          family:
+                            enum:
+                              - ip
+                              - inet
+                            type: string
+                          name:
+                            type: string
+                          table:
+                            type: string
+                        required:
+                          - family
+                          - name
+                          - table
                         type: object
                       type: array
                     containerd:
@@ -239,7 +265,8 @@ spec:
                           RackNodeFile is one file on a rack node. Group names what a change to it
                           takes: modules, sysctl, network (networkd reloaded), networkd or resolved
                           (systemd-networkd or systemd-resolved restarted, for their own
-                          configuration), systemd (systemd re-executed), containerd or kubelet
+                          configuration), systemd (systemd re-executed), units (systemd reloaded, for
+                          unit drop-ins, which leaves the units running), containerd or kubelet
                           (restarted), or none.
                         properties:
                           content:

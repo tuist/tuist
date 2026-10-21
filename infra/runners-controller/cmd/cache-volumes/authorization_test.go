@@ -54,35 +54,12 @@ func TestAuthorizationWaitsOnlyForVerifiedExecutionBinding(t *testing.T) {
 			if (err == nil) != tc.succeeds || (tc.succeeds && identity.ID != "authorized-use") {
 				t.Fatalf("identity=%+v err=%v", identity, err)
 			}
+			if pending := errors.Is(err, cachevolumes.ErrExecutionPending); pending != (tc.name == "bounded wait") {
+				t.Fatalf("execution pending=%v err=%v", pending, err)
+			}
 			if calls != len(tc.statuses) {
 				t.Fatalf("got %d attempts", calls)
 			}
 		})
-	}
-}
-
-func TestExplicitCommitNeverAllocatesOnLegacyServer(t *testing.T) {
-	allocations := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/authorize" {
-			allocations++
-			w.Write([]byte(`{}`))
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-	tokenPath := filepath.Join(t.TempDir(), "token")
-	if err := os.WriteFile(tokenPath, []byte("token"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	a := &agent{tokenPath: tokenPath, http: server.Client(), authorizeURL: server.URL + "/authorize"}
-	for i := 0; i < 9; i++ {
-		if _, err := a.authorizeAt(context.Background(), a.authorizeURL+"-commit", []byte(`{"commit":"true"}`)); !errors.Is(err, cachevolumes.ErrCommitUnsupported) {
-			t.Fatal(err)
-		}
-	}
-	if allocations != 0 {
-		t.Fatalf("allocated %d rejected requests", allocations)
 	}
 }

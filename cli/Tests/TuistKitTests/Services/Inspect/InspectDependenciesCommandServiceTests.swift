@@ -2,11 +2,13 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistNooraExtension
 import TuistNooraTesting
 import TuistSupport
 import TuistTesting
@@ -47,6 +49,15 @@ struct InspectDependenciesCommandServiceTests {
         #expect((command.json ? DependencyInspectionOutputFormat.json : command.output) == expectedOutput)
     }
 
+    @Test
+    func jsonOutputGoesThroughNoora() throws {
+        let command = try InspectCommand.parseAsRoot(["dependencies", "--json"])
+
+        let nooraReadyCommand = try #require(command as? NooraReadyCommand)
+        #expect(nooraReadyCommand.jsonThroughNoora)
+        #expect((command as? InspectDependenciesCommand)?.json == true)
+    }
+
     private func xcframeworkDependency(moduleName: String) throws -> GraphDependency {
         .testXCFramework(
             path: try AbsolutePath(validating: "/dependencies/\(moduleName).xcframework"),
@@ -72,7 +83,8 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -113,7 +125,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["FeatureA", "SharedCore"]))
         given(targetScanner).imports(for: .value(featureA), reachableModules: .any).willReturn(Set(["SharedCore"]))
@@ -156,7 +169,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
         given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["SharedCore"]))
@@ -197,7 +211,8 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -222,7 +237,8 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
 
@@ -258,7 +274,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
         given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["SharedCore"]))
@@ -295,7 +312,8 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -320,7 +338,8 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
 
@@ -329,6 +348,32 @@ struct InspectDependenciesCommandServiceTests {
 
         // Then
         #expect(ui().contains("No dependency issues found."))
+    }
+
+    @Test
+    func runWithNoIssuesReportsSuccessAlertInTextMode() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        let alertController = AlertController()
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .text)
+        }
+
+        // Then
+        let success = try #require(alertController.success().last)
+        #expect(success.message.plain() == "We did not find any dependency issues in your project (checked: implicit).")
     }
 
     @Test
@@ -352,7 +397,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -384,7 +430,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -413,7 +460,8 @@ struct InspectDependenciesCommandServiceTests {
         let loadCounter = LoadCounter()
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willProduce { _, _ in
             loadCounter.count += 1
             return graph
@@ -441,7 +489,8 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -498,7 +547,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["TestTargetDependency"]))
         given(targetScanner).imports(for: .value(testTarget), reachableModules: .any).willReturn(Set([]))
@@ -543,7 +593,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
 
@@ -579,7 +630,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
 
@@ -607,7 +659,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -639,7 +692,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -675,7 +729,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -699,7 +754,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -740,7 +796,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
 
@@ -772,7 +829,8 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(bundleFramework), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -809,7 +867,8 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(unitTests), reachableModules: .any).willReturn(Set([]))
@@ -854,7 +913,8 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(appExtension), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(stickerPackExtension), reachableModules: .any).willReturn(Set([]))
@@ -895,7 +955,8 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watch2Extension), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(watch2App), reachableModules: .any).willReturn(Set([]))
@@ -926,7 +987,8 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
@@ -956,7 +1018,8 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(containerApp), reachableModules: .any).willReturn(Set([]))
@@ -986,7 +1049,8 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["WatchApp"]))
@@ -1015,7 +1079,8 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(macro), reachableModules: .any).willReturn(Set([]))
@@ -1054,7 +1119,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set([]))
         given(targetScanner).imports(for: .value(uiComponent), reachableModules: .any).willReturn(Set([]))
@@ -1097,7 +1163,8 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["UIComponent"]))
         given(targetScanner).imports(for: .value(uiComponent), reachableModules: .any).willReturn(Set([]))

@@ -8,6 +8,7 @@ import (
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -379,5 +380,175 @@ func TestHandoverWaitsForTheResumedServingGrant(t *testing.T) {
 	statuses["test-0"] = sample
 	if next := authorityStep(t, r); next.Phase != "Quiescing" || next.Handover == nil {
 		t.Fatal(next)
+	}
+}
+
+// A terminating replica may finish an old renewal after another replica has
+// positively observed expiration. Its stale write must not reopen that grant.
+func TestAuthorityConcurrentRenewalCannotOverwriteFencing(t *testing.T) {
+	for _, phase := range []string{"Serving", "Quiescing"} {
+		t.Run(phase, func(t *testing.T) {
+			r, _, statuses := authorityFixture(t)
+			grant := authorityStep(t, r)
+			grant.Phase = phase
+			grant.ExpiresMS = time.Now().UnixMilli() + 5000
+			if phase == "Quiescing" {
+				grant.Handover = &handoverIntent{ID: "handover", Destination: statuses["test-1"].ServingAuthority.Identity, DeadlineMS: time.Now().UnixMilli() + 300000}
+			}
+			writeAuthorityGrant(t, r, grant)
+			holder := statuses[grant.PodName]
+			holder.ServingAuthority.Epoch = grant.Epoch
+			holder.ServingAuthority.Valid = true
+			holder.ServingAuthority.Observed = &grant
+			statuses[grant.PodName] = holder
+			oldStatuses := map[string]runtimeStatus{}
+			for name, status := range statuses {
+				oldStatuses[name] = status
+			}
+			reached, release := make(chan struct{}), make(chan struct{}, 1)
+			defer close(release)
+			old := *r
+			old.Client = &pausedAuthorityPatch{Client: r.Client, reached: reached, release: release}
+			old.RuntimeStatusClient = fakeRuntimeStatusClient{statuses: oldStatuses}
+			done := make(chan error, 1)
+			go func() {
+				_, err := old.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "test", Namespace: "test"}})
+				done <- err
+			}()
+			select {
+			case <-reached:
+			case err := <-done:
+				t.Fatalf("renewal did not reach grant patch: %v", err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("renewal did not reach grant patch")
+			}
+			holder.ServingAuthority.Valid = false
+			statuses[grant.PodName] = holder
+			fenced := authorityStep(t, r)
+			if fenced.Phase != "Fencing" || fenced.Epoch != grant.Epoch {
+				t.Fatalf("expected fencing: %+v", fenced)
+			}
+			release <- struct{}{}
+			select {
+			case err := <-done:
+				if !apierrors.IsConflict(err) {
+					t.Fatalf("stale renewal should conflict, got %v", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("stale renewal did not finish")
+			}
+			final := authorityStep(t, r)
+			if final.Phase != "Fencing" || final.Epoch != fenced.Epoch || final.ExpiresMS != fenced.ExpiresMS || final.Holder != fenced.Holder {
+				t.Fatalf("stale renewal changed fenced authority: %+v", final)
+			}
+		})
+	}
+}
+
+type pausedAuthorityPatch struct {
+	client.Client
+	reached chan struct{}
+	release chan struct{}
+}
+
+func (c *pausedAuthorityPatch) Patch(ctx context.Context, object client.Object, patch client.Patch, options ...client.PatchOption) error {
+	if _, ok := object.(*corev1.ConfigMap); ok && object.GetName() == "test-serving" {
+		close(c.reached)
+		select {
+		case <-c.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return c.Client.Patch(ctx, object, patch, options...)
+}
+
+func preparationFixture(t *testing.T) (*ServingAuthorityReconciler, *kurav1alpha1.KuraInstance, map[string]runtimeStatus, servingGrant) {
+	t.Helper()
+	r, instance, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	source := statuses["test-0"]
+	source.ServingAuthority.Valid, source.ServingAuthority.Epoch, source.ServingAuthority.Observed = true, grant.Epoch, &grant
+	statuses["test-0"] = source
+	target := statuses["test-1"]
+	target.ServingAuthority.PreparationSupported = true
+	statuses["test-1"] = target
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(instance), instance); err != nil {
+		t.Fatal(err)
+	}
+	instance.Spec.PlannedHandover = &kurav1alpha1.PlannedHandoverRequest{ID: "prepare", PodName: "test-1", PodUID: target.ServingAuthority.Identity.PodUID, Incarnation: target.ServingAuthority.Identity.Incarnation}
+	if err := r.Update(context.Background(), instance); err != nil {
+		t.Fatal(err)
+	}
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Handover == nil || next.Epoch != grant.Epoch || next.Holder != grant.Holder || next.Barrier != nil {
+		t.Fatal("preparation changed serving authority", next)
+	}
+	return r, instance, statuses, next
+}
+
+func TestHandoverPreparationRenewsSourceAndRequiresExactCompletion(t *testing.T) {
+	r, _, statuses, grant := preparationFixture(t)
+	preparationDeadline := grant.Handover.DeadlineMS
+	grant.ExpiresMS = time.Now().UnixMilli() + 7000
+	writeAuthorityGrant(t, r, grant)
+	renewed := authorityStep(t, r)
+	if renewed.Phase != "Serving" || renewed.ExpiresMS <= grant.ExpiresMS || renewed.Handover.DeadlineMS != preparationDeadline {
+		t.Fatal("pending preparation did not renew only the serving lease", renewed)
+	}
+	target := statuses["test-1"]
+	preparation := &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch + 1, Complete: true}
+	target.ServingAuthority.Preparation = preparation
+	statuses["test-1"] = target
+	if next := authorityStep(t, r); next.Phase != "Serving" {
+		t.Fatal("stale preparation authorized quiescence", next)
+	}
+	preparation.Epoch = grant.Epoch
+	preparation.Intent.Destination.Incarnation = "stale"
+	if next := authorityStep(t, r); next.Phase != "Serving" {
+		t.Fatal("wrong destination preparation accepted", next)
+	}
+	preparation.Intent = *grant.Handover
+	before := time.Now().UnixMilli()
+	next := authorityStep(t, r)
+	if next.Phase != "Quiescing" || next.Epoch != grant.Epoch || next.Holder != grant.Holder || next.Barrier != nil || next.Handover.DeadlineMS < before+300000 || next.Handover.DeadlineMS > time.Now().UnixMilli()+300000 {
+		t.Fatal("completed preparation did not start the original bounded barrier", next)
+	}
+}
+
+func TestHandoverPreparationAbortsWithoutGrantingStandbyAuthority(t *testing.T) {
+	for _, scenario := range []string{"deadline", "cancel", "destination-replaced", "failure", "source-expired"} {
+		t.Run(scenario, func(t *testing.T) {
+			r, instance, statuses, grant := preparationFixture(t)
+			switch scenario {
+			case "deadline":
+				grant.Handover.DeadlineMS = time.Now().UnixMilli() - 1
+				writeAuthorityGrant(t, r, grant)
+			case "cancel":
+				instance.Spec.PlannedHandover = nil
+				if err := r.Update(context.Background(), instance); err != nil {
+					t.Fatal(err)
+				}
+			case "destination-replaced":
+				target := statuses["test-1"]
+				target.ServingAuthority.Identity.Incarnation = "replacement"
+				statuses["test-1"] = target
+			case "failure":
+				target := statuses["test-1"]
+				target.ServingAuthority.Preparation = &handoverPreparation{Intent: *grant.Handover, Source: grant.Holder, Epoch: grant.Epoch, Error: "retained repair failed"}
+				statuses["test-1"] = target
+			case "source-expired":
+				grant.ExpiresMS = time.Now().UnixMilli()
+				writeAuthorityGrant(t, r, grant)
+			}
+			next := authorityStep(t, r)
+			expected := "Serving"
+			if scenario == "source-expired" {
+				expected = "Fencing"
+			}
+			if next.Phase != expected || next.Holder != grant.Holder || next.Epoch != grant.Epoch || next.Handover != nil || next.LastHandover != "prepare" || next.Barrier != nil {
+				t.Fatal("preparation abort changed writer or retained a blocking intent", next)
+			}
+		})
 	}
 }

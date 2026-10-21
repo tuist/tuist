@@ -30,6 +30,7 @@ defmodule TuistWeb.CoverageDetailLive do
   @target_sorts ~w(coverage name files)
   @file_sorts ~w(coverage path)
   @page_size 20
+  @default_commits_status "measured"
 
   # A run's coverage joins its commit a few seconds after the run lands
   # (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads once
@@ -310,7 +311,7 @@ defmodule TuistWeb.CoverageDetailLive do
   # its history.
   defp assign_commits(%{assigns: %{subject: %{kind: :branch}}} = socket, query) do
     {search, status} = commits_filter(query)
-    page = branch_commit_page(socket, query, search: search, status: status)
+    page = branch_commit_page(socket, query, search: search, status: if(status == "any", do: "", else: status))
 
     socket
     |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
@@ -321,10 +322,11 @@ defmodule TuistWeb.CoverageDetailLive do
 
   # The Commits tab's search, by the start of a SHA, and its status: whether
   # the commit's pipeline signalled it finished, and on a branch, which lists
-  # every commit on it, whether any run measured it.
+  # every commit on it, whether any run measured it. The tab lists the
+  # measured commits unless asked for `any`.
   defp commits_filter(query) do
     search = (query["commits-search"] || "") |> String.trim() |> String.downcase()
-    {search, query["commits-status"] || ""}
+    {search, query["commits-status"] || @default_commits_status}
   end
 
   defp assign_commits_filter(socket, search, status),
@@ -333,11 +335,19 @@ defmodule TuistWeb.CoverageDetailLive do
   @doc "The statuses the Commits tab filters a branch's commits by, with their labels."
   def commit_statuses,
     do: [
+      {"measured", dgettext("dashboard_tests", "Measured")},
       {"complete", dgettext("dashboard_tests", "Complete")},
       {"incomplete", dgettext("dashboard_tests", "Incomplete")},
       {"in-progress", dgettext("dashboard_tests", "In Progress")},
       {"not-measured", dgettext("dashboard_tests", "Not measured")}
     ]
+
+  @doc "The Commits tab's query with its status set, the default one dropped from it."
+  def put_commits_status(query, @default_commits_status), do: Query.drop(query, "commits-status")
+  def put_commits_status(query, status), do: Query.put(query, "commits-status", status)
+
+  @doc "Whether the Commits tab is narrowed past what it lists by default."
+  def commits_filtered?(search, status), do: search != "" or status not in ["any", @default_commits_status]
 
   # A commit has a few thousand targets at most, all aggregated in one read,
   # so they are searched, sorted and paged here.
@@ -349,10 +359,18 @@ defmodule TuistWeb.CoverageDetailLive do
 
     measured = Commits.targets(project.id, subject.sha)
 
+    # The targets taken from the binary cache without counters have no figure
+    # to sort by: they follow the measured ones, by name.
+    unmeasured =
+      for name <- Commits.unmeasured_targets(project.id, subject.sha),
+          do: %{name: name, covered_lines: 0, executable_lines: 0, files_count: 0, unmeasured: true}
+
+    listed? = fn target ->
+      name_matches?(target.name, :=~, search) and Enum.all?(filters, fn f -> target_matches?(target, f) end)
+    end
+
     targets =
-      measured
-      |> Enum.filter(&(name_matches?(&1.name, :=~, search) and Enum.all?(filters, fn f -> target_matches?(&1, f) end)))
-      |> sort_targets(sort_by, sort_order)
+      (measured |> Enum.filter(listed?) |> sort_targets(sort_by, sort_order)) ++ Enum.filter(unmeasured, listed?)
 
     total_pages = max(1, ceil(length(targets) / @page_size))
     page = min(Query.bounded_page(query["page"]), total_pages)
@@ -362,7 +380,7 @@ defmodule TuistWeb.CoverageDetailLive do
       :target_rows,
       targets |> Enum.slice((page - 1) * @page_size, @page_size) |> Enum.map(&Map.put(&1, :id, "target-" <> &1.name))
     )
-    |> assign(:targets_measured?, measured != [])
+    |> assign(:targets_listed?, measured != [] or unmeasured != [])
     |> assign(:targets_meta, %{current_page: page, total_pages: total_pages})
     |> assign(:targets_search, search)
     |> assign(:targets_sort_by, sort_by)
@@ -510,7 +528,7 @@ defmodule TuistWeb.CoverageDetailLive do
         display_name: scheme_label(project),
         type: :option,
         options: schemes,
-        options_display_names: %{},
+        options_display_names: Map.new(schemes, &{&1, test_run_label(project, &1)}),
         operator: :==,
         value: nil,
         searchable: true

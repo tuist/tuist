@@ -20,6 +20,7 @@ var errUnsupported = fmt.Errorf("cache volumes require macOS")
 func (unsupportedVolumeBackend) clonePath(string, string) error        { return errUnsupported }
 func (unsupportedVolumeBackend) freeBytes(string) (uint64, error)      { return 0, errUnsupported }
 func (unsupportedVolumeBackend) capacityBytes(string) (uint64, error)  { return 0, errUnsupported }
+func (unsupportedVolumeBackend) usedBytes(string) (uint64, error)      { return 0, errUnsupported }
 func (unsupportedVolumeBackend) allocatedBytes(string) (uint64, error) { return 0, errUnsupported }
 func (unsupportedVolumeBackend) isMounted(string) (bool, error)        { return false, errUnsupported }
 func (unsupportedVolumeBackend) createImage(string, int) error         { return errUnsupported }

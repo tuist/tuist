@@ -2,6 +2,9 @@
 
 This subsystem projects Once lifecycle events into run summaries and declared actions for the live build pages.
 
+- For projects opted into `:build_entities`, `TargetInstance` and `TargetQueued` persist idempotent run-local mappings (`once_target_instances`, `once_target_executions`) so completed actions resolve to declared slots (`target_id`, `capability`, `action_index`) in one joined query. Disabled projects do not write these mappings; native projection remains unchanged.
+- `RunCompleted` calls `OnceEvents.publish_build_entities/1`: lock the PostgreSQL run, skip published/nonterminal/disabled runs, synchronously insert the complete ClickHouse batch, then mark `build_entities_published_at`. Concurrent completion/recovery attempts serialize on the durable row, not a replica-local lock. Failed writes leave the marker unset. A crash after the ClickHouse acknowledgment and before the PostgreSQL commit can still replay, so deterministic IDs and replacement-safe reads remain necessary; this is not a cross-database exactly-once transaction.
+- The hourly stale-run worker retries only unpublished finalized/lost runs in a fixed two-hour window, with 100-run `(finalized_at, id)` keyset batches and a concurrent partial unpublished-terminal index. Repeated successful sweeps write no additional observations. This finite recovery window is not permanent durable delivery or an unbounded backfill. Preserve recorded action outcomes, propagate failures for retry, and keep the global `:build_entities_kill_switch` effective. The diagnostic `identifier` is not identity; reordering a target's declared actions changes slot identities.
 - Only `ActionCompleted` creates an action row. `TargetCompleted` is a target summary and must not create a substitute action or overwrite action zero.
 - An action is identified by run, target execution, capability, and action index. Replayed completion events must not increment run counters again.
 - `ActionCompleted.display_name` and `source_files` are presentation only. Keep `identifier` and action identity intact; missing/empty names fall back to legacy labels and missing files to an empty list. Action and cache-action search include both names and source paths; name sorting uses the display name with identifier fallback.
@@ -20,6 +23,8 @@ This subsystem projects Once lifecycle events into run summaries and declared ac
 - Refuse a call through `refuse!/3` in `RunEventService`, never a bare `raise GRPC.RPCError`. It counts the refusal (`tuist_once_events_refused_total` by call, stage and status), and `Tuist.OnceEvents.GRPCExceptionFilter` keeps `unauthenticated`, `permission_denied` and `resource_exhausted` out of error reporting, because elixir-grpc's Cowboy adapter logs every `GRPC.RPCError`, raised or returned, at error level. Alert on the counter, not on error issues.
 
 - Record the authenticated credential account on the first RunStarted in nullable `once_runs.account_id`; project credentials and historical runs remain unattributed. Replays must never replace the original actor, including with a different credential. This is server attribution and does not change the client event protocol.
+
+- `Query` serves the REST run reads and MCP tools from the same shapes, listing through `Analytics.list_invocations/3` and reading one run by project and `run_id`. The REST detail path parameter is `once_run_id` because `LoaderPlug` treats `run_id` as a command event.
 
 - Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.
 

@@ -13,20 +13,22 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     :post |> Plug.Test.conn("/report") |> put_req_header("authorization", "Bearer agent-token")
   end
 
-  test "versioned commit authorization uses the same authenticated controller" do
-    for path <- ["authorize", "authorize-commit"] do
-      assert %{plug: Controller, plug_opts: :authorize} =
-               Phoenix.Router.route_info(
-                 TuistWeb.Router,
-                 "POST",
-                 "/api/internal/runners/cache-volumes/#{path}",
-                 "localhost"
-               )
-    end
+  test "older agents get 404 for explicit commit modes, which they treat as unsupported" do
+    assert %{plug: Controller, plug_opts: :authorize} =
+             Phoenix.Router.route_info(
+               TuistWeb.Router,
+               "POST",
+               "/api/internal/runners/cache-volumes/authorize",
+               "localhost"
+             )
 
-    reject(CacheVolumes, :allocate, 1)
-    result = Controller.authorize(Plug.Test.conn(:post, "/authorize-commit"), %{"commit" => "true"})
-    assert result.status == 403
+    assert :error =
+             Phoenix.Router.route_info(
+               TuistWeb.Router,
+               "POST",
+               "/api/internal/runners/cache-volumes/authorize-commit",
+               "localhost"
+             )
   end
 
   test "rejects workflow or unrelated service account credentials before touching storage" do
@@ -77,5 +79,32 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
       assert JSON.decode!(result.resp_body) == %{"action" => if(state == "deleted", do: "forget", else: "delete")}
       assert get_resp_header(result, "cache-control") == ["no-store"]
     end
+  end
+
+  test "only the storage agent can request a checkout" do
+    assert %{plug: Controller, plug_opts: :checkout} =
+             Phoenix.Router.route_info(
+               TuistWeb.Router,
+               "POST",
+               "/api/internal/runners/cache-volumes/checkout",
+               "localhost"
+             )
+
+    expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
+      {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+    end)
+
+    result = Controller.checkout(conn(), %{"pod_name" => "pod", "node_name" => "node"})
+    assert result.status == 403
+  end
+
+  test "an unknown checkout request is refused without allocating anything" do
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    expect(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+
+    result = Controller.checkout(conn(), %{"node_name" => "node"})
+    assert result.status == 403
+    assert CacheVolumes.checkout_key() == "checkout"
   end
 end

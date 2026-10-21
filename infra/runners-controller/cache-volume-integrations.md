@@ -3,14 +3,14 @@
 GitHub Actions, Buildkite and GitLab CI share entry points for Linux and native
 macOS jobs, with server identity adapters. They share private per-job local image clones, 20 GB capacity,
 seven-day idle expiry, generation fencing, teardown checks and the dashboard.
-macOS uses the [APFS backend](../tart-kubelet/custom-cache-volumes.md) and retains
-automatic built-in caches. Provider and platform namespaces never share data implicitly.
+macOS uses the [APFS backend](../tart-kubelet/custom-cache-volumes.md), including
+for the managed `tuist-xcode` and `tuist-module` volumes. Provider and platform namespaces never share data implicitly.
 
 | Provider | Entry point | Publication policy after a successful job |
 | --- | --- | --- |
-| GitHub Actions | `tuist/cache-volume@v1`, key/path and `cache-hit` output | Same-repository default-branch push, schedule or workflow_dispatch |
-| Buildkite | `tuist/cache-volume#v1` plugin with a list of key/path pairs | Default-branch webhook or schedule, no PR or tag |
-| GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Default-branch push, schedule or web pipeline, no tag |
+| GitHub Actions | `tuist/cache-volume@v1`, key, one or more paths (one per line) and `cache-hit` output | Same-repository push, schedule, workflow_dispatch or pull request on any branch, narrowed by the runner profile |
+| Buildkite | `tuist/cache-volume#v1` plugin with a list of volumes, each with a key and one or more paths | Webhook or schedule on any branch, no tag; PRs only from the pipeline's repository; narrowed by the runner profile |
+| GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Push, schedule or web branch pipeline on any branch, no tag or MR; narrowed by the runner profile |
 
 All three entry points are packaged and automatically released from `main`.
 The initial distribution-repository setup and local-image/Kata fleet smoke gates remain
@@ -27,8 +27,8 @@ checkout. The wrapper uses the installed native or job-container client.
 The Buildkite plugin is in
 [`ci/cache-volume/buildkite`](../../ci/cache-volume/buildkite/README.md).
 Its `pre-command` hook parses `BUILDKITE_PLUGIN_CONFIGURATION` as JSON, validates
-all key/path pairs before attaching, and invokes the installed client once per
-volume. It propagates failures and does not run a publication hook. The Linux
+all volumes before attaching, and invokes the installed client once per
+volume with one `--path` per configured path. It propagates failures and does not run a publication hook. The Linux
 image persists pod routing into the staged job environment before Buildkite
 sanitizes inherited variables; the global environment hook exports it again.
 See [plugin hooks](https://buildkite.com/docs/pipelines/integrations/plugins/writing).
@@ -103,9 +103,11 @@ permission from the mount request or job environment.
   the assigned job ID, project ID, running status and commit SHA. Scope by the
   canonical instance digest and immutable project ID. Find the exact branch
   with an escaped anchored regex through the
-  [branches listing API](https://docs.gitlab.com/api/branches/); require its
-  `default` flag and an allowed job `pipeline.source`, with `tag == false`, to
-  save. Use the top-level `source` only when the nested field is absent;
+  [branches listing API](https://docs.gitlab.com/api/branches/); its
+  `default` flag marks a default-branch writer. Any branch pipeline with an
+  allowed job `pipeline.source` and `tag == false` carries its ref as the writer
+  branch the runner profile matches. Merge request pipelines never save: the
+  job token cannot read the merge request, so a fork's cannot be told apart. Use the top-level `source` only when the nested field is absent;
   an unknown or denied nested source cannot fall back to a permissive value.
   Both endpoints are available to [job tokens](https://docs.gitlab.com/ci/jobs/ci_job_token/).
   `CI_PROJECT_ID`, `CI_DEFAULT_BRANCH` and other overridable variables grant

@@ -31,7 +31,7 @@ type Client struct {
 	// Binary is the path to the `tart` CLI on this Mac mini.
 	// Defaults to /usr/local/bin/tart, the wrapper script the
 	// CAPI provider's bootstrap step writes around the pinned
-	// tart.app bundle at /usr/local/lib/tart.app.
+	// tart.app bundle at /usr/local/lib/tart/<version>.
 	Binary string
 
 	// UserDataDir is the host directory where per-VM env files live.
@@ -122,18 +122,51 @@ var (
 // Pull invokes `tart pull <image>`. Idempotent — Tart skips re-download
 // when the image is already cached.
 func (c *Client) Pull(ctx context.Context, image string) error {
+	return c.PullFrom(ctx, image, false)
+}
+
+// PullFrom is Pull with `--insecure` when insecure is set, which makes Tart
+// speak plain HTTP to the registry the reference names. Tart has no other
+// notion of a mirror: a rack's image cache is reached by naming it in the
+// reference.
+func (c *Client) PullFrom(ctx context.Context, image string, insecure bool) error {
 	ctx, cancel := context.WithTimeout(ctx, pullTimeout)
 	defer cancel()
-	_, err := c.run(ctx, c.Binary, "pull", image)
+	_, err := c.run(ctx, c.Binary, withInsecure([]string{"pull"}, insecure, image)...)
 	return err
 }
 
 // Clone invokes `tart clone <source> <name>`.
 func (c *Client) Clone(ctx context.Context, source, name string) error {
+	return c.CloneFrom(ctx, source, name, false)
+}
+
+// CloneFrom is Clone with `--insecure` when insecure is set, for a source
+// pulled over plain HTTP: should the local copy be gone, Tart pulls it again
+// from the registry the reference names.
+//
+// Callers clone only once they have found no usable VM under name, so a
+// directory still there is a leftover and is replaced, as every Tart before
+// 2.40.1 did. From 2.40.1 Tart refuses to clone over any existing directory
+// without `--overwrite`, including one too incomplete for `tart delete` to
+// recognize, which would wedge that name for good. The flag is passed only
+// after that refusal because older Tart rejects it. Tart still refuses to
+// replace a running VM, with or without it.
+func (c *Client) CloneFrom(ctx context.Context, source, name string, insecure bool) error {
 	ctx, cancel := context.WithTimeout(ctx, cloneTimeout)
 	defer cancel()
-	_, err := c.run(ctx, c.Binary, "clone", source, name)
+	_, err := c.run(ctx, c.Binary, withInsecure([]string{"clone"}, insecure, source, name)...)
+	if isAlreadyExists(err) {
+		_, err = c.run(ctx, c.Binary, withInsecure([]string{"clone", "--overwrite"}, insecure, source, name)...)
+	}
 	return err
+}
+
+func withInsecure(command []string, insecure bool, args ...string) []string {
+	if insecure {
+		command = append(command, "--insecure")
+	}
+	return append(command, args...)
 }
 
 // Set configures cpu/memory for a cloned VM. Pass 0 to leave a
@@ -317,7 +350,7 @@ type RunOptions struct {
 // process that drops, say, 30s in surfaces as a Pod failure rather
 // than stranding helm on an IP poll that will never succeed.
 //
-// Tart 2.32 quirks accommodated here:
+// Tart quirks accommodated here:
 //   - `tart run` is foreground-only. We start it directly from Go with
 //     `Setsid: true` so it gets its own session and process group.
 //     Earlier we wrapped it in `sh -c 'tart … &'` — that left tart
@@ -569,6 +602,17 @@ func (c *Client) Delete(ctx context.Context, name string) error {
 	return err
 }
 
+// CollectContent removes the files in Tart's content store that no VM or
+// cached image references any more: the read-only bases and overlays stacked
+// images share. Deleting a cached image collects them, deleting a local VM
+// does not, so a reaped stacked golden frees its base only after this.
+func (c *Client) CollectContent(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+	_, err := c.run(ctx, c.Binary, "prune", "--gc")
+	return err
+}
+
 // Get returns one VM's metadata, or (nil, nil) if it doesn't exist.
 func (c *Client) Get(ctx context.Context, name string) (*VM, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
@@ -786,6 +830,23 @@ func isNotFound(err error) bool {
 	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "does not exist") || strings.Contains(msg, "not found")
+}
+
+// isAlreadyExists recognizes Tart's refusal to clone over an existing
+// directory: `VM "x" already exists, use --overwrite to replace it`.
+func isAlreadyExists(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "already exists, use --overwrite")
+}
+
+// Version returns the version `tart --version` prints.
+func (c *Client) Version(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	out, err := c.run(ctx, c.Binary, "--version")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func shellJoin(parts []string) string {

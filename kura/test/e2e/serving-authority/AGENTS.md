@@ -45,6 +45,35 @@ and checks its count against the matching fully verified receipts, then reads
 the newest retained body after promotion. Reads on a full
 serving ring can trigger eviction, so walking it after promotion is not a frozen
 corpus check. It does not require evicted uploads to survive.
+Add `KURA_E2E_RETAINED_RECENCY=1` to that full-ring workload to inject an old
+segmented record into the source through the peer protocol. Assert that ordinary
+replication leaves it absent on the full standby before requesting handover,
+then require matching full-corpus receipts and byte-exact reads of the repaired
+record after promotion. This isolates recency selection from storage admission;
+it must not change either replica's configured capacity to make repair pass.
+Add `KURA_E2E_LIVE_PREPARATION=1` to exercise the preceding Serving-phase
+preparation with a capable destination. Require primary writes to succeed and
+standby writes to fail while no receipts exist, then use the unchanged bounded
+Quiescing barrier. The 20-minute preparation deadline is separate from its
+five-minute cutover deadline. Preparation completion never replaces frozen-corpus
+verification. Long preparation runs must establish and successfully exercise their
+stale-channel test sessions while still Serving immediately before Quiescing;
+keep those exact sessions through the transition and preserve aging failures.
+Add `KURA_E2E_LIVE_WRITE_CHURN=1` to the full-ring preparation workload to keep
+rewriting 2 MiB records until Quiescing rejects writes. Preserve the same source
+keys and bytes so the held-corpus check still verifies every retained body. A
+preparation success must not replace the final repair, hold or matching receipt.
+`KURA_E2E_PREPARATION_DEADLINE_MS` may shorten only this simulator phase for a
+bounded failure comparison; the default remains 20 minutes and the final barrier
+remains five minutes. Record any shortened deadline with the measurements.
+Alternatively set `KURA_E2E_REPAIR_CHURN=1` on the full-ring workload to add 1 GiB
+of old destination-only data. Assert it stays absent on the source, then require
+an eviction-triggered repair revisit and matching full-corpus receipts before
+promotion. With live preparation, require actual destination-only reclamation
+and separate preparation/final repair walks; preparation no longer loops on
+eviction. The Rust regression retains the final-barrier repeat-walk assertion. Both peers retain the same 3 GiB ring budgets. This complements the
+Rust regression that removes an already-checked blob and its action-cache entry
+through the real eviction path while a later missing body is being fetched.
 `resume.mjs` interrupts the local authority API, holds an admitted upload across
 expiry and supplies explicit fencing/resumption grants; it verifies drained
 publication, recovery when a replacement grant arrives after expiry, retained
@@ -62,7 +91,7 @@ Its source has a 3 GiB ring and the destination a 4 GiB ring in a bounded 6 GiB
 tmpfs, initially pressured with a 2.25 GiB filler. Restoring free bytes alone
 does not guarantee that equal-sized fragmented rings can converge; the extra
 destination capacity makes the successful recovery case explicit without
-bypassing the production capacity guard.
+bypassing ring capacity or quota-aware disk admission.
 Capture the expected pressure corpus only after both receipts exist, while the
 source hold prevents read-time promotion and eviction. A pre-hold walk of a full
 ring can evict records it counted earlier and is not the retained barrier.

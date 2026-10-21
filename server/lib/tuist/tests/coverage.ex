@@ -77,6 +77,9 @@ defmodule Tuist.Tests.Coverage do
   # leave room for whatever else the query binds — above all a second list,
   # like the run ids a per-test lookup is scoped to. The budget is kept under
   # the default so an install that never touched the setting still works.
+  # A list bound with `in ^list` travels as one array field, which ClickHouse
+  # also refuses past `http_max_field_value_size` (128 KiB, URL-encoded), so a
+  # list of paths needs chunking as much as a list of ids does.
   @max_query_parameters 900
 
   @doc """
@@ -116,7 +119,7 @@ defmodule Tuist.Tests.Coverage do
   end
 
   # A remote package's targets carry its revision as their external hash, and
-  # `Coverage.Xcode.uninstrumented_runs/2` leaves them out.
+  # `Coverage.Xcode.uninstrumented_targets/2` leaves them out.
   defp binary_cache_hit?(xcode_graph) do
     xcode_graph
     |> field(:projects, [])
@@ -382,6 +385,7 @@ defmodule Tuist.Tests.Coverage do
         git_commit_sha: test.git_commit_sha || "",
         covered_lines: covered,
         executable_lines: executable,
+        files: folded.files + others.files_count,
         partial: coverage.partial or others.partial or others.shards_count + 1 < expected_shards,
         version:
           (others.shards_count + 1) * @shard_count_weight +
@@ -426,6 +430,7 @@ defmodule Tuist.Tests.Coverage do
         from(f in reports,
           select: %{
             shards_count: fragment("uniqExact(?)", f.shard_index),
+            files_count: count(),
             partial_rows: fragment("countIf(?)", f.partial),
             newest_report_at: max(f.inserted_at)
           }
@@ -435,6 +440,7 @@ defmodule Tuist.Tests.Coverage do
 
     %{
       files: files,
+      files_count: summary.files_count,
       shards_count: summary.shards_count,
       partial: summary.partial_rows > 0,
       newest_report_at: summary.newest_report_at || ~N[1970-01-01 00:00:00]
@@ -472,7 +478,12 @@ defmodule Tuist.Tests.Coverage do
   @doc """
   The published totals of every run of the project that gathered coverage,
   one row per run with the scheme they were measured for and whether the run
-  was partial. `shas:` narrows it to the runs of those commits, read through
+  was partial. A run gathered coverage when it measured a product line or its
+  reports listed a file: a run whose product code all came from the binary
+  cache without counters lists only its test files, and what it took from the
+  cache is still the commit's to judge (`Tuist.Tests.Coverage.Instrumentation`).
+  Rows published before the count existed carry 0 and count by their lines.
+  `shas:` narrows it to the runs of those commits, read through
   the table's index on the SHA rather than across the project's history.
   """
   def run_totals_query(project_id, opts \\ []) do
@@ -489,11 +500,20 @@ defmodule Tuist.Tests.Coverage do
     })
   end
 
+  @doc """
+  The project's `coverage_runs` grouped by run and kept to the runs that
+  gathered coverage, as `run_totals_query/2` keeps them, for a reader that
+  selects its own columns.
+  """
+  def gathered_runs_query(project_id), do: run_totals_base(project_id, nil)
+
   defp run_totals_base(project_id, nil) do
     from(c in CoverageRun,
       where: c.project_id == ^project_id,
       group_by: c.test_run_id,
-      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0
+      having:
+        fragment("argMax(?, ?)", c.executable_lines, c.version) > 0 or
+          fragment("argMax(?, ?)", c.files, c.version) > 0
     )
   end
 
@@ -514,7 +534,6 @@ defmodule Tuist.Tests.Coverage do
     files: [
       "coverage_files",
       "git_commit_files",
-      "test_run_changed_files",
       "coverage_target_sources",
       "coverage_test_sources"
     ],

@@ -4,6 +4,8 @@ struct ResolvedPins: Codable, Sendable {
     var originHash: String?
     var pins: [ResolvedPin]
     var version: Int
+    /// Invocation-local ownership, deliberately excluded from Package.resolved encoding.
+    var nativeOwnedCheckouts: Set<String> = []
 
     init(originHash: String?, pins: [ResolvedPin], version: Int) {
         self.originHash = originHash

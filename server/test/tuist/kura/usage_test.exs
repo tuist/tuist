@@ -13,25 +13,26 @@ defmodule Tuist.Kura.UsageTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup :set_mimic_from_context
+  setup :verify_on_exit!
 
   test "failed ingestion does not refresh managed demand" do
     account = AccountsFixtures.user_fixture().account
     event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => System.system_time(:second)})
     expect(IngestRepo, :insert_all, fn UsageEvent, _ -> raise "ingest unavailable" end)
-    reject(Demand, :record, 1)
+    reject(Demand, :record, 3)
     assert_raise RuntimeError, "ingest unavailable", fn -> Usage.create_events([event]) end
   end
 
-  test "fresh managed traffic refreshes demand once per account" do
+  test "fresh managed traffic refreshes demand and the traffic clock once per account" do
     account = AccountsFixtures.user_fixture().account
-    expect(Demand, :record, fn id -> assert id == account.id end)
+    expect(Demand, :record, fn id, nil, [traffic: true] -> assert id == account.id end)
     event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => System.system_time(:second) - 60})
     assert {:ok, 2} = Usage.create_events([event, %{event | "event_id" => "another-event"}])
   end
 
   test "replayed, future, empty, peer and self-hosted traffic do not keep managed capacity warm" do
     account = AccountsFixtures.user_fixture().account
-    reject(Demand, :record, 1)
+    reject(Demand, :record, 3)
     now = System.system_time(:second)
     event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => now})
 
@@ -159,6 +160,28 @@ defmodule Tuist.Kura.UsageTest do
       assert a_id == account.id
     end
 
+    test "keeps the origin a managed node attributed a rollup to, and drops one that is not a label" do
+      account = AccountsFixtures.organization_fixture().account
+
+      {:ok, 3} =
+        Usage.create_events([
+          wire_event(%{"event_id" => "origin-#{account.id}-1", "tenant_id" => account.name, "origin" => "US-IL"}),
+          wire_event(%{"event_id" => "origin-#{account.id}-2", "tenant_id" => account.name, "origin" => "not a label"}),
+          wire_event(%{"event_id" => "origin-#{account.id}-3", "tenant_id" => account.name})
+        ])
+
+      origins =
+        from(e in UsageEvent, where: e.account_id == ^account.id, select: {e.event_id, e.origin})
+        |> ClickHouseRepo.all()
+        |> Map.new()
+
+      assert origins == %{
+               "origin-#{account.id}-1" => "US-IL",
+               "origin-#{account.id}-2" => "",
+               "origin-#{account.id}-3" => ""
+             }
+    end
+
     test "rejects batches exceeding @max_events_per_batch" do
       events = Enum.map(1..5_001, fn i -> wire_event(%{"event_id" => "evt-#{i}"}) end)
 
@@ -183,6 +206,16 @@ defmodule Tuist.Kura.UsageTest do
 
       assert a_id == account.id
       assert p_id == project.id
+    end
+
+    test "drops the origin a self-hosted node reports" do
+      account = AccountsFixtures.organization_fixture().account
+      event_id = "wire-self-hosted-origin-#{account.id}"
+
+      {:ok, 1} =
+        Usage.create_events([wire_event(%{"event_id" => event_id, "origin" => "US-IL"})], account)
+
+      assert [""] = ClickHouseRepo.all(from(e in UsageEvent, where: e.event_id == ^event_id, select: e.origin))
     end
   end
 

@@ -26,7 +26,7 @@ defmodule TuistWeb.RunnerVolumesLive do
     {:ok,
      assign(socket,
        head_title: "#{dgettext("dashboard_runners", "Volumes")} · #{account.name} · Tuist",
-       can_manage: Authorization.authorize(:account_update, user, account) == :ok,
+       can_manage: Authorization.authorize(:runners_update, user, account) == :ok,
        pending_action: nil,
        selected: nil,
        selected_tab: "overview",
@@ -115,36 +115,6 @@ defmodule TuistWeb.RunnerVolumesLive do
     {:noreply, assign(socket, :detail_metric, metric)}
   end
 
-  def handle_event("save_writer_branches", %{"writer_branches" => value}, socket) do
-    account = socket.assigns.selected_account
-
-    with :ok <- Authorization.authorize(:account_update, socket.assigns.current_user, account),
-         %{id: id} <- socket.assigns.selected,
-         true <- is_binary(value) and byte_size(value) <= 4200,
-         branches = value |> String.split("\n", trim: true) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == "")),
-         {:ok, volume} <- CacheVolumes.update_writer_branches(account.id, id, branches) do
-      {:noreply,
-       socket
-       |> assign(:selected, volume)
-       |> put_flash(
-         :info,
-         dgettext("dashboard_runners", "Writer branches updated. Changes apply to new volume attachments.")
-       )}
-    else
-      failure when failure in [false, {:error, :invalid_parameters}] ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext("dashboard_runners", "Could not update writer branches. Use up to 20 exact branch names.")
-         )}
-
-      _ ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("dashboard_runners", "You do not have access to update this volume."))}
-    end
-  end
-
   def handle_event("request_delete", %{"id" => id}, socket), do: request_action(socket, id, :delete)
 
   def handle_event("cancel", _, %{assigns: %{pending_action: nil}} = socket), do: {:noreply, socket}
@@ -157,7 +127,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   def handle_event("confirm", _, socket) do
     account = socket.assigns.selected_account
 
-    with :ok <- Authorization.authorize(:account_update, socket.assigns.current_user, account),
+    with :ok <- Authorization.authorize(:runners_update, socket.assigns.current_user, account),
          {:delete, id} <- socket.assigns.pending_action,
          volume when not is_nil(volume) <- CacheVolumes.get(account.id, id) do
       case CacheVolumes.delete(account.id, volume.id) do
@@ -226,9 +196,9 @@ defmodule TuistWeb.RunnerVolumesLive do
           account.id
           |> CacheVolumes.list(search, page, sort_options)
           |> Map.put(:history, [])
-          |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, period))
-          |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, previous_period(period)))
-          |> Map.put(:storage_history, CacheVolumes.storage_history(account.id, period))
+          |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, nil, period))
+          |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, nil, previous_period(period)))
+          |> Map.put(:storage_history, CacheVolumes.storage_history(account.id, period, nil))
         end
 
       {:ok, %{data: data}}
@@ -421,10 +391,22 @@ defmodule TuistWeb.RunnerVolumesLive do
     )
   end
 
-  def volume_name(key) do
-    if String.length(key) > @volume_name_max_length,
-      do: String.slice(key, 0, @volume_name_max_length - 1) <> "…",
-      else: key
+  # Managed caches show what they hold rather than their storage key; the
+  # Xcode and module caches share the built-in volume.
+  def display_name(%{builtin_name: name}) when is_binary(name),
+    do: dgettext("dashboard_runners", "Xcode and module caches")
+
+  def display_name(%{key: "tuist-xcode"}), do: dgettext("dashboard_runners", "Xcode cache")
+  def display_name(%{key: "tuist-module"}), do: dgettext("dashboard_runners", "Module cache")
+  def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
+  def display_name(%{key: key}), do: key
+
+  def volume_name(volume) do
+    name = display_name(volume)
+
+    if String.length(name) > @volume_name_max_length,
+      do: String.slice(name, 0, @volume_name_max_length - 1) <> "…",
+      else: name
   end
 
   def bytes(nil), do: "—"

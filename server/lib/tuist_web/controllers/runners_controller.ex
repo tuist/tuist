@@ -373,6 +373,8 @@ defmodule TuistWeb.RunnersController do
         _ -> base
       end
 
+    base = Map.merge(base, cache_fields(fleet_platform))
+
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
          url when is_binary(url) and url != "" <-
@@ -382,6 +384,9 @@ defmodule TuistWeb.RunnersController do
       _ -> base
     end
   end
+
+  defp cache_fields(:macos), do: %{automatic_caches: false, managed_cache_volumes: true}
+  defp cache_fields(_fleet_platform), do: %{}
 
   # The VM branches on which of these two key sets it receives, so the
   # response stays a single shape per provider rather than a discriminator

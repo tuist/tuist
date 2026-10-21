@@ -1,8 +1,168 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Testing
 @testable import SwifterPMCore
 
 struct ResolveTests {
+    @Test(.inTemporaryDirectory)
+    func warmValidationReusesManifestsWhenFetchCredentialsRotate() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        try await initGitDependency(at: dependency, tags: ["1.0.0", "2.0.0"])
+        let package = root.appendingPathComponent("App")
+        try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString)
+        let manifestPath = package.appendingPathComponent("Package.swift")
+        let evaluation = root.appendingPathComponent("manifest-evaluation")
+        let manifest = try await fileSystem.readTextFile(at: manifestPath.absolutePath)
+        try await fileSystem.atomicWrite(
+            manifest + """
+
+            import Foundation
+            try UUID().uuidString.write(toFile: \(String(reflecting: evaluation.path)), atomically: true, encoding: .utf8)
+            """,
+            to: manifestPath
+        )
+
+        let nativeSwift = try await SystemProcess.output("/usr/bin/which", ["swift"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let bin = root.appendingPathComponent("bin")
+        let wrapper = bin.appendingPathComponent("swift")
+        let fetchLog = root.appendingPathComponent("fetch-authentication")
+        try await fileSystem.atomicWrite(
+            #"""
+            #!/bin/sh
+            case " $* " in
+              *" resolve "*)
+                case " $* " in
+                  *" --force-resolved-versions "*) ;;
+                  *)
+                    test -n "${GITHUB_TOKEN:-}" || exit 91
+                    printf 'credentials available\n' >> "$SWIFTERPM_TEST_FETCH_LOG"
+                    ;;
+                esac
+                ;;
+            esac
+            exec "$SWIFTERPM_TEST_NATIVE_SWIFT" "$@"
+            """#,
+            to: wrapper
+        )
+        try await SystemProcess.run("/bin/chmod", ["+x", wrapper.path])
+        var manifestEnvironment = ProcessInfo.processInfo.environment
+        manifestEnvironment["GITHUB_TOKEN"] = nil
+        manifestEnvironment["ACTIONS_ID_TOKEN_REQUEST_TOKEN"] = nil
+        manifestEnvironment["PATH"] = "\(bin.path):\(manifestEnvironment["PATH"] ?? "/usr/bin:/bin")"
+        manifestEnvironment["SWIFTERPM_TEST_NATIVE_SWIFT"] = nativeSwift
+        manifestEnvironment["SWIFTERPM_TEST_FETCH_LOG"] = fetchLog.path
+        var request = SwifterPMResolutionRequest(
+            packageDirectory: package,
+            cacheDirectory: package.appendingPathComponent(".build/dependency-cache"),
+            disableSandbox: true,
+            cachedDirectoryMaterialization: .symlink,
+            manifestEnvironment: manifestEnvironment,
+            resolutionEnvironment: manifestEnvironment.merging(
+                ["GITHUB_TOKEN": "first", "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "first"],
+                uniquingKeysWith: { _, new in new }
+            ),
+            quiet: true
+        )
+        let initial = try await SwifterPM().resolve(request)
+        #expect(try await fileSystem.readTextFile(at: fetchLog.absolutePath) == "credentials available\n")
+        let lockfile = package.appendingPathComponent("Package.resolved")
+        let originalLockfile = try await fileSystem.readFile(at: lockfile.absolutePath)
+        request.forceResolvedVersions = true
+        _ = try await SwifterPM().resolve(request)
+        let warmEvaluation = try await fileSystem.readFile(at: evaluation.absolutePath)
+
+        request.resolutionEnvironment?["GITHUB_TOKEN"] = "second"
+        request.resolutionEnvironment?["ACTIONS_ID_TOKEN_REQUEST_TOKEN"] = "second"
+        let warm = try await SwifterPM().resolve(request)
+        #expect(warm.pins == initial.pins)
+        #expect(try await fileSystem.readFile(at: evaluation.absolutePath) == warmEvaluation)
+        #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+
+        try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString, exactVersion: "2.0.0")
+        let error = await #expect(throws: ToolError.self) {
+            try await SwifterPM().resolve(request)
+        }
+        #expect(error?.description.contains("out-of-date") == true)
+        #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func warmValidationHonorsCredentialsExplicitlyIncludedInManifestEnvironment() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        try await initGitDependency(at: dependency, tags: ["1.0.0", "2.0.0"])
+        let package = root.appendingPathComponent("App")
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import Foundation
+            import PackageDescription
+            let version = ProcessInfo.processInfo.environment["GITHUB_TOKEN"]!
+            let package = Package(name: "App", dependencies: [
+                .package(url: \(String(reflecting: dependency.absoluteString)), exact: Version(version)!),
+            ])
+            """,
+            to: package.appendingPathComponent("Package.swift")
+        )
+        var environment = ProcessInfo.processInfo.environment
+        environment["GITHUB_TOKEN"] = "1.0.0"
+        var request = SwifterPMResolutionRequest(
+            packageDirectory: package,
+            cacheDirectory: root.appendingPathComponent("cache"),
+            disableSandbox: true,
+            manifestEnvironment: environment,
+            resolutionEnvironment: environment,
+            quiet: true
+        )
+        _ = try await SwifterPM().resolve(request)
+        request.forceResolvedVersions = true
+        request.manifestEnvironment?["GITHUB_TOKEN"] = "2.0.0"
+        let error = await #expect(throws: ToolError.self) {
+            try await SwifterPM().resolve(request)
+        }
+        #expect(error?.description.contains("out-of-date") == true)
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func dependencyCacheSupportsRetainedAndFreshWorkspaces(retainWorkspace: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent("Dependency")
+        try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+        try await initGitDependency(at: dependency, tags: ["1.0.0"])
+        let package = root.appendingPathComponent("App")
+        try await writeAppPackageManifest(at: package, dependencyURL: dependency.absoluteString)
+        let scratch = package.appendingPathComponent(".build")
+        let sharedCache = (retainWorkspace ? scratch : root).appendingPathComponent("shared cache")
+        var request = SwifterPMResolutionRequest(
+            packageDirectory: package,
+            cacheDirectory: sharedCache,
+            disableSandbox: true,
+            cachedDirectoryMaterialization: .symlink,
+            quiet: true
+        )
+        let initial = try await SwifterPM().resolve(request)
+        let lockfile = package.appendingPathComponent("Package.resolved")
+        let originalLockfile = try await fileSystem.readFile(at: lockfile.absolutePath)
+
+        if !retainWorkspace {
+            try await fileSystem.remove(scratch.absolutePath)
+        }
+        request.forceResolvedVersions = true
+        let warm = try await SwifterPM().resolve(request)
+        #expect(warm.pins == initial.pins)
+        #expect(try await fileSystem.readFile(at: lockfile.absolutePath) == originalLockfile)
+        #expect(try await fileSystem.exists(sharedCache.appendingPathComponent("manifests/manifest.db").absolutePath))
+        #expect(try await fileSystem.exists(scratch.appendingPathComponent("checkouts/dependency/Package.swift").absolutePath))
+        let pin = try #require(try await ResolvedFile.read(packageDir: package).pins.first)
+        let cache = try await Cache(root: sharedCache)
+        #expect(try await fileSystem.exists(cache.sourcePath(pin: pin).appendingPathComponent("Package.swift").absolutePath))
+    }
+
     @Test
     func defaultResolverShellsOutToSwiftPMWithoutWritingWhenRequested() async throws {
         try await withTemporaryDirectory { root in
@@ -42,7 +202,8 @@ struct ResolveTests {
         try await withTemporaryDirectory { root in
             #expect(try await PackageResolver.localSourceControlPackageLocation(root.path) == nil)
             try await fileSystem.atomicWrite(
-                "package manifest\n", to: root.appendingPathComponent("Package.swift"))
+                "package manifest\n", to: root.appendingPathComponent("Package.swift")
+            )
 
             #expect(
                 try await PackageResolver.localSourceControlPackageLocation(root.path)?.path
@@ -61,7 +222,8 @@ struct ResolveTests {
     func localSourceControlPackageLocationAcceptsFileURLs() async throws {
         try await withTemporaryDirectory { root in
             try await fileSystem.atomicWrite(
-                "package manifest\n", to: root.appendingPathComponent("Package.swift"))
+                "package manifest\n", to: root.appendingPathComponent("Package.swift")
+            )
 
             #expect(
                 try await PackageResolver.localSourceControlPackageLocation(root.absoluteString)?
@@ -1257,7 +1419,7 @@ struct ResolveTests {
     }
 
     @Test
-    func nativeResolveKeepsCachedCheckoutsWithoutAGitDirectoryLinked() async throws {
+    func nativeResolvePrivatizesCachedCheckoutsWithoutAGitDirectory() async throws {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")
             try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
@@ -1326,7 +1488,7 @@ struct ResolveTests {
                 forwardOutput: false
             )
 
-            #expect(fileSystem.isSymlink(checkouts.appendingPathComponent("other")))
+            #expect(fileSystem.isDirectoryAndNotSymlink(checkouts.appendingPathComponent("other")))
             let committedArchive = try await SystemProcess.run(
                 "/usr/bin/git", ["-C", dependency.path, "show", "1.0.0:Framework.zip"]
             ).stdout
@@ -1588,7 +1750,7 @@ struct ResolveTests {
                     identity: "snapkit",
                     kind: "remoteSourceControl",
                     location:
-                        "https://github.com/tuist/nonexistent-orphan-repository-do-not-create.git",
+                    "https://github.com/tuist/nonexistent-orphan-repository-do-not-create.git",
                     state: ResolvedState(
                         branch: nil,
                         revision: "0000000000000000000000000000000000000000",
@@ -2117,11 +2279,14 @@ struct ResolveTests {
     ) async throws {
         try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
         try await SystemProcess.run(
-            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency)
+            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency
+        )
         try await SystemProcess.run(
-            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency)
+            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency
+        )
         try await SystemProcess.run(
-            "git", ["add", "Package.swift", "\(targetName).zip"], workingDirectory: dependency)
+            "git", ["add", "Package.swift", "\(targetName).zip"], workingDirectory: dependency
+        )
         try await SystemProcess.run("git", ["commit", "-m", "Initial"], workingDirectory: dependency)
         for tag in tags {
             try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
@@ -2131,11 +2296,14 @@ struct ResolveTests {
     private func initGitDependency(at dependency: URL, tags: [String]) async throws {
         try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
         try await SystemProcess.run(
-            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency)
+            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency
+        )
         try await SystemProcess.run(
-            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency)
+            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency
+        )
         try await SystemProcess.run(
-            "git", ["add", "Package.swift", "Sources"], workingDirectory: dependency)
+            "git", ["add", "Package.swift", "Sources"], workingDirectory: dependency
+        )
         try await SystemProcess.run("git", ["commit", "-m", "Initial"], workingDirectory: dependency)
         for tag in tags {
             try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)

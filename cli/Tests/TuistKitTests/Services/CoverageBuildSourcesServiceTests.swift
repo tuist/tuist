@@ -27,6 +27,28 @@ struct CoverageBuildSourcesServiceTests {
         )
     }
 
+    @Test func root_isTheGitTopLevelElseTheManifestsRoot() async throws {
+        let directory = try AbsolutePath(validating: "/checkout/App")
+        given(gitController).isInGitRepository(workingDirectory: .value(directory)).willReturn(true)
+        given(gitController).topLevelGitDirectory(workingDirectory: .value(directory))
+            .willReturn(try AbsolutePath(validating: "/checkout"))
+        let inRepository = try await subject.root(from: directory)
+        #expect(inRepository?.root == (try AbsolutePath(validating: "/checkout")))
+        #expect(inRepository?.inRepository == true)
+
+        let elsewhere = try AbsolutePath(validating: "/elsewhere/App")
+        given(gitController).isInGitRepository(workingDirectory: .value(elsewhere)).willReturn(false)
+        given(rootDirectoryLocator).locate(from: .value(elsewhere)).willReturn(try AbsolutePath(validating: "/elsewhere"))
+        let located = try await subject.root(from: elsewhere)
+        #expect(located?.root == (try AbsolutePath(validating: "/elsewhere")))
+        #expect(located?.inRepository == false)
+
+        let nowhere = try AbsolutePath(validating: "/nowhere")
+        given(gitController).isInGitRepository(workingDirectory: .value(nowhere)).willReturn(false)
+        given(rootDirectoryLocator).locate(from: .value(nowhere)).willReturn(nil)
+        #expect(try await subject.root(from: nowhere) == nil)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func write_recordsTheBuildCheckoutForTheTestRun() async throws {
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"

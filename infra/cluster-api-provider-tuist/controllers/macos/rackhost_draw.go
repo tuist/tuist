@@ -77,7 +77,7 @@ func outletDraw(ctx context.Context, driver power.Driver, outlet power.Outlet, s
 func (r *RackHostReconciler) observeDraw(ctx context.Context, host *infrav1.RackHost, driver power.Driver, outlet power.Outlet, state power.State) {
 	var m power.Measures
 	var err error
-	if host.Spec.Power != nil && host.Spec.Power.PDU != "" {
+	if onRackPDU(host) {
 		state, m, err = r.pduOutletReading(ctx, host)
 	} else {
 		m, err = power.ReadMeasures(ctx, driver, outlet)
@@ -115,6 +115,11 @@ func (r *RackHostReconciler) observeDraw(ctx context.Context, host *infrav1.Rack
 		conditions.MarkUnknown(host, HostDrawingCondition, OutletDrawUnknownReason,
 			"%s reads %s, which does not tell an off mini from an empty outlet", outlet, m)
 	}
+}
+
+// onRackPDU reports a host whose outlet is one of a RackPDU's.
+func onRackPDU(host *infrav1.RackHost) bool {
+	return host.Spec.Power != nil && host.Spec.Power.PDU != ""
 }
 
 // rackPDUOutletReadingMaxAge is how old a RackPDU's reading of its outlets may

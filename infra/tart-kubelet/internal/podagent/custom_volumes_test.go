@@ -68,35 +68,23 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	if err := os.MkdirAll(share, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(share, "cache.commit-request"), []byte(`{"key":"gradle","uid":501,"pod_name":"victim","node_name":"victim","platform":"linux","commit":"false"}`), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(share, "cache.request"), []byte(`{"key":"gradle","uid":501,"pod_name":"victim","node_name":"victim","platform":"linux"}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	id := "11111111-1111-4111-8111-111111111111"
 	scope := strings.Repeat("a", 64)
-	acknowledge := false
-	legacy := true
-	allocations := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/authorize-commit" || r.Header.Get("Authorization") != "Bearer host-only" {
+		if r.URL.Path != "/authorize" || r.Header.Get("Authorization") != "Bearer host-only" {
 			t.Error("unexpected request")
 		}
-		if legacy {
-			http.NotFound(w, r)
-			return
-		}
-		allocations++
 		var got map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 			t.Error(err)
 		}
-		if got["pod_name"] != "host-pod" || got["pod_uid"] != "host-uid" || got["node_name"] != "host-node" || got["architecture"] != "arm64" || got["uid"] != float64(501) || got["platform"] != nil || got["commit"] != "false" {
+		if got["pod_name"] != "host-pod" || got["pod_uid"] != "host-uid" || got["node_name"] != "host-node" || got["architecture"] != "arm64" || got["uid"] != float64(501) || got["platform"] != nil {
 			t.Errorf("untrusted identity: %v", got)
 		}
-		identity := cachevolumes.Identity{ID: id, Scope: scope, Account: 1, UID: 501}
-		if acknowledge {
-			identity.Commit = "false"
-		}
-		_ = json.NewEncoder(w).Encode(identity)
+		_ = json.NewEncoder(w).Encode(cachevolumes.Identity{ID: id, Scope: scope, Account: 1, UID: 501})
 	}))
 	defer server.Close()
 	kube := fake.NewSimpleClientset()
@@ -119,25 +107,7 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	if err := c.requests(context.Background(), pod); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := os.ReadFile(filepath.Join(share, "cache.commit-request.response"))
-	if err != nil || !strings.Contains(string(denied), `"error"`) {
-		t.Fatal("legacy server ignored commit mode", string(denied), err)
-	}
-	if _, err := os.Stat(filepath.Join(share, scope)); !os.IsNotExist(err) {
-		t.Fatal("exposed volume before commit acknowledgement")
-	}
-	if allocations != 0 {
-		t.Fatal("rejected request consumed a server allocation")
-	}
-	legacy = false
-	if err := os.Remove(filepath.Join(share, "cache.commit-request.response")); err != nil {
-		t.Fatal(err)
-	}
-	acknowledge = true
-	if err := c.requests(context.Background(), pod); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(share, "cache.commit-request.response"))
+	data, err := os.ReadFile(filepath.Join(share, "cache.request.response"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,13 +115,52 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	if err := json.Unmarshal(data, &response); err != nil {
 		t.Fatal(err)
 	}
-	if response["id"] != id || response["directory"] != scope || response["commit"] != "false" {
+	if response["id"] != id || response["directory"] != scope {
 		t.Fatal(string(data))
 	}
 	// An exposed file is not proof that the guest successfully mounted it.
 	action, err := c.report(cachevolumes.Slot{Identity: cachevolumes.Identity{ID: id, Scope: scope}, PodUID: "host-uid", State: "active"}, false)
 	if err != nil || action != "hold" {
 		t.Fatalf("unmounted report: %s %v", action, err)
+	}
+}
+
+func TestCustomMailboxResponsePublication(t *testing.T) {
+	dir := t.TempDir()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if err := os.WriteFile(filepath.Join(dir, "a.request.response.tmp"), []byte("stale"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if published, err := publishResponse(root, "a.request.response", []byte(`{"id":"a"}`)); err != nil || !published {
+		t.Fatal(published, err)
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "a.request.response")); err != nil || string(data) != `{"id":"a"}` {
+		t.Fatal(string(data), err)
+	}
+	if published, err := publishResponse(root, "a.request.response", []byte(`{"id":"b"}`)); err != nil || published {
+		t.Fatal("replaced an existing response", published, err)
+	}
+	target := filepath.Join(t.TempDir(), "target")
+	if err := os.Symlink(target, filepath.Join(dir, "b.request.response")); err != nil {
+		t.Fatal(err)
+	}
+	if published, err := publishResponse(root, "b.request.response", []byte(`{"id":"b"}`)); err != nil || published {
+		t.Fatal("replaced a guest symlink", published, err)
+	}
+	if _, err := os.Lstat(target); !os.IsNotExist(err) {
+		t.Fatal("followed a guest symlink")
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "a.request.response")); err != nil || string(data) != `{"id":"a"}` {
+		t.Fatal(string(data), err)
+	}
+	for _, name := range []string{"a.request.response.tmp", "b.request.response.tmp"} {
+		if _, err := os.Lstat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatal("left temporary response", name)
+		}
 	}
 }
 
@@ -215,9 +224,31 @@ func TestCustomColdAdmissionBesideBuiltinOnM2(t *testing.T) {
 		t.Fatalf("concurrent allocation ignored reservation: %v", err)
 	}
 	finish(false)
-	slot.BaseGeneration = 1
-	if _, err := c.reserve(context.Background(), slot); !errors.Is(err, cachevolumes.ErrCapacity) {
-		t.Fatalf("restore ignored archive headroom: %v", err)
+	// A job clones a local master or starts empty; it never downloads an archive.
+	slot.BaseGeneration = 4
+	if finish, err = c.reserve(context.Background(), slot); err != nil {
+		t.Fatalf("saved volume reserved archive headroom a job never downloads: %v", err)
+	}
+	if got := c.reservedBytes(); got != customCapacity {
+		t.Fatalf("saved volume reserved %d bytes", got)
+	}
+	finish(false)
+	prefetch := slot
+	prefetch.ID = cachevolumes.PrefetchReservation
+	if _, err := c.reserve(context.Background(), prefetch); !errors.Is(err, cachevolumes.ErrCapacity) {
+		t.Fatalf("prefetch ignored archive headroom: %v", err)
+	}
+}
+
+func TestCustomAdmissionFollowsVolumeSizeAndOperation(t *testing.T) {
+	job := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", BaseGeneration: 4, VolumeBytes: 50_000_000_000}}
+	if got := customAdmissionBytes(job); got != 50_000_000_000 {
+		t.Fatalf("50 GB job admitted with %d bytes", got)
+	}
+	prefetch := job
+	prefetch.ID = cachevolumes.PrefetchReservation
+	if got := customAdmissionBytes(prefetch); got != 100_000_000_000 {
+		t.Fatalf("50 GB prefetch admitted with %d bytes", got)
 	}
 }
 
@@ -321,36 +352,6 @@ func TestCustomReservationUsesRemainingCapacityAndStopsWithVM(t *testing.T) {
 	}
 }
 
-func TestCustomPrefetchHasIndependentDeadlineAndNoQueue(t *testing.T) {
-	started := make(chan struct{})
-	finished := make(chan error, 1)
-	p := &customPrefetcher{ctx: context.Background(), slots: make(chan struct{}, 1), budget: 20 * time.Millisecond, restore: func(ctx context.Context, _ cachevolumes.Slot) error {
-		close(started)
-		<-ctx.Done()
-		finished <- ctx.Err()
-		return ctx.Err()
-	}}
-	if p.start(cachevolumes.Identity{}) {
-		t.Fatal("prefetching empty master")
-	}
-	if !p.start(cachevolumes.Identity{BaseGeneration: 1}) {
-		t.Fatal("did not start")
-	}
-	<-started
-	if p.start(cachevolumes.Identity{BaseGeneration: 1}) {
-		t.Fatal("queued another prefetch")
-	}
-	select {
-	case err := <-finished:
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatal(err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("unbounded prefetch")
-	}
-	p.wait.Wait()
-}
-
 func TestCustomAdmissionLockWaitUsesRequestDeadline(t *testing.T) {
 	m, _ := m2L(t)
 	c := &CustomVolumes{Root: m.Root, Builtins: m}
@@ -418,7 +419,7 @@ func TestCustomMailboxesProgressDuringSlowRestoreAndPublication(t *testing.T) {
 				if err := os.MkdirAll(path, 0755); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(filepath.Join(path, "cache.commit-request"), []byte(`{"key":"gradle","uid":501}`), 0600); err != nil {
+				if err := os.WriteFile(filepath.Join(path, "cache.request"), []byte(`{"key":"gradle","uid":501}`), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -469,7 +470,7 @@ func TestCustomMailboxesProgressDuringSlowRestoreAndPublication(t *testing.T) {
 			requests <- time.Now()
 			deadline := time.After(3 * time.Second)
 			for {
-				data, err := os.ReadFile(filepath.Join(root, "pods", "fast", "cache.commit-request.response"))
+				data, err := os.ReadFile(filepath.Join(root, "pods", "fast", "cache.request.response"))
 				if err == nil {
 					if !strings.Contains(string(data), id(false).ID) {
 						t.Fatalf("fast request failed: %s", data)
@@ -522,4 +523,83 @@ func TestCustomReservationRefreshPreservesConcurrentAdmission(t *testing.T) {
 		t.Fatal("lost in-flight reservation", got)
 	}
 	releaseReservation(false)
+}
+
+func TestCheckoutSlotsReserveOnlyTheirGrowthBudget(t *testing.T) {
+	m, be := m2L(t)
+	// A clone reports the master's shared blocks as allocated.
+	be.perMaster = 30_000_000_000
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	checkout := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Kind: cachevolumes.KindCheckout}}
+	if got := customAdmissionBytes(checkout); got != cachevolumes.CheckoutGrowthBytes {
+		t.Fatal("checkout admitted beyond its growth budget", got)
+	}
+	if err := os.MkdirAll(filepath.Join(c.Root, "images"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(c.Root, "images", checkout.ID+".img"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	checkout.State = "active"
+	c.reservations = map[string]cachevolumes.Slot{checkout.ID: checkout}
+	if got := c.reservedBytes(); got != cachevolumes.CheckoutGrowthBytes {
+		t.Fatal("a running checkout reserves its growth budget", got)
+	}
+}
+
+func TestCustomVolumeAuthorizationReportsWhyItFailed(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		want   string
+	}{
+		{"binding never arrives", http.StatusTooEarly, "execution_pending"},
+		{"identity rejected", http.StatusForbidden, "denied"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "host-pod", Namespace: "runners", UID: "host-uid"}}
+			share := filepath.Join(root, "pods", string(pod.UID))
+			if err := os.MkdirAll(share, 0755); err != nil {
+				t.Fatal(err)
+			}
+			request := filepath.Join(share, "cache.request")
+			if err := os.WriteFile(request, []byte(`{"key":"gradle","uid":501}`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			// Leave about two seconds of the acquisition budget.
+			started := time.Now().Add(2*time.Second - customAcquireBudget)
+			if err := os.Chtimes(request, started, started); err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.WriteHeader(tc.status)
+			}))
+			defer server.Close()
+			kube := fake.NewSimpleClientset()
+			kube.PrependReactor("create", "serviceaccounts", func(ktesting.Action) (bool, runtime.Object, error) {
+				return true, &authenticationv1.TokenRequest{Status: authenticationv1.TokenRequestStatus{Token: "host-only"}}, nil
+			})
+			c := &CustomVolumes{Root: root, URL: server.URL, HTTP: server.Client(), Node: "host-node", Namespace: "runners", ServiceAccount: "cache-agent", Kube: kube}
+			if err := c.requests(context.Background(), pod); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(request + ".response")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response map[string]any
+			if err := json.Unmarshal(data, &response); err != nil {
+				t.Fatal(err)
+			}
+			if response["error"] != "unavailable" || response["reason"] != tc.want {
+				t.Fatal(string(data))
+			}
+			if tc.status == http.StatusTooEarly && calls < 2 {
+				t.Fatalf("gave up after %d attempts", calls)
+			}
+		})
+	}
 }

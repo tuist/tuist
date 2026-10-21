@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -17,19 +20,39 @@ import (
 const macShare = "/Volumes/My Shared Files/custom-cache"
 const macMountRoot = "/Users/runner/.tuist-custom-cache"
 
+var reasonPattern = regexp.MustCompile(`^[a-z_]{1,32}$`)
+
+const macAttachAttempts = 3
+
+var macAttachRetry = time.Second
+
 type macResponse struct {
-	CanPublish bool   `json:"can_publish"`
-	Commit     string `json:"commit"`
-	Directory  string `json:"directory"`
-	ID         string `json:"id"`
-	Warm       bool   `json:"warm"`
-	Error      string `json:"error"`
+	Directory string `json:"directory"`
+	ID        string `json:"id"`
+	Warm      bool   `json:"warm"`
+	Error     string `json:"error"`
+	Reason    string `json:"reason"`
 }
 
-func acquireMac(key string, commit string) (string, string, bool, error) {
+func macUnavailable(reason string) error {
+	switch reason {
+	case "timeout":
+		return errors.New("the saved volume is still downloading to this runner host; later jobs on this host will use it")
+	case "capacity":
+		return errors.New("this runner host has no room for the volume right now")
+	case "denied":
+		return errors.New("the Tuist server did not authorize a volume for this job")
+	case "execution_pending":
+		return errExecutionPending
+	default:
+		return errors.New("cache unavailable")
+	}
+}
+
+func acquireMac(key string) (string, string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, commit)
+	return acquireMacAt(ctx, key, macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) })
 }
 func macCommandContext(ctx context.Context, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -40,61 +63,21 @@ func macCommandContext(ctx context.Context, args ...string) error {
 		return strings.HasPrefix(variable, "RUNNER_TRACKING_ID=")
 	})
 	if out, err := command.CombinedOutput(); err != nil {
-		return fmt.Errorf("hdiutil: %w (%s)", err, out)
+		output := strings.TrimSpace(string(out))
+		if len(output) > 512 {
+			output = output[:512]
+		}
+		return fmt.Errorf("hdiutil %s: %w (%s)", args[0], err, output)
 	}
 	return nil
 }
-func acquireMacAt(ctx context.Context, key, share, mountRoot string, command func(...string) error, commit string) (string, string, bool, error) {
-	if _, err := os.Stat(share); err != nil {
-		return "", "", false, err
-	}
-	data, _ := json.Marshal(map[string]any{"key": key, "uid": os.Getuid(), "commit": commit})
-	temp, err := os.CreateTemp(share, ".request-")
+func acquireMacAt(ctx context.Context, key, share, mountRoot string, command func(...string) error) (string, string, bool, error) {
+	response, err := exchangeMac(ctx, share, map[string]any{"key": key, "uid": os.Getuid()})
 	if err != nil {
 		return "", "", false, err
-	}
-	name := filepath.Base(temp.Name()) + ".request"
-	if commit != "auto" {
-		name = filepath.Base(temp.Name()) + ".commit-request"
-	}
-	defer os.Remove(temp.Name())
-	defer os.Remove(filepath.Join(share, name+".response"))
-	defer os.Remove(filepath.Join(share, name))
-	_, err = temp.Write(data)
-	temp.Close()
-	if err != nil {
-		os.Remove(temp.Name())
-		return "", "", false, err
-	}
-	if err = os.Rename(temp.Name(), filepath.Join(share, name)); err != nil {
-		return "", "", false, err
-	}
-	var response macResponse
-	for {
-		data, err = os.ReadFile(filepath.Join(share, name+".response"))
-		if err == nil && json.Unmarshal(data, &response) == nil {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			if commit != "auto" {
-				return "", "", false, errCommitUnsupported
-			}
-			return "", "", false, ctx.Err()
-		case <-time.After(250 * time.Millisecond):
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return "", "", false, err
-	}
-	if response.Error == "unsupported_commit" {
-		return "", "", false, errCommitUnsupported
 	}
 	if response.Error != "" || !directoryPattern.MatchString(response.Directory) || response.ID == "" {
-		return "", "", false, errors.New("cache unavailable")
-	}
-	if err := checkCommit(commit, response.Commit, response.CanPublish, os.Stderr); err != nil {
-		return "", "", false, err
+		return "", "", false, macUnavailable(response.Reason)
 	}
 	base := filepath.Join(mountRoot, response.Directory)
 	shared := filepath.Join(share, response.Directory)
@@ -107,11 +90,18 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 	if err = os.Remove(filepath.Join(shared, ".detached")); err != nil && !os.IsNotExist(err) {
 		return "", "", false, err
 	}
-	if err = command("attach", filepath.Join(shared, "cache.sparseimage"), "-owners", "off", "-nobrowse", "-quiet", "-mountpoint", base); err != nil {
+	_ = os.Remove(filepath.Join(shared, ".attach-error"))
+	if err = attachMacImage(ctx, command, filepath.Join(shared, "cache.sparseimage"), base, "-owners", "off"); err != nil {
+		recordAttachError(shared, err)
 		return "", "", false, err
 	}
 	if err = os.WriteFile(filepath.Join(base, ".tuist-volume"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
+	}
+	// Without a baseline the volume reports itself changed, so it is still saved.
+	_ = os.Remove(baselinePath(mountRoot, response.Directory))
+	if names, err := topLevelEntries(base); err == nil {
+		_ = os.WriteFile(baselinePath(mountRoot, response.Directory), []byte(names), 0644)
 	}
 	if err = os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {
 		return "", "", false, err
@@ -124,7 +114,7 @@ func acquireMacAt(ctx context.Context, key, share, mountRoot string, command fun
 func detachMac() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return detachMacAt(macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, measureMac, func() {
+	return detachMacAt(macShare, macMountRoot, func(args ...string) error { return macCommandContext(ctx, args...) }, measureMac, func(base string, kill bool) { releaseMac(ctx, base, kill) }, func() {
 		select {
 		case <-ctx.Done():
 		case <-time.After(time.Second):
@@ -138,7 +128,62 @@ func measureMac(path string) (int64, int64, error) {
 	}
 	return int64(stat.Blocks-stat.Bfree) * int64(stat.Bsize), int64(stat.Blocks) * int64(stat.Bsize), nil
 }
-func detachMacAt(share, mountRoot string, command func(...string) error, measure func(string) (int64, int64, error), pause func()) error {
+
+type macHolder struct {
+	pid     int
+	command string
+}
+
+// releaseMac ends this user's processes that still have files open on the
+// volume mounted at base, so the next plain detach can succeed. Launch agents
+// started during the job outlive the runner's own process cleanup, and a tool
+// installed onto a volume runs from it. Ending them never permits publication
+// by itself: only the clean detach that follows does.
+func releaseMac(ctx context.Context, base string, kill bool) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	// Naming the mount point lists every open file on that filesystem.
+	out, _ := exec.CommandContext(ctx, "lsof", "-n", "-w", "-F", "pc", "--", base).Output()
+	signal, verb := unix.SIGTERM, "terminating"
+	if kill {
+		signal, verb = unix.SIGKILL, "killing"
+	}
+	var names []string
+	for _, holder := range parseMacHolders(out) {
+		if holder.pid == os.Getpid() || holder.pid == os.Getppid() {
+			continue
+		}
+		names = append(names, fmt.Sprintf("%s (pid %d)", holder.command, holder.pid))
+		_ = unix.Kill(holder.pid, signal)
+	}
+	if len(names) == 0 {
+		fmt.Fprintf(os.Stderr, "tuist-cache-volume: %s is busy; no process of this user holds it\n", filepath.Base(base))
+		return
+	}
+	fmt.Fprintf(os.Stderr, "tuist-cache-volume: %s is busy; %s %s\n", filepath.Base(base), verb, strings.Join(names, ", "))
+}
+func parseMacHolders(out []byte) []macHolder {
+	var holders []macHolder
+	for _, line := range strings.Split(string(out), "\n") {
+		if len(line) < 2 {
+			continue
+		}
+		switch line[0] {
+		case 'p':
+			pid, err := strconv.Atoi(line[1:])
+			if err != nil {
+				continue
+			}
+			holders = append(holders, macHolder{pid: pid})
+		case 'c':
+			if len(holders) > 0 {
+				holders[len(holders)-1].command = line[1:]
+			}
+		}
+	}
+	return holders
+}
+func detachMacAt(share, mountRoot string, command func(...string) error, measure func(string) (int64, int64, error), release func(string, bool), pause func()) error {
 	dirs, err := os.ReadDir(mountRoot)
 	if os.IsNotExist(err) {
 		return nil
@@ -157,17 +202,21 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
+		baseline, _ := os.ReadFile(baselinePath(mountRoot, dir.Name()))
 		var used, capacity int64
+		var changed bool
 		for attempt := 0; attempt < 5; attempt++ {
 			used, capacity, err = measure(base)
 			if err != nil {
 				break
 			}
+			changed = changed || changedSinceMount(base, baseline)
 			err = command("detach", base, "-quiet")
 			if err == nil {
 				break
 			}
 			if attempt < 4 {
+				release(base, attempt > 0)
 				pause()
 			}
 		}
@@ -175,23 +224,30 @@ func detachMacAt(share, mountRoot string, command func(...string) error, measure
 			failures = append(failures, err)
 			continue
 		}
-		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity})
+		// Unflushed, the host would publish the image without this job's writes.
+		if err = syncSharedImage(filepath.Join(share, dir.Name(), "cache.sparseimage")); err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		usage, _ := json.Marshal(map[string]any{"id": string(id), "used_bytes": used, "capacity_bytes": capacity, "changed": changed})
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".usage"), usage, 0644); err != nil {
 			failures = append(failures, err)
 			continue
 		}
 		if err = os.WriteFile(filepath.Join(share, dir.Name(), ".detached"), id, 0644); err != nil {
 			failures = append(failures, err)
+			continue
 		}
+		_ = os.Remove(baselinePath(mountRoot, dir.Name()))
 	}
 	return errors.Join(failures...)
 }
 
-func attachMac(key string, targets []string, root string, commit string) error {
+func attachMac(key string, targets []string, root string) error {
 	if err := validateMacTargets(targets); err != nil {
 		return err
 	}
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key, commit) }, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
+	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key) }, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
 }
 func validateMacTargets(targets []string) error {
 	for _, target := range targets {
@@ -211,4 +267,196 @@ func linkMacDirectory(root, source, target string) error {
 		return err
 	}
 	return os.Symlink(filepath.Join(root, source), target)
+}
+
+// exchangeMac writes one request into the host mailbox and waits for its answer.
+func exchangeMac(ctx context.Context, share string, request map[string]any) (macResponse, error) {
+	var response macResponse
+	if _, err := os.Stat(share); err != nil {
+		return response, err
+	}
+	data, _ := json.Marshal(request)
+	temp, err := os.CreateTemp(share, ".request-")
+	if err != nil {
+		return response, err
+	}
+	name := filepath.Base(temp.Name()) + ".request"
+	defer os.Remove(temp.Name())
+	defer os.Remove(filepath.Join(share, name+".response"))
+	defer os.Remove(filepath.Join(share, name))
+	_, err = temp.Write(data)
+	temp.Close()
+	if err != nil {
+		os.Remove(temp.Name())
+		return response, err
+	}
+	if err = os.Rename(temp.Name(), filepath.Join(share, name)); err != nil {
+		return response, err
+	}
+	for {
+		data, err = os.ReadFile(filepath.Join(share, name+".response"))
+		if err == nil && json.Unmarshal(data, &response) == nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return response, ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+	return response, ctx.Err()
+}
+
+// checkoutMac mounts the job's cached checkout at its workspace before the first
+// step. Every failure leaves the workspace untouched, so actions/checkout clones
+// exactly as it does without a cached checkout.
+func checkoutMac(workspace string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return checkoutMacAt(ctx, workspace, macShare, checkoutStatePath, func(args ...string) error { return macCommandContext(ctx, args...) })
+}
+
+func checkoutMacAt(ctx context.Context, workspace, share, statePath string, command func(...string) error) string {
+	if !filepath.IsAbs(workspace) || filepath.Clean(workspace) != workspace {
+		return "skipped (workspace is not an absolute path)"
+	}
+	if err := emptyTarget(workspace); err != nil {
+		return "skipped (workspace is not empty)"
+	}
+	response, err := exchangeMac(ctx, share, map[string]any{"checkout": true, "uid": os.Getuid()})
+	if err != nil {
+		return "unavailable (timeout)"
+	}
+	if response.Error != "" || !directoryPattern.MatchString(response.Directory) || response.ID == "" {
+		reason := response.Reason
+		if !reasonPattern.MatchString(reason) {
+			reason = "error"
+		}
+		// These answers come with a grant: the host builds from what this job exports.
+		if reason == "cold" || reason == "capacity" || reason == "timeout" {
+			_ = recordCheckout(statePath, workspace, false)
+		}
+		return "unavailable (" + reason + ")"
+	}
+	if err := os.MkdirAll(workspace, 0755); err != nil {
+		return "unavailable (workspace)"
+	}
+	shared := filepath.Join(share, response.Directory)
+	_ = os.Remove(filepath.Join(shared, ".attach-error"))
+	if err := attachMacImage(ctx, command, filepath.Join(shared, "cache.sparseimage"), workspace, "-owners", "off"); err != nil {
+		recordAttachError(shared, err)
+		return "unavailable (attach)"
+	}
+	_ = recordCheckout(statePath, workspace, true)
+	// Mounted proves to the host that the guest holds the branch; nothing is
+	// written into the workspace itself.
+	if err := os.WriteFile(filepath.Join(shared, ".mounted"), []byte(response.ID), 0644); err != nil {
+		return "reused (unreported)"
+	}
+	return "reused"
+}
+
+// baselinePath records a mounted volume's top-level entries outside the volume.
+func baselinePath(mountRoot, dir string) string {
+	return filepath.Join(mountRoot, "."+dir+".inventory")
+}
+
+// topLevelEntries lists the volume root. Entries that start with a dot belong
+// to Tuist or macOS, which creates some of them lazily.
+func topLevelEntries(base string) (string, error) {
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return "", err
+	}
+	var names []string
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".") {
+			names = append(names, entry.Name())
+		}
+	}
+	return strings.Join(names, "\n"), nil
+}
+
+var errChangedSinceMount = errors.New("changed since mount")
+
+// changedSinceMount reports whether anything in the volume changed after it was
+// mounted. Writing, renaming, deleting or changing the metadata of an entry
+// updates its ctime or its parent's, which no tool can set back, so the walk
+// stops at the first entry newer than `.tuist-volume`, written at mount.
+func changedSinceMount(base string, baseline []byte) bool {
+	var mounted unix.Stat_t
+	if len(baseline) == 0 || unix.Lstat(filepath.Join(base, ".tuist-volume"), &mounted) != nil {
+		return true
+	}
+	if names, err := topLevelEntries(base); err != nil || names != string(baseline) {
+		return true
+	}
+	return filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == base {
+			return nil
+		}
+		if filepath.Dir(path) == base && strings.HasPrefix(entry.Name(), ".") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		var stat unix.Stat_t
+		if err := unix.Lstat(path, &stat); err != nil {
+			return err
+		}
+		if stat.Ctim.Nano() > mounted.Ctim.Nano() {
+			return errChangedSinceMount
+		}
+		return nil
+	}) != nil
+}
+
+// attachMacImage mounts a shared image, retrying a failed attach: it fails
+// transiently with the image itself intact, and succeeds seconds later. hdiutil
+// runs without -quiet so a final failure carries its reason.
+func attachMacImage(ctx context.Context, command func(...string) error, image, mountpoint string, extra ...string) error {
+	args := append([]string{"attach", image}, extra...)
+	args = append(args, "-nobrowse", "-mountpoint", mountpoint)
+	var err error
+	for attempt := 1; attempt <= macAttachAttempts; attempt++ {
+		if err = command(args...); err == nil {
+			return nil
+		}
+		if attempt == macAttachAttempts {
+			break
+		}
+		// A failed attach can leave the device behind; the next one needs the mountpoint free.
+		_ = command("detach", mountpoint, "-force")
+		select {
+		case <-ctx.Done():
+			return errors.Join(err, ctx.Err())
+		case <-time.After(macAttachRetry):
+		}
+	}
+	return err
+}
+
+// recordAttachError leaves the final attach error beside the volume for the
+// host, which otherwise only learns that the guest never mounted it.
+func recordAttachError(shared string, err error) {
+	message := err.Error()
+	if len(message) > 1024 {
+		message = message[:1024]
+	}
+	_ = os.WriteFile(filepath.Join(shared, ".attach-error"), []byte(message), 0644)
+}
+
+// syncSharedImage flushes a detached image through the VM's share so the host
+// seals the bytes the job wrote, not a copy still missing them.
+func syncSharedImage(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return fullSync(f)
 }

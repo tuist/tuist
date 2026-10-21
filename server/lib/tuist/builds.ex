@@ -59,21 +59,18 @@ defmodule Tuist.Builds do
   # common detail-page/callback traffic, then falls back to the unbounded
   # lookup for older build URLs.
   def get_build(id, opts \\ []) do
-    project_id = Keyword.get(opts, :project_id)
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         project_id when not is_nil(project_id) <- Keyword.get(opts, :project_id) || unique_build_project(uuid) do
+      build =
+        ClickHouseRepo.one(get_build_query(uuid, project_id, recent_build_lookup_floor())) ||
+          ClickHouseRepo.one(get_build_query(uuid, project_id))
 
-    case Ecto.UUID.cast(id) do
-      {:ok, uuid} ->
-        build =
-          ClickHouseRepo.one(get_build_query(uuid, project_id, recent_build_lookup_floor())) ||
-            ClickHouseRepo.one(get_build_query(uuid, project_id))
-
-        case build do
-          nil -> {:error, :not_found}
-          build -> {:ok, build}
-        end
-
-      _ ->
-        {:error, :not_found}
+      case build do
+        nil -> {:error, :not_found}
+        build -> {:ok, Tuist.ReportActor.preload(build)}
+      end
+    else
+      _ -> {:error, :not_found}
     end
   end
 
@@ -81,25 +78,17 @@ defmodule Tuist.Builds do
     DateTime.add(DateTime.utc_now(), -@build_lookup_recent_window_days, :day)
   end
 
-  defp get_build_query(uuid, nil) do
-    from(b in Build,
-      where: b.id == ^uuid,
-      order_by: [desc: b.updated_at],
-      limit: 1
-    )
+  # ID-only MCP references must identify one project, including historical rows.
+  defp unique_build_project(uuid) do
+    case ClickHouseRepo.all(from(b in Build, where: b.id == ^uuid, select: b.project_id, distinct: true, limit: 2)) do
+      [project_id] -> project_id
+      _ -> nil
+    end
   end
 
   defp get_build_query(uuid, project_id) do
     from(b in Build,
       where: b.project_id == ^project_id and b.id == ^uuid,
-      order_by: [desc: b.updated_at],
-      limit: 1
-    )
-  end
-
-  defp get_build_query(uuid, nil, inserted_at_floor) do
-    from(b in Build,
-      where: b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
       order_by: [desc: b.updated_at],
       limit: 1
     )
@@ -165,7 +154,7 @@ defmodule Tuist.Builds do
         )
       end
 
-      if build.status == "failure",
+      if build.status == "failure" and build.submission_auth != "network_trusted",
         do:
           Publisher.publish(
             "build.failed",
@@ -571,9 +560,10 @@ defmodule Tuist.Builds do
           Tuist.BuildMetrics.with_failure_category(base_query, "xcode", project_id)
       end
 
-    {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
+    flop_options = Keyword.merge([for: Build], Keyword.take(opts, [:max_limit]))
+    {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, flop_options)
 
-    results = Repo.preload(results, preload)
+    results = results |> Repo.preload(preload) |> Tuist.ReportActor.preload()
 
     {results, meta}
   end
@@ -630,6 +620,31 @@ defmodule Tuist.Builds do
       successful_count: successful_count,
       failed_count: failed_count
     }
+  end
+
+  @doc """
+  The CI runs among `ci_run_ids` with a build in one of `project_ids`, inserted
+  at or after `since`, that served a cacheable task from the remote cache, as
+  `{project_id, ci_run_id}` pairs. Returns `{:error, reason}` when ClickHouse
+  cannot answer, so a caller can tell "no such runs" from "unknown".
+  """
+  def ci_runs_with_remote_cache_hits([], _ci_run_ids, _since), do: {:ok, []}
+  def ci_runs_with_remote_cache_hits(_project_ids, [], _since), do: {:ok, []}
+
+  def ci_runs_with_remote_cache_hits(project_ids, ci_run_ids, %DateTime{} = since) do
+    query = """
+    SELECT DISTINCT project_id, ci_run_id
+    FROM build_runs
+    WHERE project_id IN {project_ids:Array(Int64)}
+      AND inserted_at >= {since:DateTime64(6)}
+      AND ci_run_id IN {ci_run_ids:Array(String)}
+      AND cacheable_task_remote_hits_count > 0
+    """
+
+    case ClickHouseRepo.query(query, %{project_ids: project_ids, ci_run_ids: ci_run_ids, since: since}) do
+      {:ok, %{rows: rows}} -> {:ok, Enum.map(rows, fn [project_id, ci_run_id] -> {project_id, ci_run_id} end)}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp cached_count(key, fun) do

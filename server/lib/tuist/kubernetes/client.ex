@@ -327,6 +327,20 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  LISTs PersistentVolumes, which are cluster-scoped. Kura capacity reads them to
+  find node-local volumes no pod requests any more, such as a quarantined
+  replica's retained volume, whose bytes still sit on a cache node's disk. The
+  server SA is granted `persistentvolumes: [list]` by its cluster-reads
+  ClusterRole.
+  """
+  def list_persistent_volumes(opts \\ []) do
+    case request(:get, "/api/v1/persistentvolumes", timeout: opts[:timeout]) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
   Reads a Node. Dispatch uses this to read the cache-master labels
   tart-kubelet advertises on each macOS host, so it can hand a polling
   runner a job whose account's cache is already resident there. The

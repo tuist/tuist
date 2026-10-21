@@ -24,7 +24,10 @@ identical action inputs. Do not restore archive caches into these paths. If you
 set `GRADLE_USER_HOME`, use paths beneath that location. Paths must be absent or
 empty; the action never deletes existing content. The same key identifies the
 same data even if the mount path changes. Do not attach the same key twice in
-one job under different paths.
+one job under different paths. Keep keys stable when
+dependencies or tools change: each job starts from the latest saved contents and
+your tools update them, so a key that changes with a lockfile hash starts empty
+every time.
 
 PRs consume warm snapshots and write
 to their own clones; by default only successful default-branch push, manual, and scheduled
@@ -41,9 +44,8 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 
 | Name | Contract |
 | --- | --- |
-| `key` | Required stable name within the repository, architecture and execution user. Use a new key to start a separate cache. |
-| `path` | Required absent or empty directory. Absolute paths, workspace-relative paths and `~/` are supported. |
-| `commit` | Optional `auto`, `'true'`, or `'false'`; save intent never overrides the server writer policy. |
+| `key` | Required stable name within the repository, architecture and execution user, such as `spm-checkouts`. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. `checkout` is reserved for Tuist's cached checkouts. |
+| `path` | Required. One or more absent or empty directories, one per line. Blank lines and surrounding whitespace are ignored. Absolute paths, workspace-relative paths and `~/` are supported. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
 
 Use `id: dependencies` to access `${{ steps.dependencies.outputs.cache-hit }}`.
@@ -59,29 +61,52 @@ When saved contents reach 80% of capacity and a job runs out of space on them,
 the next job starts empty.
 Linux and macOS fleets must have cache volumes enabled.
 
-### Commit controls and writer branches
+### Several directories in one volume
 
-The GitHub action accepts `commit: auto` (the default), `commit: 'false'` (discard
-this job's changes), and `commit: 'true'` (request a save). Both `auto` and `true`
-remain subject to the server's writer policy and successful job completion;
-`true` cannot grant a branch permission or save a failed job. If the job lacks permission at attachment, the action emits a warning and its changes are discarded.
+List one path per line to keep several directories in the same volume:
 
-Account administrators can open a GitHub custom volume under **Runners → Volumes**
-and edit **Writer branches**. Default-branch publishing remains enabled. Up to
-20 additional exact branch names can publish from verified same-repository
-pull-request runs. These additional grants do not authorize push, schedule or
-manual-dispatch runs: GitHub's workflow-run branch name cannot distinguish a
-branch from a same-named tag. Fork PRs and `pull_request_target` cannot publish.
-Wildcards are not supported. Buildkite, GitLab and built-in macOS volume policies
-are unchanged. Removing a branch revokes only pending saves authorized by that
-grant. Default-branch saves and retained grants continue. Adding or reordering
-branches does not revoke saves; additions apply only to new volume attachments.
+```yaml
+- uses: tuist/cache-volume@v1
+  with:
+    key: python-tools
+    path: |
+      ~/.cache/pip
+      ~/.cache/pre-commit
+```
 
-Explicit `true`/`false` modes require updated runner clients, host agents and
-server. The default `auto` action invocation remains compatible with older
-clients. The transport requires explicit server/host acknowledgement of a new
-mode before exposing the mounted cache, so an older component cannot silently
-ignore `commit: 'false'`.
+- All paths share the volume's 20 GB capacity and are restored and saved together.
+- Group small, related directories. Give a large or fast-changing directory its
+  own volume.
+- Paths in one volume must not contain each other.
+- Each path is stored in its own directory inside the volume, identified by how
+  the path is written. Switching between one path and several, or adding,
+  removing or rewriting a path, changes that layout: the first job after the
+  change starts cold for the affected paths. Content of paths that are no
+  longer listed stays in the volume until you clear it.
+
+### Choosing which branches save
+
+Account administrators configure **Save cache from** on each runner profile under
+**Runners → Profiles**. The settings apply to every custom volume attached by
+jobs that run on the profile, including volumes created later.
+
+By default every successful job from the repository saves its changes. Turn on
+**Limit to specific branches** to save only from some branches:
+
+- **Default branch** lets jobs on each repository's default branch save. Turn it
+  off to save only from the additional branches.
+- **Additional branches** holds up to 20 branch names that also save. `*`
+  matches any characters, so `release/*` covers `release/1.0`.
+
+Successful push, schedule and manual-dispatch jobs, and pull requests from the
+same repository, save their changes when their branch matches. On push and
+manual-dispatch runs, a tag with a matching name also matches.
+
+Fork pull requests and `pull_request_target` never save. Buildkite and GitLab CI
+jobs follow the same settings. Narrowing these settings or deleting
+the profile revokes pending saves they no longer allow; a deleted profile falls
+back to saving from every branch. Additions apply to new volume attachments. A
+job that doesn't change a volume leaves the saved version in place.
 
 ## Releases
 
@@ -106,14 +131,15 @@ not enable cache volumes on the fleet; storage rollout is independent.
 
 On Linux, paths are mounted as ordinary directories, so tools can use their usual locations
 such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
-Each action call attaches one directory; use a different key for each directory.
+Each action call attaches one volume. List several paths to keep them in the same volume; see
+[Several directories in one volume](#several-directories-in-one-volume).
 
 On macOS, targets are attached as symlinks. Cache download directories such as `~/.npm`
 or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
 Other tools that replace their cache directory are also incompatible. For a
 workspace path, ignore the link without a trailing slash (for example `.gradle`,
-not `.gradle/`, in `.gitignore`). Paths must be a single line without control
-characters; use a plain YAML string instead of `path: |`.
+not `.gradle/`, in `.gitignore`). Each path must be a single line without control
+characters.
 
 On macOS, use a macOS runner profile. Native jobs are supported; Linux container
 examples do not apply to macOS. Volumes mount in the macOS guest, so a separate

@@ -34,12 +34,24 @@ func Result(err error) string {
 		return "cancelled"
 	case errors.Is(err, ErrConflict):
 		return "conflict"
+	case errors.Is(err, ErrReplaced):
+		return "replaced"
 	case errors.Is(err, ErrPoisoned):
 		return "invalid_image"
+	case errors.Is(err, ErrUnchanged):
+		return "unchanged"
+	case errors.Is(err, ErrFull):
+		return "full"
+	case errors.Is(err, ErrIdentical):
+		return "identical"
+	case errors.Is(err, ErrWithheld):
+		return "withheld"
 	case errors.Is(err, ErrBusy):
 		return "busy"
 	case errors.Is(err, ErrCapacity):
 		return "capacity"
+	case errors.Is(err, ErrExecutionPending):
+		return "execution_pending"
 	default:
 		return "error"
 	}
@@ -48,6 +60,10 @@ func Result(err error) string {
 var ErrCapacity = errors.New("cache capacity exhausted")
 
 var ErrBusy = errors.New("cache worker busy")
+
+// ErrExecutionPending reports that the server kept answering 425 until the
+// deadline because GitHub had not reported which job the runner executes.
+var ErrExecutionPending = errors.New("runner job not yet reported by GitHub")
 
 // RemoteError keeps actionable status codes without retaining signed request URLs.
 type RemoteError struct {

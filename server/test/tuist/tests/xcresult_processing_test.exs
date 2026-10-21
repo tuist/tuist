@@ -21,6 +21,23 @@ defmodule Tuist.Tests.XcresultProcessingTest do
     %{account: account, project: project}
   end
 
+  test "async processing carries actor provenance while old jobs retain defaults", %{account: account, project: project} do
+    legacy = %{"test_run_id" => UUIDv7.generate(), "project_id" => project.id, "account_id" => account.id}
+
+    args =
+      Map.merge(legacy, %{
+        "actor_account_id" => account.id,
+        "claimed_actor_id" => "developer-123",
+        "submission_auth" => "token"
+      })
+
+    attrs = XcresultProcessing.base_test_attrs(args)
+    assert attrs.actor_account_id == account.id
+    assert attrs.claimed_actor_id == "developer-123"
+    assert attrs.submission_auth == "token"
+    refute Map.has_key?(XcresultProcessing.base_test_attrs(legacy), :submission_auth)
+  end
+
   test "base_test_attrs carries the stress gate's verdict when the job has it", %{
     account: account,
     project: project

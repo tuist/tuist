@@ -42,21 +42,26 @@ const kubeletConfigHashAnnotation = "tuist.dev/kubelet-config-hash"
 // can't churn the hash (which would otherwise trigger a re-push that rewrites
 // config.yaml with a missing clusterDNS); the re-push itself always writes the
 // freshly-discovered clusterDNS, only the drift fingerprint is clusterDNS-
-// independent.
+// independent. The sshd start-limit drop-ins the re-push also writes are folded
+// in, so changing them re-pushes too.
 func desiredKubeletConfigHash(clusterCAPEM []byte) string {
 	h := sha256.New()
 	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath)))
 	h.Write(clusterCAPEM)
+	h.Write([]byte(sshServiceDropInContent))
+	h.Write([]byte(sshSocketDropInContent))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 // renderKubeletConfigRepushScript renders the minimal, idempotent bash script
 // the drift loop pipes over SSH to an already-Ready node: rewrite
-// /var/lib/kubelet/{ca.crt,config.yaml} and restart kubelet. This is the
-// zero-downtime subset of the full self-join — it never touches containerd,
-// apt, or the /data mounts, so running pods survive (a kubelet restart re-syncs
-// them). It reuses the same heredoc + kubeletConfigContent renderer as the full
-// bootstrap so the two forms can't diverge.
+// /var/lib/kubelet/{ca.crt,config.yaml}, write the sshd start-limit drop-ins,
+// and restart kubelet. It reloads systemd but never restarts sshd, since it runs
+// over the session sshd serves. This is the zero-downtime subset of the full
+// self-join — it never touches containerd, apt, or the /data mounts, so running
+// pods survive (a kubelet restart re-syncs them). It reuses the same heredoc +
+// kubeletConfigContent renderer as the full bootstrap so the two forms can't
+// diverge.
 func renderKubeletConfigRepushScript(opts linuxCloudInitOptions) string {
 	sudo, _ := escalation(opts.BootstrapUser)
 	heredoc := func(path, content string) string {
@@ -71,11 +76,13 @@ func renderKubeletConfigRepushScript(opts linuxCloudInitOptions) string {
 set -euxo pipefail
 %[1]smkdir -p /var/lib/kubelet
 %[2]s%[3]s
+%[4]s%[1]ssystemctl daemon-reload
 %[1]ssystemctl restart kubelet
 `,
 		sudo,
 		caWrite,
 		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts))),
+		sshStartLimitDropIns(sudo, writeFileFunc(sudo)),
 	)
 }
 

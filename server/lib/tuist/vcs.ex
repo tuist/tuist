@@ -18,7 +18,12 @@ defmodule Tuist.VCS do
   alias Tuist.GitHub.Client
   alias Tuist.Gradle
   alias Tuist.KeyValueStore
+  alias Tuist.Origin
+  alias Tuist.Origin.Client, as: OriginClient
+  alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
+  alias Tuist.Projects.Project
+  alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestsAnalytics
@@ -87,7 +92,7 @@ defmodule Tuist.VCS do
   def ci_run_url(_), do: nil
 
   def supported_vcs_hosts do
-    ["GitHub"]
+    ["GitHub", "Origin"]
   end
 
   @default_provider :github
@@ -97,6 +102,7 @@ defmodule Tuist.VCS do
   """
   def default_client_url(provider \\ @default_provider)
   def default_client_url(:github), do: "https://github.com"
+  def default_client_url(:origin), do: "https://cursor.com/codebase"
 
   @doc """
   REST API base URL for a given forge provider and instance URL.
@@ -321,10 +327,10 @@ defmodule Tuist.VCS do
     global ++ per_installation
   end
 
-  def get_repository_content(
-        %{repository_full_handle: repository_full_handle, provider: provider, token: token},
-        opts \\ []
-      ) do
+  def get_repository_content(params, opts \\ [])
+  def get_repository_content(%{provider: :origin}, _opts), do: {:error, :unsupported_vcs}
+
+  def get_repository_content(%{repository_full_handle: repository_full_handle, provider: provider, token: token}, opts) do
     client = get_client_for_provider(provider)
 
     client.get_repository_content(
@@ -336,11 +342,15 @@ defmodule Tuist.VCS do
     )
   end
 
+  def get_tags(%{provider: :origin}), do: {:error, :unsupported_vcs}
+
   def get_tags(%{provider: provider, repository_full_handle: repository_full_handle, token: token}) do
     client = get_client_for_provider(provider)
 
     client.get_tags(%{repository_full_handle: repository_full_handle, token: token})
   end
+
+  def get_source_archive_by_tag_and_repository_full_handle(%{provider: :origin}), do: {:error, :unsupported_vcs}
 
   def get_source_archive_by_tag_and_repository_full_handle(%{
         provider: provider,
@@ -357,19 +367,28 @@ defmodule Tuist.VCS do
     })
   end
 
-  # NOTE: this only recognises github.com because the few callers that use it
-  # (mainly Swift package registry resolution from raw repo URLs) target the
-  # public Tuist instance. GitHub Enterprise Server flows reach the GitHub
-  # provider through a stored `GitHubAppInstallation` instead, so they don't
-  # depend on this function. If a GHES-aware caller appears, broaden this to
-  # accept hosts that match a known installation's `client_url`.
+  # Public GitHub and Origin URLs are recognized here. Enterprise Server
+  # flows use their stored installation instead of guessing a provider from
+  # an arbitrary host. Origin supports reports, not package-registry content.
   def get_provider_from_repository_url(repository_url) do
-    vcs_uri = URI.parse(repository_url)
-    host = Map.get(vcs_uri, :host)
+    vcs_uri = repository_url |> normalize_scp_url() |> URI.parse()
+    host = String.downcase(vcs_uri.host || "")
 
     case host do
-      "github.com" -> {:ok, :github}
-      _ -> {:error, :unsupported_vcs}
+      "github.com" ->
+        {:ok, :github}
+
+      "origin.cursor.com" ->
+        {:ok, :origin}
+
+      "cursor.com" ->
+        if(String.starts_with?(vcs_uri.path || "", "/codebase/"),
+          do: {:ok, :origin},
+          else: {:error, :unsupported_vcs}
+        )
+
+      _ ->
+        {:error, :unsupported_vcs}
     end
   end
 
@@ -377,20 +396,63 @@ defmodule Tuist.VCS do
     Client
   end
 
-  def get_repository_full_handle_from_url(repository_url) do
-    full_handle =
-      ~r/^git@(.+):/
-      |> Regex.replace(repository_url, "https://\\1/")
-      |> URI.parse()
-      |> Map.get(:path)
-      |> String.replace_leading("/", "")
-      |> String.replace_trailing("/", "")
-      |> String.replace_trailing(".git", "")
+  def get_repository_full_handle_from_url(repository_url) when is_binary(repository_url) do
+    uri = repository_url |> normalize_scp_url() |> URI.parse()
+    path = uri.path || ""
 
-    if full_handle |> String.split("/") |> Enum.count() == 2 do
+    path =
+      case String.downcase(uri.host || "") do
+        "origin.cursor.com" -> String.replace_prefix(path, "/git/", "/")
+        "cursor.com" -> String.replace_prefix(path, "/codebase/", "/")
+        _ -> path
+      end
+
+    full_handle = path |> String.trim("/") |> String.replace_trailing(".git", "")
+
+    if Regex.match?(~r{^[\w.-]+/[\w.-]+$}, full_handle) do
       {:ok, full_handle}
     else
       {:error, :invalid_repository_url}
+    end
+  end
+
+  def get_repository_full_handle_from_url(_), do: {:error, :invalid_repository_url}
+
+  defp normalize_scp_url(url), do: Regex.replace(~r/^git@([^:]+):/, url, "https://\\1/")
+
+  defp get_app_installation_for_repository(%{project: project, repository_full_handle: handle} = params) do
+    case Repo.preload(project, :vcs_connection).vcs_connection do
+      %{provider: :origin} -> Origin.installation_for_repository(project, handle)
+      _ -> get_github_app_installation_for_repository(params)
+    end
+  end
+
+  defp comment_client(%OriginInstallation{}), do: OriginClient
+  defp comment_client(%GitHubAppInstallation{}), do: Client
+
+  defp report_pull_request(%OriginInstallation{} = installation, handle, ref, sha, remote) do
+    case get_provider_from_repository_url(remote) do
+      {:ok, :origin} ->
+        OriginClient.get_pull_request_number(%{
+          installation: installation,
+          repository_full_handle: handle,
+          git_ref: ref,
+          git_commit_sha: sha
+        })
+
+      _ ->
+        {:error, :not_pull_request}
+    end
+  end
+
+  defp report_pull_request(%GitHubAppInstallation{}, _handle, ref, _sha, remote) do
+    if get_provider_from_repository_url(remote) == {:ok, :origin} do
+      {:error, :not_pull_request}
+    else
+      case pull_request_number_from_git_ref(ref) do
+        nil -> {:error, :not_pull_request}
+        number -> {:ok, number}
+      end
     end
   end
 
@@ -412,7 +474,7 @@ defmodule Tuist.VCS do
   end
 
   @doc """
-  Looks a VCS user up by username, through the project's own connection.
+  Looks a VCS user up by username, through the project's connected repository.
 
   Returns the provider's durable id alongside the canonical username. The
   username is what a person types and can be changed later, and the id is
@@ -422,12 +484,23 @@ defmodule Tuist.VCS do
   def get_user_by_username(%{username: username, project: project}) do
     project = Repo.preload(project, vcs_connection: :github_app_installation)
 
-    with %{vcs_connection: %{provider: provider, github_app_installation: %GitHubAppInstallation{} = installation}} <-
-           project,
+    with %{
+           vcs_connection: %{
+             provider: provider,
+             repository_full_handle: repository_full_handle,
+             github_app_installation: %GitHubAppInstallation{} = installation
+           }
+         } <- project,
          %{} <- github_app_credentials(installation) do
       provider
       |> get_client_for_provider()
-      |> then(& &1.get_user_by_username(%{username: username, installation: installation}))
+      |> then(
+        & &1.get_repository_user_by_username(%{
+          repository_full_handle: repository_full_handle,
+          username: username,
+          installation: installation
+        })
+      )
     else
       _ -> {:error, :no_vcs_connection}
     end
@@ -466,11 +539,11 @@ defmodule Tuist.VCS do
   def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
     with issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
          {:ok, installation} <-
-           get_github_app_installation_for_repository(%{
+           get_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
            }) do
-      client = get_client_for_provider(:github)
+      client = comment_client(installation)
 
       client.create_comment(%{
         repository_full_handle: repository_full_handle,
@@ -493,12 +566,12 @@ defmodule Tuist.VCS do
         body: body,
         project: project
       }) do
-    case get_github_app_installation_for_repository(%{
+    case get_app_installation_for_repository(%{
            repository_full_handle: repository_full_handle,
            project: project
          }) do
       {:ok, installation} ->
-        client = get_client_for_provider(:github)
+        client = comment_client(installation)
 
         client.update_comment(%{
           repository_full_handle: repository_full_handle,
@@ -523,24 +596,31 @@ defmodule Tuist.VCS do
         bundle_url: bundle_url,
         build_url: build_url
       }) do
-    repository_full_handle =
-      if is_nil(git_remote_url_origin) do
-        nil
-      else
-        git_remote_url_origin |> get_repository_full_handle_from_url() |> elem(1)
-      end
-
-    with true <- git_commit_sha != "",
-         true <- not is_nil(git_ref) and git_ref != "",
-         true <- not is_nil(repository_full_handle),
-         issue_id when is_integer(issue_id) <- pull_request_number_from_git_ref(git_ref),
+    with true <- is_binary(git_commit_sha) and git_commit_sha != "",
+         true <- is_binary(git_ref) and git_ref != "",
+         {:ok, repository_full_handle} <-
+           get_repository_full_handle_from_url(git_remote_url_origin),
          {:ok, installation} <-
-           get_github_app_installation_for_repository(%{
+           get_app_installation_for_repository(%{
              repository_full_handle: repository_full_handle,
              project: project
+           }),
+         {:ok, issue_id} <-
+           report_pull_request(
+             installation,
+             repository_full_handle,
+             git_ref,
+             git_commit_sha,
+             git_remote_url_origin
+           ),
+         client = comment_client(installation),
+         {:ok, existing_comment} <-
+           get_existing_vcs_comment_id(%{
+             client: client,
+             repository: repository_full_handle,
+             issue_id: issue_id,
+             installation: installation
            }) do
-      client = get_client_for_provider(:github)
-
       vcs_comment_body =
         get_vcs_comment_body(%{
           git_ref: git_ref,
@@ -553,14 +633,6 @@ defmodule Tuist.VCS do
           project: project
         })
 
-      existing_comment =
-        get_existing_vcs_comment_id(%{
-          client: client,
-          repository: repository_full_handle,
-          issue_id: issue_id,
-          installation: installation
-        })
-
       update_or_create_vcs_comment(%{
         vcs_comment_body: vcs_comment_body,
         repository: repository_full_handle,
@@ -570,8 +642,14 @@ defmodule Tuist.VCS do
         installation: installation
       })
     else
-      # No GitHub app installation, skip posting comment
-      _ -> :ok
+      {:error, reason} when reason in [:not_found, :not_pull_request, :invalid_repository_url] ->
+        :ok
+
+      {:error, _} = error ->
+        error
+
+      _ ->
+        :ok
     end
   end
 
@@ -588,20 +666,27 @@ defmodule Tuist.VCS do
     }
 
     expected_client_id =
-      case github_app_credentials(installation) do
-        %{client_id: client_id} -> client_id
-        _ -> nil
+      case installation do
+        %OriginInstallation{app_id: app_id} ->
+          app_id
+
+        %GitHubAppInstallation{} ->
+          case github_app_credentials(installation) do
+            %{client_id: client_id} -> client_id
+            _ -> nil
+          end
       end
 
     case client.get_comments(comments_params) do
       {:ok, comments} ->
-        Enum.find(comments, fn comment ->
-          comment.client_id == expected_client_id and
-            String.starts_with?(comment.body, @tuist_run_report_prefix)
-        end)
+        {:ok,
+         Enum.find(comments, fn comment ->
+           not is_nil(expected_client_id) and comment.client_id == expected_client_id and
+             String.starts_with?(comment.body, @tuist_run_report_prefix)
+         end)}
 
-      _ ->
-        nil
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -805,6 +890,9 @@ defmodule Tuist.VCS do
   defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
 
   defp commit_link(nil, _git_remote_url_origin), do: ""
+
+  defp commit_link(git_commit_sha, "https://cursor.com/codebase/" <> _repository),
+    do: "`#{String.slice(git_commit_sha, 0, 9)}`"
 
   defp commit_link(git_commit_sha, git_remote_url_origin),
     do: "[#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha})"
@@ -1173,30 +1261,60 @@ defmodule Tuist.VCS do
 
     failure_detail = format_failure_detail(failed_test.failure, project, failed_test.git_commit_sha)
 
-    "- [**#{failed_test.name}**](#{test_case_url})#{subtitle}\\\n#{failure_detail}\n"
+    "- [**#{failed_test.name}**](#{test_case_url})#{subtitle}#{failure_detail}\n"
   end
 
   @max_failure_message_length 160
+  @max_failure_message_lines 10
 
   defp format_failure_detail(nil, _project, _commit_sha), do: ""
 
   defp format_failure_detail(failure, project, commit_sha) do
     location = format_failure_location(failure, project, commit_sha)
-    message = sanitize_for_markdown(failure.message)
 
-    case {location, message} do
-      {nil, nil} -> ""
-      {loc, nil} -> loc
-      {nil, msg} -> truncate_message(msg)
-      {loc, msg} -> "#{loc}: #{truncate_message(msg)}"
+    case {location, failure_message_lines(failure.message)} do
+      {nil, []} -> ""
+      {loc, []} -> "\\\n#{loc}"
+      {nil, [line]} -> "\\\n#{truncate_message(line)}"
+      {loc, [line]} -> "\\\n#{loc}: #{truncate_message(line)}"
+      {nil, lines} -> "\n\n#{format_failure_code_block(lines)}"
+      {loc, lines} -> "\\\n#{loc}\n\n#{format_failure_code_block(lines)}"
     end
+  end
+
+  defp failure_message_lines(nil), do: []
+
+  defp failure_message_lines(message) do
+    case String.trim(message) do
+      "" -> []
+      trimmed -> trimmed |> String.split(~r/\r\n|\r|\n/) |> Enum.map(&String.trim_trailing/1)
+    end
+  end
+
+  defp format_failure_code_block(lines) do
+    {shown_lines, hidden_lines} = Enum.split(lines, @max_failure_message_lines)
+    shown_lines = Enum.map(shown_lines, &truncate_message/1)
+    shown_lines = if hidden_lines == [], do: shown_lines, else: shown_lines ++ ["…"]
+    fence = code_fence(shown_lines)
+
+    Enum.map_join([fence | shown_lines] ++ [fence], "\n", &"  #{&1}")
+  end
+
+  defp code_fence(lines) do
+    longest_backtick_run =
+      lines
+      |> Enum.flat_map(&Regex.scan(~r/`+/, &1))
+      |> Enum.map(fn [run] -> String.length(run) end)
+      |> Enum.max(fn -> 0 end)
+
+    String.duplicate("`", max(3, longest_backtick_run + 1))
   end
 
   defp format_failure_location(%{path: path} = failure, project, commit_sha) when path not in [nil, ""] do
     location_text = "#{path}:#{failure.line_number}"
     repo_handle = project.vcs_connection && project.vcs_connection.repository_full_handle
 
-    if repo_handle && commit_sha not in [nil, ""] do
+    if repo_handle && project.vcs_connection.provider == :github && commit_sha not in [nil, ""] do
       "[`#{location_text}`](https://github.com/#{repo_handle}/blob/#{commit_sha}/#{path}#L#{failure.line_number})"
     else
       "`#{location_text}`"
@@ -1204,12 +1322,6 @@ defmodule Tuist.VCS do
   end
 
   defp format_failure_location(_, _, _), do: nil
-
-  defp sanitize_for_markdown(nil), do: nil
-
-  defp sanitize_for_markdown(message) do
-    message |> String.replace(~r/[\n\r]+/, " ") |> String.trim()
-  end
 
   defp truncate_message(message) do
     if String.length(message) > @max_failure_message_length do
@@ -1224,6 +1336,7 @@ defmodule Tuist.VCS do
 
     from(b in Builds.Build)
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> where([b], b.submission_auth != "network_trusted")
     |> where([b], b.status not in ["processing", "failed_processing"])
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
@@ -1251,6 +1364,7 @@ defmodule Tuist.VCS do
 
     from(b in Gradle.Build)
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> where([b], b.submission_auth != "network_trusted")
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.filter(&(&1.root_project_name != ""))
@@ -1277,6 +1391,7 @@ defmodule Tuist.VCS do
 
     from(t in Tests.Test)
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
+    |> where([t], t.submission_auth != "network_trusted")
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.group_by(& &1.build_system)
@@ -1595,7 +1710,7 @@ defmodule Tuist.VCS do
   """
   def get_github_app_installation_repositories(%GitHubAppInstallation{} = installation) do
     KeyValueStore.get_or_update(
-      [__MODULE__, "repositories", installation.id, installation_api_url(installation), installation.installation_id],
+      installation_repositories_cache_key(installation),
       [ttl: to_timeout(minute: 15)],
       fn ->
         # This can take long for organizations with a lot of repositories.
@@ -1605,6 +1720,17 @@ defmodule Tuist.VCS do
         get_all_repositories_recursively(installation, [])
       end
     )
+  end
+
+  defp refresh_github_app_installation_repositories(installation) do
+    with {:ok, _repositories} = result <- get_all_repositories_recursively(installation, []) do
+      KeyValueStore.put(installation_repositories_cache_key(installation), result, ttl: to_timeout(minute: 15))
+      result
+    end
+  end
+
+  defp installation_repositories_cache_key(installation) do
+    [__MODULE__, "repositories", installation.id, installation_api_url(installation), installation.installation_id]
   end
 
   defp get_all_repositories_recursively(installation, opts, accumulated_repos \\ []) do
@@ -1626,6 +1752,134 @@ defmodule Tuist.VCS do
 
       {:error, _reason} = error ->
         error
+    end
+  end
+
+  @doc """
+  Links a project to a repository its account's GitHub App installation can
+  access, storing GitHub's canonical repository name and adopting the
+  repository's default branch. Linking a project to the repository it is
+  already linked to returns the existing connection.
+  """
+  def connect_github_repository(%Project{} = project, repository_full_handle, opts \\ [])
+      when is_binary(repository_full_handle) do
+    case Repo.get_by(VCSConnection, project_id: project.id) do
+      nil -> create_github_connection(project, repository_full_handle, Keyword.get(opts, :created_by_id))
+      connection -> existing_connection(connection, repository_full_handle)
+    end
+  end
+
+  @doc """
+  The message for a `connect_github_repository/3` error, shared by the API
+  and the MCP tool.
+  """
+  def connect_github_repository_error({:already_connected, %VCSConnection{provider: :origin} = connection}, _handle),
+    do:
+      "The project is linked to #{connection.repository_full_handle} through Origin. Unlink it from the account's integrations settings before linking a GitHub repository."
+
+  def connect_github_repository_error({:already_connected, connection}, _handle),
+    do:
+      "The project is already linked to #{connection.repository_full_handle}. Unlink it before linking another repository."
+
+  def connect_github_repository_error(:github_app_not_installed, _handle),
+    do: "The account has no GitHub App installation. Install it from the account's integrations settings."
+
+  def connect_github_repository_error(:repository_not_accessible, handle),
+    do: "The account's GitHub App installation can't access #{handle}."
+
+  def connect_github_repository_error(:github_unavailable, _handle),
+    do: "Tuist couldn't reach GitHub to check the installation's repositories. Try again shortly."
+
+  def connect_github_repository_error(%Ecto.Changeset{}, handle), do: "The project couldn't be linked to #{handle}."
+
+  defp existing_connection(%VCSConnection{provider: :github} = connection, repository_full_handle) do
+    if String.downcase(connection.repository_full_handle) == String.downcase(repository_full_handle),
+      do: {:ok, connection},
+      else: {:error, {:already_connected, connection}}
+  end
+
+  defp existing_connection(connection, _repository_full_handle), do: {:error, {:already_connected, connection}}
+
+  defp create_github_connection(project, repository_full_handle, created_by_id) do
+    with {:ok, installation} <- installed_github_app(project.account_id),
+         {:ok, repository} <- installation_repository(installation, repository_full_handle),
+         {:ok, connection} <- insert_github_connection(project, installation, repository, created_by_id) do
+      if is_binary(repository.default_branch) and repository.default_branch != "" do
+        Projects.update_project(project, %{default_branch: repository.default_branch})
+      end
+
+      {:ok, connection}
+    end
+  end
+
+  # Two first links can both pass the lookup; the one that loses the unique
+  # index answers from the link the other created.
+  defp insert_github_connection(project, installation, repository, created_by_id) do
+    case Projects.create_vcs_connection(%{
+           project_id: project.id,
+           provider: :github,
+           repository_full_handle: repository.full_name,
+           created_by_id: created_by_id,
+           github_app_installation_id: installation.id
+         }) do
+      {:ok, connection} ->
+        {:ok, connection}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        with true <- Keyword.has_key?(changeset.errors, :project_id),
+             %VCSConnection{} = connection <- Repo.get_by(VCSConnection, project_id: project.id) do
+          existing_connection(connection, repository.full_name)
+        else
+          _ -> {:error, changeset}
+        end
+    end
+  end
+
+  defp installed_github_app(account_id) do
+    case get_github_app_installation_for_account(account_id) do
+      {:ok, %GitHubAppInstallation{installation_id: installation_id} = installation} when not is_nil(installation_id) ->
+        {:ok, installation}
+
+      _ ->
+        {:error, :github_app_not_installed}
+    end
+  end
+
+  # An installation token can read any public repository, so access is checked
+  # against the installation's own repositories, as the dashboard does. A cached
+  # list that failed or lacks the repository is fetched again, so a repository
+  # added to the installation since is found.
+  defp installation_repository(installation, repository_full_handle) do
+    with {:ok, repositories} <- get_github_app_installation_repositories(installation),
+         %{} = repository <- find_repository(repositories, repository_full_handle) do
+      {:ok, repository}
+    else
+      _ ->
+        case refresh_github_app_installation_repositories(installation) do
+          {:ok, repositories} ->
+            case find_repository(repositories, repository_full_handle) do
+              nil -> {:error, :repository_not_accessible}
+              repository -> {:ok, repository}
+            end
+
+          {:error, _reason} ->
+            {:error, :github_unavailable}
+        end
+    end
+  end
+
+  defp find_repository(repositories, repository_full_handle) do
+    handle = String.downcase(repository_full_handle)
+    Enum.find(repositories, &(String.downcase(&1.full_name) == handle))
+  end
+
+  @doc """
+  Removes a project's link to a GitHub repository.
+  """
+  def disconnect_github_repository(%Project{} = project) do
+    case Repo.get_by(VCSConnection, project_id: project.id, provider: :github) do
+      nil -> {:error, :not_found}
+      connection -> Projects.delete_vcs_connection(connection)
     end
   end
 

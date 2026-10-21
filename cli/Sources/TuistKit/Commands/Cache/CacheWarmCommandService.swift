@@ -26,9 +26,15 @@ import XcodeGraph
     enum CacheWarmCommandServiceError: LocalizedError {
         case diskExhausted(scratchDirectory: AbsolutePath, space: VolumeSpace, underlyingError: Error)
         case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
+        case coverageWithoutProject(AbsolutePath)
 
         var errorDescription: String? {
             switch self {
+            case let .coverageWithoutProject(path):
+                return """
+                Warming with coverage needs the checkout the coverage's files are relative to, and \(path.pathString) is \
+                neither in a Git repository nor under a directory with Tuist manifests.
+                """
             case let .uploadsFailed(failures, storedCount):
                 let failedTargets = failures
                     .sorted { $0.item.name < $1.item.name }
@@ -92,6 +98,7 @@ import XcodeGraph
         private let scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing
         private let foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating
         private let buildOutputReclaimer: CacheWarmBuildOutputReclaimer
+        private let coverageBuildSourcesService: CoverageBuildSourcesService
 
         public init() {
             let contentHasher = ContentHasher()
@@ -125,7 +132,8 @@ import XcodeGraph
             cacheStorageFactory: CacheStorageFactorying = Extension.cacheStorageFactory,
             configLoader: ConfigLoading = ConfigLoader(),
             scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing = CacheWarmScratchDirectoryPreparer(),
-            foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator()
+            foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator(),
+            coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
         ) {
             self.configLoader = configLoader
             manifestLoader = ManifestLoader.current
@@ -142,6 +150,7 @@ import XcodeGraph
             self.cacheStorageFactory = cacheStorageFactory
             self.scratchDirectoryPreparer = scratchDirectoryPreparer
             self.foreignBuildOutputValidator = foreignBuildOutputValidator
+            self.coverageBuildSourcesService = coverageBuildSourcesService
             buildOutputReclaimer = CacheWarmBuildOutputReclaimer(fileSystem: fileSystem)
         }
 
@@ -167,9 +176,11 @@ import XcodeGraph
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
+            let resolvedCoverage = BinaryCacheCoverage.resolved(config: config)
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
-                targetsToBinaryCache: requestedTargetsToBinaryCache
+                targetsToBinaryCache: requestedTargetsToBinaryCache,
+                coverage: resolvedCoverage
             )
 
             // The loading of the graph triggers the fetching of remote binaries into the local cache to speed up warming.
@@ -184,6 +195,13 @@ import XcodeGraph
             )
             let isReleaseConfiguration = graph.projects.values.flatMap(\.settings.configurations.keys)
                 .first(where: { $0.name == configuration })?.variant == .release
+            // Release binaries are never instrumented: a release warm fills the plain variant every command reads
+            // for release.
+            let coverage: BinaryCacheCoverage = isReleaseConfiguration ? .off : resolvedCoverage
+            // The settings that build the repository's own targets with coverage counters, under the key a
+            // run collecting coverage reads. Resolved before anything is built, so a checkout the coverage
+            // couldn't be tied to fails the warm before it spends a build on it.
+            let instrumentationSettings = try await instrumentationSettings(coverage: coverage == .on, path: path)
 
             // Lint
             try cacheWarmGraphLinter.lint(graph: graph)
@@ -218,7 +236,8 @@ import XcodeGraph
                 config: config,
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
-                cacheStorage: cacheStorage
+                cacheStorage: cacheStorage,
+                coverage: coverage
             )
             let cacheableTargets = hashedGraph.targetsToBuild
 
@@ -253,7 +272,8 @@ import XcodeGraph
                     targetsToBinaryCache: targetsToBinaryCache,
                     configuration: configuration,
                     cacheStorage: cacheStorage,
-                    targetHashes: hashedGraph.targetHashes
+                    targetHashes: hashedGraph.targetHashes,
+                    coverage: coverage
                 )
                 .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
 
@@ -272,6 +292,7 @@ import XcodeGraph
                 cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
                 noUpload: noUpload,
                 isReleaseConfiguration: isReleaseConfiguration,
+                instrumentationSettings: instrumentationSettings,
                 scratchDirectory: scratchDirectoryMode
             )
 
@@ -285,6 +306,19 @@ import XcodeGraph
             )
 
             await logCacheWarmSummary()
+        }
+
+        /// The xcodebuild settings of a warm with coverage (`InstrumentedBinaryCacheWarm`), empty without it.
+        /// The checkout is located the way a `tuist test` run locates it for its coverage, so the paths the
+        /// cached binaries record tie to the same root the run's own builds do.
+        private func instrumentationSettings(coverage: Bool, path: AbsolutePath) async throws -> [String] {
+            guard coverage else { return [] }
+            guard let (root, _) = try await coverageBuildSourcesService.root(from: path) else {
+                throw CacheWarmCommandServiceError.coverageWithoutProject(path)
+            }
+            let roots = UploadResultBundleService.rootSpellings(of: root, coveredFilePaths: [])
+                .filter { $0 != InstrumentedBinaryCacheWarm.sourceRootPlaceholder }
+            return InstrumentedBinaryCacheWarm.buildSettings(sourceRoots: InstrumentedBinaryCacheWarm.sourceRoots(roots))
         }
 
         private func republishIfNeeded(
@@ -327,6 +361,7 @@ import XcodeGraph
             cacheStorage: CacheStoring,
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
+            instrumentationSettings: [String],
             scratchDirectory: CacheWarmScratchDirectory
         ) async throws {
             switch scratchDirectory {
@@ -342,6 +377,7 @@ import XcodeGraph
                             fingerprints: fingerprints,
                             cacheStorage: cacheStorage,
                             isReleaseConfiguration: isReleaseConfiguration,
+                            instrumentationSettings: instrumentationSettings,
                             in: temporaryDirectory,
                             compilationCacheCASArgument: compilationCacheCASArgument
                         )
@@ -359,6 +395,7 @@ import XcodeGraph
                         fingerprints: fingerprints,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
+                        instrumentationSettings: instrumentationSettings,
                         in: path,
                         compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
                     )
@@ -396,6 +433,7 @@ import XcodeGraph
             fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             isReleaseConfiguration: Bool,
+            instrumentationSettings: [String],
             in scratchDirectory: AbsolutePath,
             compilationCacheCASArgument: XcodeBuildArgument
         ) async throws {
@@ -451,6 +489,7 @@ import XcodeGraph
                     derivedDataPath: derivedDataPath,
                     isReleaseConfiguration: isReleaseConfiguration,
                     compilationCacheCASArgument: compilationCacheCASArgument,
+                    instrumentationSettings: instrumentationSettings,
                     reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
@@ -465,6 +504,7 @@ import XcodeGraph
                     derivedDataPath: derivedDataPath,
                     isReleaseConfiguration: isReleaseConfiguration,
                     compilationCacheCASArgument: compilationCacheCASArgument,
+                    instrumentationSettings: instrumentationSettings,
                     reservedProductsDirectoryNames: reservedProductsDirectoryNames
                 )
             }
@@ -867,6 +907,7 @@ import XcodeGraph
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool,
             compilationCacheCASArgument: XcodeBuildArgument,
+            instrumentationSettings: [String],
             reservedProductsDirectoryNames: Set<String>
         ) async throws {
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
@@ -904,7 +945,8 @@ import XcodeGraph
                     ] + (isReleaseConfiguration ? [
                         .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                         .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                    ] : [])
+                    ] : []),
+                    passthroughArguments: instrumentationSettings
                 )
 
                 let productsDirectoryName = productsDirectory(
@@ -968,7 +1010,8 @@ import XcodeGraph
                 xcodebuildTarget,
                 scheme: scheme.name,
                 derivedDataPath: derivedDataPath,
-                arguments: deviceArguments
+                arguments: deviceArguments,
+                passthroughArguments: instrumentationSettings
             )
 
             let productsDirectoryName = productsDirectory(
@@ -1004,6 +1047,7 @@ import XcodeGraph
             derivedDataPath: AbsolutePath,
             isReleaseConfiguration: Bool,
             compilationCacheCASArgument: XcodeBuildArgument,
+            instrumentationSettings: [String],
             reservedProductsDirectoryNames: Set<String>
         ) async throws {
             let platformArtifactsDirectory = scratchDirectory.appending(components: ["artifacts", "iOS"])
@@ -1036,7 +1080,8 @@ import XcodeGraph
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                ] : [])
+                ] : []),
+                passthroughArguments: instrumentationSettings
             )
 
             let productsDirectoryName = productsDirectory(
@@ -1069,7 +1114,8 @@ import XcodeGraph
             _ xcodebuildTarget: XcodeBuildTarget,
             scheme: String,
             derivedDataPath: AbsolutePath,
-            arguments: [XcodeBuildArgument]
+            arguments: [XcodeBuildArgument],
+            passthroughArguments: [String] = []
         ) async throws {
             let resultBundlePath = derivedDataPath.appending(component: UUID().uuidString)
             do {
@@ -1084,7 +1130,7 @@ import XcodeGraph
                     passthroughXcodeBuildArguments: [
                         "-resultBundlePath",
                         resultBundlePath.pathString,
-                    ]
+                    ] + passthroughArguments
                 )
             } catch {
                 await buildOutputReclaimer.reclaimResultBundle(at: resultBundlePath)
@@ -1150,7 +1196,8 @@ import XcodeGraph
             config: Tuist,
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            coverage: BinaryCacheCoverage
         ) async throws -> CacheableTargets {
             let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1170,7 +1217,8 @@ import XcodeGraph
                 configuration: configuration,
                 defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
                 excludedTargets: excludedTargets,
-                destination: nil
+                destination: nil,
+                coverage: coverage
             )
 
             // Binary replacement in the warm project runs under `.allPossible` whatever profile warms the

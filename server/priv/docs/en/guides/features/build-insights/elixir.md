@@ -10,29 +10,39 @@
 Tuist's Hex package can send build analytics to Tuist. Build times, the dependency graph between your files, and how both evolve over time give you what you need to optimize your build graph and make the most of all the cores available in the environment where the compilation takes place.
 
 > [!IMPORTANT] REQUIREMENTS
-> - The <.localized_link href="/guides/install-hex-package">Hex package</.localized_link> installed and configured
+> - Complete <.localized_link href="/guides/get-started/elixir-project">Get started with Elixir</.localized_link>
 
 ## Report your builds {#report-your-builds}
 
-Run `mix tuist.compile` instead of `mix compile`. It takes the same arguments and reports the build when it finishes:
+The shared setup installs the compile integration. Keep using your usual commands:
 
 ```bash
-mix tuist.compile --force
+mix compile
 ```
 
-To report every build without anyone having to remember a different command, alias it in your `mix.exs`:
+The integration covers `mix compile` and every compile that another task triggers, such as `mix test` or `mix phx.server`. A compile that finds nothing to do is not reported, so the dashboard only lists builds that did work.
+
+## Report actor claim {#report-actor-claim}
+
+Mix build and test report requests include the optional `x-tuist-actor-id` header only when you explicitly configure a label. Set `TUIST_ACTOR_ID` to an organization-scoped label, or add `actor_id: "developer-label"` to the project's `tuist` configuration. Resolution prefers the environment variable, then runtime `:actor_id` options, then project configuration. No label is sent by default, and the package does not detect operating-system usernames. A fixed project label applies to everyone using that configuration. Empty or invalid overrides omit the claim instead of falling back; this does not remove credential-based verified identity. If a custom proxy rejects unfamiliar headers, opt out with `TUIST_ACTOR_ID=""`.
+
+Identifiers must be 1–128 bytes of non-space printable ASCII. Invalid overrides are omitted without falling back. Verified individual credentials take precedence; other client-reported identifiers are displayed as **Unverified**, never authorize access, and never link automatically to users. Anyone who can view the project's reports can see these identifiers, including public viewers when the project is public, and they are included in data exports, so do not include secrets. Old servers ignore the optional header, and new servers accept old clients without it. New shared-token reports with no identifier show **Unknown**, rather than the publishing organization; historical reports retain their prior attribution. Build and test reporting require authentication by default. Self-hosted installations can explicitly enable credential-free reporting as described below.
+
+## Credential-free reporting on a private network {#network-trusted-publishing}
+
+After an operator configures `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restarts it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">self-hosting guide</.localized_link>, configure your destination and opt in. The instance setting covers every supported project and has no dashboard toggle:
 
 ```elixir
-def project do
-  [
-    app: :my_app,
-    aliases: [compile: "tuist.compile"],
-    tuist: [project: "account/project"]
-  ]
-end
+tuist: [
+  url: "https://tuist.internal.example",
+  project: "account/project",
+  network_trusted_publishing: true
+]
 ```
 
-The alias covers `mix compile` and every compile that another task triggers, such as `mix test` or `mix phx.server`. A compile that finds nothing to do is not reported, so the dashboard only lists builds that did work.
+Alternatively, set `TUIST_NETWORK_TRUSTED_PUBLISHING=true`. `mix tuist.compile` and `mix tuist.test` then publish structured reports without sign-in when credentials are genuinely absent. Present credentials, including supplied CI OIDC identity, are used or rejected, never ignored to downgrade to unsigned reporting. Blank tokens and corrupt credential files are errors and are not deleted automatically. Old servers reject unsigned reports.
+
+Unsigned runs are telemetry, not trusted flakiness, quarantine, coverage, or selective-execution evidence. Shard planning, build archives, and coverage/artifact endpoints still require credentials. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to disable credential-free publishing even when the project configuration enables it. Set `TUIST_ACTOR_ID=""` independently to omit the configured actor claim; verified credential identity is unaffected.
 
 ## What is tracked {#what-is-tracked}
 
@@ -47,7 +57,7 @@ For each build, the package collects:
 
 ## Find what slows a build down {#find-what-slows-a-build-down}
 
-Open a build from **Builds → Build Runs** on the dashboard.
+Open a build from **Builds → Build Runs** on the dashboard. Builds, their diagnostics counts, and their dependency cache summaries are also available through `tuist build mix list` and `tuist build mix show`, `GET /api/projects/{account_handle}/{project_handle}/mix/builds`, and the `list_mix_builds` and `get_mix_build` <.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>.
 
 The **Overview** tab lists the files the build compiled. You can group them by module, search them, and sort them by:
 - **Compilation duration**, to find the files that are slow by themselves.
@@ -61,14 +71,6 @@ The **Timeline** tab shows the same build over time: which files compiled in par
 ![Timeline of a full Mix build of a Phoenix application](/images/guides/features/elixir/build-timeline.png)
 
 The **Warnings** and **Errors** tabs list the diagnostics of the build.
-
-## Report actor claim {#report-actor-claim}
-
-Mix build and test report requests include the optional `x-tuist-actor-id` header only when you explicitly configure a label. Set `TUIST_ACTOR_ID` to an organization-scoped label, or add `actor_id: "developer-label"` to the project's `tuist` configuration. Resolution prefers the environment variable, then runtime `:actor_id` options, then project configuration. No label is sent by default, and the package does not detect operating-system usernames.
-
-Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override omits the claim; set `TUIST_ACTOR_ID=""` to suppress a configured value. The label may contain personal information. Do not use credentials or other sensitive values.
-
-The claim is unverified metadata, not authentication. Existing credentials, permissions, endpoints, and report bodies are unchanged. Servers without actor support ignore the header and keep their existing attribution; this client change alone does not add dashboard actor labels. If a custom proxy rejects unfamiliar headers, opt out using the empty environment override.
 
 ## Custom metadata {#custom-metadata}
 

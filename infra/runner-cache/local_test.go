@@ -88,6 +88,7 @@ func TestLocalMastersWarmReuseAndPrivateBranches(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	if err := os.WriteFile(b.image(slot), []byte("saved cache"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -220,14 +221,16 @@ func TestRefusesLegacyJournalInsteadOfTreatingRBDLeaseAsLocal(t *testing.T) {
 
 type invalidatedTransfer struct{ *testTransfer }
 
-func (invalidatedTransfer) IsCurrent(Slot) (bool, error) { return false, nil }
+func (invalidatedTransfer) Head(Slot) (Identity, error) { return Identity{BaseGeneration: 2}, nil }
 func TestInvalidatedLocalMasterIsEvictedWithoutTouchingActiveClone(t *testing.T) {
 	b, r := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Seal(slot, t.TempDir()); err != nil {
+	jobWrote(t, path)
+	if err := b.Seal(slot, path); err != nil {
 		t.Fatal(err)
 	}
 	b.Transfer = invalidatedTransfer{r}
@@ -250,6 +253,7 @@ func TestWriteBackFailureSurvivesRestartAndCannotPublish(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	checks := 0
 	b.Check = func(string, string) error { checks++; return errors.New("ENOSPC") }
 	if err := b.Seal(slot, path); !errors.Is(err, ErrPoisoned) {
@@ -265,6 +269,7 @@ func TestWriteBackFailureSurvivesRestartAndCannotPublish(t *testing.T) {
 		t.Fatal(checks, remote.uploads)
 	}
 	os.Remove(filepath.Join(path, ".tuist-volume"))
+	os.RemoveAll(filepath.Join(path, "data"))
 	if err := restarted.Delete(slot, path); err != nil {
 		t.Fatal(err)
 	}
@@ -280,6 +285,7 @@ func TestVerifiedImageRetriesUploadWithoutRecheckingUnmountedFilesystem(t *testi
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	remote.fail = true
 	if err := b.Seal(slot, path); err == nil {
 		t.Fatal("ignored upload failure")
@@ -396,10 +402,12 @@ func TestAttachmentTelemetryDistinguishesEmptyLocalAndRemote(t *testing.T) {
 	var observations []Observation
 	b.Observe = func(o Observation) { observations = append(observations, o) }
 	slot := Slot{Identity: identity(first), PodUID: "pod"}
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Seal(slot, t.TempDir()); err != nil {
+	jobWrote(t, path)
+	if err := b.Seal(slot, path); err != nil {
 		t.Fatal(err)
 	}
 	masters, _ := filepath.Glob(filepath.Join(b.Root, "masters", slot.Scope, "*.img"))

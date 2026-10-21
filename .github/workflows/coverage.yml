@@ -1,9 +1,12 @@
 name: Coverage
 
 # Gathers Xcode code coverage from full test runs on main, so the coverage
-# trend has complete runs to plot. Pull request runs use selective testing and
-# the module cache, which leave tests unrun and product code uninstrumented, so
-# their coverage is partial and stays out of the trend. The test targets link
+# trend has complete runs to plot. Pull request runs use selective testing,
+# which leaves tests unrun, so their coverage is partial and stays out of the
+# trend. The runs here read the binary cache's coverage variant, which cli.yml's
+# `tuist cache` warms on main (TUIST_COVERAGE_ENABLED in mise.toml); its
+# binaries carry coverage counters and record their files under a placeholder
+# the export resolves, so a cached target is measured like one built from source. The test targets link
 # TestCoverageAttribution, so each run also records which files every test
 # executed, and the last job tells the server the commit's runs are all in.
 #
@@ -55,8 +58,6 @@ env:
   TUIST_ENABLE_CACHING: true
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
-  # Xcode code coverage is in early access behind this client flag.
-  TUIST_FEATURE_FLAG_COVERAGE: "1"
   # Collects per-test evidence from the linked TestCoverageAttribution package.
   TUIST_COVERAGE_EVIDENCE: "1"
 
@@ -120,6 +121,8 @@ jobs:
         with:
           ref: ${{ needs.commit.outputs.sha }}
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
@@ -150,14 +153,34 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      # Every test runs, and every target is built from sources: selective
-      # testing would skip tests and cached binaries carry no coverage.
-      # Counters are bumped atomically: tests run in parallel in one process,
-      # and plain increments lose counts, which xccov turns into negative,
-      # wrapped region counts and lines reported covered that never ran.
+        uses: tuist/install@v1
+        with:
+          cache-key: coverage-macos-workspace-${{ github.job }}
+      - name: Install stable Rust for Cargo reporting fixtures
+        uses: ./.github/actions/mise
+        env:
+          MISE_LOCKED: 0
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
+      # Every test runs: selective testing would skip tests. Repository targets
+      # come from the coverage variant of the binary cache when their hash
+      # matches what an earlier commit's warm stored; this commit's own warm runs
+      # at the same time, so the targets it changed are built from source.
+      # The coverage settings come from mise.toml's [env], which CLIs before
+      # tuist/tuist#14404 ignore, so until one is pinned these runs collect no
+      # coverage and `tuist coverage complete` leaves the commit pending: the
+      # schemes leave their test action's coverage unset and follow
+      # TUIST_COVERAGE_ENABLED. The CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`):
+      # tests run in parallel in one process, and plain increments lose counts.
+      # TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix mapping in coverage
+      # builds, so the compilation cache replays across runners; the CLI maps the
+      # covered paths back (llvm-cov export plus each target's
+      # compilation-prefix-map.json).
       - name: Run tests with coverage
-        run: tuist test TuistUnitTests --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES 'OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all'
+        run: tuist test TuistUnitTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 4
 
   app-tests:
     name: App Tests
@@ -175,6 +198,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.commit.outputs.sha }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         run: |
@@ -205,10 +230,11 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      # Atomic counters for the same reason as the CLI's run.
+        uses: tuist/install@v1
+        with:
+          cache-key: coverage-macos-workspace-${{ github.job }}
       - name: Run tests with coverage
-        run: tuist test TuistApp --no-selective-testing --no-binary-cache -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES 'OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all' CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp --no-selective-testing -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   # Only a complete commit joins the coverage trend. A CLI release older than
   # `tuist coverage complete` skips the signal, and the commit stays in progress.
@@ -227,6 +253,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.commit.outputs.sha }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
         if: needs.commit.outputs.sha != github.sha
         run: |

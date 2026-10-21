@@ -1127,6 +1127,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, :ok)
 
       assert Plug.Conn.get_resp_header(conn, "x-tuist-signature") == ["signature"]
+      refute conn.assigns[:cache_outcome]
 
       assert response == %{
                "hash" => "hash"
@@ -1153,6 +1154,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, :not_found)
 
       assert response == %{"message" => "The item doesn't exist in the cache."}
+      assert conn.assigns.cache_outcome == :miss
     end
 
     test "returns a payment required status code if the account has no subscription and their usage is above the threshold",
