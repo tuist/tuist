@@ -92,6 +92,18 @@ on:
       xcresult_processor_release_digest:
         description: Layer digest (`sha256:...`) of the `tuist-xcresult-processor-release` artifact the processor boots; wins over the release published for the server image tag
         required: false
+      install_platform:
+        description: Install the platform chart before the server chart
+        type: boolean
+        default: true
+      install_observability:
+        description: Install the k8s-monitoring chart before the server chart
+        type: boolean
+        default: true
+      install_tailscale_operator:
+        description: Install the tailscale-operator chart before the server chart
+        type: boolean
+        default: true
   workflow_call:
     inputs:
       staging_platform_revision:
@@ -215,6 +227,24 @@ on:
           keeps the one the processor runs when that tag has none.
         required: false
         type: string
+      install_platform:
+        description: >-
+          Install the platform chart before the server chart. The production
+          cascade turns it off when the chart's inputs are unchanged since
+          production's last deploy.
+        required: false
+        type: boolean
+        default: true
+      install_observability:
+        description: Install the k8s-monitoring chart before the server chart; see install_platform.
+        required: false
+        type: boolean
+        default: true
+      install_tailscale_operator:
+        description: Install the tailscale-operator chart before the server chart; see install_platform.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -530,7 +560,7 @@ jobs:
     name: Observability chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
     # `build` is skipped when image_tag is supplied - keep running.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_observability != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -598,7 +628,7 @@ jobs:
     # past runs without sharing a slot with the sibling install jobs.
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_tailscale_operator != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -712,7 +742,7 @@ jobs:
     # past runs without sharing a slot with the sibling install jobs.
     name: Platform chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_platform != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -797,15 +827,18 @@ jobs:
     # `platform-install` brings up CRDs (cert-manager, ESO,
     # cloudnative-pg) the Tuist chart consumes; if it fails the chart
     # deploy would silently no-op on those resources, so block.
-    # `observability-install` always runs, so it must be a plain success.
+    # `observability-install` must succeed.
     # `tailscale-operator-install` runs the install for managed envs and
     # short-circuits when a forked workflow has no env values file; either
     # way it must complete cleanly before the chart deploy.
+    # Each of the three chart installs may instead be skipped when its
+    # `install_*` input turns it off (the production cascade does this for
+    # charts unchanged since production's last deploy).
     # `platform-install` reconciles cert-manager / ingress-nginx /
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
