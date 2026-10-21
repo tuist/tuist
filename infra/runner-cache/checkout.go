@@ -71,7 +71,11 @@ type Checkouts struct {
 	Run    func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error)
 	// Room reserves disk for a build until the returned release is called.
 	Room func(context.Context, uint64) (func(), error)
-	Now  func() time.Time
+	// InUse reports whether a job holds or is attaching a clone of a volume's
+	// master. Pressure eviction skips those: the clone shares the master's blocks,
+	// so removing it frees nothing, and an attaching job would lose its seed.
+	InUse func(scope string) bool
+	Now   func() time.Time
 	// Tools installs what the populator runs before git is probed, if anything.
 	Tools func(context.Context) error
 	// Path is the PATH git runs with; Root/.bin, /usr/bin and /bin by default.
@@ -954,7 +958,7 @@ func (c *Checkouts) Evictable(size func(string) (uint64, error)) uint64 {
 	}
 	var total uint64
 	for _, master := range c.masters() {
-		if c.isBusy(master.scope) {
+		if c.isBusy(master.scope) || c.inUse(master.scope) {
 			continue
 		}
 		if bytes, err := size(master.path); err == nil {
@@ -994,7 +998,7 @@ func (c *Checkouts) remove(master checkoutMaster, try bool) bool {
 	}
 	defer lock.Unlock()
 	// Busy is set under this lock, so a build that started cannot lose its directory.
-	if c.isBusy(master.scope) {
+	if c.isBusy(master.scope) || (try && c.inUse(master.scope)) {
 		return false
 	}
 	return os.RemoveAll(filepath.Dir(master.path)) == nil
@@ -1040,4 +1044,8 @@ func checkoutRename(src, dst string) error {
 		return err
 	}
 	return sync(filepath.Dir(dst))
+}
+
+func (c *Checkouts) inUse(scope string) bool {
+	return c.InUse != nil && c.InUse(scope)
 }

@@ -44,6 +44,7 @@ type agent struct {
 	observe                                cachevolumes.Observer
 	prefetch                               *prefetcher
 	checkouts                              *cachevolumes.Checkouts
+	space                                  *checkoutSpace
 	grants                                 checkoutGrants
 	exports                                chan struct{}
 }
@@ -228,7 +229,7 @@ func main() {
 	// used within the last day, so this host's next job attaches locally.
 	backend.RefreshWithin = 24 * time.Hour
 	// Checkout masters share the cache filesystem, its reserve and this agent.
-	checkouts := &cachevolumes.Checkouts{Root: filepath.Join(*root, "checkouts"), Images: &cachevolumes.Ext4CheckoutImages{}, Observe: metrics.observe, Log: metrics.logger,
+	checkouts := &cachevolumes.Checkouts{Root: filepath.Join(*root, "checkouts"), Images: &cachevolumes.Ext4CheckoutImages{}, Path: checkoutPath, Tools: pinnedGitLFS(gitLFSCommand), Observe: metrics.observe, Log: metrics.logger,
 		// Checkout images are larger than custom ones, so their archives get their own bound.
 		Transfer: &imageTransfer{URL: transfer.URL, Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000}}
 	space := &checkoutSpace{root: *root, reserve: backend.MinFreeBytes, checkouts: checkouts}
@@ -238,6 +239,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	checkouts.InUse = store.InUse
 	defer store.Close()
 	// Lock survives requests and prevents an overlapping/restarted DaemonSet from
 	// allocating the same directory. Kubernetes rollout uses maxSurge=0 as well.
@@ -253,7 +255,7 @@ func main() {
 		log.Fatal(err)
 	}
 	store.MaxSlots = *maxSlots
-	a := &agent{checkouts: checkouts, exports: make(chan struct{}, 2), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	a := &agent{checkouts: checkouts, space: space, exports: make(chan struct{}, 2), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)

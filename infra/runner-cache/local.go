@@ -68,11 +68,11 @@ type LocalImages struct {
 	// in the last day. The stale master stays while it reports the fetch queued, so
 	// jobs can mount it until its successor is local. It replaces RefreshWithin.
 	Replace func(Identity) bool
+	// Seed clones the host-built master of a checkout slot to the given path.
+	Seed func(context.Context, Slot, string) error
 	// Displace, when set, cancels speculative work that holds space on this
 	// filesystem, so admission takes that space before it evicts a master.
 	// Reports whether it cancelled anything.
-	// Seed clones the host-built master of a checkout slot to the given path.
-	Seed      func(context.Context, Slot, string) error
 	Displace  func(context.Context) bool
 	refresh   refresher
 	locks     sync.Map
@@ -308,7 +308,13 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	}()
 	image := b.image(slot)
 	if _, err := os.Stat(image); os.IsNotExist(err) {
-		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
+		// A checkout clone holds the job's whole workspace, so the reserve must cover
+		// what it can grow to, as it covers one custom volume.
+		minimum := b.MinFreeBytes
+		if slot.Kind == KindCheckout {
+			minimum = max(minimum, CheckoutCapacity)
+		}
+		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
 			return err
 		}
 		tmp := image + ".tmp"

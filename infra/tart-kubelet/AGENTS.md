@@ -162,7 +162,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   working git answers `denied`, so guests do not export. `Track` maps the
   server's stable `volume_key` to the current scope and drops the previous
   scope's copies after a clear. Custom-volume admission evicts idle checkout
-  copies before refusing.
+  copies before refusing. Pressure eviction skips masters with a live or attaching
+  clone (`Checkouts.InUse = Store.InUse`).
 - A guest asks with `{"checkout": true}` in the mailbox (15 s budget); the host
   allocates through `/checkout`, marks the identity `Kind: checkout` itself,
   strips the HEAD fields (the branch is a clone of this host's master) and seeds

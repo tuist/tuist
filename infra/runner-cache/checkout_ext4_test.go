@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,7 +35,7 @@ func TestReceivedExportsKeepOnlyTheExportsOwnEntries(t *testing.T) {
 	oid := lfsOID("large file")
 	host.lfs = []string{oid}
 	dst := c.Incoming("pod")
-	err := ReceiveCheckoutExport(exportArchive(t, [2]string{"head", checkoutTestCommit + "\n"}, [2]string{"pack", "PACK"}, [2]string{"lfs/" + oid, "large file"}), dst)
+	err := ReceiveCheckoutExport(exportArchive(t, [2]string{"head", checkoutTestCommit + "\n"}, [2]string{"pack", "PACK"}, [2]string{"lfs/" + oid, "large file"}), dst, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +79,7 @@ func TestReceivedExportsRefuseAnythingElse(t *testing.T) {
 	}
 	for name, archive := range cases {
 		dst := filepath.Join(dir, strings.ReplaceAll(name, " ", "-"))
-		if err := ReceiveCheckoutExport(archive(), dst); err == nil {
+		if err := ReceiveCheckoutExport(archive(), dst, nil); err == nil {
 			t.Fatalf("%s accepted", name)
 		}
 		for _, path := range []string{dst, dst + ".part"} {
@@ -210,5 +211,102 @@ func TestLocalCheckoutSlotsAreSeededNeverFormatted(t *testing.T) {
 	}
 	if _, err := os.Stat(b.image(other)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("a checkout fell back to an empty image")
+	}
+}
+
+// gnuSparsePack is a tar stream whose "pack" is an old-style GNU sparse file
+// declaring size bytes, all of them a hole: a few hundred bytes on the wire.
+func gnuSparsePack(t *testing.T, size int64) *bytes.Buffer {
+	t.Helper()
+	var buffer bytes.Buffer
+	head := exportArchive(t, [2]string{"head", checkoutTestCommit})
+	buffer.Write(head.Bytes()[:head.Len()-1024])
+	block := make([]byte, 512)
+	copy(block[0:], "pack")
+	copy(block[100:], "0000644\x00")
+	copy(block[108:], "0000000\x00")
+	copy(block[116:], "0000000\x00")
+	copy(block[124:], "00000000000\x00")
+	copy(block[136:], "00000000000\x00")
+	block[156] = 'S'
+	copy(block[257:], "ustar  \x00")
+	// One sparse map entry: no data, then the declared real size.
+	copy(block[386:], fmt.Sprintf("%011o\x00%011o\x00", size, 0))
+	copy(block[483:], fmt.Sprintf("%011o\x00", size))
+	copy(block[148:], "        ")
+	sum := 0
+	for _, b := range block {
+		sum += int(b)
+	}
+	copy(block[148:], fmt.Sprintf("%06o\x00 ", sum))
+	buffer.Write(block)
+	buffer.Write(make([]byte, 1024))
+	return &buffer
+}
+
+func TestReceivedExportsRefuseSparseEntries(t *testing.T) {
+	dst := filepath.Join(t.TempDir(), "export")
+	err := ReceiveCheckoutExport(gnuSparsePack(t, 1<<30), dst, nil)
+	if err == nil {
+		t.Fatal("a sparse entry was accepted")
+	}
+	if _, statErr := os.Stat(dst + ".part"); !os.IsNotExist(statErr) {
+		t.Fatal("left the partial export behind")
+	}
+}
+
+func TestReceivedExportsAskForRoomBeforeEachEntry(t *testing.T) {
+	var asked []int64
+	held := 0
+	admit := func(size int64) (func(), error) {
+		asked = append(asked, size)
+		held++
+		return func() { held-- }, nil
+	}
+	archive := exportArchive(t, [2]string{"head", checkoutTestCommit}, [2]string{"pack", "PACK"})
+	if err := ReceiveCheckoutExport(archive, filepath.Join(t.TempDir(), "export"), admit); err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 2 || asked[0] != int64(len(checkoutTestCommit)) || asked[1] != 4 || held != 0 {
+		t.Fatalf("asked %v, still held %d", asked, held)
+	}
+	refuse := func(int64) (func(), error) { return nil, ErrCapacity }
+	dst := filepath.Join(t.TempDir(), "export")
+	if err := ReceiveCheckoutExport(exportArchive(t, [2]string{"head", checkoutTestCommit}, [2]string{"pack", "PACK"}), dst, refuse); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("got %v", err)
+	}
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		t.Fatal("kept an export there was no room for")
+	}
+}
+
+func TestLocalCheckoutClonesNeedRoomForTheWholeWorkspace(t *testing.T) {
+	b, _ := newLocal(t)
+	b.FreeBytes = func(string) (uint64, error) { return CheckoutCapacity - 1, nil }
+	b.Seed = func(_ context.Context, _ Slot, dst string) error { return os.WriteFile(dst, nil, 0600) }
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	slot.Kind, slot.Generation = KindCheckout, 1
+	if err := b.Attach(context.Background(), slot, t.TempDir()); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("a checkout clone was admitted without room to grow: %v", err)
+	}
+	custom := Slot{Identity: identity(first), PodUID: "q"}
+	if err := b.Attach(context.Background(), custom, t.TempDir()); err != nil {
+		t.Fatalf("a custom volume needs only the reserve: %v", err)
+	}
+}
+
+func TestPressureEvictionSkipsMastersWithLiveClones(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.Process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	other := exportFrom(t, c, "other", checkoutTestCommit, nil)
+	other.Scope = strings.Repeat("b", 64)
+	c.Process(context.Background(), other)
+	c.InUse = func(scope string) bool { return scope == checkoutTestScope }
+	if got := c.Evictable(func(string) (uint64, error) { return 3, nil }); got != 3 {
+		t.Fatalf("evictable %d, want only the master without clones", got)
+	}
+	c.Evict(func() bool { return false })
+	if c.Master(checkoutTestScope, 1) == "" || c.Master(other.Scope, 1) != "" {
+		t.Fatal("pressure eviction removed a master a job clones")
 	}
 }

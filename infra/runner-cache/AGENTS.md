@@ -119,11 +119,18 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   builds in the agent, keeps the tree in `checkout/` beside the volume's own
   files, and chowns it to the job's UID. git runs as root on that tree, so the
   populator passes `safe.directory=*` per command. A Linux checkout slot is
-  seeded through `LocalImages.Seed`, never formatted.
+  seeded through `LocalImages.Seed`, never formatted, and admitted only while
+  free space covers the whole checkout image: it holds the job's workspace.
+- `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
+  off masters a job holds or is attaching: their blocks are shared, so evicting
+  them frees nothing and the attaching job loses its seed.
 - `ReceiveCheckoutExport` unpacks a streamed export (Linux has no writable host
   share): regular files named `head`, `shallow`, `pack` or `lfs/<oid>` only,
   within the export bounds, written through `os.Root`, else the whole stream is
-  refused. `openCheckoutExport` validates it again before a build.
+  refused. Sparse entries are refused and no write may exceed what the stream
+  carried, so holes cannot expand into real bytes. Its `admit` hook asks for room
+  per entry; the Linux agent admits above the job reserve and caps exports held
+  on the host. `openCheckoutExport` validates it again before a build.
 - Run the real-tools checkout test with `TUIST_CHECKOUT_E2E=1 go test -run
   CheckoutMasterEndToEnd .`; on Linux it runs as root with
   `TUIST_CHECKOUT_E2E_ROOT` on a reflink filesystem (`scripts/test-cache-filesystem.sh`

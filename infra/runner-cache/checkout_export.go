@@ -211,7 +211,12 @@ func lfsPointers(listing []byte) []string {
 // dst. It takes only the export's own entries: regular files named head,
 // shallow, pack or lfs/<oid>, within the export's bounds. Anything else refuses
 // the whole stream, and nothing is left at dst unless it was complete.
-func ReceiveCheckoutExport(stream io.Reader, dst string) (err error) {
+//
+// admit, when set, is asked for room for each entry before it is written, and
+// the returned release is called once the entry is on disk. Nothing is written
+// that the stream did not carry: a sparse entry, whose holes would expand into
+// real bytes, refuses the stream.
+func ReceiveCheckoutExport(stream io.Reader, dst string, admit func(int64) (func(), error)) (err error) {
 	tmp := dst + ".part"
 	_ = os.RemoveAll(tmp)
 	defer func() {
@@ -227,9 +232,10 @@ func ReceiveCheckoutExport(stream io.Reader, dst string) (err error) {
 		return err
 	}
 	defer root.Close()
-	archive := tar.NewReader(stream)
+	carried := &countingReader{reader: stream}
+	archive := tar.NewReader(carried)
 	seen := map[string]bool{}
-	var total int64
+	var total, written int64
 	objects := 0
 	for {
 		header, err := archive.Next()
@@ -252,19 +258,27 @@ func ReceiveCheckoutExport(stream io.Reader, dst string) (err error) {
 		default:
 			return errors.New("unexpected checkout export entry")
 		}
-		if header.Typeflag != tar.TypeReg || seen[name] || objects > checkoutLFSMax || header.Size < 0 || header.Size > limit || total+header.Size > checkoutExportMax {
+		if header.Typeflag != tar.TypeReg || sparseEntry(header) || seen[name] || objects > checkoutLFSMax || header.Size < 0 || header.Size > limit || total+header.Size > checkoutExportMax {
 			return errors.New("checkout export entry out of bounds: " + name)
 		}
 		seen[name] = true
 		total += header.Size
+		release := func() {}
+		if admit != nil {
+			if release, err = admit(header.Size); err != nil {
+				return err
+			}
+		}
 		file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 		if err != nil {
+			release()
 			return err
 		}
-		n, err := io.Copy(file, io.LimitReader(archive, header.Size))
+		n, err := io.Copy(&carriedWriter{file: file, carried: carried, written: &written}, io.LimitReader(archive, header.Size))
 		if closeErr := file.Close(); err == nil {
 			err = closeErr
 		}
+		release()
 		if err != nil {
 			return err
 		}
@@ -277,4 +291,43 @@ func ReceiveCheckoutExport(stream io.Reader, dst string) (err error) {
 	}
 	_ = os.RemoveAll(dst)
 	return checkoutRename(tmp, dst)
+}
+
+// sparseEntry reports a GNU or PAX sparse file. Go presents those as regular
+// files and fills their holes with zeros.
+func sparseEntry(header *tar.Header) bool {
+	for key := range header.PAXRecords {
+		if strings.HasPrefix(key, "GNU.sparse.") {
+			return true
+		}
+	}
+	return header.Typeflag == tar.TypeGNUSparse
+}
+
+type countingReader struct {
+	reader io.Reader
+	n      int64
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.n += int64(n)
+	return n, err
+}
+
+// carriedWriter refuses to write more than the stream has carried so far, so no
+// entry can expand into bytes nobody sent.
+type carriedWriter struct {
+	file    io.Writer
+	carried *countingReader
+	written *int64
+}
+
+func (w *carriedWriter) Write(p []byte) (int, error) {
+	if *w.written+int64(len(p)) > w.carried.n {
+		return 0, errors.New("checkout export entry holds bytes the stream did not carry")
+	}
+	n, err := w.file.Write(p)
+	*w.written += int64(n)
+	return n, err
 }
