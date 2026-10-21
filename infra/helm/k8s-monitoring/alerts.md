@@ -6718,17 +6718,11 @@ sum by (cluster, namespace, result) (
 - Folder `Alerts`, group `Server`
 - Summary: `ClickHouse reads are failing with {{ $labels.result }} in {{ $labels.cluster }}`
 - `tuist_clickhouse_query_count` is emitted by `Tuist.ClickHouseRepo.PromExPlugin`
-  for reads against both physical Cloud and shadow ClickHouse repositories.
-  The `repo` label distinguishes `clickhouse_read` from
-  `clickhouse_shadow_read`; this rule aggregates both. Adding shadow event
-  coverage can surface failures that were previously unobserved, without a
-  threshold change. `result` is `ok`,
-  `clickhouse_<code>` for an error ClickHouse returned (`clickhouse_159` is
-  `TIMEOUT_EXCEEDED`, which the Cloud repo's `max_execution_time` produces for a
-  slow read; `clickhouse_241` the memory limit), `transport_closed` for a
-  connection the client dropped, `queue_timeout` for a pool checkout that never
-  got a connection. The shadow repo does not configure `max_execution_time`:
-  a client timeout alone does not establish that its server-side query stopped.
+  for ClickHouse reads. `result` is `ok`, `clickhouse_<code>` for an error
+  ClickHouse returned (`clickhouse_159` is `TIMEOUT_EXCEEDED`, which the repo's
+  `max_execution_time` produces for a slow read; `clickhouse_241` the memory
+  limit), `transport_closed` for a connection the client dropped,
+  `queue_timeout` for a pool checkout that never got a connection.
 - The threshold is `> 0` on purpose, the same reasoning as the Kura
   NetworkPolicy rule above: the errors are rare enough that any magnitude floor
   would be tuned blind and hide a low-rate variant. Duration does the
@@ -6756,14 +6750,10 @@ histogram_quantile(
 - Severity: warning
 - Folder `Alerts`, group `Server`
 - Summary: `p90 ClickHouse read took over 5s for 10 minutes in {{ $labels.cluster }}`
-- Same histogram as the failures rule, aggregating Cloud and shadow physical
-  read repositories. Newly instrumented shadow reads can change the observed
-  p90 and make this rule fire. All outcomes are included so a query that ran
-  into its timeout counts as slow rather than disappearing from the distribution.
-  Cloud reads have a 15 s server-side limit and a 20 s client timeout. Shadow
-  reads do not configure a server-side execution limit and use the driver's
-  default 15 s client timeout; a client timeout does not guarantee server-side
-  cancellation. The histogram's top finite buckets are 15 000, 20 000 and
+- Same histogram as the failures rule. All outcomes are included so a query
+  that ran into its timeout counts as slow rather than disappearing from the
+  distribution. Reads have a 15 s server-side limit and a 20 s client timeout.
+  The histogram's top finite buckets are 15 000, 20 000 and
   30 000; longer observations fall into `+Inf`.
 - This is the rule that covers dashboard pages. They are LiveViews: the
   initial render returns in milliseconds and the data is loaded afterwards
@@ -6850,64 +6840,6 @@ LIMIT 20
   `numeric-multi` frame per `(query_hash, query_preview)` for both `A` and
   `B`, and the first scheduled evaluation after the update reported
   `health: ok` with no error.
-
-### ClickHouse shadow write lost
-
-```promql
-(
-  sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"})
-  - sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"} offset 10m)
-)
-or
-(
-  sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"})
-  unless sum by (cluster, kind, result) (tuist_clickhouse_shadow_write_count{result=~"error|dropped"} offset 10m)
-)
-```
-
-- Condition: expression `C`, **Threshold** on `A`, `IS ABOVE 0`. Query `A`
-  relative time range: 15 minutes.
-- Pending period: 0 minutes; keep firing for 10 minutes
-- Label `severity=warning`
-- Folder `Alerts`, group `Server`; no receiver set on the rule
-- Summary: `{{ $values.A.Value }} shadow ClickHouse {{ $labels.kind }} write(s) {{ $labels.result }} in {{ $labels.cluster }} in the last 10 minutes`
-- Set **No Data** to Normal: the counter only has `error` and `dropped` series
-  once a mirror has failed. Error state: Error.
-- `tuist_clickhouse_shadow_write_count` is emitted by
-  `Tuist.IngestRepo.ShadowWrite` for every write it mirrors onto the
-  in-cluster ClickHouse. `result=retried` is a failed attempt that will be
-  tried again and is not alerted on. `result=error` is a write given up on
-  after its last attempt, and `result=dropped` one never attempted because the
-  mirror's `Task.Supervisor` was at its bound. Both mean ClickHouse Cloud holds
-  rows the in-cluster server does not, which parity would only find later. The
-  `kind` label is the write form: `insert_all`, `insert` (which includes the
-  buffer flushes), `alter`.
-- The threshold is `> 0` on purpose: every count is a lost row set, and once
-  `clickhouse_bare_metal_reads` is on it is a wrong read too. On 2026-10-14 at
-  20:22Z the mirror gave up on 7 `coverage_files` inserts from one test run
-  while the run's one-row `coverage_runs` total arrived, so every fold of
-  commit `4eec2ec` read the run but none of its files and published 3.1%
-  coverage instead of 44.4%. This rule would have fired at 20:25Z.
-- This counter is the only signal. `ShadowWrite` logs every give-up with
-  `Logger.error("Shadow ClickHouse write ...")`, but none of those lines reached
-  Loki in the seven days to 2026-10-15 while the counter recorded hundreds of
-  errors.
-- Why not `increase()`: Grafana Cloud adaptive metrics aggregates `instance`
-  away on this metric, and `increase`/`rate` over the stored aggregation
-  return nothing. The rule diffs the summed counter against its value 10
-  minutes earlier instead. The `unless` arm keeps a series that did not exist
-  10 minutes ago, so the first failure on a pod is not lost. A pod restart
-  lowers the sum and makes the difference negative, so it cannot fire the
-  rule, but a restart inside a failure window can hide that window's count.
-- Recovering: once the window is at least 15 minutes old, run
-  `mise run clickhouse:migration <env> repair --from <start> --to <end>` from
-  `infra/` with a few minutes of margin on each side
-  (see [`infra/clickhouse/migration.md`](../../clickhouse/migration.md#repairing-known-gaps)),
-  then refold any coverage commit folded inside the window
-  (`Tuist.Tests.Coverage.Workers.CommitWorker.enqueue/2`).
-- Validated on 2026-10-15 against the past seven days: the expression returns
-  `insert` 44 and `insert_all` 7 at 20:25Z on 2026-10-14, is above zero in
-  about nine hourly samples over the week, and was 0 when evaluated.
 
 ### etcd write-ahead-log synchronization latency
 

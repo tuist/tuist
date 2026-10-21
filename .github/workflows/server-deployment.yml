@@ -1750,12 +1750,11 @@ jobs:
           kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
           echo "::endgroup::"
           echo "::group::migration jobs"
-          # Both the Ecto migration (pre-upgrade) and the ClickHouse migration
-          # steps (post-upgrade). A failed hook Job is deleted before the next
-          # deploy recreates it, and its pod is short-lived enough that the log
-          # collector can miss it entirely, so this is the only place its
-          # output survives.
-          JOB_SELECTOR='app.kubernetes.io/component in (server-migration,clickhouse-migration)'
+          # The Ecto migration (pre-upgrade). A failed hook Job is deleted
+          # before the next deploy recreates it, and its pod is short-lived
+          # enough that the log collector can miss it entirely, so this is the
+          # only place its output survives.
+          JOB_SELECTOR='app.kubernetes.io/component=server-migration'
           kubectl -n "$NAMESPACE" get jobs -l "$JOB_SELECTOR" -o wide || true
           for job in $(kubectl -n "$NAMESPACE" get jobs -l "$JOB_SELECTOR" -o name 2>/dev/null); do
             echo "--- describe $job ---"

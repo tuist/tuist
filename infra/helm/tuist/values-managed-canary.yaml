@@ -291,13 +291,6 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse is canary's system of record (spec #73). Every
-  # workload reads and writes it through TUIST_CLICKHOUSE_URL, and ClickHouse
-  # Cloud receives nothing.
-  #
-  # Going back to `external` does not copy anything back: rows written since
-  # the switch exist only on the in-cluster server.
-  mode: managed
   managed:
     enabled: true
     # Canary carries no production-sized copy: its AX42-1s have a 2x512 GB

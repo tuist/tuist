@@ -512,9 +512,7 @@ postgresql:
         field: password
 
 clickhouse:
-  mode: external
-  external:
-    url: ""  # https://<clickhouse-cloud>.clickhouse.cloud:8443/tuist_prod
+  mode: managed
 
 objectStorage:
   mode: external
