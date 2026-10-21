@@ -1000,16 +1000,20 @@ defmodule Tuist.Accounts.AgentAuth do
       is_binary(provider_value(provider, "jwks_uri")) ->
         jwks_uri = provider_value(provider, "jwks_uri")
 
-        KeyValueStore.get_or_update(["agent_auth", "jwks", jwks_uri], [ttl: to_timeout(minute: 15)], fn ->
-          case Req.get(jwks_uri, connect_options: [timeout: 10_000]) do
-            {:ok, %{status: 200, body: body}} ->
-              {:ok, body}
+        KeyValueStore.get_or_update(
+          ["agent_auth", "jwks", jwks_uri],
+          [ttl: to_timeout(minute: 15), locking: true, cache_errors: false],
+          fn ->
+            case Req.get(jwks_uri, connect_options: [timeout: 10_000]) do
+              {:ok, %{status: 200, body: %{"keys" => keys} = body}} when is_list(keys) ->
+                {:ok, body}
 
-            other ->
-              Logger.warning("agent_auth JWKS fetch failed for #{jwks_uri}: #{inspect(other)}")
-              {:error, :invalid_signature}
+              other ->
+                Logger.warning("agent_auth JWKS fetch failed for #{jwks_uri}: #{inspect(other)}")
+                {:error, :invalid_signature}
+            end
           end
-        end)
+        )
 
       is_binary(provider_value(provider, "issuer")) ->
         fetch_jwks(Map.put(provider, "jwks_uri", provider_jwks_uri(provider)))
@@ -1037,13 +1041,28 @@ defmodule Tuist.Accounts.AgentAuth do
     if is_map(provider_value(provider, "jwks")) do
       {:error, :invalid_key}
     else
-      with jwks_uri when is_binary(jwks_uri) <- provider_jwks_uri(provider),
-           {:ok, %{status: 200, body: body}} <- Req.get(jwks_uri, connect_options: [timeout: 10_000]) do
+      case provider_jwks_uri(provider) do
+        jwks_uri when is_binary(jwks_uri) ->
+          KeyValueStore.get_or_update(
+            ["agent_auth", "jwks_refresh", jwks_uri],
+            [ttl: to_timeout(second: 10), locking: true],
+            fn -> fetch_refreshed_jwks(jwks_uri) end
+          )
+
+        _ ->
+          {:error, :invalid_key}
+      end
+    end
+  end
+
+  defp fetch_refreshed_jwks(jwks_uri) do
+    case Req.get(jwks_uri, connect_options: [timeout: 10_000]) do
+      {:ok, %{status: 200, body: %{"keys" => keys} = body}} when is_list(keys) ->
         KeyValueStore.put(["agent_auth", "jwks", jwks_uri], {:ok, body}, ttl: to_timeout(minute: 15))
         {:ok, body}
-      else
-        _ -> {:error, :invalid_key}
-      end
+
+      _ ->
+        {:error, :invalid_key}
     end
   end
 

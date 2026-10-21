@@ -22,6 +22,26 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     stub(Registry, :registry_bucket, fn -> "test-bucket" end)
     stub(Registry, :registry_s3_config, fn -> [host: "registry.example.com"] end)
     stub(Lock, :release, fn _ -> :ok end)
+    # Worker tests exercise domain amendments; real CAS and immutable transport
+    # are covered independently in MetadataTest and S3Test.
+    stub(Metadata, :update_package, fn scope, name, initial, amend ->
+      case Metadata.get_package(scope, name, fresh: true) do
+        {:ok, current} ->
+          with {:ok, updated} <- amend.(current), do: Metadata.put_package(scope, name, updated)
+
+        {:error, :not_found} ->
+          with {:ok, updated} <- amend.(initial), do: Metadata.put_package(scope, name, updated)
+
+        error ->
+          error
+      end
+    end)
+
+    stub(Tuist.Registry.S3, :upload_file_once, fn key, path, opts -> Tuist.Registry.S3.upload_file(key, path, opts) end)
+
+    stub(Tuist.Registry.S3, :upload_content_once, fn key, content, opts ->
+      Tuist.Registry.S3.upload_content(key, content, opts)
+    end)
 
     :ok
   end
@@ -387,6 +407,53 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
 
     assert Agent.get(package_lock_attempts, & &1) == 3
+  end
+
+  @tag :tmp_dir
+  test "an orphaned immutable archive is adopted with its own checksum and manifests", %{tmp_dir: tmp} do
+    winner_path = Path.join(tmp, "winner.zip")
+    write_basic_zipball(winner_path)
+    winner = sha256(winner_path)
+
+    stub_release_download(fn path ->
+      write_basic_zipball(path)
+      :ok
+    end)
+
+    stub(Lock, :try_acquire, fn _, _ -> {:ok, :acquired} end)
+
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      _, _, "Package.swift", _, _ -> {:ok, @default_manifest_content <> "\n// rebuilt candidate"}
+      _, _, ".gitmodules", _, _ -> {:error, :not_found}
+    end)
+
+    expect(Tuist.Registry.S3, :upload_file_once, fn key, _, _ -> {:error, {:immutable_archive_conflict, key}} end)
+    stub(Tuist.Registry.S3, :head_object, fn _ -> {:ok, %{"x-amz-meta-sha256" => winner}} end)
+
+    expect(Tuist.Registry.S3, :download_file, fn _, destination ->
+      File.cp!(winner_path, destination)
+      :ok
+    end)
+
+    expect(Tuist.Registry.S3, :upload_content_once, fn _, content, _ ->
+      send(self(), {:manifest, content})
+      :ok
+    end)
+
+    expect(Metadata, :put_package, fn _, _, metadata ->
+      send(self(), {:published, metadata})
+      :ok
+    end)
+
+    assert :ok = ReleaseWorker.perform(release_job())
+    assert_receive {:manifest, @default_manifest_content}
+    assert_receive {:published, metadata}
+    assert metadata["releases"]["1.0.0"]["checksum"] == winner
+  end
+
+  test "a held release lease snoozes rather than completing an unpublished job" do
+    expect(Lock, :try_acquire, fn {:release, _, _, _}, _ -> {:error, :already_locked} end)
+    assert {:snooze, 60} = ReleaseWorker.perform(release_job())
   end
 
   # Briefly removes a dead process's files from inside its single shared server,
@@ -939,7 +1006,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
   defp stub_git(handler) do
     test_pid = self()
 
-    stub(System, :cmd, fn "git", args, _opts ->
+    stub(Tuist.Registry.Command, :run, fn "git", args, _opts ->
       send(test_pid, {:git, args})
       handler.(args)
     end)

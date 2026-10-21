@@ -22,7 +22,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   @github_opts [finch: Tuist.Finch, retry: false]
 
-  @sync_lock_ttl_seconds 3_000
+  @sync_lock_ttl_seconds 720
   @package_lock_ttl_seconds 900
 
   # Emitted when a pass stops short of the packages it was scheduled to visit.
@@ -45,6 +45,9 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   @doc false
   def package_skipped_event_name, do: @package_skipped_event
+
+  @impl Oban.Worker
+  def timeout(_job), do: to_timeout(minute: 10)
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -85,10 +88,12 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   end
 
   defp perform_sync(args, token) do
+    deadline = System.monotonic_time(:millisecond) + to_timeout(minute: 8)
+
     case Lock.try_acquire(:sync, @sync_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          sync_packages(args, token)
+          sync_packages(args, token, deadline)
         after
           Lock.release(:sync)
         end
@@ -99,7 +104,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end
   end
 
-  defp sync_packages(args, token) do
+  defp sync_packages(args, token, deadline) do
     limit = Map.get(args, "limit", Registry.swift_registry_sync_limit())
 
     case list_packages(token) do
@@ -108,7 +113,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
       {:ok, packages} ->
         {batch, cursor, total} = take_batch(packages, limit)
-        sync_batch(batch, cursor, total, token)
+        sync_batch(batch, cursor, total, token, deadline)
 
       {:snooze, _seconds} = snooze ->
         snooze
@@ -125,13 +130,17 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   # it by the whole batch after stopping early is what made throttled packages
   # invisible: each skipped package waited a full catalog rotation for another
   # look, with nothing recording that it had been passed over.
-  defp sync_batch(batch, cursor, total, token) do
+  defp sync_batch(batch, cursor, total, token, deadline) do
     {visited, failed, outcome} =
       Enum.reduce_while(batch, {0, 0, :ok}, fn package, {visited, failed, :ok} ->
-        case sync_package(package, token) do
-          :ok -> {:cont, {visited + 1, failed, :ok}}
-          :failed -> {:cont, {visited + 1, failed + 1, :ok}}
-          {halt_reason, retry_after} -> {:halt, {visited, failed, {halt_reason, retry_after}}}
+        if System.monotonic_time(:millisecond) >= deadline do
+          {:halt, {visited, failed, {:deadline, 60}}}
+        else
+          case sync_package(package, token, deadline) do
+            :ok -> {:cont, {visited + 1, failed, :ok}}
+            :failed -> {:cont, {visited + 1, failed + 1, :ok}}
+            {halt_reason, retry_after} -> {:halt, {visited, failed, {halt_reason, retry_after}}}
+          end
         end
       end)
 
@@ -270,13 +279,13 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   defp transient_fetch_error?(%Req.HTTPError{}), do: true
   defp transient_fetch_error?(_reason), do: false
 
-  defp sync_package(%{scope: scope, name: name, repository_full_handle: full_handle}, token) do
+  defp sync_package(%{scope: scope, name: name, repository_full_handle: full_handle}, token, deadline) do
     lock_key = {:package, scope, name}
 
     case Lock.try_acquire(lock_key, @package_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          do_sync_package(scope, name, full_handle, token)
+          bounded_sync_package(scope, name, full_handle, token, deadline)
         after
           Lock.release(lock_key)
         end
@@ -292,6 +301,21 @@ defmodule Tuist.Registry.Swift.SyncWorker do
         :telemetry.execute(@package_skipped_event, %{packages: 1}, %{reason: :package_locked})
 
         :ok
+    end
+  end
+
+  defp bounded_sync_package(scope, name, full_handle, token, deadline) do
+    remaining = max(1, min(to_timeout(minute: 2), deadline - System.monotonic_time(:millisecond)))
+    task = Task.async(fn -> do_sync_package(scope, name, full_handle, token) end)
+
+    case Task.yield(task, remaining) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} ->
+        result
+
+      nil ->
+        Logger.warning("Registry package sync timed out; retaining catalog rotation progress")
+        :telemetry.execute(@package_skipped_event, %{packages: 1}, %{reason: :package_timeout})
+        :failed
     end
   end
 
@@ -389,8 +413,12 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   defp sync_tags(scope, name, full_handle, tags, metadata) do
     missing_versions = missing_versions(tags, metadata)
-    updated_metadata = update_metadata(metadata, scope, name, full_handle)
-    :ok = Metadata.put_package(scope, name, updated_metadata)
+
+    :ok =
+      Metadata.update_package(scope, name, metadata, fn current ->
+        {:ok, update_metadata(current, scope, name, full_handle)}
+      end)
+
     enqueue_release_workers(scope, name, full_handle, missing_versions)
     :ok
   end

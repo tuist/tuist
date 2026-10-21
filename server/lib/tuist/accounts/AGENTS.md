@@ -17,6 +17,7 @@ This context owns business logic and data related to accounts, users, organizati
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
+- Agent JWKS fills cache successful keysets only. Unknown-key refresh is coalesced and bounded per provider/node for ten seconds, including short refresh backoff; do not retain provider failures as fifteen-minute signature decisions. Preserve fail-closed verification and avoid unbounded attacker-triggered refreshes.
 - If changes add or modify stored customer data (users, organizations, tokens), update `server/data-export.md`.
 - Keep the current `/agent/identity`, `/oauth2/token`, `/oauth2/revoke`, and `/agent/event/notify` behavior aligned with the published `/auth.md` document and authorization-server metadata.
 

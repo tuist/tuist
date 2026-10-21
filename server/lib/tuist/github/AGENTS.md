@@ -15,6 +15,7 @@ This context integrates with the GitHub API and GitHub App.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
+- Installation-ID and installation-token caches retain successes, not provider/transport failures or `:not_installed` errors. A transient GitHub failure must not create hours of per-replica authentication failure after recovery. Successful lookup/token TTLs are unchanged.
 - If changes add or modify stored customer data, update `server/data-export.md`.
 
 ## Related Context

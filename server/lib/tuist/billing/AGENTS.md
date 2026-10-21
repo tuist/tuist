@@ -18,6 +18,12 @@ This context owns billing, plan management, and Stripe integration.
 - Configuration belongs in `server/config`.
 - Schema changes and migrations live in `server/priv`.
 
+## Subscription webhook ordering
+
+Subscription webhook snapshots can arrive out of order. `reconcile_subscription/1` takes a per-subscription PostgreSQL transaction advisory lock BEFORE retrieving authoritative Stripe state and applying it. An unlocked retrieve followed by a write is not sufficient. Provider failure rolls back and requests retry; a mismatched customer is ignored without mutation. FunWithFlags cache mutation/broadcast happens only after commit, so another replica cannot refill an uncommitted flag value. Cached flags may cheaply reject a Pro hold, but a proposed hold must also re-read the pinned FunWithFlags Ecto persistence adapter and respect any persisted actor gate/global disable. That prevents a missed switch notification from authorizing an overwrite for the cache's full ten-minute TTL; this internal adapter read needs requalification on a FunWithFlags upgrade.
+
+The guarantee is subscription-snapshot ordering among replicas using this path, not atomic ordering of all pricing-gate writers. The Pro hold is a one-way latch applied after the transaction lock releases: a newer cancellation/plan change can commit before an older hold executes. The independent switch also has a genuine flag check/write race even after the authoritative read. These residuals are narrower than the old unordered-payload behavior, not closed by a desired-effect version alone. Fully ordering them requires the switch and bulk hold/release writers to share an account-level protocol spanning the gate write. Do not claim the current subscription lock covers that protocol. Old payload-based webhook writers do not participate either. The Stripe request holds a pool connection, so qualify renewal bursts against the web pool rather than assuming horizontal replicas provide unlimited capacity.
+
 ## Guardrails
 - Billing data is customer data; update `server/data-export.md` for schema or usage changes.
 - Kura reports a download it serves twice: as a usage rollup, and to `/webhooks/cache`, which writes a CAS event. `UsageMeters` counts CAS events only from the endpoints registered in `cache_endpoints`, which is the path with no rollup. Widening that filter bills every Kura-served Xcode download twice.

@@ -47,6 +47,28 @@ defmodule TuistWeb.RunnerShellWebSockTest do
              RunnerShellClientWebSock.handle_info({:runner_shell, :close_expired_session}, expired_state)
   end
 
+  test "late disconnect preserves another active client's shell, including old-image messages" do
+    session = shell_session()
+    :ok = InteractiveShellBroker.subscribe_runner(session.id)
+    {:ok, agent} = RunnerShellAgentWebSock.init(%{session: session})
+    {:push, _, first} = RunnerShellClientWebSock.init(%{session: session})
+    {:push, _, second} = RunnerShellClientWebSock.init(%{session: session})
+
+    assert :ok = RunnerShellClientWebSock.terminate(:normal, first)
+    assert InteractiveSessions.open?(session.id)
+    refute_receive {:runner_shell, :client_disconnected}
+    assert {:ok, ^agent} = RunnerShellAgentWebSock.handle_info({:runner_shell, :client_disconnected}, agent)
+
+    assert :ok = RunnerShellClientWebSock.terminate(:normal, second)
+    refute InteractiveSessions.open?(session.id)
+    assert_receive {:runner_shell, :client_disconnected}
+
+    assert {:push, {:text, payload}, ^agent} =
+             RunnerShellAgentWebSock.handle_info({:runner_shell, :client_disconnected}, agent)
+
+    assert %{"type" => "client", "status" => "disconnected"} = JSON.decode!(payload)
+  end
+
   test "agent endpoint does not overwrite a zero shell exit with a disconnect" do
     assert_agent_exit_is_terminal(0)
   end

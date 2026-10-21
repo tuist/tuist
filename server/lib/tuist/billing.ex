@@ -19,6 +19,8 @@ defmodule Tuist.Billing do
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Trials
 
+  require Logger
+
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
@@ -887,7 +889,40 @@ defmodule Tuist.Billing do
   """
   def on_invoice_payment_failed(invoice), do: PaymentFailedNotifications.enqueue(invoice)
 
+  @doc """
+  Reconcile a subscription webhook against current Stripe state. Webhook snapshots
+  are unordered; retrieve while holding the per-subscription transaction lock.
+  """
+  def reconcile_subscription(subscription) do
+    result =
+      Repo.transaction(fn ->
+        Repo.query!("SET LOCAL lock_timeout = '5s'")
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["stripe-subscription:" <> subscription.id])
+        {:ok, current} = Stripe.Subscription.retrieve(subscription.id)
+
+        if current.customer != subscription.customer do
+          Repo.rollback(:customer_mismatch)
+        end
+
+        apply_subscription_change(current)
+      end)
+
+    case result do
+      {:ok, change} ->
+        finish_subscription_change(change)
+
+      {:error, :customer_mismatch} ->
+        Logger.warning("Ignoring Stripe subscription with a mismatched customer")
+        :ok
+    end
+  end
+
+  # Apply a trusted snapshot. Webhook callers must use reconcile_subscription/1.
   def on_subscription_change(subscription) do
+    subscription |> apply_subscription_change() |> finish_subscription_change()
+  end
+
+  defp apply_subscription_change(subscription) do
     case Accounts.get_account_from_customer_id(subscription.customer) do
       {:error, :not_found} ->
         # We had a race-condition that caused multiple customers to be created on Stripe
@@ -943,9 +978,10 @@ defmodule Tuist.Billing do
     end
 
     notify_when_turned_unpaid(account, current_subscription, subscription)
-
     :ok
   end
+
+  defp finish_subscription_change(:ok), do: :ok
 
   # Only the transition is news. The row read before the update carries the
   # previous status, so a redelivered event finds it already `unpaid`.

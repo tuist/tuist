@@ -2,6 +2,17 @@
 
 This subsystem projects Once lifecycle events into run summaries and declared actions for the live build pages.
 
+## Shared test-report publication
+
+- Commit the legacy admission reservation, publication intent and dedicated `once_test_reports` Oban job together. Snapshot preparation runs in the worker, not on the stream's hot run-row lock. For new intents only `TestReportPublication.state == "published"` is completion; the old `test_report_published_at` column still fences legacy writers during rollout.
+- Preserve immutable captured chunks and persisted tokens, write the parent last, and checkpoint each acknowledged chunk. Never automatically resend an uncertain in-flight write based on a finite deduplication window or a lagging read. Unknown outcomes remain visible for explicit reconciliation. Do not replace children with fresh IDs.
+- The age-independent publication sweep resumes durable preparing/pending/expired work; the separate two-hour terminal-run sweep covers missed intents. Historical old-writer reservations are not silently repaired. Only finalized test runs qualify, not abandoned/lost partial runs.
+- Deferred webhook enqueueing and its checkpoint share a PostgreSQL transaction. Optional downstream notifications and webhook delivery are not exactly once. The capture hook is process-local and must not change ordinary ingestion.
+- Keep required event projection failures as resync errors. Shared-report preparation/publication failure must not reject an already persisted completion event; retain its durable source/intent and expose the failure instead.
+- See [publication recovery](publication-recovery.md) for rollback, schema evolution, observability and the maintenance-only reconciliation preconditions.
+
+## Event projection
+
 - For projects opted into `:build_entities`, `TargetInstance` and `TargetQueued` persist idempotent run-local mappings (`once_target_instances`, `once_target_executions`) so completed actions resolve to declared slots (`target_id`, `capability`, `action_index`) in one joined query. Disabled projects do not write these mappings; native projection remains unchanged.
 - `RunCompleted` calls `OnceEvents.publish_build_entities/1`: lock the PostgreSQL run, skip published/nonterminal/disabled runs, synchronously insert the complete ClickHouse batch, then mark `build_entities_published_at`. Concurrent completion/recovery attempts serialize on the durable row, not a replica-local lock. Failed writes leave the marker unset. A crash after the ClickHouse acknowledgment and before the PostgreSQL commit can still replay, so deterministic IDs and replacement-safe reads remain necessary; this is not a cross-database exactly-once transaction.
 - The hourly stale-run worker retries only unpublished finalized/lost runs in a fixed two-hour window, with 100-run `(finalized_at, id)` keyset batches and a concurrent partial unpublished-terminal index. Repeated successful sweeps write no additional observations. This finite recovery window is not permanent durable delivery or an unbounded backfill. Preserve recorded action outcomes, propagate failures for retry, and keep the global `:build_entities_kill_switch` effective. The diagnostic `identifier` is not identity; reordering a target's declared actions changes slot identities.

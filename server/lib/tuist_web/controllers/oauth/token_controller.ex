@@ -53,7 +53,7 @@ defmodule TuistWeb.Oauth.TokenController do
   end
 
   def token(%Plug.Conn{} = conn, _params) do
-    oauth_module().token(conn, __MODULE__)
+    Tuist.OAuth.Exchange.token(conn, oauth_module(), __MODULE__)
   end
 
   # Protocol agent credentials are public-client tokens with no client secret to

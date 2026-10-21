@@ -48,9 +48,17 @@ Three guards enforce it today, at different layers:
 - `Repair` is the only supported way to set that override in bulk. It dry-runs,
   inventories the blast radius, bounds the batch, requires the operator to pass
   back the plan's approval digest, and backs up every archive it may replace.
-- Object storage itself is still permissive: `S3.upload_file/3` is an
-  unconditional write and the bucket has no versioning. Making a routine sync
-  write physically unable to replace a published version is open work.
+- Routine archives and manifests use conditional create-only writes. A 412 is accepted only for the same digest/content. Explicit `allow_checksum_change` repair still uses unconditional storage operations; this does not add bucket versioning. An orphan archive can be adopted after downloading and verifying its digest, using manifests from those stored bytes rather than a different rebuild.
+
+## Replica and stale-owner safety
+
+- Leases carry random owner tokens. Release compares the stored owner and expires that ETag with a conditional tombstone, never deleting a successor's lease. Owner checks alone do not fence publication.
+- `Metadata.update_package` applies pure amendments to a fresh ETag and retries conditional conflicts. Release, sync and checksum-repair amendments preserve concurrent entries; the final release amendment rechecks immutable checksum state. Do not replace it with an unconditional read/modify/write.
+- Release jobs time out at 20 minutes, below their 30-minute lease and Lifeline's age threshold. Sync jobs time out at ten minutes with a twelve-minute sync lease; an eight-minute soft deadline and bounded package tasks persist visited cursor progress before returning. A held release lease snoozes, not a false successful publication.
+- `Command` bounds external programs and keeps MuonTrap process-group cleanup while redirecting output to a private file to avoid the acknowledgement `:epipe` race. `Temporary` uses independent owner cleanup monitors, not a shared server blocked by deleting a killed clone tree. A command timeout must never be classified as a permanently missing submodule from partial output.
+- Old unconditional writers do not participate in the new publication protocol. Qualify the actual writer/repair versions and finish or drain legacy work before relying on stale-owner fencing. Do not claim a rolling overlap with an unfenced writer is safe merely because one new pod is healthy. No automatic deploy/drain or permission change is performed by this code.
+- Purge and explicit checksum-changing repairs are destructive operator protocols, not immutable normal publication. Drain/finish competing writers and prove old owners stopped before using them; purge still intentionally deletes prefixes and unconditionally rewrites raw metadata, including invalid identifiers hidden by normal sanitization. Do not claim it is safe concurrently with publication.
+- Conditional archive uploads use a single streamed PUT, not multipart completion; the provider's single-PUT size and request-time limits apply. Validate conditional presigned writes against the configured provider, including timeout-after-commit and competing owners. Offline mocks establish request shape, not provider compliance. Tigris documents PUT `If-Match`/`If-None-Match`; other compatible providers must honor those preconditions too.
 
 ## Repairs
 

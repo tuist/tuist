@@ -138,7 +138,7 @@ defmodule TuistWeb.RunnerShellClientWebSock do
   def terminate(_reason, _state), do: :ok
 
   defp disconnect_client(%{session: session, connection_id: connection_id}) do
-    _ = InteractiveSessions.close_disconnected_connection(session, connection_id)
+    result = InteractiveSessions.close_disconnected_connection(session, connection_id)
 
     Logger.info("runners: shell client disconnected",
       session_id: session.id,
@@ -147,7 +147,15 @@ defmodule TuistWeb.RunnerShellClientWebSock do
       connection_id: connection_id
     )
 
-    :ok = InteractiveShellBroker.broadcast_to_runner(session.id, :client_disconnected)
+    # An older socket may terminate after a replacement has connected on
+    # another replica. Only the durable last-connection decision tears down PTY.
+    case result do
+      {:ok, %Tuist.Runners.InteractiveSession{}} ->
+        :ok = InteractiveShellBroker.broadcast_to_runner(session.id, :client_disconnected)
+
+      _ ->
+        :ok
+    end
   end
 
   defp schedule_runner_disconnect_timeout(state) do

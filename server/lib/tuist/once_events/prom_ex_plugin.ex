@@ -13,6 +13,11 @@ defmodule Tuist.OnceEvents.PromExPlugin do
     Event.build(
       :tuist_once_events_event_metrics,
       [
+        counter([:tuist, :once_events, :test_report_publication, :total],
+          event_name: [:tuist, :once_events, :test_report_publication],
+          description: "Once test report publication transitions; uncertain writes require reconciliation.",
+          tags: [:outcome]
+        ),
         counter(
           [:tuist, :once_events, :refused, :total],
           event_name: Telemetry.event_name_once_events_refused(),

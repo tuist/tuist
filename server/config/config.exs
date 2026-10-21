@@ -141,6 +141,7 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [
     :request_id,
+    :once_run_id,
     :request_kind,
     :method,
     :route,

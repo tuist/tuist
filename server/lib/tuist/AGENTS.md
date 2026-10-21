@@ -43,6 +43,10 @@ This directory contains the core business logic and domain modules for the serve
 - Content-addressed Open Graph image rendering and shared object-storage caching, including cards for public project pages. Project cards bind the stable project ID and handle; only their `open-graph-images/projects/` storage prefix has 30-day retention. See [open_graph/AGENTS.md](open_graph/AGENTS.md).
 - Browser-rendered sharing images must set their viewport and capture in the same connection, and include the renderer module in their cache key so rendering fixes regenerate stored images.
 
+## Provider-key cache recovery
+
+OIDC JWKS fills retain successful keysets only, normalizing errors to the explicit cache opt-out contract instead of changing arbitrary-value `KeyValueStore` semantics. Unknown `kid` refresh uses a coalesced per-provider/node ten-second entry so rotation can recover without unbounded attacker-triggered provider fetches. A failed provider fetch must not become fifteen minutes of routing-dependent authentication failure. Agent auth follows the same policy.
+
 ## Boundaries
 
 - Test sharding declares concurrency separately from measuring it: `parallelizable_modules` covers suites within a module, and `concurrent_modules` covers modules alongside modules (ExUnit async modules or nextest binaries). Reuse `BinPacker.pack_concurrent/3` and the median concurrency from the latest 50 valid shard reports, with its longest-unit floor. Never substitute CPU count or configured worker limits for measured utilization. Missing modes, repeated shard reports, and modules outside the plan are excluded; without usable evidence, sum conservatively.

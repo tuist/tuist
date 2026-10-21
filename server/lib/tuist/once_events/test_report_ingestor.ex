@@ -15,9 +15,16 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   detection, quarantine, history, the API) then works for Once without a
   parallel implementation.
   """
+  import Ecto.Query
+
+  alias Tuist.Ingestion.Capture
+  alias Tuist.IngestRepo
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Run
+  alias Tuist.OnceEvents.TestReportPublication
+  alias Tuist.OnceEvents.Workers.PublishTestReportWorker
   alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Tests
 
   require Logger
@@ -26,45 +33,368 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   Publish `run`'s test results. A no-op for runs that carried no test cases,
   which is every `once build`.
   """
-  def publish(%Run{} = run) do
-    case OnceEvents.list_test_case_runs(run) do
-      [] ->
-        {:ok, :no_test_cases}
+  @lease_seconds 360
 
-      case_runs ->
-        # The transport replays a batch whenever an ack is lost, so
-        # `RunCompleted` can arrive more than once, possibly on two pods at
-        # once. Claiming before publishing keeps `create_test/1` from
-        # appending a second copy of every module, suite and case, which it
-        # would, because it generates fresh ids for those children.
-        case OnceEvents.claim_test_report_publication(run) do
-          :already_published -> {:ok, :already_published}
-          :ok -> publish_cases(run, case_runs)
+  # The stream commits intent, not remote I/O. A crash before enqueue is covered
+  # by the terminal-run sweep; afterwards the durable intent/job survives. The
+  # worker prepares the immutable snapshot without holding up the event stream.
+  def enqueue(%Run{} = run) do
+    Repo.transaction(fn ->
+      %{rows: [[locked]]} =
+        Repo.query!("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))", ["once-test-report:" <> run.id])
+
+      if locked do
+        publication = Repo.get(TestReportPublication, run.id)
+
+        cond do
+          publication != nil ->
+            queue_publication(publication)
+
+          Repo.get!(Run, run.id).test_report_published_at != nil ->
+            :already_published
+
+          true ->
+            reserve_publication(run)
+        end
+      else
+        :in_progress
+      end
+    end)
+  end
+
+  def enqueue_safely(%Run{} = run) do
+    case enqueue(run) do
+      {:error, _} = error ->
+        publication_event(:preparation_failed)
+        Logger.error("Once report snapshot preparation failed", once_run_id: run.id)
+        error
+
+      result ->
+        result
+    end
+  rescue
+    _error ->
+      publication_event(:preparation_failed)
+      Logger.error("Once report snapshot preparation raised", once_run_id: run.id)
+      {:error, :preparation_failed}
+  end
+
+  def publish(%Run{} = run) do
+    with {:ok, %TestReportPublication{} = publication} <- enqueue(run) do
+      publish_prepared(publication.id)
+    end
+  end
+
+  defp reserve_publication(run) do
+    if Repo.exists?(from(c in OnceEvents.TestCaseRun, where: c.once_run_id == ^run.id)) do
+      # This old column is an admission fence for legacy writers, NOT completion.
+      # The durable intent and job commit in the SAME transaction as the fence.
+      {reserved, _} =
+        Repo.update_all(from(r in Run, where: r.id == ^run.id and is_nil(r.test_report_published_at)),
+          set: [test_report_published_at: DateTime.utc_now()]
+        )
+
+      if reserved == 1,
+        do: %TestReportPublication{id: run.id} |> Repo.insert!() |> queue_publication(),
+        else: :already_published
+    else
+      :no_test_cases
+    end
+  end
+
+  @doc false
+  def prepare_snapshot(id) do
+    Repo.transaction(fn ->
+      %{rows: [[locked]]} =
+        Repo.query!("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))", ["once-test-report:" <> id])
+
+      if locked do
+        publication = Repo.get!(TestReportPublication, id)
+
+        if publication.state == "preparing" do
+          run = Repo.get!(Run, id)
+          build_publication(publication, run, OnceEvents.list_test_case_runs(run))
+        else
+          publication
+        end
+      else
+        :in_progress
+      end
+    end)
+  end
+
+  defp build_publication(publication, run, case_runs) do
+    project = Projects.get_project_by_id(run.project_id) || Repo.rollback(:project_not_found)
+    {{:ok, test}, rows, effects} = Capture.run(fn -> Tests.create_test(test_attributes(project, run, case_runs)) end)
+    chunks = chunk_plan(rows)
+    payload = :erlang.term_to_binary(%{version: 2, test: test, chunks: chunks, effects: effects}, compressed: 6)
+    if byte_size(payload) > 64 * 1_024 * 1_024, do: Repo.rollback(:report_too_large)
+    publication |> Ecto.Changeset.change(payload: payload, state: "pending") |> Repo.update!()
+  end
+
+  defp queue_publication(%TestReportPublication{state: "published"}), do: :already_published
+  defp queue_publication(%TestReportPublication{state: "uncertain"}), do: :publication_uncertain
+
+  defp queue_publication(publication) do
+    %{run_id: publication.id, phase: "publish"} |> PublishTestReportWorker.new() |> Oban.insert!()
+    publication
+  end
+
+  @doc false
+  def publish_prepared(id) do
+    with {:ok, %TestReportPublication{} = publication} <- prepare_snapshot(id) do
+      publish_snapshot(publication)
+    end
+  end
+
+  defp publish_snapshot(publication) do
+    owner = Ecto.UUID.generate()
+    {:ok, claim} = Repo.transaction(fn -> claim_publication(publication.id, owner) end)
+
+    case claim do
+      {:claimed, current} ->
+        %{version: 2, test: test, chunks: chunks} = :erlang.binary_to_term(current.payload, [:safe])
+        write_chunks(current.id, owner, test, chunks, current.next_chunk)
+
+      result ->
+        result
+    end
+  end
+
+  defp claim_publication(id, owner) do
+    current = Repo.one!(from(p in TestReportPublication, where: p.id == ^id, lock: "FOR UPDATE"))
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    expired = DateTime.diff(now, current.updated_at) >= @lease_seconds
+
+    cond do
+      current.state == "published" ->
+        {:ok, :already_published}
+
+      current.state == "uncertain" ->
+        {:error, :publication_uncertain}
+
+      current.state == "publishing" and not expired ->
+        {:ok, :in_progress}
+
+      current.in_flight_chunk != nil ->
+        mark_uncertain(id, current.owner)
+        {:error, :publication_uncertain}
+
+      true ->
+        updated =
+          Repo.update!(
+            Ecto.Changeset.change(current,
+              state: "publishing",
+              owner: owner,
+              first_attempt_at: current.first_attempt_at || now
+            )
+          )
+
+        {:claimed, updated}
+    end
+  end
+
+  defp chunk_plan(rows) do
+    rows
+    |> Enum.sort_by(fn {schema, _} -> {schema == Tests.Test, schema} end)
+    |> Enum.flat_map(fn {schema, values} ->
+      values
+      |> Enum.group_by(fn row ->
+        case Map.get(row, :inserted_at) do
+          %{year: year, month: month} -> {year, month}
+          _ -> :unpartitioned
+        end
+      end)
+      |> Enum.sort_by(&elem(&1, 0))
+      |> Enum.flat_map(fn {_, partition} ->
+        partition
+        |> Enum.chunk_every(1_000)
+        |> Enum.map(fn chunk ->
+          token = :sha256 |> :crypto.hash(:erlang.term_to_binary({schema, chunk})) |> Base.encode16(case: :lower)
+          {schema, chunk, token}
+        end)
+      end)
+    end)
+  end
+
+  defp write_chunks(id, owner, test, chunks, index) do
+    case Enum.at(chunks, index) do
+      nil ->
+        complete_publication(id, owner, test, length(chunks))
+
+      {schema, rows, token} ->
+        query =
+          from(p in TestReportPublication,
+            where:
+              p.id == ^id and p.owner == ^owner and p.state == "publishing" and p.next_chunk == ^index and
+                is_nil(p.in_flight_chunk)
+          )
+
+        case Repo.update_all(query, set: [in_flight_chunk: index, updated_at: DateTime.utc_now()]) do
+          {1, _} -> insert_and_checkpoint(id, owner, test, chunks, index, schema, rows, token)
+          _ -> {:ok, :in_progress}
         end
     end
   end
 
-  defp publish_cases(%Run{} = run, case_runs) do
-    case Projects.get_project_by_id(run.project_id) do
-      nil ->
-        {:error, :project_not_found}
+  defp insert_and_checkpoint(id, owner, test, chunks, index, schema, rows, token) do
+    query =
+      from(p in TestReportPublication,
+        where: p.id == ^id and p.owner == ^owner and p.state == "publishing" and p.in_flight_chunk == ^index
+      )
 
-      project ->
-        attributes = test_attributes(project, run, case_runs)
-
-        case Tests.create_test(attributes) do
-          {:ok, test} ->
-            {:ok, test}
-
-          {:error, changeset} ->
-            # Give the claim back, otherwise a transient failure would leave
-            # the run marked published and its results permanently absent.
-            OnceEvents.release_test_report_publication(run)
-            Logger.warning("once: could not publish test report: #{inspect(changeset.errors)}")
-
-            {:error, :persistence}
+    case insert_chunk(schema, rows, token) do
+      :acknowledged ->
+        case Repo.update_all(query, set: [next_chunk: index + 1, in_flight_chunk: nil, updated_at: DateTime.utc_now()]) do
+          {1, _} -> write_chunks(id, owner, test, chunks, index + 1)
+          _ -> {:ok, :in_progress}
         end
+
+      :not_sent ->
+        Repo.update_all(query, set: [state: "pending", in_flight_chunk: nil, updated_at: DateTime.utc_now()])
+        {:error, :publication_checkout_timeout}
+
+      :uncertain ->
+        mark_uncertain(id, owner)
+        {:error, :publication_uncertain}
     end
+  end
+
+  defp insert_chunk(schema, rows, token) do
+    # Persisted tokens are defense in depth. Disable the repo's generic retries:
+    # it otherwise resends transport timeouts before this writer can see them.
+    case IngestRepo.insert_all(schema, rows,
+           retry: false,
+           checkout_retries: 0,
+           timeout: 30_000,
+           settings: [
+             async_insert: 0,
+             insert_deduplication_token: "once-report:" <> token,
+             insert_deduplicate: 1,
+             deduplicate_blocks_in_dependent_materialized_views: 1
+           ]
+         ) do
+      {count, nil} when is_integer(count) and count >= 0 -> :acknowledged
+      _ -> :uncertain
+    end
+  rescue
+    error in DBConnection.ConnectionError ->
+      if error.reason == :queue_timeout, do: :not_sent, else: :uncertain
+
+    _error ->
+      :uncertain
+  end
+
+  defp mark_uncertain(id, owner) do
+    {changed, _} =
+      Repo.update_all(
+        from(p in TestReportPublication,
+          where: p.id == ^id and p.owner == ^owner and p.state == "publishing" and not is_nil(p.in_flight_chunk)
+        ),
+        set: [state: "uncertain", updated_at: DateTime.utc_now()]
+      )
+
+    if changed == 1 do
+      publication_event(:uncertain)
+
+      Logger.error("Once test publication has an uncertain ClickHouse write; manual reconciliation required",
+        once_run_id: id
+      )
+    end
+  end
+
+  defp complete_publication(id, owner, test, count) do
+    Repo.transaction(fn ->
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+
+      query =
+        from(p in TestReportPublication,
+          where:
+            p.id == ^id and p.owner == ^owner and p.state == "publishing" and p.next_chunk == ^count and
+              is_nil(p.in_flight_chunk)
+        )
+
+      case Repo.update_all(query, set: [state: "published", updated_at: now]) do
+        {1, _} ->
+          Repo.update_all(from(r in Run, where: r.id == ^id), set: [test_report_published_at: now])
+          %{run_id: id, phase: "followups"} |> PublishTestReportWorker.new() |> Oban.insert!()
+          test
+
+        _ ->
+          :in_progress
+      end
+    end)
+  end
+
+  @doc """
+  Maintenance-only reconciliation after independently proving the old worker AND
+  its ClickHouse query have stopped, and checking this exact chunk on all storage
+  replicas. `:present` requires every row and its payload to match; `:absent`
+  requires no rows. Partial/mismatched/unknown results MUST NOT call this function.
+  It deliberately does not guess absence from a potentially lagging read.
+  """
+  def reconcile_chunk(id, owner, index, outcome) when outcome in [:present, :absent] do
+    Repo.transaction(fn ->
+      query =
+        from(p in TestReportPublication,
+          where:
+            p.id == ^id and p.owner == ^owner and p.state == "uncertain" and p.in_flight_chunk == ^index and
+              p.next_chunk == ^index
+        )
+
+      next = if outcome == :present, do: index + 1, else: index
+
+      case Repo.update_all(query,
+             set: [state: "pending", owner: nil, next_chunk: next, in_flight_chunk: nil, updated_at: DateTime.utc_now()]
+           ) do
+        {1, _} -> %{run_id: id, phase: "publish"} |> PublishTestReportWorker.new() |> Oban.insert!()
+        _ -> Repo.rollback(:stale_reconciliation)
+      end
+    end)
+  end
+
+  def recover_recent(within_seconds \\ 7_200) do
+    recover_publications(nil)
+    cutoff = DateTime.add(DateTime.utc_now(), -within_seconds, :second)
+
+    query =
+      from(r in Run,
+        where:
+          r.finalization == "finalized" and r.finalized_at >= ^cutoff and
+            is_nil(r.test_report_published_at) and r.test_case_count > 0,
+        order_by: r.id,
+        limit: 100
+      )
+
+    recover_page(query, nil)
+  end
+
+  # admin / cross-tenant: durable publication recovery is independent of run age.
+  defp recover_publications(cursor) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@lease_seconds, :second)
+
+    query =
+      from(p in TestReportPublication,
+        where: p.state in ["preparing", "pending"] or (p.state == "publishing" and p.updated_at < ^cutoff),
+        order_by: p.id,
+        limit: 100
+      )
+
+    page = Repo.all(if cursor, do: where(query, [p], p.id > ^cursor), else: query)
+    Enum.each(page, &queue_publication/1)
+    if page != [], do: recover_publications(List.last(page).id)
+    :ok
+  end
+
+  defp recover_page(query, cursor) do
+    page = Repo.all(if cursor, do: where(query, [r], r.id > ^cursor), else: query)
+    Enum.each(page, &enqueue_safely/1)
+    if page != [], do: recover_page(query, List.last(page).id)
+    :ok
+  end
+
+  defp publication_event(outcome) do
+    :telemetry.execute([:tuist, :once_events, :test_report_publication], %{publications: 1}, %{outcome: outcome})
   end
 
   defp test_attributes(project, %Run{} = run, case_runs) do
