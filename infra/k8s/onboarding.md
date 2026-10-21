@@ -490,9 +490,10 @@ first prevents a later management-cluster reconciliation from recreating it.
 Cluster retirement is deliberately manual because it permanently removes the
 control plane and any remaining persistent volumes.
 
-Then delete the `pentest.tuist.dev` record in Cloudflare. It was created by
-hand at bootstrap, so nothing removes it, and once Hetzner reassigns the
-released load-balancer IP, whoever receives it would serve that hostname.
+Delete the `pentest.tuist.dev` record in Cloudflare before running it. The
+record was created by hand at bootstrap, so nothing removes it. The workflow
+deletes the ingress load balancer it points at, and once Hetzner reassigns that
+IP, whoever receives it would serve the hostname.
 
 ## 10. Teardown
 
