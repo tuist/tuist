@@ -92,6 +92,18 @@ on:
       xcresult_processor_release_digest:
         description: Layer digest (`sha256:...`) of the `tuist-xcresult-processor-release` artifact the processor boots; wins over the release published for the server image tag
         required: false
+      install_platform:
+        description: Install the platform chart before the server chart
+        type: boolean
+        default: true
+      install_observability:
+        description: Install the k8s-monitoring chart before the server chart
+        type: boolean
+        default: true
+      install_tailscale_operator:
+        description: Install the tailscale-operator chart before the server chart
+        type: boolean
+        default: true
   workflow_call:
     inputs:
       staging_platform_revision:
@@ -215,6 +227,24 @@ on:
           keeps the one the processor runs when that tag has none.
         required: false
         type: string
+      install_platform:
+        description: >-
+          Install the platform chart before the server chart. The production
+          cascade turns it off when the chart's inputs are unchanged since
+          production's last deploy.
+        required: false
+        type: boolean
+        default: true
+      install_observability:
+        description: Install the k8s-monitoring chart before the server chart; see install_platform.
+        required: false
+        type: boolean
+        default: true
+      install_tailscale_operator:
+        description: Install the tailscale-operator chart before the server chart; see install_platform.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -297,6 +327,20 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Historical deploy SHAs without the bridge keep the registry-only path.
+      - name: Restore production project builds
+        id: project-volume
+        if: hashFiles('.github/scripts/server-docker-mix-cache.sh') != ''
+        continue-on-error: true
+        uses: tuist/cache-volume@v1
+        with:
+          key: server-image-prod-hosted-amd64-projects-v1
+          path: ~/.cache/tuist-server-docker-mix
+      - name: Prepare the production Mix build context
+        id: project-cache
+        if: steps.project-volume.outcome == 'success'
+        continue-on-error: true
+        run: bash .github/scripts/server-docker-mix-cache.sh prepare
       # Persist the OG-image render output across builds. The /og-cache
       # `--mount=type=cache` is local to the BuildKit builder, so it is empty
       # on every ephemeral runner and Chromium re-renders every OG image
@@ -330,6 +374,7 @@ jobs:
           context: .
           file: ./server/Dockerfile
           target: runner
+          build-contexts: ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
@@ -350,6 +395,31 @@ jobs:
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
+      - name: Export production project builds
+        id: project-export
+        if: steps.project-cache.outcome == 'success'
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
+          DOCKER_BUILD_SUMMARY: "false"
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: mix-cache-export
+          provenance: false
+          build-contexts: ${{ steps.project-cache.outputs.context }}
+          outputs: ${{ steps.project-cache.outputs.export }}
+          secrets: github_token=${{ secrets.GITHUB_TOKEN }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=prod
+      - name: Retain the production project snapshot
+        if: always() && steps.project-cache.outcome == 'success'
+        continue-on-error: true
+        env:
+          TUIST_MIX_CACHE_EXPORTED: ${{ steps.project-export.outcome == 'success' }}
+        run: bash .github/scripts/server-docker-mix-cache.sh commit
 
   # The deploy's other images, each in its own job beside `build` so none of
   # them waits on the server image. Their tags match the server image's.
@@ -530,7 +600,7 @@ jobs:
     name: Observability chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
     # `build` is skipped when image_tag is supplied - keep running.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_observability != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -598,7 +668,7 @@ jobs:
     # past runs without sharing a slot with the sibling install jobs.
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_tailscale_operator != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -712,7 +782,7 @@ jobs:
     # past runs without sharing a slot with the sibling install jobs.
     name: Platform chart (${{ inputs.environment }})
     needs: [build, guard_production_source]
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && inputs.install_platform != false
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -797,15 +867,18 @@ jobs:
     # `platform-install` brings up CRDs (cert-manager, ESO,
     # cloudnative-pg) the Tuist chart consumes; if it fails the chart
     # deploy would silently no-op on those resources, so block.
-    # `observability-install` always runs, so it must be a plain success.
+    # `observability-install` must succeed.
     # `tailscale-operator-install` runs the install for managed envs and
     # short-circuits when a forked workflow has no env values file; either
     # way it must complete cleanly before the chart deploy.
+    # Each of the three chart installs may instead be skipped when its
+    # `install_*` input turns it off (the production cascade does this for
+    # charts unchanged since production's last deploy).
     # `platform-install` reconciles cert-manager / ingress-nginx /
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && (needs.build-xcresult-processor-release.result == 'success' || needs.build-xcresult-processor-release.result == 'skipped') && (needs.observability-install.result == 'success' || (needs.observability-install.result == 'skipped' && inputs.install_observability == false)) && (needs.tailscale-operator-install.result == 'success' || (needs.tailscale-operator-install.result == 'skipped' && inputs.install_tailscale_operator == false)) && (needs.platform-install.result == 'success' || (needs.platform-install.result == 'skipped' && inputs.install_platform == false))
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -1717,12 +1790,11 @@ jobs:
           kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
           echo "::endgroup::"
           echo "::group::migration jobs"
-          # Both the Ecto migration (pre-upgrade) and the ClickHouse migration
-          # steps (post-upgrade). A failed hook Job is deleted before the next
-          # deploy recreates it, and its pod is short-lived enough that the log
-          # collector can miss it entirely, so this is the only place its
-          # output survives.
-          JOB_SELECTOR='app.kubernetes.io/component in (server-migration,clickhouse-migration)'
+          # The Ecto migration (pre-upgrade). A failed hook Job is deleted
+          # before the next deploy recreates it, and its pod is short-lived
+          # enough that the log collector can miss it entirely, so this is the
+          # only place its output survives.
+          JOB_SELECTOR='app.kubernetes.io/component=server-migration'
           kubectl -n "$NAMESPACE" get jobs -l "$JOB_SELECTOR" -o wide || true
           for job in $(kubectl -n "$NAMESPACE" get jobs -l "$JOB_SELECTOR" -o name 2>/dev/null); do
             echo "--- describe $job ---"
@@ -1827,7 +1899,14 @@ jobs:
         # still succeeds. `:process_xcresult` jobs queue until a processor is
         # Ready. 30m matches the Deployment's progressDeadlineSeconds: one
         # Tart VM cycle per replica.
-        if: env.XCRESULT_PROCESSOR_DEPLOYMENT != ''
+        #
+        # Production does not wait: its replicas cycle one Tart VM at a time
+        # and nothing after this step depends on them, so the wait only held
+        # the release concurrency group. A processor that does not come back
+        # there is reported by the xcresult processor alerts in
+        # infra/helm/k8s-monitoring/alerts.md. Canary keeps waiting because
+        # its acceptance tests need a Ready processor.
+        if: env.XCRESULT_PROCESSOR_DEPLOYMENT != '' && inputs.environment != 'production'
         continue-on-error: true
         timeout-minutes: 35
         run: |

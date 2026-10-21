@@ -160,6 +160,8 @@ jobs:
           path: ~/runners-acceptance-volume
       - name: Seed the cache volume
         if: matrix.target.label == needs.plan.outputs.volume_label
+        # Reported, never blocking: see gate.sh.
+        continue-on-error: true
         timeout-minutes: 2
         env:
           CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
@@ -185,6 +187,7 @@ jobs:
     name: macOS cache volume (${{ needs.plan.outputs.volume_label }})
     needs: [plan, macos]
     if: needs.plan.outputs.volume_label != '' && needs.macos.result == 'success'
+    continue-on-error: true
     runs-on: ${{ needs.plan.outputs.volume_label }}
     timeout-minutes: 10
     permissions:

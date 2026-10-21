@@ -34,12 +34,20 @@ struct AtlasCatalog {
     let sections = AtlasCore.sections()
 
     var workspaceSections: [AtlasSection] {
-        sections.filter { section in groups.contains { $0.id == section.group && $0.placement == "workspace" } }
+        sections.filter { section in
+            ["tasks", "accounts", "invoices", "time-off"].contains(section.screen)
+                && groups.contains { $0.id == section.group && $0.placement == "workspace" }
+        }
     }
     var shortcuts: [AtlasSection] { workspaceSections.filter(\.shortcut) }
 
     func children(of parent: String? = nil) -> [AtlasGroup] {
-        groups.filter { $0.parent == (parent ?? "") && $0.placement == "workspace" }
+        groups.filter { $0.parent == (parent ?? "") && $0.placement == "workspace" && hasNativeEntries($0.id) }
+    }
+
+    private func hasNativeEntries(_ group: String) -> Bool {
+        workspaceSections.contains { $0.group == group }
+            || groups.filter { $0.parent == group }.contains { hasNativeEntries($0.id) }
     }
 
     func entries(in group: String) -> [AtlasSection] { workspaceSections.filter { $0.group == group } }

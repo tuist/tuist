@@ -5,7 +5,7 @@
 {{- /*
 Managed in-cluster ClickHouse: the shape Tuist operates itself, as opposed to
 `embedded` (a single unreplicated pod for self-hosters and previews) and
-`external` (ClickHouse Cloud).
+`external` (a server somebody else operates).
 
 Two things make this mode different from `embedded`, and both are the reason
 it is a separate template rather than a flag on that one:
@@ -624,16 +624,6 @@ spec:
         # them restarted every running replica whenever one was added, right
         # as the new one finished catching up from them.
         #
-        # `migration` and `shadowWrites` are omitted because neither reaches
-        # this server's configuration. `migration` selects a step and its
-        # cutoff, and `shadowWrites` is read by the application's env. Hashing
-        # them restarted the database on every step of the very migration they
-        # describe, which is not a theoretical cost: enabling dual writes
-        # rolled the pod out from under the mirror and lost four writes to a
-        # terminal error, and arming the backfill rolled it again five seconds
-        # after the backfill Job started, so the copy died on `connection
-        # refused` before reading a single row.
-        #
         # Everything else stays hashed, including `backup`, which does reach
         # the ConfigMap through the disk declaration. The rule is that a value
         # is omitted only when it configures the client or the rollout rather
@@ -644,7 +634,7 @@ spec:
         # otherwise sit unread until something else restarted the pod. The
         # interserver password reaches the server through env, which is read
         # only at startup too.
-        checksum/config: {{ printf "%s|%s|%s|%s" (omit $m "migration" "shadowWrites" "replicas" "persistence" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password "backup" $m.backup)) $interserverPassword | sha256sum | trunc 32 }}
+        checksum/config: {{ printf "%s|%s|%s|%s" (omit $m "replicas" "persistence" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password "backup" $m.backup)) $interserverPassword | sha256sum | trunc 32 }}
     spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: {{ $m.nodePool }}

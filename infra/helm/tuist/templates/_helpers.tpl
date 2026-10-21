@@ -893,6 +893,22 @@ release converges the database user before the new pods start.
 {{- end -}}
 
 {{/*
+The Grafana identity's name and role, for the migration Job that reconciles
+it. Its password reaches the Job through the managed external secrets.
+*/}}
+{{- define "tuist.grafanaClickHouseEnv" -}}
+{{- if and .Values.server.enabled .Values.server.config.grafanaClickHouse.enabled }}
+{{- if not .Values.server.config.managedSecrets }}
+{{- fail "server.config.grafanaClickHouse needs server.config.managedSecrets: its password comes from the managed external secrets." }}
+{{- end }}
+- name: TUIST_GRAFANA_CLICKHOUSE_USERNAME
+  value: {{ required "server.config.grafanaClickHouse.username is required when enabled" .Values.server.config.grafanaClickHouse.username | quote }}
+- name: TUIST_GRAFANA_CLICKHOUSE_ROLE
+  value: {{ required "server.config.grafanaClickHouse.role is required when enabled" .Values.server.config.grafanaClickHouse.role | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
 ClickHouse repo pool sizes and the shared user memory budget are non-secret
 operational knobs. Render them from chart values so the server, migration,
 processor, and xcresult-processor pods stay aligned without relying on the
@@ -900,18 +916,9 @@ runtime secret bundle.
 */}}
 {{- /*
 The in-cluster ClickHouse, for every workload that reads or writes analytics.
-
-In `external` mode ClickHouse Cloud is the system of record, and this is the
-server the workload is migrating onto: the schema clone, the backfill and the
-shadow writes read it from TUIST_CLICKHOUSE_BARE_METAL_URL. Absent unless the
-managed workload is enabled, which is what keeps all of that inert everywhere
-else.
-
-In `managed` mode the in-cluster server is the system of record, so it is
-TUIST_CLICKHOUSE_URL instead, and nothing is mirrored.
 */ -}}
 {{- define "tuist.clickhouseManagedEnv" -}}
-{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url") }}
+{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" "url") }}
 {{- end }}
 
 {{/*
@@ -922,9 +929,9 @@ it.
 */}}
 {{- define "tuist.clickhouseManagedTailnetEnv" -}}
 {{- if .Values.clickhouse.managed.tailscale.enabled }}
-{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url-tailnet") }}
+{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" "url-tailnet") }}
 {{- else }}
-{{- include "tuist.clickhouseManagedEnvForKey" (dict "root" . "key" "url") }}
+{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" "url") }}
 {{- end }}
 {{- end }}
 
@@ -955,42 +962,12 @@ The same for the CNPG pooler the xcresult processor reaches over the tailnet.
 {{- $host }}
 {{- end }}
 
-{{- define "tuist.clickhouseManagedEnvForKey" -}}
-{{- $key := .key }}
-{{- with .root }}
-{{- if eq .Values.clickhouse.mode "managed" }}
-{{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" $key) }}
-{{- else if .Values.clickhouse.managed.enabled }}
-- name: TUIST_CLICKHOUSE_BARE_METAL_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}-credentials
-      key: {{ $key }}
-      # `optional` because the migration Job is a pre-upgrade hook and this
-      # Secret is an ordinary release resource, so on the deploy that first
-      # introduces the managed ClickHouse the Secret does not exist yet. A
-      # required reference makes that Job unable to start at all, which fails
-      # the whole deploy: without `optional` the pod stays Pending with
-      # `secret "…-clickhouse-credentials" not found` and `helm --wait` times
-      # out. Absent instead means the schema clone reads no destination and
-      # skips, and the next deploy has both the Secret and the server.
-      optional: true
-{{- if .Values.clickhouse.managed.shadowWrites.enabled }}
-- name: TUIST_CLICKHOUSE_SHADOW_WRITES_ENABLED
-  value: "1"
-{{- end }}
-{{- end }}
-{{- end }}
-{{- end }}
-
 {{/*
 TUIST_CLICKHOUSE_URL for the in-cluster server as the system of record. Set as
-`env`, which takes precedence over the URL the managed config Secret still
-carries through `envFrom`.
+`env`, which takes precedence over a URL an `envFrom` Secret may carry.
 
-Not `optional`, unlike the destination above: a missing Secret has to keep the
-pod from starting, because the alternative is falling back to that other URL
-and writing to the wrong server.
+Not `optional`: a missing Secret has to keep the pod from starting rather than
+let it fall back to another URL.
 */}}
 {{- define "tuist.clickhouseManagedUrlEnvForKey" -}}
 {{- $key := .key }}

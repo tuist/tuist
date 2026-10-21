@@ -31,6 +31,23 @@ required access-management privileges. Set
 `server.config.opsClickHouse.existingSecret` to use an existing password Secret
 instead of the chart-generated one.
 
+## Grafana access
+
+Grafana Cloud's ClickHouse data source signs in as `tuist_grafana`, with role
+`tuist_grafana_readonly`, through the Private Data source Connect (PDC) agent.
+The migration job reconciles it the same way as the operator identity, when
+`server.config.grafanaClickHouse.enabled` is set:
+
+- The password comes from the `CLICKHOUSE_GRAFANA` item's `password` field in
+  the environment's 1Password vault, through the managed external secrets. The
+  same value is entered on the Grafana data source. To rotate it, change the
+  item, run a deploy, then update the data source.
+- The role reads the Tuist database, `system.tables`, `system.columns` and
+  `system.query_log`. Queries run read-only, for at most 120 seconds, with at
+  most 8 GiB of memory and 8 threads.
+- The data source connects to the ClickHouse Service's HTTP port, which
+  `pdcAgent.permitRemoteOpen` must list.
+
 ## Recovery fallback
 
 `tuist-ops-readonly.sql` mirrors the managed role and user definition for

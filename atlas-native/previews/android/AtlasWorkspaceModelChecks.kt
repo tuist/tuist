@@ -8,25 +8,18 @@ internal fun checkWorkspaceModel() {
     val model = AtlasWorkspaceModel(core.groups(), core.sections())
     check(
         model.children().map { it.id } ==
-            listOf("overview", "commercial", "outbound", "engineering", "people", "operations", "library", "admin"),
+            listOf("overview", "commercial", "people"),
     )
     check(model.shortcuts.map { it.id } == listOf("tasks", "time-off"))
     check(model.sections.none { it.group == "settings" })
+    check(model.sections.all { it.screen in listOf("tasks", "accounts", "invoices", "time-off") })
     check(!model.back())
     model.open("commercial")
-    check(model.children().map { it.id } == listOf("sales", "finance", "gtm"))
+    check(model.children().map { it.id } == listOf("sales", "finance"))
     model.open("finance")
-    model.search("  VENDOR finance  ")
-    check(model.results().map { it.id } == listOf("vendors"))
+    model.search("  finance  ")
+    check(model.results().map { it.screen } == listOf("invoices"))
     check(model.breadcrumb(model.results().single()) == "Commercial › Finance")
-    check(
-        model
-            .results()
-            .single()
-            .destination("https://atlas.example.org:4443")
-            .toString() ==
-            "https://atlas.example.org:4443/commercial/finance/vendors",
-    )
     check(model.back() && model.groupId == "finance" && model.query.isEmpty())
     check(model.back() && model.groupId == "commercial")
     check(model.back() && model.groupId == null)
@@ -36,9 +29,10 @@ internal fun checkWorkspaceModel() {
     model.search("does-not-exist")
     check(model.results().isEmpty())
     model.search("engineering")
-    check(model.results().size == 5)
-    val restored = AtlasWorkspaceModel(core.groups(), core.sections(), "hardware")
-    check(restored.groupId == "hardware" && restored.back() && restored.groupId == "operations")
+    check(model.results().isEmpty())
+    val restored = AtlasWorkspaceModel(core.groups(), core.sections(), "sales")
+    check(restored.groupId == "sales" && restored.back() && restored.groupId == "commercial")
+    check(AtlasWorkspaceModel(core.groups(), core.sections(), "hardware").groupId == null)
     check(AtlasWorkspaceModel(core.groups(), core.sections(), "settings").groupId == null)
     check(AtlasWorkspaceModel(core.groups(), core.sections(), "not-a-group").groupId == null)
 }

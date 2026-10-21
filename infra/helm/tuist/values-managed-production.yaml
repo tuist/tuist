@@ -408,10 +408,11 @@ pdcAgent:
   # single replica would make a node drain take every PDC-routed panel down.
   # Three is Grafana's production recommendation.
   replicas: 3
-  # Pin the tunnel to the CNPG read-only service. Without this the agent
-  # permits any destination reachable from its pod, not just Postgres.
+  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
+    - tuist-tuist-clickhouse.tuist.svc.cluster.local:8123
 
 capi:
   vultrPrivateNetwork:
@@ -580,13 +581,6 @@ postgresql:
       destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
-  # The in-cluster ClickHouse is production's system of record (spec #73).
-  # Every workload reads and writes it through TUIST_CLICKHOUSE_URL, and
-  # ClickHouse Cloud receives nothing.
-  #
-  # Going back to `external` does not copy anything back: rows written since
-  # the switch exist only on the in-cluster server.
-  mode: managed
   managed:
     enabled: true
     # Two from the start, one per AX102-4 in the `clickhouse` pool

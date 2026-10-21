@@ -1,0 +1,333 @@
+defmodule AtlasWeb.NativeControllerTest do
+  use AtlasWeb.ConnCase, async: true
+
+  import Atlas.FinanceFixtures
+  import Ecto.Query
+
+  alias Atlas.Accounts
+  alias Atlas.Accounts.Account
+  alias Atlas.Audit.Activity
+  alias Atlas.Finance.Invoice
+  alias Atlas.Repo
+  alias Atlas.Tasks
+
+  setup do
+    {api, user} = api_user(["accounts:write", "finance:write"])
+    %{api: api, user: user}
+  end
+
+  test "every native endpoint requires a bearer token, even with a browser session", %{conn: conn} do
+    {session, _user} = log_in_user(conn)
+
+    for api <- [conn, session, put_req_header(build_conn(), "authorization", "Bearer invalid")],
+        {method, path} <- [{:get, "/api/native/profile"}] ++ endpoints() do
+      response = dispatch(api, @endpoint, method, path, %{})
+      assert json_response(response, 401)["error"] == "invalid_token"
+      assert get_resp_header(response, "cache-control") == ["no-store"]
+    end
+  end
+
+  test "profile exposes only caller name/email and the running application's version", %{api: api, user: user} do
+    response = get(api, "/api/native/profile?user_id=someone-else")
+
+    assert json_response(response, 200) == %{
+             "server_version" => to_string(Application.spec(:atlas, :vsn)),
+             "user" => %{"name" => user.name, "email" => user.email}
+           }
+
+    assert get_resp_header(response, "cache-control") == ["no-store"]
+  end
+
+  test "any teammate can create, read, edit and complete shared tasks with string fields", %{user: user} do
+    {api, teammate} = api_user([], "Task teammate")
+    {:ok, account} = Accounts.create_manual_account(%{name: "Linked account"})
+
+    created =
+      api
+      |> post("/api/native/tasks", %{
+        title: "Review proposal",
+        assignee_id: "",
+        account_id: account.id,
+        due_on: "2027-02-03",
+        remind_at: "2027-02-02T14:30:00+02:00",
+        status: "completed"
+      })
+      |> json_response(201)
+
+    assert %{"item" => %{"id" => id, "can_edit" => true, "can_delete" => true, "fields" => fields}} = created
+    assert fields["status"] == "open"
+    assert fields["assignee_id"] == teammate.id
+    assert fields["assignee_name"] == teammate.name
+    assert fields["account_name"] == account.name
+    assert fields["remind_at"] == "2027-02-02T12:30:00Z"
+    assert fields["description"] == ""
+    assert Enum.all?(fields, fn {_key, value} -> is_binary(value) end)
+    assert api |> get("/api/native/tasks/#{id}") |> json_response(200) == created
+
+    assert %{
+             "item" => %{
+               "fields" => %{"assignee_id" => assignee, "assignee_name" => "Other owner", "description" => "Updated"}
+             }
+           } =
+             api
+             |> patch("/api/native/tasks/#{id}", %{assignee_id: user.id, description: "Updated"})
+             |> json_response(200)
+
+    assert assignee == user.id
+
+    page = api |> get("/api/native/tasks") |> json_response(200)
+    assert page["can_write"]
+    assert %{"id" => teammate.id, "name" => teammate.name} in page["options"]["users"]
+    assert %{"id" => account.id, "name" => account.name} in page["options"]["accounts"]
+    assert page["summary"] == []
+
+    assert %{"item" => %{"fields" => %{"status" => "completed"}}} =
+             api |> post("/api/native/tasks/#{id}/complete") |> json_response(200)
+
+    assert api |> post("/api/native/tasks/#{id}/complete") |> json_response(409) == %{"error" => "resource_conflict"}
+    assert api |> delete("/api/native/tasks/#{id}") |> json_response(200) == %{"deleted" => true}
+    assert api |> get("/api/native/tasks/#{id}") |> json_response(404)
+    assert_audit("task.deleted", id, teammate.id)
+  end
+
+  test "account CRUD uses schema choices and preserves decimal/date strings", %{api: api, user: user} do
+    attrs = %{
+      name: "Native account",
+      description: "Sales notes",
+      segment: "lead",
+      status: "active",
+      primary_domain: "native.example",
+      deal_stage: hd(Account.deal_stages()),
+      currency: "eur",
+      current_value: "1234.56",
+      next_renewal_date: "2027-03-04",
+      legal_name: "Native GmbH",
+      url: "https://native.example",
+      hosting: "self_hosted",
+      plan_tier: "enterprise"
+    }
+
+    assert %{"item" => %{"id" => id, "fields" => fields}} =
+             api |> post("/api/native/accounts", attrs) |> json_response(201)
+
+    assert fields["current_value"] == "1234.56"
+    assert fields["currency"] == "EUR"
+    assert fields["next_renewal_date"] == "2027-03-04"
+    assert fields["hosting"] == "self_hosted"
+    assert fields["plan_tier"] == "enterprise"
+    assert_audit("account.created", id, user.id)
+
+    assert %{"item" => %{"fields" => %{"description" => "", "name" => "Renamed"}}} =
+             api |> patch("/api/native/accounts/#{id}", %{name: "Renamed", description: ""}) |> json_response(200)
+
+    assert api |> get("/api/native/accounts/#{id}") |> json_response(200)
+    page = api |> get("/api/native/accounts") |> json_response(200)
+    assert page["options"]["segments"] == Enum.map(Account.segments(), &to_string/1)
+    assert page["options"]["statuses"] == Account.statuses()
+    assert page["options"]["deal_stages"] == Account.deal_stages()
+    assert api |> delete("/api/native/accounts/#{id}") |> json_response(200) == %{"deleted" => true}
+    assert_audit("account.deleted", id, user.id)
+  end
+
+  test "read-only and unscoped users cannot bypass account or finance write permissions", %{api: writer} do
+    for {resource, attrs} <- [{"accounts", %{name: "Scoped account"}}, {"invoices", invoice_attrs()}] do
+      %{"item" => %{"id" => id}} = writer |> post("/api/native/#{resource}", attrs) |> json_response(201)
+      area = if resource == "accounts", do: "accounts", else: "finance"
+      {reader, _user} = api_user(["#{area}:read"])
+      {unscoped, _user} = api_user([])
+
+      assert %{"items" => [%{"can_edit" => false, "can_delete" => false}], "can_write" => false} =
+               reader |> get("/api/native/#{resource}") |> json_response(200)
+
+      assert reader |> get("/api/native/#{resource}/#{id}") |> json_response(200)
+
+      for {method, path} <- [
+            {:post, "/api/native/#{resource}"},
+            {:patch, "/api/native/#{resource}/#{id}"},
+            {:delete, "/api/native/#{resource}/#{id}"}
+          ] do
+        response = dispatch(reader, @endpoint, method, path, attrs)
+        assert json_response(response, 403) == %{"error" => "forbidden"}
+        assert get_resp_header(response, "cache-control") == ["no-store"]
+      end
+
+      assert unscoped |> get("/api/native/#{resource}") |> json_response(403)
+      assert unscoped |> get("/api/native/#{resource}/#{id}") |> json_response(403)
+    end
+  end
+
+  test "manual invoice CRUD owns provenance, while document-less imported invoices remain read-only", %{
+    api: api,
+    user: user
+  } do
+    attrs =
+      Map.merge(invoice_attrs(), %{
+        metadata: %{source: "imported"},
+        document_id: Ecto.UUID.generate(),
+        finance_transaction_id: Ecto.UUID.generate()
+      })
+
+    assert %{"item" => %{"id" => id, "can_edit" => true, "can_delete" => true, "fields" => fields}} =
+             api |> post("/api/native/invoices", attrs) |> json_response(201)
+
+    assert fields["due_date"] == ""
+    assert fields["status"] == "needs_review"
+    invoice = Repo.get!(Invoice, id)
+    assert invoice.metadata == %{"source" => "manual", "created_by_id" => user.id}
+    assert invoice.document_id == nil
+    assert invoice.finance_transaction_id == nil
+    assert_audit("finance_invoice.created", id, user.id)
+
+    assert %{"item" => %{"fields" => %{"total_amount_value" => "27.35", "status" => "extracted"}}} =
+             api
+             |> patch("/api/native/invoices/#{id}", %{total_amount_value: "27.35", status: "extracted"})
+             |> json_response(200)
+
+    assert api |> get("/api/native/invoices/#{id}") |> json_response(200)
+
+    imported = insert_finance_invoice!(%{document_id: nil, metadata: %{}})
+
+    assert %{"item" => %{"can_edit" => false, "can_delete" => false}} =
+             api |> get("/api/native/invoices/#{imported.id}") |> json_response(200)
+
+    assert api
+           |> patch("/api/native/invoices/#{imported.id}", %{vendor_name: "Forged", metadata: %{source: "manual"}})
+           |> json_response(403) == %{"error" => "read_only"}
+
+    assert api |> delete("/api/native/invoices/#{imported.id}") |> json_response(403)
+    assert Repo.get!(Invoice, imported.id).vendor_name == imported.vendor_name
+
+    assert api |> delete("/api/native/invoices/#{id}") |> json_response(200) == %{"deleted" => true}
+    assert Repo.get(Invoice, id) == nil
+    assert_audit("finance_invoice.deleted", id, user.id)
+  end
+
+  test "Flop pages every dataset at 25 with literal search and stable disjoint pages", %{api: api, user: user} do
+    for resource <- ["tasks", "accounts", "invoices"] do
+      for index <- 1..26 do
+        case resource do
+          "tasks" -> Tasks.create_task(%{title: "Match #{index}", assignee_id: user.id}, user)
+          "accounts" -> Accounts.create_manual_account(%{name: "Match #{index}"})
+          "invoices" -> insert_finance_invoice!(%{vendor_name: "Match #{index}"})
+        end
+      end
+
+      first = api |> get("/api/native/#{resource}?query=Match") |> json_response(200)
+      second = api |> get("/api/native/#{resource}?query=Match&page=2") |> json_response(200)
+      assert %{"page" => 1, "total_pages" => 2, "total_count" => 26} = first
+      assert %{"page" => 2, "total_pages" => 2, "total_count" => 26} = second
+      assert length(first["items"]) == 25
+      assert length(second["items"]) == 1
+      ids = Enum.map(first["items"] ++ second["items"], & &1["id"])
+      assert length(Enum.uniq(ids)) == 26
+
+      assert %{"items" => [], "total_count" => 0} =
+               api |> get("/api/native/#{resource}?query=%25") |> json_response(200)
+    end
+  end
+
+  test "invoice summary covers the full dataset by invoice month and currency, independent of search/page", %{api: api} do
+    source = insert_finance_source!()
+    account = insert_finance_account!(source)
+    transaction = insert_finance_transaction!(account, %{settled_at: ~U[2027-04-01 00:00:00Z]})
+
+    for index <- 1..26 do
+      insert_finance_invoice!(%{
+        vendor_name: "Paged #{index}",
+        invoice_date: ~D[2027-01-31],
+        total_amount_value: Decimal.new("1.25"),
+        total_amount_currency: "EUR"
+      })
+    end
+
+    insert_finance_invoice!(%{
+      vendor_name: "Outside search",
+      invoice_date: ~D[2027-01-01],
+      total_amount_value: Decimal.new("7.35"),
+      total_amount_currency: "EUR",
+      finance_transaction_id: transaction.id
+    })
+
+    insert_finance_invoice!(%{
+      invoice_date: ~D[2027-01-15],
+      total_amount_value: Decimal.new("10.50"),
+      total_amount_currency: "USD"
+    })
+
+    insert_finance_invoice!(%{
+      invoice_date: ~D[2027-02-01],
+      total_amount_value: Decimal.new("4.20"),
+      total_amount_currency: "EUR"
+    })
+
+    assert %{"items" => [_item], "summary" => summary} =
+             api |> get("/api/native/invoices?query=Paged&page=2") |> json_response(200)
+
+    assert summary == [
+             %{"month" => "2027-01", "currency" => "EUR", "amount" => "39.85"},
+             %{"month" => "2027-01", "currency" => "USD", "amount" => "10.50"},
+             %{"month" => "2027-02", "currency" => "EUR", "amount" => "4.20"}
+           ]
+  end
+
+  test "invalid IDs, dates, shapes and pages return sanitized no-store errors", %{api: api} do
+    for resource <- ["tasks", "accounts", "invoices"] do
+      for id <- ["invalid", Ecto.UUID.generate()], method <- [:get, :patch, :delete] do
+        response = dispatch(api, @endpoint, method, "/api/native/#{resource}/#{id}", %{})
+        assert json_response(response, 404) == %{"error" => "not_found"}
+        assert get_resp_header(response, "cache-control") == ["no-store"]
+      end
+
+      for query <- ["page=0", "page=abc", "page[]=1", "query[]=bad"] do
+        assert api |> get("/api/native/#{resource}?#{query}") |> json_response(422) == %{"error" => "invalid_params"}
+      end
+    end
+
+    for {resource, attrs} <- [
+          {"tasks", %{title: %{invalid: true}}},
+          {"tasks", %{title: "Bad date", due_on: "not-a-date"}},
+          {"tasks", %{title: "Bad UUID", assignee_id: "invalid"}},
+          {"accounts", %{name: "Bad segment", segment: "not-a-segment"}},
+          {"invoices", Map.put(invoice_attrs(), :total_amount_value, "not-a-number")},
+          {"invoices", Map.put(invoice_attrs(), :invoice_date, "not-a-date")}
+        ] do
+      response = post(api, "/api/native/#{resource}", attrs)
+      assert %{"error" => _error} = json_response(response, 422)
+      assert get_resp_header(response, "cache-control") == ["no-store"]
+    end
+  end
+
+  defp api_user(scopes, name \\ "Other owner") do
+    {_conn, user} = log_in_user(build_conn(), %{name: name, scopes: scopes})
+    {put_req_header(build_conn(), "authorization", "Bearer #{oauth_access_token_fixture(user)}"), user}
+  end
+
+  defp invoice_attrs,
+    do: %{
+      vendor_name: "Manual vendor",
+      invoice_number: "NATIVE-1",
+      invoice_date: "2027-01-10",
+      total_amount_value: "12.45",
+      total_amount_currency: "EUR"
+    }
+
+  defp assert_audit(action, id, actor_id) do
+    assert %Activity{actor_id: ^actor_id, interface: "api", metadata: %{"path" => path}} =
+             Repo.one(from activity in Activity, where: activity.action == ^action and activity.target_id == ^id)
+
+    assert is_binary(path)
+  end
+
+  defp endpoints do
+    for resource <- ["tasks", "accounts", "invoices"],
+        endpoint <- [
+          {:get, "/api/native/#{resource}"},
+          {:post, "/api/native/#{resource}"},
+          {:get, "/api/native/#{resource}/unknown"},
+          {:patch, "/api/native/#{resource}/unknown"},
+          {:delete, "/api/native/#{resource}/unknown"},
+          {:post, "/api/native/#{resource}/unknown/complete"}
+        ],
+        do: endpoint
+  end
+end

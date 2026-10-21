@@ -14,9 +14,9 @@ The Buildkite and GitLab entry points for the same caches are in `ci/runner-cach
   license and source commit.
 - Run `bash .github/actions/xcode-cache/action_test.sh` and
   `bash infra/runner-image/runner-caches_test.sh`.
-- Accounts get these caches through the actions only while the server's
-  `:runner_opt_in_caches` flag is on for them; otherwise they stay automatic and
-  the action is a no-op. See the "Opt-in caches" section of
+- macOS jobs get these caches only through the actions: the server puts every
+  macOS job on managed cache volumes (`tuist-xcode`, `tuist-module`). See the
+  "Opt-in caches" and "Managed cache volumes" paragraphs of
   `infra/runner-image/AGENTS.md`.
 - Releases ship with the Buildkite and GitLab entry points as one `runner-caches`
   version; see `ci/runner-caches/AGENTS.md`.

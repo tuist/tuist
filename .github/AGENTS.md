@@ -62,6 +62,10 @@ and all jobs skip draft pull requests. Rust auth dependencies are resolved durin
 Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
+The separate native iOS UI job builds the isolated Once fixture runner, exercises
+CRUD/navigation with `xcodebuild test-without-building`, and exports xcresult
+screenshots plus a simulator recording as `atlas-native-ui-evidence`. Fixtures
+make no live account-management requests and never enter production source globs.
 Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
@@ -163,15 +167,19 @@ never persist it or extend its host scope beyond github.com.
 
 ## CLI dependency volumes
 
-macOS jobs in `cli.yml` use the standard `tuist-macos-27-0` profile. Custom
-volumes do not require the larger M4 shape. If host cache capacity is unavailable,
-each attachment falls back independently to an empty job-local directory; always
+macOS jobs in `cli.yml`, `app.yml` and `coverage.yml` use the standard
+`tuist-macos-27-0` profile and install dependencies through `tuist/install`.
+Custom volumes do not require the larger M4 shape. If host cache capacity is
+unavailable, each attachment falls back independently to an empty job-local directory; always
 run dependency installation and do not require a hit in ordinary jobs. Forks use
 the same custom volumes: the runner's verified job identity authorizes attachment
 without workflow credentials, and the server forbids fork publication. This is
 separate from the built-in account-wide cache policy. Retained contents must be
 safe for fork contributors to read. Linux and release/backport workflows have
 separate toolchain and runner requirements and are not part of this migration.
+
+On pushes to `main`, `cli.yml` runs Cache, Unit Tests and the acceptance
+tests. Lint and SwiftPM Build run on pull requests only.
 
 Use the released `tuist/install@v1` action after tool installation and authentication.
 It combines one package-relative `.build` volume with forced installation, explicit
@@ -281,6 +289,12 @@ missing status output, pending migrations and failed Mix commands fatal.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
+Pull requests plan and run the oldest-supported ClickHouse shards only when
+`.github/scripts/server-clickhouse-floor.sh` finds ClickHouse migrations,
+configuration, lockfiles, the workflow, added query code under `server/lib` or
+`server/priv`, or the `ci:clickhouse-floor` label; every other event always runs
+them, and an unreadable pull request runs them. Validate it with
+`bash .github/scripts/server-clickhouse-floor.test.sh`.
 Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsharded
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
@@ -313,6 +327,37 @@ they cannot flip the CLI's own unit tests. The coverage runs pass no
 (`DerivedDataLocator`). If a run's export can't find it, it falls back to the
 result bundle's xccov report, which never covers cached code; the server shows
 that run's `coverage_tool` as `xccov`.
+
+Keep persistent cache mounts outside `RUNNER_TEMP`: GitHub's end-of-job temp
+cleanup deletes their contents before the cache-volume backend publishes them.
+A warm attachment alone does not prove the snapshot retained the intended files.
+
+`server-docker-mix-cache.yml` tests the production Mix snapshot bridge. Its manual
+benchmark seeds one shared registry cache and compares the same Dockerfile and
+app change with/without project-build state on fresh large runners. Require a
+real cross-job snapshot restore whose `.run-id` matches the current run.
+Only manually dispatched jobs get package-write permissions, and all writes go
+to the isolated `tuist-mix-benchmark` package, never the deployment cache or image
+tags. Count restore/export and asynchronous publication separately; a compilation
+speedup alone does not establish a net win. The deployment workflows share the
+stable `server-image-prod-hosted-amd64-projects-v1` volume after a measured win.
+Keep fetched dependencies layer-cached, retain only the four local projects,
+and make attachment/preparation/export failures fall back without failing the
+image build. Historical deployment SHAs without the helper stay registry-only.
+Mix owns Elixir/OTP invalidation; native outputs never enter this snapshot.
+
+The production snapshot is executable build input. It uses the existing
+same-repository writer trust model, as does the registry build cache: a permitted
+same-repo writer can influence production artifacts. Forks cannot publish. Do
+not describe this as default-branch-only protection; deployments requiring that
+boundary need server-enforced per-key restrictions or account-wide writer policy.
+No workflow-side check can fence another job that can publish the same key.
+If a snapshot causes compilation to fail, clear that volume in Runners → Volumes
+or rotate its `-v1` key; do not retry the image build automatically.
+
+The Docker smoke eval also runs the shipped activity-log parser with no arguments
+and requires its usage message and exit code 2. Keep that assertion: app startup
+alone does not check the parser's executable permissions or Swift runtime linkage.
 
 ## Restore drills
 
@@ -423,7 +468,9 @@ covered only by the production schedule.
   custom cache volume: the probe job seeds it with its run id through
   `tuist/cache-volume`, and `macos-volume` attaches it after
   `PUBLISH_WAIT_SECONDS` and requires that run id or a later one, since
-  overlapping probe runs share the volume. Canary has one rack host, so
+  overlapping probe runs share the volume. Its failures are reported, never
+  blocking: both volume steps run with `continue-on-error`, and `gate.sh`
+  re-raises their `Cache volumes` annotations as warnings. Canary has one rack host, so
   verify lands where seed published; production's multi-host fleets would make
   it depend on convergence. Both jobs require a real APFS mount, because an
   unavailable volume falls back to a job-local directory and still succeeds.

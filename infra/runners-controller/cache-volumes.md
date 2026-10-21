@@ -414,8 +414,9 @@ stop being refreshed after a day. Watch `operation="refresh"` results against
 
 ## Cached checkouts
 
-Accounts with `:runner_cached_checkouts` get a per-repository `checkout` volume
-on Linux too, built by the same shared populator as on macOS
+Linux jobs get a per-repository `checkout` volume, as macOS jobs do, unless their
+runner profile turns cached checkouts off. It is built by the same shared
+populator as on macOS
 (`../runner-cache/checkout.go`, `Ext4CheckoutImages`). The agent:
 
 - answers `POST /checkout` (15 s) for the live runner pod at the caller's

@@ -87,11 +87,13 @@ concurrency:
 # (stale workspace state pointing at moved local SPM paths; Linux linker failures
 # from partial-artifact reuse) that motivate the narrower scope.
 jobs:
+  # Lint and SwiftPM Build run on pull requests only: a push to main carries
+  # sources its pull request already checked.
   cli-lint:
     name: Lint
     runs-on: tuist-macos-27-0
     timeout-minutes: 30
-    if: github.repository == 'tuist/tuist'
+    if: github.repository == 'tuist/tuist' && github.event_name == 'pull_request'
     permissions:
       contents: read
       id-token: write
@@ -133,7 +135,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    if: github.repository == 'tuist/tuist' && github.event_name == 'pull_request' && github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: tuist/xcode-cache@v1

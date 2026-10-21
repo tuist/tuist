@@ -34,7 +34,6 @@ defmodule TuistWeb.RunnerProfilesLive do
      |> assign(:catalog, Catalog.shapes(:linux))
      |> assign(:macos_catalog, Catalog.shapes(:macos))
      |> assign(:xcode_catalog, Catalog.xcode_versions())
-     |> assign(:cached_checkouts_enabled?, FeatureFlags.runner_cached_checkouts_enabled?(selected_account))
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
@@ -200,11 +199,7 @@ defmodule TuistWeb.RunnerProfilesLive do
         _ -> attrs
       end
 
-    # Without the flag the setting is hidden, so a save keeps whatever the profile has.
-    attrs =
-      if assigns.cached_checkouts_enabled?,
-        do: Map.put(attrs, "cached_checkouts", assigns.form_cached_checkouts),
-        else: attrs
+    attrs = Map.put(attrs, "cached_checkouts", assigns.form_cached_checkouts)
 
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
   end

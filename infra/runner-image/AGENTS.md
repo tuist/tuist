@@ -256,9 +256,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
   **Opt-in caches.** When the dispatch response carries `"automatic_caches":
-  false` (the server's `:runner_opt_in_caches` flag for the account, macOS
-  fleets only), everything above still runs, but `stage_runner_caches` moves
-  the module cache's (`TUIST_XDG_CACHE_HOME`, `TUIST_CACHE_MAX_BYTES`) and the
+  false` (every macOS dispatch since the server stopped sending automatic
+  caches), everything above still runs, but `stage_runner_caches` moves the
+  module cache's (`TUIST_XDG_CACHE_HOME`, `TUIST_CACHE_MAX_BYTES`) and the
   Xcode cache's (`XCODE_XCCONFIG_FILE`, `TUIST_COMPILATION_CACHE_CAS_PATH`,
   `TUIST_CAS_DRAINED_STORE`) environment out of the runner's into
   `/Users/runner/.tuist-runner-caches/{module,xcode}.env` and drops the
@@ -953,9 +953,8 @@ semantics; this doc is just about the VM image.
 
 - GitLab parsing uses `/opt/homebrew/bin/jq`, checked before acquisition independently of launchd PATH. Stage assignments in a private `mktemp` file and atomically rename only after successful parsing; failures remove temporary credentials and terminate the claimed runner.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - The job-started hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
   before the first step. It mounts the job's cached checkout at the workspace
