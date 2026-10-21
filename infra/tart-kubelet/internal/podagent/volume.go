@@ -174,6 +174,10 @@ type volumeBackend interface {
 	// of the runner-cache volume, which bounds how large a master this host can
 	// keep at all.
 	capacityBytes(root string) (uint64, error)
+	// usedBytes reports what the volume holding root takes on disk. An APFS
+	// volume reports its own usage, not its container's, so this is what a
+	// budget below the volume's quota is measured against.
+	usedBytes(root string) (uint64, error)
 	// allocatedBytes reports the disk space the file at path occupies, which is
 	// what deleting it can return (less any blocks a CoW clone still shares).
 	allocatedBytes(path string) (uint64, error)
@@ -251,6 +255,13 @@ type VolumeManager struct {
 	// is a ceiling rather than an allocation; the APFS volume's own quota is
 	// the real aggregate ceiling.
 	CapGiB int
+
+	// BudgetGiB, when > 0, is the space every cache on the volume may take
+	// together, below the volume's quota. Admission, convergence and the
+	// evictor measure free space and capacity against it, so it changes with a
+	// restart, while the quota is fixed when the volume is created. 0 leaves
+	// the quota as the bound.
+	BudgetGiB int
 
 	// CASGiB is the CAS's FOOTPRINT allowance WITHIN the shared cache image (the
 	// CAS is folded in as a subdir, not its own image). It sets the CAS's share of
@@ -1230,7 +1241,8 @@ func (m *VolumeManager) AwaitMountedRoot(ctx context.Context) {
 	}
 }
 
-// Stats reports the resident master count and free bytes on the quota volume.
+// Stats reports the resident master count and the volume's free bytes within
+// its budget.
 func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error) {
 	if !m.Enabled() {
 		return 0, 0, nil
@@ -1241,7 +1253,7 @@ func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error)
 	if err != nil {
 		return 0, 0, err
 	}
-	free, err := m.backend.freeBytes(m.Root)
+	free, err := m.volumeFreeBytes()
 	if err != nil {
 		return len(masters), 0, err
 	}
@@ -1451,7 +1463,7 @@ func (r *convergeReservation) remaining() uint64 {
 // reserveLocked), and cancel is how admission stops the download when the job
 // and the download do not both fit. The caller must Release the reservation.
 func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uint64, mayEvict bool, cancel context.CancelCauseFunc) (*convergeReservation, error) {
-	capacity, err := m.backend.capacityBytes(m.Root)
+	capacity, err := m.volumeCapacityBytes()
 	if err != nil {
 		return nil, err
 	}

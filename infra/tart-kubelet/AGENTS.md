@@ -74,6 +74,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   runner image, not with tart-kubelet, so it rolls out with an image release.
 - Built-in and custom admission share the existing quota-bounded APFS filesystem
   and account for each other's private-image capacity. Storage failure goes cold.
+  `--runner-cache-budget-gib` caps the free space and capacity they see below
+  the quota (`volume_space.go`), so the budget can change without a new
+  volume; APFS cannot change a quota after the volume is created.
   Admission, convergence and cache eviction also preserve the host's 15% physical
   free-space floor. Custom admission reclaims its own masters first, then built-in
   masters/convergence staging under the shared lock; remeasure actual space after
