@@ -92,6 +92,7 @@ defmodule Cache.Authentication do
       # fallback turns every ungranted request into a misleading 401.
       {:error, :not_granted} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
+        log_refusal(:not_granted, cache_key, build_headers(auth_header, conn))
         cache_result(cache, cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
 
       {:error, :payment_required, account_handle} ->
@@ -264,15 +265,18 @@ defmodule Cache.Authentication do
     case result do
       {:ok, %{status: 200, body: %{"projects" => projects} = body}} ->
         result = project_access_result(cache_key, projects, Map.get(body, "payment_required", []))
+        if match?({:error, 403, _}, result), do: log_refusal(:not_listed, cache_key, options[:headers])
         ttl = if result == :ok, do: success_ttl(), else: failure_ttl()
         {:commit, result, expire: ttl}
 
       {:ok, %{status: 403}} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
+        log_refusal(:server_forbidden, cache_key, options[:headers])
         {:commit, {:error, 403, "You don't have access to this project"}, expire: failure_ttl()}
 
       {:ok, %{status: 401}} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :unauthorized})
+        log_refusal(:server_unauthorized, cache_key, options[:headers])
         {:commit, {:error, 401, "Unauthorized"}, expire: failure_ttl()}
 
       {:ok, %{status: status}} ->
@@ -363,6 +367,32 @@ defmodule Cache.Authentication do
 
       true ->
         {:error, 403, "You don't have access to this project"}
+    end
+  end
+
+  # One line per refusal decision, not per request: decisions are cached, so
+  # this follows the refusal counters. It names the kind of credential and its
+  # subject, never the credential itself, so a refusal can be traced to who
+  # made it and why.
+  defp log_refusal(reason, {_token_key, requested_handle, action}, headers) do
+    authorization = headers |> List.keyfind("authorization", 0, {"authorization", ""}) |> elem(1)
+    request_id = headers |> List.keyfind("x-request-id", 0, {"x-request-id", "none"}) |> elem(1)
+
+    Logger.warning(
+      "Refused cache access: reason=#{reason} handle=#{requested_handle} action=#{action} " <>
+        "#{credential_description(authorization)} request_id=#{request_id}"
+    )
+  end
+
+  # Read without verifying. This only describes the credential for the log
+  # line; the decision was made above from verified claims or by the server.
+  defp credential_description(authorization) do
+    with [_header, payload, _signature] <- authorization |> extract_token() |> String.split("."),
+         {:ok, json} <- Base.url_decode64(payload, padding: false),
+         {:ok, %{} = claims} <- JSON.decode(json) do
+      "credential=jwt typ=#{Map.get(claims, "typ", "none")} sub=#{Map.get(claims, "sub", "none")}"
+    else
+      _ -> "credential=opaque"
     end
   end
 

@@ -3,8 +3,11 @@ defmodule Cache.AuthenticationTest do
   use Mimic
 
   import Cache.Authentication
+  import ExUnit.CaptureLog
 
   alias Cache.Authentication
+
+  @moduletag :capture_log
 
   @test_auth_header "Bearer test-token-123"
   @test_server_url "http://localhost:4000"
@@ -621,6 +624,61 @@ defmodule Cache.AuthenticationTest do
       result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
 
       assert {:error, 403, _message} = result
+    end
+  end
+
+  describe "refusal logging" do
+    test "names the reason, the request and the credential's kind, never the credential", %{cache_name: cache_name} do
+      auth_header = grants_auth_header(write: ["account/other-project"])
+      conn = build_conn([{"authorization", auth_header}, {"x-request-id", "req-1"}], "GET")
+
+      log =
+        capture_log(fn ->
+          Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+        end)
+
+      assert log =~
+               "Refused cache access: reason=not_granted handle=account/project action=read " <>
+                 "credential=jwt typ=cache sub=user-123 request_id=req-1"
+
+      refute log =~ String.replace_prefix(auth_header, "Bearer ", "")
+    end
+
+    test "logs a project the server does not list", %{cache_name: cache_name} do
+      stub_api_call(200, %{"projects" => ["account/other-project"]})
+      conn = build_conn([{"authorization", @test_auth_header}], "PUT")
+
+      log =
+        capture_log(fn ->
+          Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+        end)
+
+      assert log =~
+               "Refused cache access: reason=not_listed handle=account/project action=write credential=opaque request_id=none"
+    end
+
+    test "logs a credential the server does not accept", %{cache_name: cache_name} do
+      stub_api_call(401, nil)
+      conn = build_conn([{"authorization", @test_auth_header}], "GET")
+
+      log =
+        capture_log(fn ->
+          Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+        end)
+
+      assert log =~ "reason=server_unauthorized handle=account/project action=read credential=opaque"
+    end
+
+    test "does not log an authorized request", %{cache_name: cache_name} do
+      auth_header = grants_auth_header(read: ["account/project"])
+      conn = build_conn([{"authorization", auth_header}], "GET")
+
+      log =
+        capture_log(fn ->
+          Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+        end)
+
+      refute log =~ "Refused cache access"
     end
   end
 
