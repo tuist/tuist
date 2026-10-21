@@ -32,6 +32,5 @@ instances without a GitLab.com-only Catalog dependency.
 SOURCE_COMMIT before building a new release. Validate against local bare remotes
 with a rejected intermediate push, advanced main and deleted old artifacts.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

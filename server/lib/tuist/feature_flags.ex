@@ -141,28 +141,6 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's macOS runner jobs use the built-in Tuist and Xcode
-  caches only through the module-cache and xcode-cache GitHub actions, Buildkite
-  plugins and GitLab snippets.
-  Off, every job gets them automatically. Actor gates take precedence over the
-  boolean gate, so an account can be held on automatic caches after the flag is
-  enabled for everyone.
-  """
-  def runner_opt_in_caches_enabled?(account) do
-    FunWithFlags.enabled?(:runner_opt_in_caches, for: account)
-  end
-
-  @doc """
-  Whether the account's macOS runner jobs keep the Xcode and module caches on
-  their own custom volumes (`tuist-xcode`, `tuist-module`) instead of the
-  built-in volume. Only takes effect together with `:runner_opt_in_caches`,
-  because the caches are attached when the job's CI integration activates them.
-  """
-  def runner_managed_cache_volumes_enabled?(account) do
-    FunWithFlags.enabled?(:runner_managed_cache_volumes, for: account)
-  end
-
-  @doc """
   Whether Kura runtime-image rollouts run through the rollout
   orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
   account-grouped waves with the health gate in production, expedited

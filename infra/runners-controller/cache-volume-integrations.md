@@ -3,8 +3,8 @@
 GitHub Actions, Buildkite and GitLab CI share entry points for Linux and native
 macOS jobs, with server identity adapters. They share private per-job local image clones, 20 GB capacity,
 seven-day idle expiry, generation fencing, teardown checks and the dashboard.
-macOS uses the [APFS backend](../tart-kubelet/custom-cache-volumes.md) and retains
-automatic built-in caches. Provider and platform namespaces never share data implicitly.
+macOS uses the [APFS backend](../tart-kubelet/custom-cache-volumes.md), including
+for the managed `tuist-xcode` and `tuist-module` volumes. Provider and platform namespaces never share data implicitly.
 
 | Provider | Entry point | Publication policy after a successful job |
 | --- | --- | --- |
