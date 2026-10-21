@@ -1008,6 +1008,8 @@ defmodule Tuist.Runners.Claims do
              is_integer(account_id) do
     {:ok, outcome} =
       Repo.transaction(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["runner_executions:#{account_id}"])
+
         case lock_execution_claims(runner_name, executed_workflow_job_id, account_id) do
           {nil, _stale_claim} ->
             :unknown_runner
@@ -1026,15 +1028,15 @@ defmodule Tuist.Runners.Claims do
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
 
-  # Locks the runner's claim together with any stale claim naming the
-  # executed job: dispatch can hand out a job GitHub has already started
-  # elsewhere, because the `in_progress` webhook that proves it lands
-  # seconds later, and that claim then names a job its runner will never
-  # run. Both rows are read under the lock because two webhooks can each
-  # need the other's claim. GitHub routinely swaps two runners' jobs, and
-  # locking one row and then the other deadlocks; one statement ordered
-  # by Pod takes them in the same order in every transaction, and a
-  # webhook that waited reads the claim the other one left.
+  # The runner's claim together with any stale claim naming the executed
+  # job: dispatch can hand out a job GitHub has already started elsewhere,
+  # because the `in_progress` webhook that proves it lands seconds later,
+  # and that claim then names a job its runner will never run. The
+  # caller's per-account advisory lock runs these webhooks one at a time,
+  # so this statement sees every claim the previous one rebound; a row
+  # lock alone does not, because a claim that started naming the executed
+  # job after this statement's snapshot is never returned to it. The rows
+  # are still locked, ordered by Pod, against the other claim writers.
   defp lock_execution_claims(runner_name, executed_workflow_job_id, account_id) do
     claims =
       Claim
@@ -1091,7 +1093,10 @@ defmodule Tuist.Runners.Claims do
   defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name}, executed_workflow_job_id, %Claim{
          claimed_at: stale_claimed_at
        }) do
-    WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at)
+    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at) do
+      :ok -> :ok
+      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name)
+    end
   end
 
   # The stale claim's runner is idle and carries the same labels, so it is
@@ -1106,12 +1111,12 @@ defmodule Tuist.Runners.Claims do
          %Claim{fleet_name: fleet_name, lifecycle_state: "running"} = stale_claim
        )
        when is_integer(claimed_job_id) do
-    case rebind_claim(stale_claim, claimed_job_id) do
-      1 ->
-        WorkflowJobs.hand_over(claimed_job_id, claimed_at, stale_claim)
+    case WorkflowJobs.hand_over(claimed_job_id, claimed_at, stale_claim) do
+      :ok ->
+        1 = rebind_claim(stale_claim, claimed_job_id)
         %{workflow_job_id: claimed_job_id, requeued: false, handed_to: stale_claim.pod_name}
 
-      0 ->
+      :noop ->
         requeue_displaced_job(claimed_job_id, claimed_at)
     end
   end

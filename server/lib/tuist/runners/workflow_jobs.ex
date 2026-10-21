@@ -297,6 +297,8 @@ defmodule Tuist.Runners.WorkflowJobs do
   `claimed | running → running` guarded on the minting claim's
   `claimed_at`, stamping `claim`'s Pod, runner and handle so the next
   `in_progress` webhook resolves the row to the runner that runs it.
+  `started_at` restarts too: the orphan sweep reads it as the moment the
+  row's runner was promised the job, and asks GitHub after five minutes.
   Returns `:ok` when applied, `:noop` when the row moved on.
   """
   def hand_over(workflow_job_id, %DateTime{} = from_claimed_at, %Claim{
@@ -309,7 +311,13 @@ defmodule Tuist.Runners.WorkflowJobs do
            workflow_job_id,
            ["claimed", "running"],
            "running",
-           [pod_name: pod_name, runner_name: runner_name, claimed_at: claimed_at, executed_workflow_job_id: nil],
+           [
+             pod_name: pod_name,
+             runner_name: runner_name,
+             claimed_at: claimed_at,
+             started_at: DateTime.utc_now(),
+             executed_workflow_job_id: nil
+           ],
            claimed_at: from_claimed_at
          ) do
       {:applied, _row} -> :ok

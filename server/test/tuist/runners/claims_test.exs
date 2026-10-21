@@ -722,6 +722,42 @@ defmodule Tuist.Runners.ClaimsTest do
       assert :matched = Claims.record_execution("runner-2", 7026, account.id)
     end
 
+    # A displaced job that already finished has nothing to hand over, and
+    # the idle claim keeps the job it named.
+    test "hands nothing over when the displaced job's row moved on" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7034))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7035))
+      {:ok, _} = Claims.attempt(7034, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(7035, account.id, "fleet-a", "pod-2", @linux_resources)
+      :ok = mark_running!(7034, "runner-1")
+      :ok = mark_running!(7035, "runner-2")
+      :ok = WorkflowJobs.record_completed(lifecycle_attrs(account, 7034), "cancelled", DateTime.utc_now())
+
+      assert {:mismatch, displaced} = Claims.record_execution("runner-1", 7035, account.id)
+      assert displaced == %{workflow_job_id: 7034, requeued: false}
+
+      assert Repo.one!(from(c in Claim, where: c.pod_name == "pod-2")).workflow_job_id == 7035
+      assert Repo.get!(WorkflowJob, 7035).pod_name == "pod-1"
+    end
+
+    # The row can be `queued` under a stale claim when it arrived after
+    # that claim was taken, so the stale claim's handle is not on it.
+    test "starts the executed job when a stale claim names it but never moved its row" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7036))
+      {:ok, _} = Claims.attempt(7036, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(7037, account.id, "fleet-a", "pod-2", @linux_resources)
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7037))
+      :ok = mark_running!(7036, "runner-1")
+
+      assert {:mismatch, _displaced} = Claims.record_execution("runner-1", 7037, account.id)
+
+      executed = Repo.get!(WorkflowJob, 7037)
+      assert executed.status == "running"
+      assert executed.pod_name == "pod-1"
+    end
+
     # A runner only takes jobs carrying its own labels, and a fleet is
     # one label set.
     test "re-queues the displaced job when the idle runner belongs to another fleet" do

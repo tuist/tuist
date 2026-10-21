@@ -161,7 +161,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
       hand_over = hold_uncommitted(safely(fn -> Claims.record_execution("handover-runner-1", 86_102, account.id) end))
 
       own_webhook = start_db_task(safely(fn -> Claims.record_execution("handover-runner-2", 86_103, account.id) end))
-      assert Task.yield(own_webhook, 200) == nil
+      await_lock_wait()
 
       send(hand_over.pid, :commit)
       assert {:ok, {:mismatch, %{handed_to: "handover-pod-2"}}} = Task.await(hand_over)
@@ -169,6 +169,38 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
 
       assert Repo.get!(WorkflowJob, 86_101).status == "queued"
       assert Repo.get!(WorkflowJob, 86_102).pod_name == "handover-pod-1"
+    end)
+  end
+
+  # A third runner can take the handed-over job while the hand-over is
+  # still committing. That claim named another job when the waiting
+  # webhook started, so a row lock alone never shows it to that webhook,
+  # and the job's row stayed on the idle claim's handle while it ran.
+  test "a job handed to an idle claim and taken by a third runner moves to that runner" do
+    with_accounts(1, fn [account] ->
+      for id <- [86_301, 86_302, 86_303] do
+        :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, id, "fleet-a"))
+      end
+
+      {:ok, _} = Claims.attempt(86_301, account.id, "fleet-a", "third-pod-r", @linux_resources)
+      {:ok, _} = Claims.attempt(86_302, account.id, "fleet-a", "third-pod-p", @linux_resources)
+      {:ok, _} = Claims.attempt(86_303, account.id, "fleet-a", "third-pod-q", @linux_resources)
+      :ok = mark_running!(86_301, "third-runner-r")
+      :ok = mark_running!(86_302, "third-runner-p")
+      :ok = mark_running!(86_303, "third-runner-q")
+
+      hand_over = hold_uncommitted(safely(fn -> Claims.record_execution("third-runner-r", 86_302, account.id) end))
+      third_runner = start_db_task(safely(fn -> Claims.record_execution("third-runner-q", 86_301, account.id) end))
+      await_lock_wait()
+
+      send(hand_over.pid, :commit)
+      assert {:ok, {:mismatch, %{workflow_job_id: 86_301, handed_to: "third-pod-p"}}} = Task.await(hand_over)
+      assert {:mismatch, %{workflow_job_id: 86_303, handed_to: "third-pod-p"}} = Task.await(third_runner)
+
+      assert Repo.get!(WorkflowJob, 86_301).pod_name == "third-pod-q"
+      assert Repo.get!(WorkflowJob, 86_302).pod_name == "third-pod-r"
+      assert Repo.get!(WorkflowJob, 86_303).pod_name == "third-pod-p"
+      assert Repo.one!(from(c in Claim, where: c.pod_name == "third-pod-p")).workflow_job_id == 86_303
     end)
   end
 
@@ -221,6 +253,23 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
       rescue
         error -> {:raised, error}
       end
+    end
+  end
+
+  defp await_lock_wait(deadline \\ System.monotonic_time(:millisecond) + @db_task_ready_timeout) do
+    %{rows: [[waiting]]} =
+      Repo.query!("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'")
+
+    cond do
+      waiting > 0 ->
+        :ok
+
+      System.monotonic_time(:millisecond) > deadline ->
+        flunk("no database session started waiting on a lock")
+
+      true ->
+        Process.sleep(10)
+        await_lock_wait(deadline)
     end
   end
 

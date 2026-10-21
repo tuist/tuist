@@ -242,6 +242,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       :ok = WorkflowJobs.transition_running(910_043, "runner-1", minting_claimed_at)
       idle = %Claim{pod_name: "pod-2", runner_name: "runner-2", claimed_at: DateTime.add(minting_claimed_at, 5)}
 
+      handed_at = DateTime.utc_now()
       assert :ok = WorkflowJobs.hand_over(910_043, minting_claimed_at, idle)
 
       row = get_row!(910_043)
@@ -249,6 +250,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert row.pod_name == "pod-2"
       assert row.runner_name == "runner-2"
       assert DateTime.compare(row.claimed_at, idle.claimed_at) == :eq
+      assert DateTime.compare(row.started_at, handed_at) != :lt
       assert :noop = WorkflowJobs.requeue_by_handle(910_043, minting_claimed_at)
     end
 
