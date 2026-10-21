@@ -115,49 +115,6 @@
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     }
 
-    & [data-part="project-scope"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-3);
-      margin: 0;
-      border: 0;
-      padding: 0;
-      min-width: 0;
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-
-      & legend {
-        padding: 0;
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-      }
-    }
-
-    & [data-part="project-options"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-3);
-      max-height: 240px;
-      overflow-y: auto;
-    }
-
-    & [data-part="project-option"] {
-      display: flex;
-      align-items: center;
-      gap: var(--noora-spacing-3);
-      cursor: pointer;
-      overflow-wrap: anywhere;
-
-      & input {
-        flex-shrink: 0;
-        accent-color: var(--noora-purple-600);
-      }
-    }
-
-    & [data-part="project-error"] {
-      color: var(--noora-surface-label-destructive);
-    }
-
     & [data-part="template-ids"] {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));

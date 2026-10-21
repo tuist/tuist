@@ -70,6 +70,7 @@ defmodule Tuist.Accounts do
   defdelegate create_oidc_trust_policy(account, attrs), to: OIDCTrustPolicies, as: :create
   defdelegate delete_oidc_trust_policy(account, policy_id), to: OIDCTrustPolicies, as: :delete
   defdelegate oidc_trust_candidates(issuer, account_handle, claims), to: OIDCTrustPolicies, as: :candidates
+  defdelegate oidc_account_by_grants(identity), to: OIDCTrustPolicies, as: :account_for_identity
 
   # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
   # These delegators keep `Tuist.Accounts` as the single context facade.

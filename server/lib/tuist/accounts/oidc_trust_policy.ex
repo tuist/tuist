@@ -1,11 +1,10 @@
 defmodule Tuist.Accounts.OIDCTrustPolicy do
-  @moduledoc "Account-owned workload identity trust with explicit project grants."
+  @moduledoc "Workload identity trust granting CI access to every project owned by its account."
   use Ecto.Schema
 
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
-  alias Tuist.Projects.Project
 
   @reserved_claims ~w(iss aud exp nbf iat jti)
 
@@ -15,23 +14,15 @@ defmodule Tuist.Accounts.OIDCTrustPolicy do
     field :jwks_url, :string
     field :audience, :string, default: "tuist"
     field :claims, :map
-    field :project_ids, {:array, :integer}, virtual: true
     belongs_to :account, Account
-
-    many_to_many :projects, Project,
-      join_through: "account_oidc_trust_policy_projects",
-      join_keys: [policy_id: :id, project_id: :id],
-      on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
 
   def changeset(policy \\ %__MODULE__{}, attrs) do
     policy
-    |> cast(attrs, [:name, :issuer, :jwks_url, :audience, :claims, :project_ids])
-    |> validate_required([:name, :issuer, :jwks_url, :audience, :claims, :project_ids])
-    |> validate_length(:project_ids, min: 1, max: 100)
-    |> validate_change(:project_ids, &validate_project_ids/2)
+    |> cast(attrs, [:name, :issuer, :jwks_url, :audience, :claims])
+    |> validate_required([:name, :issuer, :jwks_url, :audience, :claims])
     |> validate_length(:name, max: 100)
     |> validate_length(:issuer, max: 512)
     |> validate_length(:jwks_url, max: 2048)
@@ -85,12 +76,6 @@ defmodule Tuist.Accounts.OIDCTrustPolicy do
 
   defp validate_jwks_url(field, value) do
     if https_url?(value), do: [], else: [{field, "must be an HTTPS URL without credentials or a fragment"}]
-  end
-
-  defp validate_project_ids(field, ids) do
-    if Enum.all?(ids, &(&1 in 1..9_223_372_036_854_775_807)),
-      do: [],
-      else: [{field, "must contain valid project IDs"}]
   end
 
   defp validate_claims(field, claims) do

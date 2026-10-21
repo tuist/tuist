@@ -22,8 +22,8 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     "claims" => ~s({"org_id":"123","app_id":"456"})
   }
 
-  setup %{organization: organization, project: project} do
-    %{account: organization.account, params: Map.put(@params, "project_ids", [to_string(project.id)])}
+  setup %{organization: organization} do
+    %{account: organization.account, params: @params}
   end
 
   defp path(account), do: ~p"/#{account.name}/settings/authentication"
@@ -36,12 +36,6 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
 
   defp submit(lv, params), do: lv |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => params}) |> render_submit()
   defp select_template(lv, template), do: render_hook(lv, "select_oidc_template", %{"value" => [template]})
-
-  defp select_projects(lv, ids) do
-    lv
-    |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => %{"project_ids" => Enum.map(ids, &to_string/1)}})
-    |> render_change()
-  end
 
   defp fill_fly(lv, overrides \\ %{}) do
     values =
@@ -75,9 +69,8 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
            )
   end
 
-  test "hiding configuration retains malformed drafts, helper overrides and project selection", context do
+  test "hiding configuration retains malformed drafts and helper overrides", context do
     lv = open(context)
-    select_projects(lv, [context.project.id])
     select_template(lv, "fly")
     fill_fly(lv)
     params = Map.put(context.params, "claims", "{unfinished-workload-draft")
@@ -88,7 +81,6 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     for checked <- [false, true] do
       render_hook(lv, "toggle_oidc_configuration", %{"checked" => checked})
       assert has_element?(lv, "#oidc-trust-policy-claims", params["claims"])
-      assert has_element?(lv, "#oidc-project-#{context.project.id}[checked]")
       assert has_element?(lv, "#oidc-fly-organization-slug[value='example-org']")
       assert has_element?(lv, "#oidc-template-overrides")
       assert has_element?(lv, "[data-part=advanced][open]")
@@ -108,7 +100,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
     refute has_element?(lv, "#oidc-trust-policies > [data-part=content][hidden]")
     assert has_element?(lv, "#oidc-trust-policy-#{policy.id}", policy.name)
-    assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-scope=projects]", context.project.name)
+    assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-scope=account]", "all current and future projects")
     assert has_element?(lv, "#oidc-workload-setup", "tuist auth login")
     assert [^policy] = Accounts.list_oidc_trust_policies(context.account)
 
@@ -130,7 +122,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     end
   end
 
-  test "lives under account Authentication and defaults to manual configuration with no project grants", context do
+  test "lives under account Authentication and defaults to manual account-wide configuration", context do
     lv = open(context)
     assert has_element?(lv, "#account-workload-identities")
     assert has_element?(lv, ".noora-tab-menu-horizontal-item[data-selected]", "Authentication")
@@ -142,7 +134,8 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert has_element?(lv, "#oidc-template-select-custom", "Custom provider")
     assert has_element?(lv, "#oidc-trust-policy-claims-container[phx-hook=JSONInput]")
     assert has_element?(lv, "#oidc-trust-policy-claims[maxlength='8192']")
-    refute has_element?(lv, "#oidc-projects input[type=checkbox][checked]")
+    refute has_element?(lv, "#oidc-projects")
+    assert has_element?(lv, "[data-part=subtitle]", "all current and future projects in this account")
     refute has_element?(lv, "#oidc-workload-setup")
     assert page_title(lv) == "Authentication · #{context.account.name} · Tuist"
   end
@@ -183,45 +176,31 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert has_element?(lv, "#sso-provider-select", "Okta")
     render_hook(lv, "toggle_sso", %{})
     assert has_element?(lv, "#oidc-trust-policy-claims", "{unfinished-workload-draft")
-    assert has_element?(lv, "#oidc-project-#{context.project.id}[checked]")
     assert has_element?(lv, "input[name='oidc_trust_policy[name]'][value='Production workload']")
   end
 
-  test "offers projects from every build system, but never another account", context do
-    for system <- [:xcode, :gradle, :bazel, :once, :mix, :cargo] do
-      ProjectsFixtures.project_fixture(account: context.account, name: "#{system}-project", build_system: system)
-    end
-
-    foreign = ProjectsFixtures.project_fixture()
-    lv = open(context)
-
-    for system <- [:xcode, :gradle, :bazel, :once, :mix, :cargo],
-        do: assert(has_element?(lv, "#oidc-projects", "#{system}-project"))
-
-    refute has_element?(lv, "#oidc-project-#{foreign.id}")
-  end
-
-  test "personal accounts can manage workload identities without organization SSO", %{conn: conn, user: user} do
-    project = ProjectsFixtures.project_fixture(account: user.account)
+  test "personal accounts can manage workload identities before creating projects and without SSO", %{
+    conn: conn,
+    user: user
+  } do
     conn = assign(conn, :selected_account, user.account)
     {:ok, lv, _} = live(conn, path(user.account))
     assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
     render_hook(lv, "toggle_oidc_configuration", %{"checked" => true})
     refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    assert has_element?(lv, "#oidc-project-#{project.id}")
+    refute has_element?(lv, "#oidc-projects")
     refute has_element?(lv, "#sso-form")
-    submit(lv, Map.put(@params, "project_ids", [to_string(project.id)]))
+    submit(lv, @params)
     assert [%{account_id: id}] = Accounts.list_oidc_trust_policies(user.account)
     assert id == user.account.id
   end
 
-  test "one account identity explicitly grants multiple projects and displays its scope", context do
-    second = ProjectsFixtures.project_fixture(account: context.account)
+  test "one account identity displays its account-wide scope and login instructions", context do
     lv = open(context)
-    submit(lv, Map.put(context.params, "project_ids", Enum.map([context.project.id, second.id], &to_string/1)))
+    submit(lv, context.params)
     assert [policy] = Accounts.list_oidc_trust_policies(context.account)
-    assert Enum.sort(Enum.map(policy.projects, & &1.id)) == Enum.sort([context.project.id, second.id])
-    assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-scope=projects]", second.name)
+    assert policy.account_id == context.account.id
+    assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-scope=account]", "all current and future projects")
     assert has_element?(lv, "#oidc-workload-setup", context.account.name)
     assert has_element?(lv, "#oidc-workload-setup", "tuist auth login")
     assert has_element?(lv, "#oidc-workload-setup", "mix tuist.login")
@@ -229,39 +208,28 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert [] = Accounts.list_oidc_trust_policies(context.account)
   end
 
-  test "rejects an empty project selection without granting account-wide access", context do
+  test "obsolete project and forged account parameters cannot change the owning account", context do
+    foreign = ProjectsFixtures.project_fixture(preload: [:account])
     lv = open(context)
-    submit(lv, @params)
-    assert [] = Accounts.list_oidc_trust_policies(context.account)
-    assert has_element?(lv, "#oidc-projects-error", "at least 1")
-    assert has_element?(lv, "#oidc-trust-policy-claims", @params["claims"])
+    attrs = Map.merge(context.params, %{"project_ids" => [to_string(foreign.id)], "account_id" => foreign.account_id})
+    render_submit(lv, "create_oidc_trust_policy", %{"oidc_trust_policy" => attrs})
+    assert [policy] = Accounts.list_oidc_trust_policies(context.account)
+    assert policy.account_id == context.account.id
+    assert [] = Accounts.list_oidc_trust_policies(foreign.account)
   end
 
-  test "rejects forged foreign project IDs and malformed project selections", context do
-    foreign = ProjectsFixtures.project_fixture()
+  test "Fly template creates an account-wide identity with editable string-valued claims", context do
     lv = open(context)
-
-    for ids <- [[to_string(foreign.id)], %{"all" => true}, [["nested"]]] do
-      render_submit(lv, "create_oidc_trust_policy", %{"oidc_trust_policy" => Map.put(context.params, "project_ids", ids)})
-      assert [] = Accounts.list_oidc_trust_policies(context.account)
-      assert has_element?(lv, "#oidc-projects-error")
-    end
-  end
-
-  test "Fly template preserves project selection and generates editable string-valued claims", context do
-    lv = open(context)
-    select_projects(lv, [context.project.id])
     select_template(lv, "fly")
     fill_fly(lv)
     assert has_element?(lv, "[data-part=advanced]:not([open])")
     assert has_element?(lv, "#oidc_trust_policy_issuer[value='https://oidc.fly.io/example-org']")
-    assert has_element?(lv, "#oidc-project-#{context.project.id}[checked]")
     lv |> form("#oidc-trust-policy-form") |> render_submit()
     assert [policy] = Accounts.list_oidc_trust_policies(context.account)
     assert policy.claims === %{"org_id" => "123", "app_id" => "456"}
-    assert Enum.map(policy.projects, & &1.id) == [context.project.id]
+    assert policy.account_id == context.account.id
     assert has_element?(lv, "#oidc-template-select-custom", "Custom provider")
-    refute has_element?(lv, "#oidc-projects input[type=checkbox][checked]")
+    refute has_element?(lv, "#oidc-projects")
   end
 
   test "helper edits and queued stale events never restore obsolete generated identity values", context do
@@ -292,7 +260,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert [] = Accounts.list_oidc_trust_policies(context.account)
   end
 
-  test "manual drafts and selected projects survive template switches with visible overrides", context do
+  test "manual drafts survive template switches with visible overrides", context do
     lv = open(context)
 
     params = %{
@@ -309,7 +277,6 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     select_template(lv, "fly")
     assert has_element?(lv, "#oidc-template-overrides", "Your manual changes override this template.")
     assert has_element?(lv, "[data-part=advanced][open] #oidc-trust-policy-claims", params["claims"])
-    assert has_element?(lv, "#oidc-project-#{context.project.id}[checked]")
     lv |> form("#oidc-trust-policy-form") |> render_submit()
     assert [policy] = Accounts.list_oidc_trust_policies(context.account)
     assert policy.issuer == params["issuer"]
@@ -356,14 +323,13 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     end
   end
 
-  test "malformed JSON preserves the draft and project choices and expands Advanced", context do
+  test "malformed JSON preserves the draft and expands Advanced", context do
     lv = open(context)
     select_template(lv, "fly")
     fill_fly(lv)
     submit(lv, Map.put(context.params, "claims", ~s({"sub":"unfinished",})))
     assert has_element?(lv, "[data-part=advanced][open]", "Claims must be valid JSON.")
     assert has_element?(lv, "#oidc-trust-policy-claims", ~s({"sub":"unfinished",}))
-    assert has_element?(lv, "#oidc-project-#{context.project.id}[checked]")
     assert [] = Accounts.list_oidc_trust_policies(context.account)
   end
 
@@ -377,7 +343,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert [%{claims: %{"project_id" => 42, "protected" => true}}] = Accounts.list_oidc_trust_policies(context.account)
   end
 
-  test "rejects oversized, non-object, nested and reserved claims without losing the selection", context do
+  test "rejects oversized, non-object, nested and reserved claims", context do
     lv = open(context)
 
     for claims <- [
@@ -390,7 +356,6 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
         ] do
       render_submit(lv, "create_oidc_trust_policy", %{"oidc_trust_policy" => Map.put(context.params, "claims", claims)})
       assert has_element?(lv, ".noora-text-area[data-error]")
-      assert has_element?(lv, "#oidc-project-#{context.project.id}[checked]")
       assert [] = Accounts.list_oidc_trust_policies(context.account)
     end
   end
@@ -401,8 +366,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
         name: "Policy #{i}",
         issuer: @params["issuer"],
         jwks_url: @params["jwks_url"],
-        claims: %{"sub" => "#{i}"},
-        project_ids: [context.project.id]
+        claims: %{"sub" => "#{i}"}
       })
     end
 
@@ -420,8 +384,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
         name: "Foreign",
         issuer: @params["issuer"],
         jwks_url: @params["jwks_url"],
-        claims: %{"sub" => "foreign"},
-        project_ids: [foreign.id]
+        claims: %{"sub" => "foreign"}
       })
 
     lv = open(context)

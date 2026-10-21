@@ -4,6 +4,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.OIDCTrustPolicy
+  alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.Guardian
   alias Tuist.KeyValueStore
@@ -26,11 +27,10 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
 
   # Seed directly so verification bounds also cover rows beyond creation limits.
   defp create_policy(project, attrs) do
-    attrs = attrs |> Map.put(:project_ids, [project.id]) |> Map.update!(:name, &"#{&1} #{project.id}")
+    attrs = Map.update!(attrs, :name, &"#{&1} #{project.id}")
 
     %OIDCTrustPolicy{account_id: project.account_id}
     |> OIDCTrustPolicy.changeset(attrs)
-    |> Ecto.Changeset.put_assoc(:projects, [project])
     |> Repo.insert()
   end
 
@@ -53,7 +53,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     %{project: project, account: project.account.name, policy: policy}
   end
 
-  test "issues one-hour CI access only for explicitly trusted projects", %{
+  test "issues one-hour CI access to all projects in the selected account", %{
     conn: conn,
     key: key,
     project: project,
@@ -65,7 +65,8 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     response = conn |> exchange(sign(key), String.upcase(account)) |> json_response(:ok)
     assert response["expires_in"] == 3600
     assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
-    assert Enum.sort(claims["project_ids"]) == Enum.sort([project.id, second.id])
+    assert claims["all_projects"] == true
+    refute Map.has_key?(claims, "project_ids")
     assert claims["sub"] == to_string(project.account.id)
     assert claims["scopes"] == ["ci"]
     expected_url = @attrs.jwks_url
@@ -78,26 +79,37 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     refute_receive {:jwks_fetch, _, _}
   end
 
-  test "one account identity grants only its explicitly selected projects", %{
+  test "issued CI credentials include future projects and follow current account ownership", %{
     conn: conn,
     key: key,
     project: project,
-    policy: policy,
     account: account
   } do
-    second = ProjectsFixtures.project_fixture(account: project.account)
-    ProjectsFixtures.project_fixture(account: project.account)
-
-    policy
-    |> Repo.preload(:projects)
-    |> Ecto.Changeset.change()
-    |> Ecto.Changeset.put_assoc(:projects, [project, second])
-    |> Repo.update!()
-
-    ProjectsFixtures.project_fixture(account: project.account)
+    existing = ProjectsFixtures.project_fixture(account: project.account)
+    foreign = ProjectsFixtures.project_fixture(visibility: :private)
     response = conn |> exchange(sign(key), account) |> json_response(:ok)
     assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
-    assert Enum.sort(claims["project_ids"]) == Enum.sort([project.id, second.id])
+    assert {:ok, subject} = Guardian.resource_from_claims(claims)
+    assert Authorization.authorize(:project_cache_read, subject, existing) == :ok
+    refute Authorization.authorize(:project_cache_read, subject, foreign) == :ok
+    refute Authorization.authorize(:account_update, subject, project.account) == :ok
+
+    future = ProjectsFixtures.project_fixture(account: project.account)
+    assert Authorization.authorize(:project_cache_read, subject, future) == :ok
+    transferred_out = Repo.update!(Ecto.Changeset.change(project, account_id: foreign.account_id))
+    transferred_in = Repo.update!(Ecto.Changeset.change(foreign, account_id: project.account_id))
+    refute Authorization.authorize(:project_cache_read, subject, transferred_out) == :ok
+    assert Authorization.authorize(:project_cache_read, subject, transferred_in) == :ok
+    accessible = Projects.list_accessible_projects(subject, preload: [])
+    assert MapSet.new(accessible, & &1.id) == MapSet.new([existing.id, future.id, transferred_in.id])
+  end
+
+  test "an account can exchange before it has any projects", %{conn: conn, key: key, project: project, account: account} do
+    Repo.delete!(project)
+    response = conn |> exchange(sign(key), account) |> json_response(:ok)
+    assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
+    assert claims["all_projects"] == true
+    assert claims["sub"] == to_string(project.account_id)
   end
 
   test "requires an account before any policy or network lookup", %{conn: conn, key: key} do
@@ -151,19 +163,21 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
 
     response = conn |> exchange(sign(key), account) |> json_response(:ok)
     {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
-    assert claims["project_ids"] == [project.id]
+    assert claims["all_projects"] == true
+    assert claims["sub"] == to_string(project.account_id)
     expected_url = @attrs.jwks_url
     assert_receive {:key_url, ^expected_url}
     refute_receive {:key_url, "https://attacker.example/keys"}
     assert conn |> exchange(sign(other), account) |> json_response(:unauthorized)
   end
 
-  test "same-account projects cannot borrow another policy's key verification", %{
+  test "verification evidence includes only policies verified by their own key URL", %{
     conn: conn,
     key: key,
     other_key: other,
     account: account,
-    project: project
+    project: project,
+    policy: policy
   } do
     sibling = ProjectsFixtures.project_fixture(account: project.account)
     {:ok, _} = create_policy(sibling, %{@attrs | jwks_url: "https://other.example/keys"})
@@ -172,9 +186,12 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
       {:ok, %{status: 200, body: jwks(if(url == @attrs.jwks_url, do: key, else: other))}}
     end)
 
+    assert {:ok, identity} = OIDC.claims(sign(key), account)
+    assert Enum.map(identity.grants, & &1.policy_id) == [policy.id]
     response = conn |> exchange(sign(key), account) |> json_response(:ok)
     {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
-    assert claims["project_ids"] == [project.id]
+    assert claims["all_projects"] == true
+    assert claims["sub"] == to_string(project.account_id)
   end
 
   for {claim, value} <- [
@@ -264,9 +281,44 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
   } do
     assert {:ok, identity} = OIDC.claims(sign(key), account)
     Repo.update!(Ecto.Changeset.change(policy, jwks_url: "https://different.example/keys"))
-    assert [] == Projects.projects_by_oidc_grants(identity)
+    assert {:error, :invalid_signature} = Accounts.oidc_account_by_grants(identity)
     {:ok, _} = Accounts.delete_oidc_trust_policy(project.account, policy.id)
-    assert [] == Projects.projects_by_oidc_grants(identity)
+    assert {:error, :invalid_signature} = Accounts.oidc_account_by_grants(identity)
+  end
+
+  test "deleting a policy during key verification prevents account-wide token issuance", %{
+    conn: conn,
+    key: key,
+    account: account,
+    policy: policy
+  } do
+    stub(JWKSClient, :get, fn _, _ ->
+      Repo.delete!(policy)
+      {:ok, %{status: 200, body: jwks(key)}}
+    end)
+
+    assert conn |> exchange(sign(key), account) |> json_response(:unauthorized)
+  end
+
+  for {field, value} <- [
+        jwks_url: "https://changed.example/keys",
+        issuer: "https://changed.example",
+        audience: "changed",
+        claims: %{"sub" => "changed"}
+      ] do
+    test "changing #{field} during verification prevents account-wide token issuance", %{
+      conn: conn,
+      key: key,
+      account: account,
+      policy: policy
+    } do
+      stub(JWKSClient, :get, fn _, _ ->
+        Repo.update!(Ecto.Changeset.change(policy, %{unquote(field) => unquote(Macro.escape(value))}))
+        {:ok, %{status: 200, body: jwks(key)}}
+      end)
+
+      assert conn |> exchange(sign(key), account) |> json_response(:unauthorized)
+    end
   end
 
   test "unrelated audiences cannot exhaust the JWKS URL budget", %{
@@ -287,7 +339,8 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
 
     response = conn |> exchange(sign(key), account) |> json_response(:ok)
     assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
-    assert claims["project_ids"] == [project.id]
+    assert claims["all_projects"] == true
+    assert claims["sub"] == to_string(project.account_id)
     expected_url = @attrs.jwks_url
     assert_receive {:jwks_fetch, ^expected_url, _}
     refute_receive {:jwks_fetch, _, _}
@@ -307,7 +360,8 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     {:ok, _} = create_policy(sibling, %{@attrs | audience: "other"})
     response = conn |> exchange(sign(key, %{"aud" => ["tuist", "another"]}), account) |> json_response(:ok)
     assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
-    assert claims["project_ids"] == [project.id]
+    assert claims["all_projects"] == true
+    assert claims["sub"] == to_string(project.account_id)
     expected_url = @attrs.jwks_url
     assert_receive {:jwks_fetch, ^expected_url, _}
     refute_receive {:jwks_fetch, _, _}
@@ -327,7 +381,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     refute_receive {:jwks_fetch, _, _}
   end
 
-  test "bounds matching candidates across projects before any fetch", %{
+  test "bounds matching account policies before any fetch", %{
     conn: conn,
     key: key,
     account: account,

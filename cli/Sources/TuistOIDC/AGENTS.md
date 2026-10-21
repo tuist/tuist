@@ -4,7 +4,7 @@ This module provides OIDC auth helpers for CLI/server integration.
 
 ## Responsibilities
 - Fetch OIDC tokens using a bearer request token and audience.
-- Accept an explicit `TUIST_OIDC_TOKEN` before provider detection, reject empty values, and keep token contents out of diagnostics. This supports account-configured workload providers with explicit project grants without provider-specific networking in the CLI. Callers obtain the identity token and set `TUIST_OIDC_ACCOUNT` for custom providers; the server requires an exact issuer/JWKS/audience/claims trust policy. Fly Machines are one example, minting audience `tuist` tokens through their local API.
+- Accept an explicit `TUIST_OIDC_TOKEN` before provider detection, reject empty values, and keep token contents out of diagnostics. This supports account-configured workload providers with account-wide CI access to current/future projects without provider-specific networking in the CLI. Callers obtain the identity token and set `TUIST_OIDC_ACCOUNT` for custom providers; the server requires an exact issuer/JWKS/audience/claims trust policy. Fly Machines are one example, minting audience `tuist` tokens through their local API.
 - Validate token request URLs and surface request failures.
 
 ## Boundaries

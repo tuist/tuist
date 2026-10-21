@@ -17,7 +17,7 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_account",
-          "Allow trusted workloads to access selected projects without long-lived tokens."
+          "Allow trusted workloads to access all current and future projects in this account without long-lived tokens."
         )}
       </span>
       <.link
@@ -50,9 +50,10 @@
               claims: format_claims(policy.claims)
             )}
           </span>
-          <span data-part="details" data-scope="projects">
-            {dgettext("dashboard_account", "Projects: %{projects}",
-              projects: Enum.map_join(policy.projects, ", ", & &1.name)
+          <span data-part="details" data-scope="account">
+            {dgettext(
+              "dashboard_account",
+              "Access: all current and future projects in this account."
             )}
           </span>
         </div>
@@ -158,35 +159,6 @@
           type="basic"
           placeholder="tuist"
         />
-        <fieldset id="oidc-projects" data-part="project-scope">
-          <legend>{dgettext("dashboard_account", "Projects")}</legend>
-          <p id="oidc-projects-hint">
-            {dgettext(
-              "dashboard_account",
-              "Select 1 to 100 projects. Unselected and future projects are not accessible."
-            )}
-          </p>
-          <input type="hidden" name="oidc_trust_policy[project_ids][]" value="" />
-          <div data-part="project-options">
-            <label :for={project <- @projects} data-part="project-option">
-              <input
-                id={"oidc-project-#{project.id}"}
-                type="checkbox"
-                name="oidc_trust_policy[project_ids][]"
-                value={project.id}
-                checked={project_selected?(@oidc_trust_policy_form, project.id)}
-                aria-describedby="oidc-projects-hint oidc-projects-error"
-              />
-              <span>{project.name}</span>
-            </label>
-          </div>
-          <p :if={@projects == []}>
-            {dgettext("dashboard_account", "Create a project before adding a workload identity.")}
-          </p>
-          <span id="oidc-projects-error" data-part="project-error">
-            {field_error(@oidc_trust_policy_form[:project_ids])}
-          </span>
-        </fieldset>
         <.alert
           :if={@oidc_template == "fly" and @identity_overridden?}
           id="oidc-template-overrides"
@@ -217,7 +189,6 @@
           type="submit"
           variant="primary"
           label={dgettext("dashboard_account", "Add trust policy")}
-          disabled={@projects == []}
         />
       </.form>
     </div>

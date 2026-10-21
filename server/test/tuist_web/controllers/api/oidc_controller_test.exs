@@ -62,7 +62,8 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account, :vcs_connection]
         )
 
-      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/monorepo"}} end)
+      unrelated = ProjectsFixtures.project_fixture(account: project1.account)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/monorepo", all_projects: true}} end)
 
       conn =
         conn
@@ -75,6 +76,10 @@ defmodule TuistWeb.API.OIDCControllerTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
       assert project1.id in claims["project_ids"]
       assert project2.id in claims["project_ids"]
+      refute claims["all_projects"]
+      refute unrelated.id in claims["project_ids"]
+      future = ProjectsFixtures.project_fixture(account: project1.account)
+      refute future.id in claims["project_ids"]
     end
 
     test "returns 403 naming the accounts when the repository is linked from multiple accounts", %{conn: conn} do

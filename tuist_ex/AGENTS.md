@@ -182,7 +182,7 @@ dashboard presentation belong in `server/`.
   takes precedence over provider detection, is trimmed, and empty values fail
   without browser fallback. `mix tuist.login` also accepts it outside CI. Fly.io
   callers mint it through the Machine's local socket with audience `tuist`; the
-  server enforces an account-configured issuer/JWKS/audience/exact-claims policy with explicit project grants.
+  server enforces an account-configured issuer/JWKS/audience/exact-claims policy granting CI access to all current and future projects in the owning account, with ordinary project ownership checks preventing cross-account access.
   Forward `TUIST_OIDC_ACCOUNT` as `account_handle` (required for custom workload
   providers, optional for built-in CI) and partition automatic-exchange caches
   by server and account, with one replaceable entry per pair. Bind the cached

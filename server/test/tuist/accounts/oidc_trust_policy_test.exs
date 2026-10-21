@@ -1,11 +1,8 @@
 defmodule Tuist.Accounts.OIDCTrustPolicyTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  import Ecto.Query
-
   alias Tuist.Accounts
   alias Tuist.Accounts.OIDCTrustPolicy
-  alias Tuist.Projects
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -14,13 +11,12 @@ defmodule Tuist.Accounts.OIDCTrustPolicyTest do
     issuer: "https://identity.example/tenant",
     jwks_url: "https://keys.example/jwks.json",
     audience: "tuist",
-    claims: %{"sub" => "deploy:production", "project_id" => 123, "protected" => true},
-    project_ids: [1]
+    claims: %{"sub" => "deploy:production", "project_id" => 123, "protected" => true}
   }
 
   setup do
     project = ProjectsFixtures.project_fixture(preload: [:account])
-    %{project: project, account: project.account, attrs: %{@attrs | project_ids: [project.id]}}
+    %{project: project, account: project.account, attrs: @attrs}
   end
 
   test "accepts exact scalar identity claims and a separate public HTTPS key origin" do
@@ -28,8 +24,8 @@ defmodule Tuist.Accounts.OIDCTrustPolicyTest do
     assert OIDCTrustPolicy.changeset(Map.delete(@attrs, :audience)).valid?
   end
 
-  test "requires bounded fields, exact scalar claims and explicit project selection" do
-    for field <- [:name, :issuer, :jwks_url, :audience, :claims, :project_ids] do
+  test "requires bounded fields and exact scalar claims, without project selection" do
+    for field <- [:name, :issuer, :jwks_url, :audience, :claims] do
       refute OIDCTrustPolicy.changeset(Map.put(@attrs, field, nil)).valid?
     end
 
@@ -47,10 +43,6 @@ defmodule Tuist.Accounts.OIDCTrustPolicyTest do
           %{"sub" => String.duplicate("a", 513)}
         ] do
       refute OIDCTrustPolicy.changeset(%{@attrs | claims: claims}).valid?
-    end
-
-    for ids <- [[], Enum.to_list(1..101), ["not-an-id"], [0], [-1], [9_223_372_036_854_775_808], %{"all" => true}, true] do
-      refute OIDCTrustPolicy.changeset(%{@attrs | project_ids: ids}).valid?
     end
 
     refute OIDCTrustPolicy.changeset(%{@attrs | name: String.duplicate("a", 101)}).valid?
@@ -81,81 +73,74 @@ defmodule Tuist.Accounts.OIDCTrustPolicyTest do
 
   test "creation, listing, deletion and unique names are account scoped", %{
     account: account,
-    project: project,
     attrs: attrs
   } do
     other = ProjectsFixtures.project_fixture(preload: [:account])
     assert {:ok, policy} = Accounts.create_oidc_trust_policy(account, Map.put(attrs, :account_id, other.account_id))
     assert policy.account_id == account.id
-    assert Enum.map(policy.projects, & &1.id) == [project.id]
     assert [%{id: id}] = Accounts.list_oidc_trust_policies(account)
     assert id == policy.id
     assert [] = Accounts.list_oidc_trust_policies(other.account)
     assert {:error, changeset} = Accounts.create_oidc_trust_policy(account, attrs)
     assert %{name: [_]} = errors_on(changeset)
-    assert {:ok, _} = Accounts.create_oidc_trust_policy(other.account, %{attrs | project_ids: [other.id]})
+    assert {:ok, _} = Accounts.create_oidc_trust_policy(other.account, attrs)
     assert {:error, :not_found} = Accounts.delete_oidc_trust_policy(other.account, policy.id)
     assert {:ok, _} = Accounts.delete_oidc_trust_policy(account, policy.id)
   end
 
-  test "rejects foreign, missing and empty project grants atomically", %{account: account, attrs: attrs, project: project} do
-    foreign = ProjectsFixtures.project_fixture()
+  test "policies can be created and verified before the account has any projects", context do
+    Repo.delete!(context.project)
+    assert {:ok, policy} = Accounts.create_oidc_trust_policy(context.account, context.attrs)
+    assert [candidate] = Accounts.oidc_trust_candidates(@attrs.issuer, context.account.name, verified_claims())
+    assert candidate.id == policy.id
+    assert {:ok, account} = Accounts.oidc_account_by_grants(identity(context.account, policy))
+    assert account.id == context.account.id
+  end
 
-    for ids <- [[], [foreign.id], [project.id, foreign.id], [-1], [project.id, -1]] do
-      assert {:error, changeset} = Accounts.create_oidc_trust_policy(account, %{attrs | project_ids: ids})
-      assert %{project_ids: [_]} = errors_on(changeset)
-      assert [] = Accounts.list_oidc_trust_policies(account)
+  test "candidate lookup returns each account policy once, independent of project count", context do
+    {:ok, policy} = Accounts.create_oidc_trust_policy(context.account, context.attrs)
+    for _ <- 1..3, do: ProjectsFixtures.project_fixture(account: context.account)
+
+    assert [candidate] =
+             Accounts.oidc_trust_candidates(@attrs.issuer, String.upcase(context.account.name), verified_claims())
+
+    assert candidate.id == policy.id
+  end
+
+  test "fresh issuance rejects changed policy content, account and deletion", context do
+    {:ok, policy} = Accounts.create_oidc_trust_policy(context.account, context.attrs)
+    identity = identity(context.account, policy)
+    assert {:ok, _} = Accounts.oidc_account_by_grants(identity)
+
+    for {field, value} <- [
+          jwks_url: "https://different.example/keys",
+          issuer: "https://different.example",
+          audience: "untrusted-audience",
+          claims: %{"sub" => "other"}
+        ] do
+      changed = Repo.update!(Ecto.Changeset.change(policy, %{field => value}))
+      assert {:error, :invalid_signature} = Accounts.oidc_account_by_grants(identity)
+      Repo.update!(Ecto.Changeset.change(changed, %{field => Map.fetch!(policy, field)}))
     end
+
+    other = ProjectsFixtures.project_fixture(preload: [:account])
+
+    assert {:error, :invalid_signature} =
+             Accounts.oidc_account_by_grants(%{identity | account_handle: other.account.name})
+
+    {:ok, _} = Accounts.delete_oidc_trust_policy(context.account, policy.id)
+    assert {:error, :invalid_signature} = Accounts.oidc_account_by_grants(identity)
   end
 
-  test "one identity grants only selected projects, never unselected or future projects", %{
-    account: account,
-    project: project,
-    attrs: attrs
-  } do
-    second = ProjectsFixtures.project_fixture(account: account)
-    ProjectsFixtures.project_fixture(account: account)
-    {:ok, policy} = Accounts.create_oidc_trust_policy(account, %{attrs | project_ids: [project.id, second.id, second.id]})
-    ProjectsFixtures.project_fixture(account: account)
-
-    assert Enum.sort(Enum.map(Projects.projects_by_oidc_grants(identity(account, policy)), & &1.id)) ==
-             Enum.sort([project.id, second.id])
-
-    assert length(Accounts.oidc_trust_candidates(attrs.issuer, account.name, verified_claims())) == 1
-  end
-
-  test "fresh issuance drops removed grants and transferred projects", %{account: account, project: project, attrs: attrs} do
-    second = ProjectsFixtures.project_fixture(account: account)
-    foreign = ProjectsFixtures.project_fixture()
-    {:ok, policy} = Accounts.create_oidc_trust_policy(account, %{attrs | project_ids: [project.id, second.id]})
-    identity = identity(account, policy)
-    Repo.update!(Ecto.Changeset.change(second, account_id: foreign.account_id))
-    assert [%{id: id}] = Projects.projects_by_oidc_grants(identity)
-    assert id == project.id
-
-    Repo.delete_all(
-      from g in "account_oidc_trust_policy_projects", where: g.policy_id == ^policy.id and g.project_id == ^project.id
-    )
-
-    assert [] = Projects.projects_by_oidc_grants(identity)
-    assert [] = Accounts.oidc_trust_candidates(attrs.issuer, account.name, verified_claims())
-    assert [%{projects: []}] = Accounts.list_oidc_trust_policies(account)
-  end
-
-  test "project deletion removes only its grant; account deletion removes the identity", %{
-    account: account,
-    project: project,
-    attrs: attrs
-  } do
-    second = ProjectsFixtures.project_fixture(account: account)
-    {:ok, policy} = Accounts.create_oidc_trust_policy(account, %{attrs | project_ids: [project.id, second.id]})
-    Repo.delete!(project)
-    assert [%{projects: [%{id: id}]}] = Accounts.list_oidc_trust_policies(account)
-    assert id == second.id
-    assert Repo.get(OIDCTrustPolicy, policy.id)
-    Repo.delete!(account)
+  test "project deletion retains the identity; account deletion removes it", context do
+    {:ok, policy} = Accounts.create_oidc_trust_policy(context.account, context.attrs)
+    Repo.delete!(context.project)
+    assert [%{id: id}] = Accounts.list_oidc_trust_policies(context.account)
+    assert id == policy.id
+    assert {:ok, _} = Accounts.oidc_account_by_grants(identity(context.account, policy))
+    Repo.delete!(context.account)
     refute Repo.get(OIDCTrustPolicy, policy.id)
-    assert Repo.aggregate("account_oidc_trust_policy_projects", :count) == 0
+    assert {:error, :invalid_signature} = Accounts.oidc_account_by_grants(identity(context.account, policy))
   end
 
   test "an account can have at most twenty policies", %{account: account, attrs: attrs} do

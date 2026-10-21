@@ -2421,7 +2421,7 @@ components:
     OIDCTokenExchangeRequest:
       properties:
         account_handle:
-          description: Required target Tuist account for custom workload identity providers. Project trust policies are still required.
+          description: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
           maxLength: 255
           minLength: 1
           type: string
@@ -21408,7 +21408,7 @@ paths:
             schema:
               properties:
                 account_handle:
-                  description: Required target Tuist account for custom workload identity providers. Project trust policies are still required.
+                  description: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
                   maxLength: 255
                   minLength: 1
                   type: string
@@ -21468,7 +21468,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: No authorized projects or ambiguous account
+          description: No repository-linked projects or ambiguous repository account
       summary: Exchange an OIDC identity token for a Tuist access token.
       tags:
         - OIDC Authentication

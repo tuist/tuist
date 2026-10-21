@@ -10,10 +10,9 @@ defmodule TuistWeb.Components.WorkloadIdentities do
   alias Tuist.Accounts
   alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.Authorization
-  alias Tuist.Projects
   alias TuistWeb.Errors.UnauthorizedError
 
-  @policy_fields [:name, :issuer, :jwks_url, :audience, :claims, :project_ids]
+  @policy_fields [:name, :issuer, :jwks_url, :audience, :claims]
 
   embed_templates "workload_identities.html"
 
@@ -22,7 +21,6 @@ defmodule TuistWeb.Components.WorkloadIdentities do
 
     socket
     |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account), oidc_configuration_visible: false)
-    |> assign(projects: account |> Projects.list_accessible_projects(preload: []) |> Enum.sort_by(& &1.name))
     |> assign_empty_form()
   end
 
@@ -181,7 +179,6 @@ defmodule TuistWeb.Components.WorkloadIdentities do
 
   defp update_policy_form(socket, attrs, params) do
     attrs = Map.take(attrs, Enum.map(@policy_fields, &Atom.to_string/1))
-    attrs = Map.update(attrs, "project_ids", [], &normalize_project_ids/1)
     fly = normalize_fly_template(Map.get(params, "fly_template", socket.assigns.fly_template))
     helper_changed? = fly != socket.assigns.fly_template
     edited = socket.assigns.edited_fields
@@ -208,9 +205,6 @@ defmodule TuistWeb.Components.WorkloadIdentities do
       assign_form(socket, OIDCTrustPolicy.changeset(Map.delete(attrs, "claims")), Map.get(attrs, "claims", ""))
     end
   end
-
-  defp normalize_project_ids(ids) when is_list(ids), do: Enum.reject(ids, &(&1 == ""))
-  defp normalize_project_ids(ids), do: ids
 
   defp normalize_fly_template(params) when is_map(params) do
     Map.new(empty_fly_template(), fn {key, _} ->
@@ -264,7 +258,7 @@ defmodule TuistWeb.Components.WorkloadIdentities do
   defp valid_fly_id?(value), do: byte_size(value) in 1..64 and Regex.match?(~r/\A[0-9]+\z/, value)
 
   defp assign_form(socket, changeset, claims_input) do
-    defaults = %{"name" => "", "issuer" => "", "jwks_url" => "", "audience" => "tuist", "project_ids" => []}
+    defaults = %{"name" => "", "issuer" => "", "jwks_url" => "", "audience" => "tuist"}
     params = defaults |> Map.merge(changeset.params || %{}) |> Map.put("claims", claims_input)
 
     socket
@@ -283,13 +277,6 @@ defmodule TuistWeb.Components.WorkloadIdentities do
   defp identity_errors?(form), do: Enum.any?([:issuer, :jwks_url, :claims], &(form[&1].errors != []))
   defp field_error(%Phoenix.HTML.FormField{errors: [error | _]}), do: translate_error(error)
   defp field_error(_field), do: nil
-
-  defp project_selected?(form, id) do
-    case form[:project_ids].value do
-      ids when is_list(ids) -> Enum.any?(ids, &(&1 == id or &1 == Integer.to_string(id)))
-      _ -> false
-    end
-  end
 
   defp format_claims(claims) when is_map(claims) do
     claims

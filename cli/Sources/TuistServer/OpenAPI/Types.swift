@@ -7707,7 +7707,7 @@ public enum Components {
         public typealias TestCasesIndexPageSize = Swift.Int
         /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest`.
         public struct OIDCTokenExchangeRequest: Codable, Hashable, Sendable {
-            /// Required target Tuist account for custom workload identity providers. Project trust policies are still required.
+            /// Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
             ///
             /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest/account_handle`.
             public var account_handle: Swift.String?
@@ -7718,7 +7718,7 @@ public enum Components {
             /// Creates a new `OIDCTokenExchangeRequest`.
             ///
             /// - Parameters:
-            ///   - account_handle: Required target Tuist account for custom workload identity providers. Project trust policies are still required.
+            ///   - account_handle: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
             ///   - token: The OIDC JWT token from a supported CI or workload identity provider.
             public init(
                 account_handle: Swift.String? = nil,
@@ -47092,7 +47092,7 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// Required target Tuist account for custom workload identity providers. Project trust policies are still required.
+                    /// Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
                     ///
                     /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json/account_handle`.
                     public var account_handle: Swift.String?
@@ -47103,7 +47103,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - account_handle: Required target Tuist account for custom workload identity providers. Project trust policies are still required.
+                    ///   - account_handle: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
                     ///   - token: The OIDC JWT token from a supported CI or workload identity provider.
                     public init(
                         account_handle: Swift.String? = nil,
@@ -47343,7 +47343,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// No authorized projects or ambiguous account
+            /// No repository-linked projects or ambiguous repository account
             ///
             /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)/responses/403`.
             ///

@@ -7,7 +7,6 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
@@ -796,29 +795,6 @@ defmodule Tuist.Projects do
         order_by: [asc: p.id],
         preload: ^preload
     )
-  end
-
-  def projects_by_oidc_grants(%{account_handle: account_handle, grants: grants}) do
-    policy_ids = Enum.map(grants, & &1.policy_id)
-
-    policies =
-      Repo.all(
-        from policy in OIDCTrustPolicy,
-          join: account in assoc(policy, :account),
-          where: policy.id in ^policy_ids,
-          where: account.name == ^account_handle,
-          preload: [projects: :account]
-      )
-
-    policies
-    |> Enum.filter(fn policy ->
-      Enum.any?(grants, fn grant ->
-        grant.policy_id == policy.id and grant.jwks_url == policy.jwks_url and
-          OIDCTrustPolicy.matches?(policy, grant.claims)
-      end)
-    end)
-    |> Enum.flat_map(fn policy -> Enum.filter(policy.projects, &(&1.account_id == policy.account_id)) end)
-    |> Enum.uniq_by(& &1.id)
   end
 
   @doc """
