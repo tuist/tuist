@@ -25,7 +25,8 @@ defmodule Tuist.Runners.WorkflowJobs do
       insert) → `transition_claimed/3`
     * `Tuist.Runners.Claims.mark_running/3` → `transition_running/3`
     * `Tuist.Runners.Claims.record_execution/3` (webhook `in_progress`,
-      same transaction as the claim detach) → `transition_executing/3`
+      same transaction as the claim detach) → `transition_executing/3`,
+      `take_over_executing/4` and `hand_over/3`
     * `Tuist.Runners.Claims.release/2` and `release_pod_missing/2`
       (same transaction as the claim delete) → `requeue_by_handle/2`
     * `Tuist.Runners.Workers.UnstartedExecutionsWorker` (backstop sweep)
@@ -257,6 +258,64 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   defp finish_executing(:noop), do: :noop
+
+  @doc """
+  `transition_executing/3` for a row a stale claim holds: CAS
+  `claimed | running → running` onto the executing Pod, guarded on the
+  stale claim's `claimed_at`.
+
+  Dispatch can hand out a job GitHub already started elsewhere until the
+  `in_progress` webhook proving it arrives. Moving the row off the stale
+  claim's handle keeps that claim's later detach from re-queueing a job
+  that is running, and the handle guard confines the takeover to the
+  claim the caller found naming the job.
+  """
+  def take_over_executing(workflow_job_id, runner_name, pod_name, %DateTime{} = stale_claimed_at)
+      when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
+             pod_name != "" do
+    now = DateTime.utc_now()
+
+    workflow_job_id
+    |> transition(
+      ["claimed", "running"],
+      "running",
+      [
+        runner_name: runner_name,
+        pod_name: pod_name,
+        claimed_at: now,
+        started_at: now,
+        executed_workflow_job_id: workflow_job_id
+      ],
+      claimed_at: stale_claimed_at
+    )
+    |> finish_executing()
+  end
+
+  @doc """
+  Moves a displaced job's row from the claim it was minted under to
+  `claim`, whose minted runner is idle and now reserved for it. CAS
+  `claimed | running → running` guarded on the minting claim's
+  `claimed_at`, stamping `claim`'s Pod, runner and handle so the next
+  `in_progress` webhook resolves the row to the runner that runs it.
+  Returns `:ok` when applied, `:noop` when the row moved on.
+  """
+  def hand_over(workflow_job_id, %DateTime{} = from_claimed_at, %Claim{
+        pod_name: pod_name,
+        runner_name: runner_name,
+        claimed_at: claimed_at
+      })
+      when is_integer(workflow_job_id) do
+    case transition(
+           workflow_job_id,
+           ["claimed", "running"],
+           "running",
+           [pod_name: pod_name, runner_name: runner_name, claimed_at: claimed_at, executed_workflow_job_id: nil],
+           claimed_at: from_claimed_at
+         ) do
+      {:applied, _row} -> :ok
+      :noop -> :noop
+    end
+  end
 
   @doc """
   Batch `queued → running` for every row a live claim already records as

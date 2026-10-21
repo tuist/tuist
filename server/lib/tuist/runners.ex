@@ -58,6 +58,12 @@ defmodule Tuist.Runners do
   started. `UnstartedExecutionsWorker` is the backstop for a delivery
   that never lands.
 
+  The webhook arrives seconds after GitHub starts B, so dispatch can
+  hand B to another Pod in between. That Pod's runner is idle and
+  carries the same labels, so A moves onto its claim instead of the
+  queue, and B's row moves off its stale handle onto the Pod running it.
+  Re-queueing A there would reserve one Pod more than there are jobs.
+
   ## Who releases a claim, and why there is a backstop
 
   A claim is a reservation against the account's concurrency budget.

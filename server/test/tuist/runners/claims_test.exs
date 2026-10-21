@@ -644,10 +644,10 @@ defmodule Tuist.Runners.ClaimsTest do
       assert %DateTime{} = executed.started_at
     end
 
-    # The executed job may already belong to another Pod's claim
-    # generation — the shuffle does not stop dispatch from having handed
-    # it out. That generation owns the row.
-    test "leaves the executed job alone when another Pod already claimed it" do
+    # The executed job may already belong to another Pod's claim — the
+    # shuffle does not stop dispatch from having handed it out. GitHub has
+    # just proved it runs here, so the row follows the execution.
+    test "starts the executed job on this Pod when another Pod's claim holds its row" do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7022))
       :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7023))
@@ -655,11 +655,105 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(7023, account.id, "fleet-a", "pod-2", @linux_resources)
       :ok = mark_running!(7022, "runner-late")
 
-      assert {:mismatch, _displaced} = Claims.record_execution("runner-late", 7023, account.id)
+      assert {:mismatch, %{workflow_job_id: 7022, requeued: true}} =
+               Claims.record_execution("runner-late", 7023, account.id)
 
       executed = Repo.get!(WorkflowJob, 7023)
-      assert executed.status == "claimed"
-      assert executed.pod_name == "pod-2"
+      assert executed.status == "running"
+      assert executed.pod_name == "pod-1"
+      assert executed.runner_name == "runner-late"
+    end
+
+    # A re-queued running job is claimable again, and the Pod that takes
+    # it holds capacity for a job its runner will never get.
+    test "never re-queues a running job when the Pod whose claim held its row is displaced" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7024))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7025))
+      {:ok, _} = Claims.attempt(7024, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(7025, account.id, "fleet-a", "pod-2", @linux_resources)
+      :ok = mark_running!(7024, "runner-1")
+
+      assert {:mismatch, _displaced} = Claims.record_execution("runner-1", 7025, account.id)
+
+      :ok = mark_running!(7025, "runner-2")
+
+      assert {:mismatch, %{workflow_job_id: 7025, requeued: false}} =
+               Claims.record_execution("runner-2", 7090, account.id)
+
+      executed = Repo.get!(WorkflowJob, 7025)
+      assert executed.status == "running"
+      assert executed.pod_name == "pod-1"
+    end
+
+    # The executing runner took a job another minted runner was reserved
+    # for, so that runner is idle and eligible for the job the executing
+    # one was minted for. Re-queueing that job instead would reserve a
+    # third Pod for two jobs, and one of the three would idle until its
+    # timeout while holding the account's capacity.
+    test "hands the displaced job to the idle runner whose claim named the executed job" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7026))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7027))
+      {:ok, _} = Claims.attempt(7026, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(7027, account.id, "fleet-a", "pod-2", @linux_resources)
+      :ok = mark_running!(7026, "runner-1")
+      :ok = mark_running!(7027, "runner-2")
+
+      assert {:mismatch, %{workflow_job_id: 7026, requeued: false, handed_to: "pod-2"}} =
+               Claims.record_execution("runner-1", 7027, account.id)
+
+      assert Claims.counts_per_account() == %{account.id => 2}
+
+      idle = Repo.one!(from(c in Claim, where: c.pod_name == "pod-2"))
+      assert idle.workflow_job_id == 7026
+      assert idle.executed_workflow_job_id == nil
+
+      displaced = Repo.get!(WorkflowJob, 7026)
+      assert displaced.status == "running"
+      assert displaced.pod_name == "pod-2"
+      assert displaced.runner_name == "runner-2"
+
+      executed = Repo.get!(WorkflowJob, 7027)
+      assert executed.status == "running"
+      assert executed.pod_name == "pod-1"
+      assert executed.runner_name == "runner-1"
+
+      assert :matched = Claims.record_execution("runner-2", 7026, account.id)
+    end
+
+    # A runner only takes jobs carrying its own labels, and a fleet is
+    # one label set.
+    test "re-queues the displaced job when the idle runner belongs to another fleet" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7028))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7029))
+      {:ok, _} = Claims.attempt(7028, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(7029, account.id, "fleet-b", "pod-2", @linux_resources)
+      :ok = mark_running!(7028, "runner-1")
+      :ok = mark_running!(7029, "runner-2")
+
+      assert {:mismatch, %{workflow_job_id: 7028, requeued: true}} =
+               Claims.record_execution("runner-1", 7029, account.id)
+
+      assert Repo.get!(WorkflowJob, 7028).status == "queued"
+      assert Repo.one!(from(c in Claim, where: c.pod_name == "pod-2")).workflow_job_id == 7029
+    end
+
+    # Before the mint lands, the claim's own promotion is keyed on the job
+    # it names, so moving it to another job would strand it in `claimed`.
+    test "re-queues the displaced job when the other claim has not minted its runner yet" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7032))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7033))
+      {:ok, _} = Claims.attempt(7032, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(7033, account.id, "fleet-a", "pod-2", @linux_resources)
+      :ok = mark_running!(7032, "runner-1")
+
+      assert {:mismatch, %{workflow_job_id: 7032, requeued: true}} =
+               Claims.record_execution("runner-1", 7033, account.id)
+
+      assert Repo.one!(from(c in Claim, where: c.pod_name == "pod-2")).workflow_job_id == 7033
     end
 
     # The failure the transaction closes. Committed separately, a re-queue
