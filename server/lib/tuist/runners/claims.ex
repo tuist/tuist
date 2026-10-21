@@ -1006,58 +1006,74 @@ defmodule Tuist.Runners.Claims do
   def record_execution(runner_name, executed_workflow_job_id, account_id)
       when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
              is_integer(account_id) do
-    claim =
-      Claim
-      |> where([c], c.runner_name == ^runner_name and c.account_id == ^account_id)
-      |> limit(1)
-      |> Repo.one()
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        case lock_execution_claims(runner_name, executed_workflow_job_id, account_id) do
+          {nil, _stale_claim} ->
+            :unknown_runner
 
-    case claim do
-      nil ->
-        :unknown_runner
+          {%Claim{workflow_job_id: ^executed_workflow_job_id} = claim, _stale_claim} ->
+            bind_execution(claim, executed_workflow_job_id: executed_workflow_job_id)
+            :matched
 
-      %Claim{workflow_job_id: ^executed_workflow_job_id} = claim ->
-        bind_execution(claim, executed_workflow_job_id: executed_workflow_job_id)
-        :matched
+          {%Claim{} = claim, stale_claim} ->
+            {:mismatch, detach_displaced_job(claim, executed_workflow_job_id, stale_claim)}
+        end
+      end)
 
-      %Claim{} = claim ->
-        {:mismatch, detach_displaced_job(claim, executed_workflow_job_id)}
-    end
+    outcome
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
 
-  defp detach_displaced_job(%Claim{workflow_job_id: claimed_job_id} = claim, executed_workflow_job_id) do
-    {:ok, displaced} =
-      Repo.transaction(fn ->
-        case bind_execution(claim,
-               executed_workflow_job_id: executed_workflow_job_id,
-               workflow_job_id: nil
-             ) do
-          1 ->
-            stale_claim = stale_claim_for(executed_workflow_job_id, claim)
-            adopt_executed_job(claim, executed_workflow_job_id, stale_claim)
-            hand_over_or_requeue_displaced_job(claimed_job_id, claim, stale_claim)
+  # Locks the runner's claim together with any stale claim naming the
+  # executed job: dispatch can hand out a job GitHub has already started
+  # elsewhere, because the `in_progress` webhook that proves it lands
+  # seconds later, and that claim then names a job its runner will never
+  # run. Both rows are read under the lock because two webhooks can each
+  # need the other's claim. GitHub routinely swaps two runners' jobs, and
+  # locking one row and then the other deadlocks; one statement ordered
+  # by Pod takes them in the same order in every transaction, and a
+  # webhook that waited reads the claim the other one left.
+  defp lock_execution_claims(runner_name, executed_workflow_job_id, account_id) do
+    claims =
+      Claim
+      |> where(
+        [c],
+        c.account_id == ^account_id and
+          (c.runner_name == ^runner_name or c.workflow_job_id == ^executed_workflow_job_id)
+      )
+      |> order_by([c], c.pod_name)
+      |> lock("FOR UPDATE")
+      |> Repo.all()
 
-          0 ->
-            nil
-        end
-      end)
+    case Enum.find(claims, &(&1.runner_name == runner_name)) do
+      nil ->
+        {nil, nil}
 
-    displaced
+      %Claim{pod_name: pod_name} = claim ->
+        stale_claim =
+          Enum.find(claims, fn candidate ->
+            candidate.pod_name != pod_name and candidate.workflow_job_id == executed_workflow_job_id and
+              is_nil(candidate.executed_workflow_job_id)
+          end)
+
+        {claim, stale_claim}
+    end
   end
 
-  # Dispatch can hand out a job GitHub has already started elsewhere: the
-  # `in_progress` webhook that proves it lands seconds later. The claim
-  # that took it then names a job its runner will never run.
-  defp stale_claim_for(executed_workflow_job_id, %Claim{pod_name: pod_name, account_id: account_id}) do
-    Claim
-    |> where(
-      [c],
-      c.workflow_job_id == ^executed_workflow_job_id and c.account_id == ^account_id and c.pod_name != ^pod_name and
-        is_nil(c.executed_workflow_job_id)
-    )
-    |> Repo.one()
+  defp detach_displaced_job(%Claim{workflow_job_id: claimed_job_id} = claim, executed_workflow_job_id, stale_claim) do
+    case bind_execution(claim,
+           executed_workflow_job_id: executed_workflow_job_id,
+           workflow_job_id: nil
+         ) do
+      1 ->
+        adopt_executed_job(claim, executed_workflow_job_id, stale_claim)
+        hand_over_or_requeue_displaced_job(claimed_job_id, claim, stale_claim)
+
+      0 ->
+        nil
+    end
   end
 
   # The slot moves from the claimed job to the executed one, so both
