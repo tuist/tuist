@@ -1859,7 +1859,14 @@ jobs:
         # still succeeds. `:process_xcresult` jobs queue until a processor is
         # Ready. 30m matches the Deployment's progressDeadlineSeconds: one
         # Tart VM cycle per replica.
-        if: env.XCRESULT_PROCESSOR_DEPLOYMENT != ''
+        #
+        # Production does not wait: its replicas cycle one Tart VM at a time
+        # and nothing after this step depends on them, so the wait only held
+        # the release concurrency group. A processor that does not come back
+        # there is reported by the xcresult processor alerts in
+        # infra/helm/k8s-monitoring/alerts.md. Canary keeps waiting because
+        # its acceptance tests need a Ready processor.
+        if: env.XCRESULT_PROCESSOR_DEPLOYMENT != '' && inputs.environment != 'production'
         continue-on-error: true
         timeout-minutes: 35
         run: |

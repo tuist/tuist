@@ -3435,6 +3435,46 @@ makes one replica unavailable for a long, legitimate window. Deliberately
 does not subsume the metrics rules: a Pod whose VM booted but whose
 release never started counts as available here.
 
+### xcresult processor rollout failed
+
+```promql
+max by (cluster, env, namespace, deployment) (
+  kube_deployment_status_condition{
+    namespace=~"tuist|tuist-staging|tuist-canary",
+    deployment="tuist-tuist-xcresult-processor",
+    condition="Progressing",
+    reason="ProgressDeadlineExceeded",
+    status="false"
+  }
+) > 0
+```
+
+- Pending period: 1 minute
+- Severity: warning
+- Receiver: notification policy tree (production lands in `#notifications`)
+- Grafana rule: `cg1vm0wbjij28d`
+- Summary: `The xcresult processor rollout in {{ $labels.namespace }}
+  ({{ $labels.cluster }}) made no progress for 30 minutes and stopped`
+
+Production deploys do not wait for the processor rollout, so this is
+what reports a new processor release or image that never turns Ready
+there. Kubernetes flips `Progressing` to `False` with
+`ProgressDeadlineExceeded` once no new replica has become available for
+`progressDeadlineSeconds` (1800s), so the condition already carries the
+30-minute budget and the pending period only debounces it. It resolves
+when a later rollout completes.
+
+`maxSurge: 0` and the PDB stop the rollout after one Tart VM, so the
+replicas still on the previous release keep draining the queue; this
+rule reports the failed version, and `Remote processing queue has no
+consumer` covers the case where nothing is left.
+
+Only production exports `kube_deployment_status_condition` for this
+Deployment. Canary and staging deploys still wait for the rollout in
+`server-deployment.yml`. Backtested against the build processor's
+`ProgressDeadlineExceeded` on 2026-10-09 at 13:12Z, which the same
+expression matched for 3 minutes.
+
 ### Tuist license invalid or near expiration
 
 ```promql
