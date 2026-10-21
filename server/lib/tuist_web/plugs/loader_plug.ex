@@ -161,7 +161,8 @@ defmodule TuistWeb.Plugs.LoaderPlug do
     cache_opts = [
       ttl: cache_ttl,
       cache: cache,
-      locking: true
+      locking: true,
+      cache_errors: false
     ]
 
     if Map.get(conn.assigns, :caching, true) and conn.assigns[:auth_freshness] != :strict do
