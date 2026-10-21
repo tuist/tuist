@@ -60,114 +60,153 @@ permissions:
   contents: read
 
 concurrency:
-  group: runners-cache-reuse-e2e-${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+  group: runners-cache-reuse-e2e-${{ inputs.runner_label || 'push' }}-${{ inputs.key_prefix || github.sha }}
   cancel-in-progress: false
 
 jobs:
-  seed:
+  config:
     if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    outputs:
+      runner_label: ${{ steps.config.outputs.runner_label }}
+      key_prefix: ${{ steps.config.outputs.key_prefix }}
+      gap_seconds: ${{ steps.config.outputs.gap_seconds }}
+      large_size: ${{ steps.config.outputs.large_size }}
+      fill_gb: ${{ steps.config.outputs.fill_gb }}
+      grow_gb: ${{ steps.config.outputs.grow_gb }}
+    steps:
+      - id: config
+        env:
+          EVENT: ${{ github.event_name }}
+          RUNNER_LABEL: ${{ inputs.runner_label }}
+          KEY_PREFIX: ${{ inputs.key_prefix }}
+          GAP_SECONDS: ${{ inputs.gap_seconds }}
+          LARGE_SIZE: ${{ inputs.large_size }}
+          FILL_GB: ${{ inputs.fill_gb }}
+          GROW_GB: ${{ inputs.grow_gb }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = push ]; then
+            RUNNER_LABEL=tuist-macos-27-0
+            KEY_PREFIX="e2e-reuse-prod-${GITHUB_SHA:0:8}"
+            GAP_SECONDS=180
+            LARGE_SIZE=20gb
+            FILL_GB=6
+            GROW_GB=3
+          fi
+          {
+            echo "runner_label=$RUNNER_LABEL"
+            echo "key_prefix=$KEY_PREFIX"
+            echo "gap_seconds=$GAP_SECONDS"
+            echo "large_size=$LARGE_SIZE"
+            echo "fill_gb=$FILL_GB"
+            echo "grow_gb=$GROW_GB"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  seed:
+    needs: config
     uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
     with:
-      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
-      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      runner_label: ${{ needs.config.outputs.runner_label }}
+      key_prefix: ${{ needs.config.outputs.key_prefix }}
       phase: seed
       index: "0"
-      large_size: ${{ inputs.large_size || '30gb' }}
-      fill_gb: ${{ inputs.fill_gb || '6' }}
-      grow_gb: ${{ inputs.grow_gb || '3' }}
+      large_size: ${{ needs.config.outputs.large_size }}
+      fill_gb: ${{ needs.config.outputs.fill_gb }}
+      grow_gb: ${{ needs.config.outputs.grow_gb }}
 
   wait-1:
-    needs: seed
+    needs: [config, seed]
     runs-on: ubuntu-latest
     steps:
-      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+      - run: sleep "${{ needs.config.outputs.gap_seconds }}"
   sequential-1:
-    needs: wait-1
+    needs: [config, wait-1]
     uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
     with:
-      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
-      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      runner_label: ${{ needs.config.outputs.runner_label }}
+      key_prefix: ${{ needs.config.outputs.key_prefix }}
       phase: sequential
       index: "1"
-      large_size: ${{ inputs.large_size || '30gb' }}
-      fill_gb: ${{ inputs.fill_gb || '6' }}
-      grow_gb: ${{ inputs.grow_gb || '3' }}
+      large_size: ${{ needs.config.outputs.large_size }}
+      fill_gb: ${{ needs.config.outputs.fill_gb }}
+      grow_gb: ${{ needs.config.outputs.grow_gb }}
 
   wait-2:
-    needs: sequential-1
+    needs: [config, sequential-1]
     runs-on: ubuntu-latest
     steps:
-      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+      - run: sleep "${{ needs.config.outputs.gap_seconds }}"
   sequential-2:
-    needs: wait-2
+    needs: [config, wait-2]
     uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
     with:
-      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
-      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      runner_label: ${{ needs.config.outputs.runner_label }}
+      key_prefix: ${{ needs.config.outputs.key_prefix }}
       phase: sequential
       index: "2"
-      large_size: ${{ inputs.large_size || '30gb' }}
-      fill_gb: ${{ inputs.fill_gb || '6' }}
-      grow_gb: ${{ inputs.grow_gb || '3' }}
+      large_size: ${{ needs.config.outputs.large_size }}
+      fill_gb: ${{ needs.config.outputs.fill_gb }}
+      grow_gb: ${{ needs.config.outputs.grow_gb }}
 
   wait-3:
-    needs: sequential-2
+    needs: [config, sequential-2]
     runs-on: ubuntu-latest
     steps:
-      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+      - run: sleep "${{ needs.config.outputs.gap_seconds }}"
   sequential-3:
-    needs: wait-3
+    needs: [config, wait-3]
     uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
     with:
-      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
-      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      runner_label: ${{ needs.config.outputs.runner_label }}
+      key_prefix: ${{ needs.config.outputs.key_prefix }}
       phase: sequential
       index: "3"
-      large_size: ${{ inputs.large_size || '30gb' }}
-      fill_gb: ${{ inputs.fill_gb || '6' }}
-      grow_gb: ${{ inputs.grow_gb || '3' }}
+      large_size: ${{ needs.config.outputs.large_size }}
+      fill_gb: ${{ needs.config.outputs.fill_gb }}
+      grow_gb: ${{ needs.config.outputs.grow_gb }}
 
   wait-4:
-    needs: sequential-3
+    needs: [config, sequential-3]
     runs-on: ubuntu-latest
     steps:
-      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+      - run: sleep "${{ needs.config.outputs.gap_seconds }}"
   concurrent:
-    needs: wait-4
+    needs: [config, wait-4]
     strategy:
       fail-fast: false
       matrix:
         index: ["1", "2"]
     uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
     with:
-      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
-      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      runner_label: ${{ needs.config.outputs.runner_label }}
+      key_prefix: ${{ needs.config.outputs.key_prefix }}
       phase: concurrent
       index: ${{ matrix.index }}
-      large_size: ${{ inputs.large_size || '30gb' }}
-      fill_gb: ${{ inputs.fill_gb || '6' }}
-      grow_gb: ${{ inputs.grow_gb || '3' }}
+      large_size: ${{ needs.config.outputs.large_size }}
+      fill_gb: ${{ needs.config.outputs.fill_gb }}
+      grow_gb: ${{ needs.config.outputs.grow_gb }}
 
   wait-5:
-    needs: concurrent
+    needs: [config, concurrent]
     if: always() && needs.concurrent.result != 'cancelled'
     runs-on: ubuntu-latest
     steps:
-      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+      - run: sleep "${{ needs.config.outputs.gap_seconds }}"
   final:
-    needs: wait-5
+    needs: [config, wait-5]
     uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
     with:
-      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
-      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      runner_label: ${{ needs.config.outputs.runner_label }}
+      key_prefix: ${{ needs.config.outputs.key_prefix }}
       phase: final
       index: "0"
-      large_size: ${{ inputs.large_size || '30gb' }}
-      fill_gb: ${{ inputs.fill_gb || '6' }}
-      grow_gb: ${{ inputs.grow_gb || '3' }}
+      large_size: ${{ needs.config.outputs.large_size }}
+      fill_gb: ${{ needs.config.outputs.fill_gb }}
+      grow_gb: ${{ needs.config.outputs.grow_gb }}
 
   report:
-    needs: [seed, sequential-1, sequential-2, sequential-3, concurrent, final]
+    needs: [config, seed, sequential-1, sequential-2, sequential-3, concurrent, final]
     if: always() && github.repository == 'tuist/tuist'
     runs-on: ubuntu-latest
     permissions:
@@ -183,7 +222,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
-          GROW_GB: ${{ inputs.grow_gb || '3' }}
+          GROW_GB: ${{ needs.config.outputs.grow_gb }}
           STRICT: ${{ github.event_name == 'push' || inputs.strict }}
         run: |
           set -euo pipefail
