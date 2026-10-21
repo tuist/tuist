@@ -644,6 +644,21 @@
               value=""
               required
             />
+            <.text_input
+              id="gitlab-api-token"
+              name="api_token"
+              type="password"
+              input_type="password"
+              label={dgettext("dashboard_integrations", "API access token (optional)")}
+              hint={
+                dgettext(
+                  "dashboard_integrations",
+                  "A project or group access token with the read_api scope lets merge request pipelines from the project save cache volumes."
+                )
+              }
+              placeholder="glpat-…"
+              value=""
+            />
             <div data-part="actions">
               <.button
                 type="submit"
@@ -704,6 +719,21 @@
           label={dgettext("dashboard_integrations", "Runner authentication token")}
           value=""
           placeholder="••••••••••••"
+        />
+        <.text_input
+          id={"gitlab-api-token-#{connection.id}"}
+          name="api_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "API access token (optional)")}
+          hint={
+            dgettext(
+              "dashboard_integrations",
+              "A project or group access token with the read_api scope lets merge request pipelines from the project save cache volumes."
+            )
+          }
+          value=""
+          placeholder={if connection.api_token, do: "••••••••••••", else: "glpat-…"}
         />
       </div>
       <div data-part="actions">
