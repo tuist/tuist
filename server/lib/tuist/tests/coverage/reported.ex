@@ -657,13 +657,14 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # What a run that measured the commit executed is in the commit's figure,
-  # whichever other run of its scheme skipped it, so it is neither carried nor
-  # a gap. A target a run executed, and that its `-only-testing` doesn't name,
-  # ran whole there, but for the tests that run's own skip identifiers name,
-  # which stay skipped. Only a run of the same scheme counts: another scheme's
-  # test plan can run other tests of the same target. Decided before anything
-  # else, so a full run beside a selective one at the commit measures what the
-  # selective one skipped whatever the commit changed.
+  # whichever other run skipped it, so it is neither carried nor a gap. A
+  # target a run executed, and that its `-only-testing` doesn't name, ran
+  # whole there, but for the tests that run's own skip identifiers name, which
+  # stay skipped. For a target only a run of the same scheme counts: another
+  # scheme's test plan can run other tests of the same target. A named test
+  # that ran counts in any scheme, as `ran/2` does for the rest. Decided before
+  # anything else, so a full run beside a selective one at the commit measures
+  # what the selective one skipped whatever the commit changed.
   defp unexecuted(_project_id, [], hits, skipping), do: {hits, skip_identifiers(skipping)}
 
   defp unexecuted(project_id, runs, hits, skipping) do
@@ -680,7 +681,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     by_target = Enum.reject(by_target, fn {scheme, [module | _]} -> MapSet.member?(untouched, {scheme, module}) end)
 
     {Enum.reject(hits, &MapSet.member?(whole, {schemes[&1.test_run_id], &1.name})),
-     (by_target ++ unexecuted_named(project_id, named, runs)) |> Enum.map(&elem(&1, 1)) |> Enum.uniq()}
+     Enum.uniq(Enum.map(by_target, &elem(&1, 1)) ++ unexecuted_named(project_id, named, Map.keys(by_id)))}
   end
 
   # The targets each run executed, from its module rows: they are keyed by
@@ -712,28 +713,18 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   defp named_targets(identifiers), do: Enum.map(identifiers, &(&1 |> String.split("/", parts: 2) |> hd()))
 
-  # The identifiers naming a test no run of their scheme executed. One that
-  # names no known test skips nothing.
-  defp unexecuted_named(_project_id, [], _runs), do: []
+  # The identifiers naming a test none of the runs executed. One that names no
+  # known test skips nothing.
+  defp unexecuted_named(_project_id, [], _run_ids), do: []
 
-  defp unexecuted_named(project_id, named, runs) do
-    tests = named_tests(project_id, named |> Enum.map(&elem(&1, 1)) |> Enum.uniq())
-    test_case_ids = tests |> Enum.map(& &1.test_case_id) |> Enum.uniq()
-    schemes = MapSet.new(named, &elem(&1, 0))
+  defp unexecuted_named(project_id, named, run_ids) do
+    identifiers = named |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+    tests = named_tests(project_id, identifiers)
+    ran = ran(project_id, run_ids, tests |> Enum.map(& &1.test_case_id) |> Enum.uniq())
+    unexecuted = Enum.reject(tests, &MapSet.member?(ran, &1.test_case_id))
 
-    ran =
-      runs
-      |> Enum.filter(&MapSet.member?(schemes, &1.scheme))
-      |> Enum.group_by(& &1.scheme, & &1.test_run_id)
-      |> Map.new(fn {scheme, run_ids} -> {scheme, ran(project_id, run_ids, test_case_ids)} end)
-
-    Enum.filter(named, fn {scheme, [module | _] = identifier} ->
-      executed = Map.get(ran, scheme, MapSet.new())
-
-      Enum.any?(
-        tests,
-        &(&1.module_name == module and named?(&1, identifier) and not MapSet.member?(executed, &1.test_case_id))
-      )
+    Enum.filter(identifiers, fn [module | _] = identifier ->
+      Enum.any?(unexecuted, &(&1.module_name == module and named?(&1, identifier)))
     end)
   end
 

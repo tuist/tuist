@@ -2065,4 +2065,18 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == []
   end
+
+  test "a test a skip identifier names that another scheme's run executed is measured, whatever the commit changed",
+       %{project: project, account: account} do
+    base_run(project, account)
+    head_run(project, account, head_files())
+    change_tracked_file(account)
+
+    assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+
+    other_run(project, account, %{scheme: "Other"})
+
+    assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
 end
