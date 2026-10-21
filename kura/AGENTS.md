@@ -48,9 +48,6 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   commit and compare it under the same lock that acquires the destination hold.
   Repeated walks share the original deadline; never unfreeze a held corpus to
   retry or bypass storage admission to force convergence.
-  The retained walk promotes the destination's own Old copies of records the
-  source lists (refresh trigger `retained`), so rotation evicts data the source
-  dropped before data it still retains. This works with any source version.
   Ordinary backward catch-up and forward pages keep their recency cutoffs.
   The source barrier settles seqs staged before its hold, then compares
   committed feed rows, floor and mutations, never the head: a write the hold

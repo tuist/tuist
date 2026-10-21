@@ -30,7 +30,6 @@ use crate::{
     },
     replication::read_bounded_body,
     state::SharedState,
-    store::RefreshTrigger,
     sync::{
         coordinator::{
             LinkFrontier, LinkPhase, LinkStatusCell, PEER_UNSUPPORTED, backoff, pass_backoff,
@@ -285,8 +284,7 @@ async fn apply_page(
         app.store.advance_sync_watermark(&region, watermark).await?;
     }
     for (artifact_id, version_ms) in refreshes {
-        app.store
-            .refresh_from_hint(artifact_id, version_ms, RefreshTrigger::Sibling);
+        app.store.refresh_from_sibling_hint(artifact_id, version_ms);
     }
     Ok(true)
 }

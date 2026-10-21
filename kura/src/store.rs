@@ -419,10 +419,6 @@ pub enum RefreshTrigger {
     Serve,
     /// A sibling's promotion hint for an artifact this node holds too.
     Sibling,
-    /// A named handover's retained walk listing an artifact this destination
-    /// already holds, so its ring evicts data the source no longer retains
-    /// before data it still does.
-    Retained,
     /// A `GetActionResult` that passed its presence gate and is being served.
     ActionCache,
     /// A `FindMissingBlobs` that reported the blob present.
@@ -434,7 +430,6 @@ impl RefreshTrigger {
         match self {
             Self::Serve => "serve",
             Self::Sibling => "sibling",
-            Self::Retained => "retained",
             Self::ActionCache => "action_cache",
             Self::FindMissing => "find_missing",
         }
@@ -446,10 +441,10 @@ impl RefreshTrigger {
         matches!(self, Self::ActionCache | Self::FindMissing)
     }
 
-    /// Whether siblings are told about this refresh. Refreshes that mirror
-    /// another node's retention are never echoed back.
+    /// Whether siblings are told about this refresh. A refresh that mirrors a
+    /// sibling's is never echoed back.
     fn hints_siblings(self) -> bool {
-        !matches!(self, Self::Sibling | Self::Retained)
+        self != Self::Sibling
     }
 }
 
@@ -2656,8 +2651,8 @@ impl Store {
 
     /// Queues this node's copy of `artifact_id` for promotion when it holds
     /// `version_ms` or newer in an Old segment: the counterpart of a
-    /// sibling's promotion hint or a handover source's retained listing.
-    pub fn refresh_from_hint(&self, artifact_id: &str, version_ms: u64, trigger: RefreshTrigger) {
+    /// sibling's promotion hint.
+    pub fn refresh_from_sibling_hint(&self, artifact_id: &str, version_ms: u64) {
         let segment_state = self.segment_state_snapshot();
         if segment_state.state.old.is_empty() {
             return;
@@ -2672,7 +2667,7 @@ impl Store {
             return;
         };
         if segment_state.generations.get(segment_id).copied() == Some(SegmentGeneration::Old) {
-            self.enqueue_promotion(artifact_id, trigger);
+            self.enqueue_promotion(artifact_id, RefreshTrigger::Sibling);
         }
     }
 
@@ -17654,22 +17649,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn promotions_mirroring_another_node_do_not_hint_back() {
-        for trigger in [RefreshTrigger::Sibling, RefreshTrigger::Retained] {
-            let (_temp_dir, _config, store) = temp_store();
-            store.sync_feed_activate().await.unwrap();
-            let aged_id = store_with_one_aged_blob(&store).await;
-            let aged_segment = store.manifest(&aged_id).unwrap().unwrap().segment_id;
+    async fn a_sibling_promotion_does_not_hint_back() {
+        let (_temp_dir, _config, store) = temp_store();
+        store.sync_feed_activate().await.unwrap();
+        let aged_id = store_with_one_aged_blob(&store).await;
+        let aged_segment = store.manifest(&aged_id).unwrap().unwrap().segment_id;
 
-            store.promote_artifact(&aged_id, trigger).await.unwrap();
+        store
+            .promote_artifact(&aged_id, RefreshTrigger::Sibling)
+            .await
+            .unwrap();
 
-            assert_ne!(
-                store.manifest(&aged_id).unwrap().unwrap().segment_id,
-                aged_segment,
-                "{trigger:?} still promotes the local copy"
-            );
-            assert!(refresh_rows(&store).is_empty(), "{trigger:?}");
-        }
+        assert_ne!(
+            store.manifest(&aged_id).unwrap().unwrap().segment_id,
+            aged_segment,
+            "the local copy is still promoted"
+        );
+        assert!(refresh_rows(&store).is_empty());
     }
 
     #[tokio::test]
@@ -17688,19 +17684,15 @@ mod tests {
             .await
             .unwrap();
 
-        store.refresh_from_hint(&aged_id, aged_version + 1, RefreshTrigger::Sibling);
+        store.refresh_from_sibling_hint(&aged_id, aged_version + 1);
         assert_eq!(
             store.pending_promotion(&aged_id),
             None,
             "a hint for a newer version than this node holds names a different record"
         );
-        store.refresh_from_hint(&aged_id, aged_version, RefreshTrigger::Sibling);
-        store.refresh_from_hint(
-            &live.artifact_id,
-            manifest_version_ms(&live),
-            RefreshTrigger::Sibling,
-        );
-        store.refresh_from_hint("absent", 1, RefreshTrigger::Sibling);
+        store.refresh_from_sibling_hint(&aged_id, aged_version);
+        store.refresh_from_sibling_hint(&live.artifact_id, manifest_version_ms(&live));
+        store.refresh_from_sibling_hint("absent", 1);
 
         assert_eq!(
             store.pending_promotion(&aged_id),

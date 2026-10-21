@@ -13204,7 +13204,7 @@
               "transformations": []
             }
           },
-          "description": "Bytes copied while refreshing artifacts out of old segments, by trigger\n\n`sibling` copies follow a sibling's promotion hint, so a standby should roughly mirror its primary's client-triggered refreshes. `retained` copies happen only during a named handover's retained walk, on the destination.\n\nPrometheus name: `kura_segment_refresh_bytes_total_total` · labels: producer, result, trigger",
+          "description": "Bytes copied while refreshing artifacts out of old segments, by trigger\n\n`sibling` copies follow a sibling's promotion hint, so a standby should roughly mirror its primary's client-triggered refreshes.\n\nPrometheus name: `kura_segment_refresh_bytes_total_total` · labels: producer, result, trigger",
           "id": 45,
           "links": [],
           "title": "segment_refresh_bytes_total (rate)",
