@@ -38,6 +38,7 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
             project.schemes = try mappedSchemes(
                 project.schemes,
                 scope: "project-\(project.name)",
+                projectPath: path,
                 graph: graph,
                 graphTraverser: graphTraverser,
                 cachedArtifactPaths: cachedArtifactPaths,
@@ -50,6 +51,7 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
         workspace.schemes = try mappedSchemes(
             workspace.schemes,
             scope: "workspace-\(workspace.name)",
+            projectPath: nil,
             graph: graph,
             graphTraverser: graphTraverser,
             cachedArtifactPaths: cachedArtifactPaths,
@@ -65,18 +67,25 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
     private func mappedSchemes(
         _ schemes: [Scheme],
         scope: String,
+        projectPath: AbsolutePath?,
         graph: Graph,
         graphTraverser: GraphTraversing,
         cachedArtifactPaths: Set<AbsolutePath>,
         sideEffects: inout [SideEffectDescriptor]
     ) throws -> [Scheme] {
-        try schemes.map { scheme in
+        let canHostPreAction: (TargetReference) -> Bool = { target in
+            (projectPath == nil || target.projectPath == projectPath)
+                && graphTraverser.target(path: target.projectPath, name: target.name) != nil
+        }
+
+        return try schemes.map { scheme in
             var scheme = scheme
 
             if let runAction = scheme.runAction ?? defaultRunAction(for: scheme, graphTraverser: graphTraverser),
                runAction.attachDebugger,
                let target = try runTarget(
                    for: scheme,
+                   canHostPreAction: canHostPreAction,
                    graphTraverser: graphTraverser,
                    cachedArtifactPaths: cachedArtifactPaths
                )
@@ -105,9 +114,9 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
             }
 
             if var testAction = scheme.testAction, testAction.attachDebugger {
-                let testTargets = testAction.targets.map(\.target) + (testAction.testPlans ?? []).flatMap {
+                let testTargets = (testAction.targets.map(\.target) + (testAction.testPlans ?? []).flatMap {
                     $0.testTargets.map(\.target)
-                }
+                }).filter { graphTraverser.target(path: $0.projectPath, name: $0.name) != nil }
                 let artifacts = try testTargets.reduce(into: Set<AbsolutePath>()) { artifacts, target in
                     artifacts.formUnion(try cachedArtifacts(
                         reachableFrom: target,
@@ -115,7 +124,10 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
                         cachedArtifactPaths: cachedArtifactPaths
                     ))
                 }
-                if let target = testAction.expandVariableFromTarget ?? testTargets.first,
+                let hostCandidates = [testAction.expandVariableFromTarget].compactMap { $0 }
+                    + testTargets
+                    + (scheme.buildAction?.targets ?? [])
+                if let target = hostCandidates.first(where: canHostPreAction),
                    compilationCachingEnabled || !artifacts.isEmpty
                 {
                     if let configuration = try debuggerConfiguration(
@@ -166,10 +178,13 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
 
     private func runTarget(
         for scheme: Scheme,
+        canHostPreAction: (TargetReference) -> Bool,
         graphTraverser: GraphTraversing,
         cachedArtifactPaths: Set<AbsolutePath>
     ) throws -> TargetReference? {
-        guard let target = scheme.runAction?.executable ?? scheme.buildAction?.targets.first else {
+        guard let target = scheme.runAction?.executable ?? scheme.buildAction?.targets.first,
+              canHostPreAction(target)
+        else {
             return nil
         }
         let artifacts = try cachedArtifacts(
