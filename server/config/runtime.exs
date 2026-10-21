@@ -1,5 +1,11 @@
 import Config
 
+# Configure OTP before dependencies can create clients. Its macOS keychain
+# exporter ignores Apple trust-settings deny records; Packer filters this PEM.
+if System.get_env("TUIST_MODE") == "xcresult_processor" and :os.type() == {:unix, :darwin} do
+  config :public_key, cacerts_path: "/etc/ssl/cert.pem"
+end
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration

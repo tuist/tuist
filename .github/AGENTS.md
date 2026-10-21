@@ -38,6 +38,21 @@ agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
 through Helm, without a separate human kubectl elevation.
 
+## Certificate trust
+
+`workflows/certificate-trust.yml` runs Go, shell and isolated ExUnit checks with
+read-only permissions. It has no Python, image manufacturing, registry login,
+publication or deployment. Keep the explicit Go SDK qualification allowlist and
+CI pin aligned; newer release lines alone do not prove the intermediate-key deny.
+The aggregate mitigation paths trigger many independent main deploy workflows:
+split merges by owner rather than treating this test job as a fleet rollout gate.
+Runner idle-only and Kura health-gated waves can stay warm; cache-volume agents,
+parallel gateway updates and singleton access paths need separate qualification.
+Kura and Android SDK image builds require the shared named `certificate-trust`
+Docker context. Keep direct E2E Docker callers and release path detection aligned.
+Management Tailscale image replacements require the manual workflow's separate
+access-path qualification; never bypass its singleton Recreate guard on push.
+
 ## Server production deployment
 
 `workflows/server-production-deployment.yml` decides whether a push deploys by
