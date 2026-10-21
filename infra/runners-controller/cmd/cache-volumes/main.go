@@ -255,7 +255,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	checkouts.InUse = store.InUse
+	checkouts.InUse, backend.InUse = store.InUse, store.InUse
 	defer store.Close()
 	// Lock survives requests and prevents an overlapping/restarted DaemonSet from
 	// allocating the same directory. Kubernetes rollout uses maxSurge=0 as well.

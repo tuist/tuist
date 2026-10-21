@@ -191,6 +191,8 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	defer store.Close()
 	store.MaxVolumeBytes = c.maxVolumeBytes()
 	c.Store = store
+	// Pressure eviction takes the masters of lineages a job holds or is cloning last.
+	backend.InUse = store.InUse
 	if c.Checkouts != nil {
 		// Pressure eviction never takes a master a job holds or is cloning.
 		c.Checkouts.InUse = store.InUse

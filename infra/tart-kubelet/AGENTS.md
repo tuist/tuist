@@ -92,6 +92,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   A background prefetch the server listed for the host gives way first: built-in
   and custom job admission cancel it and drop its reservation (twice its volume
   size) before evicting any master (`displaceSpareLocked`).
+  Among custom masters, eviction takes superseded generations and unused spare
+  prefetches first and the lineages a running or attaching job holds last
+  (`LocalImages.InUse`); see `runner-cache/AGENTS.md`.
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).
