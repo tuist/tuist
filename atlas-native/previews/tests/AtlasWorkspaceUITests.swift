@@ -8,16 +8,16 @@ final class AtlasWorkspaceUITests: XCTestCase {
         try tap("profile-appearance", in: app)
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["also-here"].exists)
+        attach(app, "ios-theme-chooser")
         for theme in ["pulse", "berlin", "habibi", "amrit", "pelotas", "branik"] {
             let choice = try app.visibleElement("theme-\(theme)", up: false)
             XCTAssertGreaterThanOrEqual(choice.frame.height, 44)
             choice.tap()
             XCTAssertEqual(choice.value as? String, "Selected")
             for mode in ["Light", "Dark"] {
-                let picker = try app.visibleElement("appearance-mode", up: false)
+                let picker = try app.visibleElement("appearance-mode", up: mode == "Light")
                 picker.buttons[mode].tap()
                 XCTAssertTrue(picker.buttons[mode].isSelected)
-                if theme == "pulse", mode == "Light" { attach(app, "ios-theme-chooser") }
                 let preview = try app.visibleElement("appearance-preview")
                 app.scrollContent()
                 XCTAssertLessThanOrEqual(preview.frame.maxY, app.tabBars.firstMatch.frame.minY)
