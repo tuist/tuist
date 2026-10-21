@@ -159,6 +159,57 @@ fn websocket_pushes_location_replies_reconnects_and_close_wakes_a_waiter() {
 }
 
 #[test]
+fn location_free_fallback_keeps_the_roster_connected_and_allows_navigation() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = format!(
+        "ws://{}/presence/websocket?vsn=2.0.0",
+        listener.local_addr().unwrap()
+    );
+    let (commands, events) = mpsc::channel();
+    let server = std::thread::spawn(move || {
+        let mut socket = accept(&listener);
+        let join = receive(&mut socket);
+        reply(&mut socket, &join[1], response(false));
+        let restricted = receive(&mut socket);
+        assert_eq!(restricted[4], json!({"resource":"invoices"}));
+        // The server keeps authenticated availability but withholds location hints.
+        let mut fallback = response(true);
+        fallback["people"][1]["here"] = json!(false);
+        reply(&mut socket, &restricted[1], fallback);
+        let allowed = receive(&mut socket);
+        assert_eq!(allowed[4], json!({"resource":"tasks"}));
+        reply(&mut socket, &allowed[1], response(true));
+        events.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(matches!(socket.read().unwrap(), Message::Close(_)));
+    });
+    let opened = open(&endpoint, saved()).unwrap();
+    let id = opened["connection"].as_str().unwrap().to_owned();
+    let initial = next(&id, 0);
+    execute(Action::Update {
+        connection: id.clone(),
+        location: serde_json::from_value(json!({"resource":"invoices"})).unwrap(),
+    })
+    .unwrap();
+    let fallback = next(&id, initial["sequence"].as_u64().unwrap());
+    assert!(fallback["error"].is_null());
+    assert_eq!(fallback["location"], json!({"resource":"invoices"}));
+    assert_eq!(fallback["people"][0]["online"], true);
+    assert_eq!(fallback["people"][1]["online"], true);
+    assert_eq!(fallback["people"][1]["here"], false);
+    execute(Action::Update {
+        connection: id.clone(),
+        location: serde_json::from_value(json!({"resource":"tasks"})).unwrap(),
+    })
+    .unwrap();
+    let allowed = next(&id, fallback["sequence"].as_u64().unwrap());
+    assert_eq!(allowed["location"], json!({"resource":"tasks"}));
+    assert_eq!(allowed["people"][1]["here"], true);
+    execute(Action::Close { connection: id }).unwrap();
+    commands.send(()).unwrap();
+    server.join().unwrap();
+}
+
+#[test]
 fn rejects_unsafe_locations_and_expired_credentials_without_networking() {
     for value in [
         json!({"resource":"people","id":OTHER}),
