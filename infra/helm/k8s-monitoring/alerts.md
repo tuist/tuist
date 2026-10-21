@@ -4969,11 +4969,18 @@ predict_linear(
   headroom {{ $values.A.Value | printf "%.0f" }} GiB)`
 - Description: `Subtracts three more days of the region's reserved-disk growth,
   extrapolated from the last three, from its capacity admission headroom (see
-  "Kura region admission cannot take an enterprise instance"). A box takes days
-  to order and join, so this is the tier
-  to act on: order a node for the region's pool, or find what is reserving
-  disk it does not use (instances that have stored nothing, claims far above
-  their rings).`
+  "Kura - region admission cannot take an enterprise instance"). Reserved disk
+  does not move when a box joins, leaves or is evacuated, so adding or
+  retiring a box does not read as burn; private runner-cache regions, which
+  report no reserved series, use the headroom trend instead. A box takes days
+  to order and join, so this is the tier to act on: order a node for the
+  region's pool, or find what is reserving disk it does not use (instances
+  that have stored nothing, claims far above their rings). Regions fill at
+  very different rates (week to 2026-09-17: us-central ~95 GiB/day, us-west
+  ~40), which is why this is a trend rather than an absolute threshold. The 2h
+  pending period keeps a region's first hours of samples from firing.
+  Background: infra/helm/k8s-monitoring/alerts.md, section 'Kura region
+  admission headroom running out'.`
 
 The lead-time tier for **Kura region admission cannot take an enterprise
 instance**. An absolute threshold does not give lead time here, because
