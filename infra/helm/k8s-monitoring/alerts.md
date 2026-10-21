@@ -5629,7 +5629,9 @@ sum by (cluster, region) (
 
 - Threshold: `> 1` second, as a separate threshold expression on `A`; the
   traffic floor of one request per second stays inside the PromQL, since
-  `and` filters the series rather than reducing it to a boolean
+  `and` filters the series rather than reducing it to a boolean. Production
+  ships no public latency bucket above 1.024 s, so a p95 past it reads as
+  1.024 s: the rule still fires, but the summary understates how slow it is
 - Pending period: 30 minutes
 - Severity: warning
 - Live: rule `ffx2xchowcwlce`. Production only (see **Recording rules for

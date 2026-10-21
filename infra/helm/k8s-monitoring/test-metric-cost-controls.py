@@ -52,17 +52,18 @@ def fixture():
     ]:
         for route in routes:
             labels = f'pod="{pod}",transport="grpc",route="/service/{route}"{marker}'
-            for le, value in [("0.001", 1), ("0.002", 2), ("0.004", 3), ("+Inf", 4)]:
+            for le, value in [("0.001", 1), ("0.002", 2), ("0.004", 3), ("4.096", 4), ("+Inf", 4)]:
                 lines.append(f'kura_public_request_latency_seconds_bucket{{{labels},le="{le}"}} {value}')
             lines += [f'kura_public_request_latency_seconds_count{{{labels}}} 4',
                       f'kura_public_request_latency_seconds_sum{{{labels}}} 0.005']
     for transport in ["http", "grpc"]:
         labels = f'pod="new",transport="{transport}"'
-        for le, value in [("0.001", 1), ("0.002", 2), ("0.004", 3), ("+Inf", 4)]:
+        for le, value in [("0.001", 1), ("0.002", 2), ("0.004", 3), ("32.768", 4), ("+Inf", 4)]:
             lines.append(f'kura_public_request_latency_by_transport_seconds_bucket{{{labels},le="{le}"}} {value}')
         lines += [f'kura_public_request_latency_by_transport_seconds_count{{{labels}}} 4',
                   f'kura_public_request_latency_by_transport_seconds_sum{{{labels}}} 0.005']
-    lines += ['kura_file_operation_duration_seconds_count{pod="new",operation="read"} 1',
+    lines += ['kura_http_request_duration_seconds_bucket{pod="new",le="4.096"} 1',
+              'kura_file_operation_duration_seconds_count{pod="new",operation="read"} 1',
               'kura_file_operations_total_total{pod="new",operation="read",result="ok"} 1']
     return "\n".join(lines) + "\n"
 
@@ -143,6 +144,8 @@ prometheus.scrape "fixture" {{
                     'count(kura_public_request_latency_by_transport_seconds_sum)': 0,
                     'count(kura_file_operation_duration_seconds_count)': 0 if enabled else 1,
                     'count({__name__=~"kura_.*",le="0.002"})': 0,
+                    'count({__name__=~"kura_public_request_latency.*",le=~"4.096|32.768"})': 0,
+                    'count(kura_http_request_duration_seconds_bucket{le="4.096"})': 1,
                     'count({__name__=~"kura_.*",latency_aggregate=~".+"})': 6 if enabled else 0,
                     'count(kura_public_request_latency_seconds_bucket{latency_aggregate="true",route!~".*/(SplitBlob|SpliceBlob)"})': 0,
                     'count(kura_public_request_latency_seconds_count)': 5,
