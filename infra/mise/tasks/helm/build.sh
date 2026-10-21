@@ -11,12 +11,14 @@ docker build \
     --build-arg TUIST_HOSTED=0 \
     -t tuist-server:latest \
     -f "$REPO_ROOT/server/Dockerfile" \
+    --build-context "certificate-trust=$REPO_ROOT/infra/certificate-trust" \
     "$REPO_ROOT"
 
 echo "==> Building tuist-cache image..."
 docker build \
     -t tuist-cache:latest \
     -f "$REPO_ROOT/cache/Dockerfile" \
+    --build-context "certificate-trust=$REPO_ROOT/infra/certificate-trust" \
     "$REPO_ROOT"
 
 echo "==> Done. Images built:"

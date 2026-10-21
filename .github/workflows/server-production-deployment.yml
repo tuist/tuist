@@ -238,7 +238,7 @@ jobs:
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
           deployable_paths="$(printf '%s\n' "$changed" \
             | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
-            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)' \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/certificate-trust/(policy\.json|pem-store\.sh)$|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)' \
             || true)"
           if [ -n "$deployable_paths" ]; then
             echo "Deployable paths changed since $base:"
@@ -255,7 +255,7 @@ jobs:
           latest_canary="$(git tag --list 'kura@*' --merged HEAD \
             | grep -E '^kura@[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
             | sort -V | tail -n1 || true)"
-          if [ -z "$latest_canary" ] || ! git diff --quiet "$latest_canary" HEAD -- kura/; then
+          if [ -z "$latest_canary" ] || ! git diff --quiet "$latest_canary" HEAD -- kura/ infra/certificate-trust/policy.json infra/certificate-trust/pem-store.sh; then
             echo "kura-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "kura-changed=false" >> "$GITHUB_OUTPUT"
@@ -507,6 +507,7 @@ jobs:
         with:
           context: .
           file: infra/runners-controller/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
@@ -518,6 +519,7 @@ jobs:
         with:
           context: .
           file: infra/runners-controller/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           target: cache-volumes
           platforms: linux/amd64,linux/arm64
           push: true
@@ -869,6 +871,7 @@ jobs:
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
           # Linux runners run on Hetzner bare-metal x86 nodes at v1.
           # arm64 is a future option and can land as an additive
           # `platforms:` entry.
@@ -1383,6 +1386,7 @@ jobs:
         with:
           context: .
           file: ./server/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           target: runner
           push: true
           tags: |
@@ -1466,6 +1470,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
           build-args: ${{ matrix.build-args }}

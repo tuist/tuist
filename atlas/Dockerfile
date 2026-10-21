@@ -20,9 +20,11 @@ ARG RUNNER_IMAGE=debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef0621
 
 # Aube embeds WebPKI roots; Node's CA settings cannot patch its native binary.
 FROM rust:1.94-bookworm AS aube-builder
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /opt/tuist/certificate-trust/
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
     && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 WORKDIR /aube
 RUN git init . && git remote add origin https://github.com/endevco/aube.git \
     && git fetch --depth 1 origin e7b898917c43ba72da002d12f2588f7bfa7e6890 \
@@ -38,6 +40,7 @@ RUN git init . && git remote add origin https://github.com/endevco/aube.git \
 # doesn't need Node/aube in its layer.
 # ========================================
 FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS noora-assets
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /opt/tuist/certificate-trust/
 
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
@@ -45,6 +48,7 @@ ENV XDG_DATA_HOME="/aube-data"
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
     && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 ENV NODE_OPTIONS=--use-openssl-ca \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
@@ -74,11 +78,13 @@ RUN aube run build
 # Stage: Elixir builder
 # ========================================
 FROM ${BUILDER_IMAGE} AS builder
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /opt/tuist/certificate-trust/
 
 RUN apt-get update -y && apt-get install -y build-essential git ca-certificates \
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
     && update-ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
 ENV REBAR_OFFLINE=1
@@ -143,6 +149,7 @@ RUN mix compile.app --force && mix release
 # Stage: Runner
 # ========================================
 FROM ${RUNNER_IMAGE}
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /opt/tuist/certificate-trust/
 
 # The release passes its version as APT_CACHE_BUST so a cached layer never
 # holds back Debian security patches. CI leaves the default and reuses it.
@@ -155,6 +162,7 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get clean && rm -f /var/lib/apt/lists/*_* \
   && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
   && mkdir -p /app && chown nobody /app
+RUN bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 # Chromium binary path used by browse_chrome to start headless instances for
 # the `browse_url` MCP tool. Set here so the pool boots automatically.

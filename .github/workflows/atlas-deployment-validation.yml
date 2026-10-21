@@ -32,7 +32,7 @@ jobs:
         with:
           install_only: true
       - name: Build standalone release image
-        run: docker build --file atlas/Dockerfile --build-arg ATLAS_VERSION="$ATLAS_TEST_VERSION" --tag "ghcr.io/tuist/atlas:$ATLAS_TEST_VERSION" .
+        run: docker build --file atlas/Dockerfile --build-context certificate-trust=infra/certificate-trust --build-arg ATLAS_VERSION="$ATLAS_TEST_VERSION" --tag "ghcr.io/tuist/atlas:$ATLAS_TEST_VERSION" .
       - name: Validate Compose and Helm deployments
         run: atlas/deploy/validate.sh
       - name: Upload documentation verification screenshots

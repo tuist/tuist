@@ -7,6 +7,9 @@
 ARG GO_VERSION=1.26.10
 ARG ALPINE_VERSION=3.23
 
+FROM scratch AS certificate-trust
+COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /
+
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
 
 WORKDIR /src/runners-controller
@@ -33,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends coreutils util-
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /out/cache-volumes /usr/local/bin/cache-volumes
 COPY infra/runners-controller/scripts/provision-cache-filesystem.sh /usr/local/bin/provision-cache-filesystem
 ENTRYPOINT ["/usr/local/bin/cache-volumes"]

@@ -23,6 +23,7 @@ FROM rust:1.94-bookworm AS aube-builder
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
     && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 WORKDIR /aube
 RUN git init . && git remote add origin https://github.com/endevco/aube.git \
     && git fetch --depth 1 origin e7b898917c43ba72da002d12f2588f7bfa7e6890 \
@@ -36,6 +37,7 @@ ENV CI=1
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
     && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 ENV NODE_OPTIONS=--use-openssl-ca \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
@@ -62,6 +64,7 @@ RUN apt-get update -y && apt-get install -y build-essential git ca-certificates 
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
     && update-ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 ENV HEX_CACERTS_PATH=/etc/ssl/certs/ca-certificates.crt
 ENV REBAR_OFFLINE=1
@@ -118,6 +121,7 @@ RUN apt-get update -y && \
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
     && update-ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen

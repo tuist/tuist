@@ -623,6 +623,7 @@ jobs:
           docker buildx build \
             --progress=plain \
             --file "$GITHUB_WORKSPACE/server/Dockerfile" \
+            --build-context "certificate-trust=$GITHUB_WORKSPACE/infra/certificate-trust" \
             --target runner \
             --load \
             --secret id=github_token,env=GITHUB_TOKEN \
