@@ -35,8 +35,9 @@ checksums, HTTP transfers, HEAD publication, and idle master reclamation. Linux
 continues using its ext4 backend. macOS adds APFS images to that same lifecycle,
 with a 20 decimal GB capacity and the existing server's seven-day idle expiry.
 
-The host creates a private branch inode and exposes a hard link through a
-per-VM virtio-fs share. The guest mounts that image as APFS, preserving symlinks
+The host creates a private branch image and, while the VM runs, moves its only
+name into a per-VM virtio-fs share; it takes the name back once the VM has
+stopped. The guest mounts that image as APFS, preserving symlinks
 and xattrs, and the common client symlinks the requested directories into it.
 Each job has a distinct branch. Host masters and infrastructure credentials
 never enter the share. The mailbox carries key and execution UID only; the host

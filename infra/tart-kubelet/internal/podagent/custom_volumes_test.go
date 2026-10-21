@@ -347,8 +347,8 @@ func TestCustomReservationUsesRemainingCapacityAndStopsWithVM(t *testing.T) {
 	if got := c.reservedBytes(); got != 0 {
 		t.Fatal("stopped VM still reserves growth", got)
 	}
-	if _, err := os.Stat(filepath.Join(c.Root, "images", id.ID+".img")); err != nil {
-		t.Fatal("removed pending image", err)
+	if !cachevolumes.APFSHasBranch(c.Root, cachevolumes.Slot{Identity: id, PodUID: "uid"}) {
+		t.Fatal("removed pending image")
 	}
 }
 

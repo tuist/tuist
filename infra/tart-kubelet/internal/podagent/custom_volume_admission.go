@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
@@ -84,7 +82,7 @@ func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
 // includes allocated blocks; only running writers need additional headroom.
 func (c *CustomVolumes) reservedBytes() uint64 {
 	var total uint64
-	for id, slot := range c.reservations {
+	for _, slot := range c.reservations {
 		// A clone reports the master's shared blocks as allocated; reserve its budget.
 		if slot.Kind == cachevolumes.KindCheckout {
 			total += cachevolumes.CheckoutGrowthBytes
@@ -94,7 +92,7 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 			total += customAdmissionBytes(slot)
 			continue
 		}
-		allocated, err := c.Builtins.backend.allocatedBytes(filepath.Join(c.Root, "images", id+".img"))
+		allocated, err := c.Builtins.backend.allocatedBytes(cachevolumes.APFSBranchFile(c.Root, slot))
 		if err != nil {
 			allocated = 0
 		}
@@ -176,7 +174,7 @@ func (c *CustomVolumes) refreshReservations(ctx context.Context) error {
 		if slot.State == "deleted" {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(c.Root, "images", slot.ID+".img")); os.IsNotExist(err) {
+		if !cachevolumes.APFSHasBranch(c.Root, slot) {
 			continue
 		}
 		vm := VMNameForPod(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: c.Namespace, Name: slot.PodName}})

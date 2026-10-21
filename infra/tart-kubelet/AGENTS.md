@@ -74,6 +74,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Publish responses by writing `<request>.response.tmp` and hard-linking it to
   `<request>.response`: guests never read a partial response, and an existing
   path (including a guest symlink) is never followed or replaced.
+- A running VM's branch image lives only in its share; never stat or open it by
+  `images/<use>.img` (absent then) and never give it a second name outside the
+  share. Measure and find it with `cachevolumes.APFSBranchFile`/`APFSHasBranch`.
+  Evidence: on 2026-10-21 two of three macOS saves failed because the guest's
+  open of a hard-linked image was denied after the host's 30-second
+  reservation refresh looked the image up by its private name.
 - Publication requires API pod absence, stopped Tart VM, guest clean-detach
   proof, userspace APFS verification on an unmounted device and server publication eligibility. A webhook
   or terminal pod phase alone never fences writers.
