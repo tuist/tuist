@@ -22,12 +22,17 @@ defmodule Tuist.Registry.Swift.LockTest do
     assert acquired["owner"]
     successor = %{"owner" => Ecto.UUID.generate(), "expires_at" => System.system_time(:second) + 60}
 
+    stub(ExAws, :request, fn %{http_method: method}, _ ->
+      send(self(), {:unexpected_successor_request, method})
+      {:ok, %{}}
+    end)
+
     expect(ExAws, :request, fn %{http_method: :get}, _ ->
       {:ok, %{body: JSON.encode!(successor), headers: %{"etag" => "next"}}}
     end)
 
     assert :ok = Lock.release(:test)
-    # No PUT or DELETE expectation: any mutation of the successor fails.
+    refute_receive {:unexpected_successor_request, _}
   end
 
   test "release conditionally expires only its own object version" do

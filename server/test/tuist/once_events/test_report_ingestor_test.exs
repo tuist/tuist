@@ -132,9 +132,109 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     run = finalize(run)
     stub(Tuist.Tests, :create_test, fn _ -> raise "capture failed" end)
     assert {:ok, _} = TestReportIngestor.enqueue_safely(run)
-    assert_raise RuntimeError, fn -> TestReportIngestor.prepare_snapshot(run.id) end
+    assert {:error, :preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
     assert Tuist.Repo.get!(OnceEvents.Run, run.id).test_report_published_at
-    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id).state == "preparing"
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert publication.state == "preparing"
+    assert publication.preparation_attempts == 1
+    assert publication.preparation_error == "builder_failed"
+    assert publication.owner == nil
+    refute Tuist.Ingestion.Capture.active?()
+  end
+
+  test "preparation failures alert, stop after the durable attempt limit and require explicit retry", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    parent = self()
+    handler = "once-preparation-#{Ecto.UUID.generate()}"
+
+    :telemetry.attach(
+      handler,
+      [:tuist, :once_events, :test_report_publication],
+      fn _, _, meta, pid -> send(pid, {:publication_outcome, meta.outcome}) end,
+      parent
+    )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+    stub(Tuist.Tests, :create_test, fn _ -> raise "invalid staged source" end)
+    for _ <- 1..7, do: assert({:error, :preparation_failed} = TestReportIngestor.prepare_snapshot(run.id))
+    assert {:error, :publication_preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    for _ <- 1..8, do: assert_receive({:publication_outcome, :preparation_failed})
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert publication.state == "failed_preparation"
+    assert publication.preparation_attempts == 8
+    assert publication.payload == nil
+    Tuist.Repo.delete_all(from(j in Oban.Job, where: fragment("?->>'run_id'", j.args) == ^run.id))
+    assert :ok = TestReportIngestor.recover_recent()
+    assert all_enqueued(worker: PublishTestReportWorker, args: %{run_id: run.id, phase: "publish"}) == []
+    assert {:error, :publication_preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    refute_receive {:publication_outcome, _}
+    assert {:ok, reset} = TestReportIngestor.retry_preparation(run.id)
+    assert reset.preparation_attempts == 0
+    assert reset.preparation_error == nil
+    stub(Tuist.Tests, :create_test, fn attrs -> Mimic.call_original(Tuist.Tests, :create_test, [attrs]) end)
+    assert {:ok, %{state: "pending"}} = TestReportIngestor.prepare_snapshot(run.id)
+  end
+
+  test "permanent preparation failures stop immediately and retain source", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    stub(Tuist.Projects, :get_project_by_id, fn _ -> nil end)
+    assert {:error, :publication_preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert publication.state == "failed_preparation"
+    assert publication.preparation_error == "project_not_found"
+    assert publication.preparation_attempts == 1
+    assert OnceEvents.list_test_case_runs(run) != []
+  end
+
+  test "killed preparation attempts are bounded across replacement jobs", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, publication} = TestReportIngestor.enqueue(finalize(run))
+
+    publication
+    |> Ecto.Changeset.change(
+      owner: "dead-preparer",
+      preparation_attempts: 8,
+      updated_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -1_000)
+    )
+    |> Tuist.Repo.update!()
+
+    reject(&Tuist.Tests.create_test/1)
+    assert {:error, :publication_preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id).preparation_error == "attempt_limit"
+  end
+
+  test "a soft deadline yields between acknowledged chunks and the next job resumes without replay", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    assert {:ok, publication} = TestReportIngestor.prepare_snapshot(run.id)
+    %{chunks: [{_, _, first_token} | remaining]} = :erlang.binary_to_term(publication.payload, [:safe])
+    clock = :atomics.new(1, [])
+    parent = self()
+
+    stub(Tuist.IngestRepo, :insert_all, fn schema, rows, opts ->
+      send(parent, {:chunk_token, opts[:settings][:insert_deduplication_token]})
+      result = Mimic.call_original(Tuist.IngestRepo, :insert_all, [schema, rows, opts])
+      :atomics.put(clock, 1, 10)
+      result
+    end)
+
+    assert {:ok, :yielded} =
+             TestReportIngestor.publish_prepared(run.id, budget_ms: 10, clock: fn -> :atomics.get(clock, 1) end)
+
+    assert_receive {:chunk_token, "once-report:" <> ^first_token}
+    refute_receive {:chunk_token, _}
+    current = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert current.state == "pending"
+    assert current.next_chunk == 1
+    assert current.in_flight_chunk == nil
+    assert current.owner == nil
+    assert current.payload == publication.payload
+    assert {:ok, _} = TestReportIngestor.publish_prepared(run.id)
+    for {_, _, token} <- remaining, do: assert_receive({:chunk_token, "once-report:" <> ^token})
+    refute_receive {:chunk_token, _}
+    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id).state == "published"
   end
 
   test "an acknowledged ClickHouse write with a lost response is never blindly replayed", %{run: run} do
@@ -160,6 +260,7 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     assert current.next_chunk == 0
     assert current.payload == publication.payload
     assert current.state != "published"
+    assert {:error, :not_failed_preparation} = TestReportIngestor.retry_preparation(run.id)
     # This fixture KNOWS the first write committed. Reconciliation acknowledges
     # that exact chunk; a real operator must establish quiescence and contents.
     assert {:ok, _} = TestReportIngestor.reconcile_chunk(run.id, current.owner, 0, :present)

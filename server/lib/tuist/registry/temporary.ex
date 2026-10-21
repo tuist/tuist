@@ -13,9 +13,16 @@ defmodule Tuist.Registry.Temporary do
         ref = Process.monitor(owner)
 
         receive do
-          {:DOWN, ^ref, :process, _, _} -> File.rm_rf(path)
+          {:DOWN, ^ref, :process, _, _} -> :ok
           :cleaned -> Process.demonitor(ref, [:flush])
         end
+
+        # MuonTrap permits 500ms for the dying process group. Cleanup must also
+        # cover entries recreated after the caller's first deletion attempt.
+        Process.sleep(750)
+        File.rm_rf(path)
+        Process.sleep(750)
+        File.rm_rf(path)
       end)
 
     try do

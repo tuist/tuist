@@ -52,8 +52,10 @@ defmodule Tuist.OnceEvents.Workers.PublishTestReportWorker do
       _publication ->
         case TestReportIngestor.publish_prepared(id) do
           {:ok, :in_progress} -> {:snooze, 5}
+          {:ok, :yielded} -> {:snooze, 1}
           {:ok, _} -> :ok
           {:error, :publication_uncertain} -> {:discard, :publication_uncertain}
+          {:error, :publication_preparation_failed} -> {:discard, :publication_preparation_failed}
           {:error, _} = error -> error
         end
     end

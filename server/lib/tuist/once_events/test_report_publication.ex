@@ -10,6 +10,8 @@ defmodule Tuist.OnceEvents.TestReportPublication do
   schema "once_test_report_publications" do
     field :payload, :binary
     field :state, :string, default: "preparing"
+    field :preparation_attempts, :integer, default: 0
+    field :preparation_error, :string
     field :owner, :string
     field :first_attempt_at, :utc_datetime
     field :next_chunk, :integer, default: 0

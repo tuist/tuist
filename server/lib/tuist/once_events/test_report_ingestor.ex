@@ -34,6 +34,8 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   which is every `once build`.
   """
   @lease_seconds 360
+  @max_preparation_attempts 8
+  @publication_budget_ms to_timeout(minute: 3)
 
   # The stream commits intent, not remote I/O. A crash before enqueue is covered
   # by the terminal-run sweep; afterwards the durable intent/job survives. The
@@ -44,7 +46,7 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
         Repo.query!("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))", ["once-test-report:" <> run.id])
 
       if locked do
-        publication = Repo.get(TestReportPublication, run.id)
+        publication = Repo.one(from(p in TestReportPublication, where: p.id == ^run.id, select: struct(p, [:id, :state])))
 
         cond do
           publication != nil ->
@@ -103,24 +105,63 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   end
 
   @doc false
-  def prepare_snapshot(id) do
-    Repo.transaction(fn ->
-      %{rows: [[locked]]} =
-        Repo.query!("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))", ["once-test-report:" <> id])
+  def prepare_snapshot(id), do: prepare_snapshot(id, Ecto.UUID.generate())
 
-      if locked do
-        publication = Repo.get!(TestReportPublication, id)
-
-        if publication.state == "preparing" do
-          run = Repo.get!(Run, id)
-          build_publication(publication, run, OnceEvents.list_test_case_runs(run))
-        else
-          publication
+  defp prepare_snapshot(id, owner) do
+    case Repo.transaction(fn -> claim_preparation(id, owner) end) do
+      {:ok, {:prepare, publication}} ->
+        case Repo.transaction(fn ->
+               run = Repo.get!(Run, id)
+               build_publication(publication, run, OnceEvents.list_test_case_runs(run))
+             end) do
+          {:error, :preparation_superseded} -> {:ok, :in_progress}
+          {:error, reason} -> preparation_failed(id, owner, reason)
+          result -> result
         end
-      else
+
+      {:ok, :attempt_limit} ->
+        publication_event(:preparation_failed)
+        {:error, :publication_preparation_failed}
+
+      {:ok, :failed_preparation} ->
+        {:error, :publication_preparation_failed}
+
+      result ->
+        result
+    end
+  rescue
+    _ -> preparation_failed(id, owner, :builder_failed)
+  end
+
+  defp claim_preparation(id, owner) do
+    current = Repo.one!(from(p in TestReportPublication, where: p.id == ^id, lock: "FOR UPDATE"))
+    expired = DateTime.diff(DateTime.utc_now(), current.updated_at) >= @lease_seconds
+
+    cond do
+      current.state == "failed_preparation" ->
+        :failed_preparation
+
+      current.state != "preparing" ->
+        current
+
+      current.owner != nil and not expired ->
         :in_progress
-      end
-    end)
+
+      current.preparation_attempts >= @max_preparation_attempts ->
+        current
+        |> Ecto.Changeset.change(state: "failed_preparation", owner: nil, preparation_error: "attempt_limit")
+        |> Repo.update!()
+
+        :attempt_limit
+
+      true ->
+        updated =
+          current
+          |> Ecto.Changeset.change(owner: owner, preparation_attempts: current.preparation_attempts + 1)
+          |> Repo.update!()
+
+        {:prepare, updated}
+    end
   end
 
   defp build_publication(publication, run, case_runs) do
@@ -129,11 +170,78 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
     chunks = chunk_plan(rows)
     payload = :erlang.term_to_binary(%{version: 2, test: test, chunks: chunks, effects: effects}, compressed: 6)
     if byte_size(payload) > 64 * 1_024 * 1_024, do: Repo.rollback(:report_too_large)
-    publication |> Ecto.Changeset.change(payload: payload, state: "pending") |> Repo.update!()
+
+    query =
+      from(p in TestReportPublication,
+        where: p.id == ^publication.id and p.owner == ^publication.owner and p.state == "preparing"
+      )
+
+    case Repo.update_all(query,
+           set: [
+             payload: payload,
+             state: "pending",
+             owner: nil,
+             preparation_error: nil,
+             updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+           ]
+         ) do
+      {1, _} -> Repo.get!(TestReportPublication, publication.id)
+      _ -> Repo.rollback(:preparation_superseded)
+    end
+  end
+
+  defp preparation_failed(id, owner, reason) do
+    publication_event(:preparation_failed)
+    Logger.error("Once report snapshot preparation failed", once_run_id: id)
+
+    {:ok, terminal?} =
+      Repo.transaction(fn ->
+        current =
+          Repo.one(
+            from(p in TestReportPublication,
+              where: p.id == ^id and p.owner == ^owner and p.state == "preparing",
+              lock: "FOR UPDATE"
+            )
+          )
+
+        if current do
+          permanent? = reason in [:project_not_found, :report_too_large]
+          terminal? = permanent? or current.preparation_attempts >= @max_preparation_attempts
+          code = if permanent?, do: Atom.to_string(reason), else: "builder_failed"
+
+          current
+          |> Ecto.Changeset.change(
+            state: if(terminal?, do: "failed_preparation", else: "preparing"),
+            owner: nil,
+            preparation_error: code
+          )
+          |> Repo.update!()
+
+          terminal?
+        end
+      end)
+
+    if terminal?, do: {:error, :publication_preparation_failed}, else: {:error, :preparation_failed}
+  rescue
+    _ -> {:error, :preparation_failed}
+  end
+
+  @doc "Restart a terminal preparation after correcting its source or resource limit. Does not reset uncertain writes."
+  def retry_preparation(id) do
+    Repo.transaction(fn ->
+      current = Repo.one!(from(p in TestReportPublication, where: p.id == ^id, lock: "FOR UPDATE"))
+      if current.state != "failed_preparation" or current.payload != nil, do: Repo.rollback(:not_failed_preparation)
+
+      current
+      |> Ecto.Changeset.change(state: "preparing", owner: nil, preparation_attempts: 0, preparation_error: nil)
+      |> Repo.update!()
+      |> queue_publication()
+    end)
   end
 
   defp queue_publication(%TestReportPublication{state: "published"}), do: :already_published
   defp queue_publication(%TestReportPublication{state: "uncertain"}), do: :publication_uncertain
+  defp queue_publication(%TestReportPublication{state: "failed_preparation"}), do: :publication_preparation_failed
 
   defp queue_publication(publication) do
     %{run_id: publication.id, phase: "publish"} |> PublishTestReportWorker.new() |> Oban.insert!()
@@ -141,20 +249,23 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   end
 
   @doc false
-  def publish_prepared(id) do
+  def publish_prepared(id, opts \\ []) do
+    clock = Keyword.get(opts, :clock, fn -> System.monotonic_time(:millisecond) end)
+    budget = {clock, clock.() + Keyword.get(opts, :budget_ms, @publication_budget_ms)}
+
     with {:ok, %TestReportPublication{} = publication} <- prepare_snapshot(id) do
-      publish_snapshot(publication)
+      publish_snapshot(publication, budget)
     end
   end
 
-  defp publish_snapshot(publication) do
+  defp publish_snapshot(publication, budget) do
     owner = Ecto.UUID.generate()
     {:ok, claim} = Repo.transaction(fn -> claim_publication(publication.id, owner) end)
 
     case claim do
       {:claimed, current} ->
         %{version: 2, test: test, chunks: chunks} = :erlang.binary_to_term(current.payload, [:safe])
-        write_chunks(current.id, owner, test, chunks, current.next_chunk)
+        write_chunks(current.id, owner, test, chunks, current.next_chunk, budget)
 
       result ->
         result
@@ -217,27 +328,35 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
     end)
   end
 
-  defp write_chunks(id, owner, test, chunks, index) do
+  defp write_chunks(id, owner, test, chunks, index, {clock, deadline} = budget) do
     case Enum.at(chunks, index) do
       nil ->
         complete_publication(id, owner, test, length(chunks))
 
-      {schema, rows, token} ->
-        query =
-          from(p in TestReportPublication,
-            where:
-              p.id == ^id and p.owner == ^owner and p.state == "publishing" and p.next_chunk == ^index and
-                is_nil(p.in_flight_chunk)
-          )
+      chunk ->
+        query = unstarted_chunk_query(id, owner, index)
 
-        case Repo.update_all(query, set: [in_flight_chunk: index, updated_at: DateTime.utc_now()]) do
-          {1, _} -> insert_and_checkpoint(id, owner, test, chunks, index, schema, rows, token)
-          _ -> {:ok, :in_progress}
+        if clock.() >= deadline do
+          Repo.update_all(query, set: [state: "pending", owner: nil, updated_at: DateTime.utc_now()])
+          {:ok, :yielded}
+        else
+          case Repo.update_all(query, set: [in_flight_chunk: index, updated_at: DateTime.utc_now()]) do
+            {1, _} -> insert_and_checkpoint(id, owner, test, chunks, index, chunk, budget)
+            _ -> {:ok, :in_progress}
+          end
         end
     end
   end
 
-  defp insert_and_checkpoint(id, owner, test, chunks, index, schema, rows, token) do
+  defp unstarted_chunk_query(id, owner, index) do
+    from(p in TestReportPublication,
+      where:
+        p.id == ^id and p.owner == ^owner and p.state == "publishing" and p.next_chunk == ^index and
+          is_nil(p.in_flight_chunk)
+    )
+  end
+
+  defp insert_and_checkpoint(id, owner, test, chunks, index, {schema, rows, token}, budget) do
     query =
       from(p in TestReportPublication,
         where: p.id == ^id and p.owner == ^owner and p.state == "publishing" and p.in_flight_chunk == ^index
@@ -246,7 +365,7 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
     case insert_chunk(schema, rows, token) do
       :acknowledged ->
         case Repo.update_all(query, set: [next_chunk: index + 1, in_flight_chunk: nil, updated_at: DateTime.utc_now()]) do
-          {1, _} -> write_chunks(id, owner, test, chunks, index + 1)
+          {1, _} -> write_chunks(id, owner, test, chunks, index + 1, budget)
           _ -> {:ok, :in_progress}
         end
 

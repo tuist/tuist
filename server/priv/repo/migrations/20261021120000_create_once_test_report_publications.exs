@@ -9,6 +9,8 @@ defmodule Tuist.Repo.Migrations.CreateOnceTestReportPublications do
 
       add :payload, :binary
       add :state, :string, null: false, default: "preparing"
+      add :preparation_attempts, :integer, null: false, default: 0
+      add :preparation_error, :string
       add :owner, :string
       add :first_attempt_at, :timestamptz
       add :next_chunk, :integer, null: false, default: 0

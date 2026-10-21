@@ -2,6 +2,7 @@ defmodule Tuist.Registry.CommandTest do
   use ExUnit.Case, async: true
 
   alias Tuist.Registry.Command
+  alias Tuist.Registry.Temporary
 
   test "short commands preserve output and exit status without the port acknowledgement race" do
     for _ <- 1..40 do
@@ -17,7 +18,7 @@ defmodule Tuist.Registry.CommandTest do
 
     task =
       Task.async(fn ->
-        Tuist.Registry.Temporary.with_directory(fn path ->
+        Temporary.with_directory(fn path ->
           File.write!(Path.join(path, "child"), "data")
           send(parent, {:directory, path})
           Process.sleep(:infinity)
@@ -26,8 +27,19 @@ defmodule Tuist.Registry.CommandTest do
 
     assert_receive {:directory, directory}
     Task.shutdown(task, :brutal_kill)
-    assert await_removed(directory, 100)
+    Process.sleep(100)
+    File.mkdir_p!(directory)
+    File.write!(Path.join(directory, "late-child"), "recreated while exiting")
+    assert await_removed(directory, 300)
     assert {"ok", 0} = Command.run("sh", ["-c", "printf ok"], timeout: 1_000)
+  end
+
+  test "cleanup retries after normal return when a terminating child recreates entries" do
+    directory = Temporary.with_directory(fn path -> path end)
+    Process.sleep(100)
+    File.mkdir_p!(directory)
+    File.write!(Path.join(directory, "late-child"), "recreated while exiting")
+    assert await_removed(directory, 300)
   end
 
   defp await_removed(_path, 0), do: false
