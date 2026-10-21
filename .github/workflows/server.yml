@@ -198,6 +198,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      pull-requests: read
     if: |
       github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
@@ -211,6 +212,16 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Decide whether to test the oldest supported ClickHouse
+        id: floor-gate
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          run="$(bash .github/scripts/server-clickhouse-floor.sh "$EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER")" || run=true
+          echo "run=$run" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-cache: "false"
@@ -233,6 +244,7 @@ jobs:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-current
       - name: Plan oldest supported ClickHouse shards
         id: floor
+        if: steps.floor-gate.outputs.run == 'true'
         run: |
           mix tuist.test.build --shard-total 4 --warnings-as-errors
           echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
@@ -300,9 +312,12 @@ jobs:
     name: Test (oldest supported ClickHouse)
     # Keep exercising the release declared by Tuist.ClickHouseVersions, including
     # every migration, rather than testing only against the newer hosted release.
+    # Pull requests run it only when .github/scripts/server-clickhouse-floor.sh
+    # finds ClickHouse changes or the `ci:clickhouse-floor` label.
     runs-on: tuist-linux
     timeout-minutes: 30
     needs: test-build
+    if: needs.test-build.outputs.floor-matrix != ''
     permissions:
       contents: read
       id-token: write
