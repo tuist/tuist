@@ -28,11 +28,11 @@ import (
 // running while it waits.
 func (r *KuraInstanceReconciler) reconcileFencedDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	desired := storageQuantity(instance)
-	if desired.IsZero() || authorityTransitionOpen(instance) {
+	if desired.IsZero() {
 		return false, nil
 	}
-	holder, err := r.settledFencedHolder(ctx, instance)
-	if err != nil || holder == "" {
+	holder, lastHandover, err := r.settledFencedHolder(ctx, instance)
+	if err != nil || holder == "" || authorityTransitionOpen(instance, lastHandover) {
 		return false, err
 	}
 
@@ -97,10 +97,11 @@ func (r *KuraInstanceReconciler) reconcileFencedDataStorageResize(ctx context.Co
 	return true, r.rebuildDataVolume(ctx, instance, standbys[0], desired, false)
 }
 
-// authorityTransitionOpen reports a planned handover or an unfinished replica
-// recovery, during which no volume may move.
-func authorityTransitionOpen(instance *kurav1alpha1.KuraInstance) bool {
-	if instance.Spec.PlannedHandover != nil {
+// authorityTransitionOpen reports a planned handover the grant has not yet
+// finished or abandoned, or an unfinished replica recovery, during which no
+// volume may move.
+func authorityTransitionOpen(instance *kurav1alpha1.KuraInstance, lastHandover string) bool {
+	if request := instance.Spec.PlannedHandover; request != nil && request.ID != lastHandover {
 		return true
 	}
 	progress := instance.Status.ReplicaRecovery
@@ -114,34 +115,34 @@ func authorityTransitionOpen(instance *kurav1alpha1.KuraInstance) bool {
 }
 
 // settledFencedHolder returns the pod holding an unexpired Serving grant with
-// no handover attached, and only while that exact pod is Ready. Anything else
-// returns "".
-func (r *KuraInstanceReconciler) settledFencedHolder(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+// no handover attached, and only while that exact pod is Ready, together with
+// the last handover the grant finished or abandoned. Anything else returns "".
+func (r *KuraInstanceReconciler) settledFencedHolder(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, string, error) {
 	cm := &corev1.ConfigMap{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name + "-serving"}, cm); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", nil
+			return "", "", nil
 		}
-		return "", err
+		return "", "", err
 	}
 	var grant servingGrant
 	if err := json.Unmarshal([]byte(cm.Data["grant"]), &grant); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if grant.Phase != "Serving" || grant.Handover != nil || grant.Holder.InstanceUID != string(instance.UID) || grant.ExpiresMS <= time.Now().UnixMilli() {
-		return "", nil
+		return "", "", nil
 	}
 	pod := &corev1.Pod{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: grant.PodName}, pod); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", nil
+			return "", "", nil
 		}
-		return "", err
+		return "", "", err
 	}
 	if string(pod.UID) != grant.Holder.PodUID || pod.Spec.NodeName != grant.Holder.Host || !podReady(pod) || pod.DeletionTimestamp != nil {
-		return "", nil
+		return "", "", nil
 	}
-	return grant.PodName, nil
+	return grant.PodName, grant.LastHandover, nil
 }
 
 func undersizedOrdinal(volumes []undersizedDataVolume, ordinal int32) bool {

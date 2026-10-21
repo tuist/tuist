@@ -199,6 +199,20 @@ func TestReconcileFencedDataStorageResize(t *testing.T) {
 		})
 	}
 
+	t.Run("proceeds past a planned handover the grant already finished", func(t *testing.T) {
+		subject := instance(func(instance *kurav1alpha1.KuraInstance) {
+			instance.Spec.PlannedHandover = &kurav1alpha1.PlannedHandoverRequest{ID: "handover", PodName: instanceName + "-1"}
+		})
+		finished := grant(1, func(g *servingGrant) { g.LastHandover = "handover" })
+		c, inProgress := run(t, subject, sts("256Gi"), claim(0, "64Gi"), claim(1, "64Gi"), pod(0, true), pod(1, true), finished)
+		if !inProgress || exists(t, c, claim(0, "64Gi")) {
+			t.Fatal("expected the former primary to be rebuilt once the grant records its handover")
+		}
+		if !exists(t, c, claim(1, "64Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("the new holder's pod and claim must never be touched")
+		}
+	})
+
 	t.Run("proceeds past a recovery that already verified", func(t *testing.T) {
 		subject := instance(func(instance *kurav1alpha1.KuraInstance) {
 			instance.Spec.ReplicaRecovery = &kurav1alpha1.ReplicaRecoveryRequest{ID: "recovery"}
