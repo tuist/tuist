@@ -292,19 +292,24 @@ job plans them without `--cover`; `mix tuist.test --no-download --cover`
 instruments each disposable downloaded build using native line counters.
 Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
-fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
-whose runs read the binary cache. It runs on `workflow_run` after `cli.yml`
-(workflow `name: CLI`) succeeds on a push to main, at that run's `head_sha`, so
-the commit's own `tuist cache` warm is in place; which commits get there is
-`cli.yml`'s push path filter. Its runs are the only full ones
-(`--no-selective-testing`), and its last job alone calls
-`tuist coverage complete`. Those runs share one `coverage-main` concurrency group
-without cancelling: one runs, the newest commit waits, and commits it replaces
-stay "Not measured". Dispatches (`sha` backfills) use groups of their own and test
-with main's `mise.toml`, while a `workflow_run` run keeps the commit's own. The
-selective unit-test runs in `cli.yml` and `app.yml` still upload coverage; the
-server drops from their skips whatever a full run of the scheme at the commit
-executed, so they leave no gaps.
+fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` lives in
+`tuist-coverage.yml` (`name: Tuist Coverage`). It runs on `workflow_run` when a
+`CLI` (`cli.yml`) or `App` (`app.yml`) run finishes, and its `gate` job lets
+only the last of a commit's CLI/App runs to finish act, whatever their
+conclusion. After a push to main (first attempt only) it runs TuistUnitTests and
+TuistApp in full (`--no-selective-testing`) at the commit, reading the commit's
+own `tuist cache` warm, then calls `tuist coverage complete`. After a pull
+request's runs it only calls `tuist coverage complete` for the pull request's
+current head, never a draft's or a fork's. The `complete` job checks out the
+commit, so the CLI signals it from `HEAD`; under `workflow_run`, `GITHUB_SHA` is
+main's head. Main runs share one `tuist-coverage-main` group without
+cancelling: one runs, the newest trigger waits, and commits it replaces stay
+"Not measured". Pull requests use a group per branch that cancels, and
+dispatches (`sha` backfills, tested with main's `mise.toml`) a group per commit.
+`workflow_run` runs the file as it is on main, so a pull request can't exercise
+changes to it. The selective runs in `cli.yml` and `app.yml` upload coverage
+too; the server drops from their skips whatever a full run of the scheme at the
+commit executed, so they leave no gaps.
 The coverage settings are set once, in the
 root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
 `TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and

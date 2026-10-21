@@ -185,7 +185,7 @@ jobs:
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
       # Only the CLI, locked: a full install on a cold cache writes checksums
       # into mise.lock, and the run's coverage, reported from a dirty checkout,
-      # is left out of the commit (see coverage.yml).
+      # is left out of the commit (see tuist-coverage.yml).
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"

@@ -191,8 +191,8 @@ jobs:
           cache-key: cli-macos-workspace-${{ github.job }}
       # With mise.toml's TUIST_COVERAGE_ENABLED, CLIs with tuist/tuist#14404
       # warm the coverage variant the coverage runs read; older ones warm plain.
-      # coverage.yml starts once a push run of this workflow on main succeeds,
-      # so its runs find this commit's warm.
+      # tuist-coverage.yml measures the commit once this run (and App's, if
+      # any) finished, so its full runs find this warm.
       - name: Cache
         run: tuist cache
 

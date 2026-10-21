@@ -1,40 +1,48 @@
-name: Coverage
+name: Tuist Coverage
 
-# Gathers Xcode code coverage from full test runs on main, so the coverage
-# trend has complete runs to plot. It runs after each push run of cli.yml on
-# main succeeds, at that run's commit (`workflow_run.head_sha`), so the commit's
-# own `tuist cache` warm is in place: the runs here read the binary cache's
-# coverage variant (TUIST_COVERAGE_ENABLED in mise.toml), whose binaries carry
-# coverage counters and record their files under a placeholder the export
-# resolves, so a cached target is measured like one built from source. Which
-# commits get here is cli.yml's `push` path filter; this workflow has none.
-# The test targets link TestCoverageAttribution, so each run also records which
-# files every test executed, and the last job tells the server the commit's
-# runs are all in; no other workflow calls `tuist coverage complete`. The
-# selective runs of cli.yml and app.yml still upload coverage for the same
-# commit, and the server takes what a full run of the scheme executed out of
-# their skips (tuist/tuist#14484), so they don't leave gaps in it.
+# Xcode code coverage of the tuist/tuist project (the CLI and the app). It runs
+# when a run of cli.yml (`CLI`) or app.yml (`App`) finishes, and acts once every
+# run of the two at that commit has finished, whatever their conclusion:
 #
-# Nothing depends on this workflow: it only runs after changes land on main, it
-# is not a required check, no deploy or release workflow waits on it, and
-# notify-failure.yml does not list it. A cli.yml run that failed or was
-# cancelled triggers nothing, and its commit stays "Not measured".
+# - A push to main: full runs (`--no-selective-testing`) of TuistUnitTests and
+#   TuistApp at the commit, then `tuist coverage complete`. They read the binary
+#   cache's coverage variant (TUIST_COVERAGE_ENABLED in mise.toml), which the
+#   commit's own cli.yml run just warmed (a commit cli.yml's path filter skips
+#   reads the last warm); its binaries carry coverage counters and record their
+#   files under a placeholder the export resolves, so a cached target is
+#   measured like one built from source. The test targets link
+#   TestCoverageAttribution, so each run also records which files every test
+#   executed. Only the first attempt of a run triggers this: rerunning a flaky
+#   job doesn't start another full run.
+# - A pull request: only `tuist coverage complete` for its head commit, which
+#   the pull request's selective runs measured. What they skipped is carried
+#   from main's full runs. Only the pull request's current head is signalled,
+#   and never a draft's, whose runs skip the tests.
+#
+# cli.yml's and app.yml's selective runs upload coverage too, and the server
+# takes what a full run of the scheme at the commit executed out of their skips
+# (tuist/tuist#14484). Fork pull requests are skipped: their runs don't
+# authenticate, so they report nothing.
+#
+# `workflow_run` always runs this file as it is on main, so changes to it take
+# effect once merged. Nothing depends on this workflow: it is not a required
+# check, no deploy or release workflow waits on it, and notify-failure.yml does
+# not list it.
 #
 # Dispatched with a `sha`, it collects an earlier commit on main instead, to
 # backfill commits that had no run. Dispatch one at a time: each holds two
 # macOS runners for up to two hours. A backfilled commit's sources are tested
 # with this workflow's tools, because an older pin of the CLI may not upload
 # coverage at all, but its .xcode-version is its own, so commits before the
-# move to Xcode 27 (f834b57656) cannot run on this image. A commit cli.yml
-# triggered is tested with its own tools, the ones its warm used.
+# move to Xcode 27 (f834b57656) cannot run on this image. A commit measured
+# after its runs is tested with its own tools, the ones its warm used.
 on:
   workflow_run:
     workflows:
       - CLI
+      - App
     types:
       - completed
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       sha:
@@ -53,73 +61,130 @@ env:
   # Collects per-test evidence from the linked TestCoverageAttribution package.
   TUIST_COVERAGE_EVIDENCE: "1"
 
-# One run at a time for the commits cli.yml triggers. A run in progress
-# finishes so its coverage lands; the newest commit merged meanwhile waits
-# behind it, and GitHub cancels any older one still pending, so that commit
-# stays "Not measured" on the server. Dispatches stay out of that group, each in
-# one of its own (keyed by the commit, or main's head when no `sha` is given),
-# so a backfill neither replaces a queued commit nor is replaced by one; it can
-# run alongside the queue's run.
+# Main: one run at a time. A run in progress finishes so its coverage lands;
+# the newest trigger waits behind it, and GitHub cancels any older one still
+# pending, so that commit stays "Not measured" on the server.
+# Pull requests: one group per branch that cancels the run in progress, since
+# only the newest commit matters there.
+# Dispatches: a group each (keyed by the commit, or main's head when no `sha` is
+# given), so a backfill neither replaces a queued commit nor is replaced by one.
 concurrency:
-  group: ${{ github.event_name == 'workflow_run' && 'coverage-main' || format('coverage-dispatch-{0}', inputs.sha || github.sha) }}
-  cancel-in-progress: false
+  group: >-
+    ${{ github.event_name == 'workflow_dispatch'
+      && format('tuist-coverage-dispatch-{0}', inputs.sha || github.sha)
+      || (github.event.workflow_run.event == 'pull_request'
+        && format('tuist-coverage-pr-{0}', github.event.workflow_run.head_branch)
+        || 'tuist-coverage-main') }}
+  cancel-in-progress: ${{ github.event.workflow_run.event == 'pull_request' }}
 
 jobs:
-  # The commit to collect: the one cli.yml just passed on main, or a dispatch's.
-  # cli.yml runs on pull requests and on pushes from anywhere, so a
-  # `workflow_run` run goes on only for a push to this repository's main that
-  # succeeded. A backfilled commit must be on main: the CLI labels the run with
-  # the branch it was dispatched from, so a commit from anywhere else would be
-  # reported as main's. A `workflow_run` run is labelled with main, the default
-  # branch it runs on.
-  commit:
+  # Whether this trigger acts, on which commit, and how (`mode`: `main` or
+  # `pr`; empty to skip). CLI and App each trigger this workflow when they
+  # finish, so only the last of the commit's runs to finish acts, and two
+  # finishing together still start one run: the one GitHub last updated wins.
+  # A backfilled commit must be on main: the CLI labels the run with the branch
+  # it was dispatched from, so a commit from anywhere else would be reported as
+  # main's. A `workflow_run` run is labelled with main, the default branch it
+  # runs on, and a pull request's commit by the `complete` job's checkout.
+  gate:
     name: Resolve Commit
     runs-on: tuist-linux
     timeout-minutes: 5
-    if: >-
-      github.repository == 'tuist/tuist' && (
-        github.event_name == 'workflow_dispatch' || (
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.event == 'push' &&
-          github.event.workflow_run.head_branch == 'main' &&
-          github.event.workflow_run.head_repository.full_name == github.repository
-        )
-      )
+    if: github.repository == 'tuist/tuist'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
+      mode: ${{ steps.resolve.outputs.mode }}
     steps:
       - id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ inputs.sha }}
-          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
         run: |
-          if [ -n "$RUN_SHA" ]; then
-            echo "sha=$RUN_SHA" >> "$GITHUB_OUTPUT"
+          skip() {
+            echo "::notice::$1"
+            exit 0
+          }
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -z "$SHA" ]; then
+              sha=$GITHUB_SHA
+            else
+              if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+                echo "::error::Dispatch a backfill from main, so its runs are labelled with main."
+                exit 1
+              fi
+              sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq .sha)
+              status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...$GITHUB_SHA" --jq .status)
+              if [ "$status" != "ahead" ] && [ "$status" != "identical" ]; then
+                echo "::error::$sha is not on main."
+                exit 1
+              fi
+            fi
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            echo "mode=main" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ -z "$SHA" ]; then
-            echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-            exit 0
+
+          if [ "$HEAD_REPOSITORY" != "$GITHUB_REPOSITORY" ]; then
+            skip "$HEAD_REPOSITORY is a fork, whose runs report nothing."
           fi
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::Dispatch a backfill from main, so its runs are labelled with main."
-            exit 1
+          case "$RUN_EVENT" in
+            push)
+              if [ "$HEAD_BRANCH" != "main" ]; then
+                skip "Pushes to $HEAD_BRANCH aren't measured."
+              fi
+              if [ "$RUN_ATTEMPT" != "1" ]; then
+                skip "Attempt $RUN_ATTEMPT of $RUN_NAME doesn't measure $HEAD_SHA again."
+              fi
+              mode="main"
+              ;;
+            pull_request)
+              state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/pulls" --jq "
+                [.[] | select(.state == \"open\" and .head.sha == \"$HEAD_SHA\")]
+                | if length == 0 then \"stale\" elif all(.[]; .draft) then \"draft\" else \"ready\" end")
+              case "$state" in
+                stale) skip "$HEAD_SHA is no open pull request's head." ;;
+                draft) skip "$HEAD_SHA is a draft's head, whose runs skip the tests." ;;
+              esac
+              mode="pr"
+              ;;
+            *)
+              skip "$RUN_EVENT runs aren't measured."
+              ;;
+          esac
+
+          # The newest run of each workflow at the commit; older ones (a
+          # reopened pull request, a draft marked ready) were superseded.
+          last=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&event=$RUN_EVENT&per_page=100" --jq '
+            [.workflow_runs[] | select(.path == ".github/workflows/cli.yml" or .path == ".github/workflows/app.yml")]
+            | group_by(.path) | map(max_by(.id))
+            | if any(.[]; .status != "completed") then "running" else (max_by([.updated_at, .id]) | .id | tostring) end')
+          if [ "$last" = "running" ]; then
+            skip "Another of $HEAD_SHA's runs is still going; the last to finish acts."
           fi
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq .sha)
-          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...$GITHUB_SHA" --jq .status)
-          if [ "$status" != "ahead" ] && [ "$status" != "identical" ]; then
-            echo "::error::$sha is not on main."
-            exit 1
+          if [ "$last" != "$RUN_ID" ]; then
+            skip "Run $last of $HEAD_SHA finished last and acts instead."
           fi
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
 
   cli-unit-tests:
     name: CLI Unit Tests
-    needs: commit
+    needs: gate
     runs-on: tuist-macos-27-0
     timeout-minutes: 120
-    if: github.repository == 'tuist/tuist'
+    if: needs.gate.outputs.mode == 'main'
     permissions:
       contents: read
       id-token: write
@@ -131,12 +196,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.commit.outputs.sha }}
+          ref: ${{ needs.gate.outputs.sha }}
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
-        if: github.event_name == 'workflow_dispatch' && needs.commit.outputs.sha != github.sha
+        if: github.event_name == 'workflow_dispatch' && needs.gate.outputs.sha != github.sha
         # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
         # the older commit's, hidden from git: a run on a dirty checkout keeps
         # its coverage off the commit. The scripts matter: an older
@@ -194,10 +259,10 @@ jobs:
 
   app-tests:
     name: App Tests
-    needs: commit
+    needs: gate
     runs-on: tuist-macos-27-0
     timeout-minutes: 60
-    if: github.repository == 'tuist/tuist'
+    if: needs.gate.outputs.mode == 'main'
     permissions:
       contents: read
       id-token: write
@@ -207,11 +272,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.commit.outputs.sha }}
+          ref: ${{ needs.gate.outputs.sha }}
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
-        if: github.event_name == 'workflow_dispatch' && needs.commit.outputs.sha != github.sha
+        if: github.event_name == 'workflow_dispatch' && needs.gate.outputs.sha != github.sha
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
           files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
@@ -244,14 +309,25 @@ jobs:
       - name: Run tests with coverage
         run: tuist test TuistApp --no-selective-testing -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
-  # Only a complete commit joins the coverage trend. A CLI release older than
-  # `tuist coverage complete` skips the signal, and the commit stays in progress.
+  # Only a complete commit joins the coverage trend. On main it follows the
+  # full runs, and only when both passed; on a pull request it runs alone. The
+  # checkout is the commit, so the CLI signals that commit (`HEAD`), not the
+  # one `workflow_run` sets GITHUB_SHA to (main's head). A CLI release older
+  # than `tuist coverage complete` skips the signal, and the commit stays in
+  # progress.
   complete:
     name: Complete Coverage
-    needs: [commit, cli-unit-tests, app-tests]
+    needs: [gate, cli-unit-tests, app-tests]
     runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist'
+    if: >-
+      !cancelled() && (
+        needs.gate.outputs.mode == 'pr' || (
+          needs.gate.outputs.mode == 'main' &&
+          needs.cli-unit-tests.result == 'success' &&
+          needs.app-tests.result == 'success'
+        )
+      )
     permissions:
       contents: read
       id-token: write
@@ -260,11 +336,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.commit.outputs.sha }}
+          ref: ${{ needs.gate.outputs.sha }}
       - uses: tuist/xcode-cache@v1
       - uses: tuist/module-cache@v1
       - name: Use this workflow's tools
-        if: github.event_name == 'workflow_dispatch' && needs.commit.outputs.sha != github.sha
+        if: github.event_name == 'workflow_dispatch' && needs.gate.outputs.sha != github.sha
         run: |
           git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
           files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
