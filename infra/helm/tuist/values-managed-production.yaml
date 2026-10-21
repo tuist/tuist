@@ -95,10 +95,6 @@ server:
       enabled: true
     atlasEmail:
       enabled: true
-    # Grafana Cloud reads the in-cluster ClickHouse as this identity; the
-    # CLICKHOUSE_GRAFANA item must exist in this vault before a deploy.
-    grafanaClickHouse:
-      enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
     # (atlas.tuist.dev) instead of the Hive ingest. The `dsn_atlas`
     # field on the SENTRY 1P item was added alongside the existing
