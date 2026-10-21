@@ -591,6 +591,36 @@ defmodule Tuist.GitHistoryTest do
       assert blobs["Sources/It's/Quoted.swift"] == "blob-Sources/It's/Quoted.swift"
       assert blobs[List.last(paths)] == "blob-" <> List.last(paths)
     end
+
+    test "read the files in more directories than one query binds", %{repository: repository} do
+      # More directories than one chunk of hashes, long enough that 900 of them
+      # bound as one list take more than 128 KiB. Non-ASCII and quoted names
+      # check that the server hashes them as ClickHouse does.
+      directories =
+        ["Sources/Café/Ünïcödé", "Sources/It's/Quoted"] ++
+          for index <- 1..5_100,
+              do:
+                "Sources/Features/Feature#{div(index, 40)}/Implementation/Generated/Networking/Models/Responses/" <>
+                  "Directory#{index}WithAVeryLongDescriptiveNameForTheGeneratedNetworkingResponseModels"
+
+      paths = Enum.map(directories, &(&1 <> "/File.swift"))
+
+      GitHistory.record_listing(
+        repository,
+        "c",
+        Enum.map(["Root.swift", "Sources/Other/File.swift" | paths], &%{path: &1, git_blob_id: "blob-" <> &1}),
+        files_count: length(paths) + 2
+      )
+
+      files = GitHistory.files_in(repository, "c", ["Sources/Missing" | directories])
+
+      assert files |> Enum.map(& &1.path) |> Enum.sort() == Enum.sort(paths)
+
+      assert %{git_blob_id: "blob-Sources/It's/Quoted/File.swift"} =
+               Enum.find(files, &(&1.path == "Sources/It's/Quoted/File.swift"))
+
+      assert GitHistory.files_in(repository, "c", ["."]) == [%{path: "Root.swift", git_blob_id: "blob-Root.swift"}]
+    end
   end
 
   describe "expired commit listings" do
