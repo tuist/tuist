@@ -8,6 +8,7 @@ network:
   ipRange: 10.0.0.0/16
   subnet: 10.0.1.0/24
 loadBalancer:
+  # Also the name of the primary IPv4 the load balancer is created with.
   name: tuist-mgmt-api
   type: lb11
   # Kubernetes API, TCP passthrough with a TCP health check.

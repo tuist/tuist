@@ -25,9 +25,8 @@
     caddy = "2.11.4"
     kubectl = "1.36.1"
     helm = "4.2.0"
-    # Management cluster nodes and load balancer (infra/k8s/mgmt/talos/).
+    # Management cluster Hetzner resources (infra/k8s/mgmt/talos/hetzner.yaml).
     hcloud = "1.70.1"
-    talosctl = "1.13.11"
     # pomerium-cli is the kubeconfig exec credential plugin that does
     # the Google OIDC dance + caches the session for kubectl calls
     # against the kube-<env>.tuist.dev Pomerium gateway. See
