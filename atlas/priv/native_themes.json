@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "revision": "1",
+  "revision": "2",
   "default_theme_id": "pulse",
   "themes": [
     {
@@ -55,6 +55,60 @@
         "background": "#251622", "surface": "#382335", "text": "#FFF0DF",
         "secondary_text": "#D4B8C6", "border": "#AE899D",
         "accent": "#EDC077", "on_accent": "#251622", "tint": "#EDC077"
+      }
+    },
+    {
+      "id": "amrit",
+      "name": "Amrit",
+      "description": "Saffron skies. Indigo nights.",
+      "typography": "strong",
+      "button_radius": 10,
+      "card_radius": 16,
+      "light": {
+        "background": "#FFF6E8", "surface": "#FFFCF5", "text": "#292044",
+        "secondary_text": "#6D5A73", "border": "#A58C86",
+        "accent": "#B04416", "on_accent": "#FFFFFF", "tint": "#9A3D0A"
+      },
+      "dark": {
+        "background": "#1B1740", "surface": "#29234D", "text": "#FFF3DC",
+        "secondary_text": "#CCC0E1", "border": "#897B9D",
+        "accent": "#FFB547", "on_accent": "#251A17", "tint": "#FFB547"
+      }
+    },
+    {
+      "id": "pelotas",
+      "name": "Pelotas",
+      "description": "Citrus. Atlantic. Open skies.",
+      "typography": "rounded",
+      "button_radius": 20,
+      "card_radius": 24,
+      "light": {
+        "background": "#F0FAEB", "surface": "#FCFFF7", "text": "#103E34",
+        "secondary_text": "#406752", "border": "#7D9C70",
+        "accent": "#146B45", "on_accent": "#FFFFFF", "tint": "#12613E"
+      },
+      "dark": {
+        "background": "#092F32", "surface": "#143F42", "text": "#F6FFE6",
+        "secondary_text": "#BED3B6", "border": "#739E8D",
+        "accent": "#F6D64A", "on_accent": "#12382E", "tint": "#F6D64A"
+      }
+    },
+    {
+      "id": "branik",
+      "name": "Braník",
+      "description": "Hops. Parchment. Golden hour.",
+      "typography": "strong",
+      "button_radius": 8,
+      "card_radius": 12,
+      "light": {
+        "background": "#F6F0DE", "surface": "#FFFCF2", "text": "#243B2B",
+        "secondary_text": "#5D6B51", "border": "#8E9B77",
+        "accent": "#315E3D", "on_accent": "#FFFFFF", "tint": "#315E3D"
+      },
+      "dark": {
+        "background": "#181F1A", "surface": "#27322A", "text": "#FAF4DF",
+        "secondary_text": "#C4CFB0", "border": "#859577",
+        "accent": "#DDA74B", "on_accent": "#201C14", "tint": "#DDA74B"
       }
     }
   ]
