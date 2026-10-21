@@ -263,7 +263,7 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
           "https://tuist.io"
         ] do
       assert {:error, message} = Auth.reporting_token(options(directory, %{"TUIST_URL" => url}))
-      assert message =~ "self-hosted"
+      assert message =~ "mix tuist.login"
     end
   end
 
@@ -280,6 +280,152 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     expect(Auth, :token, fn ^opts -> {:ok, "cached-ci-token"} end)
     refute Auth.network_publishing?(opts)
     assert {:ok, "cached-ci-token"} = Auth.reporting_token(opts)
+  end
+
+  test "invalid analytics URLs cannot raise from mode detection", %{tmp_dir: directory} do
+    for url <- ["not-a-url", "https://user:secret@tuist.example", "https://tuist.example?query"] do
+      opts = options(directory, %{"TUIST_URL" => url})
+      refute Auth.network_publishing?(opts)
+      assert {:error, _} = Auth.reporting_token(opts)
+    end
+  end
+
+  test "mode probes never refresh credentials or exchange supplied identities", %{
+    tmp_dir: directory
+  } do
+    reject(HTTP, :request, 3)
+    reject(HTTP, :request, 4)
+    reject(Auth, :reporting_token, 1)
+    opts = options(directory, %{"XDG_STATE_HOME" => Path.join(directory, "state")})
+
+    for value <- ["", " ", "supplied"] do
+      refute Auth.network_publishing?(options(directory, %{"TUIST_TOKEN" => value}))
+    end
+
+    for variable <- ~w(ACTIONS_ID_TOKEN_REQUEST_TOKEN CIRCLE_OIDC_TOKEN_V2 BITRISE_OIDC_ID_TOKEN),
+        value <- ["", "identity"] do
+      refute Auth.network_publishing?(options(directory, %{variable => value}))
+    end
+
+    path = Path.join([directory, "tuist", "credentials", "tuist.example.json"])
+    File.mkdir_p!(Path.dirname(path))
+
+    for contents <- [
+          "corrupt",
+          JSON.encode!(%{"accessToken" => "expired", "refreshToken" => "rotating-refresh"})
+        ] do
+      File.write!(path, contents)
+      refute Auth.network_publishing?(opts)
+      assert File.read!(path) == contents
+    end
+
+    refute File.exists?(Path.join(directory, "state"))
+  end
+
+  test "dangling credential files and directories never permit unsigned publication", %{
+    tmp_dir: directory
+  } do
+    for relative <- ["tuist", "tuist/credentials", "tuist/credentials/tuist.example.json"] do
+      home = Path.join(directory, String.replace(relative, "/", "-"))
+      link = Path.join(home, relative)
+      File.mkdir_p!(Path.dirname(link))
+      File.ln_s!(Path.join(home, "missing"), link)
+      opts = options(home)
+      refute Auth.network_publishing?(opts)
+      assert {:error, _} = Auth.reporting_token(opts)
+      assert {:ok, _} = File.read_link(link)
+    end
+  end
+
+  test "an inconclusive probe still strips privileged data if submission discovers unsigned mode",
+       %{tmp_dir: directory} do
+    opts = options(directory)
+    expect(HTTP, :request, fn :get, _, nil -> {:error, :timeout} end)
+    refute Auth.network_publishing?(opts)
+
+    expect(HTTP, :request, fn :get, _, nil ->
+      {:ok, 200, %{"network_trusted_report_publishing" => true}}
+    end)
+
+    expect(HTTP, :request, fn :post, _, body, headers ->
+      refute Enum.any?(headers, fn {key, _} -> key == "authorization" end)
+      refute Map.has_key?(body, :git_history)
+      refute Map.has_key?(body, :coverage)
+      refute Map.has_key?(body, :git_remote_url_origin)
+      {:ok, 200, %{"id" => "unsigned"}}
+    end)
+
+    assert {:ok, _} =
+             AnalyticsHTTP.project_request(
+               :post,
+               "/tests",
+               %{git_history: %{}, coverage: %{}, git_remote_url_origin: "private-origin"},
+               opts
+             )
+  end
+
+  test "self-hosted CI reuses its exchanged token across reports", %{
+    tmp_dir: directory
+  } do
+    url = "https://oidc-#{System.unique_integer([:positive])}.example"
+    key = {Auth, :provider_token, url}
+    on_exit(fn -> :persistent_term.erase(key) end)
+
+    payload =
+      %{exp: System.system_time(:second) + 3_600}
+      |> JSON.encode!()
+      |> Base.url_encode64(padding: false)
+
+    token = "header.#{payload}.signature"
+
+    opts =
+      options(directory, %{
+        "TUIST_URL" => url,
+        "CIRCLECI" => "true",
+        "CIRCLE_OIDC_TOKEN_V2" => "identity"
+      })
+
+    expect(HTTP, :request, fn :post, exchange_url, %{token: "identity"} ->
+      assert exchange_url == url <> "/api/auth/oidc/token"
+      {:ok, 200, %{"access_token" => token}}
+    end)
+
+    assert {:ok, ^token} = Auth.reporting_token(opts)
+    refute Auth.network_publishing?(opts)
+    assert {:ok, ^token} = Auth.reporting_token(opts)
+    refute File.exists?(Path.join([directory, "tuist", "credentials"]))
+  end
+
+  test "hosted empty tokens and corrupt stored credentials retain authenticated OIDC fallback", %{
+    tmp_dir: directory
+  } do
+    for {host, contents} <- [{"empty-token.tuist.dev", nil}, {"stale-token.tuist.dev", "corrupt"}] do
+      url = "https://#{host}"
+      key = {Auth, :provider_token, url}
+      on_exit(fn -> :persistent_term.erase(key) end)
+
+      if contents do
+        path = Path.join([directory, "tuist", "credentials", "#{host}.json"])
+        File.mkdir_p!(Path.dirname(path))
+        File.write!(path, contents)
+      end
+
+      opts =
+        options(directory, %{
+          "TUIST_URL" => url,
+          "TUIST_TOKEN" => "",
+          "CIRCLECI" => "true",
+          "CIRCLE_OIDC_TOKEN_V2" => "identity"
+        })
+
+      expect(HTTP, :request, fn :post, exchange_url, %{token: "identity"} ->
+        assert exchange_url == url <> "/api/auth/oidc/token"
+        {:ok, 200, %{"access_token" => "authenticated-access"}}
+      end)
+
+      assert {:ok, "authenticated-access"} = Auth.reporting_token(opts)
+      refute Auth.network_publishing?(opts)
+    end
   end
 
   test "supplied CI identity is exchanged and never silently ignored", %{tmp_dir: directory} do

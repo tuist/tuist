@@ -155,7 +155,8 @@ class TokenProviderTest {
                 TuistHttpClients(useEnvironmentProxy = false),
                 tokenProviderFactory = { createProvider() }, serverUrlResolver = { url, _ -> url }
             )
-            assertFailsWith<IllegalStateException> { provider.getConfiguration() }
+            val error = assertFailsWith<TokenProvider.NotAuthenticatedException> { provider.getConfiguration() }
+            assertTrue(error.message.orEmpty().contains("tuist auth login"))
         }
         val authenticated = ReportConfigurationProvider(
             "company/mobile", ServerUrlResolver.DEFAULT_URL, tempDir,

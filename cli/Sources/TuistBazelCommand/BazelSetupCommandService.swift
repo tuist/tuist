@@ -244,8 +244,10 @@ public struct BazelSetupCommandService {
         if try await ServerReportPublishingMode.usesNetworkTrust(
             serverURL: serverURL, authenticationController: serverAuthenticationController
         ) {
-            guard let configured = Environment.current.variables["TUIST_BAZEL_BES_BACKEND"],
-                  let url = URL(string: configured),
+            guard let configured = Environment.current.variables["TUIST_BAZEL_BES_BACKEND"] else {
+                throw BazelSetupCommandServiceError.notAuthenticated
+            }
+            guard let url = URL(string: configured),
                   ["grpc", "grpcs"].contains(url.scheme ?? ""), let host = url.host,
                   url.query == nil, url.fragment == nil, url.user == nil, url.password == nil,
                   url.path.isEmpty || url.path == "/"

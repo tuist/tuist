@@ -42,9 +42,11 @@ internal class ReportConfigurationProvider(
         require(handle.accountHandle.isNotBlank() && handle.projectHandle.isNotBlank()) { "Expected account/project." }
         val token = tokenProvider.getOptionalToken(forceRefresh)
         val host = resolvedUrl.host?.trimEnd('.')?.lowercase(Locale.ROOT)
-        check(token != null || (resolvedUrl.scheme in setOf("http", "https") && resolvedUrl.userInfo == null &&
-            host != null && host !in hostedHosts && !host.endsWith(".tuist.dev") && !host.endsWith(".tuist.io"))) {
+        check(token != null || (resolvedUrl.scheme in setOf("http", "https") && resolvedUrl.userInfo == null && host != null)) {
             "Credential-free publishing requires a configured self-hosted Tuist server URL."
+        }
+        if (token == null && (host in hostedHosts || host?.endsWith(".tuist.dev") == true || host?.endsWith(".tuist.io") == true)) {
+            throw TokenProvider.NotAuthenticatedException(resolvedUrl)
         }
         check(token != null || networkPublishingAvailable(resolvedUrl)) {
             "This Tuist server requires authentication to publish reports. Sign in to continue."

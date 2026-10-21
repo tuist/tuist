@@ -46,8 +46,16 @@ defmodule TuistEx.Auth do
   def reporting_token(options \\ []) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
 
-    server_url = server_url(options, environment)
+    with {:ok, server_url} <- Config.resolve_url(options, environment) do
+      if hosted_destination?(server_url) do
+        __MODULE__.token(options)
+      else
+        self_hosted_reporting_token(server_url, environment, options)
+      end
+    end
+  end
 
+  defp self_hosted_reporting_token(server_url, environment, options) do
     case environment.("TUIST_TOKEN") do
       nil ->
         stored_or_network_token(server_url, environment, options)
@@ -64,7 +72,7 @@ defmodule TuistEx.Auth do
 
   defp stored_or_network_token(server_url, environment, options) do
     with {:ok, path} <- credentials_path(server_url, environment) do
-      case File.stat(path) do
+      case File.lstat(path) do
         {:ok, _} ->
           stored_token(server_url, environment)
 
@@ -80,32 +88,32 @@ defmodule TuistEx.Auth do
   def network_publishing?(options) do
     environment = Keyword.get(options, :environment, &System.get_env/1)
 
-    not hosted_destination?(server_url(options, environment)) and
-      __MODULE__.reporting_token(options) == {:ok, nil}
+    with {:ok, server_url} <- Config.resolve_url(options, environment),
+         false <- hosted_destination?(server_url),
+         nil <- environment.("TUIST_TOKEN"),
+         false <- oidc_supplied?(environment),
+         {:ok, path} <- credentials_path(server_url, environment),
+         {:error, :enoent} <- File.lstat(path) do
+      network_token(server_url) == {:ok, nil}
+    else
+      _ -> false
+    end
+  end
+
+  defp oidc_supplied?(environment) do
+    Enum.any?(
+      ~w(ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
+                          CIRCLE_OIDC_TOKEN_V2 CIRCLE_OIDC_TOKEN BITRISE_OIDC_ID_TOKEN
+                          BITRISE_IDENTITY_TOKEN),
+      &(not is_nil(environment.(&1)))
+    )
   end
 
   defp provider_or_network_token(server_url, environment, options) do
-    supplied =
-      Enum.any?(
-        ~w(ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
-                            CIRCLE_OIDC_TOKEN_V2 CIRCLE_OIDC_TOKEN BITRISE_OIDC_ID_TOKEN
-                            BITRISE_IDENTITY_TOKEN),
-        &(not is_nil(environment.(&1)))
-      )
-
-    cond do
-      supplied and hosted_destination?(server_url) ->
-        __MODULE__.token(options)
-
-      supplied ->
-        case identity_token(environment, options) do
-          {:ok, identity} -> exchange(server_url, identity)
-          {:error, _} = error -> error
-          :unsupported -> {:error, "Invalid OpenID Connect environment"}
-        end
-
-      true ->
-        network_token(server_url)
+    if oidc_supplied?(environment) do
+      provider_token(server_url, environment, "Invalid OpenID Connect environment", options)
+    else
+      network_token(server_url)
     end
   end
 
@@ -456,11 +464,22 @@ defmodule TuistEx.Auth do
           {:ok, if(name, do: Path.join(directory, name), else: canonical)}
 
         {:error, :enoent} ->
-          {:ok, canonical}
+          if missing_credentials_directory?(directory),
+            do: {:ok, canonical},
+            else: {:error, "Could not inspect Tuist credentials directory"}
 
         {:error, reason} ->
           {:error, "Could not inspect Tuist credentials: #{:file.format_error(reason)}"}
       end
+    end
+  end
+
+  defp missing_credentials_directory?(path) do
+    case File.lstat(path) do
+      {:error, :enoent} -> missing_credentials_directory?(Path.dirname(path))
+      {:ok, %{type: :directory}} -> true
+      {:ok, %{type: :symlink}} -> match?({:ok, %{type: :directory}}, File.stat(path))
+      _ -> false
     end
   end
 

@@ -49,11 +49,12 @@ struct ServerReportPublishingTests {
         given(authentication).authenticationToken(serverURL: .any, refreshIfNeeded: .value(true)).willReturn(nil)
         let middleware = ServerClientAuthenticationMiddleware(
             serverAuthenticationController: authentication,
-            networkTrustedReports: true
+            networkTrustedReports: true,
+            networkTrustedPublishing: true
         )
-        try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ destination in
-            #expect(destination == url)
-            return true
+        try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in
+            Issue.record("Transport must use the payload's pinned mode without rediscovering it")
+            return false
         }) {
             try await confirmation("Report forwarded without credentials") { forwarded in
                 _ = try await middleware.intercept(
@@ -113,7 +114,7 @@ struct ServerReportPublishingTests {
             Issue.record("Hosted destinations must not be probed")
             return true
         }) {
-            await #expect(throws: ServerReportPublishingError.selfHostedDestinationRequired) {
+            await #expect(throws: ClientAuthenticationError.notAuthenticated) {
                 try await middleware.intercept(
                     HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/"),
                     body: nil, baseURL: try #require(URL(string: url)), operationID: "createBuild"
@@ -172,6 +173,61 @@ struct ServerReportPublishingTests {
                 try await ServerReportPublishingMode.usesNetworkTrust(
                     serverURL: url, authenticationController: authentication
                 )
+            }
+        }
+    }
+
+    @Test func disabled_discovery_cannot_be_replaced_by_a_later_positive_response() async throws {
+        let url = try #require(URL(string: "https://tuist.example"))
+        let authentication = MockServerAuthenticationControlling()
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        given(authentication).authenticationToken(serverURL: .any, refreshIfNeeded: .value(true)).willReturn(nil)
+        let networkTrusted = try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in false }) {
+            try await ServerReportPublishingMode.usesNetworkTrust(serverURL: url, authenticationController: authentication)
+        }
+        #expect(!networkTrusted)
+        let middleware = ServerClientAuthenticationMiddleware(
+            serverAuthenticationController: authentication, networkTrustedReports: true,
+            networkTrustedPublishing: networkTrusted
+        )
+        try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in
+            Issue.record("An authenticated payload must not be downgraded by a second discovery")
+            return true
+        }) {
+            await #expect(throws: ClientAuthenticationError.notAuthenticated) {
+                try await middleware.intercept(
+                    HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/"),
+                    body: HTTPBody("privileged payload"), baseURL: url, operationID: "createTest"
+                ) { _, _, _ in
+                    Issue.record("An authenticated payload must never be sent unsigned")
+                    return (HTTPResponse(status: .ok), nil)
+                }
+            }
+        }
+    }
+
+    @Test func disappearing_credentials_cannot_downgrade_an_authenticated_payload() async throws {
+        let url = try #require(URL(string: "https://tuist.example"))
+        let authentication = MockServerAuthenticationControlling()
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("present-during-construction"))
+        given(authentication).authenticationToken(serverURL: .any, refreshIfNeeded: .value(true)).willReturn(nil)
+        let networkTrusted = try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in
+            Issue.record("Existing credentials must prevent discovery")
+            return true
+        }) {
+            try await ServerReportPublishingMode.usesNetworkTrust(serverURL: url, authenticationController: authentication)
+        }
+        let middleware = ServerClientAuthenticationMiddleware(
+            serverAuthenticationController: authentication, networkTrustedReports: true,
+            networkTrustedPublishing: networkTrusted
+        )
+        await #expect(throws: ClientAuthenticationError.notAuthenticated) {
+            try await middleware.intercept(
+                HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/"),
+                body: nil, baseURL: url, operationID: "createTest"
+            ) { _, _, _ in
+                Issue.record("Credentials disappearing must not cause an unsigned publication")
+                return (HTTPResponse(status: .ok), nil)
             }
         }
     }

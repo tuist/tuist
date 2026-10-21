@@ -1,4 +1,5 @@
 import Foundation
+import TuistHTTP
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -23,7 +24,10 @@ public enum ServerReportPublishingMode {
         authenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
     ) async throws -> Bool {
         guard (try? validateDestination(serverURL)) != nil else { return false }
-        let token = try await ServerAuthenticationConfig.$current.withValue(.init(backgroundRefresh: false)) {
+        let token = try await ServerAuthenticationConfig.$current.withValue(.init(
+            backgroundRefresh: false,
+            optionalAuthentication: ServerAuthenticationConfig.current.optionalAuthentication
+        )) {
             try await authenticationController.authenticationToken(serverURL: serverURL)
         }
         if let token {
@@ -52,22 +56,9 @@ public enum ServerReportPublishingMode {
     }
 
     private static func performDiscovery(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.httpShouldSetCookies = false
-        configuration.httpCookieStorage = nil
-        configuration.urlCredentialStorage = nil
-        let session = URLSession(configuration: configuration, delegate: NoDiscoveryRedirects(), delegateQueue: nil)
+        let session = URLSession.tuistDiscovery
         defer { session.finishTasksAndInvalidate() }
         return try await session.data(for: request)
-    }
-}
-
-private final class NoDiscoveryRedirects: NSObject, URLSessionTaskDelegate, Sendable {
-    func urlSession(
-        _: URLSession, task _: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
-        newRequest _: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
-    ) {
-        completionHandler(nil)
     }
 }
 

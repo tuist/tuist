@@ -12,23 +12,30 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let authenticationURL: URL?
     private let networkTrustedReports: Bool
+    private let networkTrustedPublishing: Bool
 
-    init(authenticationURL: URL? = nil, networkTrustedReports: Bool = false) {
+    init(
+        authenticationURL: URL? = nil, networkTrustedReports: Bool = false,
+        networkTrustedPublishing: Bool = false
+    ) {
         self.init(
             serverAuthenticationController: ServerAuthenticationController(),
             authenticationURL: authenticationURL,
-            networkTrustedReports: networkTrustedReports
+            networkTrustedReports: networkTrustedReports,
+            networkTrustedPublishing: networkTrustedPublishing
         )
     }
 
     init(
         serverAuthenticationController: ServerAuthenticationControlling,
         authenticationURL: URL? = nil,
-        networkTrustedReports: Bool = false
+        networkTrustedReports: Bool = false,
+        networkTrustedPublishing: Bool = false
     ) {
         self.serverAuthenticationController = serverAuthenticationController
         self.authenticationURL = authenticationURL
         self.networkTrustedReports = networkTrustedReports
+        self.networkTrustedPublishing = networkTrustedPublishing
     }
 
     func intercept(
@@ -66,11 +73,9 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         }
 
         guard let token else {
-            if reportOperation {
+            if reportOperation, networkTrustedPublishing {
                 try ServerReportPublishingMode.validateDestination(baseURL)
-                if try await ServerReportPublishingMode.serverAllowsNetworkPublishing(baseURL) {
-                    return try await next(request, body, baseURL)
-                }
+                return try await next(request, body, baseURL)
             }
             if config.optionalAuthentication, !reportOperation {
                 return try await next(request, body, baseURL)

@@ -151,6 +151,19 @@ struct BazelSetupCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func missing_private_bes_endpoint_preserves_sign_in_guidance() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, authentication, _, _) = makeSubject(serverURL: try #require(URL(string: "https://tuist.example")))
+        given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+            await #expect(throws: BazelSetupCommandServiceError.notAuthenticated) {
+                try await subject.run(directory: directory.pathString)
+            }
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
     func remote_downloader_is_enabled_by_default_and_can_be_disabled() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let (subject, authentication, _, _) = makeSubject()
