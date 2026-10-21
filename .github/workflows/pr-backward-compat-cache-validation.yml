@@ -1,0 +1,95 @@
+name: PR Backward-Compatibility Cache Validation (disposable)
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/pr-backward-compat-cache-validation.yml
+      - e2e/module_cache_backward_compat.bats
+
+permissions:
+  contents: read
+
+jobs:
+  backward-compatibility-acceptance:
+    name: Backward-Compatibility Acceptance
+    runs-on: tuist-macos-26-3
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: 0
+      TUIST_URL: https://canary.tuist.dev
+      TUIST_CACHE_ENDPOINT: https://cache-eu-central-canary.tuist.dev
+      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+      TUIST_AUTH_PASSWORD: tuistrocks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - uses: tuist/xcode-cache@v1
+      - name: Resolve backward-compatibility CLI version
+        run: |
+          file=server/lib/tuist/cli_versions.ex
+          min_version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$min_version" ]; then
+            echo "Could not resolve @minimum_supported_version from $file" >&2
+            exit 1
+          fi
+          xcode_build_floor=4.154.2
+          version="$(printf '%s\n%s\n' "$min_version" "$xcode_build_floor" | sort -V | tail -n1)"
+          echo "BACKWARD_COMPAT_TUIST_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Minimum supported CLI: ${min_version}; testing backward-compat with: ${version}"
+      - uses: ./.github/actions/mise
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: "--locked bats"
+      - name: Install backward-compatibility tuist
+        run: mise install "tuist@${BACKWARD_COMPAT_TUIST_VERSION}"
+      - name: Resolve backward-compatibility tuist binary
+        id: oldtuist
+        run: |
+          install_dir="$(mise where "tuist@${BACKWARD_COMPAT_TUIST_VERSION}")"
+          bin="$(find "$install_dir" -type f -name tuist | head -n1)"
+          if [ -z "$bin" ]; then
+            echo "Could not locate the tuist binary under $install_dir" >&2
+            exit 1
+          fi
+          echo "tuist_bin=$bin" >> "$GITHUB_OUTPUT"
+          (cd "$RUNNER_TEMP" && "$bin" version)
+      - name: "Diagnostics: cache directories and stale Framework binaries"
+        continue-on-error: true
+        run: |
+          env | grep -E 'XDG|TUIST_CACHE|TUIST_COMPILATION' | sort || true
+          for dir in "$HOME/.cache/tuist" "${XDG_CACHE_HOME:-}" "${TUIST_XDG_CACHE_HOME:-}" /Users/runner/.tuist-module-cache; do
+            [ -n "$dir" ] && [ -d "$dir" ] || continue
+            echo "== $dir"
+            find "$dir" -maxdepth 4 -iname '*ed74a2bd025510081d24bf941597cdd0*' 2>/dev/null | head -5
+          done
+      - name: "Diagnostics: endpoints and token grants the old CLI gets"
+        continue-on-error: true
+        env:
+          TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
+        run: |
+          work="$RUNNER_TEMP/bc-diag"
+          rm -rf "$work" && mkdir -p "$work/app" "$work/xdg"
+          export TUIST_XDG_CACHE_HOME="$work/xdg/cache" TUIST_XDG_STATE_HOME="$work/xdg/state" TUIST_XDG_CONFIG_HOME="$work/xdg/config"
+          printf 'import ProjectDescription\n\nlet tuist = Tuist(fullHandle: "tuist/tuist", url: "%s")\n' "$TUIST_URL" > "$work/app/Tuist.swift"
+          cd "$work/app"
+          "$TUIST_EXECUTABLE" auth login --email "$TUIST_AUTH_EMAIL" --password "$TUIST_AUTH_PASSWORD" --path "$work/app" >/dev/null
+          credentials="$(find "$TUIST_XDG_CONFIG_HOME" -name '*.json' -path '*credentials*' | head -n1)"
+          token="$(jq -r '.accessToken // .access_token' "$credentials")"
+          payload="$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')"
+          while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="${payload}="; done
+          echo "-- access token claims (cache-related)"
+          printf '%s' "$payload" | base64 -d | jq '{typ, project_count: (.projects | length), granted_read: (.cache_grants.project.read | length), granted_write: (.cache_grants.project.write | length)}'
+          echo "-- /api/cache/endpoints as CLI ${BACKWARD_COMPAT_TUIST_VERSION}"
+          curl -sS -H "Authorization: Bearer $token" -H "x-tuist-cli-version: ${BACKWARD_COMPAT_TUIST_VERSION}" \
+            "$TUIST_URL/api/cache/endpoints?account_handle=tuist"
+          echo
+          "$TUIST_EXECUTABLE" auth logout --path "$work/app" >/dev/null 2>&1 || true
+      - name: Run backward-compatibility acceptance test
+        env:
+          TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
+        run: mise run --no-deps e2e module_cache_backward_compat
