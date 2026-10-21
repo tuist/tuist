@@ -77,7 +77,7 @@ jobs:
           export TUIST_XDG_CACHE_HOME="$work/xdg/cache" TUIST_XDG_STATE_HOME="$work/xdg/state" TUIST_XDG_CONFIG_HOME="$work/xdg/config"
           printf 'import ProjectDescription\n\nlet tuist = Tuist(fullHandle: "tuist/tuist", url: "%s")\n' "$TUIST_URL" > "$work/app/Tuist.swift"
           cd "$work/app"
-          "$TUIST_EXECUTABLE" auth login --email "$TUIST_AUTH_EMAIL" --password "$TUIST_AUTH_PASSWORD" --path "$work/app" >/dev/null
+          "$TUIST_EXECUTABLE" auth login --email "$TUIST_AUTH_EMAIL" --password "$TUIST_AUTH_PASSWORD" --url "$TUIST_URL" >/dev/null
           credentials="$(find "$TUIST_XDG_CONFIG_HOME" -name '*.json' -path '*credentials*' | head -n1)"
           token="$(jq -r '.accessToken // .access_token' "$credentials")"
           payload="$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')"
@@ -88,7 +88,26 @@ jobs:
           curl -sS -H "Authorization: Bearer $token" -H "x-tuist-cli-version: ${BACKWARD_COMPAT_TUIST_VERSION}" \
             "$TUIST_URL/api/cache/endpoints?account_handle=tuist"
           echo
-          "$TUIST_EXECUTABLE" auth logout --path "$work/app" >/dev/null 2>&1 || true
+          "$TUIST_EXECUTABLE" auth logout --url "$TUIST_URL" >/dev/null 2>&1 || true
+      - name: "Diagnostics: where a local-only tuist cache writes binaries"
+        continue-on-error: true
+        env:
+          TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
+        run: |
+          work="$RUNNER_TEMP/bc-local"
+          rm -rf "$work" && mkdir -p "$work/xdg"
+          cp -R e2e/fixtures/module_cache_app "$work/app"
+          printf 'import ProjectDescription\n\nlet tuist = Tuist()\n' > "$work/app/Tuist.swift"
+          export XDG_CACHE_HOME="$work/xdg/cache" XDG_STATE_HOME="$work/xdg/state" XDG_CONFIG_HOME="$work/xdg/config"
+          cd "$work/app"
+          marker="$work/marker" && touch "$marker"
+          "$TUIST_EXECUTABLE" cache --path "$work/app" 2>&1 | grep -vE '^\[Framework\]' | tail -8
+          echo "-- Framework xcframeworks written during tuist cache, outside the fixture"
+          find "$HOME" "$RUNNER_TEMP" /tmp /private/var/folders -newer "$marker" -type d -name 'Framework.xcframework' -not -path "$work/app/*" 2>/dev/null | head -20
+          rm -rf "${XDG_CACHE_HOME:?}"/*
+          "$TUIST_EXECUTABLE" generate App --path "$work/app" --no-open 2>&1 | tail -4
+          grep -c xcframework "$work"/app/*.xcodeproj/project.pbxproj || true
+          grep -oE 'path = [^;]*xcframework[^;]*' "$work"/app/*.xcodeproj/project.pbxproj | sort -u | head
       - name: Run backward-compatibility acceptance test
         env:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
