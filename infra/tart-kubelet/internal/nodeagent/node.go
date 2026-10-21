@@ -151,7 +151,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	node := &corev1.Node{}
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
-		m.decidePrewarm(true)
+		m.decidePrewarm(ctx, true)
 		node.Name = m.NodeName
 		if m.ProviderID != "" {
 			node.Spec.ProviderID = m.ProviderID
@@ -163,7 +163,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	m.decidePrewarm(false)
+	m.decidePrewarm(ctx, false)
 	// Node already exists (kubelet restart). spec.providerID is immutable
 	// once set, so only fill it when empty — this binds nodes that
 	// registered before tart-kubelet learned to set it. refresh() below
@@ -455,9 +455,9 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 	})
 }
 
-func (m *Maintainer) decidePrewarm(created bool) {
+func (m *Maintainer) decidePrewarm(ctx context.Context, created bool) {
 	if m.PrewarmGate != nil {
-		m.PrewarmGate.decide(created)
+		m.PrewarmGate.decide(ctx, created)
 	}
 }
 

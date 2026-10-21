@@ -440,7 +440,12 @@ func main() {
 		}
 	}
 
+	hostDisk := &podagent.HostDisk{
+		Tart:       tartClient,
+		MarkerPath: filepath.Join(tartClient.UserDataDir, ".holds-runner-images"),
+	}
 	reconciler := &podagent.Reconciler{
+		HostDisk:           hostDisk,
 		CachedClient:       mgr.GetClient(),
 		NodeName:           nodeName,
 		NodeIP:             nodeIP,
@@ -493,9 +498,10 @@ func main() {
 
 	// A host joining the cluster pulls its fleet's in-demand runner images
 	// before it takes Pods, through the same golden path a Pod's first VM
-	// takes. The gate taints only a Node this process creates; see
-	// nodeagent.PrewarmGate.
+	// takes. The gate taints a Node this process creates, or one whose host
+	// disk has never held a runner image; see nodeagent.PrewarmGate.
 	prewarmGate := nodeagent.NewPrewarmGate()
+	prewarmGate.FreshDisk = hostDisk.Fresh
 	if err := mgr.Add(&podagent.Prewarmer{
 		K8s:     mgr.GetAPIReader(),
 		Goldens: reconciler,
