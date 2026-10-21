@@ -145,6 +145,11 @@ server:
     managedSecrets: true
     opsClickHouse:
       enabled: true
+    # Grafana Cloud reads each environment's in-cluster ClickHouse as this
+    # identity. The CLICKHOUSE_GRAFANA item must exist in the environment's
+    # vault before a deploy.
+    grafanaClickHouse:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
