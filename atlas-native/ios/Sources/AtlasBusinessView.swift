@@ -11,12 +11,20 @@ struct AtlasBusinessView: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            list.onChange(of: model.page?.page) { _, page in
+                if page == 1 { proxy.scrollTo("business-start", anchor: .top) }
+            }
+        }
+    }
+
+    private var list: some View {
         List {
             if model.forbidden {
                 ContentUnavailableView("Access required", systemImage: "lock", description: Text("Ask an Atlas administrator for access."))
             } else if let page = model.page {
                 if model.resource == .invoices {
-                    AtlasInvoiceChart(months: page.summary)
+                    AtlasInvoiceChart(months: page.summary).id("business-start")
                     Section {
                         Text("Manage manual invoices here. Imported invoices are read-only. No payments are made from this screen.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -39,6 +47,7 @@ struct AtlasBusinessView: View {
                 } header: {
                     Text(model.query.isEmpty ? "\(page.totalCount) items" : "Results for “\(model.query)” · \(page.totalCount) items")
                 }
+                .id(model.resource == .invoices ? "business-records" : "business-start")
                 if model.filters["group_by"] == "reminder" {
                     ForEach(AtlasTaskReminderGroup.allCases) { group in
                         let items = page.items.filter { (model.records[$0.id] ?? $0)["reminder_group"] == group.rawValue }

@@ -77,7 +77,7 @@ final class AtlasBusinessUITests: XCTestCase {
         app.buttons["business-save"].tap()
         XCTAssertTrue(app.staticTexts["Preview save failed. Your changes are still here."].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields["business-field-title"].value as? String, "Keep this draft")
-        app.swipeUp()
+        app.scrollContent()
         capture(app, "ios-task-failed-save-large-dark")
         app.buttons["Cancel"].tap()
         app.buttons["Discard changes"].tap()
@@ -87,7 +87,7 @@ final class AtlasBusinessUITests: XCTestCase {
         finance.tap()
         XCTAssertTrue(app.staticTexts["Access required"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["business-create"].exists)
-        app.swipeUp()
+        app.scrollContent()
         let retry = app.buttons["Retry"]
         XCTAssertTrue(retry.isHittable)
         XCTAssertGreaterThanOrEqual(retry.frame.height, 44)
@@ -145,17 +145,13 @@ final class AtlasBusinessUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace"] + arguments
         app.launch()
+        XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.buttons["business-create"].waitForExistence(timeout: 10))
         return app
     }
 
     private func visible(_ id: String, in app: XCUIApplication) throws -> XCUIElement {
-        for _ in 0..<8 {
-            let elements = app.descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex
-            if let element = elements.first(where: \.isHittable) { return element }
-            app.swipeUp()
-        }
-        return try XCTUnwrap(nil as XCUIElement?, "Missing control: \(id)")
+        try app.visibleElement(id)
     }
 
     private func tap(_ id: String, in app: XCUIApplication) throws {
