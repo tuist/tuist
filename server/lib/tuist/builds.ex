@@ -250,7 +250,7 @@ defmodule Tuist.Builds do
     |> Enum.map(&BuildTarget.changeset(build.id, &1))
     |> BuildTarget.Buffer.insert_all()
 
-    if BuildEntities.enabled?(build.project_id) do
+    if targets != [] and BuildEntities.enabled?(build.project_id) do
       BuildEntities.Producers.xcode_build(build, targets)
     end
   end
