@@ -651,13 +651,14 @@ extension UploadResultBundleService {
     /// the root contributes the prefix it was recorded with. A binary from the cache records its
     /// files under the placeholder instead of any checkout.
     static func rootSpellings(of root: AbsolutePath, coveredFilePaths: [String]) -> [String] {
-        let canonicalRoot = canonical(root.pathString)
+        let canonicalizer = PathCanonicalizer()
+        let canonicalRoot = canonicalizer.canonical(root.pathString)
         var spellings = [root.pathString]
         if canonicalRoot != root.pathString { spellings.append(canonicalRoot) }
         spellings.append(XcodeCoverageManifest.sourceRootPlaceholder)
 
         for path in coveredFilePaths where path.hasPrefix("/") && !spellings.contains(where: { path.hasPrefix($0 + "/") }) {
-            let resolved = canonical(path)
+            let resolved = canonicalizer.canonical(path)
             guard resolved.hasPrefix(canonicalRoot + "/") else { continue }
             let relative = resolved.dropFirst(canonicalRoot.count)
             guard path.hasSuffix(relative) else { continue }
@@ -673,22 +674,6 @@ extension UploadResultBundleService {
             return String(path.dropFirst(root.count + 1))
         }
         return path
-    }
-
-    /// `realpath` of the longest existing prefix with the rest appended, so a file the bundle
-    /// names but the checkout no longer has still resolves through the directories that exist.
-    private static func canonical(_ path: String) -> String {
-        var existing = path
-        var rest: [String] = []
-        while !FileManager.default.fileExists(atPath: existing), existing != "/" {
-            rest.insert((existing as NSString).lastPathComponent, at: 0)
-            existing = (existing as NSString).deletingLastPathComponent
-        }
-        guard let resolved = realpath(existing, nil) else { return path }
-        defer { free(resolved) }
-        let base = String(cString: resolved)
-        guard !rest.isEmpty else { return base }
-        return (base == "/" ? "" : base) + "/" + rest.joined(separator: "/")
     }
 
     /// One bundle for the server to parse. A run whose candidates were priced at different
