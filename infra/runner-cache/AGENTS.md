@@ -160,6 +160,12 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
   off masters a job holds or is attaching: their blocks are shared, so evicting
   them frees nothing and the attaching job loses its seed.
+- A checkout master's tip only moves to a `DefaultBranchJob`'s commit. While the
+  lineage has no HEAD (`BaseGeneration` 0), a `MayStartMaster` job's checkout may
+  also start it: its own commit, or a two-parent merge naming that commit (a
+  pull request's test merge, read with `cat-file commit` because a depth-1 fetch
+  leaves its parents out). That master is published like a moved tip. Once a
+  master exists, other exports only add objects.
 - `ReceiveCheckoutExport` unpacks a streamed export (Linux has no writable host
   share): regular files named `head`, `shallow`, `pack` or `lfs/<oid>` only,
   within the export bounds, written through `os.Root`, else the whole stream is

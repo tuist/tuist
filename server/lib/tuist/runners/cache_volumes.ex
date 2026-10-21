@@ -91,7 +91,8 @@ defmodule Tuist.Runners.CacheVolumes do
   for. The host builds its master from what jobs export and verifies it, so a
   job's own branch never publishes; the host publishes the master instead. Besides
   the identity and the volume's HEAD, the result carries the clone URL, the
-  default branch, the job's commit and whether the job ran on the default branch.
+  default branch, the job's commit, whether the job ran on the default branch,
+  and whether its commit may start a master while the volume has no HEAD.
   """
   def allocate_checkout(%{
         "pod_name" => pod,
@@ -104,7 +105,8 @@ defmodule Tuist.Runners.CacheVolumes do
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
          {:ok, %WorkflowJob{provider: "github"} = job, platform} <- executing_job(pod, node),
-         true <- profile_cached_checkouts?(job),
+         profile = Profiles.get_for_dispatch_label(job.account_id, job.requested_dispatch_label),
+         true <- cached_checkouts?(profile),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",
          {:ok, identity} <- Identity.resolve(job),
@@ -129,6 +131,7 @@ defmodule Tuist.Runners.CacheVolumes do
          commit: job.head_sha,
          # A pull request from a branch or fork named like the default branch is not one.
          default_branch_job: identity.trusted,
+         may_start_master: may_start_master?(identity, profile),
          # Stable across clears, so a host can drop the copies of a cleared generation.
          volume_key: :sha256 |> :crypto.hash(usage.volume_id) |> Base.encode16(case: :lower)
        })}
@@ -141,12 +144,14 @@ defmodule Tuist.Runners.CacheVolumes do
   def allocate_checkout(_), do: {:error, :unavailable}
 
   # A job follows its profile's setting; one on a legacy label has checkouts on.
-  defp profile_cached_checkouts?(job) do
-    case Profiles.get_for_dispatch_label(job.account_id, job.requested_dispatch_label) do
-      %Profile{cached_checkouts: enabled} -> enabled
-      nil -> true
-    end
-  end
+  defp cached_checkouts?(%Profile{cached_checkouts: enabled}), do: enabled
+  defp cached_checkouts?(nil), do: true
+
+  # A job may start a repository's first checkout master when its profile would let
+  # it save a custom volume: the master's tree is handed to every later job, so
+  # forks and pull_request_target, which have no writer branch, never qualify.
+  defp may_start_master?(identity, profile),
+    do: writer_allowed?(profile || %Profile{}, identity.trusted, Map.get(identity, :writer_branch))
 
   # The session's executed binding is the proof that this runner runs the job.
   # The job row can still be `queued` or `claimed` by another Pod until the
@@ -1005,7 +1010,9 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # The host builds a checkout master from exports it verified itself, so the job's
   # outcome and the use's state after the job do not matter: the use only names
-  # the lineage and the HEAD the master fast-forwards, once.
+  # the lineage and the HEAD the master fast-forwards, once. Only a default-branch
+  # job's master moves an existing HEAD; another job with a writer branch can only
+  # publish the lineage's first one.
   defp checkout_publish(volume, usage, operation, digest, content) do
     cond do
       usage.generation != volume.generation or not is_nil(volume.deleted_at) ->
@@ -1015,6 +1022,9 @@ defmodule Tuist.Runners.CacheVolumes do
         %{generation: usage.published_generation}
 
       usage.status == "published" ->
+        Repo.rollback(:conflict)
+
+      not usage.writer_default_branch and (usage.base_generation != 0 or is_nil(usage.writer_branch)) ->
         Repo.rollback(:conflict)
 
       true ->
