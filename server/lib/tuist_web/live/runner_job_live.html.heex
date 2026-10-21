@@ -561,8 +561,24 @@
           </div>
           <div :if={expanded} data-part="step-expanded">
             <div data-part="step-logs">
-              <% step_lines = Map.get(@step_logs, step.number, []) %>
-              <div :if={step_lines == :unattributed} data-part="log-empty">
+              <% step_page = Map.get(@step_logs, step.number, :loading) %>
+              <div
+                :if={step_page == :loading}
+                data-part="step-logs-loading"
+                aria-busy="true"
+                aria-label={dgettext("dashboard_runners", "Loading logs")}
+              >
+                <.skeleton_box width="40%" height="14px" />
+                <.skeleton_box width="70%" height="14px" />
+                <.skeleton_box width="55%" height="14px" />
+              </div>
+              <div :if={step_page == :failed} data-part="log-empty">
+                {dgettext(
+                  "dashboard_runners",
+                  "This step's logs couldn't be loaded. Collapse and expand the step to retry."
+                )}
+              </div>
+              <div :if={step_page == :unattributed} data-part="log-empty">
                 {dgettext(
                   "dashboard_runners",
                   "This step's output couldn't be separated from the rest of the job's log."
@@ -574,13 +590,26 @@
                   {dgettext("dashboard_runners", "View the full log")}
                 </.link>
               </div>
-              <div :if={step_lines == []} data-part="log-empty">
+              <div :if={match?(%{lines: []}, step_page)} data-part="log-empty">
                 {dgettext("dashboard_runners", "No logs were captured for this step.")}
               </div>
-              <TuistWeb.RunnerJobLive.log_tree
-                :if={is_list(step_lines) and step_lines != []}
-                tree={Tuist.Runners.LogFormatter.group_lines(step_lines)}
-              />
+              <%= if match?(%{lines: [_ | _]}, step_page) do %>
+                <button
+                  :if={step_page.from > step_page.first}
+                  type="button"
+                  phx-click="load_earlier_step_lines"
+                  phx-value-number={step.number}
+                  disabled={step_page.loading_earlier?}
+                  data-part="step-logs-load-earlier"
+                >
+                  {if step_page.loading_earlier?,
+                    do: dgettext("dashboard_runners", "Loading..."),
+                    else: dgettext("dashboard_runners", "Load earlier lines")}
+                </button>
+                <TuistWeb.RunnerJobLive.log_tree tree={
+                  Tuist.Runners.LogFormatter.group_lines(step_page.lines)
+                } />
+              <% end %>
             </div>
           </div>
         </div>

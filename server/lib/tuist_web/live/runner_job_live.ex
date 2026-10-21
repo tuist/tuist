@@ -29,6 +29,10 @@ defmodule TuistWeb.RunnerJobLive do
   # arrive at the bottom via Pub/Sub. We never load the whole stream.
   @page_size 200
 
+  # An expanded step renders its last this-many lines and pages
+  # backwards in the same increment via "Load earlier lines".
+  @step_page_size 1_000
+
   # Max matching lines returned by an in-page log search (across the
   # whole job, not just the loaded tail).
   @search_limit 500
@@ -868,6 +872,24 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
+  def handle_event("load_earlier_step_lines", %{"number" => number}, socket) do
+    with {n, ""} <- Integer.parse(number),
+         %{first: first, from: from, loading_earlier?: false} = page when from > first <-
+           Map.get(socket.assigns.step_logs, n) do
+      workflow_job_id = socket.assigns.job.workflow_job_id
+      new_from = max(first, from - @step_page_size)
+
+      {:noreply,
+       socket
+       |> update(:step_logs, &Map.put(&1, n, %{page | loading_earlier?: true}))
+       |> start_async({:earlier_step_lines, n}, fn ->
+         {new_from, JobLogs.list_step_lines(workflow_job_id, first, from - 1, from: new_from)}
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_event("search_logs", %{"search" => term}, socket) do
     term = String.trim(term)
     results = JobLogs.search(socket.assigns.job.workflow_job_id, term, @search_limit)
@@ -1187,37 +1209,68 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   # Per-step ranges are computed once (two small ClickHouse queries,
-  # no log-body scan); the expanded step's lines are fetched on demand
-  # and cached individually. A user who never opens a step pays
-  # nothing beyond mount; a job with hundreds of thousands of lines
-  # never holds them in the socket.
+  # no log-body scan); the expanded step's last page of lines is
+  # fetched on demand, off the LiveView process, and cached
+  # individually. A user who never opens a step pays nothing beyond
+  # mount; a step with hundreds of thousands of lines never holds them
+  # in the socket or the DOM.
   defp load_step_logs(socket, number) do
-    if Map.has_key?(socket.assigns.step_logs, number) do
-      socket
-    else
-      ranges =
-        socket.assigns[:step_line_ranges] ||
-          JobLogs.step_line_ranges(
-            socket.assigns.job.workflow_job_id,
-            socket.assigns.steps
-          )
+    case Map.get(socket.assigns.step_logs, number) do
+      state when state in [nil, :failed] ->
+        workflow_job_id = socket.assigns.job.workflow_job_id
+        steps = socket.assigns.steps
+        ranges = socket.assigns[:step_line_ranges]
 
-      lines =
-        case Map.get(ranges, number) do
-          {first, last} ->
-            JobLogs.list_step_lines(socket.assigns.job.workflow_job_id, first, last)
+        socket
+        |> update(:step_logs, &Map.put(&1, number, :loading))
+        |> start_async({:step_logs, number}, fn ->
+          ranges = ranges || JobLogs.step_line_ranges(workflow_job_id, steps)
+          {ranges, last_step_page(workflow_job_id, Map.get(ranges, number))}
+        end)
 
-          :unattributed ->
-            :unattributed
-
-          _ ->
-            []
-        end
-
-      socket
-      |> assign(:step_line_ranges, ranges)
-      |> assign(:step_logs, Map.put(socket.assigns.step_logs, number, lines))
+      _ ->
+        socket
     end
+  end
+
+  defp last_step_page(workflow_job_id, {first, last}) do
+    from = max(first, last - @step_page_size + 1)
+
+    %{
+      lines: JobLogs.list_step_lines(workflow_job_id, first, last, from: from),
+      first: first,
+      from: from,
+      loading_earlier?: false
+    }
+  end
+
+  defp last_step_page(_workflow_job_id, :unattributed), do: :unattributed
+  defp last_step_page(_workflow_job_id, _range), do: %{lines: [], first: nil, from: nil, loading_earlier?: false}
+
+  @impl true
+  def handle_async({:step_logs, number}, {:ok, {ranges, page}}, socket) do
+    {:noreply,
+     socket
+     |> assign(:step_line_ranges, ranges)
+     |> update(:step_logs, &Map.put(&1, number, page))}
+  end
+
+  def handle_async({:step_logs, number}, {:exit, _reason}, socket) do
+    {:noreply, update(socket, :step_logs, &Map.put(&1, number, :failed))}
+  end
+
+  def handle_async({:earlier_step_lines, number}, {:ok, {from, lines}}, socket) do
+    {:noreply,
+     update(socket, :step_logs, fn step_logs ->
+       Map.update!(step_logs, number, &%{&1 | lines: lines ++ &1.lines, from: from, loading_earlier?: false})
+     end)}
+  end
+
+  def handle_async({:earlier_step_lines, number}, {:exit, _reason}, socket) do
+    {:noreply,
+     update(socket, :step_logs, fn step_logs ->
+       Map.update!(step_logs, number, &%{&1 | loading_earlier?: false})
+     end)}
   end
 
   defp log_stream_item(line) do

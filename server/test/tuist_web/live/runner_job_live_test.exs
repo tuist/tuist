@@ -412,6 +412,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     end
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="1"]}) |> render_click()
+    render_async(lv)
     expanded = lv |> element(~s{[data-part="step-expanded"]}) |> render()
 
     refute expanded =~ ~s(data-part="step-insight-detail")
@@ -1069,6 +1070,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     # Expanding the Build step (number 2) shows the in-step lines
     # but not the teardown content.
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
@@ -1092,6 +1094,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316030/jobs/31603")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
@@ -1118,11 +1121,81 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316040/jobs/31604")
 
     lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv)
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "be separated from the rest of the job"
     refute panel =~ "No logs were captured for this step."
     assert has_element?(lv, ~s{[data-part="log-empty-link"][href*="tab=logs"]}, "View the full log")
+  end
+
+  test "shows a loading state while a step's logs are fetched", %{conn: conn, account: account} do
+    complete_job_with_logs!(account, 31_605, 316_050, ["Set up job", "Build", "Complete job"], [
+      "Current runner version",
+      "##[group]Run build.sh",
+      "##[endgroup]",
+      "inside the build step",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316050/jobs/31605")
+
+    html = lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+
+    step_logs = html |> Floki.parse_document!() |> Floki.find(~s{[data-part="step-logs"]})
+
+    assert Floki.find(step_logs, ~s{[data-part="step-logs-loading"]}) != []
+    refute Floki.text(step_logs) =~ "inside the build step"
+
+    render_async(lv)
+
+    refute has_element?(lv, ~s{[data-part="step-logs-loading"]})
+    assert has_element?(lv, ~s{[data-part="step-logs"]}, "inside the build step")
+  end
+
+  test "renders the tail of a long step and loads earlier lines on demand", %{conn: conn, account: account} do
+    build_lines = Enum.map(1..1_005, &"build line #{String.pad_leading(Integer.to_string(&1), 4, "0")}")
+
+    complete_job_with_logs!(
+      account,
+      31_606,
+      316_060,
+      ["Set up job", "Build", "Complete job"],
+      ["Current runner version", "##[group]Run build.sh", "##[endgroup]"] ++
+        build_lines ++ ["Cleaning up orphan processes"]
+    )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316060/jobs/31606")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv)
+
+    displayed = fn ->
+      lv
+      |> element(~s{[data-part="step-logs"]})
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find(~s{[data-part="log-line"]})
+      |> Enum.map(fn line ->
+        {line |> Floki.find(~s{[data-part="log-ln"]}) |> Floki.text(),
+         line |> Floki.find(~s{[data-part="log-message"]}) |> Floki.text()}
+      end)
+    end
+
+    tail = displayed.()
+    assert length(tail) == 1_000
+    assert List.first(tail) == {"7", "build line 0006"}
+    assert List.last(tail) == {"1006", "build line 1005"}
+    refute has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
+
+    lv |> element(~s{[data-part="step-logs-load-earlier"]}) |> render_click()
+    render_async(lv)
+
+    all = displayed.()
+    assert length(all) == 1_005
+    assert List.first(all) == {"2", "build line 0001"}
+    assert has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
+    refute has_element?(lv, ~s{[data-part="step-logs-load-earlier"]})
   end
 
   test "defaults to the Overview tab and selects Logs via ?tab=logs", %{
