@@ -26,8 +26,11 @@ to its share of the storage, so the Tuist CLI evicts the least recently used
 binaries before the cache fills up.
 
 Successful push, schedule and web pipelines of your project save their changes,
-on any branch. Merge request and tag pipelines use the cache but never save. To
-save only from some branches, limit them on the runner profile; see
+on any branch. Tag pipelines and merge request pipelines use the cache but don't
+save, unless the GitLab connection has an API access token and the merge
+request comes from the project itself; see
+[Merge request pipelines](https://tuist.dev/en/docs/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines).
+To save only from some branches, limit them on the runner profile; see
 [Choose which branches save](https://tuist.dev/en/docs/guides/features/runners/cache-volumes#choose-which-branches-save).
 
 On runners that are not Tuist macOS runners the snippet does nothing. If the
