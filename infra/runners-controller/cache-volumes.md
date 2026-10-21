@@ -423,7 +423,8 @@ on Linux too, built by the same shared populator as on macOS
   master for the volume's clear generation, admits and mounts a reflink clone at
   `pods/<uid>/<scope>` like a custom volume, with the tree in `checkout/` owned
   by the job's UID. Without a master it answers `cold`, ends the use, and
-  restores the volume's HEAD in the background when there is one.
+  restores the volume's HEAD in the background when there is one. It has four
+  request slots of its own and answers `busy` past them.
 - takes `POST /checkout-export` once per granted pod: a tar the runner streams
   after its job, unpacked by `cachevolumes.ReceiveCheckoutExport` into
   `checkouts/.incoming/<uid>` and verified again by the build (`git index-pack
@@ -431,12 +432,26 @@ on Linux too, built by the same shared populator as on macOS
   starts from, and only advances to, a default-branch commit with all its LFS
   objects; other exports only add objects. A master that advanced is published
   as the volume's HEAD.
+- bounds what exports hold: each entry is admitted above the job reserve,
+  exports waiting for a build hold at most one maximal export (30 GB) per host,
+  a newer export displaces builds still waiting for room, sparse entries are
+  refused, and nothing is written that the stream did not
+  carry. It checks the pod before taking one of two intake slots, so a busy
+  host keeps the pod's grant.
 - keeps masters under `<root>/checkouts`, on the dedicated filesystem. Builds
   reserve room above the job reserve and that room is held back from what job
-  admission sees as free; jobs that need room evict idle checkout masters first.
-  Masters are evicted after seven days without a clone, on clear, or under
-  pressure.
-- needs git and git-lfs, which the agent image installs. Without them it logs
+  admission sees as free. Jobs that need room evict custom-volume masters, then
+  checkout masters, before they are refused. Masters are evicted after seven
+  days without a clone, on clear, or under pressure; pressure never takes a
+  master a job holds or is cloning (`Store.InUse`), since its blocks are shared.
+- needs git and the git-lfs the agent image pins (v3.8.0, checksum-verified at
+  build, version-checked at start, run from `/usr/local/bin`). Without them it logs
   "cached checkouts unavailable on this host" every 10 minutes, reports
   `tuist_runner_cached_checkouts_ready 0`, and answers `denied`, so runners
   export nothing.
+
+Everything a job writes under its workspace lands in its clone, on the cache
+filesystem rather than the pod's work volume. A clone is therefore admitted only
+while free space covers the whole checkout image (60 GB), as the reserve covers
+one custom volume. It never evicts anything for that room: without it the job
+checks out as usual.

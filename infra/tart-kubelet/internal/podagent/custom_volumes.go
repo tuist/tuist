@@ -180,6 +180,10 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	defer store.Close()
 	c.Store = store
+	if c.Checkouts != nil {
+		// Pressure eviction never takes a master a job holds or is cloning.
+		c.Checkouts.InUse = store.InUse
+	}
 	if err := c.refreshReservations(ctx); err != nil {
 		return err
 	}

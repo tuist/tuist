@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"syscall"
@@ -29,6 +32,9 @@ const checkoutAcquireBudget = 15 * time.Second
 
 // An export carries at most half a checkout image, plus the archive's framing.
 const checkoutExportLimit = cachevolumes.CheckoutCapacity/2 + 64<<20
+
+// Exports waiting for a build hold at most one maximal export on a host.
+const checkoutIncomingLimit = cachevolumes.CheckoutCapacity / 2
 
 type checkoutRequest struct {
 	PodName string `json:"pod_name"`
@@ -86,10 +92,21 @@ func (a *agent) serveCheckout(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unavailable", http.StatusForbidden)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	// Checkouts have their own slots: a job cannot flood the agent, and a checkout
+	// waiting on GitHub's execution binding never crowds out a volume.
+	if a.checkoutRequests != nil {
+		select {
+		case a.checkoutRequests <- struct{}{}:
+			defer func() { <-a.checkoutRequests }()
+		default:
+			_ = json.NewEncoder(w).Encode(checkoutUnavailable("busy"))
+			return
+		}
+	}
 	done := a.observe.Start("checkout_acquire", "none")
 	response, err := a.checkout(ctx, input)
 	done(err)
-	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(response)
 }
 
@@ -153,19 +170,20 @@ func (a *agent) endUse(id string) {
 // untrusted: it is unpacked into the export's bounded layout and verified again
 // when the populator builds from it.
 func (a *agent) serveCheckoutExport(w http.ResponseWriter, r *http.Request) {
-	select {
-	case a.exports <- struct{}{}:
-		defer func() { <-a.exports }()
-	default:
-		http.Error(w, "busy", http.StatusServiceUnavailable)
-		return
-	}
 	name, uid := r.URL.Query().Get("pod_name"), r.URL.Query().Get("pod_uid")
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	allowed := a.runnerPod(ctx, r, name, uid)
 	cancel()
 	if !allowed {
 		http.Error(w, "unavailable", http.StatusForbidden)
+		return
+	}
+	// Only the calling pod's own export waits for a slot; a busy host keeps its grant.
+	select {
+	case a.exports <- struct{}{}:
+		defer func() { <-a.exports }()
+	default:
+		http.Error(w, "busy", http.StatusServiceUnavailable)
 		return
 	}
 	task, granted := a.grants.take(uid)
@@ -176,8 +194,16 @@ func (a *agent) serveCheckoutExport(w http.ResponseWriter, r *http.Request) {
 	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(5 * time.Minute))
 	done := a.observe.Start("checkout_export", "local")
 	dst := a.checkouts.Incoming(uid)
-	err := cachevolumes.ReceiveCheckoutExport(http.MaxBytesReader(w, r.Body, checkoutExportLimit), dst)
+	var admit func(int64) (func(), error)
+	if a.space != nil {
+		admit = a.space.intake(dst)
+	}
+	err := cachevolumes.ReceiveCheckoutExport(http.MaxBytesReader(w, r.Body, checkoutExportLimit), dst, admit)
 	done(err)
+	if errors.Is(err, cachevolumes.ErrCapacity) {
+		http.Error(w, "no room", http.StatusInsufficientStorage)
+		return
+	}
 	if err != nil {
 		http.Error(w, "invalid export", http.StatusBadRequest)
 		return
@@ -190,14 +216,18 @@ func (a *agent) serveCheckoutExport(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// checkoutSpace keeps master builds and job admission within the cache
-// filesystem's reserve together: a build's room is held back from what jobs
-// see as free, and jobs that need room evict idle checkout masters first.
+// checkoutSpace keeps master builds, received exports and job admission within
+// the cache filesystem's reserve together: a build's room and an export entry
+// being written are held back from what jobs see as free, and jobs that need
+// room evict idle checkout masters after custom-volume masters, before they
+// are refused.
 type checkoutSpace struct {
-	mu        sync.Mutex
-	root      string
-	reserve   uint64
-	reserved  uint64
+	mu       sync.Mutex
+	root     string
+	reserve  uint64
+	reserved uint64
+	// incoming is what each received export holds on disk until it is consumed.
+	incoming  map[string]uint64
 	checkouts *cachevolumes.Checkouts
 	freeBytes func(string) (uint64, error)
 }
@@ -253,8 +283,9 @@ func (s *checkoutSpace) room(_ context.Context, bytes uint64) (func(), error) {
 	}, nil
 }
 
-// reclaim evicts idle checkout masters for a job's volume. They are rebuilt from
-// the next jobs' exports, so they go before a job loses its volume.
+// reclaim evicts idle checkout masters for a job's volume, after custom-volume
+// masters. They are rebuilt from the next jobs' exports, so they go before a job
+// loses its volume.
 func (s *checkoutSpace) reclaim(ctx context.Context, minimum uint64) error {
 	s.checkouts.Evict(func() bool {
 		free, err := s.free(ctx, s.root)
@@ -269,4 +300,83 @@ func allocatedBytes(path string) (uint64, error) {
 		return 0, err
 	}
 	return uint64(stat.Blocks) * 512, nil
+}
+
+// intake admits the entries of an export being received at path: each must fit
+// above the job reserve and within what exports may hold on the host together.
+func (s *checkoutSpace) intake(path string) func(int64) (func(), error) {
+	return func(size int64) (func(), error) {
+		bytes := uint64(size)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		held := s.heldLocked()
+		// Builds waiting for room hold their exports for up to an hour; a newer
+		// export takes their place rather than wait behind them.
+		if held+bytes > checkoutIncomingLimit && s.checkouts.DiscardWaiting() > 0 {
+			held = s.heldLocked()
+		}
+		if held+bytes > checkoutIncomingLimit {
+			return nil, cachevolumes.ErrCapacity
+		}
+		free, err := s.rawFree()
+		if err != nil {
+			return nil, err
+		}
+		if free < s.reserve+s.reserved+bytes {
+			return nil, cachevolumes.ErrCapacity
+		}
+		s.reserved += bytes
+		s.incoming[path] += bytes
+		return func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			s.reserved -= bytes
+		}, nil
+	}
+}
+
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
+}
+
+// The populator runs the git-lfs the agent image pins, first on its PATH.
+const checkoutPath = "/usr/local/bin:/usr/bin:/bin"
+
+const gitLFSVersion = "git-lfs/3.8.0 "
+
+func gitLFSCommand(ctx context.Context) ([]byte, error) {
+	return exec.CommandContext(ctx, "/usr/local/bin/git-lfs", "version").Output()
+}
+
+// pinnedGitLFS refuses to build checkouts with any git-lfs but the pinned
+// release: it runs as root on trees from customer repositories.
+func pinnedGitLFS(version func(context.Context) ([]byte, error)) func(context.Context) error {
+	return func(ctx context.Context) error {
+		out, err := version(ctx)
+		if err != nil {
+			return fmt.Errorf("pinned git-lfs unavailable: %w", err)
+		}
+		if !strings.HasPrefix(string(out), gitLFSVersion) {
+			return fmt.Errorf("git-lfs is %q, not the pinned %s", strings.TrimSpace(string(out)), strings.TrimSpace(gitLFSVersion))
+		}
+		return nil
+	}
+}
+
+// heldLocked is what received exports still hold on disk, forgetting those
+// whose directory is gone.
+func (s *checkoutSpace) heldLocked() uint64 {
+	if s.incoming == nil {
+		s.incoming = map[string]uint64{}
+	}
+	var held uint64
+	for export, size := range s.incoming {
+		if !exists(export) && !exists(export+".part") {
+			delete(s.incoming, export)
+			continue
+		}
+		held += size
+	}
+	return held
 }
