@@ -289,6 +289,12 @@ missing status output, pending migrations and failed Mix commands fatal.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
+Pull requests plan and run the oldest-supported ClickHouse shards only when
+`.github/scripts/server-clickhouse-floor.sh` finds ClickHouse migrations,
+configuration, lockfiles, the workflow, added query code under `server/lib` or
+`server/priv`, or the `ci:clickhouse-floor` label; every other event always runs
+them, and an unreadable pull request runs them. Validate it with
+`bash .github/scripts/server-clickhouse-floor.test.sh`.
 Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsharded
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
