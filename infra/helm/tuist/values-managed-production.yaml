@@ -95,6 +95,10 @@ server:
       enabled: true
     atlasEmail:
       enabled: true
+    # Grafana Cloud reads the in-cluster ClickHouse as this identity; the
+    # CLICKHOUSE_GRAFANA item must exist in this vault before a deploy.
+    grafanaClickHouse:
+      enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
     # (atlas.tuist.dev) instead of the Hive ingest. The `dsn_atlas`
     # field on the SENTRY 1P item was added alongside the existing
@@ -408,10 +412,11 @@ pdcAgent:
   # single replica would make a node drain take every PDC-routed panel down.
   # Three is Grafana's production recommendation.
   replicas: 3
-  # Pin the tunnel to the CNPG read-only service. Without this the agent
-  # permits any destination reachable from its pod, not just Postgres.
+  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
+    - tuist-tuist-clickhouse.tuist.svc.cluster.local:8123
 
 capi:
   vultrPrivateNetwork:

@@ -1,13 +1,29 @@
 package dev.tuist.atlas
 
 class AtlasWorkspaceModel(
-    val groups: List<AtlasGroup>,
+    groups: List<AtlasGroup>,
     sections: List<AtlasSection>,
     restoredGroup: String? = null,
 ) {
-    val sections = sections.filter { section -> groups.any { it.id == section.group && it.placement == "workspace" } }
+    val sections =
+        sections.filter { section ->
+            section.screen in listOf("tasks", "accounts", "invoices", "time-off") &&
+                groups.any { it.id == section.group && it.placement == "workspace" }
+        }
+    val groups =
+        groups.filter { group ->
+            this.sections.any { section ->
+                var current = section.group
+                val visited = mutableSetOf<String>()
+                while (current.isNotEmpty() && visited.add(current)) {
+                    if (current == group.id) return@any true
+                    current = groups.firstOrNull { it.id == current }?.parent.orEmpty()
+                }
+                false
+            }
+        }
     val shortcuts get() = sections.filter { it.shortcut }
-    var groupId: String? = restoredGroup?.takeIf { id -> groups.any { it.id == id && it.placement == "workspace" } }
+    var groupId: String? = restoredGroup?.takeIf { id -> this.groups.any { it.id == id && it.placement == "workspace" } }
         private set
     var query: String = ""
         private set

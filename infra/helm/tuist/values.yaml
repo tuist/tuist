@@ -726,6 +726,18 @@ server:
       role: tuist_ops_readonly
       existingSecret: ""
       passwordKey: password
+    # The bounded ClickHouse identity Grafana Cloud's data source signs in
+    # as, through the PDC agent (add the ClickHouse Service to
+    # `pdcAgent.permitRemoteOpen`). Reconciled by the migration Job like
+    # `opsClickHouse`. The password comes from 1Password (`item`/`field`
+    # through the managed external secrets, so `managedSecrets` must be on)
+    # because the same value is entered on the Grafana data source.
+    grafanaClickHouse:
+      enabled: false
+      username: tuist_grafana
+      role: tuist_grafana_readonly
+      item: CLICKHOUSE_GRAFANA
+      field: password
     # Newsletter signups go to Atlas, which is our own deployment. Only the
     # environment that owns the production audience should write to it, so
     # this stays off everywhere else and the client then has no key to use.

@@ -2669,3 +2669,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Reported name"
 msgstr ""
+
+#: lib/tuist_web/live/coverage_detail_live.ex:338
+#, elixir-autogen, elixir-format
+msgid "Measured"
+msgstr ""
