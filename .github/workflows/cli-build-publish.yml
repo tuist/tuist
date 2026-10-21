@@ -135,6 +135,19 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      # The bundler comes from this workflow's revision rather than inputs.ref:
+      # the matrix cross-compiles aarch64 on amd64 hosts, which release lines
+      # cut before the bundler took TUIST_LINUX_ARCH cannot do. Their bundler
+      # builds for the host and the aarch64 leg would package an x86_64 binary.
+      - name: Check out the Linux bundler
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .linux-bundler
+          sparse-checkout: |
+            mise/tasks/cli/bundle-linux.sh
+            mise/utilities/install_static_linux_sdk.sh
+          sparse-checkout-cone-mode: false
 
       - name: Stamp the release version
         run: |
@@ -220,7 +233,7 @@ jobs:
           # redirect handling crash before the CLI starts compiling.
           SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
       - name: Bundle CLI
-        run: ./mise/tasks/cli/bundle-linux.sh
+        run: MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" ./.linux-bundler/mise/tasks/cli/bundle-linux.sh
         env:
           TUIST_LINUX_ARCH: ${{ matrix.arch }}
 

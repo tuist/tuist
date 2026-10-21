@@ -417,6 +417,11 @@ are rejected.
 tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
+The job builds `inputs.ref` with the bundler and SDK setup from the
+workflow's own revision, checked out into `.linux-bundler`: release lines cut
+before the bundler took `TUIST_LINUX_ARCH` build only for the host, so their
+aarch64 leg would package an x86_64 binary under the x86_64 name. Keep
+`bundle-linux.sh` resolving `install_static_linux_sdk.sh` relative to itself.
 `mise/utilities/install_static_linux_sdk.sh` (shared with the PR `Linux Build`
 job) hides the host's zlib and libxml2 `.pc` files: SwiftPM's pkg-config
 parser keeps the host's `/usr/lib/<host-triple>` from them, and a cross link
