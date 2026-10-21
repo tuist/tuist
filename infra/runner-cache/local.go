@@ -758,7 +758,7 @@ func (b *LocalImages) keepUnchanged(slot Slot, verify func() error) {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) || b.HasMaster(slot.Identity) {
 		return
 	}
-	_ = b.operation("keep", "unchanged", func() error {
+	_ = b.operation(slot, "keep", "unchanged", func() error {
 		if err := verify(); err != nil {
 			return err
 		}
