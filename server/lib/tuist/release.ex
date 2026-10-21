@@ -419,7 +419,9 @@ defmodule Tuist.Release do
     # are wider than the ops role's, but still capped so a panel cannot take the
     # memory or cores the application's own queries need. The slow-query
     # alert reads every replica's query log through the `grafana_query_log`
-    # view, which the database grant covers.
+    # view, which the database grant covers on the replica it reaches. The
+    # other replicas run their part as this role rather than as the view's
+    # definer, so it also reads `system.query_log` itself.
     readonly_clickhouse_identity_queries(
       username,
       role,
@@ -431,7 +433,7 @@ defmodule Tuist.Release do
         max_memory_usage = 8589934592 MIN 1 MAX 8589934592,
         max_threads = 8 MIN 1 MAX 8
       """,
-      ["#{database}.*", "system.tables", "system.columns"]
+      ["#{database}.*", "system.tables", "system.columns", "system.query_log"]
     )
   end
 

@@ -88,6 +88,7 @@ defmodule Tuist.ReleaseTest do
                "GRANT SELECT ON `tuist`.* TO `tuist_grafana_readonly`",
                "GRANT SELECT ON system.tables TO `tuist_grafana_readonly`",
                "GRANT SELECT ON system.columns TO `tuist_grafana_readonly`",
+               "GRANT SELECT ON system.query_log TO `tuist_grafana_readonly`",
                """
                CREATE USER IF NOT EXISTS `tuist_grafana`
                IDENTIFIED WITH sha256_hash BY '#{String.duplicate("b", 64)}'
