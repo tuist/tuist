@@ -51,6 +51,25 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Tasks"].exists)
     }
 
+    @MainActor func testWarmRecordLinkReplacesAnExistingDetailAndBackReturnsToList() {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--deep-links", "--resume-destination",
+                               "dev.tuist.atlas://navigate/tasks/\(recordID)?server=https%3A%2F%2Fatlas.example.org"]
+        app.launch()
+        defer { app.terminate() }
+        XCUIDevice.shared.orientation = .portrait
+        let row = app.descendants(matching: .any)["business-item-task-1"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.navigationBars["Task"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.staticTexts["Deep-linked task beyond the first page"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.alerts["Atlas link"].exists)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["Tasks"].waitForExistence(timeout: 5))
+    }
+
     @MainActor func testWarmLinkCannotDiscardAISetupDraft() {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace", "--resume-destination",
