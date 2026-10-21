@@ -297,7 +297,11 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// the server can stop them through the normal dispatch lifecycle.
 	// Idle Pending Pods are safe to reap directly, including Linux warm
 	// runners on a stale RuntimeClass revision. Both paths share one
-	// availability budget.
+	// availability budget. A macOS Pod whose seat is still in flight is
+	// neither: it was created for demand, and retiring it mid-pull or
+	// before its first poll makes that job wait for a replacement to pull
+	// the new image from scratch. It runs one job on the old image and
+	// exits like any other single-shot runner.
 	var drainCandidates []*corev1.Pod
 	var reapCandidates []*corev1.Pod
 	for i := range pods.Items {
@@ -405,7 +409,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				staleAlive++
 				if staleImage && p.Labels[drainEligibleLabel] == "true" {
 					markedStale++
-				} else if isIdle(p) {
+				} else if isIdle(p) && !macOSSeatInFlight(p, r.now()) {
 					if p.Status.Phase == corev1.PodPending {
 						reapCandidates = append(reapCandidates, p)
 					} else if staleImage {
