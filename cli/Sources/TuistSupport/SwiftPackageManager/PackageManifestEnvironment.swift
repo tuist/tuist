@@ -60,14 +60,23 @@ public enum PackageManifestEnvironment {
     private static func automaticExcludedVariablePatterns(in variables: [String: String]) -> [String] {
         var patterns = [
             "_",
+            "PWD",
             "OLDPWD",
             "SHLVL",
+            "TERM_SESSION_ID",
+            "ITERM_SESSION_ID",
+            "SECURITYSESSIONID",
+            "TMUX_PANE",
+            "XPC_SERVICE_NAME",
+            "__MISE_*",
+            "CLAUDECODE",
+            "CLAUDE_*",
             "TUIST_CACHE_ENDPOINT",
             "TUIST_CACHE_MAX_BYTES",
             "TUIST_CACHE_SIGNING_GRANT",
             "TUIST_RUNNER_POD_NAME",
             "TUIST_RUNNER_POD_UID",
-        ].filter { variables[$0] != nil }
+        ].filter { pattern in variables.keys.contains { matches(key: $0, patterns: [pattern]) } }
 
         if variables["GITLAB_CI"] == "true" {
             patterns += [
