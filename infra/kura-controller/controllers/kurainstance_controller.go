@@ -3542,7 +3542,7 @@ func podKuraImage(pod *corev1.Pod) string {
 // is told to budget and evicts down into it, so it is left alone.
 func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	if fencedServing(instance) {
-		return false, nil
+		return r.reconcileFencedDataStorageResize(ctx, instance)
 	}
 	desired := storageQuantity(instance)
 	if desired.IsZero() {
