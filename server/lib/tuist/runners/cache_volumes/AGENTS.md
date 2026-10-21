@@ -12,8 +12,9 @@ these schemas persist volume identities and per-job uses.
   (30 GB, `volume_bytes/1`) and `tuist-module` custom volumes, which the
   module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
   attach. Dispatch sends `automatic_caches: false` and
-  `managed_cache_volumes: true`, stamps the untrusted label so the host gives
-  the job an empty built-in image and never promotes it, and omits its HEAD;
+  `managed_cache_volumes: true`, stamps the untrusted label so the host creates
+  no built-in image for the job, reserves no room for one and never promotes,
+  and omits its HEAD;
   the cache signing grant still follows trust. The dashboard names the volumes
   "Xcode cache" and "Module cache" and keeps listing built-in volumes from
   earlier jobs.

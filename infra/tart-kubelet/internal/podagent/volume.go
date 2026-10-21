@@ -569,22 +569,6 @@ func (m *VolumeManager) hasMasterLocked(key masterKey) bool {
 	return err == nil
 }
 
-// MaterializeEmpty gives a branch an empty image without consulting any
-// account's master. Used for untrusted (fork) jobs, which must neither read the
-// account's warm master nor promote into it, but still need something to attach
-// — cache-ready always means "an image is waiting for you".
-func (m *VolumeManager) MaterializeEmpty(att VolumeAttachment) error {
-	if !m.Enabled() || !att.Attached {
-		return nil
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if err := m.reserveLocked(att, masterKey{}); err != nil {
-		return err
-	}
-	return m.createBranchImageLocked(m.BranchImage(att))
-}
-
 // reserveLocked is admission: it reserves CapGiB for this branch AND for every
 // other reserved branch's worst-case remaining growth. statfs free already
 // reflects what reserved branches have written; reserving CapGiB per branch keeps

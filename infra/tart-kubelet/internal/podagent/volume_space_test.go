@@ -48,7 +48,7 @@ func TestHostFloorAppliesToBuiltinCustomAndConvergence(t *testing.T) {
 		return hostdisk.Stats{TotalBytes: 2000 * gib, FreeBytes: 310 * gib}, nil
 	}
 	att := mustAllocate(t, m, "running")
-	if err := m.MaterializeEmpty(att); !errors.Is(err, errAdmissionDeclined) {
+	if _, _, err := m.Materialize(att, "1"); !errors.Is(err, errAdmissionDeclined) {
 		t.Fatalf("built-in consumed host reserve: %v", err)
 	}
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
@@ -155,8 +155,8 @@ func TestCacheBudgetBoundsCachesBelowTheQuota(t *testing.T) {
 	}
 
 	att := mustAllocate(t, m, "job")
-	if err := m.MaterializeEmpty(att); err != nil {
-		t.Fatalf("MaterializeEmpty: %v", err)
+	if _, _, err := m.Materialize(att, "3"); err != nil {
+		t.Fatalf("Materialize: %v", err)
 	}
 	if _, err := os.Stat(older); !os.IsNotExist(err) {
 		t.Fatalf("a job reserving 30 GiB with 20 GiB left in the budget kept the oldest master: %v", err)
