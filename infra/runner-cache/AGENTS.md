@@ -42,6 +42,26 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   reclaim their journals only after the existing writer fences pass.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
+- Every `Observation` carries a `Subject` (`Observer.For(slot)`/`With`) that
+  agents append to their phase log line, never to a metric label: `scope` (64
+  hex; node labels use its first 48), `use`, `kind` (`custom`, `managed`,
+  `checkout`, or absent when the host cannot tell), `key` (managed only),
+  `volume_key` (checkout digest), `generation`, `mounted_generation`,
+  `checkout_generation` and `pod`. Fields with no value are left out. Never add
+  account or repository names or a customer-chosen key: `Identity.ManagedKey`
+  is set by the agent from the request through `ManagedKey`, which keeps only
+  Tuist's managed keys.
+- Every master removal logs `cache master evicted` (`LocalImages.Log`) or
+  `checkout master evicted` (`Checkouts.Log`) with `scope`, `generation` or
+  `checkout_generation`, `bytes` (allocated; blocks shared with clones stay in
+  use) and `reason`. Admission (`reserveBytes`) logs the `evictionOrder` reason
+  (`superseded`, `speculative`, `idle`, `in_use`) under pressure or `expired`
+  (unused 7 days) without, with `needed_bytes`, `free_bytes` and the `for_*`
+  subject it ran for (`WithSubject`). Maintenance logs `expired`, `superseded`
+  (with `head_generation`), `head_conflict` (lineage cleared or expired) or
+  `no_metadata`. Checkouts log `expired`, `idle` (LRU under pressure) or
+  `cleared` (the checkout volume's scope changed). The `evict` observation also
+  names the master's `scope` and `generation`.
 - Linux may prefetch one immutable master after a timed-out warm acquisition,
   bounded to two minutes with no queue and the same disk reserve. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
@@ -50,7 +70,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   master of the same scope (recorded in `<image>.base` and
   `Slot.MountedGeneration`), else formats an empty image marked `<image>.cold`.
   A cold branch reports `Warm=false` and `Seal` returns `ErrWithheld`, which the
-  Store treats like a poisoned branch: deleted, never published.
+  Store treats like a poisoned branch: deleted, never published. Only the Store's
+  `publish` action (the server's size rule, see `CacheVolumes`) sets
+  `Slot.PublishCold` for that one seal; the full, unchanged, identical and
+  generation checks still apply. Linux never starts a branch empty over a HEAD.
 - APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
@@ -66,6 +89,12 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   newer than the one it recorded. The first attach writes `.entries` after the
   marker; later attaches of the branch keep it. A missing baseline means changed;
   a `.verified` or `.checking` branch skips the check.
+- An `ErrUnchanged` branch cloned from its own base (APFS: no `.base`) becomes
+  that generation's local master when the host no longer holds it, after the
+  same verification publication runs (`keepUnchanged`, `keep` observation).
+  Admission may evict a master while a job runs, and an unchanged lineage never
+  publishes, so otherwise only a download brings its copy back. Linux removes
+  the `.verified` marker afterwards so a retried seal withholds it again.
 - `Identity.VolumeBytes` is the capacity the server chose for this use; zero
   means the host default (`SizeGB`). `HeadSizeBytes` is the saved head's measured
   used bytes, zero when unknown. `Store.MaxVolumeBytes` is the host maximum each
@@ -106,6 +135,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   used in the last day while its successor is queued, instead of removing it.
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
+- Pressure eviction (`reserveBytes`, `evictionOrder`) removes, in order: generations a
+  newer local master of their lineage supersedes; speculative masters (`<master>.spare`,
+  written by a spare prefetch of a lineage with no used copy here, removed by the
+  first clone); the rest least recently used first (mtime). Lineages
+  `LocalImages.InUse` (each host passes `Store.InUse`) reports held or attaching go
+  last: their clones share the masters' blocks, and an attaching job would lose its
+  base and go cold. The order never changes what admission can free, only what goes
+  first. Each removal is an `evict` observation whose source is the reason.
 - `MasterNodeLabels(root)` advertises one `tuist.dev/cache-volume-<first 48 hex of
   scope>` label per lineage with an installed `*.img` master. tart-kubelet
   publishes it on the node heartbeat and the Linux agent merges it into its Node
@@ -159,6 +196,12 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
   off masters a job holds or is attaching: their blocks are shared, so evicting
   them frees nothing and the attaching job loses its seed.
+- A checkout master's tip only moves to a `DefaultBranchJob`'s commit. While the
+  lineage has no HEAD (`BaseGeneration` 0), a `MayStartMaster` job's checkout may
+  also start it: its own commit, or a two-parent merge naming that commit (a
+  pull request's test merge, read with `cat-file commit` because a depth-1 fetch
+  leaves its parents out). That master is published like a moved tip. Once a
+  master exists, other exports only add objects.
 - `ReceiveCheckoutExport` unpacks a streamed export (Linux has no writable host
   share): regular files named `head`, `shallow`, `pack` or `lfs/<oid>` only,
   within the export bounds, written through `os.Root`, else the whole stream is

@@ -181,3 +181,24 @@ func TestCacheBudgetAboveTheQuotaLeavesTheQuota(t *testing.T) {
 		t.Fatalf("capacity = %d, %v; want the 240 GiB quota", capacity, err)
 	}
 }
+
+func TestCapacityNodeLabelsAdvertiseTheBudgetedCacheDisk(t *testing.T) {
+	m, be := newTestManager(t, 512)
+	m.BudgetGiB = 240
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+
+	labels, err := c.CapacityNodeLabels()
+	if err != nil || len(labels) != 1 || labels[CacheCapacityNodeLabel] != "240" {
+		t.Fatalf("labels = %v, %v; want %s=240", labels, err, CacheCapacityNodeLabel)
+	}
+
+	m.BudgetGiB = 0
+	if labels, _ = c.CapacityNodeLabels(); labels[CacheCapacityNodeLabel] != "512" {
+		t.Fatalf("labels = %v, want the quota without a budget", labels)
+	}
+
+	be.notMounted = true
+	if labels, err = c.CapacityNodeLabels(); err != nil || len(labels) != 0 {
+		t.Fatalf("labels = %v, %v; want none while unmounted", labels, err)
+	}
+}

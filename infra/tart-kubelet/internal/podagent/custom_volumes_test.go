@@ -607,3 +607,39 @@ func TestCustomVolumeAuthorizationReportsWhyItFailed(t *testing.T) {
 		})
 	}
 }
+
+func TestCustomVolumeReportPublishesAnEmptyStartOnlyWhenTheServerAllowsIt(t *testing.T) {
+	id := "11111111-1111-4111-8111-111111111111"
+	scope := strings.Repeat("a", 64)
+	for _, tc := range []struct {
+		response, want string
+	}{
+		{response: `{"action":"seal"}`, want: "seal"},
+		{response: `{"action":"seal","cold_publish":false}`, want: "seal"},
+		{response: `{"action":"seal","cold_publish":true}`, want: "publish"},
+		{response: `{"action":"delete","cold_publish":true}`, want: "delete"},
+	} {
+		t.Run(tc.response, func(t *testing.T) {
+			root := t.TempDir()
+			mounted := filepath.Join(root, "pods", "host-uid", scope)
+			if err := os.MkdirAll(mounted, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(mounted, ".mounted"), []byte(id), 0644); err != nil {
+				t.Fatal(err)
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/report" {
+					t.Errorf("unexpected request %s", r.URL.Path)
+				}
+				_, _ = w.Write([]byte(tc.response))
+			}))
+			defer server.Close()
+			c := &CustomVolumes{Root: root, URL: server.URL, HTTP: server.Client(), Node: "host-node", tokenValue: "host-only", tokenUntil: time.Now().Add(time.Minute)}
+			action, err := c.report(cachevolumes.Slot{Identity: cachevolumes.Identity{ID: id, Scope: scope}, PodUID: "host-uid", State: "active"}, true)
+			if err != nil || action != tc.want {
+				t.Fatalf("action = %q, %v; want %q", action, err, tc.want)
+			}
+		})
+	}
+}

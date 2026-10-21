@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
+
+// spareScope is the scope the held background prefetch restores.
+var spareScope = strings.Repeat("d", 64)
 
 // holdSparePrefetch starts a background prefetch that reserves its space and
 // then downloads until it is cancelled, and returns its eventual error.
@@ -16,7 +20,7 @@ func holdSparePrefetch(t *testing.T, c *CustomVolumes) <-chan error {
 	reserved := make(chan error, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- c.prefetchSpare(context.Background(), func(ctx context.Context) error {
+		done <- c.prefetchSpare(context.Background(), spareScope, func(ctx context.Context) error {
 			finish, err := c.reserve(ctx, cachevolumes.Slot{Identity: cachevolumes.Identity{ID: cachevolumes.PrefetchReservation, BaseGeneration: 1}})
 			reserved <- err
 			if err != nil {
@@ -54,6 +58,7 @@ func requireDisplaced(t *testing.T, c *CustomVolumes, done <-chan error) {
 // master but not beside a background prefetch's 40 GB as well. The prefetch is
 // speculative, so it gives way; the master jobs clone from stays.
 func TestBuiltinAdmissionCancelsABackgroundPrefetchBeforeEvicting(t *testing.T) {
+	logs := captureLogs(t)
 	m, _ := m2L(t)
 	seedMaster(t, m, "3")
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
@@ -69,9 +74,11 @@ func TestBuiltinAdmissionCancelsABackgroundPrefetchBeforeEvicting(t *testing.T) 
 		t.Fatal("evicted a master to keep a background prefetch's reservation")
 	}
 	requireDisplaced(t, c, done)
+	requireLogged(t, logs(), "admission cancelled a background prefetch", "scope="+spareScope, "for_kind=builtin")
 }
 
 func TestCustomAdmissionCancelsABackgroundPrefetch(t *testing.T) {
+	logs := captureLogs(t)
 	m, _ := m2L(t)
 	seedMaster(t, m, "3")
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
@@ -83,6 +90,7 @@ func TestCustomAdmissionCancelsABackgroundPrefetch(t *testing.T) {
 	}
 	defer finish(false)
 	requireDisplaced(t, c, done)
+	requireLogged(t, logs(), "admission cancelled a background prefetch", "scope="+spareScope, "for_use=11111111-1111-4111-8111-111111111111", "for_kind=custom")
 	if !masterExists(m, "3") {
 		t.Fatal("custom admission removed a built-in master")
 	}
@@ -111,4 +119,19 @@ func TestAdmissionLeavesABackgroundPrefetchThatFits(t *testing.T) {
 	if err := <-done; errors.Is(err, errSpareDisplaced) {
 		t.Fatal(err)
 	}
+}
+
+// requireLogged fails unless one line holds every part.
+func requireLogged(t *testing.T, lines []string, parts ...string) {
+	t.Helper()
+	for _, line := range lines {
+		found := true
+		for _, part := range parts {
+			found = found && strings.Contains(line, part)
+		}
+		if found {
+			return
+		}
+	}
+	t.Fatalf("no line with %q in %q", parts, lines)
 }

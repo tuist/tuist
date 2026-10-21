@@ -79,7 +79,8 @@ func (b *LocalImages) refreshMasters() {
 
 func (b *LocalImages) refreshMaster(job refreshJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
-	done := b.Observe.Start("refresh", "remote")
+	done := b.Observe.For(job.next).Start("refresh", "remote")
+	ctx = WithSubject(ctx, SubjectOf(job.next))
 	b.refresh.active.Store(job.stale.Scope, struct{}{})
 	err := b.reserve(ctx)
 	if err == nil {
@@ -90,7 +91,9 @@ func (b *LocalImages) refreshMaster(job refreshJob) {
 	done(err)
 	unlock := b.lock(job.stale.Scope)
 	defer unlock()
-	_ = removeMaster(job.master)
+	if _, err := os.Stat(job.master); err == nil {
+		_ = b.evictMaster(job.master, EvictSuperseded, "head_generation", job.next.BaseGeneration)
+	}
 }
 
 // restoreRefresh installs the newer master under the scope lock. Only a master
@@ -124,5 +127,6 @@ func removeMaster(path string) error {
 		return err
 	}
 	_ = os.Remove(path + ".json")
+	_ = os.Remove(path + ".spare")
 	return nil
 }

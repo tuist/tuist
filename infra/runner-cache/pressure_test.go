@@ -39,7 +39,8 @@ func TestRelieveEvictsIdleMastersOldestFirstUntilFree(t *testing.T) {
 	held, oldest, newer, newest := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64), strings.Repeat("d", 64)
 	b, master := relievedMasters(t, held, oldest, newer, newest)
 
-	evicted, err := b.Relieve(context.Background(), 20, func(scope string) bool { return scope == held })
+	b.InUse = func(scope string) bool { return scope == held }
+	evicted, err := b.Relieve(context.Background(), 20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestRelieveLeavesMastersAloneWithRoom(t *testing.T) {
 	b, master := relievedMasters(t, strings.Repeat("a", 64))
 	b.FreeBytes = func(string) (uint64, error) { return 1, nil }
 
-	if evicted, err := b.Relieve(context.Background(), 1, func(string) bool { return false }); err != nil || evicted != 0 {
+	if evicted, err := b.Relieve(context.Background(), 1); err != nil || evicted != 0 {
 		t.Fatalf("evicted %d masters with room: %v", evicted, err)
 	}
 	if _, err := os.Stat(master(strings.Repeat("a", 64))); err != nil {

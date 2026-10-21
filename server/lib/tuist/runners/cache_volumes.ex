@@ -30,11 +30,18 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @retention_seconds 7 * 24 * 60 * 60
   @checkout_key "checkout"
+  @checkout_reserved_bytes 8_000_000_000
+  @unmeasured_reserved_bytes 5_000_000_000
+  @growth_reserved_bytes 2_000_000_000
 
   # A saved snapshot at or above @full_percent of its capacity, which a clone filled
   # to @out_of_space_percent, is not cloned again: the next use starts a fresh lineage.
   @full_percent 80
   @out_of_space_percent 99
+
+  # A use that started empty although its volume has a saved head replaces that
+  # head only when it used at least twice the head's bytes and this much more.
+  @cold_publish_margin_bytes 1_000_000_000
 
   @volume_bytes 20_000_000_000
   # Tuist sizes its managed volumes and ignores requested sizes for them.
@@ -90,7 +97,8 @@ defmodule Tuist.Runners.CacheVolumes do
   for. The host builds its master from what jobs export and verifies it, so a
   job's own branch never publishes; the host publishes the master instead. Besides
   the identity and the volume's HEAD, the result carries the clone URL, the
-  default branch, the job's commit and whether the job ran on the default branch.
+  default branch, the job's commit, whether the job ran on the default branch,
+  and whether its commit may start a master while the volume has no HEAD.
   """
   def allocate_checkout(%{
         "pod_name" => pod,
@@ -103,7 +111,8 @@ defmodule Tuist.Runners.CacheVolumes do
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
          {:ok, %WorkflowJob{provider: "github"} = job, platform} <- executing_job(pod, node),
-         true <- profile_cached_checkouts?(job),
+         profile = Profiles.get_for_dispatch_label(job.account_id, job.requested_dispatch_label),
+         true <- cached_checkouts?(profile),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",
          {:ok, identity} <- Identity.resolve(job),
@@ -128,6 +137,7 @@ defmodule Tuist.Runners.CacheVolumes do
          commit: job.head_sha,
          # A pull request from a branch or fork named like the default branch is not one.
          default_branch_job: identity.trusted,
+         may_start_master: may_start_master?(identity, profile),
          # Stable across clears, so a host can drop the copies of a cleared generation.
          volume_key: :sha256 |> :crypto.hash(usage.volume_id) |> Base.encode16(case: :lower)
        })}
@@ -140,12 +150,14 @@ defmodule Tuist.Runners.CacheVolumes do
   def allocate_checkout(_), do: {:error, :unavailable}
 
   # A job follows its profile's setting; one on a legacy label has checkouts on.
-  defp profile_cached_checkouts?(job) do
-    case Profiles.get_for_dispatch_label(job.account_id, job.requested_dispatch_label) do
-      %Profile{cached_checkouts: enabled} -> enabled
-      nil -> true
-    end
-  end
+  defp cached_checkouts?(%Profile{cached_checkouts: enabled}), do: enabled
+  defp cached_checkouts?(nil), do: true
+
+  # A job may start a repository's first checkout master when its profile would let
+  # it save a custom volume: the master's tree is handed to every later job, so
+  # forks and pull_request_target, which have no writer branch, never qualify.
+  defp may_start_master?(identity, profile),
+    do: writer_allowed?(profile || %Profile{}, identity.trusted, Map.get(identity, :writer_branch))
 
   # The session's executed binding is the proof that this runner runs the job.
   # The job row can still be `queued` or `claimed` by another Pod until the
@@ -729,6 +741,9 @@ defmodule Tuist.Runners.CacheVolumes do
       is_nil(completion) or completion.conclusion != "success" ->
         discard(usage, now)
 
+      state == "active" and cold_publish?(volume, usage) ->
+        %{action: "seal", cold_publish: true}
+
       state == "active" ->
         %{action: "seal"}
 
@@ -737,6 +752,24 @@ defmodule Tuist.Runners.CacheVolumes do
         discard(usage, now)
     end
   end
+
+  # A host withholds a use that started empty although its lineage had a saved
+  # head (`warm: false` with a base), so a cold start cannot replace a good head
+  # with less. Such a use may replace the head it was based on only when it used
+  # at least twice that head's bytes and @cold_publish_margin_bytes more: the
+  # head was saved before it held what jobs need. Unknown sizes never qualify.
+  defp cold_publish?(volume, usage) do
+    head = volume.head_id && Repo.get(Usage, volume.head_id)
+
+    cold?(volume, usage) and not is_nil(head) and head.published_generation == usage.base_generation and
+      is_integer(head.size_bytes) and is_integer(usage.size_bytes) and
+      usage.size_bytes >= 2 * head.size_bytes and
+      usage.size_bytes - head.size_bytes >= @cold_publish_margin_bytes
+  end
+
+  # A checkout use publishes the host's master, never the branch it started from.
+  defp cold?(%Volume{key: @checkout_key}, _usage), do: false
+  defp cold?(_volume, usage), do: usage.warm == false and usage.base_generation > 0
 
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
@@ -777,32 +810,79 @@ defmodule Tuist.Runners.CacheVolumes do
     do: Map.get(@managed_volume_bytes, key) || (saved_head && saved_head.volume_bytes) || @volume_bytes
 
   @doc """
-  The lineage scopes of the custom volumes that jobs of `repository` attached
-  since `since`, keyed by the `{workflow_name, job_name}` of the job. A job
-  attaches its volumes at runtime, so this history is how dispatch predicts the
-  volumes a queued job will attach.
+  The custom volumes that jobs of `repository` attached since `since`, keyed by
+  the `{workflow_name, job_name}` of the job. A job attaches its volumes at
+  runtime, so this history is how dispatch predicts the volumes a queued job
+  will attach. Each is `%{id, scope, reserved_bytes}`: the volume, its lineage
+  scope, and the cache disk room a host reserves when a job attaches it.
   """
-  def recent_job_scopes(account_id, repository, %DateTime{} = since)
+  def recent_job_volumes(account_id, repository, %DateTime{} = since)
       when is_integer(account_id) and is_binary(repository) do
     from(v in Volume,
       join: u in Usage,
       on: u.volume_id == v.id,
       join: j in WorkflowJob,
       on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
+      left_join: head in Usage,
+      on: head.id == v.head_id,
       where:
         v.account_id == ^account_id and v.repository == ^repository and is_nil(v.builtin_name) and
           is_nil(v.deleted_at) and u.inserted_at >= ^since,
       distinct: true,
-      select: {j.workflow_name, j.job_name, v.id, v.generation}
+      select: {j.workflow_name, j.job_name, v, head.volume_bytes, head.size_bytes}
     )
     |> Repo.all()
     |> Enum.group_by(
-      fn {workflow_name, job_name, _id, _generation} -> {workflow_name, job_name} end,
-      fn {_workflow_name, _job_name, id, generation} -> scope(%{id: id, generation: generation}) end
+      fn {workflow_name, job_name, _volume, _head_volume_bytes, _head_size_bytes} -> {workflow_name, job_name} end,
+      fn {_workflow_name, _job_name, volume, head_volume_bytes, head_size_bytes} ->
+        %{
+          id: volume.id,
+          scope: scope(volume),
+          reserved_bytes: reserved_bytes(volume.key, next_volume_bytes(volume, head_volume_bytes), head_size_bytes)
+        }
+      end
     )
   end
 
-  def recent_job_scopes(_account_id, _repository, _since), do: %{}
+  def recent_job_volumes(_account_id, _repository, _since), do: %{}
+
+  @doc """
+  The cache disk room the custom volumes that `workflow_job_ids` allocated on
+  `node_names` hold, as `%{{node_name, workflow_job_id} => %{volume_id =>
+  bytes}}`. A use the host deleted holds nothing.
+  """
+  def allocated_reserved_bytes([], _workflow_job_ids), do: %{}
+  def allocated_reserved_bytes(_node_names, []), do: %{}
+
+  def allocated_reserved_bytes(node_names, workflow_job_ids) when is_list(node_names) and is_list(workflow_job_ids) do
+    from(u in Usage,
+      join: v in Volume,
+      on: v.id == u.volume_id,
+      left_join: head in Usage,
+      on: head.id == u.parent_id,
+      where:
+        u.node_name in ^node_names and is_nil(u.deleted_at) and u.workflow_job_id in ^workflow_job_ids and
+          is_nil(v.builtin_name),
+      select: {u.node_name, u.workflow_job_id, v.id, v.key, u.volume_bytes, head.size_bytes}
+    )
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn {node_name, workflow_job_id, volume_id, key, volume_bytes, head_size_bytes}, acc ->
+      bytes = reserved_bytes(key, volume_bytes || default_volume_bytes(key), head_size_bytes)
+      Map.update(acc, {node_name, workflow_job_id}, %{volume_id => bytes}, &Map.put(&1, volume_id, bytes))
+    end)
+  end
+
+  # The room a host reserves when a job attaches a volume, as runner-cache's
+  # Identity.ExpectedBytes computes it: the head's used bytes plus half again, at
+  # least @growth_reserved_bytes, else @unmeasured_reserved_bytes, never more than
+  # the capacity. A cached checkout clones its master and reserves only its
+  # growth (CheckoutGrowthBytes).
+  defp reserved_bytes(@checkout_key, _volume_bytes, _head_size_bytes), do: @checkout_reserved_bytes
+
+  defp reserved_bytes(_key, volume_bytes, head_size_bytes) when is_integer(head_size_bytes) and head_size_bytes > 0,
+    do: min(volume_bytes, head_size_bytes + max(@growth_reserved_bytes, div(head_size_bytes, 2)))
+
+  defp reserved_bytes(_key, volume_bytes, _head_size_bytes), do: min(volume_bytes, @unmeasured_reserved_bytes)
 
   @doc """
   The saved HEADs of the macOS custom volumes jobs used on `node_names` since
@@ -966,7 +1046,9 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # The host builds a checkout master from exports it verified itself, so the job's
   # outcome and the use's state after the job do not matter: the use only names
-  # the lineage and the HEAD the master fast-forwards, once.
+  # the lineage and the HEAD the master fast-forwards, once. Only a default-branch
+  # job's master moves an existing HEAD; another job with a writer branch can only
+  # publish the lineage's first one.
   defp checkout_publish(volume, usage, operation, digest, content) do
     cond do
       usage.generation != volume.generation or not is_nil(volume.deleted_at) ->
@@ -976,6 +1058,9 @@ defmodule Tuist.Runners.CacheVolumes do
         %{generation: usage.published_generation}
 
       usage.status == "published" ->
+        Repo.rollback(:conflict)
+
+      not usage.writer_default_branch and (usage.base_generation != 0 or is_nil(usage.writer_branch)) ->
         Repo.rollback(:conflict)
 
       true ->
@@ -1014,8 +1099,9 @@ defmodule Tuist.Runners.CacheVolumes do
   defp image_publish(volume, usage, "upload", digest, content) do
     name = storage_name(volume)
 
-    if not Runners.fast_forward_viable?(volume.account_id, name, usage.base_generation),
-      do: Repo.rollback(:conflict)
+    if not Runners.fast_forward_viable?(volume.account_id, name, usage.base_generation) or
+         (cold?(volume, usage) and not cold_publish?(volume, usage)),
+       do: Repo.rollback(:conflict)
 
     case Runners.volume_master_upload_url(volume.account_id, name, digest, content) do
       {:ok, url, checksum} ->

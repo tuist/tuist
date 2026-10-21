@@ -53,6 +53,7 @@ func (m *volumeMetrics) observe(o cachevolumes.Observation) {
 			level = slog.LevelWarn
 		}
 		fields := []any{"operation", o.Operation, "source", o.Source, "result", result, "duration_ms", o.Duration.Milliseconds()}
+		fields = append(fields, o.Subject.Fields()...)
 		var remote *cachevolumes.RemoteError
 		if errors.As(o.Err, &remote) {
 			fields = append(fields, "remote_operation", remote.Operation, "http_status", remote.StatusCode)

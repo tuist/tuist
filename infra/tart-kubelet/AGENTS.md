@@ -92,9 +92,35 @@ workflow code runs in the guest. Never expose host credentials or masters.
   A background prefetch the server listed for the host gives way first: built-in
   and custom job admission cancel it and drop its reservation (twice its volume
   size) before evicting any master (`displaceSpareLocked`).
+  Among custom masters, eviction takes superseded generations and unused spare
+  prefetches first and the lineages a running or attaching job holds last
+  (`LocalImages.InUse`); see `runner-cache/AGENTS.md`.
+- The heartbeat labels the Node `tuist.dev/cache-volume-capacity-gib` with that
+  budgeted capacity (`CustomVolumes.CapacityNodeLabels`), and none while the
+  cache filesystem is unmounted. The server subtracts the volumes of every job
+  with an open runner session here, attached or only predicted, because a job
+  reserves its volumes at attach, minutes after dispatch. Dispatch affinity and
+  macOS Pod placement prefer this host for a job only while its volumes fit.
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).
+- Logs: `logger=custom-cache-volumes` carries `cache phase` (one per
+  `Observation`, with the volume's subject fields), `cache master evicted`, and
+  `admission cancelled a background prefetch` (the cancelled prefetch's `scope`
+  plus the `for_*` subject it made room for; `for_kind=builtin` for built-in
+  admission). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
+  The `tuist_runner_cache_volume_*` metrics keep only operation/source/result.
+  Everything that happened to one volume on a host:
+
+  ```logql
+  {job="tuist-macos-tart-kubelet", instance="<host>"} |= "<scope>"
+    | json | logger="custom-cache-volumes"
+    | line_format "{{.msg}} {{.operation}} {{.reason}} {{.result}} gen={{.generation}} pod={{.pod}}"
+  ```
+
+  Searching for the 48-hex prefix from a `tuist.dev/cache-volume-<prefix>` node
+  label matches the same lines. The Linux agent logs the same fields as JSON
+  under `cache volume operation` and `cache master evicted`.
 
 - Built-in volume telemetry is sampled in the guest at attach and before detach,
   then attributed and queued by the host after finalization. Reports use the
@@ -112,9 +138,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
   deadline is `execution_pending`, not `denied`.
   A job never waits for a download. Without its base locally it mounts the newest
   older master of the same lineage (reported as `mounted_generation`), or else an
-  empty image marked `.cold` that reports a miss and is withheld from publication;
-  either way its base is queued. A superseded master used in the last day stays
+  empty image marked `.cold` that reports a miss and is withheld from publication
+  unless the report response pairs `seal` with `cold_publish: true` (the Store's
+  `publish` action); either way its base is queued. A superseded master used in the last day stays
   until its successor is downloaded through the queue (`LocalImages.Replace`).
+  An unchanged branch of its own base reinstalls that master if admission
+  evicted it during the job (see `runner-cache/AGENTS.md`).
   The host maximum is `--custom-cache-max-volume-gb` (100 GB by default, env
   `TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB`), sent as `max_volume_bytes` with every
   authorization alongside the guest's valid `requested_volume_bytes`; a 507 is
@@ -173,17 +202,22 @@ workflow code runs in the guest. Never expose host credentials or masters.
   names, and the host writes the working tree and the index itself. Only LFS
   objects the exported commit references are kept, an export is capped at half
   an image (and 200,000 LFS entries), and a build reserves twice its size. A
-  master only starts from, and its tip only moves to, a default-branch job's
-  commit (`default_branch_job` is the server's verified `trusted`, never the
-  branch name) whose LFS objects are all present: its tree is handed to every
-  later job, and a pointer left in it would be served as the file. Branches stay
+  master's tip only moves to a default-branch job's commit (`default_branch_job`
+  is the server's verified `trusted`, never the branch name) whose LFS objects
+  are all present: its tree is handed to every later job, and a pointer left in
+  it would be served as the file. While the lineage has no HEAD
+  (`base_generation` 0), a job with `may_start_master` (a same-repository writer
+  branch its profile saves from; never forks or pull_request_target) may also
+  start the master at its own verified commit, or at its pull request's test
+  merge of it (two parents, one of them that commit); once a master exists, its
+  exports only add objects. Branches stay
   `refs/remotes/origin/*` (actions/checkout deletes local branches before
   fetching) and job commits live under `refs/tuist/recent/*`. Wait past the
   smudged files' mtimes before the final `update-index --really-refresh`: racily
   clean LFS entries turn back into pointers in a guest that has not configured
   the LFS filter.
-- A master that moved to a default-branch commit is published under the job's
-  use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
+- A master whose tip moved (a default-branch commit, or a started lineage) is
+  published under the job's use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
   one); a cold host with a HEAD restores it in the background instead. A cold
   answer journals no branch and reports the use deleted at once. A host without
   working git answers `denied`, so guests do not export. `Track` maps the

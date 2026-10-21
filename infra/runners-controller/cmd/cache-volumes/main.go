@@ -74,8 +74,9 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	outcome := errors.New("invalid acquisition")
-	acquired := a.observe.Start("acquire", "none")
-	defer func() { acquired(outcome) }()
+	var subject cachevolumes.Subject
+	start := time.Now()
+	defer func() { a.observe.With(subject).Report("acquire", "none", start, outcome) }()
 	if a.requests != nil {
 		select {
 		case a.requests <- struct{}{}:
@@ -92,6 +93,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", 400)
 		return
 	}
+	subject.Pod = input.PodName
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 	if !a.runnerPod(ctx, r, input.PodName, input.PodUID) {
@@ -105,9 +107,13 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		fields["requested_volume_bytes"] = int64(input.RequestedVolumeBytes)
 	}
 	body, _ := json.Marshal(fields)
-	authorized := a.observe.Start("authorize", "none")
+	authorizing := time.Now()
 	identity, err := a.authorize(ctx, body)
-	authorized(err)
+	identity.ManagedKey = cachevolumes.ManagedKey(input.Key)
+	if err == nil {
+		subject = cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity, PodName: input.PodName})
+	}
+	a.observe.With(subject).Report("authorize", "none", authorizing, err)
 	outcome = err
 	if errors.Is(err, cachevolumes.ErrExecutionPending) {
 		log.Printf("cache authorization timed out: GitHub has not reported the job running on pod %s", input.PodName)
@@ -240,7 +246,7 @@ func main() {
 	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes}
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
-	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
+	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Log: metrics.logger, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
 	// A master another host superseded is refreshed in the background when it was
 	// used within the last day, so this host's next job attaches locally.
 	backend.RefreshWithin = 24 * time.Hour
@@ -255,7 +261,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	checkouts.InUse = store.InUse
+	checkouts.InUse, backend.InUse = store.InUse, store.InUse
 	defer store.Close()
 	// Lock survives requests and prevents an overlapping/restarted DaemonSet from
 	// allocating the same directory. Kubernetes rollout uses maxSurge=0 as well.

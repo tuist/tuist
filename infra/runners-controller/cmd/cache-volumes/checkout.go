@@ -24,6 +24,7 @@ type checkoutGrant struct {
 	DefaultBranch    string `json:"default_branch"`
 	Commit           string `json:"commit"`
 	DefaultBranchJob bool   `json:"default_branch_job"`
+	MayStartMaster   bool   `json:"may_start_master"`
 	VolumeKey        string `json:"volume_key"`
 }
 
@@ -104,7 +105,7 @@ func (a *agent) serveCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	done := a.observe.Start("checkout_acquire", "none")
+	done := a.observe.With(cachevolumes.Subject{Pod: input.PodName}).Start("checkout_acquire", "none")
 	response, err := a.checkout(ctx, input)
 	done(err)
 	_ = json.NewEncoder(w).Encode(response)
@@ -130,7 +131,7 @@ func (a *agent) checkout(ctx context.Context, input checkoutRequest) (map[string
 	}
 	task := cachevolumes.CheckoutTask{
 		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
+		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, MayStartMaster: grant.MayStartMaster, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
 		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
 	}
 	// The job's branch is a clone of this host's master; the HEAD only restores it.
@@ -192,7 +193,7 @@ func (a *agent) serveCheckoutExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(5 * time.Minute))
-	done := a.observe.Start("checkout_export", "local")
+	done := a.observe.With(task.Subject()).Start("checkout_export", "local")
 	dst := a.checkouts.Incoming(uid)
 	var admit func(int64) (func(), error)
 	if a.space != nil {

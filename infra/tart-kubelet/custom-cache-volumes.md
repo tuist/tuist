@@ -287,7 +287,10 @@ but a macOS job never waits for a download. It clones its base master, or the
 newest older master of its lineage, and otherwise starts from an empty image
 marked `.cold`. That branch reports a miss, its master is queued for background
 download ahead of any speculative prefetch, and sealing withholds it
-(`ErrWithheld`) so an empty start never replaces the saved version. Admission
+(`ErrWithheld`) unless the server allows it to replace the saved version: the
+report response then carries `cold_publish: true` beside `seal`, which only
+happens when the branch used at least twice the saved head's bytes and at
+least 1 GB more. Admission
 therefore needs one image of free space for every attach. Cancellation reaches
 APFS creation/cloning and admission waits; an expired response cannot trigger a
 guest mount. The unavailable response carries a bounded

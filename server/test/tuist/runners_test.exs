@@ -1887,16 +1887,28 @@ defmodule Tuist.RunnersTest do
       volume
     end
 
-    test "prefers the Nodes holding the volumes a queued macOS job is predicted to attach" do
+    test "prefers a Node holding the volumes a queued macOS job is predicted to attach" do
       account = account_fixture()
       volume = used_volume(account)
       fleet = "macos-signal-volumes"
       {:ok, resources} = Catalog.resources_for_fleet(fleet)
+      label = "tuist.dev/cache-volume-" <> String.slice(CacheVolumes.scope(volume), 0, 48)
+
+      stub(K8sClient, :get_runner_pool, fn _namespace, ^fleet -> {:ok, %{"spec" => %{"fleetSelector" => "rack"}}} end)
+
+      stub(K8sClient, :list_nodes, fn "tuist.dev/fleet=rack" ->
+        {:ok,
+         %{
+           "items" => [
+             %{"metadata" => %{"name" => "mac-01", "labels" => %{label => "true"}}},
+             %{"metadata" => %{"name" => "mac-02", "labels" => %{}}}
+           ]
+         }}
+      end)
 
       queue_job(account, 91_701, fleet, resources)
 
-      label = "tuist.dev/cache-volume-" <> String.slice(CacheVolumes.scope(volume), 0, 48)
-      assert %{preferred_node_labels: [^label]} = Runners.scaling_signals_for_fleet(fleet)
+      assert %{preferred_nodes: ["mac-01"]} = Runners.scaling_signals_for_fleet(fleet)
     end
 
     test "prefers no Node for a Linux fleet, whose Pods are placed ahead of demand" do
@@ -1907,7 +1919,7 @@ defmodule Tuist.RunnersTest do
 
       queue_job(account, 91_702, fleet, resources)
 
-      assert %{preferred_node_labels: []} = Runners.scaling_signals_for_fleet(fleet)
+      assert %{preferred_nodes: []} = Runners.scaling_signals_for_fleet(fleet)
     end
   end
 

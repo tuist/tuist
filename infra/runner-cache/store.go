@@ -34,6 +34,9 @@ type Identity struct {
 	// host-built master of its volume's clear Generation and is never published.
 	Kind       string `json:"kind,omitempty"`
 	Generation int64  `json:"generation,omitempty"`
+	// ManagedKey is set by the host from the request when the key names a
+	// Tuist-managed cache (see ManagedKey), never by the server or a guest.
+	ManagedKey string `json:"managed_key,omitempty"`
 	// VolumeBytes is the capacity the server chose for this use. Zero from a
 	// server that predates per-volume sizes.
 	VolumeBytes int64 `json:"volume_bytes"`
@@ -84,7 +87,8 @@ const (
 // ExpectedBytes is the space a job's copy is admitted with: the head's used
 // bytes plus half again (at least GrowthBytes), else UnmeasuredVolumeBytes,
 // never more than the volume. The image keeps its full capacity, so a job can
-// write past this into space nothing reserved.
+// write past this into space nothing reserved. The server's placement
+// (`Tuist.Runners.CacheVolumes`, `reserved_bytes`) mirrors this; keep them in step.
 func (i Identity) ExpectedBytes(defaultBytes int64) int64 {
 	expected := int64(UnmeasuredVolumeBytes)
 	if i.HeadSizeBytes > 0 {
@@ -121,6 +125,9 @@ type Slot struct {
 	// MountedGeneration is the older generation a branch was cloned from because
 	// its base was not on the host, or 0.
 	MountedGeneration int64 `json:"mounted_generation,omitempty"`
+	// PublishCold is set for one seal when the server lets a branch that started
+	// empty replace its lineage's HEAD (the "publish" decision).
+	PublishCold bool `json:"-"`
 }
 
 // Backend owns storage operations and must make every operation restart-safe.
@@ -442,11 +449,13 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		return s.save(slot)
 	}
 	switch action {
-	case "seal":
+	case "seal", "publish":
 		if slot.State != "active" || !slot.CanPublish {
 			return errors.New("invalid seal decision")
 		}
-		if err = s.backend.Seal(slot, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
+		sealed := slot
+		sealed.PublishCold = action == "publish"
+		if err = s.backend.Seal(sealed, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
 			if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
 				return err
 			}

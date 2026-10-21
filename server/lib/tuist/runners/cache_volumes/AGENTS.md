@@ -18,11 +18,18 @@ these schemas persist volume identities and per-job uses.
   the cache signing grant still follows trust. The dashboard names the volumes
   "Xcode cache" and "Module cache" and keeps listing built-in volumes from
   earlier jobs.
-- `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
-  affinity and for the macOS Pod placement preferences in the scaling signals: the lineage scopes jobs of the same repository, workflow name and job
-  name attached since a cutoff. It starts from the account's volumes so the uses
-  `(volume_id, inserted_at)` index applies; `VolumeAffinities` caches it per
-  account and repository.
+- `recent_job_volumes/3` predicts a queued job's custom volumes for dispatch
+  affinity and for the macOS Pod placement preferences in the scaling signals:
+  the volumes jobs of the same repository, workflow name and job name attached
+  since a cutoff, each with the cache disk room a host reserves for it (what it
+  is expected to write, as runner-cache's `Identity.ExpectedBytes` computes it
+  from the capacity and the saved head's size, or the checkout growth
+  reservation; keep the two in step). It starts from the account's
+  volumes so the uses `(volume_id, inserted_at)` index applies;
+  `VolumeAffinities` caches it per account and repository.
+  `allocated_reserved_bytes/2` is the same room for the volumes running jobs
+  already allocated, which `VolumeAffinities` subtracts from a host's advertised
+  capacity so affinity never prefers a host that cannot fit a job's volumes.
 - A report's `mounted_generation` records the older saved generation a macOS host
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
@@ -168,7 +175,12 @@ these schemas persist volume identities and per-job uses.
   `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
-  default branch never qualifies. `volume_key` (sha256 of the volume id) lets
+  default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the
+  job's profile (a new `%Profile{}` without one): a job with a writer branch that
+  profile saves from may start the lineage's first master, so forks and
+  pull_request_target never do. `checkout_publish` enforces the same: a use
+  without `writer_default_branch` publishes only from `base_generation` 0 and
+  only with a `writer_branch`. `volume_key` (sha256 of the volume id) lets
   hosts drop a cleared volume's copies, and a checkout `download` only needs the
   current lineage, so a restore outlives the job that asked for it.
   A job also needs its runner profile's `cached_checkouts` (default true; a job on

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +23,29 @@ const customCapacity = 20_000_000_000
 // first admitted.
 func customExpectedBytes(slot cachevolumes.Slot) uint64 {
 	return uint64(slot.ExpectedBytes(customCapacity))
+}
+
+// CacheCapacityNodeLabel advertises the cache disk capacity in whole GiB. The
+// server subtracts the volumes of the jobs it placed here, attached or not yet,
+// and prefers this host for a job only while its volumes fit: admission reserves
+// what each volume is expected to write (customExpectedBytes), and a second job
+// that cannot get it runs cold.
+const CacheCapacityNodeLabel = "tuist.dev/cache-volume-capacity-gib"
+
+// CapacityNodeLabels returns the label advertising the cache disk's capacity
+// within its budget, or none while the cache filesystem is not mounted.
+func (c *CustomVolumes) CapacityNodeLabels() (map[string]string, error) {
+	labels := map[string]string{}
+	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	if err != nil || !mounted {
+		return labels, err
+	}
+	capacity, err := c.Builtins.volumeCapacityBytes()
+	if err != nil {
+		return nil, err
+	}
+	labels[CacheCapacityNodeLabel] = strconv.FormatUint(capacity>>30, 10)
+	return labels, nil
 }
 
 // Custom masters are reclaimed by the shared backend first. If that is not
@@ -104,7 +128,7 @@ func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (fu
 	if err != nil {
 		return nil, err
 	}
-	if free < customAdmissionBytes(slot) && slot.ID != cachevolumes.PrefetchReservation && c.displaceSpareLocked() {
+	if free < customAdmissionBytes(slot) && slot.ID != cachevolumes.PrefetchReservation && c.displaceSpareLocked(cachevolumes.SubjectOf(slot).ForFields()...) {
 		if free, err = c.freeBytesLocked(); err != nil {
 			return nil, err
 		}
@@ -196,15 +220,15 @@ var errSpareDisplaced = errors.New("background prefetch gave way to a job")
 // prefetchSpare runs a download the server listed for this host so that job
 // admission can cancel it (displaceSpareLocked). The prefetcher runs one
 // download at a time, so at most one is registered.
-func (c *CustomVolumes) prefetchSpare(ctx context.Context, run func(context.Context) error) error {
+func (c *CustomVolumes) prefetchSpare(ctx context.Context, scope string, run func(context.Context) error) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	c.Builtins.mu.Lock()
-	c.spare = cancel
+	c.spare, c.spareScope = cancel, scope
 	c.Builtins.mu.Unlock()
 	defer func() {
 		c.Builtins.mu.Lock()
-		c.spare = nil
+		c.spare, c.spareScope = nil, ""
 		c.Builtins.mu.Unlock()
 	}()
 	err := run(ctx)
@@ -220,21 +244,22 @@ func (c *CustomVolumes) displaceSpare(ctx context.Context) bool {
 		return false
 	}
 	defer release()
-	return c.displaceSpareLocked()
+	return c.displaceSpareLocked(cachevolumes.SubjectFrom(ctx).ForFields()...)
 }
 
 // displaceSpareLocked cancels a background prefetch and drops its reservation,
 // so built-in and custom job admission spend that space before evicting a
 // master. Bytes it already downloaded stay until it unwinds; free space already
-// reflects them. Requires Builtins.mu.
-func (c *CustomVolumes) displaceSpareLocked() bool {
+// reflects them. forFields name what the room is for. Requires Builtins.mu.
+func (c *CustomVolumes) displaceSpareLocked(forFields ...any) bool {
 	if c.spare == nil {
 		return false
 	}
 	c.spare(errSpareDisplaced)
-	c.spare = nil
+	scope := c.spareScope
+	c.spare, c.spareScope = nil, ""
 	delete(c.reservations, cachevolumes.PrefetchReservation)
-	log.Log.WithName("custom-cache-volumes").Info("admission cancelled a background prefetch to make room for a job")
+	log.Log.WithName("custom-cache-volumes").Info("admission cancelled a background prefetch to make room for a job", append([]any{"scope", scope}, forFields...)...)
 	return true
 }
 
@@ -273,10 +298,10 @@ func (c *CustomVolumes) notePressure(ctx context.Context) {
 // relieve evicts idle custom masters once running jobs have written past what
 // admission left free, so later jobs are admitted again within the budget.
 func (c *CustomVolumes) relieve(ctx context.Context) {
-	if c.images == nil || c.Store == nil {
+	if c.images == nil {
 		return
 	}
-	evicted, err := c.images.Relieve(ctx, 1, c.Store.InUse)
+	evicted, err := c.images.Relieve(ctx, 1)
 	if err != nil {
 		log.FromContext(ctx).Error(err, "relieve custom cache pressure")
 	} else if evicted > 0 {

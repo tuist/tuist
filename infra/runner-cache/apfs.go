@@ -49,10 +49,11 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	}
 	start := time.Now()
 	defer func() {
-		if b.Observe != nil {
-			b.Observe(Observation{Operation: "attach", Source: source, Duration: time.Since(start), Err: err})
-		}
+		observed := slot
+		observed.MountedGeneration = b.MountedGeneration(slot)
+		b.Observe.For(observed).Report("attach", source, start, err)
 	}()
+	ctx = WithSubject(ctx, SubjectOf(slot))
 	if err = ctx.Err(); err != nil {
 		return err
 	}
@@ -64,7 +65,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 		if slot.Kind == KindCheckout {
 			minimum = CheckoutGrowthBytes
 		}
-		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
+		if err = b.operation(slot, "admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
 			return err
 		}
 		if b.Reserve != nil {
@@ -83,7 +84,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			if !validHead(slot.Identity) {
 				return errors.New("invalid master identity")
 			}
-			waited := b.Observe.Start("master_wait", "none")
+			waited := b.Observe.For(slot).Start("master_wait", "none")
 			unlock, lockErr := b.lockContext(ctx, slot.Scope)
 			waited(lockErr)
 			if lockErr != nil {
@@ -93,8 +94,8 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			unlock()
 			if errors.Is(err, errNoLocalCopy) {
 				// A job never waits for a download: it starts empty, the HEAD is fetched
-				// in the background, and this branch is withheld from publication so it
-				// cannot replace the saved version.
+				// in the background, and this branch is withheld from publication unless
+				// the server lets it replace the saved version.
 				source, cold, err = "cold", true, os.WriteFile(image+".cold", nil, 0600)
 			}
 			if err != nil {
@@ -102,7 +103,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			}
 			if !cold && b.Grow != nil && slot.VolumeBytes > 0 {
 				// A copy that cannot grow stays warm at its saved size.
-				_ = b.operation("grow", "image", func() error { return b.Grow(ctx, tmp, slot.VolumeBytes) })
+				_ = b.operation(slot, "grow", "image", func() error { return b.Grow(ctx, tmp, slot.VolumeBytes) })
 			}
 		}
 		if cold && slot.Kind == KindCheckout {
@@ -111,11 +112,11 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 				return errors.New("checkout seeding unavailable")
 			}
 			source = "local"
-			if err = b.operation("clone", "local", func() error { return b.Seed(ctx, slot, tmp) }); err != nil {
+			if err = b.operation(slot, "clone", "local", func() error { return b.Seed(ctx, slot, tmp) }); err != nil {
 				return err
 			}
 		} else if cold {
-			if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, b.volumeBytes(slot)) }); err != nil {
+			if err = b.operation(slot, "format", "empty", func() error { return b.Create(ctx, tmp, b.volumeBytes(slot)) }); err != nil {
 				return err
 			}
 		}
@@ -240,7 +241,7 @@ func (b *APFSImages) Measure(slot Slot, path string) (int64, int64, error) {
 }
 
 func (b *APFSImages) Seal(slot Slot, path string) (err error) {
-	done := b.Observe.Start("publish", "none")
+	done := b.Observe.For(slot).Start("publish", "none")
 	defer func() { done(err) }()
 	image := b.image(slot)
 	if !APFSMarker(path, ".detached", slot.ID) {
@@ -251,7 +252,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	if b.Cold(slot) {
+	if b.Cold(slot) && !slot.PublishCold {
 		return ErrWithheld
 	}
 	if err := shareExposes(image, path); err != nil {
@@ -265,6 +266,10 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 		return ErrFull
 	}
 	if !usage.Changed {
+		// A branch cloned from an older generation holds that generation's content.
+		if b.MountedGeneration(slot) == 0 {
+			b.keepUnchanged(slot, func() error { return b.Verify(image) })
+		}
 		return ErrUnchanged
 	}
 	if _, err := os.Stat(image + ".checking"); err == nil {
@@ -366,19 +371,25 @@ const PrefetchReservation = "prefetch"
 // Prefetch restores a master, evicting idle masters for room. It needs room for
 // the archive beside the expanded image (Identity.RestoreBytes).
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
-	return b.prefetchWith(ctx, slot, b.reserveBytes)
+	return b.prefetchWith(ctx, slot, false)
 }
 
 // PrefetchSpare restores a master like Prefetch, but only into free space: it
 // never evicts a master or reclaims a sharing cache, so a speculative download
-// cannot push out masters that jobs on this host still read.
+// cannot push out masters that jobs on this host still read. Its master of a
+// lineage no job used here is speculative until a job clones it.
 func (b *APFSImages) PrefetchSpare(ctx context.Context, slot Slot) error {
-	return b.prefetchWith(ctx, slot, b.reserveSpare)
+	return b.prefetchWith(ctx, slot, true)
 }
 
-func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(context.Context, uint64) error) error {
+func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, spare bool) error {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
 		return errors.New("invalid prefetch identity")
+	}
+	ctx = WithSubject(ctx, SubjectOf(slot))
+	reserve := b.reserveBytes
+	if spare {
+		reserve = b.reserveSpare
 	}
 	// A download keeps its archive beside the restored image until it expands.
 	if err := reserve(ctx, uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
@@ -393,7 +404,7 @@ func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(c
 		}
 		defer finish(false)
 	}
-	return b.prefetch(ctx, slot)
+	return b.prefetch(ctx, slot, spare)
 }
 
 var errNoLocalCopy = errors.New("no local copy of the lineage")
@@ -416,7 +427,7 @@ func (b *APFSImages) cloneLocal(ctx context.Context, slot Slot, image, tmp strin
 	if *source == "unknown" {
 		*source = "local"
 	}
-	if err := b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
+	if err := b.operation(slot, "clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
 		return err
 	}
 	if mounted != slot.BaseGeneration {
@@ -424,7 +435,7 @@ func (b *APFSImages) cloneLocal(ctx context.Context, slot Slot, image, tmp strin
 			return err
 		}
 	}
-	_ = os.Chtimes(master, time.Now(), time.Now())
+	markUsed(master)
 	return nil
 }
 
