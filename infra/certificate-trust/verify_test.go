@@ -79,6 +79,7 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 	}
 	for _, path := range []string{
 		"../../cli/Sources/TuistHTTP/CertificateTrust.swift",
+		"../../swifterpm/Sources/swifterpm/CertificateTrust.swift",
 		"../../gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt",
 		"../../android/app/src/main/java/dev/tuist/app/data/network/CertificateTrust.kt",
 	} {

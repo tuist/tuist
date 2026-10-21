@@ -2376,6 +2376,7 @@ public enum Module: String, CaseIterable {
                 "swifterpm/Tests/swifterpmTests/ResolveTests.swift",
                 "swifterpm/Tests/swifterpmTests/FileSystemSupportTests.swift",
                 "swifterpm/Tests/swifterpmTests/HTTPClientTests.swift",
+                "swifterpm/Tests/swifterpmTests/CertificateTrustTests.swift",
                 "swifterpm/Tests/swifterpmTests/GitHubTests.swift",
                 "swifterpm/Tests/swifterpmTests/GitLabTests.swift",
                 "swifterpm/Tests/swifterpmTests/TestSupport.swift",

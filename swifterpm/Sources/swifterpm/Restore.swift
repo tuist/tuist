@@ -935,6 +935,7 @@ enum WorkspaceRestorer {
                     cache: cache, pin: pin, location: location, destination: temp
                 )
             } catch {
+                try HTTPClient.requireFallbackAllowed(after: error)
                 try await resetDirectory(temp)
                 try await fetchCheckout(pin: pin, location: location, destination: temp)
             }
@@ -1061,6 +1062,7 @@ enum WorkspaceRestorer {
             try await fileSystem.move(from: temp.absolutePath, to: destination.absolutePath, options: [])
         } catch {
             try? await fileSystem.remove(temp.absolutePath)
+            try HTTPClient.requireFallbackAllowed(after: error)
             if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
                 return destination
             }
@@ -1097,11 +1099,13 @@ enum WorkspaceRestorer {
             else { return }
 
             let version = try pin.versionString()
-            guard let archive = try? await RegistryClient.sourceArchive(
-                registryConfig: registryConfig,
-                identity: pin.identity,
-                version: version
-            ) else { return }
+            guard let archive = try await HTTPClient.optionalResult({
+                try await RegistryClient.sourceArchive(
+                    registryConfig: registryConfig,
+                    identity: pin.identity,
+                    version: version
+                )
+            }) else { return }
 
             let destination = cache.registrySourcePath(
                 identity: pin.identity,
