@@ -111,6 +111,21 @@ defmodule Tuist.Kura.RolloutsTest do
     Repo.get!(Rollout, rollout.id)
   end
 
+  defp stub_held(held_server_ids, hold \\ "FencedImagePin") do
+    held = MapSet.new(held_server_ids)
+
+    stub(Provisioner, :rollout_health, fn server ->
+      image_hold = if MapSet.member?(held, server.id), do: hold
+      {:ok, Map.put(healthy_health(), :image_hold, image_hold)}
+    end)
+  end
+
+  defp canary_accounts(accounts) do
+    stub(Tuist.Environment, :kura_canary_account_handles, fn ->
+      Enum.map(accounts, &String.downcase(&1.name))
+    end)
+  end
+
   describe "sync/0 in expedited mode" do
     test "mints an expedited rollout, fans out, and completes on convergence" do
       %{server: server} = create_active_server()
@@ -1109,6 +1124,139 @@ defmodule Tuist.Kura.RolloutsTest do
       # takes ceil(4 * 0.25) = 1, the remainder lands in wave 3.
       waves = accounts |> Enum.map(&assignments[&1.id]) |> Enum.sort()
       assert waves == [1, 2, 3, 3]
+    end
+  end
+
+  describe "servers on an operator image hold" do
+    test "a held canary server does not hold the canary wave open" do
+      stub(Tuist.Environment, :kura_rollout_pacing, fn -> "progressive" end)
+      %{account: held_account, server: held_server} = create_active_server()
+      %{account: canary_account, server: canary_server} = create_active_server()
+      %{server: customer_server} = create_active_server()
+      canary_accounts([held_account, canary_account])
+      stub_held([held_server.id])
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert rollout_server(rollout, held_server).held_reason == "FencedImagePin"
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.wave_healthy_since
+
+      rollout = back_date(rollout, :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.current_wave == 1
+      assert rollout_server(rollout, customer_server)
+      assert [%{held: 1, converged: 1} | _] = Rollouts.wave_summary(rollout)
+
+      assert Enum.any?(Rollouts.list_events(rollout), fn event ->
+               event.action == "server_held" and event.metadata["server_id"] == held_server.id and
+                 event.metadata["hold"] == "FencedImagePin"
+             end)
+    end
+
+    test "a canary wave whose only servers are held still pauses at the deadline" do
+      stub(Tuist.Environment, :kura_rollout_pacing, fn -> "progressive" end)
+      %{account: held_account, server: held_server} = create_active_server()
+      %{server: customer_server} = create_active_server()
+      canary_accounts([held_account])
+      stub_held([held_server.id])
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).wave_healthy_since == nil
+
+      rollout = back_date(rollout, :wave_started_at, 61 * 60)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :paused
+      assert rollout.pause_reason == "wave_deadline_exceeded"
+      assert rollout.current_wave == 0
+      refute rollout_server(rollout, customer_server)
+    end
+
+    test "a released hold rejoins convergence and holds the wave again" do
+      stub(Tuist.Environment, :kura_rollout_pacing, fn -> "progressive" end)
+      %{account: held_account, server: held_server} = create_active_server()
+      %{account: canary_account, server: canary_server} = create_active_server()
+      canary_accounts([held_account, canary_account])
+      stub_held([held_server.id])
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).wave_healthy_since
+
+      stub_held([])
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout_server(rollout, held_server).held_reason == nil
+      assert rollout.wave_healthy_since == nil
+
+      rollout = back_date(rollout, :wave_started_at, 30 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).current_wave == 0
+
+      assert Enum.any?(Rollouts.list_events(rollout), &(&1.action == "server_hold_released"))
+    end
+
+    test "an unreadable aggregate keeps the previous hold verdict" do
+      %{server: held_server} = create_active_server()
+      %{server: other_server} = create_active_server()
+      stub_held([held_server.id])
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert rollout_server(rollout, held_server).held_reason == "FencedImagePin"
+
+      stub(Provisioner, :rollout_health, fn _server -> {:error, :timeout} end)
+      assert :ok = Rollouts.sync()
+
+      assert rollout_server(rollout, held_server).held_reason == "FencedImagePin"
+      assert rollout_server(rollout, other_server).held_reason == nil
+    end
+
+    test "completing an expedited rollout cancels the held server's deployment" do
+      %{server: held_server} = create_active_server()
+      %{server: other_server} = create_active_server()
+      stub_held([held_server.id], "FencedReplacement")
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      held_deployment_id = rollout_server(rollout, held_server).deployment_id
+      assert held_deployment_id
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, other_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :completed
+      assert Repo.get!(Deployment, held_deployment_id).status == :cancelled
+    end
+
+    test "an expedited rollout whose only servers are held never completes" do
+      %{server: held_server} = create_active_server()
+      stub_held([held_server.id])
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout.id).status == :running
+
+      rollout = back_date(rollout, :wave_started_at, 61 * 60)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :paused
+      assert rollout.pause_reason == "wave_deadline_exceeded"
     end
   end
 

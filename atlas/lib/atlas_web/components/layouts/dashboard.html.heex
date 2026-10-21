@@ -170,6 +170,14 @@
         collapsible={false}
       >
         <.sidebar_item
+          :if={!Atlas.Demo.enabled?()}
+          id="sidebar-people-directory"
+          label={gettext("Directory")}
+          icon="users"
+          navigate={~p"/people"}
+          selected={@current_path == ~p"/people"}
+        />
+        <.sidebar_item
           id="sidebar-time-off"
           label={gettext("Time off")}
           icon="calendar_week"
@@ -284,6 +292,23 @@
       </.sidebar_group>
     </.sidebar>
     <div class="layout__content">
+      <div
+        :if={!Atlas.Demo.enabled?()}
+        id="presence-visibility"
+        phx-hook="Presence"
+        phx-update="ignore"
+      >
+      </div>
+      <div :if={@presence_here != []} id="also-here" data-part="also-here" role="status">
+        <span>{gettext("Also here")}</span>
+        <.avatar
+          :for={person <- @presence_here}
+          id={"here-#{person.id}"}
+          name={person.name}
+          size="small"
+        />
+        <span>{Enum.map_join(@presence_here, ", ", & &1.name)}</span>
+      </div>
       {@inner_content}
     </div>
   </section>

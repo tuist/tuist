@@ -19,7 +19,7 @@ msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
-#: lib/tuist_web/live/integrations_live.html.heex:761
+#: lib/tuist_web/live/integrations_live.html.heex:794
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -174,37 +174,37 @@ msgstr ""
 msgid "Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:680
-#: lib/tuist_web/live/integrations_live.html.heex:745
+#: lib/tuist_web/live/integrations_live.html.heex:713
+#: lib/tuist_web/live/integrations_live.html.heex:778
 #, elixir-autogen, elixir-format
 msgid "Cluster agent token"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:526
-#: lib/tuist_web/live/integrations_live.html.heex:561
-#: lib/tuist_web/live/integrations_live.html.heex:716
-#: lib/tuist_web/live/integrations_live.html.heex:769
+#: lib/tuist_web/live/integrations_live.html.heex:578
+#: lib/tuist_web/live/integrations_live.html.heex:749
+#: lib/tuist_web/live/integrations_live.html.heex:802
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:704
+#: lib/tuist_web/live/integrations_live.html.heex:737
 #, elixir-autogen, elixir-format
 msgid "Connect Buildkite"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:706
+#: lib/tuist_web/live/integrations_live.html.heex:739
 #, elixir-autogen, elixir-format
 msgid "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:504
-#: lib/tuist_web/live/integrations_live.html.heex:645
+#: lib/tuist_web/live/integrations_live.html.heex:678
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:734
+#: lib/tuist_web/live/integrations_live.html.heex:767
 #, elixir-autogen, elixir-format
 msgid "Organization slug"
 msgstr ""
@@ -214,12 +214,12 @@ msgstr ""
 msgid "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:748
+#: lib/tuist_web/live/integrations_live.html.heex:781
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:670
+#: lib/tuist_web/live/integrations_live.html.heex:703
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr ""
@@ -229,8 +229,8 @@ msgstr ""
 msgid "Buildkite connection saved."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:623
-#: lib/tuist_web/live/integrations_live.html.heex:689
+#: lib/tuist_web/live/integrations_live.html.heex:656
+#: lib/tuist_web/live/integrations_live.html.heex:722
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
@@ -240,7 +240,7 @@ msgstr ""
 msgid "Connect GitLab CI"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:594
+#: lib/tuist_web/live/integrations_live.html.heex:611
 #, elixir-autogen, elixir-format
 msgid "Disconnecting: waiting for GitLab to settle queued assignments."
 msgstr ""
@@ -251,13 +251,13 @@ msgid "GitLab CI"
 msgstr ""
 
 #: lib/tuist_web/live/integrations_live.html.heex:544
-#: lib/tuist_web/live/integrations_live.html.heex:606
+#: lib/tuist_web/live/integrations_live.html.heex:623
 #, elixir-autogen, elixir-format
 msgid "GitLab URL"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.html.heex:553
-#: lib/tuist_web/live/integrations_live.html.heex:615
+#: lib/tuist_web/live/integrations_live.html.heex:554
+#: lib/tuist_web/live/integrations_live.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "Runner authentication token"
 msgstr ""
@@ -388,4 +388,16 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:332
 #, elixir-autogen, elixir-format
 msgid "Install Origin App"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:565
+#: lib/tuist_web/live/integrations_live.html.heex:642
+#, elixir-autogen, elixir-format
+msgid "API access token"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:567
+#: lib/tuist_web/live/integrations_live.html.heex:644
+#, elixir-autogen, elixir-format
+msgid "Lets merge request pipelines save cache volumes. Needs the read_api scope."
 msgstr ""

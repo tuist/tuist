@@ -544,6 +544,7 @@
               label={dgettext("dashboard_integrations", "GitLab URL")}
               value="https://gitlab.com"
               required
+              show_required
             />
             <.text_input
               id="gitlab-token"
@@ -554,6 +555,22 @@
               placeholder="glrt-…"
               value=""
               required
+              show_required
+            />
+            <.text_input
+              id="gitlab-api-token"
+              name="api_token"
+              type="password"
+              input_type="password"
+              label={dgettext("dashboard_integrations", "API access token")}
+              label_tooltip={
+                dgettext(
+                  "dashboard_integrations",
+                  "Lets merge request pipelines save cache volumes. Needs the read_api scope."
+                )
+              }
+              placeholder="glpat-…"
+              value=""
             />
             <div data-part="actions">
               <.button
@@ -606,6 +623,7 @@
           label={dgettext("dashboard_integrations", "GitLab URL")}
           value={connection.url}
           required
+          show_required
         />
         <.text_input
           id={"gitlab-token-#{connection.id}"}
@@ -615,6 +633,21 @@
           label={dgettext("dashboard_integrations", "Runner authentication token")}
           value=""
           placeholder="••••••••••••"
+        />
+        <.text_input
+          id={"gitlab-api-token-#{connection.id}"}
+          name="api_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "API access token")}
+          label_tooltip={
+            dgettext(
+              "dashboard_integrations",
+              "Lets merge request pipelines save cache volumes. Needs the read_api scope."
+            )
+          }
+          value=""
+          placeholder={if connection.api_token, do: "••••••••••••", else: "glpat-…"}
         />
       </div>
       <div data-part="actions">
