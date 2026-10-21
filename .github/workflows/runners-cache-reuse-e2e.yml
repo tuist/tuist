@@ -14,6 +14,8 @@ name: Runners Cache Reuse E2E
 #   E4 a later job did not restore static or tiny
 #   E5 a later job's cached checkout was unavailable
 #   E6 TUIST_CACHE_ENDPOINT did not resolve
+# A run where GitHub had not reported a runner's job in time is inconclusive
+# and never fails: without that report no volume or checkout is authorized.
 # Dispatch from a branch other than the default branch to also check that a
 # checkout cache starts there. Server-side detail (host per use, generations):
 #   select * from runner_cache_volume_uses where workflow_run_id = <run id>
@@ -275,11 +277,26 @@ jobs:
           missing=$(( 7 * 5 - $(wc -l < all.jsonl) ))
           [ "$missing" -le 0 ] || failures+=("$missing volume results are missing (a probe job failed or never ran)")
 
+          # Volumes are only authorized once GitHub reports which job a runner runs,
+          # so late webhooks make every volume unavailable whatever the cache does.
+          pending=$(grep -c 'GitHub had not yet reported which job' warnings.tsv || true)
+          denied=$(grep -v -E '^[^\t]*seed' checkouts.tsv | grep -c $'\tunavailable (denied)' || true)
+          inconclusive=false
+          if [ "$pending" -gt 0 ] || [ "$denied" -gt 0 ]; then inconclusive=true; fi
+
           {
             echo
             echo "### Expectations"
             echo
+            if [ "$inconclusive" = true ]; then
+              echo "**Inconclusive:** $pending volume attaches and $denied checkouts were refused because GitHub had not yet reported the runner's job. Check https://www.githubstatus.com for webhook delays and rerun with a fresh key prefix."
+              echo
+            fi
             if [ "${#failures[@]}" -eq 0 ]; then echo "All met"; else printf -- '- %s\n' "${failures[@]}"; fi
           } >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "${failures[@]}"
+          if [ "$inconclusive" = true ]; then
+            echo "::warning::Inconclusive: GitHub had not reported the runner's job in time ($pending volume attaches, $denied checkouts)"
+            exit 0
+          fi
           if [ "${#failures[@]}" -gt 0 ] && [ "$STRICT" = true ]; then exit 1; fi
