@@ -1044,6 +1044,35 @@ The in-cluster ClickHouse's users configuration: the `default` profile and the
 Secret is mounted with `subPath`, which Kubernetes never refreshes, so a
 profile change reaches the server only through a restart.
 */}}
+{{/*
+The managed ClickHouse's `default` cluster: one shard holding every replica,
+each through its own Service on the native port. Replicas authenticate to
+each other with the interserver secret and run forwarded queries as the user
+who sent them, so `clusterAllReplicas('default', ...)` works for any user with
+the `REMOTE` grant, without a password per replica.
+
+`replicas` is passed in so the pod checksum can hash the cluster's shape
+without its membership (see the checksum in clickhouse-managed.yaml).
+*/}}
+{{- define "tuist.clickhouseManagedClusterXml" -}}
+<clickhouse>
+  <remote_servers replace="replace">
+    <default>
+      <secret from_env="INTERSERVER_HTTP_PASSWORD"></secret>
+      <shard>
+        <internal_replication>true</internal_replication>
+{{- range $i := until (int .replicas) }}
+        <replica>
+          <host>{{ $.name }}-{{ $i }}.{{ $.namespace }}.svc</host>
+          <port>9000</port>
+        </replica>
+{{- end }}
+      </shard>
+    </default>
+  </remote_servers>
+</clickhouse>
+{{- end }}
+
 {{- define "tuist.clickhouseManagedUsersXml" -}}
 <clickhouse>
   <profiles>
