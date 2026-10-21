@@ -24,7 +24,10 @@ cleans after every build and removes entries unused for seven days. The plugin
 keeps local caches only; the Tuist Gradle plugin shares build outputs through
 Tuist's remote cache.
 
-Successful default-branch webhook and scheduled builds save the cache. On
+Successful webhook and schedule builds of your pipeline's repository save the
+cache, including its pull requests; fork pull requests, tags and API or dashboard
+builds never do. The runner profile's **Save cache from** setting can limit it
+to specific branches. On
 agents that are not Tuist runners the hook does nothing, and if the volume is
 unavailable the build runs with an empty cache; it never fails the step.
 

@@ -67,9 +67,10 @@ a separate cache. Concurrent jobs receive private copies. Idle data expires
 after seven days without a mount. When saved contents reach 80% of capacity
 and a job runs out of space on them, the next job starts empty.
 
-Only successful default-branch webhook or scheduled builds without a pull
-request or tag save their changes. API, manually triggered, PR and other branch
-builds can read but cannot save. Eligibility comes from Buildkite's server API,
+Successful webhook or scheduled builds on any branch save their changes,
+including pull requests whose head is the pipeline's repository, narrowed by the
+runner profile's **Save cache from** setting. Fork pull requests, tags and API
+or manually triggered builds can read but cannot save. Eligibility comes from Buildkite's server API,
 not plugin options or shell variables. Saving happens after the job and its
 writers have been torn down, not in a post-command hook.
 

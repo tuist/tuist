@@ -101,8 +101,9 @@ The GitLab instance must expose the job API's `pipeline.source` field (or the
 top-level `source` when the nested field is absent) and permit branch
 listing with that token. Missing source metadata never grants save permission;
 API failure declines attachment. Predefined-looking `CI_*` variables are not
-used to grant permission. Successful default-branch push, schedule and web
-pipelines can save; tags, merge requests, child and other pipelines cannot.
+used to grant permission. Successful push, schedule and web pipelines on any
+branch can save, narrowed by the runner profile's **Save cache from** setting;
+tags, merge requests, child and other pipelines cannot.
 Saved changes become available only after the job and local writers are gone.
 
 Tuist embeds GitLab Runner's shell executor in the isolated Linux or macOS runner.
