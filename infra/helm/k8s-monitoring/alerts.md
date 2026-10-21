@@ -698,6 +698,67 @@ absent_over_time(
 - Pending period: 0 minutes
 - Summary: `Worker MachineDeployment replica telemetry is missing on the management cluster`
 
+### Management node memory headroom low
+
+The management cluster is one Talos node with 7.5 GiB of memory. When memory
+pressure crosses Talos's OOM controller trigger (PSI `memory_full_avg10` above
+12%), Talos SIGKILLs the highest-ranked pod cgroup. The kernel `oom_kill`
+counter does not move, so this headroom alert is the early signal. On
+2026-10-21 a kubelet v1.36.0 memory leak
+([kubernetes/kubernetes#139823](https://github.com/kubernetes/kubernetes/issues/139823),
+fixed in v1.36.3) had grown the kubelet to 3.2 GiB. Talos killed the
+kube-apiserver and the CAPI controller, and `mgmt-cluster-apply.yml` failed on
+an unreachable admission webhook. Before the leak, the node kept more than 20%
+available.
+
+```promql
+node_memory_MemAvailable_bytes{cluster="tuist-management"}
+/
+node_memory_MemTotal_bytes{cluster="tuist-management"}
+< 0.15
+```
+
+- Pending period: 30 minutes
+- Severity: warning
+- Summary: `The management node has under 15% memory available. Talos's OOM controller will start killing pods under pressure`
+
+To find the consumer, read cgroup usage straight from the kubelet. Grafana keeps
+only container-level series, and the kubelet runs outside `kubepods`:
+
+```bash
+KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl get --raw \
+  /api/v1/nodes/tuist-mgmt/proxy/metrics/cadvisor \
+  | grep '^container_memory_working_set_bytes{' | grep -E 'id="/(podruntime|kubepods|system)[^/]*"'
+```
+
+If `/podruntime/kubelet` is the large one, `talosctl service kubelet restart`
+frees it without restarting any containers. See
+[`infra/k8s/mgmt/talos/README.md`](../../k8s/mgmt/talos/README.md) for talosctl
+access.
+
+### Management control plane restarted
+
+```promql
+sum by (container) (
+  increase(
+    kube_pod_container_status_restarts_total{
+      cluster="tuist-management",
+      namespace="kube-system",
+      container=~"kube-apiserver|kube-controller-manager|kube-scheduler"
+    }[15m]
+  )
+) > 0
+```
+
+- Pending period: 0 minutes
+- Severity: warning
+- Summary: `{{ $labels.container }} restarted on the management cluster`
+
+On the single-node management cluster, a kube-apiserver restart takes the CAPI
+API and its admission webhooks down for a minute or more. Check
+`talosctl logs machined | grep OOM` first. A Talos OOM kill shows up in
+Kubernetes only as a `SandboxChanged` event and exit code 137.
+
 ### Node exporter coverage incomplete
 
 ```promql
