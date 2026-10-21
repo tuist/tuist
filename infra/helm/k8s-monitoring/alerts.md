@@ -3754,7 +3754,8 @@ Every rack mini must come back as its own series.
 
 ### CI remote compilation-cache reads slow for an account
 
-Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`).
+Data source: ClickHouse `Tuist Production ClickHouse` (uid `cg1vnyjs65blsc`), the
+in-cluster server, through the PDC agent.
 This is rule `dfybzqdz5rh1cb` ("Xcode cache - CI remote reads slow for an
 account"), folder `Alerts`, group `Cache client latency`, which evaluates every
 10 minutes.
@@ -6810,6 +6811,10 @@ Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`),
 not the metrics data source. Live as rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
 query") since 2026-09-15. Its definition before then could not have fired on
 the 2026-09-05 Modules page outage, and errored on every evaluation.
+
+Paused since 2026-10-21. ClickHouse Cloud stopped receiving production traffic
+on 2026-10-20, and the in-cluster data source cannot run `clusterAllReplicas`:
+that needs the `REMOTE` grant, which `tuist_grafana` deliberately lacks.
 
 ```sql
 SELECT
