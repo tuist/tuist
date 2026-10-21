@@ -490,10 +490,15 @@ first prevents a later management-cluster reconciliation from recreating it.
 Cluster retirement is deliberately manual because it permanently removes the
 control plane and any remaining persistent volumes.
 
-Delete the `pentest.tuist.dev` record in Cloudflare before running it. The
-record was created by hand at bootstrap, so nothing removes it. The workflow
-deletes the ingress load balancer it points at, and once Hetzner reassigns that
-IP, whoever receives it would serve the hostname.
+Delete the `pentest.tuist.dev` record in Cloudflare **before** running it, and
+confirm `dig +short pentest.tuist.dev` returns nothing. The record was created
+by hand at bootstrap, so nothing removes it. The workflow deletes the ingress
+load balancer it points at, and once Hetzner reassigns that IP, Cloudflare
+forwards the hostname's traffic to the new holder. The request `Host` header
+tells them which name they received, so they need no prior knowledge of it.
+Cloudflare passes `/.well-known/acme-challenge/` through over plain HTTP, so they
+could also obtain a valid certificate for the name. Strict TLS at Cloudflare does
+not prevent the takeover; only removing the record first does.
 
 ## 10. Teardown
 
@@ -510,6 +515,11 @@ balancer and network. It does not touch the load balancers the Hetzner cloud
 controller created for `type: LoadBalancer` Services such as ingress-nginx:
 delete those Services first, while the controller still runs, or remove the
 leftover load balancers in the Hetzner console afterwards.
+
+Before releasing any load balancer, delete every DNS record that points at it
+(hand-made Cloudflare records especially, since ExternalDNS only removes the
+ones it owns). A record that outlives its load balancer hands the hostname to
+whoever Hetzner gives the IP next.
 
 ---
 
