@@ -303,10 +303,13 @@ without cancelling: one runs, the newest commit waits, and commits it replaces
 stay "Not measured". Dispatches (`sha` backfills) use groups of their own and test
 with main's `mise.toml`, while a `workflow_run` run keeps the commit's own. Every
 other job that runs `tuist test` (`cli.yml`, `app.yml`, the deploy acceptance
-tests) keeps selective testing and passes `-enableCodeCoverage NO`: it still
-reads the coverage variant, but reports `coverage_enabled: false`, so the server
-never takes its skips as gaps in the commit's coverage. Keep that flag on any new
-`tuist test` step. The coverage settings are set once, in the
+tests) keeps selective testing and sets `TUIST_COVERAGE_UPLOAD=0` (workflow
+`env` in `cli.yml` and `app.yml`, step `env` in the deploy): it still collects
+coverage and reads the coverage variant, but uploads none and reports
+`coverage_enabled: false`, so the server never takes its skips as gaps in the
+commit's coverage. Collecting costs no measurable test time, so prefer the
+variable over `-enableCodeCoverage NO`, and set it for any new `tuist test` job
+outside `coverage.yml`. The coverage settings are set once, in the
 root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
 `TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and
 every developer resolve the same variant and the same prefix mapping; both are

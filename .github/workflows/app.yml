@@ -31,6 +31,9 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  # Selective runs upload no coverage and report `coverage_enabled: false`;
+  # coverage.yml's full runs measure TuistApp on main (see cli.yml).
+  TUIST_COVERAGE_UPLOAD: "0"
   MISE_GITHUB_ATTESTATIONS: 0
   # Skip mise's SLSA provenance verification for github-backend tools only.
   # The verification resolves the release through
@@ -198,11 +201,8 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
-      # Selective, so no coverage: coverage.yml's full runs measure TuistApp on
-      # main. `-enableCodeCoverage NO` keeps collection off while the binary
-      # cache's coverage variant is still read (see cli.yml's cli-unit-tests).
       - name: Test TuistApp
-        run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

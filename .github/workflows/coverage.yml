@@ -12,9 +12,9 @@ name: Coverage
 # files every test executed, and the last job tells the server the commit's
 # runs are all in. These are the only runs that collect Xcode coverage: every
 # other `tuist test` job (pull requests, cli.yml and app.yml on main, the
-# deploy acceptance tests) passes `-enableCodeCoverage NO` and keeps selective
-# testing, so it reports `coverage_enabled: false` and the server ignores what
-# it skipped.
+# deploy acceptance tests) keeps selective testing and sets
+# TUIST_COVERAGE_UPLOAD=0, so it reports `coverage_enabled: false` and the
+# server ignores what it skipped.
 #
 # Nothing depends on this workflow: it only runs after changes land on main, it
 # is not a required check, no deploy or release workflow waits on it, and
