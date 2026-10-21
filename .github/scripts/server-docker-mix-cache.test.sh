@@ -37,12 +37,13 @@ for exported in false true; do
       mkdir -p "$cache/next/_build/$project"
     done
   fi
-  TUIST_MIX_CACHE_EXPORTED="$exported" bash "$script" commit
+  output="$(TUIST_MIX_CACHE_EXPORTED="$exported" bash "$script" commit)"
+  [[ "$output" == '::warning::Production Mix cache export unavailable; retaining the previous snapshot.' ]]
   test -f "$cache/current/_build/updated"
   test ! -e "$cache/next"
 done
 
-if bash "$script" invalid; then
+if bash "$script" invalid > "$fixture/invalid-output" 2>&1; then
   echo 'Unknown operation unexpectedly succeeded' >&2
   exit 1
 fi

@@ -1451,10 +1451,14 @@ jobs:
         if: steps.project-cache.outcome == 'success'
         continue-on-error: true
         uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
+          DOCKER_BUILD_SUMMARY: "false"
         with:
           context: .
           file: ./server/Dockerfile
           target: mix-cache-export
+          provenance: false
           build-contexts: ${{ steps.project-cache.outputs.context }}
           outputs: ${{ steps.project-cache.outputs.export }}
           secrets: github_token=${{ secrets.GITHUB_TOKEN }}

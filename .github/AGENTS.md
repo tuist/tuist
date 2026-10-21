@@ -336,6 +336,15 @@ and make attachment/preparation/export failures fall back without failing the
 image build. Historical deployment SHAs without the helper stay registry-only.
 Mix owns Elixir/OTP invalidation; native outputs never enter this snapshot.
 
+The production snapshot is executable build input. It uses the existing
+same-repository writer trust model, as does the registry build cache: a permitted
+same-repo writer can influence production artifacts. Forks cannot publish. Do
+not describe this as default-branch-only protection; deployments requiring that
+boundary need server-enforced per-key restrictions or account-wide writer policy.
+No workflow-side check can fence another job that can publish the same key.
+If a snapshot causes compilation to fail, clear that volume in Runners → Volumes
+or rotate its `-v1` key; do not retry the image build automatically.
+
 The Docker smoke eval also runs the shipped activity-log parser with no arguments
 and requires its usage message and exit code 2. Keep that assertion: app startup
 alone does not check the parser's executable permissions or Swift runtime linkage.
