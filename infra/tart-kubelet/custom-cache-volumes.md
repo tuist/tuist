@@ -60,7 +60,7 @@ before the successful detach. These measurements do not authorize disk admission
 They are logical filesystem bytes, not unique physical allocation or billing
 measurements. APFS shares
 extents. Both backends use real free space and local master eviction. Admission
-reserves only the remaining growth (capacity minus allocated blocks) of running
+reserves only the remaining growth (expected size minus allocated blocks) of running
 custom guests alongside built-in reservations on the same bounded filesystem.
 Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
@@ -76,16 +76,24 @@ smaller than its capacity is extended with `hdiutil resize -imageonly` before th
 guest sees it, never shrunk, and the guest grows the APFS container after
 attaching; a copy that cannot grow attaches warm at its saved size.
 
-Cold creation reserves one image of its capacity. A warm attach reserves the
-larger of its capacity and twice the head's measured used bytes
-(`head_size_bytes`). Restoration and prefetch reserve twice the head's used
-bytes for the archive and expanded image. Without a known head size, warm
-attaches and prefetches reserve twice the capacity. Applying that restore budget
-to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
-with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
-even though a 20 GB image fits. Both the backend's eviction/admission check and
-the host's in-flight reservation use the cold budget. Genuine capacity pressure
-still falls back, and warm restoration still requires its larger budget.
+A job never downloads, so its attach reserves what it is expected to write
+(`Identity.ExpectedBytes`), not its capacity: the head's measured used bytes
+(`head_size_bytes`) plus half again, at least 2 GB, or 5 GB when no head size
+is known, never more than the capacity. The image stays sparse at its full
+capacity. Restoration and prefetch reserve twice the head's used bytes for the
+archive and expanded image, or twice the capacity without a known head size.
+The backend's eviction/admission check and the host's in-flight reservation use
+the same number. Genuine capacity pressure still falls back to a cold job.
+
+A job can write past its reservation into space nothing reserved. Nothing stops
+it: the reservation is an admission estimate, not a quota. When the cache
+filesystem fills, writes to the guest's sparse image fail, the job sees I/O or
+out-of-space errors on its cache paths, and the branch fails verification or is
+withheld as full, so it never publishes. The cache filesystem is a separate
+quota-bounded APFS volume, so it cannot fill the host's system or VM disk. The
+built-in evictor drops least recently used built-in masters when free space falls
+below its watermark, and the next custom admission evicts custom masters before
+refusing. A job never waits for room.
 
 GitHub Actions, Buildkite and GitLab use the same installed client. macOS
 supports native commands and GitLab's shell executor. GitHub container jobs and

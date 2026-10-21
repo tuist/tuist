@@ -74,6 +74,25 @@ func (i Identity) VolumeSize(defaultBytes int64) int64 {
 	return defaultBytes
 }
 
+// UnmeasuredVolumeBytes is what a job without a measured head is expected to
+// write. GrowthBytes is the least a job is expected to add to its head.
+const (
+	UnmeasuredVolumeBytes = 5_000_000_000
+	GrowthBytes           = 2_000_000_000
+)
+
+// ExpectedBytes is the space a job's copy is admitted with: the head's used
+// bytes plus half again (at least GrowthBytes), else UnmeasuredVolumeBytes,
+// never more than the volume. The image keeps its full capacity, so a job can
+// write past this into space nothing reserved.
+func (i Identity) ExpectedBytes(defaultBytes int64) int64 {
+	expected := int64(UnmeasuredVolumeBytes)
+	if i.HeadSizeBytes > 0 {
+		expected = i.HeadSizeBytes + max(GrowthBytes, i.HeadSizeBytes/2)
+	}
+	return min(i.VolumeSize(defaultBytes), expected)
+}
+
 // RestoreBytes is the free space restoring the head needs: its archive beside
 // the expanded image, twice its used bytes, or twice the volume when unknown.
 func (i Identity) RestoreBytes(defaultBytes int64) int64 {

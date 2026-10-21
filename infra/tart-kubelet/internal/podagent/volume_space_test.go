@@ -52,7 +52,7 @@ func TestHostFloorAppliesToBuiltinCustomAndConvergence(t *testing.T) {
 		t.Fatalf("built-in consumed host reserve: %v", err)
 	}
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
-	if _, err := c.reserve(context.Background(), cachevolumes.Slot{}); !errors.Is(err, cachevolumes.ErrCapacity) {
+	if _, err := c.reserve(context.Background(), cachevolumes.Slot{Identity: cachevolumes.Identity{HeadSizeBytes: customCapacity}}); !errors.Is(err, cachevolumes.ErrCapacity) {
 		t.Fatalf("custom consumed host reserve: %v", err)
 	}
 	if _, err := m.PrepareConvergeSpace(masterKey{}, 20*gib, 20*gib, false, func(error) {}); !errors.Is(err, errNoRoomToConverge) {
@@ -101,7 +101,7 @@ func TestCustomAttachReclaimsBuiltinMastersAndPreservesWriters(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	id := cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1}
+	id := cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1, HeadSizeBytes: customCapacity}
 	if _, err := store.Acquire(context.Background(), id, "job", "uid"); err != nil {
 		t.Fatal("cold attach should reclaim the oldest built-in master", err)
 	}

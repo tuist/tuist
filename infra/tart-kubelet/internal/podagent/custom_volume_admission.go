@@ -16,8 +16,12 @@ import (
 // customCapacity is the size of a volume the server allocated without one.
 const customCapacity = 20_000_000_000
 
-func customVolumeBytes(slot cachevolumes.Slot) uint64 {
-	return uint64(slot.VolumeSize(customCapacity))
+// customExpectedBytes is what a job's copy is admitted with and, while its VM
+// runs, what its growth is reserved up to (Identity.ExpectedBytes). runner-cache
+// admits the same bytes; if they disagree, the second check rejects what the
+// first admitted.
+func customExpectedBytes(slot cachevolumes.Slot) uint64 {
+	return uint64(slot.ExpectedBytes(customCapacity))
 }
 
 // Custom masters are reclaimed by the shared backend first. If that is not
@@ -70,15 +74,15 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 		if err != nil {
 			allocated = 0
 		}
-		if size := customVolumeBytes(slot); allocated < size {
+		if size := customExpectedBytes(slot); allocated < size {
 			total += size - allocated
 		}
 	}
 	return total
 }
 
-// A job clones a local master or starts empty, so it needs one image of room.
-// Only a prefetch downloads, keeping its archive beside the restored image:
+// A job clones a local master or starts empty, so it needs what it is expected
+// to write. Only a prefetch downloads, keeping its archive beside the restored image:
 // twice the head's used bytes, or twice the volume when that is unknown.
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
 	if slot.Kind == cachevolumes.KindCheckout {
@@ -87,7 +91,7 @@ func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
 	if slot.ID == cachevolumes.PrefetchReservation {
 		return uint64(slot.RestoreBytes(customCapacity))
 	}
-	return customVolumeBytes(slot)
+	return customExpectedBytes(slot)
 }
 
 func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (func(bool), error) {

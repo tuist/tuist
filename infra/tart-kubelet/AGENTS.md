@@ -118,8 +118,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
   The host maximum is `--custom-cache-max-volume-gb` (100 GB by default, env
   `TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB`), sent as `max_volume_bytes` with every
   authorization alongside the guest's valid `requested_volume_bytes`; a 507 is
-  reason `capacity`. Reserve the volume's capacity (`Identity.VolumeBytes`, 20 GB
-  when the server sends none) for every attach and, for prefetch, which also
+  reason `capacity`. Reserve what the job is expected to write
+  (`Identity.ExpectedBytes`, capped at `Identity.VolumeBytes`, 20 GB when the
+  server sends none) for every attach, and the rest of it for a running VM, not
+  the capacity: on 2026-10-21 six volumes of one job asked for 130 GB of a 240 GiB
+  rack cache disk while holding under 25 GB, and jobs ran cold for "no room".
+  For prefetch, which also
   holds the archive, twice `HeadSizeBytes` (twice the capacity when the head size
   is unknown), in both the shared-filesystem check (`reserveBytes`/`reserveSpare`)
   and the custom reservation (`customAdmissionBytes`): if they disagree, the

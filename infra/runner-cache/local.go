@@ -137,11 +137,17 @@ func (b *LocalImages) maxVolumeBytes() int64 {
 	return DefaultMaxVolumeBytes
 }
 
+// expectedBytes is what admission reserves for a job's copy (Identity.ExpectedBytes).
+func (b *LocalImages) expectedBytes(slot Slot) int64 {
+	return slot.ExpectedBytes(int64(b.SizeGB) * 1_000_000_000)
+}
+
 // attachBytes is the free space an attach needs: the host floor, raised by as
-// much as the volume exceeds the default size. With a 40 GB floor and 20 GB
-// default that is the larger of 40 GB and the volume plus 20 GB.
+// much as the job is expected to write beyond the default size. With a 40 GB
+// floor and 20 GB default that is the larger of 40 GB and the expected size
+// plus 20 GB.
 func (b *LocalImages) attachBytes(slot Slot) uint64 {
-	return b.MinFreeBytes + uint64(max(0, b.volumeBytes(slot)-int64(b.SizeGB)*1_000_000_000))
+	return b.MinFreeBytes + uint64(max(0, b.expectedBytes(slot)-int64(b.SizeGB)*1_000_000_000))
 }
 
 // growClone extends a private copy smaller than the slot's capacity before it

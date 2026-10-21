@@ -58,9 +58,9 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	}
 	image := b.image(slot)
 	if _, statErr := os.Lstat(image); os.IsNotExist(statErr) {
-		// A job never downloads: it clones a local copy or starts empty, so one
-		// image of room is enough either way.
-		minimum := uint64(b.volumeBytes(slot))
+		// A job never downloads: it clones a local copy or starts empty, so what
+		// it is expected to write is enough either way.
+		minimum := uint64(b.expectedBytes(slot))
 		if slot.Kind == KindCheckout {
 			minimum = CheckoutGrowthBytes
 		}

@@ -210,7 +210,7 @@ func TestCustomColdAdmissionBesideBuiltinOnM2(t *testing.T) {
 	seedMaster(t, m, "3")
 	m.reserved = map[string]bool{"running-builtin": true}
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
-	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111"}}
+	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", HeadSizeBytes: customCapacity}}
 	finish, err := c.reserve(context.Background(), slot)
 	if err != nil {
 		t.Fatalf("20 GB cold volume fits beside a 30 GiB builtin reservation and 29 GiB master: %v", err)
@@ -241,7 +241,7 @@ func TestCustomColdAdmissionBesideBuiltinOnM2(t *testing.T) {
 }
 
 func TestCustomAdmissionFollowsVolumeSizeAndOperation(t *testing.T) {
-	job := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", BaseGeneration: 4, VolumeBytes: 50_000_000_000}}
+	job := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", BaseGeneration: 4, VolumeBytes: 50_000_000_000, HeadSizeBytes: 50_000_000_000}}
 	if got := customAdmissionBytes(job); got != 50_000_000_000 {
 		t.Fatalf("50 GB job admitted with %d bytes", got)
 	}
@@ -324,7 +324,7 @@ func TestCustomReservationUsesRemainingCapacityAndStopsWithVM(t *testing.T) {
 	}
 	defer store.Close()
 	c.Store = store
-	id := cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1}
+	id := cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1, HeadSizeBytes: customCapacity}
 	if _, err := store.Acquire(context.Background(), id, "job", "uid"); err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +508,7 @@ func TestCustomReservationRefreshPreservesConcurrentAdmission(t *testing.T) {
 	finished := make(chan error, 1)
 	go func() { finished <- c.refreshReservations(context.Background()) }()
 	<-started
-	pending := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "22222222-2222-4222-8222-222222222222"}}
+	pending := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "22222222-2222-4222-8222-222222222222", HeadSizeBytes: customCapacity}}
 	releaseReservation, err := c.reserve(context.Background(), pending)
 	if err != nil {
 		close(release)
