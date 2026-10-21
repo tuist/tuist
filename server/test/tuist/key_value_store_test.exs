@@ -197,6 +197,39 @@ defmodule Tuist.KeyValueStoreTest do
   end
 
   describe "get_or_update/3" do
+    for locking <- [true, false] do
+      @locking locking
+      test "does not store opted-out error results with locking=#{locking}" do
+        cache = :"ignored_callback_#{System.unique_integer([:positive])}"
+        start_supervised!({Cachex, [cache, []]})
+        opts = [cache: cache, locking: @locking, cache_errors: false]
+        assert KeyValueStore.get_or_update(:ignored, opts, fn -> {:error, :retry} end) == {:error, :retry}
+        assert KeyValueStore.get(:ignored, opts) == nil
+        assert KeyValueStore.get_or_update(:ignored, opts, fn -> :recovered end) == :recovered
+      end
+    end
+
+    test "returns error results when the selected cache is unavailable" do
+      cache = :"missing_cache_#{System.unique_integer([:positive])}"
+
+      assert KeyValueStore.get_or_update(:ignored, [cache: cache, cache_errors: false], fn -> {:error, :retry} end) ==
+               {:error, :retry}
+    end
+
+    test "does not store opted-out error results on a persistent miss or malformed value" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://unused" end)
+
+      for cached <- [nil, "invalid external term"] do
+        expect(Redix, :command, fn _conn, ["GET", "ignored"] -> {:ok, cached} end)
+
+        assert KeyValueStore.get_or_update(
+                 :ignored,
+                 [persist_across_deployments: true, locking: false, cache_errors: false],
+                 fn -> {:error, :retry} end
+               ) == {:error, :retry}
+      end
+    end
+
     test "rebuilds an unsafe redis value instead of crashing" do
       stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
       atom_name = "uncached_atom_#{System.unique_integer([:positive])}"

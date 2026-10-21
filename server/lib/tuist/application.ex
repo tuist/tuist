@@ -370,6 +370,7 @@ defmodule Tuist.Application do
           {Finch, name: Tuist.Finch, pools: finch_pools()},
           {Cachex, [:tuist, []]},
           Supervisor.child_spec({Cachex, [:license, []]}, id: :license),
+          Supervisor.child_spec({Cachex, [:display, []]}, id: :display),
           Tuist.Authentication.TokenVerificationCache,
           Tuist.Authentication.SubjectCache,
           Tuist.OpenGraphImages,

@@ -1,6 +1,9 @@
 defmodule Tuist.KeyValueStore.InvalidatorTest do
   use ExUnit.Case, async: false
+  use Mimic
 
+  alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.KeyValueStore.Invalidator
 
   setup do
@@ -43,6 +46,67 @@ defmodule Tuist.KeyValueStore.InvalidatorTest do
     assert Cachex.get(cache, "display") == nil
     assert Cachex.get(protected, "bcrypt-proof") == true
   end
+
+  test "membership recovery leaves general request, authentication and license caches warm" do
+    key = "protected-#{System.unique_integer([:positive])}"
+    caches = [:tuist, :license, :token_verification, :auth_subjects]
+    Enum.each([:display | caches], &Cachex.put(&1, key, :warm))
+    on_exit(fn -> Enum.each([:display | caches], &Cachex.del(&1, key)) end)
+
+    pid = Process.whereis(Invalidator)
+    send(pid, {:nodeup, :rejoined_peer})
+    :sys.get_state(pid)
+
+    assert Cachex.get(:display, key) == nil
+    Enum.each(caches, fn cache -> assert Cachex.get(cache, key) == :warm end)
+  end
+
+  test "display invalidation does not delete a subsequent local replacement", %{cache: cache} do
+    key = "display-#{System.unique_integer([:positive])}"
+    on_exit(fn -> Cachex.del(:display, key) end)
+    Cachex.put(cache, key, :remote_stale)
+    KeyValueStore.put(key, :local_stale, cache: :display)
+
+    assert KeyValueStore.invalidate(key, cache: :display) == :ok
+    KeyValueStore.put(key, :fresh, cache: :display)
+    eventually(fn -> Cachex.get(cache, key) == nil end)
+    :sys.get_state(Invalidator)
+    assert KeyValueStore.get(key, cache: :display) == :fresh
+  end
+
+  test "persistent invalidation deletes the normalized shared key", %{cache: cache} do
+    stub(Environment, :redis_url, fn -> "redis://unused" end)
+    expect(Redix, :command, fn _conn, ["DEL", "persistent-balance"] -> {:ok, 1} end)
+    Cachex.put(cache, "persistent-balance", :stale)
+
+    assert KeyValueStore.invalidate([:persistent, :balance], cache: cache, persist_across_deployments: true) == :ok
+    assert Cachex.get(cache, "persistent-balance") == nil
+  end
+
+  for failure <- [:returned_connection, :raised_connection, :redis_error] do
+    @failure failure
+    test "persistent #{@failure} still invalidates display fallbacks and reports the failure", %{cache: cache} do
+      key = "redis-failure-#{System.unique_integer([:positive])}"
+      stub(Environment, :redis_url, fn -> "redis://unused" end)
+      failure = @failure
+
+      expect(Redix, :command, fn _conn, ["DEL", ^key] ->
+        redis_failure(failure)
+      end)
+
+      Cachex.put(cache, key, :stale)
+      KeyValueStore.put(key, :stale, cache: :display)
+      on_exit(fn -> Cachex.del(:display, key) end)
+
+      assert {:error, _} = KeyValueStore.invalidate(key, cache: :display, persist_across_deployments: true)
+      assert Cachex.get(:display, key) == nil
+      eventually(fn -> Cachex.get(cache, key) == nil end)
+    end
+  end
+
+  defp redis_failure(:returned_connection), do: {:error, %Redix.ConnectionError{reason: :closed}}
+  defp redis_failure(:raised_connection), do: raise(Redix.ConnectionError, reason: :closed)
+  defp redis_failure(:redis_error), do: {:error, %Redix.Error{message: "NOPERM"}}
 
   defp eventually(predicate) do
     result =

@@ -2,13 +2,16 @@ defmodule Tuist.KeyValueStore.Invalidator do
   @moduledoc """
   Evicts local display-cache entries after mutations on another web node.
 
-  Membership changes clear the entire selected cache to recover from missed
-  invalidations. A flapping node can therefore cause extra database reads on
-  every surviving node until their caches warm again. Authentication and
-  authorization do not depend on this eventual invalidation mechanism.
+  Membership changes clear only the dedicated display cache to recover from
+  missed invalidations, never the general request/integration or license caches.
+  Lost messages and fills racing an invalidation can still leave display values
+  stale until their TTL. Authentication and authorization do not depend on this
+  eventual invalidation mechanism.
   """
 
   use GenServer
+
+  alias FunWithFlags.Store.Cache
 
   @topic "key_value_store:invalidations"
 
@@ -25,7 +28,7 @@ defmodule Tuist.KeyValueStore.Invalidator do
   def init(opts) do
     Phoenix.PubSub.subscribe(Tuist.PubSub, @topic)
     :net_kernel.monitor_nodes(true)
-    {:ok, Keyword.get(opts, :cache, :tuist)}
+    {:ok, Keyword.get(opts, :cache, :display)}
   end
 
   @impl true
@@ -36,7 +39,7 @@ defmodule Tuist.KeyValueStore.Invalidator do
 
   def handle_info({event, _node}, cache) when event in [:nodeup, :nodedown] do
     Cachex.clear(cache)
-    FunWithFlags.Store.Cache.flush()
+    Cache.flush()
     {:noreply, cache}
   end
 end
