@@ -80,6 +80,15 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   defp file(path, counts, opts \\ []), do: CoverageFixtures.file(path, counts, opts)
 
+  # Binds another path's hash along with the requested ones, as a path whose
+  # hash collides with one of them would: the query returns its rows too, and
+  # the lookup has to drop them.
+  defp collide_with(path) do
+    stub(Coverage, :path_hash_chunks, fn paths ->
+      Mimic.call_original(Coverage, :path_hash_chunks, [[path | Enum.to_list(paths)]])
+    end)
+  end
+
   defp test_case(name, suite, status \\ "success"), do: %{name: name, test_suite_name: suite, status: status, duration: 1}
 
   defp modules(cases), do: [%{name: "AppTests", status: "success", duration: 1, test_cases: cases}]
@@ -1108,6 +1117,16 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              covered_lines: 3,
              executable_lines: 4
            }
+  end
+
+  test "drops a source run's file whose hash only matches a carried one's", %{project: project, account: account} do
+    recorded_source(project, account)
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+    collide_with("Tests/AppTests.swift")
+
+    assert %{carried_tests_count: 1, files: files} = Reported.compute(project, "head")
+    refute Map.has_key?(files, "Tests/AppTests.swift")
+    assert %{covered_lines: 3, executable_lines: 4} = files["Sources/Text.swift"]
   end
 
   test "keeps the carried files no run at the commit compiled past what one query binds", %{

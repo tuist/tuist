@@ -1,9 +1,11 @@
 defmodule Tuist.GitHistoryTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.GitHistory
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -592,6 +594,21 @@ defmodule Tuist.GitHistoryTest do
       assert blobs[List.last(paths)] == "blob-" <> List.last(paths)
     end
 
+    test "drop a listed path or directory whose hash only matches a requested one's", %{repository: repository} do
+      GitHistory.record_listing(
+        repository,
+        "c",
+        [%{path: "Sources/A/A.swift", git_blob_id: "a1"}, %{path: "Sources/B/B.swift", git_blob_id: "b1"}],
+        files_count: 2
+      )
+
+      collide_with("Sources/B/B.swift")
+      assert GitHistory.blobs_at(repository, "c", ["Sources/A/A.swift"]) == %{"Sources/A/A.swift" => "a1"}
+
+      collide_with("Sources/B")
+      assert GitHistory.files_in(repository, "c", ["Sources/A"]) == [%{path: "Sources/A/A.swift", git_blob_id: "a1"}]
+    end
+
     test "read the files in more directories than one query binds", %{repository: repository} do
       # More directories than one chunk of hashes, long enough that 900 of them
       # bound as one list take more than 128 KiB. Non-ASCII and quoted names
@@ -682,5 +699,14 @@ defmodule Tuist.GitHistoryTest do
       # The edge from the kept commit to the dropped one marks the window's end.
       assert GitHistory.ancestors(repository, "new") == [{"new", 0}]
     end
+  end
+
+  # Binds another path's hash along with the requested ones, as a path whose
+  # hash collides with one of them would: the query returns its rows too, and
+  # the lookup has to drop them.
+  defp collide_with(path) do
+    stub(Coverage, :path_hash_chunks, fn paths ->
+      Mimic.call_original(Coverage, :path_hash_chunks, [[path | Enum.to_list(paths)]])
+    end)
   end
 end
