@@ -249,8 +249,18 @@ jobs:
           # Captured rather than piped into `grep -q`: an early grep exit
           # would SIGPIPE `git diff` and fail the pipeline under pipefail.
           changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+          # The job that installs a chart in server-deployment.yml, as of a
+          # commit. Only that job's own definition counts as an input, so an
+          # edit elsewhere in the file does not reinstall every chart.
+          install_job() {
+            git show "$1:.github/workflows/server-deployment.yml" 2>/dev/null \
+              | awk -v job="  $2:" '$0 == job { found = 1; print; next } found && /^  [^ #]/ { exit } found { print }'
+          }
+          # $1: the chart's paths (Markdown aside), $2: its install job.
+          changed_besides_docs="$(grep -vE '\.md$' <<< "$changed" || true)"
           chart_changed() {
-            if grep -qE "^($1|\.github/workflows/server-deployment\.yml$)" <<< "$changed"; then
+            if grep -qE "^($1)" <<< "$changed_besides_docs" \
+              || [ "$(install_job "$base" "$2")" != "$(install_job "$HEAD_SHA" "$2")" ]; then
               echo true
             else
               echo false
@@ -258,9 +268,9 @@ jobs:
           }
           # A new stable-egress-controller release changes the image the
           # platform chart pins, and infra/mise.* the Helm the task runs.
-          platform="$(chart_changed 'infra/helm/platform/|infra/helm/rack-cache-gateways/|infra/mise/tasks/k8s/install-platform\.sh$|infra/mise\.(toml|lock)$|infra/stable-egress-controller/')"
-          observability="$(chart_changed 'infra/helm/k8s-monitoring/')"
-          tailscale_operator="$(chart_changed 'infra/helm/tailscale-operator/')"
+          platform="$(chart_changed 'infra/helm/platform/|infra/helm/rack-cache-gateways/|infra/mise/tasks/k8s/install-platform\.sh$|infra/mise\.(toml|lock)$|infra/stable-egress-controller/' platform-install)"
+          observability="$(chart_changed 'infra/helm/k8s-monitoring/' observability-install)"
+          tailscale_operator="$(chart_changed 'infra/helm/tailscale-operator/' tailscale-operator-install)"
           charts_changed "$platform" "$observability" "$tailscale_operator"
           echo "Cluster charts changed since $base: platform=$platform observability=$observability tailscale-operator=$tailscale_operator"
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
