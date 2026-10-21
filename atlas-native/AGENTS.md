@@ -148,6 +148,7 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - `mise run prepare:rust` materializes locked third-party sources in ignored `.once/vendor`.
   Build/test tasks depend on it; run it before invoking Once directly on a clean checkout.
   Run vendor preparation serially, not concurrently with builds that read that directory.
+  Vendoring uses HTTP/1.1 to avoid repeated crates.io HTTP/2 framing failures on macOS runners.
   Once 0.68.2 does not yet include the source-materialization fix in tuist/once#390;
   keep this required workaround until a published Once version includes that fix.
   The Android task exposes API-26 NDK clang and LLVM tools to Cargo build scripts through
