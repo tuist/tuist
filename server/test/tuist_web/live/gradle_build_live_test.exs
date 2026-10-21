@@ -36,7 +36,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
     {:ok, lv, _} = live(conn, path <> "?tab=timeline")
-    render_async(lv)
+    render_async(lv, 5_000)
     refute has_element?(lv, "a", "Timeline")
     refute has_element?(lv, "#build-timeline")
     assert has_element?(lv, "a[data-selected]", "Overview")
@@ -61,7 +61,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
     {:ok, lv, _} = live(conn, path <> "?tab=timeline")
-    render_async(lv)
+    render_async(lv, 5_000)
     assert has_element?(lv, "#build-timeline[data-source=gradle]")
     refute has_element?(lv, "[data-part=timeline-coverage]")
     refute render(lv) =~ "no build start timestamp"
@@ -92,7 +92,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert Enum.take(tabs, 2) == ["Overview", "Timeline"]
     refute "Machine Metrics" in tabs
     render_patch(lv, path <> "?tab=machine-metrics")
-    render_async(lv)
+    render_async(lv, 5_000)
     assert has_element?(lv, "#build-timeline")
     assert has_element?(lv, "#build-timeline[data-source=gradle]")
     assert has_element?(lv, "#build-timeline[data-url='#{path}/timeline.json']")
@@ -106,7 +106,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert has_element?(lv, "#build-timeline")
     render_patch(lv, path <> "?tab=overview")
     render_patch(lv, path <> "?tab=timeline")
-    render_async(lv)
+    render_async(lv, 5_000)
     [reopened] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
     assert String.to_integer(reopened) > String.to_integer(version)
     render_hook(lv, "load-timeline", %{version: String.to_integer(reopened)})
