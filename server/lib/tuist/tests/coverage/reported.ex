@@ -533,8 +533,9 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     # A target in several schemes is taken from the scheme that skipped it.
     executed =
-      project_id
-      |> executed_modules(Map.keys(by_id), modules)
+      by_id
+      |> Map.keys()
+      |> run_modules(modules)
       |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
       |> Map.new(fn {module, run_ids} ->
         {module, Enum.find(run_ids, hd(run_ids), &(by_id[&1].scheme in Map.get(skipped_in, module, [])))}
@@ -752,21 +753,6 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
     |> Enum.flat_map(fn {run_id, run_modules} -> run_tests(project_id, run_id, run_modules) end)
     |> Enum.group_by(& &1.module_name)
-  end
-
-  defp executed_modules(project_id, run_ids, modules) do
-    for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
-        modules <- Coverage.id_chunks(modules, length(runs)),
-        pair <-
-          ClickHouseRepo.all(
-            from(r in TestCaseRun,
-              where: r.project_id == ^project_id and r.test_run_id in ^runs and r.module_name in ^modules,
-              distinct: true,
-              select: {r.test_run_id, r.module_name}
-            ),
-            settings: [select_sequential_consistency: 1]
-          ),
-        do: pair
   end
 
   defp run_tests(project_id, run_id, modules) do
