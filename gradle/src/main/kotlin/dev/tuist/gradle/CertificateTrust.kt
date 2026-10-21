@@ -3,8 +3,15 @@ package dev.tuist.gradle
 import java.net.Socket
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.security.cert.Certificate
 import java.security.cert.CertificateException
+import java.security.cert.CertPathValidatorException
+import java.security.cert.PKIXBuilderParameters
+import java.security.cert.PKIXCertPathChecker
+import java.security.cert.TrustAnchor
+import java.security.cert.X509CertSelector
 import java.security.cert.X509Certificate
+import javax.net.ssl.CertPathTrustManagerParameters
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLSocketFactory
@@ -52,15 +59,39 @@ internal object CertificateTrust {
     internal fun create(original: X509TrustManager): ClientTLS {
         val store = KeyStore.getInstance(KeyStore.getDefaultType())
         store.load(null, null)
-        original.acceptedIssuers.filter { spkiHash(it) !in blockedSPKIHashes }
-            .forEachIndexed { index, certificate -> store.setCertificateEntry("tuist-anchor-$index", certificate) }
-        val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-        factory.init(store)
+        val permitted = original.acceptedIssuers.filter { spkiHash(it) !in blockedSPKIHashes }
+        permitted.forEachIndexed { index, certificate -> store.setCertificateEntry("tuist-anchor-$index", certificate) }
+        val factory = TrustManagerFactory.getInstance("PKIX")
+        if (store.size() == 0) {
+            factory.init(store)
+        } else {
+            val anchors = permitted.map { TrustAnchor(it, null) }.toSet()
+            val parameters = PKIXBuilderParameters(anchors, X509CertSelector()).apply {
+                // The original validator retains its revocation policy. This
+                // additional key check must not introduce new revocation network I/O.
+                isRevocationEnabled = false
+                addCertPathChecker(DistrustedKeyChecker())
+            }
+            factory.init(CertPathTrustManagerParameters(parameters))
+        }
         val restricted = factory.trustManagers.filterIsInstance<X509TrustManager>().single()
         val manager = RestrictedTrustManager(original, restricted)
         val context = SSLContext.getInstance("TLS")
         context.init(null, arrayOf(manager), null)
         return ClientTLS(context.socketFactory, manager)
+    }
+
+    // PKIX checks the constructed path, including AIA-fetched or cached
+    // intermediates absent from the peer's chain, not just supplied certificates.
+    internal class DistrustedKeyChecker : PKIXCertPathChecker() {
+        override fun init(forward: Boolean) = Unit
+        override fun isForwardCheckingSupported(): Boolean = true
+        override fun getSupportedExtensions(): Set<String>? = null
+        override fun check(certificate: Certificate, unresolvedCriticalExtensions: MutableCollection<String>?) {
+            if (certificate !is X509Certificate || spkiHash(certificate) in blockedSPKIHashes) {
+                throw CertPathValidatorException("Certificate path contains a distrusted public key")
+            }
+        }
     }
 
     // Keep the original validator first, including its socket/engine context and

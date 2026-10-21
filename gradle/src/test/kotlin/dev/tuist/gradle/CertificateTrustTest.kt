@@ -11,7 +11,12 @@ import java.net.Socket
 import java.security.KeyStore
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
+import java.security.cert.CertPathValidator
+import java.security.cert.CertPathValidatorException
+import java.security.cert.PKIXParameters
+import java.security.cert.TrustAnchor
 import java.security.cert.X509Certificate
+import java.util.Date
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLEngine
 import javax.net.ssl.TrustManagerFactory
@@ -30,6 +35,25 @@ class CertificateTrustTest {
             assertFailsWith<CertificateException> { CertificateTrust.requireAllowed(arrayOf(certificate)) }
         }
         CertificateTrust.requireAllowed((certificates("positive-isrg-root-x1") + certificates("positive-isrg-r11")).toTypedArray())
+    }
+
+    @Test
+    fun `PKIX checker rejects real intermediate keys in constructed certificate paths`() {
+        val anchors = certificates("issuer-roots").map { TrustAnchor(it, null) }.toSet()
+        val factory = CertificateFactory.getInstance("X.509")
+        val validator = CertPathValidator.getInstance("PKIX")
+        for (certificate in certificates("distrusted-intermediates")) {
+            val path = factory.generateCertPath(listOf(certificate))
+            val parameters = PKIXParameters(anchors).apply {
+                // Offline signature/path baseline at the public fixture's validity time.
+                isRevocationEnabled = false
+                date = Date(certificate.notBefore.time + 60_000)
+            }
+            validator.validate(path, parameters)
+            parameters.addCertPathChecker(CertificateTrust.DistrustedKeyChecker())
+            val error = assertFailsWith<CertPathValidatorException> { validator.validate(path, parameters) }
+            assertTrue(error.message.orEmpty().contains("distrusted public key"))
+        }
     }
 
     @Test
