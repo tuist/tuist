@@ -136,6 +136,18 @@ func (f *fakeBackend) allocatedBytes(path string) (uint64, error) {
 }
 
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
+	used := f.used(root)
+	if used > f.totalBytes {
+		return 0, nil
+	}
+	return f.totalBytes - used, nil
+}
+
+func (f *fakeBackend) usedBytes(root string) (uint64, error) { return f.used(root), nil }
+
+// used models every master as perMaster and every staged download file as
+// perStagingFile.
+func (f *fakeBackend) used(root string) uint64 {
 	// A query from the custom-cache subdirectory shares the whole filesystem.
 	if f.root != "" {
 		root = f.root
@@ -160,11 +172,7 @@ func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 			return nil
 		})
 	}
-	used := masters*f.perMaster + staged*f.perStagingFile
-	if used > f.totalBytes {
-		return 0, nil
-	}
-	return f.totalBytes - used, nil
+	return masters*f.perMaster + staged*f.perStagingFile
 }
 
 const gib = uint64(1024 * 1024 * 1024)

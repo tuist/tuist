@@ -153,6 +153,8 @@ fi
 # earlier, never make it fire on a live job.
 JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
 JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
+CACHE_VOLUME_BIN=/usr/local/bin/tuist-cache-volume
+CHECKOUT_STATE=/home/runner/.tuist-checkout.json
 WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
 rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
 cat >"${JOB_STARTED_HOOK}" <<HOOK
@@ -177,6 +179,13 @@ for _var in TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID
     printf '%s=%s\\n' "\${_var}" "\${_value}" >> "\${GITHUB_ENV}"
   fi
 done
+# Mount the job's cached checkout at its workspace before the first step, so a
+# stock actions/checkout reuses it instead of cloning. The host decides whether
+# there is one; any miss leaves the workspace empty and the job checks out as
+# before.
+if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --checkout "\${GITHUB_WORKSPACE}" || true
+fi
 exit 0
 HOOK
 chmod +x "${JOB_STARTED_HOOK}"
@@ -266,4 +275,10 @@ while kill -0 "${runner_pid}" 2>/dev/null; do
   rc=$?
 done
 [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+# Hand the host what the job's checkout added, after the job and outside its
+# billed time; the host verifies it and builds the next cached checkout from it.
+# Never affects the exit code.
+if [ -s "${CHECKOUT_STATE}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --checkout-export || true
+fi
 exit "${rc}"

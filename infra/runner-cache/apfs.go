@@ -19,9 +19,7 @@ import (
 // Built-in Tuist/CAS images remain owned by the existing VolumeManager.
 type APFSImages struct {
 	LocalImages
-	Create func(context.Context, string, int64) error
-	// Seed clones the host-built master of a checkout slot to the given path.
-	Seed    func(context.Context, Slot, string) error
+	Create  func(context.Context, string, int64) error
 	Reserve func(context.Context, Slot) (func(bool), error)
 	Verify  func(string) error
 	Detach  func(string) error

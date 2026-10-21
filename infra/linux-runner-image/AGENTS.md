@@ -304,3 +304,22 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   the shared image with `F_FULLFSYNC` before writing `.usage` and `.detached`; a
   failed flush withholds publication, since the host would otherwise seal an
   image still missing the job's writes.
+
+## Cached checkouts
+
+- The job-start hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
+  when cache volumes are routed (15 s on the host, 20 s in the client). When the
+  agent answers with a mounted clone, the client checks its `.tuist-volume`
+  proof and asks the broker to bind `<scope>/checkout` at the workspace, in the
+  runner's namespace and the DinD sidecar's (dockerd resolves `/__w` there for
+  container jobs). The broker accepts a workspace only as a clean path relative
+  to the work directory whose inode is the client's target, and refuses
+  non-empty targets in either namespace. Any miss leaves the workspace empty, so
+  actions/checkout clones as before; it never fails the job.
+- When the host granted a checkout (mounted, `cold`, `capacity`, `timeout`) the
+  hook records `/home/runner/.tuist-checkout.json`. After the runner exits,
+  outside GitHub's job time, `run-job.sh` runs `--checkout-export`: it packs what
+  the job's checkout added in `/home/runner/work/_tuist_checkout_export`
+  (hard-linking LFS objects where it can) and streams it as a tar to the agent's
+  `/checkout-export` (3 minutes; a cold export carries the whole repository).
+  The runner never gets a writable host directory.

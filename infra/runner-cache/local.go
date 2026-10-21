@@ -73,6 +73,8 @@ type LocalImages struct {
 	// in the last day. The stale master stays while it reports the fetch queued, so
 	// jobs can mount it until its successor is local. It replaces RefreshWithin.
 	Replace func(Identity) bool
+	// Seed clones the host-built master of a checkout slot to the given path.
+	Seed func(context.Context, Slot, string) error
 	// Displace, when set, cancels speculative work that holds space on this
 	// filesystem, so admission takes that space before it evicts a master.
 	// Reports whether it cancelled anything.
@@ -314,6 +316,14 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
 			return err
 		}
+		// A checkout clone holds the job's whole workspace, so free space must cover
+		// what it can grow to, as the reserve covers one custom volume. A checkout is
+		// optional, so it never evicts anything for that room.
+		if slot.Kind == KindCheckout {
+			if err = b.operation("admission", "none", func() error { return b.reserveSpare(ctx, CheckoutCapacity) }); err != nil {
+				return err
+			}
+		}
 		tmp := image + ".tmp"
 		_ = os.Remove(tmp)
 		if slot.BaseGeneration > 0 {
@@ -339,6 +349,14 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				_ = os.Chtimes(master, time.Now(), time.Now())
 			}
 			unlock()
+		} else if slot.Kind == KindCheckout {
+			// Never fall back to an empty image: the guest mounts it over its workspace.
+			if b.Seed == nil {
+				err = errors.New("checkout seeding unavailable")
+			} else {
+				source = "local"
+				err = b.operation("clone", "local", func() error { return b.Seed(ctx, slot, tmp) })
+			}
 		} else {
 			var f *os.File
 			f, err = os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
