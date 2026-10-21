@@ -329,6 +329,17 @@ independent workqueues:
   A pool with an unrecognised `OS` (or without autoscaling enabled)
   skips the allocator entirely.
 
+  A macOS Pod is placed before any job is assigned to it, so it also
+  prefers the hosts holding the custom cache volumes its pool's queued
+  jobs are predicted to attach. The signals carry them as
+  `preferred_node_labels` (`tuist.dev/cache-volume-<scope prefix>`, from
+  `VolumeAffinities.custom_volume_node_labels/2`), and `createRunner` adds
+  at most four at weight 20 beside the golden preference at weight 100
+  (`podtemplate.PreferCacheVolumeNodes`). Together they weigh less than the
+  golden one, so the image still decides and volumes break ties. The terms
+  are in no revision, so they never make a Pod stale, and a Pod created
+  without signals keeps only the golden preference.
+
   RuntimeClass overhead is copied into `Pod.spec.overhead` only when
   Kubernetes admits a Pod. Helm therefore hashes the Linux RuntimeClass
   name and fixed processor and memory overhead into
