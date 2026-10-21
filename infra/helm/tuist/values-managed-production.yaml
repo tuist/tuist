@@ -1426,7 +1426,14 @@ rackFleet:
     # guest slot can transiently hold its running Pod plus a predecessor GC has
     # not collected yet.
     maxPods: 5
-    runnerCacheVolumeGiB: 240
+    # Shared built-in/custom cache ceiling on the 1858 GiB disk. Planning
+    # allowance: 512 GiB cache + up to 540 GiB goldens (every catalog image;
+    # hosts usually hold 1 to 3) + 280 GiB guest disks + 100 GiB host data,
+    # which stays above the 15% (279 GiB) free floor cache admission and the
+    # golden GC keep. The volume's size is fixed when it is created: an
+    # existing host keeps its volume until it is reinstalled
+    # (`tuist.dev/os-reinstall`, see infra/cluster-api-provider-tuist/AGENTS.md).
+    runnerCacheVolumeGiB: 512
   # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
   # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image
   # is a macOS 26 guest, which fits the hosts' macOS 27.
