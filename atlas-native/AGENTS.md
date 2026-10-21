@@ -20,6 +20,7 @@ selected server. OAuth tokens are not browser cookies.
 ## Layout
 
 - `once.toml`: typed build graph and shared cache identity (`tuist/atlas-mobile`).
+- `modules/`: selected Apple SDK linker flags and binary SDK verification; see `modules/AGENTS.md`.
 - `core/src/`: dependency-free shared navigation, C ABI, and primitive-only JNI bridge.
 - `auth/`: Rust OAuth networking, owned JSON C ABI, and string JNI bridge. Keep it
   independent of navigation/CLI builds. Platform-specific Cargo dependency targets

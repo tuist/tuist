@@ -211,6 +211,8 @@ jobs:
       - run: mise run prepare:rust
       - name: Build isolated native UI fixtures
         run: mise exec -- once build AtlasSettingsUITests
+      - name: Verify preview SDK and deployment minimum
+        run: bash modules/check-sdk.sh iphonesimulator .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app/AtlasSettingsPreview
       - name: Exercise native CRUD and navigation
         run: |
           set -euo pipefail
