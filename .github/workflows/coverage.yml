@@ -10,11 +10,10 @@ name: Coverage
 # commits get here is cli.yml's `push` path filter; this workflow has none.
 # The test targets link TestCoverageAttribution, so each run also records which
 # files every test executed, and the last job tells the server the commit's
-# runs are all in. These are the only runs that collect Xcode coverage: every
-# other `tuist test` job (pull requests, cli.yml and app.yml on main, the
-# deploy acceptance tests) keeps selective testing and sets
-# TUIST_COVERAGE_UPLOAD=0, so it reports `coverage_enabled: false` and the
-# server ignores what it skipped.
+# runs are all in; no other workflow calls `tuist coverage complete`. The
+# selective runs of cli.yml and app.yml still upload coverage for the same
+# commit, and the server takes what a full run of the scheme executed out of
+# their skips (tuist/tuist#14484), so they don't leave gaps in it.
 #
 # Nothing depends on this workflow: it only runs after changes land on main, it
 # is not a required check, no deploy or release workflow waits on it, and

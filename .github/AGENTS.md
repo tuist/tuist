@@ -296,26 +296,22 @@ fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
 whose runs read the binary cache. It runs on `workflow_run` after `cli.yml`
 (workflow `name: CLI`) succeeds on a push to main, at that run's `head_sha`, so
 the commit's own `tuist cache` warm is in place; which commits get there is
-`cli.yml`'s push path filter. Its full runs (`--no-selective-testing`) are the
-only Xcode runs that collect coverage, and its last job alone calls
+`cli.yml`'s push path filter. Its runs are the only full ones
+(`--no-selective-testing`), and its last job alone calls
 `tuist coverage complete`. Those runs share one `coverage-main` concurrency group
 without cancelling: one runs, the newest commit waits, and commits it replaces
 stay "Not measured". Dispatches (`sha` backfills) use groups of their own and test
-with main's `mise.toml`, while a `workflow_run` run keeps the commit's own. Every
-other job that runs `tuist test` (`cli.yml`, `app.yml`, the deploy acceptance
-tests) keeps selective testing and sets `TUIST_COVERAGE_UPLOAD=0` (workflow
-`env` in `cli.yml` and `app.yml`, step `env` in the deploy): it still collects
-coverage and reads the coverage variant, but uploads none and reports
-`coverage_enabled: false`, so the server never takes its skips as gaps in the
-commit's coverage. Collecting costs no measurable test time, so prefer the
-variable over `-enableCodeCoverage NO`, and set it for any new `tuist test` job
-outside `coverage.yml`. The coverage settings are set once, in the
+with main's `mise.toml`, while a `workflow_run` run keeps the commit's own. The
+selective unit-test runs in `cli.yml` and `app.yml` still upload coverage; the
+server drops from their skips whatever a full run of the scheme at the commit
+executed, so they leave no gaps.
+The coverage settings are set once, in the
 root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
 `TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and
 every developer resolve the same variant and the same prefix mapping; both are
 hashed into binary-cache and selective-testing keys, so never set them per step.
 They stand in for `Tuist.swift`'s `coverage` option until the
-backward-compatibility gate's CLI knows it. The coverage runs pass no
+backward-compatibility gate's CLI knows it. The test runs pass no
 `-enableCodeCoverage`: schemes that leave their test action's coverage unset
 follow the resolved option, and the acceptance-test schemes set `coverage: false`
 to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until

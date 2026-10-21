@@ -31,9 +31,6 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
-  # Selective runs upload no coverage and report `coverage_enabled: false`;
-  # coverage.yml's full runs measure TuistApp on main (see cli.yml).
-  TUIST_COVERAGE_UPLOAD: "0"
   MISE_GITHUB_ATTESTATIONS: 0
   # Skip mise's SLSA provenance verification for github-backend tools only.
   # The verification resolves the release through
@@ -187,7 +184,8 @@ jobs:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
       # Only the CLI, locked: a full install on a cold cache writes checksums
-      # into mise.lock, and the run is then reported from a dirty checkout.
+      # into mise.lock, and the run's coverage, reported from a dirty checkout,
+      # is left out of the commit (see coverage.yml).
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"

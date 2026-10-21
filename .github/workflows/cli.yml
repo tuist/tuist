@@ -77,12 +77,6 @@ env:
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
   TUIST_DEV_INSTANCE: "1"
-  # Only coverage.yml's full runs, which start after this workflow on main,
-  # upload Xcode coverage. These runs are selective, so they still collect it
-  # (and read the binary cache's coverage variant TUIST_COVERAGE_ENABLED picks)
-  # but upload none and report `coverage_enabled: false`: the server then never
-  # reads their skipped tests as gaps in the commit's coverage.
-  TUIST_COVERAGE_UPLOAD: "0"
 
 concurrency:
   group: cli-${{ github.head_ref || github.run_id }}
@@ -247,8 +241,9 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
-      # The scheme leaves its test action's coverage unset, so it follows
-      # mise.toml's TUIST_COVERAGE_ENABLED; TUIST_COVERAGE_UPLOAD keeps it local.
+      # Coverage comes from mise.toml's [env]: the scheme leaves its test
+      # action's coverage unset, so it follows TUIST_COVERAGE_ENABLED, which CLIs
+      # before tuist/tuist#14404 ignore.
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
