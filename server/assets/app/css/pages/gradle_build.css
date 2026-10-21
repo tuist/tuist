@@ -117,8 +117,8 @@
             padding: 0;
             min-width: 0;
             max-width: 100%;
-            list-style: none;
             color: var(--noora-surface-label-primary);
+            list-style: none;
 
             & code {
               font: var(--noora-font-weight-regular) var(--noora-font-code-large);
