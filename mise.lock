@@ -254,6 +254,38 @@ url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/
 [tools.gradle."platforms.windows-x64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
 
+[[tools.hcloud]]
+version = "1.70.1"
+backend = "aqua:hetznercloud/cli"
+
+[tools.hcloud."platforms.linux-arm64"]
+checksum = "sha256:c9dbc00158d31131527e9ac5cb59b835fe8275ab7922f627d81b4e9bc2a2cebb"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-arm64.tar.gz"
+
+[tools.hcloud."platforms.linux-arm64-musl"]
+checksum = "sha256:c9dbc00158d31131527e9ac5cb59b835fe8275ab7922f627d81b4e9bc2a2cebb"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-arm64.tar.gz"
+
+[tools.hcloud."platforms.linux-x64"]
+checksum = "sha256:85182e0d51f9a26abeefd79b37de8a7fb51215d54c59ee290c3c9141e8aa887e"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-amd64.tar.gz"
+
+[tools.hcloud."platforms.linux-x64-musl"]
+checksum = "sha256:85182e0d51f9a26abeefd79b37de8a7fb51215d54c59ee290c3c9141e8aa887e"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-amd64.tar.gz"
+
+[tools.hcloud."platforms.macos-arm64"]
+checksum = "sha256:8b6f86e5f344acde2f127b96c32f39b95731c98ecef67c69e69fe4614a674e8a"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-darwin-arm64.tar.gz"
+
+[tools.hcloud."platforms.macos-x64"]
+checksum = "sha256:c1d131b59c57d1ceba650637e0f1635214f78429cb0d98d502087b88caa50ff4"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-darwin-amd64.tar.gz"
+
+[tools.hcloud."platforms.windows-x64"]
+checksum = "sha256:a8c7325062f14aa882260d23d00d0d222d61cf4096471deaa507409bc455782a"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-windows-amd64.zip"
+
 [[tools.helm]]
 version = "4.2.0"
 backend = "aqua:helm/helm"
@@ -611,6 +643,45 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 
 [tools.swiftlint."platforms.macos-x64"]
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
+
+[[tools.talosctl]]
+version = "1.13.11"
+backend = "aqua:siderolabs/talos"
+
+[tools.talosctl."platforms.linux-arm64"]
+checksum = "sha256:3f8de15476a936fa5f7a685392bc902420b44a0324f166a8da343bec137b4ba4"
+url = "https://github.com/siderolabs/talos/releases/download/v1.13.11/talosctl-linux-arm64"
+provenance = "cosign"
+
+[tools.talosctl."platforms.linux-arm64-musl"]
+checksum = "sha256:3f8de15476a936fa5f7a685392bc902420b44a0324f166a8da343bec137b4ba4"
+url = "https://github.com/siderolabs/talos/releases/download/v1.13.11/talosctl-linux-arm64"
+provenance = "cosign"
+
+[tools.talosctl."platforms.linux-x64"]
+checksum = "sha256:d4358faf5ebd740ab92ec4a9e3111f2f271f681e479f07b8603a3616c76b2413"
+url = "https://github.com/siderolabs/talos/releases/download/v1.13.11/talosctl-linux-amd64"
+provenance = "cosign"
+
+[tools.talosctl."platforms.linux-x64-musl"]
+checksum = "sha256:d4358faf5ebd740ab92ec4a9e3111f2f271f681e479f07b8603a3616c76b2413"
+url = "https://github.com/siderolabs/talos/releases/download/v1.13.11/talosctl-linux-amd64"
+provenance = "cosign"
+
+[tools.talosctl."platforms.macos-arm64"]
+checksum = "sha256:544332b543e874c57345bae36dbe7f8294b9bc8d58a8fd5550ecd84c6f343ea5"
+url = "https://github.com/siderolabs/talos/releases/download/v1.13.11/talosctl-darwin-arm64"
+provenance = "cosign"
+
+[tools.talosctl."platforms.macos-x64"]
+checksum = "sha256:e10b0e2af632d2352ccd83760b1a9be4885c65ffba0972b8fcacc743d2be8c23"
+url = "https://github.com/siderolabs/talos/releases/download/v1.13.11/talosctl-darwin-amd64"
+provenance = "cosign"
+
+[tools.talosctl."platforms.windows-x64"]
+checksum = "sha256:5a592aea11ccf6f749b107d2774a71e25250c79158d96c18000525ddd37a9312"
+url = "https://github.com/siderolabs/talos/releases/download/v1.13.11/talosctl-windows-amd64.exe"
+provenance = "cosign"
 
 [[tools.tuist]]
 version = "4.214.0-canary.56"

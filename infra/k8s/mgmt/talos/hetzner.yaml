@@ -1,0 +1,20 @@
+# Hetzner Cloud resources around the management cluster, in project
+# `tuist-mgmt`. Reconciled on merge to main by the `hetzner` job in
+# .github/workflows/mgmt-cluster-apply.yml (infra/mise/tasks/mgmt/reconcile-hetzner.sh).
+# Not a Talos patch and not a Kubernetes manifest.
+location: fsn1
+network:
+  name: tuist-mgmt
+  ipRange: 10.0.0.0/16
+  subnet: 10.0.1.0/24
+loadBalancer:
+  name: tuist-mgmt-api
+  type: lb11
+  # Kubernetes API, TCP passthrough with a TCP health check.
+  ports: [6443]
+  # Targets are reached on their public IP until the nodes carry a
+  # configured private network interface.
+  usePrivateIP: false
+# Servers the load balancer sends traffic to.
+nodes:
+  - tuist-mgmt
