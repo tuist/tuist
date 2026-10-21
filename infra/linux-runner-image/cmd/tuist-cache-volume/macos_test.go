@@ -456,3 +456,13 @@ func makeShare(t *testing.T, share, dir string) {
 		t.Fatal(err)
 	}
 }
+
+func TestMacFlushesADetachedImageTheGuestCannotWrite(t *testing.T) {
+	image := filepath.Join(t.TempDir(), "cache.sparseimage")
+	if err := os.WriteFile(image, []byte("written by the job"), 0444); err != nil {
+		t.Fatal(err)
+	}
+	if err := syncSharedImage(image); err != nil {
+		t.Fatal(err)
+	}
+}

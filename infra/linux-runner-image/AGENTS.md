@@ -319,9 +319,12 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   and retry a failed attach (three attempts, freeing the mountpoint between
   them): it fails transiently with the image intact. A final failure is left in
   the share's `.attach-error` for the host to log. After a clean detach, flush
-  the shared image with `F_FULLFSYNC` before writing `.usage` and `.detached`; a
-  failed flush withholds publication, since the host would otherwise seal an
-  image still missing the job's writes.
+  the shared image through a read-only descriptor (the guest may not be allowed to
+  write a cloned image) before writing `.usage` and `.detached`. Use `F_FULLFSYNC`
+  and fall back to `fsync(2)`: the guest's virtio-fs share answers `F_FULLFSYNC`
+  with `ENOTTY`, and `os.File.Sync` issues the same fcntl on Darwin. A failed
+  flush withholds publication, since the host would otherwise seal an image still
+  missing the job's writes.
 
 ## Cached checkouts
 
