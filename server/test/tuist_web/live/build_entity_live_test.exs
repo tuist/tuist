@@ -121,6 +121,154 @@ defmodule TuistWeb.BuildEntityLiveTest do
   end
 
   for resource <- BuildEntityResources.all() do
+    test "#{resource.key} inventory and detail widgets share Test Cases comparison footers", context do
+      resource = unquote(Macro.escape(resource))
+      %{conn: conn, project: project, account: account} = context
+      project = project |> Ecto.Changeset.change(build_system: resource.system) |> Repo.update!()
+      now = DateTime.utc_now()
+
+      %{entity: entity} =
+        BuildEntitiesFixtures.entity_fixture(project, resource.key,
+          observed_at: DateTime.add(now, -10, :day),
+          status: "failure",
+          duration_ms: 1000
+        )
+
+      BuildEntitiesFixtures.entity_fixture(project, resource.key, status: "failure", duration_ms: 2000)
+      BuildEntitiesFixtures.entity_fixture(project, resource.key, status: "failure", duration_ms: 4000)
+      path = "/#{account.name}/#{project.name}#{resource.path}?analytics-date-range=last-7-days"
+      {:ok, view, _} = live(conn, path)
+      render_async(view)
+      assert_comparison_footer(view, "inventory-observations", "+100.0%", "neutral", "since last week")
+      assert_comparison_footer(view, "inventory-failures", "+100.0%", "destructive", "since last week")
+      assert_comparison_footer(view, "inventory-duration", "+200.0%", "destructive", "since last week")
+      assert_comparison_footer(view, "inventory-entities", "No change", "neutral", "since last week")
+      render_click(view, "select_inventory_duration", %{"type" => "p99"})
+      render_async(view)
+      assert_comparison_footer(view, "inventory-duration", "+298.0%", "destructive", "since last week")
+
+      render_patch(view, "/#{account.name}/#{project.name}#{resource.path}/#{entity.id}?analytics-date-range=last-7-days")
+      render_async(view)
+      assert_comparison_footer(view, "entity-observations", "+100.0%", "neutral", "since last week")
+      assert_comparison_footer(view, "entity-duration", "+280.0%", "destructive", "since last week")
+      assert has_element?(view, "#entity-hit-rate[data-empty=true]", "No recorded lookups")
+      refute has_element?(view, "#entity-hit-rate [data-part=trend]")
+    end
+  end
+
+  test "comparison labels follow the selected preset and custom period", %{conn: conn, project: project, account: account} do
+    project = project |> Ecto.Changeset.change(build_system: :gradle) |> Repo.update!()
+    now = DateTime.utc_now()
+
+    for hours <- [1, 36, 240, 1080] do
+      BuildEntitiesFixtures.entity_fixture(project, :gradle_tasks, observed_at: DateTime.add(now, -hours, :hour))
+    end
+
+    root = "/#{account.name}/#{project.name}/builds/gradle/tasks"
+    {:ok, view, _} = live(conn, root)
+
+    for {preset, label} <- [
+          {"last-24-hours", "since yesterday"},
+          {"last-7-days", "since last week"},
+          {"last-30-days", "since last month"}
+        ] do
+      render_patch(view, root <> "?analytics-date-range=" <> preset)
+      render_async(view)
+      assert has_element?(view, "#inventory-observations [data-part=trend] > [data-part=label]", label)
+    end
+
+    query =
+      URI.encode_query(%{
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => Date.to_iso8601(Date.add(Date.utc_today(), -7)),
+        "analytics-end-date" => Date.to_iso8601(Date.utc_today())
+      })
+
+    render_patch(view, root <> "?" <> query)
+    render_async(view)
+    assert has_element?(view, "#inventory-observations [data-part=trend] > [data-part=label]", "since last period")
+  end
+
+  test "zero baselines use absolute changes and detail cache comparisons use percentage points", %{
+    conn: conn,
+    project: project,
+    account: account
+  } do
+    project = project |> Ecto.Changeset.change(build_system: :gradle) |> Repo.update!()
+
+    %{entity: entity} =
+      BuildEntitiesFixtures.entity_fixture(project, :gradle_tasks,
+        observed_at: DateTime.add(DateTime.utc_now(), -36, :hour),
+        duration_ms: 0,
+        cache_status: "miss"
+      )
+
+    BuildEntitiesFixtures.entity_fixture(project, :gradle_tasks,
+      status: "failure",
+      duration_ms: 500,
+      cache_status: "miss"
+    )
+
+    BuildEntitiesFixtures.entity_fixture(project, :gradle_tasks, duration_ms: nil, cache_status: "hit")
+    root = "/#{account.name}/#{project.name}/builds/gradle/tasks"
+    {:ok, view, _} = live(conn, root <> "?analytics-date-range=last-24-hours")
+    render_async(view)
+    assert_comparison_footer(view, "inventory-failures", "+1", "destructive", "since yesterday")
+    refute has_element?(view, "#inventory-failures [data-part=trend]", "%")
+    assert_comparison_footer(view, "inventory-duration", "+500ms", "destructive", "since yesterday")
+    render_patch(view, root <> "/#{entity.id}?analytics-date-range=last-24-hours")
+    render_async(view)
+    assert_comparison_footer(view, "entity-duration", "+500ms", "destructive", "since yesterday")
+    assert_comparison_footer(view, "entity-hit-rate", "+50.0 pp", "success", "since yesterday")
+    assert_comparison_footer(view, "entity-observations", "+100.0%", "neutral", "since yesterday")
+  end
+
+  test "two recorded zero durations and cache rates show neutral No change", %{
+    conn: conn,
+    project: project,
+    account: account
+  } do
+    project = project |> Ecto.Changeset.change(build_system: :gradle) |> Repo.update!()
+
+    %{entity: entity} =
+      BuildEntitiesFixtures.entity_fixture(project, :gradle_tasks,
+        duration_ms: 0,
+        cache_status: "miss",
+        observed_at: DateTime.add(DateTime.utc_now(), -36, :hour)
+      )
+
+    BuildEntitiesFixtures.entity_fixture(project, :gradle_tasks, duration_ms: 0, cache_status: "miss")
+    root = "/#{account.name}/#{project.name}/builds/gradle/tasks"
+    {:ok, view, _} = live(conn, root <> "?analytics-date-range=last-24-hours")
+    render_async(view)
+    assert_comparison_footer(view, "inventory-duration", "No change", "neutral", "since yesterday")
+    render_patch(view, root <> "/#{entity.id}?analytics-date-range=last-24-hours")
+    render_async(view)
+    assert_comparison_footer(view, "entity-duration", "No change", "neutral", "since yesterday")
+    assert_comparison_footer(view, "entity-hit-rate", "No change", "neutral", "since yesterday")
+  end
+
+  for resource <- BuildEntityResources.all() do
+    test "#{resource.key} missing previous measurements never become fabricated comparisons", context do
+      resource = unquote(Macro.escape(resource))
+      %{conn: conn, project: project, account: account} = context
+      project = project |> Ecto.Changeset.change(build_system: resource.system) |> Repo.update!()
+      %{entity: entity} = BuildEntitiesFixtures.entity_fixture(project, resource.key, duration_ms: 500)
+      root = "/#{account.name}/#{project.name}#{resource.path}"
+      {:ok, view, _} = live(conn, root)
+      render_async(view)
+      assert_comparison_footer(view, "inventory-observations", "+1", "neutral", "since last month")
+      assert_comparison_footer(view, "inventory-entities", "+1", "neutral", "since last month")
+      refute has_element?(view, "#inventory-duration [data-part=trend]")
+      refute has_element?(view, "#inventory-failures [data-part=trend]")
+      render_patch(view, root <> "/#{entity.id}")
+      render_async(view)
+      refute has_element?(view, "#entity-duration [data-part=trend]")
+      refute has_element?(view, "#entity-hit-rate [data-part=trend]")
+    end
+  end
+
+  for resource <- BuildEntityResources.all() do
     test "#{resource.key} inventory sorts measured percentiles and keeps period and environment", context do
       resource = unquote(Macro.escape(resource))
       %{conn: conn, project: project, account: account} = context
@@ -1241,6 +1389,11 @@ defmodule TuistWeb.BuildEntityLiveTest do
     assert has_element?(view, "#entity-activity-search-form")
     assert has_element?(view, "#entity-activity-filter")
     assert has_element?(view, "[data-chart-frame=small]", "Something went wrong")
+  end
+
+  defp assert_comparison_footer(view, widget, value, color, label) do
+    assert has_element?(view, "##{widget} [data-part=trend] .noora-badge[data-color=#{color}]", value)
+    assert has_element?(view, "##{widget} [data-part=trend] > [data-part=label]", label)
   end
 
   defp assert_history_presentation(view, resource, observation) do

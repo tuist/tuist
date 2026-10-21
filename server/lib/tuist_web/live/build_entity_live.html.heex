@@ -111,8 +111,20 @@
                   Map.fetch!(@analytics.result.previous, String.to_existing_atom(@duration_field))
                 )
           }
+          trend_value_label={
+            if ready? && @analytics.result.total.duration_samples > 0,
+              do:
+                trend_value_label(
+                  Map.fetch!(@analytics.result.total, String.to_existing_atom(@duration_field)),
+                  Map.fetch!(
+                    @analytics.result.previous,
+                    String.to_existing_atom(@duration_field)
+                  ),
+                  :duration
+                )
+          }
           trend_type={:inverse}
-          trend_label={dgettext("dashboard_builds", "since the previous period")}
+          trend_label={@analytics_trend_label}
         />
         <.inventory_count_widget {assigns} metric={:entities} ready={ready?} />
       </div>
@@ -191,8 +203,17 @@
                   @analytics.result.previous.observations
                 )
           }
+          trend_value_label={
+            if ready? && @analytics.result.total.observations > 0,
+              do:
+                trend_value_label(
+                  @analytics.result.total.observations,
+                  @analytics.result.previous.observations,
+                  :count
+                )
+          }
           trend_type={:neutral}
-          trend_label={dgettext("dashboard_builds", "since the previous period")}
+          trend_label={@analytics_trend_label}
         />
         <.widget
           id="entity-hit-rate"
@@ -209,6 +230,24 @@
           }
           phx_click="select_widget"
           phx_value_widget="hit_rate"
+          trend_value={
+            if ready?,
+              do:
+                hit_rate_trend(
+                  @analytics.result.total.hit_rate,
+                  @analytics.result.previous.hit_rate
+                )
+          }
+          trend_value_label={
+            if ready?,
+              do:
+                hit_rate_trend_label(
+                  @analytics.result.total.hit_rate,
+                  @analytics.result.previous.hit_rate
+                )
+          }
+          trend_type={:regular}
+          trend_label={@analytics_trend_label}
         />
         <.widget
           id="entity-duration"
@@ -242,8 +281,17 @@
                   Map.get(@analytics.result.previous, String.to_existing_atom(@duration_field))
                 )
           }
+          trend_value_label={
+            if ready?,
+              do:
+                trend_value_label(
+                  Map.get(@analytics.result.total, String.to_existing_atom(@duration_field)),
+                  Map.get(@analytics.result.previous, String.to_existing_atom(@duration_field)),
+                  :duration
+                )
+          }
           trend_type={:inverse}
-          trend_label={dgettext("dashboard_builds", "since the previous period")}
+          trend_label={@analytics_trend_label}
         >
           <:select>
             <.dropdown_item

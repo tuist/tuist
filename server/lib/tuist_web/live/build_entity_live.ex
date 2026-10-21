@@ -109,6 +109,7 @@ defmodule TuistWeb.BuildEntityLive do
       |> assign(:period, period)
       |> assign(:date_params, date_params)
       |> assign(:preset, preset)
+      |> assign(:analytics_trend_label, analytics_trend_label(preset))
       |> assign(:environment, environment)
       |> assign(:branch, params["branch"] || "")
       |> assign(:search, params["q"] || "")
@@ -608,8 +609,31 @@ defmodule TuistWeb.BuildEntityLive do
   defp trend(current, previous) when is_number(current) and is_number(previous) and previous > 0,
     do: (current - previous) / previous * 100
 
-  defp trend(0, 0), do: 0.0
+  defp trend(current, previous) when is_number(current) and previous == 0, do: current * 1.0
   defp trend(_current, _previous), do: nil
+
+  defp trend_value_label(current, previous, metric) when is_number(current) and current > 0 and previous == 0 do
+    value = if metric == :duration, do: duration(current), else: format_number(current)
+    "+#{value}"
+  end
+
+  defp trend_value_label(_current, _previous, _metric), do: nil
+
+  defp hit_rate_trend(current, previous) when is_number(current) and is_number(previous), do: (current - previous) * 1.0
+
+  defp hit_rate_trend(_current, _previous), do: nil
+
+  defp hit_rate_trend_label(current, previous) when is_number(current) and is_number(previous) and current != previous do
+    difference = Float.round((current - previous) * 1.0, 1)
+    dgettext("dashboard_builds", "%{change} pp", change: "#{if difference > 0, do: "+"}#{difference}")
+  end
+
+  defp hit_rate_trend_label(_current, _previous), do: nil
+
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_builds", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_builds", "since last week")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_builds", "since last period")
+  defp analytics_trend_label(_preset), do: dgettext("dashboard_builds", "since last month")
 
   defp inventory_count_widget(assigns) do
     field = inventory_count_field(assigns, assigns.metric)
@@ -625,7 +649,8 @@ defmodule TuistWeb.BuildEntityLive do
         :empty_label,
         if(no_data?, do: dgettext("dashboard_builds", "No data"), else: dgettext("dashboard_builds", "Not recorded"))
       )
-      |> assign(:trend_value, if(assigns.ready && !no_data?, do: trend(value, previous)))
+      |> assign(:trend_value, trend(value, previous))
+      |> assign(:trend_value_label, trend_value_label(value, previous, :count))
       |> assign(
         :legend_color,
         Map.fetch!(%{observations: "primary", failures: "destructive", entities: "p99"}, assigns.metric)
@@ -645,8 +670,9 @@ defmodule TuistWeb.BuildEntityLive do
       phx_click="select_widget"
       phx_value_widget={to_string(@metric)}
       trend_value={@trend_value}
+      trend_value_label={@trend_value_label}
       trend_type={if @metric == :failures, do: :inverse, else: :neutral}
-      trend_label={dgettext("dashboard_builds", "since the previous period")}
+      trend_label={@analytics_trend_label}
     />
     """
   end
