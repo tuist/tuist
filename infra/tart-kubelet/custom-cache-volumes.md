@@ -85,15 +85,32 @@ archive and expanded image, or twice the capacity without a known head size.
 The backend's eviction/admission check and the host's in-flight reservation use
 the same number. Genuine capacity pressure still falls back to a cold job.
 
-A job can write past its reservation into space nothing reserved. Nothing stops
-it: the reservation is an admission estimate, not a quota. When the cache
-filesystem fills, writes to the guest's sparse image fail, the job sees I/O or
-out-of-space errors on its cache paths, and the branch fails verification or is
-withheld as full, so it never publishes. The cache filesystem is a separate
-quota-bounded APFS volume, so it cannot fill the host's system or VM disk. The
-built-in evictor drops least recently used built-in masters when free space falls
-below its watermark, and the next custom admission evicts custom masters before
-refusing. A job never waits for room.
+Admission overcommits: a job can write past its reservation, up to its
+capacity, and nothing stops it. The safeguard is the gap between the admission
+budget (`--runner-cache-budget-gib`) and the cache volume's APFS quota, which is
+where writes actually fail. Admission and the 15% host floor only bound what is
+admitted; the quota bounds what is written. Keep the budget well below the quota
+on every host that runs custom volumes.
+
+- Past the budget but below the quota, writes succeed. Later jobs on the host
+  are refused (`capacity`) and run cold, and each reconcile evicts idle custom
+  masters, least recently used first and never one a job holds, until the
+  reservations fit again (`LocalImages.Relieve`). The built-in evictor does the
+  same for built-in masters on its own tick.
+- With under 2 GB left below the quota, or on the host's disk, tart-kubelet
+  marks every running custom branch `.pressure` (checked every second), and
+  `Seal` withholds it (`ErrPressure`, result `pressure`). A write that failed on
+  the host may not reach the guest, and fsck does not check file contents, so
+  such a branch is never published.
+- At the quota, writes to the guests' images fail. Jobs on the host see I/O or
+  out-of-space errors on their cache paths while the guest still reports free
+  space, and can fail, including a neighbour that stayed within its
+  reservation. The quota keeps the cache off the system and VM disks.
+
+A host whose quota equals its budget (disks under 1 TiB, and hosts whose volume
+predates the half-disk quota) has no gap, so only the pressure guard and
+eviction stand between an overshooting job and failed writes. A job never waits
+for room.
 
 GitHub Actions, Buildkite and GitLab use the same installed client. macOS
 supports native commands and GitLab's shell executor. GitHub container jobs and

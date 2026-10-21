@@ -74,7 +74,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `volumeBytes(slot)`; never size an image from `SizeGB` directly. Attach
   admission uses `Identity.ExpectedBytes`: the head's used bytes plus half again
   (at least `GrowthBytes`), else `UnmeasuredVolumeBytes`, capped at the capacity.
-  A job can write past it; the reservation is an estimate, not a quota. Guest usage
+  A job can write past it; the reservation is an estimate, not a quota.
+  `Relieve` evicts idle masters (never an `inUse` scope) while free space is
+  below a minimum, without reclaiming other caches. `APFSImages.MarkPressure`
+  makes `Seal` withhold a branch (`ErrPressure`) that was written near the hard
+  limit, where a failed host write may have left it silently incomplete. Guest usage
   validation and transfer `MaxBytes` use the host maximum, so grown masters pass.
 - Guests may request a size: `RequestedSize` decodes any JSON value and keeps
   only whole decimal GB from 1 to 100 GB. Agents forward it as

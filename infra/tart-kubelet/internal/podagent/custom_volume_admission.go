@@ -237,3 +237,49 @@ func (c *CustomVolumes) displaceSpareLocked() bool {
 	log.Log.WithName("custom-cache-volumes").Info("admission cancelled a background prefetch to make room for a job")
 	return true
 }
+
+// customPressureBytes is how close to the cache filesystem's hard limit
+// (hardFreeBytes) running branches are withheld from publication.
+const customPressureBytes = 2_000_000_000
+
+// Admission reserves what a job is expected to write, not its capacity, so jobs
+// can write past their reservations. Between the admission budget and the APFS
+// quota they only crowd out later admissions, and relieve gives the space back.
+// Near the quota a write may fail on the host without the guest noticing, so
+// notePressure withholds every running branch from publication.
+func (c *CustomVolumes) notePressure(ctx context.Context) {
+	if c.images == nil {
+		return
+	}
+	free, err := c.Builtins.hardFreeBytes()
+	if err != nil || free >= customPressureBytes {
+		return
+	}
+	release, err := c.guard(ctx)
+	if err != nil {
+		return
+	}
+	defer release()
+	for id, slot := range c.reservations {
+		if id == cachevolumes.PrefetchReservation || slot.Kind == cachevolumes.KindCheckout {
+			continue
+		}
+		if err := c.images.MarkPressure(slot); err != nil {
+			log.FromContext(ctx).Error(err, "withhold custom cache branch under disk pressure", "use", id)
+		}
+	}
+}
+
+// relieve evicts idle custom masters once running jobs have written past what
+// admission left free, so later jobs are admitted again within the budget.
+func (c *CustomVolumes) relieve(ctx context.Context) {
+	if c.images == nil || c.Store == nil {
+		return
+	}
+	evicted, err := c.images.Relieve(ctx, 1, c.Store.InUse)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "relieve custom cache pressure")
+	} else if evicted > 0 {
+		log.FromContext(ctx).Info("jobs outgrew their cache reservations; evicted idle custom masters", "count", evicted)
+	}
+}

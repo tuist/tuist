@@ -123,6 +123,12 @@ workflow code runs in the guest. Never expose host credentials or masters.
   server sends none) for every attach, and the rest of it for a running VM, not
   the capacity: on 2026-10-21 six volumes of one job asked for 130 GB of a 240 GiB
   rack cache disk while holding under 25 GB, and jobs ran cold for "no room".
+  Jobs can then write past their reservations: the gap between the budget and
+  the APFS quota is the safeguard, so keep the budget well below the quota.
+  `relieve` evicts idle custom masters once reservations no longer fit, and
+  `notePressure` marks running branches `.pressure` (withheld, never published)
+  with under 2 GB left before the quota or the host disk is full. See
+  [custom-cache-volumes.md](custom-cache-volumes.md).
   For prefetch, which also
   holds the archive, twice `HeadSizeBytes` (twice the capacity when the head size
   is unknown), in both the shared-filesystem check (`reserveBytes`/`reserveSpare`)

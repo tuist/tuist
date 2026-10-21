@@ -42,6 +42,8 @@ func Result(err error) string {
 		return "unchanged"
 	case errors.Is(err, ErrFull):
 		return "full"
+	case errors.Is(err, ErrPressure):
+		return "pressure"
 	case errors.Is(err, ErrIdentical):
 		return "identical"
 	case errors.Is(err, ErrWithheld):

@@ -317,40 +317,11 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 			return err
 		}
 	}
-	entries, err := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
+	free, _, err = b.evictMasters(ctx, free, func(path string, modified time.Time, free uint64) bool {
+		return !b.refreshing(path) && (free < minimum || time.Since(modified) >= 7*24*time.Hour)
+	})
 	if err != nil {
 		return err
-	}
-	sort.Slice(entries, func(i, j int) bool {
-		a, _ := os.Stat(entries[i])
-		c, _ := os.Stat(entries[j])
-		return a != nil && c != nil && a.ModTime().Before(c.ModTime())
-	})
-	for _, path := range entries {
-		info, err := os.Stat(path)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		if b.refreshing(path) || (free >= minimum && time.Since(info.ModTime()) < 7*24*time.Hour) {
-			continue
-		}
-		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
-		if err != nil {
-			return err
-		}
-		err = os.Remove(path)
-		_ = os.Remove(path + ".json")
-		unlock()
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		free, err = b.freeBytes(ctx)
-		if err != nil {
-			return err
-		}
 	}
 	if free < minimum && b.Reclaim != nil {
 		if err := b.Reclaim(ctx, minimum); err != nil {
@@ -365,6 +336,68 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 		return ErrCapacity
 	}
 	return nil
+}
+
+// Relieve evicts idle local masters, least recently used first, while free
+// space is below minimum, which happens once running jobs wrote more than
+// admission reserved for them. It skips masters a job holds or is attaching
+// (inUse, by scope) and refreshes in flight, and never reclaims other caches
+// or displaces work. Reports how many masters it evicted.
+func (b *LocalImages) Relieve(ctx context.Context, minimum uint64, inUse func(string) bool) (int, error) {
+	if err := b.admission.LockContext(ctx); err != nil {
+		return 0, err
+	}
+	defer b.admission.Unlock()
+	free, err := b.freeBytes(ctx)
+	if err != nil || free >= minimum {
+		return 0, err
+	}
+	_, evicted, err := b.evictMasters(ctx, free, func(path string, _ time.Time, free uint64) bool {
+		return free < minimum && !b.refreshing(path) && !inUse(filepath.Base(filepath.Dir(path)))
+	})
+	return evicted, err
+}
+
+// evictMasters removes the local masters evict selects, oldest first, and
+// measures free space again after each removal. Requires the admission lock.
+func (b *LocalImages) evictMasters(ctx context.Context, free uint64, evict func(path string, modified time.Time, free uint64) bool) (uint64, int, error) {
+	entries, err := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
+	if err != nil {
+		return free, 0, err
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		a, _ := os.Stat(entries[i])
+		c, _ := os.Stat(entries[j])
+		return a != nil && c != nil && a.ModTime().Before(c.ModTime())
+	})
+	evicted := 0
+	for _, path := range entries {
+		info, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return free, evicted, err
+		}
+		if !evict(path, info.ModTime(), free) {
+			continue
+		}
+		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
+		if err != nil {
+			return free, evicted, err
+		}
+		err = os.Remove(path)
+		_ = os.Remove(path + ".json")
+		unlock()
+		if err != nil && !os.IsNotExist(err) {
+			return free, evicted, err
+		}
+		evicted++
+		if free, err = b.freeBytes(ctx); err != nil {
+			return free, evicted, err
+		}
+	}
+	return free, evicted, nil
 }
 func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err error) {
 	source := "empty"
