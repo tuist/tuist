@@ -633,6 +633,7 @@
               label={dgettext("dashboard_integrations", "GitLab URL")}
               value="https://gitlab.com"
               required
+              show_required
             />
             <.text_input
               id="gitlab-token"
@@ -643,17 +644,18 @@
               placeholder="glrt-…"
               value=""
               required
+              show_required
             />
             <.text_input
               id="gitlab-api-token"
               name="api_token"
               type="password"
               input_type="password"
-              label={dgettext("dashboard_integrations", "API access token (optional)")}
+              label={dgettext("dashboard_integrations", "API access token")}
               hint={
                 dgettext(
                   "dashboard_integrations",
-                  "A project or group access token with the read_api scope lets merge request pipelines from the project save cache volumes."
+                  "Lets merge request pipelines save cache volumes. Needs the read_api scope."
                 )
               }
               placeholder="glpat-…"
@@ -710,6 +712,7 @@
           label={dgettext("dashboard_integrations", "GitLab URL")}
           value={connection.url}
           required
+          show_required
         />
         <.text_input
           id={"gitlab-token-#{connection.id}"}
@@ -725,11 +728,11 @@
           name="api_token"
           type="password"
           input_type="password"
-          label={dgettext("dashboard_integrations", "API access token (optional)")}
+          label={dgettext("dashboard_integrations", "API access token")}
           hint={
             dgettext(
               "dashboard_integrations",
-              "A project or group access token with the read_api scope lets merge request pipelines from the project save cache volumes."
+              "Lets merge request pipelines save cache volumes. Needs the read_api scope."
             )
           }
           value=""
