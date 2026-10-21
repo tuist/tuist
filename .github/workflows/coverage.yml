@@ -153,7 +153,9 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: coverage-macos-workspace-${{ github.job }}
       - name: Install stable Rust for Cargo reporting fixtures
         uses: ./.github/actions/mise
         env:
@@ -228,7 +230,9 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: coverage-macos-workspace-${{ github.job }}
       - name: Run tests with coverage
         run: tuist test TuistApp --no-selective-testing -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 

@@ -167,9 +167,10 @@ never persist it or extend its host scope beyond github.com.
 
 ## CLI dependency volumes
 
-macOS jobs in `cli.yml` use the standard `tuist-macos-27-0` profile. Custom
-volumes do not require the larger M4 shape. If host cache capacity is unavailable,
-each attachment falls back independently to an empty job-local directory; always
+macOS jobs in `cli.yml`, `app.yml` and `coverage.yml` use the standard
+`tuist-macos-27-0` profile and install dependencies through `tuist/install`.
+Custom volumes do not require the larger M4 shape. If host cache capacity is
+unavailable, each attachment falls back independently to an empty job-local directory; always
 run dependency installation and do not require a hit in ordinary jobs. Forks use
 the same custom volumes: the runner's verified job identity authorizes attachment
 without workflow credentials, and the server forbids fork publication. This is
