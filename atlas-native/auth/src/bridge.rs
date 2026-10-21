@@ -18,6 +18,12 @@ enum Command {
     Restore {
         session: Session,
     },
+    Business {
+        session: Session,
+        resource: crate::business::Resource,
+        #[serde(flatten)]
+        action: crate::business::Action,
+    },
     TimeOff {
         session: Session,
         #[serde(flatten)]
@@ -46,6 +52,13 @@ pub fn execute(input: &str) -> String {
                 serde_json::to_value(complete(pending, &callback)?)
             }
             Command::Restore { session } => serde_json::to_value(restore(session)?),
+            Command::Business {
+                session,
+                resource,
+                action,
+            } => {
+                return crate::business::execute(session, resource, action);
+            }
             Command::TimeOff { session, action } => {
                 return crate::time_off::execute(session, action);
             }

@@ -55,6 +55,8 @@ class AtlasAIAccountsScreen(
     private var dialog: AlertDialog? = null
     private var tokenField: EditText? = null
     private var showingTokenHelp = false
+    private var profile: AtlasProfileModel? = null
+    private var navigationChanged: () -> Unit = {}
     private val renderListener: () -> Unit = { render() }
 
     init {
@@ -67,8 +69,19 @@ class AtlasAIAccountsScreen(
         render()
     }
 
+    fun profile(
+        model: AtlasProfileModel,
+        changed: () -> Unit,
+    ) {
+        profile = model
+        navigationChanged = changed
+        model.listener = renderListener
+        render()
+    }
+
     fun load() {
         accounts.load()
+        profile?.load()
     }
 
     fun back(): Boolean {
@@ -86,6 +99,7 @@ class AtlasAIAccountsScreen(
         clearToken()
         dialog?.dismiss()
         if (accounts.listener === renderListener) accounts.listener = null
+        if (profile?.listener === renderListener) profile?.listener = null
         if (cancelPending) accounts.cancelLogin()
     }
 
@@ -98,12 +112,27 @@ class AtlasAIAccountsScreen(
             when (accounts.page) {
                 "claude" -> "Claude"
                 "chatgpt" -> "ChatGPT"
-                else -> "Settings"
+                else -> if (profile != null) "Profile" else "Settings"
             }
         when (accounts.page) {
             "settings" -> {
-                heading("Account")
-                row("Atlas server", Uri.parse(server).host ?: server)
+                val identity = profile
+                if (identity != null) {
+                    text(identity.name.ifBlank { "Atlas teammate" }).apply {
+                        textSize = 26f
+                        gravity = android.view.Gravity.CENTER
+                        if (Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
+                    }
+                    row("Email", identity.email.ifBlank { "Not loaded" })
+                } else {
+                    heading("Account")
+                }
+                row("Atlas server", if (identity != null) server else Uri.parse(server).host ?: server)
+                if (identity != null) {
+                    row("Server version", identity.version.ifBlank { if (identity.busy) "Loading…" else "Unavailable" })
+                    identity.error?.let { text(it) }
+                    button("Refresh profile", enabled = !identity.busy, primary = false) { identity.load() }
+                }
                 heading("AI accounts")
                 row("Claude", status("claude")) {
                     showingTokenHelp = false
@@ -117,7 +146,20 @@ class AtlasAIAccountsScreen(
                 }
                 text("These accounts will power sessions you start. Sessions aren’t available yet.")
                 heading("Session")
-                button("Sign out", primary = false) { signOut() }
+                button("Sign out", enabled = true, primary = false) {
+                    if (profile == null) {
+                        signOut()
+                    } else {
+                        dialog =
+                            AlertDialog
+                                .Builder(activity)
+                                .setTitle("Sign out of Atlas?")
+                                .setMessage("Your local session and unsaved drafts will be cleared.")
+                                .setPositiveButton("Sign out") { _, _ -> signOut() }
+                                .setNegativeButton("Cancel", null)
+                                .show()
+                    }
+                }
             }
             "claude" -> renderClaude()
             else -> renderChatGPT()
@@ -129,6 +171,7 @@ class AtlasAIAccountsScreen(
         }
         if (focused) tokenField?.requestFocus()
         scroll.post { if (!closed && !focused) scroll.scrollTo(0, position) }
+        navigationChanged()
     }
 
     private fun renderChatGPT() {
