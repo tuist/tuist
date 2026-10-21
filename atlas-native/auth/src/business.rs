@@ -65,7 +65,32 @@ impl Resource {
     fn visible(self, field: &str) -> bool {
         self.editable().contains(&field)
             || matches!(self, Self::Tasks)
-                && ["status", "assignee_name", "account_name"].contains(&field)
+                && ["status", "assignee_name", "account_name", "reminder_group"].contains(&field)
+    }
+
+    fn valid_filter(self, key: &str, value: &str) -> bool {
+        let values: &[&str] = match (self, key) {
+            (Self::Tasks, "status") => &["open", "completed"],
+            (Self::Tasks, "assignee_id") => {
+                return value.is_empty() || crate::time_off::validate_id(value).is_ok();
+            }
+            (Self::Tasks, "reminder") => &["overdue", "upcoming", "none"],
+            (Self::Tasks, "group_by") => &["reminder"],
+            (Self::Accounts, "segment") => &["customer", "lead", "prospect"],
+            (Self::Accounts, "status") => &["active", "churned", "paused", "trial"],
+            (Self::Accounts, "deal_stage") => &[
+                "discovery",
+                "poc",
+                "legal_review",
+                "security_review",
+                "negotiation",
+                "closed_won",
+                "closed_lost",
+            ],
+            (Self::Invoices, "status") => &["extracted", "needs_review", "failed"],
+            _ => return false,
+        };
+        value.is_empty() || values.contains(&value)
     }
 }
 
@@ -77,6 +102,8 @@ pub(crate) enum Action {
         page: u32,
         #[serde(default)]
         query: String,
+        #[serde(default)]
+        filters: BTreeMap<String, String>,
     },
     Show {
         id: String,
@@ -187,6 +214,19 @@ fn execute_using(
         return Err(error("sign_in_required", "Sign in to Atlas again."));
     }
     let mut url = server.join(resource.path()).map_err(|_| invalid())?;
+    if let Action::List {
+        page,
+        query,
+        filters,
+    } = &action
+        && (*page == 0
+            || query.len() > 500
+            || filters
+                .iter()
+                .any(|(key, value)| !resource.valid_filter(key, value)))
+    {
+        return Err(invalid());
+    }
     if matches!(resource, Resource::Profile) {
         if !matches!(action, Action::List { .. }) {
             return Err(invalid());
@@ -203,13 +243,17 @@ fn execute_using(
         return serde_json::to_value(response).map_err(|_| invalid());
     }
     let (method, payload) = match &action {
-        Action::List { page, query } => {
-            if *page == 0 || query.len() > 500 {
-                return Err(invalid());
-            }
+        Action::List {
+            page,
+            query,
+            filters,
+        } => {
             url.query_pairs_mut()
                 .append_pair("page", &page.to_string())
                 .append_pair("query", query);
+            for (key, value) in filters {
+                url.query_pairs_mut().append_pair(key, value);
+            }
             (Method::GET, None)
         }
         Action::Create { fields } => (Method::POST, Some(payload(resource, fields)?)),

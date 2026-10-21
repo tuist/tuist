@@ -85,6 +85,22 @@ runs:
       working-directory: atlas-native
       run: mise exec -- once query validate-workspace
 
+    - name: Inspect selected Apple SDK
+      if: inputs.platform == 'ios' || inputs.platform == 'ios-device'
+      shell: bash
+      env:
+        TARGET_SURFACE: ${{ inputs.platform }}
+      run: |
+        sdk=iphonesimulator
+        triple=arm64-apple-ios17.0-simulator
+        if [ "$TARGET_SURFACE" = ios-device ]; then sdk=iphoneos; triple=arm64-apple-ios17.0; fi
+        xcodebuild -version
+        xcrun --sdk "$sdk" --show-sdk-version
+        sdk_path=$(xcrun --sdk "$sdk" --show-sdk-path)
+        echo "$sdk_path"
+        printf 'import SwiftUI\n' > "$RUNNER_TEMP/atlas-sdk-probe.swift"
+        xcrun --sdk "$sdk" swiftc -### -target "$triple" -sdk "$sdk_path" "$RUNNER_TEMP/atlas-sdk-probe.swift"
+
     - name: Build native surface
       if: inputs.operation == 'build'
       shell: bash
@@ -95,8 +111,10 @@ runs:
       run: |
         mise run "build:$TARGET_SURFACE"
         if [ "$TARGET_SURFACE" = ios ]; then
+          xcrun vtool -show-build .once/out/AtlasIOS/Atlas.app/Atlas
           ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOS/Atlas.app Atlas-ios-simulator.zip
         elif [ "$TARGET_SURFACE" = ios-device ]; then
+          xcrun vtool -show-build .once/out/AtlasIOSDevice/Atlas.app/Atlas
           ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOSDevice/Atlas.app Atlas-ios-device.zip
         elif [ "$TARGET_SURFACE" = cli ]; then
           .once/out/AtlasCLI/atlas --help

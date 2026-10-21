@@ -129,7 +129,7 @@ class BusinessPreviewActivity : Activity() {
                 }
                 else -> {
                     val model = state.models.getOrPut(state.tab) { AtlasBusinessModel(state.tab, state::request) }
-                    val screen = AtlasBusinessScreen(this, titles.getValue(state.tab), model, ::updateNavigation)
+                    val screen = AtlasBusinessScreen(this, titles.getValue(state.tab), model, ::updateNavigation, state.fixtures::logo)
                     business = screen
                     setActionBar(screen.toolbar)
                     screen.view

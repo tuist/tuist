@@ -95,6 +95,52 @@ final class AtlasBusinessUITests: XCTestCase {
         capture(app, "ios-finance-forbidden-large-dark")
     }
 
+    func testScrollLoadsMoreAndAccountFiltersResetTheWholeList() throws {
+        let app = launch(["--business-pagination"])
+        defer { app.terminate() }
+        _ = try visible("business-item-task-30", in: app)
+        XCTAssertFalse(app.buttons["Next"].exists)
+        XCTAssertFalse(app.buttons["Previous"].exists)
+        capture(app, "ios-tasks-scroll-loaded")
+        app.tabBars.buttons["Accounts"].tap()
+        capture(app, "ios-accounts-logos")
+        _ = try visible("business-item-account-30", in: app)
+        capture(app, "ios-accounts-scroll-loaded")
+        try selectFilter("Lifecycle", option: "Prospect", in: app)
+        let count = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "15 items")).firstMatch
+        XCTAssertTrue(count.waitForExistence(timeout: 5))
+        capture(app, "ios-accounts-filtered")
+        app.buttons["business-filters"].tap()
+        app.buttons["Reset filters"].tap()
+        let all = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "31 items")).firstMatch
+        XCTAssertTrue(all.waitForExistence(timeout: 5))
+    }
+
+    func testReminderGroupsAndOverdueFilterInLargeDarkText() throws {
+        let app = launch(["--dark", "--large-text"])
+        defer { app.terminate() }
+        try selectFilter("Group by", option: "Reminder", in: app)
+        let overdue = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Overdue reminders")).firstMatch
+        XCTAssertTrue(overdue.waitForExistence(timeout: 5))
+        capture(app, "ios-tasks-reminder-groups-large-dark")
+        try selectFilter("Reminder", option: "Overdue", in: app)
+        XCTAssertTrue(app.staticTexts["Review onboarding"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Follow up with Northstar"].exists)
+        XCTAssertFalse(app.staticTexts["Prepare release notes"].exists)
+        capture(app, "ios-tasks-overdue-large-dark")
+    }
+
+    private func selectFilter(_ title: String, option: String, in app: XCUIApplication) throws {
+        app.buttons["business-filters"].tap()
+        capture(app, "ios-filters-\(title.lowercased().replacingOccurrences(of: " ", with: "-"))")
+        let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        let choice = app.buttons[option]
+        XCTAssertTrue(choice.waitForExistence(timeout: 5))
+        choice.tap()
+    }
+
     private func launch(_ arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace"] + arguments
