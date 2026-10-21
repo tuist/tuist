@@ -6,19 +6,28 @@ import android.app.DatePickerDialog
 import android.app.Dialog
 import android.app.TimePickerDialog
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Outline
 import android.graphics.Paint
+import android.graphics.Path
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SearchView
@@ -26,19 +35,34 @@ import android.widget.TextView
 import android.widget.Toolbar
 import java.math.BigDecimal
 import java.math.MathContext
+import java.net.HttpURLConnection
+import java.net.URI
+import java.net.URLEncoder
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.FutureTask
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 class AtlasBusinessScreen(
     private val activity: Activity,
     private val title: String,
     private val model: AtlasBusinessModel,
     private val navigationChanged: () -> Unit = {},
+    private val presence: AtlasPresenceModel? = null,
+    private val logoLoader: (String, (Bitmap?) -> Unit) -> (() -> Unit) = AccountLogos::load,
 ) {
     val toolbar = Toolbar(activity)
+    private val alsoHere =
+        TextView(activity).apply {
+            visibility = View.GONE
+            textSize = 14f
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
     private val search =
         SearchView(activity).apply {
             queryHint = "Search $title"
@@ -63,6 +87,7 @@ class AtlasBusinessScreen(
             isSaveEnabled = false
             isSaveFromParentEnabled = false
             addView(toolbar, LinearLayout.LayoutParams(-1, -2))
+            addView(alsoHere, LinearLayout.LayoutParams(-1, -2))
             addView(search, LinearLayout.LayoutParams(-1, -2))
             addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
             setOnApplyWindowInsetsListener { root, insets ->
@@ -76,25 +101,52 @@ class AtlasBusinessScreen(
     private var dialog: Dialog? = null
     private var previousDraft: AtlasBusinessModel.Draft? = null
     private var previousSelection: String? = null
+    private var rendering = false
+    private var renderGeneration = 0
+    private var restoreScrollY: Int? = null
+    private var pageEnd: View? = null
+    private val logoCancellations = mutableListOf<() -> Unit>()
+    private val pendingLogos = mutableListOf<() -> Boolean>()
     private val listener: () -> Unit = { render() }
+    private val presenceListener: () -> Unit = { renderPresence() }
+    private val layoutListener =
+        android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            restoreScrollY?.let {
+                scroll.scrollTo(0, it)
+                restoreScrollY = null
+                rendering = false
+            }
+            loadVisibleLogos()
+            val identity = renderGeneration
+            scroll.post { if (identity == renderGeneration) loadNearEnd() }
+        }
 
     init {
         model.listener = listener
+        presence?.listener = presenceListener
         search.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextChange(value: String?) = true
 
                 override fun onQueryTextSubmit(value: String?): Boolean {
                     hideKeyboard()
-                    model.load(1, value.orEmpty().trim())
+                    model.load(search = value.orEmpty())
                     return true
                 }
             },
         )
         search.setOnCloseListener {
-            if (!model.busy) model.load(1, "")
+            model.load(search = "")
             false
         }
+        scroll.setOnScrollChangeListener { _, _, y, _, _ ->
+            if (!rendering) loadVisibleLogos()
+            if (!rendering && model.selected == null && model.draft == null) {
+                model.rememberScroll(y)
+                loadNearEnd()
+            }
+        }
+        content.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
         render()
     }
 
@@ -121,14 +173,43 @@ class AtlasBusinessScreen(
     fun close() {
         closed = true
         dialog?.dismiss()
+        logoCancellations.forEach { it() }
+        logoCancellations.clear()
+        pendingLogos.clear()
+        if (content.viewTreeObserver.isAlive) content.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
         if (model.listener === listener) model.listener = null
+        if (presence?.listener === presenceListener) presence.listener = null
+    }
+
+    private fun renderPresence() {
+        if (closed) return
+        val names =
+            presence
+                ?.people
+                ?.filter { it.here }
+                ?.joinToString(", ") { it.name }
+                .orEmpty()
+        alsoHere.text = if (names.isEmpty()) "" else "Also here: $names"
+        alsoHere.visibility = if (names.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun render() {
         if (closed) return
+        rendering = true
+        renderGeneration += 1
         val draft = model.draft
         val selected = model.selected
-        if (previousDraft !== draft || previousSelection != selected?.id) scroll.scrollTo(0, 0)
+        presence?.show(model.resource, selected?.id ?: draft?.id)
+        renderPresence()
+        val changedDestination = previousDraft !== draft || previousSelection != selected?.id
+        restoreScrollY =
+            if (draft == null && selected == null) {
+                model.listScrollY
+            } else if (changedDestination) {
+                0
+            } else {
+                scroll.scrollY
+            }
         previousDraft = draft
         previousSelection = selected?.id
         toolbar.title =
@@ -138,8 +219,22 @@ class AtlasBusinessScreen(
                 title
             }
         search.visibility = if (draft == null && selected == null) View.VISIBLE else View.GONE
-        search.isEnabled = !model.busy
+        search.isEnabled = true
         if (!model.busy && model.query.isEmpty() && search.query.isNotEmpty() && !search.hasFocus()) search.setQuery("", false)
+        toolbar.menu.clear()
+        if (draft == null && selected == null) {
+            toolbar.menu.add("Filters").apply {
+                setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+                setOnMenuItemClickListener {
+                    filters()
+                    true
+                }
+            }
+        }
+        logoCancellations.forEach { it() }
+        logoCancellations.clear()
+        pendingLogos.clear()
+        pageEnd = null
         content.removeAllViews()
         model.notice?.let { text(it) }
         model.error?.let {
@@ -150,7 +245,7 @@ class AtlasBusinessScreen(
                 }
             }
         }
-        if (model.busy) text(if (model.saving) "Saving… Please wait." else "Loading…")
+        if (model.busy && !model.loadingMore) text(if (model.saving) "Saving… Please wait." else "Loading…")
         when {
             draft != null -> editor(draft)
             selected != null -> detail(selected)
@@ -160,12 +255,16 @@ class AtlasBusinessScreen(
     }
 
     private fun list() {
+        if (model.filters.isNotEmpty()) {
+            text("Active filters: " + model.filters.entries.joinToString(" · ") { "${label(it.key)}: ${filterName(it.key, it.value)}" })
+            button("Reset filters", true) { model.load(filters = emptyMap()) }
+        }
         if (model.resource == "invoices") {
             text("Invoices", true)
             text("Manual invoice bookkeeping. Imported invoices are read-only.")
         }
         if (model.canWrite) button("New ${singular()}") { model.edit() }
-        button("Refresh") {
+        button("Refresh", true) {
             hideKeyboard()
             model.load()
         }
@@ -176,7 +275,13 @@ class AtlasBusinessScreen(
         } else if (!model.busy && model.error != null) {
             text("This destination remains available. Check your access with your Atlas administrator, or retry.")
         }
+        var previousGroup: String? = null
         model.items.forEach { value ->
+            if (model.resource == "tasks" && model.filters["group_by"] == "reminder") {
+                val group = value["reminder_group"]
+                if (group != previousGroup) text(reminderGroup(group), true)
+                previousGroup = group
+            }
             val subtitle =
                 when (model.resource) {
                     "tasks" ->
@@ -184,6 +289,12 @@ class AtlasBusinessScreen(
                             value["status"],
                             value["assignee_name"],
                             value["due_on"].takeIf(String::isNotEmpty)?.let { "Due $it" },
+                            value["remind_at"].takeIf(String::isNotEmpty)?.let {
+                                "${if (value["reminder_group"] == "overdue") "Overdue reminder" else "Reminder"}: ${display(
+                                    "remind_at",
+                                    it,
+                                )}"
+                            },
                         )
                     "accounts" -> listOf(value["primary_domain"], value["segment"], value["deal_stage"])
                     else ->
@@ -194,15 +305,32 @@ class AtlasBusinessScreen(
                             if (value.canEdit) "Manual" else "Read-only",
                         )
                 }.filterNotNull().filter(String::isNotBlank).joinToString(" · ")
-            button("${recordTitle(value)}\n$subtitle", row = true) {
-                hideKeyboard()
-                model.show(value)
+            val rowLabel = "${recordTitle(value)}\n$subtitle"
+            if (model.resource == "accounts") {
+                accountRow(value, rowLabel) {
+                    hideKeyboard()
+                    model.show(value)
+                }
+            } else {
+                button(rowLabel, enabled = !model.saving, row = true) {
+                    hideKeyboard()
+                    model.show(value)
+                }
             }
         }
-        if (model.pages > 1) {
-            text("Page ${model.page} of ${model.pages}")
-            button("Previous page", !model.busy && model.page > 1) { model.load(model.page - 1) }
-            button("Next page", !model.busy && model.page < model.pages) { model.load(model.page + 1) }
+        pageEnd =
+            text(
+                if (model.loadingMore) {
+                    "Loading more…"
+                } else if (model.loaded) {
+                    "${model.items.size} of ${model.total} records"
+                } else {
+                    ""
+                },
+            )
+        model.nextPageError?.let {
+            text("Could not load more records: $it")
+            button("Retry loading more", !model.busy) { model.retryNextPage() }
         }
         if (model.resource == "invoices" && model.summary.isNotEmpty()) {
             text("Monthly invoice totals", true)
@@ -222,6 +350,7 @@ class AtlasBusinessScreen(
     }
 
     private fun detail(value: AtlasBusinessModel.Record) {
+        if (model.resource == "accounts") content.addView(accountLogo(value))
         text(recordTitle(value), true)
         if (!value.canEdit) text("Read-only record")
         val fields =
@@ -276,6 +405,168 @@ class AtlasBusinessScreen(
             "deal_stage" -> "deal_stages"
             else -> null
         }
+
+    private fun loadNearEnd() {
+        val end = pageEnd ?: return
+        if (!closed && !rendering && end.isLaidOut && scroll.height > 0 &&
+            end.top <= scroll.scrollY + scroll.height + dp(160)
+        ) {
+            model.loadMore()
+        }
+    }
+
+    private fun filters() {
+        val keys = model.filterKeys
+        val rows = keys.map { key -> "${label(key)}: ${model.filters[key]?.let { filterName(key, it) } ?: "All"}" } + "Reset filters"
+        dialog =
+            AlertDialog
+                .Builder(activity)
+                .setTitle("Filter $title")
+                .setItems(rows.toTypedArray()) { _, index ->
+                    if (closed) return@setItems
+                    if (index == keys.size) model.load(filters = emptyMap()) else filter(keys[index])
+                }.setNegativeButton("Cancel", null)
+                .show()
+    }
+
+    private fun filterChoices(key: String): List<AtlasBusinessModel.Choice> {
+        val values =
+            when {
+                key == "group_by" -> listOf("reminder")
+                key == "reminder" -> listOf("overdue", "upcoming", "none")
+                key == "status" && model.resource == "tasks" -> listOf("open", "completed")
+                else -> return model.options[choicesKey(key)].orEmpty()
+            }
+        return values.map { AtlasBusinessModel.Choice(it, if (key == "reminder") reminderGroup(it) else label(it)) }
+    }
+
+    private fun filterName(
+        key: String,
+        value: String,
+    ) = filterChoices(key).firstOrNull { it.id == value }?.name ?: value
+
+    private fun filter(key: String) {
+        val rows = listOf(AtlasBusinessModel.Choice("", if (key == "group_by") "No grouping" else "All")) + filterChoices(key)
+        val current = model.filters[key].orEmpty()
+        dialog =
+            AlertDialog
+                .Builder(activity)
+                .setTitle(label(key))
+                .setSingleChoiceItems(rows.map { it.name }.toTypedArray(), rows.indexOfFirst { it.id == current }) { picker, index ->
+                    if (!closed) model.load(filters = model.filters + (key to rows[index].id))
+                    picker.dismiss()
+                }.setNegativeButton("Cancel", null)
+                .show()
+    }
+
+    private fun reminderGroup(value: String) =
+        when (value) {
+            "overdue" -> "Overdue reminders"
+            "upcoming" -> "Upcoming reminders"
+            "none" -> "No reminder"
+            "completed" -> "Completed"
+            else -> "Other reminders"
+        }
+
+    private fun accountRow(
+        value: AtlasBusinessModel.Record,
+        label: String,
+        action: () -> Unit,
+    ) {
+        content.addView(
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(72)
+                setPadding(dp(12), dp(16), dp(12), dp(16))
+                contentDescription = label
+                isFocusable = true
+                val background = activity.obtainStyledAttributes(intArrayOf(android.R.attr.selectableItemBackground))
+                setBackgroundResource(background.getResourceId(0, 0))
+                background.recycle()
+                addView(accountLogo(value))
+                addView(
+                    TextView(activity).apply {
+                        text = label
+                        textSize = 16f
+                        setPadding(dp(12), 0, 0, 0)
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    },
+                    LinearLayout.LayoutParams(0, -2, 1f),
+                )
+                setOnClickListener { action() }
+            },
+            ViewGroup.LayoutParams(-1, -2),
+        )
+    }
+
+    private fun accountLogo(value: AtlasBusinessModel.Record): View {
+        val identity = renderGeneration
+        val frame =
+            object : FrameLayout(activity) {
+                private val clip = Path()
+
+                override fun draw(canvas: Canvas) {
+                    val saved = canvas.save()
+                    clip.reset()
+                    clip.addRoundRect(0f, 0f, width.toFloat(), height.toFloat(), dp(10).toFloat(), dp(10).toFloat(), Path.Direction.CW)
+                    canvas.clipPath(clip)
+                    super.draw(canvas)
+                    canvas.restoreToCount(saved)
+                }
+            }.apply {
+                layoutParams = ViewGroup.LayoutParams(dp(44), dp(44))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                clipToOutline = true
+                outlineProvider =
+                    object : ViewOutlineProvider() {
+                        override fun getOutline(
+                            view: View,
+                            outline: Outline,
+                        ) {
+                            outline.setRoundRect(0, 0, view.width, view.height, dp(10).toFloat())
+                        }
+                    }
+            }
+        val colors = activity.obtainStyledAttributes(intArrayOf(android.R.attr.colorControlHighlight))
+        frame.setBackgroundColor(colors.getColor(0, 0x22303030))
+        colors.recycle()
+        frame.addView(
+            TextView(activity).apply {
+                text = recordTitle(value).trim().take(1).uppercase()
+                textSize = 22f
+                gravity = Gravity.CENTER
+            },
+            FrameLayout.LayoutParams(-1, -1),
+        )
+        val domain = value["primary_domain"].trim()
+        if (domain.isNotEmpty()) {
+            pendingLogos += {
+                if (!frame.getGlobalVisibleRect(android.graphics.Rect())) {
+                    false
+                } else {
+                    logoCancellations +=
+                        logoLoader(domain) { bitmap ->
+                            if (!closed && identity == renderGeneration && bitmap != null) {
+                                frame.addView(
+                                    ImageView(activity).apply {
+                                        setImageBitmap(bitmap)
+                                        scaleType = ImageView.ScaleType.FIT_CENTER
+                                    },
+                                    FrameLayout.LayoutParams(-1, -1),
+                                )
+                            }
+                        }
+                    true
+                }
+            }
+        }
+        return frame
+    }
+
+    private fun loadVisibleLogos() {
+        if (!closed) pendingLogos.removeAll { it() }
+    }
 
     private fun choiceField(
         key: String,
@@ -438,6 +729,7 @@ class AtlasBusinessScreen(
             "account_id", "account_name" -> "Account"
             "due_on", "due_date" -> "Due date"
             "remind_at" -> "Reminder"
+            "group_by" -> "Group by"
             "total_amount_value" -> "Total amount"
             "total_amount_currency" -> "Currency"
             "url" -> "Website URL"
@@ -489,6 +781,92 @@ class AtlasBusinessScreen(
     }
 
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
+}
+
+// Public favicons use a separate credential-free client, never the Atlas auth coordinator.
+private object AccountLogos {
+    private data class Cached(
+        val bitmap: Bitmap?,
+        val at: Long = android.os.SystemClock.elapsedRealtime(),
+    )
+
+    private val cache = android.util.LruCache<String, Cached>(64)
+    private val main = Handler(Looper.getMainLooper())
+    private val executor = ThreadPoolExecutor(2, 2, 30, TimeUnit.SECONDS, ArrayBlockingQueue(32))
+
+    fun load(
+        domain: String,
+        completion: (Bitmap?) -> Unit,
+    ): () -> Unit {
+        val cached = cache.get(domain)
+        if (cached != null && (cached.bitmap != null || android.os.SystemClock.elapsedRealtime() - cached.at < 60_000)) {
+            completion(cached.bitmap)
+            return {}
+        }
+        val cancelled =
+            java.util.concurrent.atomic
+                .AtomicBoolean(false)
+        val connection =
+            java.util.concurrent.atomic
+                .AtomicReference<HttpURLConnection?>()
+        val task =
+            FutureTask<Unit> {
+                val bitmap =
+                    runCatching {
+                        val encoded = URLEncoder.encode(domain, "UTF-8")
+                        val http =
+                            URI(
+                                "https://www.google.com/s2/favicons?domain=$encoded&sz=128",
+                            ).toURL().openConnection() as HttpURLConnection
+                        connection.set(http)
+                        try {
+                            if (cancelled.get()) return@runCatching null
+                            val deadline = android.os.SystemClock.elapsedRealtime() + 10_000
+                            http.connectTimeout = 3000
+                            http.readTimeout = 3000
+                            if (http.responseCode != 200) return@runCatching null
+                            val data = ByteArray(256 * 1024 + 1)
+                            var size = 0
+                            http.inputStream.use { stream ->
+                                while (size < data.size && !cancelled.get()) {
+                                    if (android.os.SystemClock.elapsedRealtime() >= deadline) return@runCatching null
+                                    val count = stream.read(data, size, minOf(4096, data.size - size))
+                                    if (count < 0) break
+                                    size += count
+                                }
+                            }
+                            if (size == data.size || cancelled.get()) return@runCatching null
+                            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            BitmapFactory.decodeByteArray(data, 0, size, bounds)
+                            if (bounds.outWidth !in 1..512 || bounds.outHeight !in 1..512) return@runCatching null
+                            val decode =
+                                BitmapFactory.Options().apply {
+                                    inSampleSize = 1
+                                    while (maxOf(bounds.outWidth, bounds.outHeight) / inSampleSize > 128) inSampleSize *= 2
+                                }
+                            BitmapFactory.decodeByteArray(data, 0, size, decode)
+                        } finally {
+                            http.disconnect()
+                            connection.set(null)
+                        }
+                    }.getOrNull()
+                if (!cancelled.get()) {
+                    cache.put(domain, Cached(bitmap))
+                    main.post { if (!cancelled.get()) completion(bitmap) }
+                }
+            }
+        try {
+            executor.execute(task)
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            completion(null)
+        }
+        return {
+            cancelled.set(true)
+            task.cancel(true)
+            executor.remove(task)
+            connection.get()?.disconnect()
+        }
+    }
 }
 
 private class InvoiceChart(

@@ -16,6 +16,7 @@ defmodule Atlas.Application do
   alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
+  alias Atlas.Presence.Notifier
   alias Guardian.DB.Sweeper
 
   @impl true
@@ -59,6 +60,7 @@ defmodule Atlas.Application do
       HandleRegistry,
       GitHubAppBootstrap,
       {Oban, Application.fetch_env!(:atlas, Oban)},
+      Notifier,
       {Task.Supervisor, name: Atlas.TaskSupervisor},
       Sweeper
     ] ++

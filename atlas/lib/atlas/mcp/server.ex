@@ -210,6 +210,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
+  alias Atlas.MCP.Tools.ListPeople
   alias Atlas.MCP.Tools.ListPOCs
   alias Atlas.MCP.Tools.ListPostmortemActionItems
   alias Atlas.MCP.Tools.ListPostmortems
@@ -617,6 +618,7 @@ defmodule Atlas.MCP.Server do
     RemovePublicHoliday,
     ImportPublicHolidays,
     SyncPublicHolidays,
+    ListPeople,
     ListTasks,
     CreateTask,
     UpdateTask,

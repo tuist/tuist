@@ -24,9 +24,12 @@ least recently used binaries before the cache fills up. Authenticate and
 configure the module cache as usual; the plugin only decides where its local
 copy lives.
 
-Successful builds Tuist can verify as coming from your own repository save their
-changes. Builds from forks start empty and never save. The module cache shares
-its storage and size budget with the Xcode cache plugin. Directories you keep
+Successful webhook and schedule builds of your pipeline's repository save their
+changes, including its pull requests. Fork pull requests, tags and builds started
+from the API or the dashboard use the cache but never save. To save only from
+some branches, limit them on the runner profile; see
+[Choose which branches save](https://tuist.dev/en/docs/guides/features/runners/cache-volumes#choose-which-branches-save). The cache
+holds up to 20 GB. Directories you keep
 with the `tuist/cache-volume` plugin are separate.
 
 On agents that are not Tuist macOS runners the hook does nothing. If the runner

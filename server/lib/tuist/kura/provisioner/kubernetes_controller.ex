@@ -250,8 +250,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def rollout_health(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"rolloutHealth" => health}}} when is_map(health) ->
-        {:ok, parse_rollout_health(health)}
+      {:ok, %{"status" => %{"rolloutHealth" => health} = status}} when is_map(health) ->
+        {:ok, health |> parse_rollout_health() |> Map.put(:image_hold, image_hold(status))}
 
       {:ok, _} ->
         {:ok, nil}
@@ -283,6 +283,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       sampled_at: datetime_field(health, "sampledAt")
     }
   end
+
+  # `status.imageHold` names the operator procedure the requested image waits
+  # on (a fenced instance's runtime pin or manual replacement, a replica
+  # recovery's hold). Absent or empty, the controller converges it alone.
+  defp image_hold(%{"imageHold" => hold}) when is_binary(hold) and hold != "", do: hold
+  defp image_hold(_status), do: nil
 
   # The cumulative failure counters are read as `nil` when the aggregate does
   # not carry them, not as 0. They are the two fields the gate compares a

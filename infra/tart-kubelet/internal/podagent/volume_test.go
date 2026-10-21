@@ -136,6 +136,18 @@ func (f *fakeBackend) allocatedBytes(path string) (uint64, error) {
 }
 
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
+	used := f.used(root)
+	if used > f.totalBytes {
+		return 0, nil
+	}
+	return f.totalBytes - used, nil
+}
+
+func (f *fakeBackend) usedBytes(root string) (uint64, error) { return f.used(root), nil }
+
+// used models every master as perMaster and every staged download file as
+// perStagingFile.
+func (f *fakeBackend) used(root string) uint64 {
 	// A query from the custom-cache subdirectory shares the whole filesystem.
 	if f.root != "" {
 		root = f.root
@@ -160,11 +172,7 @@ func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 			return nil
 		})
 	}
-	used := masters*f.perMaster + staged*f.perStagingFile
-	if used > f.totalBytes {
-		return 0, nil
-	}
-	return f.totalBytes - used, nil
+	return masters*f.perMaster + staged*f.perStagingFile
 }
 
 const gib = uint64(1024 * 1024 * 1024)
@@ -861,32 +869,39 @@ func TestInstallMasterKeepsAnImageItCannotGrow(t *testing.T) {
 	}
 }
 
-// An untrusted (fork) job gets an image of its own — cache-ready tells the guest
-// to attach, so signalling without one would drop every fork job onto the local
-// cold cache — but it must be EMPTY, never a clone of the account's master.
-func TestMaterializeEmptyIsolatesForkJobs(t *testing.T) {
+// An untrusted job, which includes every job on managed cache volumes, gets no
+// built-in image and reserves no room for one, but is still released at once.
+func TestUntrustedMaterializeCreatesNoImageAndReservesNothing(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	seedMaster(t, m, "42")
+	statusDir := t.TempDir()
+	att := mustAllocate(t, m, "vm-untrusted")
 
-	att := mustAllocate(t, m, "vm-fork")
-	if err := m.MaterializeEmpty(att); err != nil {
-		t.Fatalf("MaterializeEmpty: %v", err)
-	}
-	if !branchImageExists(m, att) {
-		t.Fatal("an untrusted job still needs an image to attach")
-	}
-	if branchHasWarmCache(m, att) {
-		t.Fatalf("an untrusted job must not receive the account's cache; branch image = %q", branchImageContent(t, m, att))
-	}
+	store := NewStore()
+	store.Put("ns", "pod", &Entry{VMName: "vm-untrusted", Volume: att, VolumeStatusDir: statusDir})
+	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	pod := materializePod("42", "")
+	pod.Labels[runnerCacheUntrustedLabel] = "true"
+	r.maybeMaterializeVolume(pod)
 
-	// It promotes nothing: the dispatch path leaves SourceAccount empty, so even
-	// a successful, dirty fork job discards.
-	writeBranchCache(t, m, att, "attacker")
-	if out, _ := m.Finalize(att, "42", true, true); out != VolumeOutcomeDiscarded {
+	if _, err := os.Stat(filepath.Join(statusDir, cacheReadyFile)); err != nil {
+		t.Fatalf("cache-ready not written: %v", err)
+	}
+	if branchImageExists(m, att) {
+		t.Fatal("an untrusted job got a built-in image")
+	}
+	if got := m.reservedBranches(); got != 0 {
+		t.Fatalf("reserved branches = %d; an untrusted job must not reserve room", got)
+	}
+	entry := store.Get("ns", "pod")
+	if entry.Volume.SourceAccount != "" {
+		t.Fatalf("SourceAccount = %q; an untrusted job must never promote", entry.Volume.SourceAccount)
+	}
+	if out, _ := m.Finalize(entry.Volume, "42", true, true); out != VolumeOutcomeDiscarded {
 		t.Fatalf("untrusted branch Finalize = %s; want discarded", out)
 	}
 	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != masterImageContent("42") {
-		t.Fatal("account 42's master must survive a fork job untouched")
+		t.Fatal("account 42's master must survive an untrusted job untouched")
 	}
 }
 

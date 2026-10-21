@@ -272,6 +272,16 @@ pub static SECTIONS: &[Section] = &[
         "finance:read"
     ),
     section!(
+        "people-directory",
+        "People",
+        "Your team and who is active in Atlas",
+        "/people",
+        "people",
+        "people",
+        false,
+        ""
+    ),
+    section!(
         "content",
         "Content",
         "Plan and publish go-to-market content",

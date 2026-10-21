@@ -588,7 +588,7 @@ attach_cache_image() {
     return 1
   fi
   mkdir -p "${CACHE_MOUNTPOINT}" 2>/dev/null || true
-  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -owners off -nobrowse -noverify -quiet \
+  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -owners off -nobrowse -noverify \
     -mountpoint "${CACHE_MOUNTPOINT}" 2>&1); then
     cache_diag "hdiutil attach ${CACHE_IMAGE}: ${err}"
     return 1
@@ -1635,7 +1635,7 @@ capture_settled_inventory() {
   [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   mkdir -p "${CACHE_VERIFY_MOUNTPOINT}" 2>/dev/null || true
   local err
-  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -readonly -owners off -nobrowse -noverify -quiet \
+  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -readonly -owners off -nobrowse -noverify \
     -mountpoint "${CACHE_VERIFY_MOUNTPOINT}" 2>&1); then
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING settled cache image would not attach read-only: ${err}"
     return 1

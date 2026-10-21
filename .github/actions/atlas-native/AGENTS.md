@@ -33,6 +33,10 @@ directly in that same workflow. Keep permission decisions in the workflow:
   shared-cache authentication for this platform, including on main, so signing
   cannot consume shared outputs written by PRs. The protected main-branch
   publication job owns signing, not this shared PR/fork action.
+- Both iOS builds run `atlas-native/modules/check-sdk.sh` before packaging: the
+  Mach-O SDK must match the selected Xcode SDK while minimum OS stays iOS 17.
+  The isolated UI preview has the same gate before simulator tests. A successful
+  compile alone does not verify modern system appearance.
 - The CLI is a command-line artifact, not an Android/iOS preview. Keep its artifact
   name labeled with the build host OS and architecture.
 - Validate changes with `actionlint .github/workflows/atlas-mobile.yml` and the

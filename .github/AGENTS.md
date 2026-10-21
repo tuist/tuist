@@ -182,15 +182,24 @@ never persist it or extend its host scope beyond github.com.
 
 ## CLI dependency volumes
 
-macOS jobs in `cli.yml` use the standard `tuist-macos-27-0` profile. Custom
-volumes do not require the larger M4 shape. If host cache capacity is unavailable,
-each attachment falls back independently to an empty job-local directory; always
+macOS jobs in `cli.yml`, `app.yml` and `coverage.yml` use the standard
+`tuist-macos-27-0` profile and install dependencies through `tuist/install`.
+Custom volumes do not require the larger M4 shape. If host cache capacity is
+unavailable, each attachment falls back independently to an empty job-local directory; always
 run dependency installation and do not require a hit in ordinary jobs. Forks use
 the same custom volumes: the runner's verified job identity authorizes attachment
 without workflow credentials, and the server forbids fork publication. This is
 separate from the built-in account-wide cache policy. Retained contents must be
 safe for fork contributors to read. Linux and release/backport workflows have
 separate toolchain and runner requirements and are not part of this migration.
+
+On pushes to `main`, `cli.yml` runs Cache, Unit Tests and the acceptance
+tests. Lint and SwiftPM Build run on pull requests only. The `Package.resolved`
+job runs on both and checks that the lockfile's `originHash` is the SHA-256 of
+the root `Package.swift`. `tuist/install` forces resolved versions, so the other
+jobs never notice a stale hash, but local installs then fall back to a full
+native resolution. It runs on pushes because a squash merge can produce a
+`Package.swift` that no branch resolved.
 
 Use the released `tuist/install@v1` action after tool installation and authentication.
 It combines one package-relative `.build` volume with forced installation, explicit
@@ -300,6 +309,12 @@ missing status output, pending migrations and failed Mix commands fatal.
 Take shard references from the build job's outputs, not the current run attempt,
 so rerunning only failed jobs reuses the original plan. Keep distinct `--scheme`
 labels for ClickHouse variants so their outcomes are not treated as flaky reruns.
+Pull requests plan and run the oldest-supported ClickHouse shards only when
+`.github/scripts/server-clickhouse-floor.sh` finds ClickHouse migrations,
+configuration, lockfiles, the workflow, added query code under `server/lib` or
+`server/priv`, or the `ci:clickhouse-floor` label; every other event always runs
+them, and an unreadable pull request runs them. Validate it with
+`bash .github/scripts/server-clickhouse-floor.test.sh`.
 Keep `TUIST_DEV_ALL_LOCALES=1` in both phases. Fork pull requests run both unsharded
 variants without Tuist authentication or `id-token: write`, like the CLI and
 Gradle fork fallbacks. The explicitly named unsharded fallback also runs both variants when the build-plan job fails, without changing that job's failure status. Never silently fall back to the whole suite inside an authenticated shard.
@@ -333,6 +348,37 @@ they cannot flip the CLI's own unit tests. The coverage runs pass no
 result bundle's xccov report, which never covers cached code; the server shows
 that run's `coverage_tool` as `xccov`.
 
+Keep persistent cache mounts outside `RUNNER_TEMP`: GitHub's end-of-job temp
+cleanup deletes their contents before the cache-volume backend publishes them.
+A warm attachment alone does not prove the snapshot retained the intended files.
+
+`server-docker-mix-cache.yml` tests the production Mix snapshot bridge. Its manual
+benchmark seeds one shared registry cache and compares the same Dockerfile and
+app change with/without project-build state on fresh large runners. Require a
+real cross-job snapshot restore whose `.run-id` matches the current run.
+Only manually dispatched jobs get package-write permissions, and all writes go
+to the isolated `tuist-mix-benchmark` package, never the deployment cache or image
+tags. Count restore/export and asynchronous publication separately; a compilation
+speedup alone does not establish a net win. The deployment workflows share the
+stable `server-image-prod-hosted-amd64-projects-v1` volume after a measured win.
+Keep fetched dependencies layer-cached, retain only the four local projects,
+and make attachment/preparation/export failures fall back without failing the
+image build. Historical deployment SHAs without the helper stay registry-only.
+Mix owns Elixir/OTP invalidation; native outputs never enter this snapshot.
+
+The production snapshot is executable build input. It uses the existing
+same-repository writer trust model, as does the registry build cache: a permitted
+same-repo writer can influence production artifacts. Forks cannot publish. Do
+not describe this as default-branch-only protection; deployments requiring that
+boundary need server-enforced per-key restrictions or account-wide writer policy.
+No workflow-side check can fence another job that can publish the same key.
+If a snapshot causes compilation to fail, clear that volume in Runners → Volumes
+or rotate its `-v1` key; do not retry the image build automatically.
+
+The Docker smoke eval also runs the shipped activity-log parser with no arguments
+and requires its usage message and exit code 2. Keep that assertion: app startup
+alone does not check the parser's executable permissions or Swift runtime linkage.
+
 ## Restore drills
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
@@ -353,8 +399,8 @@ The Linux release ships a static musl binary built with the Swift Static Linux S
 any release channel. Keep signing in the checkout-free, read-only `sign-cli` job,
 without the workflow-level release token; the existing publisher uploads the bundle.
 Describe `tuist.zip` as universal macOS. Let Packslip infer Linux libc requirements
-from the archived executables: current builds are static, but older backport
-bundlers may produce dynamic binaries. Never override libc with `any`.
+from the archived executables rather than declaring them. Never override libc
+with `any`.
 Record `inputs.ref`, not the caller's `github.sha`, as the source commit. Builds
 do not currently publish provenance, so keep `attest: false` until provenance
 can truthfully identify each archive's build source.
@@ -391,6 +437,11 @@ are rejected.
 tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
+The job builds `inputs.ref` with the bundler and SDK setup from the
+workflow's own revision, checked out into `.linux-bundler`: release lines cut
+before the bundler took `TUIST_LINUX_ARCH` build only for the host, so their
+aarch64 leg would package an x86_64 binary under the x86_64 name. Keep
+`bundle-linux.sh` resolving `install_static_linux_sdk.sh` relative to itself.
 `mise/utilities/install_static_linux_sdk.sh` (shared with the PR `Linux Build`
 job) hides the host's zlib and libxml2 `.pc` files: SwiftPM's pkg-config
 parser keeps the host's `/usr/lib/<host-triple>` from them, and a cross link
@@ -440,9 +491,13 @@ covered only by the production schedule.
   `Fixture`, which matches case-insensitively on macOS.
 - On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
   custom cache volume: the probe job seeds it with its run id through
-  `tuist/cache-volume`, and `macos-volume` attaches it after
-  `PUBLISH_WAIT_SECONDS` and requires that run id or a later one, since
-  overlapping probe runs share the volume. Canary has one rack host, so
+  `tuist/cache-volume` after the Xcode build, since GitHub can report which job
+  a runner runs later than the host's 25-second authorization budget.
+  `volume-wait` then waits on a GitHub-hosted runner for the host to publish,
+  and `macos-volume` attaches it and requires that run id or a later one,
+  since overlapping probe runs share the volume. Its failures are reported, never
+  blocking: both volume steps run with `continue-on-error`, and `gate.sh`
+  re-raises their `Cache volumes` annotations as warnings. Canary has one rack host, so
   verify lands where seed published; production's multi-host fleets would make
   it depend on convergence. Both jobs require a real APFS mount, because an
   unavailable volume falls back to a job-local directory and still succeeds.

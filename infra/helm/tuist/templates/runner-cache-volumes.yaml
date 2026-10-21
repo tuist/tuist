@@ -135,6 +135,7 @@ spec:
             - --max-slots={{ .Values.runnersFleetLinux.cacheVolumes.maxSlots }}
             - --min-free-gb={{ .Values.runnersFleetLinux.cacheVolumes.minFreeGB }}
             - --volume-gb={{ .Values.runnersFleetLinux.cacheVolumes.volumeGB }}
+            - --max-volume-gb={{ .Values.runnersFleetLinux.cacheVolumes.maxVolumeGB }}
           env:
             - name: NODE_NAME
               valueFrom:

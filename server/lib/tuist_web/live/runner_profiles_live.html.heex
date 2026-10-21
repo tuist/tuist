@@ -184,10 +184,7 @@
 
             <.line_divider />
 
-            <div
-              :if={@cached_checkouts_enabled? and @form_platform == "macos"}
-              data-part="cached-checkouts"
-            >
+            <div data-part="cached-checkouts">
               <.toggle
                 id={"runner-profile-cached-checkouts-#{@form_cached_checkouts}"}
                 label={dgettext("dashboard_runners", "Cached checkouts")}
@@ -202,7 +199,7 @@
               />
             </div>
 
-            <.line_divider :if={@cached_checkouts_enabled? and @form_platform == "macos"} />
+            <.line_divider />
 
             <section data-part="cache-saving-section">
               <button

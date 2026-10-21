@@ -103,6 +103,7 @@ fn pagination_search_and_currency_summary_survive_the_bridge_without_rounding() 
         Action::List {
             page: 2,
             query: "A&B + €".into(),
+            filters: BTreeMap::from([("status".into(), "needs_review".into())]),
         },
     )
     .unwrap();
@@ -114,9 +115,186 @@ fn pagination_search_and_currency_summary_survive_the_bridge_without_rounding() 
         url.query_pairs().collect::<Vec<_>>(),
         [
             ("page".into(), "2".into()),
-            ("query".into(), "A&B + €".into())
+            ("query".into(), "A&B + €".into()),
+            ("status".into(), "needs_review".into())
         ]
     );
+}
+
+#[test]
+fn list_filters_are_top_level_encoded_queries_and_reminder_groups_survive() {
+    let fields = json!({"title":"Boundary task", "reminder_group":"overdue", "secret":"private"});
+    let network = MockTransport::new(vec![
+        json!({"items":[{"id":ID,"fields":fields,"can_edit":true,"can_delete":true}],
+            "page":2,"total_pages":2,"total_count":26,"can_write":true}),
+        json!({"items":[],"page":1,"total_pages":1,"total_count":0,"can_write":true}),
+    ]);
+    let action: Action = serde_json::from_value(
+        json!({"action":"list","page":2,"query":"A&B + €?status=completed#",
+        "filters":{"status":"open","assignee_id":ID,"reminder":"overdue","group_by":"reminder"}}),
+    )
+    .unwrap();
+    let output = execute_using(&network, saved(), Resource::Tasks, action).unwrap();
+    assert_eq!(output["items"][0]["fields"]["reminder_group"], "overdue");
+    assert!(output["items"][0]["fields"].get("secret").is_none());
+    assert_eq!(output["total_count"], 26);
+    let url = url::Url::parse(&network.requests.borrow()[0].0).unwrap();
+    assert_eq!(url.path(), "/api/native/tasks");
+    assert!(url.fragment().is_none());
+    assert_eq!(
+        url.query_pairs().collect::<Vec<_>>(),
+        [
+            ("page".into(), "2".into()),
+            ("query".into(), "A&B + €?status=completed#".into()),
+            ("assignee_id".into(), ID.into()),
+            ("group_by".into(), "reminder".into()),
+            ("reminder".into(), "overdue".into()),
+            ("status".into(), "open".into()),
+        ]
+    );
+
+    let legacy: Action = serde_json::from_value(json!({"action":"list"})).unwrap();
+    execute_using(&network, saved(), Resource::Tasks, legacy).unwrap();
+    assert_eq!(
+        network.requests.borrow()[1].0,
+        "https://atlas.example/api/native/tasks?page=1&query="
+    );
+}
+
+#[test]
+fn resource_filter_allowlists_validate_before_networking() {
+    for (resource, key, values) in [
+        (Resource::Tasks, "status", vec!["", "open", "completed"]),
+        (Resource::Tasks, "assignee_id", vec!["", ID]),
+        (
+            Resource::Tasks,
+            "reminder",
+            vec!["", "overdue", "upcoming", "none"],
+        ),
+        (Resource::Tasks, "group_by", vec!["", "reminder"]),
+        (
+            Resource::Accounts,
+            "segment",
+            vec!["", "customer", "lead", "prospect"],
+        ),
+        (
+            Resource::Accounts,
+            "status",
+            vec!["", "active", "churned", "paused", "trial"],
+        ),
+        (
+            Resource::Accounts,
+            "deal_stage",
+            vec![
+                "",
+                "discovery",
+                "poc",
+                "legal_review",
+                "security_review",
+                "negotiation",
+                "closed_won",
+                "closed_lost",
+            ],
+        ),
+        (
+            Resource::Invoices,
+            "status",
+            vec!["", "extracted", "needs_review", "failed"],
+        ),
+    ] {
+        for value in values {
+            let network = MockTransport::new(vec![
+                json!({"items":[],"page":1,"total_pages":1,"total_count":0,"can_write":false}),
+            ]);
+            execute_using(
+                &network,
+                saved(),
+                resource,
+                Action::List {
+                    page: 1,
+                    query: String::new(),
+                    filters: BTreeMap::from([(key.into(), value.into())]),
+                },
+            )
+            .unwrap();
+            let url = url::Url::parse(&network.requests.borrow()[0].0).unwrap();
+            assert_eq!(
+                url.query_pairs().find(|(name, _)| name == key).unwrap().1,
+                value
+            );
+        }
+    }
+
+    let network = MockTransport::new(vec![]);
+    for (resource, key, value) in [
+        (Resource::Tasks, "status", "active"),
+        (Resource::Tasks, "assignee_id", "../profile"),
+        (Resource::Tasks, "reminder", "completed"),
+        (Resource::Tasks, "group_by", "due_on"),
+        (Resource::Tasks, "segment", ""),
+        (Resource::Accounts, "status", "open"),
+        (Resource::Accounts, "segment", "other"),
+        (Resource::Accounts, "deal_stage", "other"),
+        (Resource::Accounts, "assignee_id", ""),
+        (Resource::Accounts, "group_by", "reminder"),
+        (Resource::Invoices, "status", "paid"),
+        (Resource::Invoices, "reminder", ""),
+        (Resource::Profile, "status", ""),
+    ] {
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                resource,
+                Action::List {
+                    page: 1,
+                    query: String::new(),
+                    filters: BTreeMap::from([(key.into(), value.into())]),
+                }
+            )
+            .is_err()
+        );
+    }
+    for resource in [
+        Resource::Tasks,
+        Resource::Accounts,
+        Resource::Invoices,
+        Resource::Profile,
+    ] {
+        for key in [
+            "unknown",
+            "page",
+            "query",
+            "page_size",
+            "filters[status]",
+            "url",
+        ] {
+            assert!(
+                execute_using(
+                    &network,
+                    saved(),
+                    resource,
+                    Action::List {
+                        page: 1,
+                        query: String::new(),
+                        filters: BTreeMap::from([(key.into(), String::new())]),
+                    }
+                )
+                .is_err()
+            );
+        }
+    }
+    for filters in [
+        json!({"status":null}),
+        json!({"status":[]}),
+        json!([]),
+        json!("open"),
+    ] {
+        assert!(
+            serde_json::from_value::<Action>(json!({"action":"list","filters":filters})).is_err()
+        );
+    }
+    assert!(network.requests.borrow().is_empty());
 }
 
 #[test]
@@ -129,9 +307,13 @@ fn invalid_resources_paths_and_write_fields_never_send_credentials() {
         Action::List {
             page: 0,
             query: String::new(),
+            filters: BTreeMap::new(),
         },
         Action::Create {
             fields: BTreeMap::from([("metadata".into(), Some("manual".into()))]),
+        },
+        Action::Create {
+            fields: BTreeMap::from([("reminder_group".into(), Some("overdue".into()))]),
         },
         Action::Create {
             fields: BTreeMap::from([("due_on".into(), Some("2027-02-29".into()))]),
@@ -189,6 +371,7 @@ fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
         Action::List {
             page: 1,
             query: String::new(),
+            filters: BTreeMap::new(),
         },
     )
     .unwrap();

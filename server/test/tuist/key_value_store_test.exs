@@ -197,6 +197,39 @@ defmodule Tuist.KeyValueStoreTest do
   end
 
   describe "get_or_update/3" do
+    for locking <- [true, false] do
+      @locking locking
+      test "does not store opted-out error results with locking=#{locking}" do
+        cache = :"ignored_callback_#{System.unique_integer([:positive])}"
+        start_supervised!({Cachex, [cache, []]})
+        opts = [cache: cache, locking: @locking, cache_errors: false]
+        assert KeyValueStore.get_or_update(:ignored, opts, fn -> {:error, :retry} end) == {:error, :retry}
+        assert KeyValueStore.get(:ignored, opts) == nil
+        assert KeyValueStore.get_or_update(:ignored, opts, fn -> :recovered end) == :recovered
+      end
+    end
+
+    test "returns error results when the selected cache is unavailable" do
+      cache = :"missing_cache_#{System.unique_integer([:positive])}"
+
+      assert KeyValueStore.get_or_update(:ignored, [cache: cache, cache_errors: false], fn -> {:error, :retry} end) ==
+               {:error, :retry}
+    end
+
+    test "does not store opted-out error results on a persistent miss or malformed value" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://unused" end)
+
+      for cached <- [nil, "invalid external term"] do
+        expect(Redix, :command, fn _conn, ["GET", "ignored"] -> {:ok, cached} end)
+
+        assert KeyValueStore.get_or_update(
+                 :ignored,
+                 [persist_across_deployments: true, locking: false, cache_errors: false],
+                 fn -> {:error, :retry} end
+               ) == {:error, :retry}
+      end
+    end
+
     test "rebuilds an unsafe redis value instead of crashing" do
       stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
       atom_name = "uncached_atom_#{System.unique_integer([:positive])}"
@@ -278,6 +311,58 @@ defmodule Tuist.KeyValueStoreTest do
       assert Enum.map(callers, &Task.await/1) == List.duplicate("value", 5)
       assert_received :computed
       refute_received :computed
+    end
+
+    for {label, value, cache_errors} <- [
+          {"literal ignore tuple", {:ignore, "value"}, true},
+          {"literal internal-shaped tuple", {:ignore, {KeyValueStore, :uncached, {:error, :literal}}}, true},
+          {"uncached error", {:error, :retry}, false}
+        ] do
+      @callback_value value
+      @cache_errors cache_errors
+      test "concurrent waiters retain #{label}" do
+        cache = :"concurrent_shape_#{System.unique_integer([:positive])}"
+        start_supervised!({Cachex, [cache, []]})
+        parent = self()
+        value = @callback_value
+        opts = [cache: cache, cache_errors: @cache_errors]
+
+        owner =
+          Task.async(fn ->
+            KeyValueStore.get_or_update(:shape, opts, fn ->
+              send(parent, {:computing_shape, self()})
+
+              receive do
+                :release -> value
+              end
+            end)
+          end)
+
+        assert_receive {:computing_shape, worker}
+        on_exit(fn -> send(worker, :release) end)
+
+        waiter =
+          Task.async(fn ->
+            KeyValueStore.get_or_update(:shape, opts, fn -> flunk("duplicate computation") end)
+          end)
+
+        courier = String.to_existing_atom("#{cache}_courier")
+
+        assert Enum.reduce_while(1..100, false, fn _, _ ->
+                 {_cache, tasks} = :sys.get_state(courier)
+
+                 if match?({_worker, [_, _ | _]}, Map.get(tasks, "shape")) do
+                   {:halt, true}
+                 else
+                   Process.sleep(10)
+                   {:cont, false}
+                 end
+               end)
+
+        send(worker, :release)
+        assert Task.await(owner) == value
+        assert Task.await(waiter) == value
+      end
     end
 
     test "caches the value the function returns, whatever its shape" do

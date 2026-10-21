@@ -362,8 +362,10 @@ jobs:
           tag_name: runner-image@${{ needs.plan.outputs.version }}
           files: build-manifest.json
           body: ${{ steps.notes.outputs.body }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          # The workflow token cannot tag a commit whose workflow files differ
+          # from main's, which a release that outlasts later merges hits. The
+          # action reads only this input, not GITHUB_TOKEN from env.
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
   deploy:
     name: Deploy runner image

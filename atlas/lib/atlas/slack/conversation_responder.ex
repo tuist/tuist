@@ -116,9 +116,8 @@ defmodule Atlas.Slack.ConversationResponder do
       end
 
     Sessions.with_session(ConversationAgent, prompt, opts, fn condukt_opts ->
-      Condukt.Session.with_transient(ConversationAgent, condukt_opts, fn agent ->
-        agent
-        |> Condukt.stream(prompt)
+      Runner.with_reply_stream(llm, ConversationAgent, prompt, condukt_opts, fn events ->
+        events
         |> Enum.reduce_while(initial_state(), fn stream_event, state ->
           handle_stream_event(stream_event, state, event, app_key, channel_id, thread_ts, account, current?)
         end)

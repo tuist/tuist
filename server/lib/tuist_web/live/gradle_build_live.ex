@@ -45,7 +45,7 @@ defmodule TuistWeb.GradleBuildLive do
     build = Repo.preload(build, :built_by_account)
 
     test_run =
-      case Tests.get_latest_test_by_gradle_build_id(build.id) do
+      case Tests.get_latest_test_by_gradle_build_id(build.id, build.project_id) do
         {:ok, test} -> test
         {:error, :not_found} -> nil
       end

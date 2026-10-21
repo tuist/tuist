@@ -27,7 +27,6 @@ defmodule TuistWeb.RunnerVolumesLive do
      assign(socket,
        head_title: "#{dgettext("dashboard_runners", "Volumes")} · #{account.name} · Tuist",
        can_manage: Authorization.authorize(:runners_update, user, account) == :ok,
-       include_builtin: FeatureFlags.runner_opt_in_caches_enabled?(account),
        pending_action: nil,
        selected: nil,
        selected_tab: "overview",
@@ -44,8 +43,6 @@ defmodule TuistWeb.RunnerVolumesLive do
       if params["id"] do
         CacheVolumes.get(socket.assigns.selected_account.id, params["id"]) || raise NotFoundError
       end
-
-    if selected && selected.builtin_name && !socket.assigns.include_builtin, do: raise(NotFoundError)
 
     %{preset: preset, period: period} = storage_period(params)
 
@@ -169,8 +166,7 @@ defmodule TuistWeb.RunnerVolumesLive do
       socket.assigns
 
     period = socket.assigns.analytics_period
-    builtin = [include_builtin: socket.assigns.include_builtin]
-    sort_options = [sort_by: socket.assigns.sort_by, sort_order: socket.assigns.sort_order] ++ builtin
+    sort_options = [sort_by: socket.assigns.sort_by, sort_order: socket.assigns.sort_order]
 
     assign_async(socket, :data, fn ->
       data =
@@ -200,9 +196,9 @@ defmodule TuistWeb.RunnerVolumesLive do
           account.id
           |> CacheVolumes.list(search, page, sort_options)
           |> Map.put(:history, [])
-          |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, nil, period, builtin))
-          |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, nil, previous_period(period), builtin))
-          |> Map.put(:storage_history, CacheVolumes.storage_history(account.id, period, nil, builtin))
+          |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, nil, period))
+          |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, nil, previous_period(period)))
+          |> Map.put(:storage_history, CacheVolumes.storage_history(account.id, period, nil))
         end
 
       {:ok, %{data: data}}
@@ -381,17 +377,34 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   def stats(data, volume), do: Map.get(data.stats, volume.id, %{})
 
-  def full_snapshot?(%{builtin_name: nil}, stats),
-    do: CacheVolumes.full?(stats[:saved_bytes], stats[:saved_capacity_bytes])
+  # A saved snapshot is nearly full against the capacity the next job gets, so
+  # a larger requested size clears the warning.
+  def full_snapshot?(%{builtin_name: nil, head_id: head_id} = volume, stats) when not is_nil(head_id),
+    do: CacheVolumes.full?(stats[:saved_bytes], next_volume_bytes(volume, stats))
 
   def full_snapshot?(_volume, _stats), do: false
 
-  def full_snapshot_description(stats) do
+  def full_snapshot_description(volume, stats) do
     dgettext(
       "dashboard_runners",
       "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot.",
       used: bytes(stats[:saved_bytes]),
-      capacity: bytes(stats[:saved_capacity_bytes])
+      capacity: bytes(next_volume_bytes(volume, stats))
+    )
+  end
+
+  defp next_volume_bytes(volume, stats), do: CacheVolumes.next_volume_bytes(volume, stats[:head_volume_bytes])
+
+  def volume_capacity(volume, stats), do: CacheVolumes.volume_bytes(volume, stats[:head_volume_bytes])
+
+  def pending_volume_bytes(volume, stats), do: CacheVolumes.pending_volume_bytes(volume, stats[:head_volume_bytes])
+
+  def pending_size_description(volume, stats) do
+    dgettext(
+      "dashboard_runners",
+      "Saved at %{capacity}. New contents will use %{pending} after the next clear.",
+      capacity: bytes(volume_capacity(volume, stats)),
+      pending: bytes(pending_volume_bytes(volume, stats))
     )
   end
 
@@ -420,9 +433,20 @@ defmodule TuistWeb.RunnerVolumesLive do
   def storage_bytes(%{retained_copies: 0}, _field), do: bytes(0)
   def storage_bytes(stats, field), do: bytes(stats[field])
 
-  def storage_capacity(%{retained_copies: 0}), do: bytes(0)
-  def storage_capacity(%{retained_capacity_bytes: capacity}) when not is_nil(capacity), do: bytes(capacity)
-  def storage_capacity(_stats), do: dgettext("dashboard_runners", "Not reported")
+  def storage_capacity(_volume, %{retained_copies: 0}), do: bytes(0)
+  def storage_capacity(_volume, %{retained_capacity_bytes: capacity}) when not is_nil(capacity), do: bytes(capacity)
+
+  def storage_capacity(volume, stats) do
+    case volume_capacity(volume, stats) do
+      nil -> dgettext("dashboard_runners", "Not reported")
+      capacity -> bytes(capacity)
+    end
+  end
+
+  # A custom volume's capacity is what its jobs get; the built-in volume reports
+  # its measured copies.
+  def detail_capacity(%{builtin_name: nil} = volume, stats), do: bytes(volume_capacity(volume, stats))
+  def detail_capacity(volume, stats), do: storage_capacity(volume, stats)
 
   def used_space(%{head_id: nil, deleted_at: nil}, %{retained_bytes: nil}), do: bytes(0)
   def used_space(%{head_id: nil, deleted_at: nil}, stats) when map_size(stats) == 0, do: bytes(0)

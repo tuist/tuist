@@ -19,12 +19,14 @@ import (
 // Built-in Tuist/CAS images remain owned by the existing VolumeManager.
 type APFSImages struct {
 	LocalImages
-	Create func(context.Context, string, int64) error
-	// Seed clones the host-built master of a checkout slot to the given path.
-	Seed    func(context.Context, Slot, string) error
+	Create  func(context.Context, string, int64) error
 	Reserve func(context.Context, Slot) (func(bool), error)
 	Verify  func(string) error
 	Detach  func(string) error
+	// Grow extends a private copy's image to the given capacity before the guest
+	// sees it, never shrinking it and never attaching its filesystem. The guest
+	// grows the APFS container. Nil leaves copies at their saved size.
+	Grow func(context.Context, string, int64) error
 }
 
 func (b *APFSImages) Init() error {
@@ -98,6 +100,10 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			if err != nil {
 				return err
 			}
+			if !cold && b.Grow != nil && slot.VolumeBytes > 0 {
+				// A copy that cannot grow stays warm at its saved size.
+				_ = b.operation("grow", "image", func() error { return b.Grow(ctx, tmp, slot.VolumeBytes) })
+			}
 		}
 		if cold && slot.Kind == KindCheckout {
 			// Never fall back to an empty image: the guest mounts it over its workspace.
@@ -149,20 +155,46 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	}
 	err = unix.Linkat(unix.AT_FDCWD, image, int(dir.Fd()), "cache.sparseimage", 0)
 	if errors.Is(err, unix.EEXIST) {
-		var source, destination unix.Stat_t
-		if err = unix.Stat(image, &source); err != nil {
-			return err
-		}
-		if err = unix.Fstatat(int(dir.Fd()), "cache.sparseimage", &destination, unix.AT_SYMLINK_NOFOLLOW); err != nil {
-			return err
-		}
-		if source.Dev != destination.Dev || source.Ino != destination.Ino {
-			return errors.New("cache share image was replaced")
-		}
+		return sharedImage(image, dir)
 	} else if err != nil {
 		return err
 	}
 	return nil
+}
+
+// ErrReplaced poisons a branch whose share no longer exposes the branch image:
+// whatever the guest wrote went to another file, so sealing the branch would
+// publish its untouched clone.
+var ErrReplaced = fmt.Errorf("%w: cache share image was replaced", ErrPoisoned)
+
+// sharedImage checks that the share directory still exposes image itself.
+func sharedImage(image string, dir *os.File) error {
+	var source, destination unix.Stat_t
+	if err := unix.Stat(image, &source); err != nil {
+		return err
+	}
+	if err := unix.Fstatat(int(dir.Fd()), "cache.sparseimage", &destination, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return fmt.Errorf("%w: %v", ErrReplaced, err)
+	}
+	if source.Dev != destination.Dev || source.Ino != destination.Ino {
+		return ErrReplaced
+	}
+	return nil
+}
+
+// shareExposes opens the share directory without following a guest symlink.
+func shareExposes(image, path string) error {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	dir, err := root.Open(filepath.Base(path))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return sharedImage(image, dir)
 }
 
 // Running guests are the only writers; do not attach their image on the host.
@@ -171,7 +203,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 func (b *APFSImages) Measure(slot Slot, path string) (int64, int64, error) {
 	data, err := os.ReadFile(b.image(slot) + ".metrics")
 	if os.IsNotExist(err) && APFSMarker(path, ".detached", slot.ID) {
-		usage, usageErr := APFSUsage(path, slot.ID, b.volumeBytes(slot))
+		usage, usageErr := APFSUsage(path, slot.ID, b.maxVolumeBytes())
 		return usage.Used, usage.Capacity, usageErr
 	}
 	if err != nil {
@@ -194,7 +226,10 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if b.Cold(slot) {
 		return ErrWithheld
 	}
-	usage, err := APFSUsage(path, slot.ID, b.volumeBytes(slot))
+	if err := shareExposes(image, path); err != nil {
+		return err
+	}
+	usage, err := APFSUsage(path, slot.ID, b.maxVolumeBytes())
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrPoisoned, err)
 	}
@@ -300,6 +335,8 @@ func (b *APFSImages) MountedGeneration(slot Slot) int64 {
 // PrefetchReservation is the Reserve slot ID a prefetch holds while it downloads.
 const PrefetchReservation = "prefetch"
 
+// Prefetch restores a master, evicting idle masters for room. It needs room for
+// the archive beside the expanded image (Identity.RestoreBytes).
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
 	return b.prefetchWith(ctx, slot, b.reserveBytes)
 }
@@ -316,7 +353,7 @@ func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(c
 		return errors.New("invalid prefetch identity")
 	}
 	// A download keeps its archive beside the restored image until it expands.
-	if err := reserve(ctx, 2*uint64(b.volumeBytes(slot))); err != nil {
+	if err := reserve(ctx, uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
 		return err
 	}
 	if b.Reserve != nil {

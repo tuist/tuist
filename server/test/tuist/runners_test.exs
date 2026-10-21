@@ -11,6 +11,9 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheGrant
+  alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
@@ -529,14 +532,12 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
-    test "a job on managed cache volumes keeps its grant but never touches the built-in volume" do
+    test "a macOS job keeps its grant but never touches the built-in volume" do
       account = account_fixture()
       assert {:ok, 1} = VolumeHeads.bump_head(account.id, "node-1", String.duplicate("a", 40), 0, "tuist-cache")
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid)
-      stub(FeatureFlags, :runner_opt_in_caches_enabled?, fn _ -> true end)
-      stub(FeatureFlags, :runner_managed_cache_volumes_enabled?, fn _ -> true end)
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
       stub(CacheGrant, :mint, fn _account_id -> "signed-grant-token" end)
 
@@ -563,32 +564,6 @@ defmodule Tuist.RunnersTest do
       end)
 
       assert {:ok, %{cache_signing_grant: "signed-grant-token"}} =
-               Runners.dispatch_for_sa("tuist-runners", "pod-1")
-    end
-
-    test "hands a trusted job the download URL of its repository volume's HEAD" do
-      account = account_fixture()
-      tree = String.duplicate("a", 40)
-      content = String.duplicate("1", 64)
-      volume = "repo-eae044a4c27633ea"
-      assert {:ok, 1} = VolumeHeads.bump_head(account.id, "node-1", String.duplicate("f", 40), 0, "tuist-cache")
-      assert {:ok, 2} = VolumeHeads.bump_head(account.id, "node-1", String.duplicate("e", 40), 1, "tuist-cache")
-      assert {:ok, 1} = VolumeHeads.bump_head(account.id, "node-1", tree, 0, volume, content_digest: content)
-
-      candidate = candidate_with_label(account, "tuist-default", repository: "acme/cli")
-      stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
-      stub_mac_node("mac-07", repository_volumes: true)
-      stub(CacheGrant, :mint, fn _account_id -> nil end)
-
-      key = "runner-volume-masters/#{account.id}/#{volume}/#{tree}-#{content}.image"
-      url = "https://bucket.fly.storage.tigris.dev/#{key}?X-Amz-Signature=abc"
-
-      expect(Tuist.Storage, :generate_download_url, fn ^key, actor, _opts ->
-        assert actor.id == account.id
-        url
-      end)
-
-      assert {:ok, %{volume_head: %{generation: 1, digest: ^tree, content_digest: ^content, download_url: ^url}}} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
@@ -651,9 +626,6 @@ defmodule Tuist.RunnersTest do
 
     test "keeps a job on the account volume when its host does not read volume labels" do
       account = account_fixture()
-      tree = String.duplicate("a", 40)
-      assert {:ok, 1} = VolumeHeads.bump_head(account.id, "node-1", tree, 0, "tuist-cache")
-
       candidate = candidate_with_label(account, "tuist-default", repository: "acme/cli")
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
@@ -665,13 +637,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{}}
       end)
 
-      key = "runner-volume-masters/#{account.id}/tuist-cache/#{tree}.image"
-      url = "https://bucket.fly.storage.tigris.dev/#{key}?X-Amz-Signature=abc"
-      expect(Tuist.Storage, :generate_download_url, fn ^key, _actor, _opts -> url end)
-
-      assert {:ok, %{volume_head: %{generation: 1, download_url: ^url}}} =
-               Runners.dispatch_for_sa("tuist-runners", "pod-1")
-
+      assert {:ok, _result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-volume" => "tuist-cache"}}
     end
 
@@ -1875,6 +1841,73 @@ defmodule Tuist.RunnersTest do
 
       assert {:error, _} = Catalog.resources_for_fleet(fleet)
       assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # A custom volume an earlier `CI / build` job of acme/cli attached.
+    defp used_volume(account) do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      volume =
+        Repo.insert!(%Volume{
+          account_id: account.id,
+          repository: "acme/cli",
+          scope_id: "123",
+          key: "lfs-objects",
+          platform: "macos",
+          architecture: "arm64",
+          uid: 501
+        })
+
+      workflow_job_id = System.unique_integer([:positive])
+
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: workflow_job_id,
+        workflow_run_id: 1,
+        account_id: account.id,
+        fleet_name: "test",
+        status: "completed",
+        repository: "acme/cli",
+        workflow_name: "CI",
+        job_name: "build",
+        enqueued_at: DateTime.utc_now()
+      })
+
+      Repo.insert!(%Usage{
+        volume_id: volume.id,
+        generation: 1,
+        workflow_job_id: workflow_job_id,
+        workflow_run_id: 1,
+        pod_name: "pod",
+        pod_uid: "pod-#{workflow_job_id}",
+        node_name: "mac-01",
+        can_publish: true,
+        inserted_at: DateTime.utc_now(:second)
+      })
+
+      volume
+    end
+
+    test "prefers the Nodes holding the volumes a queued macOS job is predicted to attach" do
+      account = account_fixture()
+      volume = used_volume(account)
+      fleet = "macos-signal-volumes"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_701, fleet, resources)
+
+      label = "tuist.dev/cache-volume-" <> String.slice(CacheVolumes.scope(volume), 0, 48)
+      assert %{preferred_node_labels: [^label]} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "prefers no Node for a Linux fleet, whose Pods are placed ahead of demand" do
+      account = account_fixture()
+      used_volume(account)
+      fleet = "linux-signal-volumes"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_702, fleet, resources)
+
+      assert %{preferred_node_labels: []} = Runners.scaling_signals_for_fleet(fleet)
     end
   end
 

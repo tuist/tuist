@@ -322,7 +322,7 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       # Per-query memory ceiling so one heavy read fails on its own with a
       # `(for query)` error (retryable) rather than driving the process to its
       # `(total)` server ceiling and killing unrelated queries. Read path only:
-      # writes and backfills go through IngestRepo, which sets its own per-query
+      # writes go through IngestRepo, which sets its own per-query
       # limits where needed.
       max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
       # Shared across every query issued by the application user on one
@@ -379,50 +379,6 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       show_econnreset: true,
       inet6: Tuist.Environment.use_ipv6?(secrets)
     ]
-
-  if bare_metal_url = Tuist.Environment.clickhouse_bare_metal_url(secrets) do
-    # The in-cluster ClickHouse (spec #73), configured here next to the URL so
-    # the credential never reaches application code.
-    #
-    # The read side first, carrying the read path's own settings rather than
-    # the ingest path's: whether this server accepts them is part of what the
-    # migration has to establish before reads move onto it.
-    config :tuist, Tuist.ShadowClickHouseRepo,
-      url: bare_metal_url,
-      pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
-      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
-      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
-      settings: [
-        readonly: 1,
-        max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
-        max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
-        max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets),
-        join_algorithm: "direct,parallel_hash,hash"
-      ],
-      transport_opts: [
-        keepalive: true,
-        show_econnreset: true,
-        inet6: Tuist.Environment.use_ipv6?(secrets)
-      ]
-
-    # And the write side, as a mirror destination while Cloud is still the
-    # system of record. A small pool on purpose: it carries the same write
-    # volume as `Tuist.IngestRepo` but nothing waits on it, and it must not be
-    # able to starve the pool that serves customer requests.
-    config :tuist, Tuist.ShadowIngestRepo,
-      url: bare_metal_url,
-      pool_size: Tuist.Environment.clickhouse_shadow_pool_size(secrets),
-      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
-      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
-      settings: [
-        max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets)
-      ],
-      transport_opts: [
-        keepalive: true,
-        show_econnreset: true,
-        inet6: Tuist.Environment.use_ipv6?(secrets)
-      ]
-  end
 
   config :tuist, Tuist.Repo, database_options
 

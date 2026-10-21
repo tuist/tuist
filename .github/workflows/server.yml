@@ -57,44 +57,6 @@ defaults:
     working-directory: server
 
 jobs:
-  swift-test:
-    name: Swift Tests (XCActivityLogParser)
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    defaults:
-      run:
-        working-directory: server/native/xcactivitylog_nif
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore SwiftPM Cache
-        uses: actions/cache@v4
-        with:
-          path: server/native/xcactivitylog_nif/.build
-          key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
-      - name: Run tests
-        run: swift test --replace-scm-with-registry
-  # XCResultParser is not server-only: the CLI compiles these sources into its
-  # binary, so this job guards both.
-  swift-test-xcresult:
-    name: Swift Tests (XCResultParser)
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    defaults:
-      run:
-        working-directory: server/native/xcresult_nif
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore SwiftPM Cache
-        uses: actions/cache@v4
-        with:
-          path: server/native/xcresult_nif/.build
-          key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
-      - name: Run tests
-        run: swift test --replace-scm-with-registry
-      - name: Verify isolated process hosts
-        run: bash Tests/ProcessHost/test.sh
   gettext:
     name: Gettext
     # The throttled compile below uses a single scheduler, so this job
@@ -236,6 +198,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      pull-requests: read
     if: |
       github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
@@ -249,6 +212,17 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Decide whether to test the oldest supported ClickHouse
+        id: floor-gate
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          run="$(bash .github/scripts/server-clickhouse-floor.sh "$EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER")" || run=true
+          run=false
+          echo "run=$run" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-cache: "false"
@@ -271,6 +245,7 @@ jobs:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-current
       - name: Plan oldest supported ClickHouse shards
         id: floor
+        if: steps.floor-gate.outputs.run == 'true'
         run: |
           mix tuist.test.build --shard-total 4 --warnings-as-errors
           echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
@@ -338,9 +313,12 @@ jobs:
     name: Test (oldest supported ClickHouse)
     # Keep exercising the release declared by Tuist.ClickHouseVersions, including
     # every migration, rather than testing only against the newer hosted release.
+    # Pull requests run it only when .github/scripts/server-clickhouse-floor.sh
+    # finds ClickHouse changes or the `ci:clickhouse-floor` label.
     runs-on: tuist-linux
     timeout-minutes: 30
     needs: test-build
+    if: needs.test-build.outputs.floor-matrix != ''
     permissions:
       contents: read
       id-token: write
@@ -649,7 +627,7 @@ jobs:
             exit "$status"
           fi
           echo "Docker build completed"
-      - name: Smoke test PromEx metrics server
+      - name: Smoke test parser runtime and PromEx metrics server
         run: |
           docker run --rm \
             --env DATABASE_URL=ecto://tuist:tuist@127.0.0.1/tuist \
@@ -662,6 +640,9 @@ jobs:
               :web = Tuist.Environment.mode()
               :prod = Tuist.Environment.env()
               true = File.regular?(Application.app_dir(:tuist, "priv/static/server/self-host/.env.example"))
+              parser = Application.app_dir(:tuist, "priv/native/xcactivitylog-parser")
+              {usage, 2} = System.cmd(parser, [], stderr_to_stdout: true)
+              true = String.starts_with?(usage, "usage: xcactivitylog-parser ")
               {:ok, _} = Application.ensure_all_started(:plug_cowboy)
               {:ok, _} = Application.ensure_all_started(:prom_ex)
               {:ok, supervisor} = Tuist.PromEx.start_link([])

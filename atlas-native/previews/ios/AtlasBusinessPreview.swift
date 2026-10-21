@@ -11,8 +11,10 @@ final class AtlasBusinessPreviewData: ObservableObject {
                     "title": "Review onboarding",
                     "description": "Prepare materials for the new teammate.",
                     "assignee_name": "Taylor",
+                    "assignee_id": "user-1",
                     "status": "open",
                     "due_on": "2026-10-21",
+                    "remind_at": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3600)),
                 ]
             ),
             AtlasBusinessPreviewData.record(
@@ -20,9 +22,11 @@ final class AtlasBusinessPreviewData: ObservableObject {
                 [
                     "title": "Follow up with Northstar",
                     "assignee_name": "Jordan",
+                    "assignee_id": "user-2",
                     "account_name": "Northstar",
                     "status": "open",
                     "due_on": "2026-10-23",
+                    "remind_at": ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
                 ]
             ),
             AtlasBusinessPreviewData.record(
@@ -75,8 +79,34 @@ final class AtlasBusinessPreviewData: ObservableObject {
         ],
     ]
 
+    init() {
+        if ProcessInfo.processInfo.arguments.contains("--business-pagination") {
+            for index in 4...30 {
+                items["tasks", default: []].append(Self.record("task-\(index)", [
+                    "title": "Customer follow-up \(index)", "status": "open", "assignee_id": "user-1", "assignee_name": "Taylor",
+                ]))
+            }
+            items["accounts", default: []].insert(Self.record("account-tuist", [
+                "name": "Tuist", "primary_domain": "tuist.dev", "segment": "customer", "status": "active",
+            ]), at: 0)
+            for index in 3...30 {
+                items["accounts", default: []].append(Self.record("account-\(index)", [
+                    "name": "Customer studio \(index)", "segment": index.isMultiple(of: 2) ? "customer" : "prospect",
+                    "status": "active", "deal_stage": "discovery",
+                ]))
+            }
+        }
+    }
+
     private static func record(_ id: String, _ fields: [String: String], writable: Bool = true) -> [String: Any] {
-        ["id": id, "fields": fields, "can_edit": writable, "can_delete": writable]
+        var fields = fields
+        if ["open", "completed"].contains(fields["status"] ?? "") {
+            if fields["status"] == "completed" { fields["reminder_group"] = "completed" } else {
+                let reminder = fields["remind_at"].flatMap { ISO8601DateFormatter().date(from: $0) }
+                fields["reminder_group"] = reminder.map { $0 <= Date() ? "overdue" : "upcoming" } ?? "none"
+            }
+        }
+        return ["id": id, "fields": fields, "can_edit": writable, "can_delete": writable]
     }
 
     func request(_ action: [String: Any]) async throws -> Data {
@@ -93,11 +123,29 @@ final class AtlasBusinessPreviewData: ObservableObject {
         let command = action["action"] as? String ?? "list"
         if command == "list" {
             let query = (action["query"] as? String ?? "").lowercased()
-            let rows = (items[resource] ?? []).filter {
+            let filters = action["filters"] as? [String: String] ?? [:]
+            var rows = (items[resource] ?? []).filter {
                 query
                     .isEmpty ||
                     (($0["fields"] as? [String: String])?.values.joined(separator: " ").lowercased().contains(query) == true)
+            }.filter { row in
+                let fields = row["fields"] as? [String: String] ?? [:]
+                return filters.allSatisfy { key, value in
+                    key == "group_by" || value.isEmpty || fields[key == "reminder" ? "reminder_group" : key] == value
+                }
             }
+            if filters["group_by"] == "reminder" {
+                let groups = AtlasTaskReminderGroup.allCases.map(\.rawValue)
+                rows.sort {
+                    let lhs = ($0["fields"] as? [String: String])?["reminder_group"] ?? "none"
+                    let rhs = ($1["fields"] as? [String: String])?["reminder_group"] ?? "none"
+                    return (groups.firstIndex(of: lhs) ?? 2) < (groups.firstIndex(of: rhs) ?? 2)
+                }
+            }
+            let page = action["page"] as? Int ?? 1
+            let total = rows.count
+            let start = min((page - 1) * 25, total)
+            rows = Array(rows[start..<min(start + 25, total)])
             let summary: [[String: String]] = resource == "invoices" ? [
                 ["month": "2026-07", "currency": "EUR", "amount": "950.40"],
                 ["month": "2026-08", "currency": "EUR", "amount": "1420.80"],
@@ -106,7 +154,7 @@ final class AtlasBusinessPreviewData: ObservableObject {
                 ["month": "2026-10", "currency": "USD", "amount": "180.00"],
             ] : []
             return try JSONSerialization.data(withJSONObject: [
-                "items": rows, "page": 1, "total_pages": 1, "total_count": rows.count, "can_write": true,
+                "items": rows, "page": page, "total_pages": max(1, (total + 24) / 25), "total_count": total, "can_write": true,
                 "summary": summary, "options": [
                     "users": [["id": "user-1", "name": "Taylor"], ["id": "user-2", "name": "Jordan"]],
                     "accounts": [["id": "account-1", "name": "Northstar"]],

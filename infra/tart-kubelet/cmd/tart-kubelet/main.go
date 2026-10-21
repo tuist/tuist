@@ -80,7 +80,9 @@ func main() {
 		customCacheURL       string
 		customCacheNamespace string
 		customCacheSA        string
+		customCacheMaxGB     int
 		cacheVolumeCapGiB    int
+		runnerCacheBudgetGiB int
 		cacheVolumeCASGiB    int
 		imageMirrors         imageMirrorList
 		imageMirrorSync      time.Duration
@@ -143,9 +145,15 @@ func main() {
 		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images. "+
 			"Empty (default) disables cache volumes entirely: every VM boots on the status-quo cold path. "+
 			"Host bootstrap sets this to the runner-cache volume it provisions (e.g. /var/lib/tart-cache).")
+	flag.IntVar(&runnerCacheBudgetGiB, "runner-cache-budget-gib", envIntOr("TART_KUBELET_RUNNER_CACHE_BUDGET_GIB", 0),
+		"Space (GiB) every cache on --runner-cache-root may take together. Admission, convergence and eviction "+
+			"measure against it below the volume's quota, so it can change without recreating the volume. "+
+			"0 (default) leaves the quota as the bound.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", envOr("TART_KUBELET_CUSTOM_CACHE_URL", ""), "Opt-in server /api/internal/runners/cache-volumes URL")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Runner namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
+	flag.IntVar(&customCacheMaxGB, "custom-cache-max-volume-gb", envIntOr("TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB", 100),
+		"Largest custom cache volume this host accepts, in decimal GB. Sent with every authorization; the server never allocates a larger volume to this host. At least 20.")
 	flag.IntVar(&cacheVolumeCapGiB, "cache-volume-cap-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAP_GIB", 20),
 		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
@@ -358,6 +366,7 @@ func main() {
 	// Runnable so its watermark evictor + observability sampler run on a
 	// ticker alongside the reconciler.
 	volumes := podagent.NewVolumeManager(runnerCacheRoot, cacheVolumeCapGiB, nil)
+	volumes.BudgetGiB = runnerCacheBudgetGiB
 	volumes.CASGiB = cacheVolumeCASGiB
 	if cacheVolumeCASGiB >= cacheVolumeCapGiB && cacheVolumeCASGiB > 0 {
 		setupLog.Info("WARNING --cache-volume-cas-gib >= --cache-volume-cap-gib; the CAS budget is clamped so the binary cache and reserve keep a slice — lower cas-gib or raise cap-gib",
@@ -402,9 +411,14 @@ func main() {
 
 	var customVolumes *podagent.CustomVolumes
 	if customCacheURL != "" && volumes.Enabled() {
-		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes,
+		if customCacheMaxGB < 20 {
+			setupLog.Error(fmt.Errorf("--custom-cache-max-volume-gb=%d", customCacheMaxGB), "custom cache volumes need a maximum of at least the default 20 GB")
+			os.Exit(1)
+		}
+		checkoutsRoot := filepath.Join(runnerCacheRoot, "custom", "checkouts")
+		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes, MaxVolumeBytes: int64(customCacheMaxGB) * 1_000_000_000,
 			// Checkout masters share the custom volumes' filesystem, admission and agent.
-			Checkouts: &podagent.Checkouts{Root: filepath.Join(runnerCacheRoot, "custom", "checkouts")}}
+			Checkouts: &cachevolumes.Checkouts{Root: checkoutsRoot, Images: &cachevolumes.APFSCheckoutImages{}, Tools: podagent.GitLFS(checkoutsRoot, nil)}}
 		if err := mgr.Add(customVolumes); err != nil {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)
@@ -433,7 +447,12 @@ func main() {
 		}
 	}
 
+	hostDisk := &podagent.HostDisk{
+		Tart:       tartClient,
+		MarkerPath: filepath.Join(tartClient.UserDataDir, ".holds-runner-images"),
+	}
 	reconciler := &podagent.Reconciler{
+		HostDisk:           hostDisk,
 		CachedClient:       mgr.GetClient(),
 		NodeName:           nodeName,
 		NodeIP:             nodeIP,
@@ -486,9 +505,10 @@ func main() {
 
 	// A host joining the cluster pulls its fleet's in-demand runner images
 	// before it takes Pods, through the same golden path a Pod's first VM
-	// takes. The gate taints only a Node this process creates; see
-	// nodeagent.PrewarmGate.
+	// takes. The gate taints a Node this process creates, or one whose host
+	// disk has never held a runner image; see nodeagent.PrewarmGate.
 	prewarmGate := nodeagent.NewPrewarmGate()
+	prewarmGate.FreshDisk = hostDisk.Fresh
 	if err := mgr.Add(&podagent.Prewarmer{
 		K8s:     mgr.GetAPIReader(),
 		Goldens: reconciler,

@@ -238,7 +238,7 @@
             sort_order={@sort_by == "capacity" && @sort_order}
           >
             <.text_cell
-              label={storage_capacity(stats(data, volume))}
+              label={storage_capacity(volume, stats(data, volume))}
               title={measurement_coverage(stats(data, volume)[:unmeasured_capacity_copies])}
             />
           </:col>
@@ -302,7 +302,16 @@
         type="secondary"
         size="large"
         title={dgettext("dashboard_runners", "This volume is almost full")}
-        description={full_snapshot_description(metrics)}
+        description={full_snapshot_description(volume, metrics)}
+      />
+      <.alert
+        :if={pending_volume_bytes(volume, metrics)}
+        id="volume-pending-size-alert"
+        status="information"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_runners", "A smaller size was requested")}
+        description={pending_size_description(volume, metrics)}
       />
       <.card
         title={dgettext("dashboard_runners", "Volume details")}
@@ -333,7 +342,8 @@
               ><.history />{relative_time(volume.last_used_at)}</span>
             </div>
             <div id="volume-capacity" data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_runners", "Capacity")}</div><span data-part="label">{storage_capacity(
+              <div data-part="title">{dgettext("dashboard_runners", "Capacity")}</div><span data-part="label">{detail_capacity(
+                volume,
                 metrics
               )}</span>
             </div>

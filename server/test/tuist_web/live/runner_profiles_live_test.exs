@@ -5,7 +5,6 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.FeatureFlags
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -267,12 +266,11 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       %{profile: profile}
     end
 
-    test "a macOS profile turns them off while the account has the flag", %{
+    test "a macOS profile turns them off", %{
       conn: conn,
       account: account,
       profile: profile
     } do
-      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> true end)
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
       html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
@@ -283,27 +281,23 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       refute Profiles.get_by_name(account, "mac").cached_checkouts
     end
 
-    test "is hidden without the flag, and a save keeps the profile's setting", %{
-      conn: conn,
-      account: account,
-      profile: profile
-    } do
-      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> false end)
-      profile |> Ecto.Changeset.change(cached_checkouts: false) |> Tuist.Repo.update!()
+    test "a Linux profile turns them off", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci-linux", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cached_checkouts
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
       html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
-      refute html =~ "Cached checkouts"
+      assert html =~ "Cached checkouts"
 
+      render_hook(lv, "toggle_cached_checkouts", %{})
       render_hook(lv, "save_profile", %{})
-      refute Profiles.get_by_name(account, "mac").cached_checkouts
+      refute Profiles.get_by_name(account, "ci-linux").cached_checkouts
     end
 
-    test "is not offered for Linux profiles", %{conn: conn, account: account} do
-      stub(FeatureFlags, :runner_cached_checkouts_enabled?, fn _ -> true end)
+    test "a new Linux profile is created with them on", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
-      refute render_hook(lv, "open_create_modal", %{}) =~ "Cached checkouts"
+      assert render_hook(lv, "open_create_modal", %{}) =~ "Cached checkouts"
     end
   end
 end

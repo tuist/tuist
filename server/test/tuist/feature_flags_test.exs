@@ -8,6 +8,28 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "immutable_shard_reports_enabled?/1" do
+    test "coverage-enabled accounts cannot create immutable plans" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+
+      for coverage? <- [true, false] do
+        stub(FunWithFlags, :enabled?, fn
+          :immutable_shard_reports, [for: ^account] -> true
+          :xcode_coverage, [for: ^account] -> coverage?
+        end)
+
+        assert FeatureFlags.immutable_shard_reports_enabled?(account) == not coverage?
+      end
+    end
+
+    test "environments with coverage enabled by default remain on legacy plans" do
+      stub(Environment, :env, fn -> :stag end)
+      expect(FunWithFlags, :enabled?, fn :immutable_shard_reports, _ -> true end)
+      refute FeatureFlags.immutable_shard_reports_enabled?(%Account{id: 42, name: "tuist"})
+    end
+  end
+
   describe "kura_stable_hostname_enabled?/1" do
     test "staging and production require an explicit account or global flag" do
       account = %Account{id: 42, name: "tuist"}

@@ -10,7 +10,7 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   import Ecto.Query
 
-  alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
@@ -36,14 +36,22 @@ defmodule Tuist.Runners.CacheVolumes do
   @full_percent 80
   @out_of_space_percent 99
 
-  def allocate(%{
-        "pod_name" => pod,
-        "pod_uid" => uid,
-        "node_name" => node,
-        "key" => key,
-        "architecture" => arch,
-        "uid" => user_id
-      }) do
+  @volume_bytes 20_000_000_000
+  # Tuist sizes its managed volumes and ignores requested sizes for them.
+  @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000, "tuist-module" => 20_000_000_000}
+  # The largest volume a host that does not advertise its maximum accepts.
+  @legacy_max_volume_bytes 32_000_000_000
+
+  def allocate(
+        %{
+          "pod_name" => pod,
+          "pod_uid" => uid,
+          "node_name" => node,
+          "key" => key,
+          "architecture" => arch,
+          "uid" => user_id
+        } = params
+      ) do
     with true <- valid_key?(key) and key != @checkout_key,
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
@@ -57,7 +65,9 @@ defmodule Tuist.Runners.CacheVolumes do
         key: key,
         architecture: arch,
         platform: to_string(platform),
-        uid: user_id
+        uid: user_id,
+        requested_volume_bytes: params["requested_volume_bytes"],
+        max_volume_bytes: params["max_volume_bytes"]
       })
     else
       {:error, :pending} ->
@@ -93,8 +103,6 @@ defmodule Tuist.Runners.CacheVolumes do
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
          {:ok, %WorkflowJob{provider: "github"} = job, platform} <- executing_job(pod, node),
-         {:ok, account} <- Accounts.get_account_by_id(job.account_id),
-         true <- FeatureFlags.runner_cached_checkouts_enabled?(account),
          true <- profile_cached_checkouts?(job),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          true <- VCS.installation_api_url(installation) == "https://api.github.com",
@@ -210,7 +218,7 @@ defmodule Tuist.Runners.CacheVolumes do
       grant =
         if attrs.key == @checkout_key,
           do: :denied,
-          else: writer_grant(identity, writer_profile(job, identity))
+          else: writer_grant(identity, writer_profile(job))
 
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
@@ -239,7 +247,9 @@ defmodule Tuist.Runners.CacheVolumes do
       volume =
         Repo.one!(from(v in volume_query(job, identity, attrs), lock: "FOR UPDATE"))
 
-      volume = volume |> expire_locked(now) |> reset_full_locked()
+      volume = expire_locked(volume, now)
+      requested = requested_volume_bytes(job, attrs)
+      {volume, saved_head, volume_bytes} = size_locked(volume, requested, max_volume_bytes(attrs))
 
       head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
 
@@ -256,6 +266,7 @@ defmodule Tuist.Runners.CacheVolumes do
           content_digest: head && head.content_digest,
           workflow_job_id: job.workflow_job_id,
           workflow_run_id: job.workflow_run_id,
+          volume_bytes: volume_bytes,
           inserted_at: timestamp,
           updated_at: timestamp
         })
@@ -275,7 +286,8 @@ defmodule Tuist.Runners.CacheVolumes do
           last_used_at: if(volume.deleted_at, do: nil, else: volume.last_used_at),
           deleted_at: nil,
           repository: job.repository,
-          default_branch: Map.get(identity, :default_branch, volume.default_branch)
+          default_branch: Map.get(identity, :default_branch, volume.default_branch),
+          requested_volume_bytes: saved_request(volume, usage, requested)
         )
       )
 
@@ -289,9 +301,75 @@ defmodule Tuist.Runners.CacheVolumes do
         content_digest: usage.content_digest,
         can_publish: usage.can_publish,
         uid: volume.uid,
-        volume_bytes: volume_bytes(volume)
+        volume_bytes: usage.volume_bytes || volume_bytes,
+        head_size_bytes: saved_head && saved_head.size_bytes
       }
     end)
+  end
+
+  # Picks the capacity of the job's copy. It grows within a lineage and shrinks
+  # only when the volume starts empty. A saved head that would be nearly full at
+  # that capacity, and whose clone filled its own, is cleared first. A capacity
+  # above what the host holds allocates nothing.
+  defp size_locked(volume, requested, max_volume_bytes) do
+    saved_head = volume.head_id && Repo.get(Usage, volume.head_id)
+    volume_bytes = allocation_volume_bytes(volume, saved_head, requested)
+
+    reset? =
+      not is_nil(saved_head) and full?(saved_head.size_bytes, volume_bytes) and clone_ran_out_of_space?(saved_head.id)
+
+    {saved_head, volume_bytes} =
+      if reset?,
+        do: {nil, allocation_volume_bytes(%{volume | head_id: nil}, nil, requested)},
+        else: {saved_head, volume_bytes}
+
+    if volume_bytes > max_volume_bytes, do: Repo.rollback(:capacity)
+
+    if reset? do
+      Runners.clear_volume_master(volume.account_id, storage_name(volume))
+      {Repo.update!(Ecto.Changeset.change(volume, generation: volume.generation + 1, head_id: nil)), nil, volume_bytes}
+    else
+      {volume, saved_head, volume_bytes}
+    end
+  end
+
+  defp allocation_volume_bytes(%{key: key, head_id: nil}, _saved_head, requested),
+    do: Map.get(@managed_volume_bytes, key) || requested || @volume_bytes
+
+  defp allocation_volume_bytes(%{key: key}, saved_head, requested),
+    do: Map.get(@managed_volume_bytes, key) || max(saved_volume_bytes(key, saved_head), requested || 0)
+
+  # Managed volumes size themselves. Sizes above the default need the account's
+  # flag; larger requests are capped to the default.
+  defp requested_volume_bytes(job, attrs) do
+    requested = Map.get(attrs, :requested_volume_bytes)
+
+    cond do
+      Map.has_key?(@managed_volume_bytes, attrs.key) or not valid_requested_volume_bytes?(requested) ->
+        nil
+
+      requested > @volume_bytes and
+          not FeatureFlags.runner_custom_volume_sizes_enabled?(%Account{id: job.account_id}) ->
+        @volume_bytes
+
+      true ->
+        requested
+    end
+  end
+
+  # Only a use that may publish records its request, so pull requests leave the
+  # volume's size unchanged.
+  defp saved_request(_volume, %Usage{can_publish: true}, requested) when is_integer(requested), do: requested
+  defp saved_request(volume, _usage, _requested), do: volume.requested_volume_bytes
+
+  defp valid_requested_volume_bytes?(bytes),
+    do: is_integer(bytes) and rem(bytes, 1_000_000_000) == 0 and bytes >= 1_000_000_000 and bytes <= 100_000_000_000
+
+  defp max_volume_bytes(attrs) do
+    case Map.get(attrs, :max_volume_bytes) do
+      bytes when is_integer(bytes) and bytes > 0 -> bytes
+      _ -> @legacy_max_volume_bytes
+    end
   end
 
   defp ensure_allocation_matches!(usage, job, attrs) do
@@ -300,23 +378,19 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  # The job's runner profile decides which GitHub branches save. Without a
-  # profile, a new profile's policy applies. The other providers save from the
-  # default branch.
-  defp writer_grant(%{provider: "github"} = identity, %Profile{} = profile) do
+  # The job's runner profile decides which branches save. Without a profile, a
+  # new profile's policy applies.
+  defp writer_grant(identity, %Profile{} = profile) do
     if writer_allowed?(profile, identity.trusted, Map.get(identity, :writer_branch)),
       do: {:ok, profile.id},
       else: :denied
   end
 
-  defp writer_grant(%{provider: "github"} = identity, nil) do
+  defp writer_grant(identity, nil) do
     if writer_allowed?(%Profile{}, identity.trusted, Map.get(identity, :writer_branch)),
       do: {:ok, nil},
       else: :denied
   end
-
-  defp writer_grant(%{trusted: true}, _profile), do: {:ok, nil}
-  defp writer_grant(_identity, _profile), do: :denied
 
   defp writer_fields(identity, grant) do
     %{
@@ -331,10 +405,7 @@ defmodule Tuist.Runners.CacheVolumes do
     }
   end
 
-  defp writer_profile(job, %{provider: "github"}),
-    do: Profiles.lock_for_dispatch_label(job.account_id, Map.get(job, :requested_dispatch_label))
-
-  defp writer_profile(_job, _identity), do: nil
+  defp writer_profile(job), do: Profiles.lock_for_dispatch_label(job.account_id, Map.get(job, :requested_dispatch_label))
 
   @doc """
   Revokes pending saves granted under a runner profile's previous policy that
@@ -399,7 +470,7 @@ defmodule Tuist.Runners.CacheVolumes do
         on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
         where:
           is_nil(u.writer_profile_id) and u.can_publish and u.status not in ["published", "discarded"] and
-            v.account_id == ^account_id and v.provider == "github" and is_nil(v.builtin_name) and
+            v.account_id == ^account_id and is_nil(v.builtin_name) and
             j.requested_dispatch_label == ^label,
         select: u.id
       )
@@ -428,7 +499,7 @@ defmodule Tuist.Runners.CacheVolumes do
         :count
       )
 
-    if count >= 8 and not existing_allocation?(job, identity, attrs), do: Repo.rollback(:capacity)
+    if count >= 8 and not existing_allocation?(job, identity, attrs), do: Repo.rollback(:volume_limit)
   end
 
   defp volume_query(job, identity, attrs) do
@@ -499,19 +570,6 @@ defmodule Tuist.Runners.CacheVolumes do
     do: size * 100 >= capacity * @out_of_space_percent
 
   def out_of_space?(_size, _capacity), do: false
-
-  defp reset_full_locked(%Volume{head_id: nil} = volume), do: volume
-
-  defp reset_full_locked(volume) do
-    head = Repo.get(Usage, volume.head_id)
-
-    if head && full?(head.size_bytes, head.capacity_bytes) && clone_ran_out_of_space?(head.id) do
-      Runners.clear_volume_master(volume.account_id, storage_name(volume))
-      Repo.update!(Ecto.Changeset.change(volume, generation: volume.generation + 1, head_id: nil))
-    else
-      volume
-    end
-  end
 
   defp clone_ran_out_of_space?(head_id) do
     Repo.exists?(
@@ -682,14 +740,41 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
-  # The Xcode compilation cache outgrows other volumes; hosts admit up to 32 GB.
-  @volume_bytes 20_000_000_000
-  @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000}
+  @doc """
+  The capacity a volume under `key` starts at when no size is requested.
+  """
+  def default_volume_bytes(key), do: Map.get(@managed_volume_bytes, key, @volume_bytes)
 
   @doc """
-  The size a host creates the volume's image at.
+  The volume's capacity: the capacity its saved head was allocated at, or the
+  capacity its next empty copy gets when nothing is saved. `head_volume_bytes`
+  is the saved head use's `volume_bytes`; heads allocated before uses recorded
+  it have the key's default. `nil` for the built-in volume, which its hosts size.
   """
-  def volume_bytes(%{key: key}), do: Map.get(@managed_volume_bytes, key, @volume_bytes)
+  def volume_bytes(%Volume{builtin_name: name}, _head_volume_bytes) when is_binary(name), do: nil
+
+  def volume_bytes(%Volume{head_id: nil, key: key} = volume, _head_volume_bytes),
+    do: Map.get(@managed_volume_bytes, key) || volume.requested_volume_bytes || @volume_bytes
+
+  def volume_bytes(%Volume{key: key}, head_volume_bytes), do: saved_volume_bytes(key, %{volume_bytes: head_volume_bytes})
+
+  @doc """
+  A smaller size requested for the volume, which applies once it next starts
+  empty. `nil` when the volume keeps its capacity.
+  """
+  def pending_volume_bytes(%Volume{requested_volume_bytes: requested} = volume, head_volume_bytes) do
+    if is_integer(requested) and requested < volume_bytes(volume, head_volume_bytes), do: requested
+  end
+
+  @doc """
+  The capacity the volume's next job gets when it asks for the volume's
+  requested size: the saved capacity, grown to a larger request.
+  """
+  def next_volume_bytes(%Volume{} = volume, head_volume_bytes),
+    do: max(volume_bytes(volume, head_volume_bytes), volume.requested_volume_bytes || 0)
+
+  defp saved_volume_bytes(key, saved_head),
+    do: Map.get(@managed_volume_bytes, key) || (saved_head && saved_head.volume_bytes) || @volume_bytes
 
   @doc """
   The lineage scopes of the custom volumes that jobs of `repository` attached
@@ -746,26 +831,26 @@ defmodule Tuist.Runners.CacheVolumes do
     with %{generation: generation, tree_digest: digest, content_digest: content}
          when generation > 0 and is_binary(digest) and is_binary(content) <-
            VolumeHeads.get_head(volume.account_id, storage_name(volume)),
-         id when is_binary(id) <-
+         %Usage{} = saved_head <-
            Repo.one(
              from(u in Usage,
                where:
                  u.volume_id == ^volume.id and u.generation == ^volume.generation and
                    u.published_generation == ^generation and u.status == "published",
-               limit: 1,
-               select: u.id
+               limit: 1
              )
            ) do
       [
         %{
           kind: "custom",
-          id: id,
+          id: saved_head.id,
           account_id: volume.account_id,
           scope: scope(volume),
           generation: generation,
           image_digest: digest,
           content_digest: content,
-          volume_bytes: volume_bytes(volume)
+          volume_bytes: saved_volume_bytes(volume.key, saved_head),
+          head_size_bytes: saved_head.size_bytes
         }
       ]
     else
@@ -1046,17 +1131,7 @@ defmodule Tuist.Runners.CacheVolumes do
         else: where(query, [v], ilike(v.key, ^"%#{search}%") or ilike(v.repository, ^"%#{search}%"))
 
     query = if name = opts[:name], do: where(query, [v], v.key == ^name), else: query
-    query = if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
-    exclude_builtin(query, opts)
-  end
-
-  # Dashboards hide the built-in volume from accounts that still get it
-  # automatically; it is shown once the account opts in to cache steps.
-  # Expects the volume as the query's last binding.
-  defp exclude_builtin(query, opts) do
-    if Keyword.get(opts, :include_builtin, true),
-      do: query,
-      else: where(query, [..., v], is_nil(v.builtin_name))
+    if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
   end
 
   def history_count(account_id, volume_id) do
@@ -1136,6 +1211,7 @@ defmodule Tuist.Runners.CacheVolumes do
          %{
            saved_bytes: type(filter(max(u.size_bytes), u.id == v.head_id), :integer),
            saved_capacity_bytes: type(filter(max(u.capacity_bytes), u.id == v.head_id), :integer),
+           head_volume_bytes: type(filter(max(u.volume_bytes), u.id == v.head_id), :integer),
            uses: filter(count(u.id), not is_nil(u.attached_at) and u.inserted_at >= ^since),
            hits: filter(count(u.id), u.warm == true and u.inserted_at >= ^since),
            active: filter(count(u.id), is_nil(u.finished_at) and is_nil(coalesce(u.deleted_at, u.superseded_at))),
@@ -1176,13 +1252,13 @@ defmodule Tuist.Runners.CacheVolumes do
 
   # Roll up per-copy changes before summing: summing measurement rows would count
   # every historical report as additional storage. Older reports seed the window.
-  def storage_history(account_id, period \\ DateTime.utc_now(), volume_id \\ nil, opts \\ [])
+  def storage_history(account_id, period \\ DateTime.utc_now(), volume_id \\ nil)
 
-  def storage_history(account_id, %DateTime{} = now, volume_id, opts) do
-    storage_history(account_id, {DateTime.add(now, -7, :day), now}, volume_id, opts)
+  def storage_history(account_id, %DateTime{} = now, volume_id) do
+    storage_history(account_id, {DateTime.add(now, -7, :day), now}, volume_id)
   end
 
-  def storage_history(account_id, {%DateTime{} = start, %DateTime{} = now}, volume_id, opts) do
+  def storage_history(account_id, {%DateTime{} = start, %DateTime{} = now}, volume_id) do
     result =
       Ecto.Adapters.SQL.query!(
         Repo,
@@ -1198,13 +1274,11 @@ defmodule Tuist.Runners.CacheVolumes do
           JOIN runner_cache_volume_uses u ON u.id = m.usage_id
           JOIN runner_cache_volumes v ON v.id = u.volume_id
           WHERE v.account_id = $1 AND m.observed_at <= $2 AND ($4::uuid IS NULL OR v.id = $4::uuid)
-            AND ($5::boolean OR v.builtin_name IS NULL)
           UNION ALL
           SELECT 0, u.id, u.volume_id, u.inserted_at, 0, 0, 1, 0, 0
           FROM runner_cache_volume_uses u
           JOIN runner_cache_volumes v ON v.id = u.volume_id
           WHERE v.account_id = $1 AND u.inserted_at <= $2 AND ($4::uuid IS NULL OR v.id = $4::uuid)
-            AND ($5::boolean OR v.builtin_name IS NULL)
         ), changes AS (
           SELECT volume_id, CASE WHEN observed_at <= $3 THEN $3::timestamptz
             ELSE LEAST($2::timestamptz, date_trunc('hour', observed_at) + interval '1 hour') END AS bucket,
@@ -1245,8 +1319,7 @@ defmodule Tuist.Runners.CacheVolumes do
           account_id,
           now,
           start,
-          if(volume_id, do: Ecto.UUID.dump!(volume_id)),
-          Keyword.get(opts, :include_builtin, true)
+          if(volume_id, do: Ecto.UUID.dump!(volume_id))
         ]
       )
 
@@ -1270,7 +1343,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def usage_analytics(account_id, period), do: usage_analytics(account_id, nil, period)
 
-  def usage_analytics(account_id, volume_id, {start, finish}, opts \\ []) do
+  def usage_analytics(account_id, volume_id, {start, finish}) do
     {bucket, seconds} = if DateTime.diff(finish, start) <= 2 * 86_400, do: {"hour", 3600}, else: {"day", 86_400}
 
     mounts =
@@ -1286,7 +1359,6 @@ defmodule Tuist.Runners.CacheVolumes do
       )
 
     mounts = if volume_id, do: where(mounts, [u, v], v.id == ^volume_id), else: mounts
-    mounts = exclude_builtin(mounts, opts)
 
     rows =
       Repo.all(
@@ -1346,10 +1418,9 @@ defmodule Tuist.Runners.CacheVolumes do
     :ok
   end
 
-  def for_job(account_id, workflow_run_id, workflow_job_id, opts \\ []) do
+  def for_job(account_id, workflow_run_id, workflow_job_id) do
     Usage
     |> join(:inner, [u], v in Volume, on: v.id == u.volume_id)
-    |> exclude_builtin(opts)
     |> where(
       [u, v],
       v.account_id == ^account_id and u.workflow_run_id == ^workflow_run_id and

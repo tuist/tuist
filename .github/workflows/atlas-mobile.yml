@@ -211,6 +211,8 @@ jobs:
       - run: mise run prepare:rust
       - name: Build isolated native UI fixtures
         run: mise exec -- once build AtlasSettingsUITests
+      - name: Verify preview SDK and deployment minimum
+        run: bash modules/check-sdk.sh iphonesimulator .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app/AtlasSettingsPreview
       - name: Exercise native CRUD and navigation
         run: |
           set -euo pipefail
@@ -222,7 +224,10 @@ jobs:
           once_status=0
           ONCE_APPLE_SIMULATOR_UDID="$device" mise exec -- once test AtlasSettingsUITests || once_status=$?
           cp -R .once/out/AtlasSettingsUITests/test ui-evidence/once-test
-          xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/task-crud.mov" &
+          result=$(sed -n 's/^[[:space:]]*\(\/.*\.xcresult\)$/\1/p' ui-evidence/once-test/xctest.log | tail -1)
+          if [ -d "$result" ]; then cp -R "$result" ui-evidence/once-ui.xcresult; fi
+          ui_status=0
+          xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/native-lists.mov" &
           recording=$!
           trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
           xcodebuild test-without-building \
@@ -230,10 +235,7 @@ jobs:
             -destination "id=$device" \
             -collect-test-diagnostics never \
             -only-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
-            -resultBundlePath "$PWD/ui-evidence/task-crud.xcresult"
-          kill -INT "$recording"
-          wait "$recording" || true
-          trap - EXIT
+            -resultBundlePath "$PWD/ui-evidence/task-crud.xcresult" || ui_status=$?
           xcodebuild test-without-building \
             -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
             -destination "id=$device" \
@@ -241,8 +243,12 @@ jobs:
             -only-testing:AtlasSettingsUITests/AtlasBusinessUITests \
             -only-testing:AtlasSettingsUITests/AtlasWorkspaceUITests \
             -skip-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
-            -resultBundlePath "$PWD/ui-evidence/native-ui.xcresult"
-          exit "$once_status"
+            -resultBundlePath "$PWD/ui-evidence/native-ui.xcresult" || ui_status=$?
+          kill -INT "$recording"
+          wait "$recording" || true
+          trap - EXIT
+          if [ "$once_status" -ne 0 ]; then exit "$once_status"; fi
+          exit "$ui_status"
       - name: Export native screenshots
         if: always()
         run: |

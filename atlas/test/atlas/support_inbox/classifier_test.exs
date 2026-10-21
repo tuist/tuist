@@ -126,6 +126,44 @@ defmodule Atlas.SupportInbox.ClassifierTest do
       assert log =~ "provider credits or billing need attention"
     end
 
+    test "persists bounded diagnostics for transport and invalid-output failures" do
+      failures = [
+        {%ReqLLM.Error.API.Stream{
+           reason: "private stream details",
+           cause: %Finch.TransportError{reason: :nxdomain}
+         }, "model transport DNS lookup failed"},
+        {%Req.TransportError{reason: :timeout}, "model request timed out"},
+        {:etimedout, "model request timed out"},
+        {{:session_exit, :timeout}, "model request timed out"},
+        {:closed, "model transport connection closed"},
+        {{:error, :nxdomain}, "model transport DNS lookup failed"},
+        {%{reason: :econnrefused, request_body: "private request"}, "model transport connection was refused"},
+        {:no_result_submitted, "model did not submit a classification result"},
+        {:invalid_classifier_output, "model returned an invalid classification result"},
+        {{:missing_field, "private field"}, "model returned an invalid classification result"},
+        {{:invalid_enum, "category", "private output"}, "model returned an invalid classification result"},
+        {{:invalid_output, "private model response"}, "model returned an invalid classification result"},
+        {%{cause: %{reason: "private transport details"}}, "classification failed"}
+      ]
+
+      for {error, summary} <- failures do
+        %{thread: thread, message: inbound} = fresh_thread_with_message("diagnostics@customer.example")
+
+        log =
+          ExUnit.CaptureLog.capture_log(fn ->
+            assert {:ok, decision} =
+                     Classifier.classify_and_persist(thread, inbound, classifier: fn _ -> {:error, error} end)
+
+            assert decision.reason == "Classifier unavailable: #{summary}; defaulted to #support."
+            assert Repo.get!(Thread, thread.id).classifier_reason == decision.reason
+            assert decision.action_needed
+          end)
+
+        assert log =~ summary
+        refute log =~ "private"
+      end
+    end
+
     test "uses a bounded fallback for unknown errors" do
       %{thread: thread, message: inbound} = fresh_thread_with_message("unknown@customer.example")
 

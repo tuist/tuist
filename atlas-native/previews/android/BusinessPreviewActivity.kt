@@ -14,6 +14,8 @@ import dev.tuist.atlas.AtlasBusinessModel
 import dev.tuist.atlas.AtlasBusinessScreen
 import dev.tuist.atlas.AtlasCore
 import dev.tuist.atlas.AtlasHomeScreen
+import dev.tuist.atlas.AtlasPeopleScreen
+import dev.tuist.atlas.AtlasPresenceModel
 import dev.tuist.atlas.AtlasProfileModel
 import dev.tuist.atlas.AtlasWorkspaceModel
 import dev.tuist.atlas.AtlasWorkspaceScreen
@@ -30,6 +32,41 @@ class BusinessPreviewActivity : Activity() {
         var navigation: AtlasWorkspaceModel? = null
         var profile: AtlasProfileModel? = null
         var accounts: AtlasAIAccountsModel? = null
+        private var sequence = 1L
+        private var waiting: ((Result<JSONObject>) -> Unit)? = null
+        val presence =
+            AtlasPresenceModel { action, done ->
+                when (action.getString("action")) {
+                    "open" -> done(Result.success(JSONObject().put("connection", "preview-only")))
+                    "next" -> {
+                        if (action.getLong("after") < sequence) {
+                            done(Result.success(snapshot()))
+                        } else {
+                            waiting = done
+                        }
+                    }
+                    "update" -> {
+                        sequence += 1
+                        val completion = waiting
+                        waiting = null
+                        completion?.invoke(Result.success(snapshot()))
+                        done(Result.success(JSONObject().put("updated", true)))
+                    }
+                    else -> {
+                        val completion = waiting
+                        waiting = null
+                        completion?.invoke(Result.success(snapshot()))
+                        done(Result.success(JSONObject().put("closed", true)))
+                    }
+                }
+            }
+
+        private fun snapshot() =
+            JSONObject(
+                """{"location":{"resource":"people"},"people":[
+                {"id":"online","name":"Alex Morgan","email":"alex@example.org","online":true,"here":true},
+                {"id":"offline","name":"Sam Rivera","email":"sam@example.org","online":false,"here":false}]}""",
+            ).put("sequence", sequence)
 
         fun request(
             action: JSONObject,
@@ -53,11 +90,13 @@ class BusinessPreviewActivity : Activity() {
     private var workspace: AtlasWorkspaceScreen? = null
     private var profile: AtlasAIAccountsScreen? = null
     private var home: AtlasHomeScreen? = null
+    private var people: AtlasPeopleScreen? = null
     private var unregisterBack: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         checkBusinessModels()
+        checkPresenceModel()
         state = lastNonConfigurationInstance as? State ?: State(
             intent.getBooleanExtra("fail-save", false),
             intent.getBooleanExtra("permission-denied", false),
@@ -71,11 +110,14 @@ class BusinessPreviewActivity : Activity() {
 
     override fun onDestroy() {
         close()
+        if (!isChangingConfigurations) state.presence.setActive(false)
         unregisterBack?.invoke()
         super.onDestroy()
     }
 
     private fun close() {
+        people?.close()
+        people = null
         business?.close()
         business = null
         workspace?.close()
@@ -100,10 +142,18 @@ class BusinessPreviewActivity : Activity() {
                 "browse" -> {
                     val screen =
                         AtlasWorkspaceScreen(this, catalog, "atlas.example.org", { section ->
-                            if (section.screen == "time-off") {
-                                startActivity(android.content.Intent(this, TimeOffPreviewActivity::class.java))
-                            } else {
-                                choose(section.screen)
+                            when (section.screen) {
+                                "time-off" -> startActivity(android.content.Intent(this, TimeOffPreviewActivity::class.java))
+                                "people" -> {
+                                    close()
+                                    val screen = AtlasPeopleScreen(this, state.presence)
+                                    people = screen
+                                    setActionBar(screen.toolbar)
+                                    setContentView(screen.view)
+                                    state.presence.setActive(true)
+                                    updateNavigation()
+                                }
+                                else -> choose(section.screen)
                             }
                         }, ::updateNavigation)
                     workspace = screen
@@ -129,7 +179,7 @@ class BusinessPreviewActivity : Activity() {
                 }
                 else -> {
                     val model = state.models.getOrPut(state.tab) { AtlasBusinessModel(state.tab, state::request) }
-                    val screen = AtlasBusinessScreen(this, titles.getValue(state.tab), model, ::updateNavigation)
+                    val screen = AtlasBusinessScreen(this, titles.getValue(state.tab), model, ::updateNavigation, logoLoader = state.fixtures::logo)
                     business = screen
                     setActionBar(screen.toolbar)
                     screen.view
@@ -161,6 +211,11 @@ class BusinessPreviewActivity : Activity() {
     }
 
     private fun back(): Boolean {
+        if (people != null) {
+            close()
+            render()
+            return true
+        }
         if (business?.back() == true || workspace?.back() == true || profile?.back() == true) return true
         if (state.tab != "tasks") {
             choose("tasks")
@@ -171,7 +226,7 @@ class BusinessPreviewActivity : Activity() {
 
     private fun updateNavigation() {
         val child =
-            state.models[state.tab]?.canBack == true || state.navigation?.canBack == true && state.tab == "browse" ||
+            people != null || state.models[state.tab]?.canBack == true || state.navigation?.canBack == true && state.tab == "browse" ||
                 state.tab == "profile" && state.accounts?.page != "settings"
         actionBar?.setDisplayHomeAsUpEnabled(child)
         home?.fullScreen(state.models[state.tab]?.draft != null || state.tab == "profile" && state.accounts?.page != "settings")

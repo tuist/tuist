@@ -5,8 +5,7 @@
 # saved copy. A volume that is unavailable falls back to a job-local directory
 # and the job still succeeds, so both modes first require a real APFS mount.
 #
-# Usage: volume.sh seed|verify <path>. Env: CACHE_HIT (the action's output),
-# PUBLISH_WAIT_SECONDS (verify only, for the failure message).
+# Usage: volume.sh seed|verify <path>. Env: CACHE_HIT (the action's output).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
@@ -45,7 +44,7 @@ case "${mode}" in
       { [ "${saved%-*}" -gt "${run%-*}" ] || { [ "${saved%-*}" -eq "${run%-*}" ] && [ "${saved##*-}" -gt "${run##*-}" ]; }; }; then
       origin="run ${saved}, which seeded after this one"
     else
-      fail "Cache volumes" "the verify job attached the copy saved by run ${saved}, which predates this run's seed job (${run}): the seed job's changes were discarded or not published within ${PUBLISH_WAIT_SECONDS:-?}s"
+      fail "Cache volumes" "the verify job attached the copy saved by run ${saved}, which predates this run's seed job (${run}): the seed job's changes were discarded or not yet published"
     fi
     (cd "${target}" && shasum -a 256 -c -s payload.sha256) || fail "Cache volumes" "the saved payload does not match the checksum the seed job wrote"
     pass "Attached the copy saved by ${origin}, payload intact"
