@@ -294,6 +294,8 @@ defmodule Tuist.Runners.Dispatch do
     |> displaced_requeued_jobs()
     |> report_displaced_requeues(runner_name)
 
+    report_displaced_hand_over(claim_outcome, runner_name)
+
     outcome = combine_attribution(claim_attribution(claim_outcome), session_outcome)
 
     case outcome do
@@ -347,6 +349,22 @@ defmodule Tuist.Runners.Dispatch do
       )
     end)
   end
+
+  defp report_displaced_hand_over({:mismatch, %{workflow_job_id: workflow_job_id, handed_to: pod_name}}, runner_name) do
+    Logger.info("runners: handed job displaced by the runner shuffle to an idle claim",
+      runner_name: runner_name,
+      workflow_job_id: workflow_job_id,
+      pod: pod_name
+    )
+
+    :telemetry.execute(
+      Telemetry.event_name_recovery(),
+      %{count: 1},
+      %{kind: "displaced_job_handed_over"}
+    )
+  end
+
+  defp report_displaced_hand_over(_claim_outcome, _runner_name), do: :ok
 
   # A real `:matched`/`:mismatch` from either store beats
   # `:unknown_runner`; a `:mismatch` anywhere wins over `:matched`

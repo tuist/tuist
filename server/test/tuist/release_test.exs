@@ -34,6 +34,7 @@ defmodule Tuist.ReleaseTest do
                "GRANT SELECT ON `tuist`.* TO `tuist_ops_readonly`",
                "GRANT SELECT ON system.tables TO `tuist_ops_readonly`",
                "GRANT SELECT ON system.columns TO `tuist_ops_readonly`",
+               "REVOKE SELECT ON `tuist`.grafana_query_log FROM `tuist_ops_readonly`",
                """
                CREATE USER IF NOT EXISTS `tuist_ops`
                IDENTIFIED WITH sha256_hash BY '#{String.duplicate("a", 64)}'
@@ -63,7 +64,7 @@ defmodule Tuist.ReleaseTest do
   end
 
   describe "grafana_clickhouse_reconciliation_queries/4" do
-    test "converges a bounded read-only role that can also read the query log" do
+    test "converges a bounded read-only role" do
       queries =
         Release.grafana_clickhouse_reconciliation_queries(
           "tuist",
@@ -110,6 +111,23 @@ defmodule Tuist.ReleaseTest do
           "tuist_grafana_readonly TO default",
           String.duplicate("b", 64)
         )
+      end
+    end
+  end
+
+  describe "grafana_query_log_view_statement/1" do
+    test "reads every replica's recent initial queries with the definer's rights" do
+      statement = Release.grafana_query_log_view_statement("tuist")
+
+      assert statement =~ "CREATE OR REPLACE VIEW `tuist`.grafana_query_log"
+      assert statement =~ "DEFINER = default SQL SECURITY DEFINER"
+      assert statement =~ "FROM clusterAllReplicas('default', system.query_log)"
+      assert statement =~ "WHERE event_time >= now() - INTERVAL 1 DAY"
+    end
+
+    test "rejects a database name that could change the statement" do
+      assert_raise RuntimeError, ~r/ClickHouse database must be a valid ClickHouse identifier/, fn ->
+        Release.grafana_query_log_view_statement("tuist.x AS SELECT 1; --")
       end
     end
   end

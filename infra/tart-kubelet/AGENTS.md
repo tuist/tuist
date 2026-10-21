@@ -40,9 +40,11 @@ workflow code runs in the guest. Never expose host credentials or masters.
   boot) is not fixable by a kick: restart the host. Bootstrap verifies the
   session, so a new host should not reach this (see "The console session" in
   [`cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
-- A Node this process creates (a host joining or rejoining the cluster) is
-  tainted `tuist.dev/prewarming:NoSchedule` while `podagent.Prewarmer` pulls
-  the images of its fleet's macOS RunnerPools that keep a warm floor or have
+- A Node this process creates (a host joining or rejoining the cluster), or
+  a registered Node whose disk has never held a runner image (a host
+  reinstalled in place keeps its Node), is tainted
+  `tuist.dev/prewarming:NoSchedule` while `podagent.Prewarmer` pulls the
+  images of its fleet's macOS RunnerPools that keep a warm floor or have
   `spec.replicas > 0`, warm floors first, through `ensureGolden` (the path a
   Pod's first VM takes). An image the rack's image cache is still fetching
   (`errMirrorSyncing`) is asked for again every 30 seconds, not skipped.
@@ -50,12 +52,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
   hand and tart-kubelet must never lift that. Runner Pods
   do not tolerate it, and the runners-controller leaves tainted Nodes out of
   fleet capacity (`nodeFilterReason`), so the allocator agrees with the
-  scheduler. A restart on a registered Node never taints or prewarms: that
-  host is serving, and a deploy rolling both runner images and tart-kubelet
-  would otherwise empty the fleet. Pulls stop below 30% free disk (a golden is
-  tens of GB) and the taint lifts after an hour regardless; a leftover taint is
-  removed on the next start. Evidence: on 2026-10-14 b04-b09 joined untainted
-  and their first VM per image sat in `CreatingVM` for 5+ minutes downloading.
+  scheduler. "Never held a runner image" is no golden and no
+  `<user-data dir>/.holds-runner-images` marker (`podagent.HostDisk`), which
+  `ensureGolden` writes whenever a golden exists and an erase removes. A
+  restart on any other registered Node never taints or prewarms, including an
+  idle host whose goldens a release just superseded: that host is serving, and
+  a deploy rolling both runner images and tart-kubelet would otherwise empty
+  the fleet. A failed probe counts as not fresh. Pulls stop below 30% free
+  disk (a golden is tens of GB) and the taint lifts after an hour regardless;
+  a leftover taint is removed on the next start. Evidence: on 2026-10-14 b04-b09 joined untainted
+  and their first VM per image sat in `CreatingVM` for 5+ minutes downloading;
+  on 2026-10-21 ber1-runner-b05 came back from `tuist.dev/os-reinstall`
+  untainted with no goldens and took runner Pods that waited on downloads.
 - Built-in cache behavior remains in `internal/podagent/volume*.go` and the
   runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared
@@ -107,12 +115,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
   empty image marked `.cold` that reports a miss and is withheld from publication;
   either way its base is queued. A superseded master used in the last day stays
   until its successor is downloaded through the queue (`LocalImages.Replace`).
-  Reserve the volume's allocated size (`Identity.VolumeBytes`, 20 GB when the
-  server sends none, at most `MaxVolumeBytes`) for every attach and twice that
-  for prefetch, which also holds the archive, in both the shared-filesystem
-  check (`reserveBytes`/`reserveSpare`) and the custom reservation
-  (`customAdmissionBytes`): if they disagree, the second rejects what the first
-  admitted. Prefetch downloads into `staging/` without the lineage lock, and
+  The host maximum is `--custom-cache-max-volume-gb` (100 GB by default, env
+  `TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB`), sent as `max_volume_bytes` with every
+  authorization alongside the guest's valid `requested_volume_bytes`; a 507 is
+  reason `capacity`. Reserve the volume's capacity (`Identity.VolumeBytes`, 20 GB
+  when the server sends none) for every attach and, for prefetch, which also
+  holds the archive, twice `HeadSizeBytes` (twice the capacity when the head size
+  is unknown), in both the shared-filesystem check (`reserveBytes`/`reserveSpare`)
+  and the custom reservation (`customAdmissionBytes`): if they disagree, the
+  second rejects what the first admitted. A warm copy smaller than its capacity
+  is grown with `hdiutil resize -imageonly` before exposure; never attach it on
+  the host to grow it. The guest grows the APFS container. Prefetch downloads
+  into `staging/` without the lineage lock, and
   maintenance asks for HEADs before taking it; keep network calls out of that lock.
 - Expose mailboxes while the filesystem is mounted, independently of worker
   readiness. Create pod directories before owner records and serialize owner GC.

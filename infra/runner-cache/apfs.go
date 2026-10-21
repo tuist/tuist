@@ -23,6 +23,10 @@ type APFSImages struct {
 	Reserve func(context.Context, Slot) (func(bool), error)
 	Verify  func(string) error
 	Detach  func(string) error
+	// Grow extends a private copy's image to the given capacity before the guest
+	// sees it, never shrinking it and never attaching its filesystem. The guest
+	// grows the APFS container. Nil leaves copies at their saved size.
+	Grow func(context.Context, string, int64) error
 }
 
 func (b *APFSImages) Init() error {
@@ -95,6 +99,10 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			}
 			if err != nil {
 				return err
+			}
+			if !cold && b.Grow != nil && slot.VolumeBytes > 0 {
+				// A copy that cannot grow stays warm at its saved size.
+				_ = b.operation("grow", "image", func() error { return b.Grow(ctx, tmp, slot.VolumeBytes) })
 			}
 		}
 		if cold && slot.Kind == KindCheckout {
@@ -195,7 +203,7 @@ func shareExposes(image, path string) error {
 func (b *APFSImages) Measure(slot Slot, path string) (int64, int64, error) {
 	data, err := os.ReadFile(b.image(slot) + ".metrics")
 	if os.IsNotExist(err) && APFSMarker(path, ".detached", slot.ID) {
-		usage, usageErr := APFSUsage(path, slot.ID, b.volumeBytes(slot))
+		usage, usageErr := APFSUsage(path, slot.ID, b.maxVolumeBytes())
 		return usage.Used, usage.Capacity, usageErr
 	}
 	if err != nil {
@@ -221,7 +229,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if err := shareExposes(image, path); err != nil {
 		return err
 	}
-	usage, err := APFSUsage(path, slot.ID, b.volumeBytes(slot))
+	usage, err := APFSUsage(path, slot.ID, b.maxVolumeBytes())
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrPoisoned, err)
 	}
@@ -327,6 +335,8 @@ func (b *APFSImages) MountedGeneration(slot Slot) int64 {
 // PrefetchReservation is the Reserve slot ID a prefetch holds while it downloads.
 const PrefetchReservation = "prefetch"
 
+// Prefetch restores a master, evicting idle masters for room. It needs room for
+// the archive beside the expanded image (Identity.RestoreBytes).
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
 	return b.prefetchWith(ctx, slot, b.reserveBytes)
 }
@@ -343,7 +353,7 @@ func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(c
 		return errors.New("invalid prefetch identity")
 	}
 	// A download keeps its archive beside the restored image until it expands.
-	if err := reserve(ctx, 2*uint64(b.volumeBytes(slot))); err != nil {
+	if err := reserve(ctx, uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
 		return err
 	}
 	if b.Reserve != nil {

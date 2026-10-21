@@ -3,15 +3,26 @@ import SwiftUI
 struct AtlasWorkspaceView<Profile: View>: View {
     let holidayRequest: ([String: Any]) async throws -> Data
     let businessRequest: ([String: Any]) async throws -> Data
+    var presence: AtlasPresence?
     @ViewBuilder var settings: () -> Profile
     @State private var selection = "tasks"
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        if #available(iOS 18, *) {
-            tabs.tabViewStyle(.sidebarAdaptable)
-        } else {
-            tabs
+        Group {
+            if #available(iOS 18, *) {
+                tabs.tabViewStyle(.sidebarAdaptable)
+            } else {
+                tabs
+            }
         }
+        .environment(\.atlasPresence, presence)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let presence { AtlasAlsoHere(presence: presence).padding(.horizontal) }
+        }
+        .onAppear { presence?.setActive(scenePhase == .active) }
+        .onChange(of: scenePhase) { _, phase in presence?.setActive(phase == .active) }
+        .onDisappear { presence?.setActive(false) }
     }
 
     private var tabs: some View {
@@ -25,7 +36,7 @@ struct AtlasWorkspaceView<Profile: View>: View {
                 AtlasBrowsePage(group: nil, holidayRequest: holidayRequest, businessRequest: businessRequest)
             }
             .tabItem { Label("Browse", systemImage: "square.grid.2x2") }.tag("browse")
-            NavigationStack { settings() }
+            NavigationStack { settings().onAppear { presence?.show(resource: "profile") } }
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }.tag("profile")
         }
     }
@@ -37,6 +48,7 @@ private struct AtlasBrowsePage: View {
     let businessRequest: ([String: Any]) async throws -> Data
     private let catalog = AtlasCatalog()
     @State private var query = ""
+    @Environment(\.atlasPresence) private var presence
 
     var body: some View {
         List {
@@ -65,12 +77,16 @@ private struct AtlasBrowsePage: View {
         .navigationTitle(group?.title ?? "Browse")
         .searchable(text: $query, prompt: "Find a feature")
         .autocorrectionDisabled().textInputAutocapitalization(.never)
+        .onAppear { presence?.show() }
     }
 
     private func destination(_ section: AtlasSection, searching: Bool = false) -> some View {
         NavigationLink {
-            if section.screen == "time-off" {
+            if section.screen == "people", let presence {
+                AtlasPeopleView(presence: presence)
+            } else if section.screen == "time-off" {
                 AtlasTimeOffView(title: section.title, request: holidayRequest)
+                    .onAppear { presence?.show(resource: "time_off") }
             } else if let resource = AtlasBusinessResource(rawValue: section.screen) {
                 AtlasBusinessView(resource: resource, request: businessRequest)
             }

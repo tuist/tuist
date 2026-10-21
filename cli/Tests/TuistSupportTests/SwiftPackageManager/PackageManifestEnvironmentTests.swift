@@ -115,6 +115,31 @@ struct PackageManifestEnvironmentTests {
         #expect(filtered == ["TUIST_EE": "1", "PATH": "/usr/bin"])
     }
 
+    @Test func automatic_defaults_stabilize_manifest_inputs_across_local_sessions_and_worktrees() async {
+        let packageInputs = [
+            "HOME": "/Users/developer",
+            "PATH": "/usr/bin",
+            "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer",
+            "TUIST_EE": "1",
+        ]
+        let sessionVariables = [
+            "PWD", "OLDPWD", "SHLVL", "_", "TERM_SESSION_ID", "ITERM_SESSION_ID", "SECURITYSESSIONID",
+            "TMUX_PANE", "XPC_SERVICE_NAME", "__MISE_ORIG_PATH", "__MISE_ZSH_PRECMD_RUN",
+            "CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_PID",
+        ]
+
+        for session in ["first", "second"] {
+            let variables = packageInputs.merging(
+                Dictionary(uniqueKeysWithValues: sessionVariables.map { ($0, "\(session)-\($0)") }),
+                uniquingKeysWith: { _, new in new }
+            )
+            let filtered = await PackageManifestEnvironment.withConfiguration(.init()) {
+                PackageManifestEnvironment.filtered(variables)
+            }
+            #expect(filtered == packageInputs)
+        }
+    }
+
     @Test func automatic_defaults_do_not_filter_unrecognized_local_environments() async {
         let filtered = await PackageManifestEnvironment.withConfiguration(.init()) {
             PackageManifestEnvironment.filtered([

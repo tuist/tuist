@@ -138,12 +138,18 @@ teardown_file() {
     # Warm the cache: build the Framework and upload its xcframework to canary.
     # `tuist cache` exits 0 when the upload is refused and only warns about it,
     # so the output is what proves the artifact reached the remote cache.
+    #
+    # The run-metadata warning is excluded: it reports the analytics upload, not
+    # the cache, and the server can still answer 404 for a project created
+    # seconds earlier because the project lookup is cached for up to a minute.
     run "$TUIST_EXECUTABLE" cache --path "$FIXTURE_DIR"
     echo "# tuist cache output:" >&3
     echo "$output" >&3
     [ "$status" -eq 0 ]
-    if ! grep -q "target stored: Framework" <<<"$output" ||
-        grep -qiE "No targets were stored|Failed to upload|authentication failed" <<<"$output"; then
+    local cache_output
+    cache_output="$(grep -v "Failed to upload run metadata" <<<"$output" || true)"
+    if ! grep -q "target stored: Framework" <<<"$cache_output" ||
+        grep -qiE "No targets were stored|Failed to upload|authentication failed" <<<"$cache_output"; then
         echo "# tuist cache did not upload Framework to the remote cache" >&3
         return 1
     fi

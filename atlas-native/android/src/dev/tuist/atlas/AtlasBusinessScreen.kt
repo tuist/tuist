@@ -53,9 +53,16 @@ class AtlasBusinessScreen(
     private val title: String,
     private val model: AtlasBusinessModel,
     private val navigationChanged: () -> Unit = {},
+    private val presence: AtlasPresenceModel? = null,
     private val logoLoader: (String, (Bitmap?) -> Unit) -> (() -> Unit) = AccountLogos::load,
 ) {
     val toolbar = Toolbar(activity)
+    private val alsoHere =
+        TextView(activity).apply {
+            visibility = View.GONE
+            textSize = 14f
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
     private val search =
         SearchView(activity).apply {
             queryHint = "Search $title"
@@ -80,6 +87,7 @@ class AtlasBusinessScreen(
             isSaveEnabled = false
             isSaveFromParentEnabled = false
             addView(toolbar, LinearLayout.LayoutParams(-1, -2))
+            addView(alsoHere, LinearLayout.LayoutParams(-1, -2))
             addView(search, LinearLayout.LayoutParams(-1, -2))
             addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
             setOnApplyWindowInsetsListener { root, insets ->
@@ -100,6 +108,7 @@ class AtlasBusinessScreen(
     private val logoCancellations = mutableListOf<() -> Unit>()
     private val pendingLogos = mutableListOf<() -> Boolean>()
     private val listener: () -> Unit = { render() }
+    private val presenceListener: () -> Unit = { renderPresence() }
     private val layoutListener =
         android.view.ViewTreeObserver.OnGlobalLayoutListener {
             restoreScrollY?.let {
@@ -114,6 +123,7 @@ class AtlasBusinessScreen(
 
     init {
         model.listener = listener
+        presence?.listener = presenceListener
         search.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextChange(value: String?) = true
@@ -168,6 +178,19 @@ class AtlasBusinessScreen(
         pendingLogos.clear()
         if (content.viewTreeObserver.isAlive) content.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
         if (model.listener === listener) model.listener = null
+        if (presence?.listener === presenceListener) presence.listener = null
+    }
+
+    private fun renderPresence() {
+        if (closed) return
+        val names =
+            presence
+                ?.people
+                ?.filter { it.here }
+                ?.joinToString(", ") { it.name }
+                .orEmpty()
+        alsoHere.text = if (names.isEmpty()) "" else "Also here: $names"
+        alsoHere.visibility = if (names.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun render() {
@@ -176,6 +199,8 @@ class AtlasBusinessScreen(
         renderGeneration += 1
         val draft = model.draft
         val selected = model.selected
+        presence?.show(model.resource, selected?.id ?: draft?.id)
+        renderPresence()
         val changedDestination = previousDraft !== draft || previousSelection != selected?.id
         restoreScrollY =
             if (draft == null && selected == null) {

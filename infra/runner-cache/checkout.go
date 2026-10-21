@@ -19,15 +19,16 @@ import (
 
 const (
 	// CheckoutCapacity is the logical size of a checkout master image.
-	CheckoutCapacity    = 60_000_000_000
-	checkoutBuildRoom   = 20_000_000_000
-	checkoutIngestRoom  = 10_000_000_000
-	checkoutRecentFor   = 14 * 24 * time.Hour
-	checkoutIdleFor     = 7 * 24 * time.Hour
-	checkoutWaitFor     = time.Hour
-	checkoutQueue       = 16
-	checkoutIncomingDir = ".incoming"
-	checkoutVolumesDir  = ".volumes"
+	CheckoutCapacity       = 60_000_000_000
+	checkoutBuildRoom      = 20_000_000_000
+	checkoutIngestRoom     = 10_000_000_000
+	checkoutRecentFor      = 14 * 24 * time.Hour
+	checkoutIdleFor        = 7 * 24 * time.Hour
+	checkoutWaitFor        = time.Hour
+	checkoutAbandonedAfter = time.Hour
+	checkoutQueue          = 16
+	checkoutIncomingDir    = ".incoming"
+	checkoutVolumesDir     = ".volumes"
 )
 
 var checkoutScope = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -745,8 +746,11 @@ func (c *Checkouts) restore(ctx context.Context, task CheckoutTask, room uint64)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	next := c.nextPath(task.Scope, task.Generation)
+	// The transfer resumes a partial download it finds at the same path, so the
+	// path names the HEAD: a restart never appends another HEAD's archive to it.
+	next := c.restorePath(task)
 	mount := filepath.Join(dir, "next.mnt")
+	c.discardOtherDownloads(ctx, dir, next, mount)
 	c.Images.Abandon(ctx, next, mount)
 	_ = os.Remove(next)
 	defer os.Remove(next)
@@ -949,6 +953,22 @@ func (c *Checkouts) Maintain() {
 			c.remove(master, false)
 		}
 	}
+	c.removeAbandonedDownloads()
+}
+
+// removeAbandonedDownloads deletes restore downloads no restore wrote for an
+// hour: a running download keeps writing, and a restore that never comes back
+// would otherwise keep its partial forever.
+func (c *Checkouts) removeAbandonedDownloads() {
+	downloads, _ := filepath.Glob(filepath.Join(c.Root, "*", "*", "restore-*"))
+	for _, path := range downloads {
+		scope := filepath.Base(filepath.Dir(filepath.Dir(path)))
+		info, err := os.Stat(path)
+		if err != nil || c.isBusy(scope) || c.now().Sub(info.ModTime()) < checkoutAbandonedAfter {
+			continue
+		}
+		_ = os.Remove(path)
+	}
 }
 
 // Evictable is what evicting every master no build holds would free.
@@ -1065,4 +1085,27 @@ func (c *Checkouts) DiscardWaiting() int {
 		dropped++
 	}
 	return dropped
+}
+
+// restorePath is where a restore downloads the volume's HEAD.
+func (c *Checkouts) restorePath(task CheckoutTask) string {
+	name := fmt.Sprintf("restore-%020d-%s%s", task.BaseGeneration, task.ContentDigest, filepath.Ext(c.Images.MasterName()))
+	return filepath.Join(c.dir(task.Scope, task.Generation), name)
+}
+
+// discardOtherDownloads removes what earlier restores of other HEADs, or a build,
+// left beside the master, so only this HEAD's own partial download is resumed.
+func (c *Checkouts) discardOtherDownloads(ctx context.Context, dir, keep, mount string) {
+	ext := filepath.Ext(c.Images.MasterName())
+	candidates, _ := filepath.Glob(filepath.Join(dir, "restore-*"))
+	candidates = append(candidates, filepath.Join(dir, "next"+ext+".part"))
+	for _, path := range candidates {
+		if path == keep || path == keep+".part" {
+			continue
+		}
+		if image := strings.TrimSuffix(path, ".part"); image == path {
+			c.Images.Abandon(ctx, image, mount)
+		}
+		_ = os.Remove(path)
+	}
 }

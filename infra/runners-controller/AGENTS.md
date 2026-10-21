@@ -245,9 +245,15 @@ independent workqueues:
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
-    retired, and only once they have been bound longer than `seatGrace`
-    (2m) — a Pod that bound more recently is the seat some other
-    reservation just produced, and dispatch has not yet reached it. The
+    retired, and only once their seat is no longer in flight
+    (`seatInFlight`). A Pod that bound within `seatGrace` (2m) is the
+    seat some other reservation just produced, and dispatch has not yet
+    reached it. A macOS Pod is in flight while it is bound and Pending,
+    up to `macOSProvisioningGrace` (20m), because tart-kubelet may be
+    pulling the image for minutes before the VM exists, and for
+    `macOSClaimGrace` (3m) after its VM starts, so the guest's first
+    dispatch poll can claim the job it was created for. Candidate
+    ranking counts those seats as occupants to wait out. The
     taint is removed when the Pod lands or after
     `reservationTimeout` (15m), and at most one host is held per fleet
     (`maxFleetReservations`; the count is taken over the pool's own
@@ -323,6 +329,17 @@ independent workqueues:
   A pool with an unrecognised `OS` (or without autoscaling enabled)
   skips the allocator entirely.
 
+  A macOS Pod is placed before any job is assigned to it, so it also
+  prefers the hosts holding the custom cache volumes its pool's queued
+  jobs are predicted to attach. The signals carry them as
+  `preferred_node_labels` (`tuist.dev/cache-volume-<scope prefix>`, from
+  `VolumeAffinities.custom_volume_node_labels/2`), and `createRunner` adds
+  at most four at weight 20 beside the golden preference at weight 100
+  (`podtemplate.PreferCacheVolumeNodes`). Together they weigh less than the
+  golden one, so the image still decides and volumes break ties. The terms
+  are in no revision, so they never make a Pod stale, and a Pod created
+  without signals keeps only the golden preference.
+
   RuntimeClass overhead is copied into `Pod.spec.overhead` only when
   Kubernetes admits a Pod. Helm therefore hashes the Linux RuntimeClass
   name and fixed processor and memory overhead into
@@ -335,6 +352,12 @@ independent workqueues:
   This deliberately follows maximum-unavailable semantics: a scale-up
   can pause a roll rather than letting the controller remove another
   warm Pod while serving capacity is already unavailable.
+
+  An image roll leaves a stale macOS Pod alone while its seat is in
+  flight (`macOSSeatInFlight`): reaping it mid-pull, or draining it
+  before its first poll, makes the job it was created for wait for a
+  replacement to pull the new image. It runs that job on the old image
+  and exits like any single-shot runner.
 
   `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
   retirement signal. The controller does not apply or clear it. The

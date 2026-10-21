@@ -44,7 +44,7 @@ echo "==> Building Linux release into $BUILD_DIRECTORY"
 rm -rf $BUILD_DIRECTORY
 mkdir -p $BUILD_DIRECTORY
 
-SDK_TARGET=$("$PROJECT_ROOT/mise/utilities/install_static_linux_sdk.sh" "$ARCH")
+SDK_TARGET=$("$SCRIPT_DIR/../../utilities/install_static_linux_sdk.sh" "$ARCH")
 
 echo "==> Building tuist executable (static musl, $SDK_TARGET)"
 swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET"

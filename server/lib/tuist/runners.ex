@@ -58,6 +58,12 @@ defmodule Tuist.Runners do
   started. `UnstartedExecutionsWorker` is the backstop for a delivery
   that never lands.
 
+  The webhook arrives seconds after GitHub starts B, so dispatch can
+  hand B to another Pod in between. That Pod's runner is idle and
+  carries the same labels, so A moves onto its claim instead of the
+  queue, and B's row moves off its stale handle onto the Pod running it.
+  Re-queueing A there would reserve one Pod more than there are jobs.
+
   ## Who releases a claim, and why there is a backstop
 
   A claim is a reservation against the account's concurrency budget.
@@ -179,6 +185,11 @@ defmodule Tuist.Runners do
   # younger resident one, and it gives it up exactly when the fleet is backed
   # up and throughput matters more than any single job's warmth.
   @volume_affinity_age_tolerance_seconds 30
+
+  # The queued jobs a new Pod is placed for, and how many volume labels the
+  # controller turns into placement preferences.
+  @preferred_node_label_candidates 5
+  @preferred_node_label_limit 4
 
   defp volume_affinity_top_k do
     Application.get_env(:tuist, :runner_volume_affinity_top_k, @volume_affinity_top_k)
@@ -694,6 +705,11 @@ defmodule Tuist.Runners do
       occupied runner sessions over active one-minute buckets in
       the last hour (Postgres). Keeps sparse but real bursts warm
       and includes post-job cache and teardown time.
+    * `preferred_node_labels` — for a macOS fleet, the Node labels
+      advertising the custom volumes its oldest queued jobs are
+      predicted to attach, most imminent first. The controller prefers
+      Nodes carrying them when it creates a Pod, so a job lands where
+      its volumes already are.
 
   The controller composes these into a desired-replica value
   using its CRD-bound knobs (`minWarmPoolFloor`, `maxReplicas`)
@@ -711,8 +727,20 @@ defmodule Tuist.Runners do
       occupied: occupied,
       queued: queued,
       withheld: withheld,
-      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name)
+      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
+      preferred_node_labels: preferred_node_labels(fleet_name)
     }
+  end
+
+  # macOS Pods are placed before a job is assigned, so the queued jobs are the
+  # only hint of which volumes the next Pod will need.
+  defp preferred_node_labels(fleet_name) do
+    with true <- builtin_volumes?(fleet_name),
+         {:ok, candidates} <- Jobs.pick_queued_top_k(fleet_name, [], [], @preferred_node_label_candidates) do
+      VolumeAffinities.custom_volume_node_labels(candidates, @preferred_node_label_limit)
+    else
+      _ -> []
+    end
   end
 
   # Returns `{dispatchable, withheld}`.

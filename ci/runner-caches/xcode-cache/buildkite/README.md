@@ -23,8 +23,11 @@ file that sets the cache's location and size limit. If the step's environment
 already sets `XCODE_XCCONFIG_FILE`, that file is included last, so its settings
 win; a relative path is resolved against the checkout.
 
-Successful webhook and schedule builds on the pipeline.s default branch save
-their changes. Other builds use the cache and discard their changes. The cache
+Successful webhook and schedule builds of your pipeline's repository save their
+changes, including its pull requests. Fork pull requests, tags and builds started
+from the API or the dashboard use the cache but never save. To save only from
+some branches, limit them on the runner profile; see
+[Choose which branches save](https://tuist.dev/en/docs/guides/features/runners/cache-volumes#choose-which-branches-save). The cache
 holds up to 30 GB and Tuist prunes it to fit. Directories you keep with the `tuist/cache-volume` plugin are separate.
 
 On agents that are not Tuist macOS runners the hook does nothing. If the runner

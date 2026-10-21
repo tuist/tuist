@@ -679,8 +679,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	instance.Status.ImageHold = rollout.imageHold
 	if image, held := heldRuntimeImage(instance); held {
 		instance.Status.Phase = "Pending"
+		instance.Status.ImageHold = imageHoldFencedPin
 		instance.Status.Message = fmt.Sprintf("Requested runtime image %s is held at qualified image %s; qualify the new image before updating the fenced runtime pin", instance.Spec.Image, image)
 	}
 	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
@@ -3996,6 +3998,7 @@ type rolloutState struct {
 	observedImage string
 	readyReplicas int32
 	message       string
+	imageHold     string
 }
 
 func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance) (rolloutState, error) {
@@ -4051,6 +4054,7 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 		phase:         "Pending",
 		observedImage: observedImage,
 		readyReplicas: readyReplicas,
+		imageHold:     operatorImageHold(instance, sts, replicas),
 		message: fmt.Sprintf(
 			"%d/%d replicas ready, %d/%d updated, observedGeneration=%t, revisionsMatch=%t",
 			readyReplicas,

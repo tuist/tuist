@@ -2,6 +2,7 @@ package cachevolumes
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -48,9 +49,11 @@ type HeadReader interface {
 // LocalImages keeps immutable masters and reflinked private ext4 images on a
 // dedicated host filesystem. A clone must fail rather than fall back to copying.
 type LocalImages struct {
-	Root             string
-	SizeGB           int
-	MinFreeBytes     uint64
+	Root         string
+	SizeGB       int
+	MinFreeBytes uint64
+	// MaxVolumeBytes bounds guest usage reports; zero is DefaultMaxVolumeBytes.
+	MaxVolumeBytes   int64
 	Transfer         ImageTransfer
 	Clone            func(context.Context, string, string) error
 	Observe          Observer
@@ -125,6 +128,63 @@ func (b *LocalImages) image(slot Slot) string { return filepath.Join(b.Root, "im
 // volumeBytes is the size of the slot's image: its allocation, else the host default.
 func (b *LocalImages) volumeBytes(slot Slot) int64 {
 	return slot.VolumeSize(int64(b.SizeGB) * 1_000_000_000)
+}
+
+func (b *LocalImages) maxVolumeBytes() int64 {
+	if b.MaxVolumeBytes > 0 {
+		return b.MaxVolumeBytes
+	}
+	return DefaultMaxVolumeBytes
+}
+
+// attachBytes is the free space an attach needs: the host floor, raised by as
+// much as the volume exceeds the default size. With a 40 GB floor and 20 GB
+// default that is the larger of 40 GB and the volume plus 20 GB.
+func (b *LocalImages) attachBytes(slot Slot) uint64 {
+	return b.MinFreeBytes + uint64(max(0, b.volumeBytes(slot)-int64(b.SizeGB)*1_000_000_000))
+}
+
+// growClone extends a private copy smaller than the slot's capacity before it
+// is exposed; never shrinks. A copy that cannot grow keeps its size, and a
+// server that sends no capacity never changes it.
+func (b *LocalImages) growClone(slot Slot, path string) {
+	info, err := os.Stat(path)
+	if err != nil || slot.VolumeBytes <= 0 || info.Size() >= slot.VolumeBytes {
+		return
+	}
+	_ = b.operation("grow", "image", func() error { return os.Truncate(path, slot.VolumeBytes) })
+}
+
+// filesystemSmaller reports whether the image's ext4 filesystem leaves more
+// than the tail resize2fs may skip unused, so it must grow once mounted.
+func filesystemSmaller(image string) bool {
+	info, err := os.Stat(image)
+	if err != nil {
+		return false
+	}
+	size, err := ext4Bytes(image)
+	return err == nil && size+64<<20 < info.Size()
+}
+
+// ext4Bytes reads the filesystem size from an ext4 superblock.
+func ext4Bytes(image string) (int64, error) {
+	f, err := os.Open(image)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	var sb [1024]byte
+	if _, err = f.ReadAt(sb[:], 1024); err != nil {
+		return 0, err
+	}
+	if binary.LittleEndian.Uint16(sb[0x38:]) != 0xEF53 || binary.LittleEndian.Uint32(sb[0x18:]) > 6 {
+		return 0, errors.New("not an ext4 filesystem")
+	}
+	blocks := uint64(binary.LittleEndian.Uint32(sb[0x04:]))
+	if binary.LittleEndian.Uint32(sb[0x60:])&0x80 != 0 {
+		blocks |= uint64(binary.LittleEndian.Uint32(sb[0x150:])) << 32
+	}
+	return int64(blocks << (10 + binary.LittleEndian.Uint32(sb[0x18:]))), nil
 }
 func (b *LocalImages) master(slot Slot) string {
 	return filepath.Join(b.Root, "masters", slot.Scope, fmt.Sprintf("%020d-%s.img", slot.BaseGeneration, slot.ContentDigest))
@@ -215,7 +275,7 @@ func (b *LocalImages) reserve(ctx context.Context) error {
 	return b.reserveBytes(ctx, b.MinFreeBytes)
 }
 
-// reserveSpare admits work only while free space already covers it.
+// reserveSpare admits work only while free space already covers minimum.
 func (b *LocalImages) reserveSpare(ctx context.Context, minimum uint64) error {
 	if err := b.admission.LockContext(ctx); err != nil {
 		return err
@@ -313,7 +373,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	}()
 	image := b.image(slot)
 	if _, err := os.Stat(image); os.IsNotExist(err) {
-		if err = b.operation("admission", "none", func() error { return b.reserve(ctx) }); err != nil {
+		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, b.attachBytes(slot)) }); err != nil {
 			return err
 		}
 		// A checkout clone holds the job's whole workspace, so free space must cover
@@ -349,6 +409,9 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				_ = os.Chtimes(master, time.Now(), time.Now())
 			}
 			unlock()
+			if err == nil {
+				b.growClone(slot, tmp)
+			}
 		} else if slot.Kind == KindCheckout {
 			// Never fall back to an empty image: the guest mounts it over its workspace.
 			if b.Seed == nil {
@@ -384,6 +447,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	if source == "unknown" {
 		source = "local"
 	}
+	grow := filesystemSmaller(image)
 	device, err := b.deviceContext(ctx, image)
 	if err != nil {
 		return err
@@ -403,6 +467,11 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	}
 	if err = b.operation("mount", "none", func() error { return b.Mount(device, path) }); err != nil {
 		return err
+	}
+	if grow {
+		// Online growth to fill a copy extended before exposure. On failure the
+		// job keeps the old size.
+		_ = b.operation("grow", "filesystem", func() error { _, err := b.commandContext(ctx, "resize2fs", device); return err })
 	}
 	if err = ctx.Err(); err != nil {
 		return err

@@ -35,22 +35,24 @@ jq --arg rules "${temporary}/rules.json" '
   .[0] as $rule
   | ($rule.data[] | select(.refId == "A") | .model.expr) as $query
   | [
-      ["healthy", "2+0x6", "2+0x6", false, false],
-      ["one_ready", "2+0x6", "1+0x6", false, false],
-      ["outage", "2+0x6", "0+0x6", false, true],
-      ["scaled_down", "0+0x6", "0+0x6", false, false],
-      ["brief_rollout", "2+0x6", "2 0 2 2 2 2 2", false, false],
-      ["recovered", "2+0x6", "0 0 0 2 2 2 2", true, false]
+      ["healthy", "2+0x6", "2+0x6", false, false, "-3600+0x6"],
+      ["one_ready", "2+0x6", "1+0x6", false, false, "-3600+0x6"],
+      ["outage", "2+0x6", "0+0x6", false, true, "-3600+0x6"],
+      ["scaled_down", "0+0x6", "0+0x6", false, false, "-3600+0x6"],
+      ["brief_rollout", "2+0x6", "2 0 2 2 2 2 2", false, false, "-3600+0x6"],
+      ["recovered", "2+0x6", "0 0 0 2 2 2 2", true, false, "-3600+0x6"],
+      ["new_instance_bootstrap", "1+0x6", "0 0 0 1 1 1 1", false, false, "0+0x6"]
     ]
   | map(
-      . as [$name, $desired, $ready, $fires_at_2m, $fires_at_4m]
+      . as [$name, $desired, $ready, $fires_at_2m, $fires_at_4m, $created]
       | {cluster: "tuist-production", namespace: "kura", statefulset: $name} as $labels
       | ($labels | to_entries | map("\(.key)=\(.value | tojson)") | join(",")) as $encoded
       | {
           name: $name, interval: "1m",
           input_series: [
             {series: "kube_statefulset_replicas{\($encoded)}", values: $desired},
-            {series: "kube_statefulset_status_replicas_ready{\($encoded)}", values: $ready}
+            {series: "kube_statefulset_status_replicas_ready{\($encoded)}", values: $ready},
+            {series: "kube_statefulset_created{\($encoded)}", values: $created}
           ],
           alert_rule_test: (
             [["1m", false], ["2m", ($fires_at_2m or $fires_at_4m)], ["4m", $fires_at_4m]]
@@ -62,6 +64,25 @@ jq --arg rules "${temporary}/rules.json" '
       }
     )
   | . + [
+      (
+        {cluster: "tuist-production", namespace: "kura", statefulset: "new_instance_stuck"} as $labels
+        | ($labels | to_entries | map("\(.key)=\(.value | tojson)") | join(",")) as $encoded
+        | {
+            name: "new_instance_stuck", interval: "1m",
+            input_series: [
+              {series: "kube_statefulset_replicas{\($encoded)}", values: "1+0x16"},
+              {series: "kube_statefulset_status_replicas_ready{\($encoded)}", values: "0+0x16"},
+              {series: "kube_statefulset_created{\($encoded)}", values: "0+0x16"}
+            ],
+            alert_rule_test: (
+              [["10m", false], ["12m", false], ["13m", true]]
+              | map({
+                  eval_time: .[0], alertname: "KuraInstanceHasNoReadyReplicas",
+                  exp_alerts: (if .[1] then [{exp_labels: ($labels + $rule.labels)}] else [] end)
+              })
+            )
+        }
+      ),
       {
         name: "missing_and_unrelated_series", interval: "1m",
         input_series: [
@@ -75,7 +96,8 @@ jq --arg rules "${temporary}/rules.json" '
         name: "cluster_label_absent", interval: "1m",
         input_series: [
           {series: "kube_statefulset_replicas{namespace=\"kura\",statefulset=\"no-cluster\"}", values: "2+0x6"},
-          {series: "kube_statefulset_status_replicas_ready{namespace=\"kura\",statefulset=\"no-cluster\"}", values: "0+0x6"}
+          {series: "kube_statefulset_status_replicas_ready{namespace=\"kura\",statefulset=\"no-cluster\"}", values: "0+0x6"},
+          {series: "kube_statefulset_created{namespace=\"kura\",statefulset=\"no-cluster\"}", values: "-3600+0x6"}
         ],
         alert_rule_test: [{
           eval_time: "2m", alertname: "KuraInstanceHasNoReadyReplicas",

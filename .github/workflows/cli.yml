@@ -128,6 +128,23 @@ jobs:
           "$(mise which swiftlint)" lint --quiet --config .swiftlint.yml --only-rule no_fatal_error_in_tests cli/Tests
           tuist inspect dependencies --only implicit
 
+  # The originHash is the SHA-256 of the root Package.swift. Runs on pushes too because
+  # a squash merge can produce a Package.swift that no branch resolved.
+  cli-package-resolved:
+    name: Package.resolved
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check originHash
+        run: |
+          expected="$(sha256sum Package.swift | cut -d' ' -f1)"
+          actual="$(sed -n 's/^ *"originHash" : "\([0-9a-f]*\)",$/\1/p' Package.resolved)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error file=Package.resolved,line=2::originHash is ${actual:-missing}, but Package.swift hashes to $expected. Run 'tuist install' and commit Package.resolved."
+            exit 1
+          fi
+
   cli-spm-build:
     name: SwiftPM Build
     runs-on: tuist-macos-27-0
