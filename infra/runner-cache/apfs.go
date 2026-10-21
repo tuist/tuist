@@ -49,10 +49,11 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	}
 	start := time.Now()
 	defer func() {
-		if b.Observe != nil {
-			b.Observe(Observation{Operation: "attach", Source: source, Duration: time.Since(start), Err: err})
-		}
+		observed := slot
+		observed.MountedGeneration = b.MountedGeneration(slot)
+		b.Observe.For(observed).Report("attach", source, start, err)
 	}()
+	ctx = WithSubject(ctx, SubjectOf(slot))
 	if err = ctx.Err(); err != nil {
 		return err
 	}
@@ -64,7 +65,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 		if slot.Kind == KindCheckout {
 			minimum = CheckoutGrowthBytes
 		}
-		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
+		if err = b.operation(slot, "admission", "none", func() error { return b.reserveBytes(ctx, minimum) }); err != nil {
 			return err
 		}
 		if b.Reserve != nil {
@@ -83,7 +84,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			if !validHead(slot.Identity) {
 				return errors.New("invalid master identity")
 			}
-			waited := b.Observe.Start("master_wait", "none")
+			waited := b.Observe.For(slot).Start("master_wait", "none")
 			unlock, lockErr := b.lockContext(ctx, slot.Scope)
 			waited(lockErr)
 			if lockErr != nil {
@@ -102,7 +103,7 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 			}
 			if !cold && b.Grow != nil && slot.VolumeBytes > 0 {
 				// A copy that cannot grow stays warm at its saved size.
-				_ = b.operation("grow", "image", func() error { return b.Grow(ctx, tmp, slot.VolumeBytes) })
+				_ = b.operation(slot, "grow", "image", func() error { return b.Grow(ctx, tmp, slot.VolumeBytes) })
 			}
 		}
 		if cold && slot.Kind == KindCheckout {
@@ -111,11 +112,11 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 				return errors.New("checkout seeding unavailable")
 			}
 			source = "local"
-			if err = b.operation("clone", "local", func() error { return b.Seed(ctx, slot, tmp) }); err != nil {
+			if err = b.operation(slot, "clone", "local", func() error { return b.Seed(ctx, slot, tmp) }); err != nil {
 				return err
 			}
 		} else if cold {
-			if err = b.operation("format", "empty", func() error { return b.Create(ctx, tmp, b.volumeBytes(slot)) }); err != nil {
+			if err = b.operation(slot, "format", "empty", func() error { return b.Create(ctx, tmp, b.volumeBytes(slot)) }); err != nil {
 				return err
 			}
 		}
@@ -217,7 +218,7 @@ func (b *APFSImages) Measure(slot Slot, path string) (int64, int64, error) {
 }
 
 func (b *APFSImages) Seal(slot Slot, path string) (err error) {
-	done := b.Observe.Start("publish", "none")
+	done := b.Observe.For(slot).Start("publish", "none")
 	defer func() { done(err) }()
 	image := b.image(slot)
 	if !APFSMarker(path, ".detached", slot.ID) {
@@ -357,6 +358,7 @@ func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, spare bool) er
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
 		return errors.New("invalid prefetch identity")
 	}
+	ctx = WithSubject(ctx, SubjectOf(slot))
 	reserve := b.reserveBytes
 	if spare {
 		reserve = b.reserveSpare
@@ -397,7 +399,7 @@ func (b *APFSImages) cloneLocal(ctx context.Context, slot Slot, image, tmp strin
 	if *source == "unknown" {
 		*source = "local"
 	}
-	if err := b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
+	if err := b.operation(slot, "clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
 		return err
 	}
 	if mounted != slot.BaseGeneration {

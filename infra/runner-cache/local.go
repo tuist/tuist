@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,6 +58,7 @@ type LocalImages struct {
 	Transfer         ImageTransfer
 	Clone            func(context.Context, string, string) error
 	Observe          Observer
+	Log              *slog.Logger // eviction lines; nil is slog.Default
 	Run              func(context.Context, string, ...string) ([]byte, error)
 	Mount            func(string, string) error
 	Unmount          func(string, string) error
@@ -120,8 +122,8 @@ func (b *LocalImages) lockContext(ctx context.Context, scope string) (func(), er
 	}
 	return mu.Unlock, nil
 }
-func (b *LocalImages) operation(operation, source string, work func() error) error {
-	done := b.Observe.Start(operation, source)
+func (b *LocalImages) operation(slot Slot, operation, source string, work func() error) error {
+	done := b.Observe.For(slot).Start(operation, source)
 	err := work()
 	done(err)
 	return err
@@ -155,7 +157,7 @@ func (b *LocalImages) growClone(slot Slot, path string) {
 	if err != nil || slot.VolumeBytes <= 0 || info.Size() >= slot.VolumeBytes {
 		return
 	}
-	_ = b.operation("grow", "image", func() error { return os.Truncate(path, slot.VolumeBytes) })
+	_ = b.operation(slot, "grow", "image", func() error { return os.Truncate(path, slot.VolumeBytes) })
 }
 
 // filesystemSmaller reports whether the image's ext4 filesystem leaves more
@@ -341,11 +343,16 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 		if err != nil {
 			return err
 		}
-		err = b.operation("evict", reason, func() error { return removeMaster(path) })
+		bytes := allocatedBytes(path)
+		done := b.Observe.With(masterSubject(path)).Start("evict", reason)
+		err = removeMaster(path)
+		done(err)
 		unlock()
 		if err != nil {
 			return err
 		}
+		fields := []any{"needed_bytes", minimum, "free_bytes", free}
+		b.logEviction(path, bytes, reason, append(fields, SubjectFrom(ctx).ForFields()...)...)
 		free, err = b.freeBytes(ctx)
 		if err != nil {
 			return err
@@ -470,20 +477,19 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	}
 	start := time.Now()
 	defer func() {
-		if b.Observe != nil {
-			b.Observe(Observation{Operation: "attach", Source: source, Duration: time.Since(start), Err: err})
-		}
+		b.Observe.For(slot).Report("attach", source, start, err)
 	}()
+	ctx = WithSubject(ctx, SubjectOf(slot))
 	image := b.image(slot)
 	if _, err := os.Stat(image); os.IsNotExist(err) {
-		if err = b.operation("admission", "none", func() error { return b.reserveBytes(ctx, b.attachBytes(slot)) }); err != nil {
+		if err = b.operation(slot, "admission", "none", func() error { return b.reserveBytes(ctx, b.attachBytes(slot)) }); err != nil {
 			return err
 		}
 		// A checkout clone holds the job's whole workspace, so free space must cover
 		// what it can grow to, as the reserve covers one custom volume. A checkout is
 		// optional, so it never evicts anything for that room.
 		if slot.Kind == KindCheckout {
-			if err = b.operation("admission", "none", func() error { return b.reserveSpare(ctx, CheckoutCapacity) }); err != nil {
+			if err = b.operation(slot, "admission", "none", func() error { return b.reserveSpare(ctx, CheckoutCapacity) }); err != nil {
 				return err
 			}
 		}
@@ -493,7 +499,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 			if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(slot.ContentDigest) {
 				return errors.New("invalid master digest")
 			}
-			waited := b.Observe.Start("master_wait", "none")
+			waited := b.Observe.For(slot).Start("master_wait", "none")
 			unlock, lockErr := b.lockContext(ctx, slot.Scope)
 			waited(lockErr)
 			if lockErr != nil {
@@ -508,7 +514,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				if source == "unknown" {
 					source = "local"
 				}
-				err = b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) })
+				err = b.operation(slot, "clone", "local", func() error { return b.cloneContext(ctx, master, tmp) })
 				markUsed(master)
 			}
 			unlock()
@@ -521,7 +527,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				err = errors.New("checkout seeding unavailable")
 			} else {
 				source = "local"
-				err = b.operation("clone", "local", func() error { return b.Seed(ctx, slot, tmp) })
+				err = b.operation(slot, "clone", "local", func() error { return b.Seed(ctx, slot, tmp) })
 			}
 		} else {
 			var f *os.File
@@ -534,7 +540,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				}
 			}
 			if err == nil {
-				err = b.operation("format", "empty", func() error { _, err := b.commandContext(ctx, "mkfs.ext4", "-F", "-m", "0", tmp); return err })
+				err = b.operation(slot, "format", "empty", func() error { _, err := b.commandContext(ctx, "mkfs.ext4", "-F", "-m", "0", tmp); return err })
 			}
 		}
 		if err != nil {
@@ -568,13 +574,13 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = b.operation("mount", "none", func() error { return b.Mount(device, path) }); err != nil {
+	if err = b.operation(slot, "mount", "none", func() error { return b.Mount(device, path) }); err != nil {
 		return err
 	}
 	if grow {
 		// Online growth to fill a copy extended before exposure. On failure the
 		// job keeps the old size.
-		_ = b.operation("grow", "filesystem", func() error { _, err := b.commandContext(ctx, "resize2fs", device); return err })
+		_ = b.operation(slot, "grow", "filesystem", func() error { _, err := b.commandContext(ctx, "resize2fs", device); return err })
 	}
 	if err = ctx.Err(); err != nil {
 		return err
@@ -671,7 +677,7 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 	return nil
 }
 func (b *LocalImages) Seal(slot Slot, path string) (err error) {
-	done := b.Observe.Start("publish", "none")
+	done := b.Observe.For(slot).Start("publish", "none")
 	defer func() { done(err) }()
 	// A verified branch is already detached and passed these checks; verify
 	// rejects one whose verification was interrupted.
@@ -697,7 +703,7 @@ func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 func (b *LocalImages) publish(slot Slot) error {
 	archive := b.image(slot) + ".zst"
 	defer os.Remove(archive)
-	compressDone := b.Observe.Start("compress", "none")
+	compressDone := b.Observe.For(slot).Start("compress", "none")
 	digest, content, err := CompressImage(b.image(slot), archive)
 	compressDone(err)
 	if err != nil {
@@ -706,7 +712,7 @@ func (b *LocalImages) publish(slot Slot) error {
 	if slot.BaseGeneration > 0 && content == slot.ContentDigest {
 		return ErrIdentical
 	}
-	uploadDone := b.Observe.Start("upload", "none")
+	uploadDone := b.Observe.For(slot).Start("upload", "none")
 	generation, err := b.Transfer.Publish(slot, archive, digest, content)
 	uploadDone(err)
 	if errors.Is(err, ErrConflict) {
@@ -752,7 +758,7 @@ func (b *LocalImages) keepUnchanged(slot Slot, verify func() error) {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) || b.HasMaster(slot.Identity) {
 		return
 	}
-	_ = b.operation("keep", "unchanged", func() error {
+	_ = b.operation(slot, "keep", "unchanged", func() error {
 		if err := verify(); err != nil {
 			return err
 		}
@@ -904,13 +910,13 @@ func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
 		return err
 	}
 	if time.Since(info.ModTime()) >= 7*24*time.Hour {
-		return removeMaster(path)
+		return b.evictMaster(path, EvictExpired)
 	}
 	if heads == nil {
 		return nil
 	}
 	if _, err = os.Stat(path + ".json"); os.IsNotExist(err) {
-		return removeMaster(path)
+		return b.evictMaster(path, EvictNoMetadata)
 	} else if err != nil {
 		return err
 	}
@@ -919,7 +925,7 @@ func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
 		return nil
 	}
 	if errors.Is(headErr, ErrConflict) {
-		return removeMaster(path)
+		return b.evictMaster(path, EvictConflict)
 	}
 	if headErr != nil {
 		return headErr
@@ -933,12 +939,29 @@ func (b *LocalImages) maintainMaster(path string, heads HeadReader) error {
 		if head.BaseGeneration > slot.BaseGeneration && validHead(next) && time.Since(info.ModTime()) < 24*time.Hour && !b.HasMaster(next) && b.Replace(next) {
 			return nil
 		}
-		return removeMaster(path)
+		return b.evictMaster(path, EvictSuperseded, "head_generation", head.BaseGeneration)
 	}
 	if b.queueRefresh(path, slot, head, info.ModTime()) {
 		return nil
 	}
-	return removeMaster(path)
+	return b.evictMaster(path, EvictSuperseded, "head_generation", head.BaseGeneration)
+}
+
+// evictMaster removes a master and logs why.
+func (b *LocalImages) evictMaster(path, reason string, fields ...any) error {
+	bytes := allocatedBytes(path)
+	if err := removeMaster(path); err != nil {
+		return err
+	}
+	b.logEviction(path, bytes, reason, fields...)
+	return nil
+}
+
+// logEviction names the evicted master by scope and generation only.
+func (b *LocalImages) logEviction(path string, bytes int64, reason string, fields ...any) {
+	subject := masterSubject(path)
+	values := []any{"scope", subject.Scope, "generation", subject.Generation, "bytes", bytes, "reason", reason}
+	logger(b.Log).Info("cache master evicted", append(values, fields...)...)
 }
 
 // olderMaster is the newest master of the slot's lineage older than its base,
@@ -978,6 +1001,7 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
 		return errors.New("invalid prefetch identity")
 	}
+	ctx = WithSubject(ctx, SubjectOf(slot))
 	if err := b.reserve(ctx); err != nil {
 		return err
 	}
@@ -1004,7 +1028,7 @@ func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error
 	download := filepath.Join(staging, fmt.Sprintf("%s-%d-%s.img", slot.Scope, slot.BaseGeneration, slot.ContentDigest))
 	_ = os.Remove(download)
 	defer os.Remove(download)
-	if err := b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
+	if err := b.operation(slot, "restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
 		return err
 	}
 	unlock, err := b.lockContext(ctx, slot.Scope)
@@ -1037,7 +1061,7 @@ func (b *LocalImages) restoreMaster(ctx context.Context, slot Slot, master strin
 	download := master + ".tmp"
 	_ = os.Remove(download)
 	defer os.Remove(download)
-	if err := b.operation("restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
+	if err := b.operation(slot, "restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
 		return err
 	}
 	if err := ctx.Err(); err != nil {

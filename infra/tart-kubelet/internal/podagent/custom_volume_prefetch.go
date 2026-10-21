@@ -140,8 +140,14 @@ func (p *customPrefetcher) work() {
 			return
 		}
 		ctx, cancel := context.WithTimeout(p.ctx, p.budget)
-		done := cachevolumes.Observer(observeCustomCache).Start("prefetch", "remote")
-		err := p.restore(ctx, cachevolumes.Slot{Identity: job.identity}, job.requested)
+		slot := cachevolumes.Slot{Identity: job.identity}
+		subject := cachevolumes.SubjectOf(slot)
+		if !job.requested && subject.Key == "" {
+			// A HEAD from the fleet listing does not say whether its volume is managed.
+			subject.Kind = ""
+		}
+		done := cachevolumes.Observer(observeCustomCache).With(subject).Start("prefetch", "remote")
+		err := p.restore(ctx, slot, job.requested)
 		done(err)
 		cancel()
 		if errors.Is(err, cachevolumes.ErrDownloadIncomplete) && p.requeue(job) {

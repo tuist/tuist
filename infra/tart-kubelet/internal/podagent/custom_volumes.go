@@ -54,6 +54,8 @@ type CustomVolumes struct {
 	checkoutJobs     map[string]cachevolumes.CheckoutTask
 	// spare cancels the running background prefetch; guarded by Builtins.mu.
 	spare context.CancelCauseFunc
+	// spareScope is the scope that prefetch restores; guarded by Builtins.mu.
+	spareScope string
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -155,6 +157,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 		Displace:         c.displaceSpare,
+		Log:              customCacheLog(),
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection, Grow: growCustomImage}
 	if c.Checkouts != nil {
 		backend.Seed = c.Checkouts.Seed
@@ -205,7 +208,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		if requested {
 			return backend.Prefetch(ctx, slot)
 		}
-		return c.prefetchSpare(ctx, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
+		return c.prefetchSpare(ctx, slot.Scope, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
 	}, backend.HasMaster)
 	c.prefetch.Store(prefetch)
 	var builds sync.WaitGroup
@@ -534,6 +537,7 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		// The reserved checkout name is only ever allocated through the checkout path.
 		identity.Kind, identity.Generation = "", 0
+		identity.ManagedKey = cachevolumes.ManagedKey(input.Key)
 		response := map[string]any{"error": "unavailable", "reason": "denied"}
 		if errors.Is(err, cachevolumes.ErrExecutionPending) {
 			response["reason"] = "execution_pending"
@@ -554,8 +558,9 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 					c.prefetch.Load().start(identity, true)
 				}
 				response["reason"] = cachevolumes.Result(err)
+				subject := cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity, PodName: pod.Name})
 				log.FromContext(ctx).Info("custom cache volume unavailable; job continues cold",
-					"pod", pod.Name, "use", identity.ID, "generation", identity.BaseGeneration, "reason", response["reason"], "error", err.Error())
+					append(subject.Fields(), "reason", response["reason"], "error", err.Error())...)
 			}
 		}
 		cancel()

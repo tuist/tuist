@@ -105,7 +105,7 @@ func (a *agent) serveCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	done := a.observe.Start("checkout_acquire", "none")
+	done := a.observe.With(cachevolumes.Subject{Pod: input.PodName}).Start("checkout_acquire", "none")
 	response, err := a.checkout(ctx, input)
 	done(err)
 	_ = json.NewEncoder(w).Encode(response)
@@ -193,7 +193,7 @@ func (a *agent) serveCheckoutExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(5 * time.Minute))
-	done := a.observe.Start("checkout_export", "local")
+	done := a.observe.With(task.Subject()).Start("checkout_export", "local")
 	dst := a.checkouts.Incoming(uid)
 	var admit func(int64) (func(), error)
 	if a.space != nil {

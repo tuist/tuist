@@ -34,6 +34,9 @@ type Identity struct {
 	// host-built master of its volume's clear Generation and is never published.
 	Kind       string `json:"kind,omitempty"`
 	Generation int64  `json:"generation,omitempty"`
+	// ManagedKey is set by the host from the request when the key names a
+	// Tuist-managed cache (see ManagedKey), never by the server or a guest.
+	ManagedKey string `json:"managed_key,omitempty"`
 	// VolumeBytes is the capacity the server chose for this use. Zero from a
 	// server that predates per-volume sizes.
 	VolumeBytes int64 `json:"volume_bytes"`

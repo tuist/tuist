@@ -104,6 +104,23 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).
+- Logs: `logger=custom-cache-volumes` carries `cache phase` (one per
+  `Observation`, with the volume's subject fields), `cache master evicted`, and
+  `admission cancelled a background prefetch` (the cancelled prefetch's `scope`
+  plus the `for_*` subject it made room for; `for_kind=builtin` for built-in
+  admission). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
+  The `tuist_runner_cache_volume_*` metrics keep only operation/source/result.
+  Everything that happened to one volume on a host:
+
+  ```logql
+  {job="tuist-macos-tart-kubelet", instance="<host>"} |= "<scope>"
+    | json | logger="custom-cache-volumes"
+    | line_format "{{.msg}} {{.operation}} {{.reason}} {{.result}} gen={{.generation}} pod={{.pod}}"
+  ```
+
+  Searching for the 48-hex prefix from a `tuist.dev/cache-volume-<prefix>` node
+  label matches the same lines. The Linux agent logs the same fields as JSON
+  under `cache volume operation` and `cache master evicted`.
 
 - Built-in volume telemetry is sampled in the guest at attach and before detach,
   then attributed and queued by the host after finalization. Reports use the

@@ -123,6 +123,11 @@ type CheckoutTask struct {
 	Since  time.Time
 }
 
+// Subject names the task's volume by IDs.
+func (t CheckoutTask) Subject() Subject {
+	return Subject{Scope: t.Scope, Use: t.Use, Kind: KindCheckout, VolumeKey: t.VolumeKey, Generation: t.BaseGeneration, CheckoutGeneration: t.Generation}
+}
+
 type checkoutMeta struct {
 	Tip         string               `json:"tip"`
 	BuiltAt     time.Time            `json:"built_at"`
@@ -416,7 +421,7 @@ func (c *Checkouts) Process(ctx context.Context, task CheckoutTask) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
-	done := c.Observe.Start(operation, source)
+	done := c.Observe.With(task.Subject()).Start(operation, source)
 	var err error
 	if task.Export == "" {
 		err = c.restore(ctx, task, room)
@@ -514,7 +519,7 @@ func (c *Checkouts) build(ctx context.Context, task CheckoutTask, cold bool, met
 		return err
 	}
 	if moved {
-		done := c.Observe.Start("checkout_publish", "remote")
+		done := c.Observe.With(task.Subject()).Start("checkout_publish", "remote")
 		err := c.publish(ctx, task)
 		done(err)
 		if err != nil {
@@ -959,8 +964,12 @@ func (c *Checkouts) removeScope(scope string) {
 	lock := c.lock(scope)
 	lock.Lock()
 	defer lock.Unlock()
-	if !c.isBusy(scope) {
-		_ = os.RemoveAll(filepath.Join(c.Root, scope))
+	dir := filepath.Join(c.Root, scope)
+	if _, err := os.Stat(dir); err != nil || c.isBusy(scope) {
+		return
+	}
+	if os.RemoveAll(dir) == nil {
+		logger(c.Log).Info("checkout master evicted", "scope", scope, "reason", EvictCleared)
 	}
 }
 
@@ -1001,7 +1010,7 @@ func (c *Checkouts) Maintain() {
 	}
 	for _, master := range c.masters() {
 		if c.now().Sub(master.used) > checkoutIdleFor {
-			c.remove(master, false)
+			c.remove(master, false, EvictExpired)
 		}
 	}
 	c.removeAbandonedDownloads()
@@ -1051,14 +1060,14 @@ func (c *Checkouts) Evict(enough func() bool) bool {
 		if enough() {
 			break
 		}
-		if c.remove(master, true) {
+		if c.remove(master, true, EvictIdle) {
 			removed = true
 		}
 	}
 	return removed
 }
 
-func (c *Checkouts) remove(master checkoutMaster, try bool) bool {
+func (c *Checkouts) remove(master checkoutMaster, try bool, reason string) bool {
 	lock := c.lock(master.scope)
 	if try {
 		if !lock.TryLock() {
@@ -1072,7 +1081,13 @@ func (c *Checkouts) remove(master checkoutMaster, try bool) bool {
 	if c.isBusy(master.scope) || (try && c.inUse(master.scope)) {
 		return false
 	}
-	return os.RemoveAll(filepath.Dir(master.path)) == nil
+	bytes := allocatedBytes(master.path)
+	if os.RemoveAll(filepath.Dir(master.path)) != nil {
+		return false
+	}
+	generation, _ := strconv.ParseInt(filepath.Base(filepath.Dir(master.path)), 10, 64)
+	logger(c.Log).Info("checkout master evicted", "scope", master.scope, "checkout_generation", generation, "bytes", bytes, "reason", reason)
+	return true
 }
 
 func (c *Checkouts) setBusy(scope string, busy bool) {

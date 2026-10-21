@@ -42,6 +42,26 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   reclaim their journals only after the existing writer fences pass.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
+- Every `Observation` carries a `Subject` (`Observer.For(slot)`/`With`) that
+  agents append to their phase log line, never to a metric label: `scope` (64
+  hex; node labels use its first 48), `use`, `kind` (`custom`, `managed`,
+  `checkout`, or absent when the host cannot tell), `key` (managed only),
+  `volume_key` (checkout digest), `generation`, `mounted_generation`,
+  `checkout_generation` and `pod`. Fields with no value are left out. Never add
+  account or repository names or a customer-chosen key: `Identity.ManagedKey`
+  is set by the agent from the request through `ManagedKey`, which keeps only
+  Tuist's managed keys.
+- Every master removal logs `cache master evicted` (`LocalImages.Log`) or
+  `checkout master evicted` (`Checkouts.Log`) with `scope`, `generation` or
+  `checkout_generation`, `bytes` (allocated; blocks shared with clones stay in
+  use) and `reason`. Admission (`reserveBytes`) logs the `evictionOrder` reason
+  (`superseded`, `speculative`, `idle`, `in_use`) under pressure or `expired`
+  (unused 7 days) without, with `needed_bytes`, `free_bytes` and the `for_*`
+  subject it ran for (`WithSubject`). Maintenance logs `expired`, `superseded`
+  (with `head_generation`), `head_conflict` (lineage cleared or expired) or
+  `no_metadata`. Checkouts log `expired`, `idle` (LRU under pressure) or
+  `cleared` (the checkout volume's scope changed). The `evict` observation also
+  names the master's `scope` and `generation`.
 - Linux may prefetch one immutable master after a timed-out warm acquisition,
   bounded to two minutes with no queue and the same disk reserve. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
