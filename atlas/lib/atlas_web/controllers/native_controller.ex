@@ -28,8 +28,8 @@ defmodule AtlasWeb.NativeController do
     })
   end
 
-  def index(conn, params) do
-    case Native.list(resource(conn), params, conn.assigns.current_user) do
+  def index(conn, _params) do
+    case Native.list(resource(conn), conn.query_params, conn.assigns.current_user) do
       {:ok, page} -> json(conn, page)
       {:error, reason} -> respond(conn, {:error, reason})
     end
