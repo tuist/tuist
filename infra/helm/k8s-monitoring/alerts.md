@@ -4532,10 +4532,19 @@ Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 (max by (cluster, namespace, statefulset) (
   kube_statefulset_status_replicas_ready{namespace="kura"}
 ) == bool 0)
+* on (cluster, namespace, statefulset)
+(max by (cluster, namespace, statefulset) (
+  time() - kube_statefulset_created{namespace="kura"}
+) > bool 600)
 ```
 
 - Threshold: `> 0`; pending period: **2 minutes**; severity: **critical**.
 - Desired zero is excluded. One Ready replica is degraded but does not fire.
+- StatefulSets created in the last ten minutes are excluded. Runner-region
+  instances (ber1, scw-fr-par) run one replica, so a new instance has zero
+  Ready until its initial region passes settle (about 2.5 minutes for
+  `kura-riverside-ber1` on 2026-10-21, incident #130, with no client traffic).
+  A new or recreated instance still unready after ten minutes fires at twelve.
 - Healthy samples remain an explicit zero. Missing readiness is unknown,
   not zero replicas: no-data and execution errors remain visible as Grafana
   `NoData` / `Error`, rather than silently reporting healthy service.
