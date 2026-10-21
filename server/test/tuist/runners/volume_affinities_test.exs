@@ -401,4 +401,44 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
                {head, :no_residency}
     end
   end
+
+  describe "custom_volume_node_labels/2" do
+    setup do
+      %{account: AccountsFixtures.account_fixture(), other: AccountsFixtures.account_fixture()}
+    end
+
+    defp node_label(volume), do: "tuist.dev/cache-volume-" <> String.slice(CacheVolumes.scope(volume), 0, 48)
+
+    test "lists the volumes the queued jobs are predicted to attach, oldest job first", %{account: account, other: other} do
+      build = used_custom_volume(account, "CI", "Build")
+      lint = used_custom_volume(other, "CI", "Lint")
+      now = DateTime.utc_now()
+
+      candidates = [
+        queued(other, "CI", "Lint", now),
+        queued(account, "CI", "Build", DateTime.add(now, 5, :second)),
+        queued(account, "CI", "Lint", DateTime.add(now, 10, :second))
+      ]
+
+      assert VolumeAffinities.custom_volume_node_labels(candidates, 4) == [node_label(lint), node_label(build)]
+    end
+
+    test "lists a volume two queued jobs share once and stops at the limit", %{account: account} do
+      first = used_custom_volume(account, "CI", "Build")
+      used_custom_volume(account, "CI", "Test")
+      now = DateTime.utc_now()
+
+      candidates = [
+        queued(account, "CI", "Build", now),
+        queued(account, "CI", "Build", DateTime.add(now, 5, :second)),
+        queued(account, "CI", "Test", DateTime.add(now, 10, :second))
+      ]
+
+      assert VolumeAffinities.custom_volume_node_labels(candidates, 1) == [node_label(first)]
+    end
+
+    test "is empty for jobs with no recent volume", %{account: account} do
+      assert VolumeAffinities.custom_volume_node_labels([queued(account, "CI", "Build", DateTime.utc_now())], 4) == []
+    end
+  end
 end

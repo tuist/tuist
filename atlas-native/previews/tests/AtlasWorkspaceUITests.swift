@@ -43,7 +43,9 @@ final class AtlasWorkspaceUITests: XCTestCase {
         attach(app, "ios-workspace-tasks-large-dark")
         app.tabBars.buttons["Browse"].tap()
         let search = app.searchFields.firstMatch
-        if !search.isHittable { app.swipeDown() }
+        if !search.isHittable {
+            if app.buttons["Search"].exists { app.buttons["Search"].tap() } else { app.scrollContent(up: false) }
+        }
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText("vendor")
@@ -59,17 +61,12 @@ final class AtlasWorkspaceUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace"] + arguments
         app.launch()
+        XCUIDevice.shared.orientation = .portrait
         return app
     }
 
     @MainActor private func visible(_ id: String, in app: XCUIApplication) throws -> XCUIElement {
-        for _ in 0..<7 {
-            if let element = app.descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex.first(where: \.isHittable) {
-                return element
-            }
-            app.swipeUp()
-        }
-        return try XCTUnwrap(nil as XCUIElement?, "Missing workspace destination: \(id)")
+        try app.visibleElement(id)
     }
 
     @MainActor private func tap(_ id: String, in app: XCUIApplication) throws {

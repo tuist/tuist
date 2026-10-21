@@ -11,6 +11,9 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheGrant
+  alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
@@ -1838,6 +1841,73 @@ defmodule Tuist.RunnersTest do
 
       assert {:error, _} = Catalog.resources_for_fleet(fleet)
       assert %{queued: 1, withheld: 0} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # A custom volume an earlier `CI / build` job of acme/cli attached.
+    defp used_volume(account) do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      volume =
+        Repo.insert!(%Volume{
+          account_id: account.id,
+          repository: "acme/cli",
+          scope_id: "123",
+          key: "lfs-objects",
+          platform: "macos",
+          architecture: "arm64",
+          uid: 501
+        })
+
+      workflow_job_id = System.unique_integer([:positive])
+
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: workflow_job_id,
+        workflow_run_id: 1,
+        account_id: account.id,
+        fleet_name: "test",
+        status: "completed",
+        repository: "acme/cli",
+        workflow_name: "CI",
+        job_name: "build",
+        enqueued_at: DateTime.utc_now()
+      })
+
+      Repo.insert!(%Usage{
+        volume_id: volume.id,
+        generation: 1,
+        workflow_job_id: workflow_job_id,
+        workflow_run_id: 1,
+        pod_name: "pod",
+        pod_uid: "pod-#{workflow_job_id}",
+        node_name: "mac-01",
+        can_publish: true,
+        inserted_at: DateTime.utc_now(:second)
+      })
+
+      volume
+    end
+
+    test "prefers the Nodes holding the volumes a queued macOS job is predicted to attach" do
+      account = account_fixture()
+      volume = used_volume(account)
+      fleet = "macos-signal-volumes"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_701, fleet, resources)
+
+      label = "tuist.dev/cache-volume-" <> String.slice(CacheVolumes.scope(volume), 0, 48)
+      assert %{preferred_node_labels: [^label]} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "prefers no Node for a Linux fleet, whose Pods are placed ahead of demand" do
+      account = account_fixture()
+      used_volume(account)
+      fleet = "linux-signal-volumes"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_702, fleet, resources)
+
+      assert %{preferred_node_labels: []} = Runners.scaling_signals_for_fleet(fleet)
     end
   end
 

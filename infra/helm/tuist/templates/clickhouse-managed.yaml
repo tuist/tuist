@@ -136,6 +136,12 @@ data:
         </replicated>
       </user_directories>
     </clickhouse>
+  # The cluster every replica can query the others through, named `default`
+  # as ClickHouse Cloud names its own, so `clusterAllReplicas('default', ...)`
+  # reads every replica's system tables. The replicated database's own cluster
+  # cannot serve this: it connects as `default` with no password.
+  cluster.xml: |
+    {{- include "tuist.clickhouseManagedClusterXml" (dict "name" $chName "namespace" .Release.Namespace "replicas" $m.replicas) | nindent 4 }}
   settings.xml: |
     <clickhouse>
       <logger>
@@ -634,7 +640,12 @@ spec:
         # otherwise sit unread until something else restarted the pod. The
         # interserver password reaches the server through env, which is read
         # only at startup too.
-        checksum/config: {{ printf "%s|%s|%s|%s" (omit $m "replicas" "persistence" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password "backup" $m.backup)) $interserverPassword | sha256sum | trunc 32 }}
+        #
+        # The cluster definition is hashed without its replicas, for the same
+        # reason `replicas` is omitted. A replica added later is therefore in
+        # its peers' `default` cluster only from their next restart, while it
+        # sees all of them from its first start.
+        checksum/config: {{ printf "%s|%s|%s|%s|%s" (omit $m "replicas" "persistence" | toYaml) $password (include "tuist.clickhouseManagedUsersXml" (dict "password" $password "backup" $m.backup)) $interserverPassword (include "tuist.clickhouseManagedClusterXml" (dict "name" $chName "namespace" .Release.Namespace "replicas" 0)) | sha256sum | trunc 32 }}
     spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: {{ $m.nodePool }}
@@ -734,6 +745,9 @@ spec:
             - name: config
               mountPath: /etc/clickhouse-server/config.d/tuist-replication.xml
               subPath: replication.xml
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist-cluster.xml
+              subPath: cluster.xml
             - name: config
               mountPath: /etc/clickhouse-server/config.d/tuist-settings.xml
               subPath: settings.xml

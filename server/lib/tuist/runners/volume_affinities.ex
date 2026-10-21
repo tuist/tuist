@@ -6,11 +6,12 @@ defmodule Tuist.Runners.VolumeAffinities do
   account's `tuist-cache` master also counts for a repository volume, because
   the host seeds a repository with no master of its own from it.
 
-  Affinity is a pure dispatch-scoring policy over the shared warm pool — no
-  Kubernetes scheduling change. `select_candidate/3` prefers a resident
-  account's queued job, bounded by an age tolerance so affinity never delays a
-  job past the tolerance (the precise operational meaning of the hard rule that
-  affinity never starves an account holding no volume).
+  Affinity is a dispatch-scoring policy over the shared warm pool, plus a soft
+  placement preference for new macOS Pods (see Custom volumes).
+  `select_candidate/3` prefers a resident account's queued job, bounded by an
+  age tolerance so affinity never delays a job past the tolerance (the precise
+  operational meaning of the hard rule that affinity never starves an account
+  holding no volume).
 
   ## Where residency comes from
 
@@ -44,6 +45,12 @@ defmodule Tuist.Runners.VolumeAffinities do
   repository, workflow name and job name attached in the last week. A candidate
   counts as resident when the node holds any of them, under the same starvation
   bound. Residency still comes only from the host; history only predicts.
+
+  A macOS Pod is placed before any job is assigned to it, so with one queued job
+  and one new Pod there is nothing for dispatch to choose. The scaling signals
+  therefore also carry the labels of the volumes a fleet's queued jobs are
+  predicted to attach (`custom_volume_node_labels/2`), and the runners
+  controller prefers Nodes carrying them when it creates a Pod.
 
   ## Why a node-pull dispatch is enough
 
@@ -256,6 +263,18 @@ defmodule Tuist.Runners.VolumeAffinities do
   defp custom_resident?(custom, candidate) do
     MapSet.size(custom) > 0 and
       candidate |> predicted_custom_volumes() |> Enum.any?(&MapSet.member?(custom, &1))
+  end
+
+  @doc """
+  The Node labels advertising the custom volumes `candidates` are predicted to
+  attach, in candidate order, without duplicates, at most `limit`.
+  """
+  def custom_volume_node_labels(candidates, limit) when is_list(candidates) and is_integer(limit) do
+    candidates
+    |> Stream.flat_map(&predicted_custom_volumes/1)
+    |> Stream.uniq()
+    |> Stream.map(&(@custom_volume_label_prefix <> &1))
+    |> Enum.take(limit)
   end
 
   defp predicted_custom_volumes(%{account_id: account_id, repository: repository} = candidate)

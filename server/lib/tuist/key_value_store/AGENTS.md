@@ -20,3 +20,7 @@ This context owns key-value caching with Redis and in-memory fallbacks.
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+## Replica-safety rollout
+
+Only `cache: :display` invalidations are broadcast to connected nodes. Prepaid balance reads and refreshes use that dedicated cache. On node join/leave, clear it and the FunWithFlags membership cache, never the general `:tuist` request/integration cache or dedicated authentication/license caches. Lost broadcasts and fills racing deletion remain bounded by the display value's TTL, not a strong consistency guarantee. Persistent-key invalidation reports failed Redis deletion after evicting/broadcasting fallback copies. `cache_errors: false` opts out of storing `{:error, reason}` callback results on locked, unlocked and persistent paths. Keep the default arbitrary-value contract, including literal `{:ignore, value}` tuples. License validation has a separate ten-second retry entry, while successful licenses keep their normal TTL. These are regenerable views, not authoritative authorization state.

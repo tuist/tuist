@@ -179,7 +179,12 @@ safe for fork contributors to read. Linux and release/backport workflows have
 separate toolchain and runner requirements and are not part of this migration.
 
 On pushes to `main`, `cli.yml` runs Cache, Unit Tests and the acceptance
-tests. Lint and SwiftPM Build run on pull requests only.
+tests. Lint and SwiftPM Build run on pull requests only. The `Package.resolved`
+job runs on both and checks that the lockfile's `originHash` is the SHA-256 of
+the root `Package.swift`. `tuist/install` forces resolved versions, so the other
+jobs never notice a stale hash, but local installs then fall back to a full
+native resolution. It runs on pushes because a squash merge can produce a
+`Package.swift` that no branch resolved.
 
 Use the released `tuist/install@v1` action after tool installation and authentication.
 It combines one package-relative `.build` volume with forced installation, explicit
@@ -379,8 +384,8 @@ The Linux release ships a static musl binary built with the Swift Static Linux S
 any release channel. Keep signing in the checkout-free, read-only `sign-cli` job,
 without the workflow-level release token; the existing publisher uploads the bundle.
 Describe `tuist.zip` as universal macOS. Let Packslip infer Linux libc requirements
-from the archived executables: current builds are static, but older backport
-bundlers may produce dynamic binaries. Never override libc with `any`.
+from the archived executables rather than declaring them. Never override libc
+with `any`.
 Record `inputs.ref`, not the caller's `github.sha`, as the source commit. Builds
 do not currently publish provenance, so keep `attest: false` until provenance
 can truthfully identify each archive's build source.
@@ -417,6 +422,11 @@ are rejected.
 tarballs on `tuist-linux-large` inside `swift:6.2`. The fleet is amd64-only,
 so aarch64 is cross-compiled through the static Linux SDK and the bundle
 script checks the architecture and that the binary is static before packaging.
+The job builds `inputs.ref` with the bundler and SDK setup from the
+workflow's own revision, checked out into `.linux-bundler`: release lines cut
+before the bundler took `TUIST_LINUX_ARCH` build only for the host, so their
+aarch64 leg would package an x86_64 binary under the x86_64 name. Keep
+`bundle-linux.sh` resolving `install_static_linux_sdk.sh` relative to itself.
 `mise/utilities/install_static_linux_sdk.sh` (shared with the PR `Linux Build`
 job) hides the host's zlib and libxml2 `.pc` files: SwiftPM's pkg-config
 parser keeps the host's `/usr/lib/<host-triple>` from them, and a cross link
@@ -466,9 +476,11 @@ covered only by the production schedule.
   `Fixture`, which matches case-insensitively on macOS.
 - On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
   custom cache volume: the probe job seeds it with its run id through
-  `tuist/cache-volume`, and `macos-volume` attaches it after
-  `PUBLISH_WAIT_SECONDS` and requires that run id or a later one, since
-  overlapping probe runs share the volume. Its failures are reported, never
+  `tuist/cache-volume` after the Xcode build, since GitHub can report which job
+  a runner runs later than the host's 25-second authorization budget.
+  `volume-wait` then waits on a GitHub-hosted runner for the host to publish,
+  and `macos-volume` attaches it and requires that run id or a later one,
+  since overlapping probe runs share the volume. Its failures are reported, never
   blocking: both volume steps run with `continue-on-error`, and `gate.sh`
   re-raises their `Cache volumes` annotations as warnings. Canary has one rack host, so
   verify lands where seed published; production's multi-host fleets would make

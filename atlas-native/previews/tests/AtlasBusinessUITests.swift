@@ -3,7 +3,17 @@ import XCTest
 @MainActor
 final class AtlasBusinessUITests: XCTestCase {
     func testTaskCreateEditCompleteAndDelete() throws {
+        try exerciseTaskCRUD(launch())
+    }
+
+    func testTaskActionsRemainReachableInLandscape() throws {
         let app = launch()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        try exerciseTaskCRUD(app)
+    }
+
+    private func exerciseTaskCRUD(_ app: XCUIApplication) throws {
         defer { app.terminate() }
         app.buttons["business-create"].tap()
         XCTAssertFalse(app.buttons["business-save"].isEnabled)
@@ -77,7 +87,7 @@ final class AtlasBusinessUITests: XCTestCase {
         app.buttons["business-save"].tap()
         XCTAssertTrue(app.staticTexts["Preview save failed. Your changes are still here."].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields["business-field-title"].value as? String, "Keep this draft")
-        app.swipeUp()
+        app.scrollContent()
         capture(app, "ios-task-failed-save-large-dark")
         app.buttons["Cancel"].tap()
         app.buttons["Discard changes"].tap()
@@ -87,7 +97,7 @@ final class AtlasBusinessUITests: XCTestCase {
         finance.tap()
         XCTAssertTrue(app.staticTexts["Access required"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["business-create"].exists)
-        app.swipeUp()
+        app.scrollContent()
         let retry = app.buttons["Retry"]
         XCTAssertTrue(retry.isHittable)
         XCTAssertGreaterThanOrEqual(retry.frame.height, 44)
@@ -95,21 +105,64 @@ final class AtlasBusinessUITests: XCTestCase {
         capture(app, "ios-finance-forbidden-large-dark")
     }
 
+    func testScrollLoadsMoreAndAccountFiltersResetTheWholeList() throws {
+        let app = launch(["--business-pagination"])
+        defer { app.terminate() }
+        _ = try visible("business-item-task-30", in: app)
+        XCTAssertFalse(app.buttons["Next"].exists)
+        XCTAssertFalse(app.buttons["Previous"].exists)
+        capture(app, "ios-tasks-scroll-loaded")
+        app.tabBars.buttons["Accounts"].tap()
+        capture(app, "ios-accounts-logos")
+        _ = try visible("business-item-account-30", in: app)
+        capture(app, "ios-accounts-scroll-loaded")
+        try selectFilter("Lifecycle", option: "Prospect", in: app)
+        let count = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "15 items")).firstMatch
+        XCTAssertTrue(count.waitForExistence(timeout: 5))
+        capture(app, "ios-accounts-filtered")
+        _ = try visible("business-item-account-29", in: app)
+        app.buttons["business-filters"].tap()
+        app.buttons["Reset filters"].tap()
+        let all = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "31 items")).firstMatch
+        XCTAssertTrue(all.waitForExistence(timeout: 5))
+    }
+
+    func testReminderGroupsAndOverdueFilterInLargeDarkText() throws {
+        let app = launch(["--dark", "--large-text"])
+        defer { app.terminate() }
+        try selectFilter("Group by", option: "Reminder", in: app)
+        let overdue = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Overdue reminders")).firstMatch
+        XCTAssertTrue(overdue.waitForExistence(timeout: 5))
+        capture(app, "ios-tasks-reminder-groups-large-dark")
+        try selectFilter("Reminder", option: "Overdue", in: app)
+        XCTAssertTrue(app.staticTexts["Review onboarding"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Follow up with Northstar"].exists)
+        XCTAssertFalse(app.staticTexts["Prepare release notes"].exists)
+        capture(app, "ios-tasks-overdue-large-dark")
+    }
+
+    private func selectFilter(_ title: String, option: String, in app: XCUIApplication) throws {
+        app.buttons["business-filters"].tap()
+        capture(app, "ios-filters-\(title.lowercased().replacingOccurrences(of: " ", with: "-"))")
+        let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        let choice = app.buttons[option]
+        XCTAssertTrue(choice.waitForExistence(timeout: 5))
+        choice.tap()
+    }
+
     private func launch(_ arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace"] + arguments
         app.launch()
+        XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.buttons["business-create"].waitForExistence(timeout: 10))
         return app
     }
 
     private func visible(_ id: String, in app: XCUIApplication) throws -> XCUIElement {
-        for _ in 0..<8 {
-            let elements = app.descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex
-            if let element = elements.first(where: \.isHittable) { return element }
-            app.swipeUp()
-        }
-        return try XCTUnwrap(nil as XCUIElement?, "Missing control: \(id)")
+        try app.visibleElement(id)
     }
 
     private func tap(_ id: String, in app: XCUIApplication) throws {

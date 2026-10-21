@@ -56,8 +56,11 @@ struct AtlasBusinessTests {
         #expect(await model.delete(record))
         #expect(model.page?.items.isEmpty == true && model.records[record.id] == nil)
         failure = "forbidden"
+        await model.loadMore()
+        #expect(model.forbidden && model.page == nil && model.records.isEmpty && !model.nextPageFailed)
+        failure = nil
         await model.load()
-        #expect(model.forbidden && model.page == nil && model.records.isEmpty)
+        #expect(!model.forbidden && model.page?.items.count == 1)
     }
 
     @Test func inFlightMutationPreventsDoubleSubmission() async {
@@ -75,5 +78,74 @@ struct AtlasBusinessTests {
         finish?.resume(returning: Data("{\"item\":\(item)}".utf8))
         #expect(await save.value)
         #expect(!model.busy)
+    }
+
+    @Test func scrollingAppendsDistinctRecordsAndRetainsRowsUntilExplicitRetry() async throws {
+        var fail = true
+        let model = AtlasBusiness(resource: .tasks) { action in
+            let page = action["page"] as? Int ?? 1
+            if page == 2, fail { throw AtlasAuthenticationError(kind: "server", message: "Try again") }
+            return try response(ids: page == 1 ? ["one", "two"] : ["two", "three"], page: page)
+        }
+        await model.load()
+        await model.loadMore()
+        #expect(model.page?.items.map(\.id) == ["one", "two"] && model.nextPageFailed)
+        fail = false
+        await model.loadMore()
+        #expect(model.page?.items.map(\.id) == ["one", "two"])
+        await model.loadMore(retry: true)
+        #expect(model.page?.items.map(\.id) == ["one", "two", "three"])
+        #expect(model.page?.page == 2 && !model.nextPageFailed && !model.busy)
+        await model.load()
+        #expect(model.page?.items.map(\.id) == ["one", "two"] && model.page?.page == 1)
+    }
+
+    @Test func newFiltersReplacePendingScrollResultsAndKeepSearch() async throws {
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Never>?
+        let model = AtlasBusiness(resource: .tasks) { action in
+            if action["page"] as? Int == 2 {
+                return await withCheckedContinuation { finish = $0; started.continuation.yield(()) }
+            }
+            let filters = action["filters"] as? [String: String] ?? [:]
+            return try response(ids: filters["status"] == "completed" ? ["done"] : ["open"], page: 1)
+        }
+        await model.load(query: "Follow")
+        let scrolling = Task { await model.loadMore() }
+        for await _ in started.stream { break }
+        await model.setFilter("status", value: "completed")
+        #expect(model.page?.items.map(\.id) == ["done"] && model.query == "Follow")
+        finish?.resume(returning: try response(ids: ["old-scroll"], page: 2))
+        await scrolling.value
+        #expect(model.page?.items.map(\.id) == ["done"] && model.page?.page == 1)
+        #expect(model.filters == ["status": "completed"] && !model.busy)
+        await model.load(filters: [:])
+        #expect(model.page?.items.map(\.id) == ["open"] && model.filters.isEmpty)
+    }
+
+    @Test func supersededSearchFailureCannotClearNewResults() async throws {
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Error>?
+        let model = AtlasBusiness(resource: .accounts) { action in
+            if action["query"] as? String == "old" {
+                return try await withCheckedThrowingContinuation { finish = $0; started.continuation.yield(()) }
+            }
+            return try response(ids: ["new"], page: 1)
+        }
+        let old = Task { await model.load(query: "old") }
+        for await _ in started.stream { break }
+        await model.load(query: "new")
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "forbidden", message: "Old error"))
+        await old.value
+        #expect(model.query == "new" && model.page?.items.map(\.id) == ["new"])
+        #expect(!model.forbidden && model.errorMessage == nil && !model.busy)
+    }
+
+    private func response(ids: [String], page: Int) throws -> Data {
+        try JSONSerialization.data(withJSONObject: [
+            "items": ids.map { ["id": $0, "fields": ["title": $0], "can_edit": true, "can_delete": true] },
+            "page": page, "total_pages": 2, "total_count": 3, "can_write": true, "summary": [],
+            "options": ["users": [], "accounts": [], "segments": [], "statuses": [], "deal_stages": []]
+        ])
     }
 }

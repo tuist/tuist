@@ -48,7 +48,7 @@ func TestHostFloorAppliesToBuiltinCustomAndConvergence(t *testing.T) {
 		return hostdisk.Stats{TotalBytes: 2000 * gib, FreeBytes: 310 * gib}, nil
 	}
 	att := mustAllocate(t, m, "running")
-	if err := m.MaterializeEmpty(att); !errors.Is(err, errAdmissionDeclined) {
+	if _, _, err := m.Materialize(att, "1"); !errors.Is(err, errAdmissionDeclined) {
 		t.Fatalf("built-in consumed host reserve: %v", err)
 	}
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
@@ -126,5 +126,58 @@ func TestCustomReclaimCannotSpendPinnedHostBlocks(t *testing.T) {
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
 	if err := c.reclaim(context.Background(), customCapacity); !errors.Is(err, cachevolumes.ErrCapacity) {
 		t.Fatalf("credited deletion without physical space recovery: %v", err)
+	}
+}
+
+// A budget below the volume's quota bounds the caches the way a quota of that
+// size would, so a host can change it with a restart instead of a new volume.
+func TestCacheBudgetBoundsCachesBelowTheQuota(t *testing.T) {
+	m, be := newTestManager(t, 1024)
+	m.CapGiB = 30
+	m.BudgetGiB = 220
+	be.perMaster = 100 * gib
+	seedMaster(t, m, "1")
+	seedMaster(t, m, "2")
+	older := m.masterImage("1", ReservedTuistCacheVolume)
+	oldTime := m.now().Add(-time.Hour)
+	if err := os.Chtimes(older, oldTime, oldTime); err != nil {
+		t.Fatal(err)
+	}
+
+	if free, err := m.availableBytes(); err != nil || free != 20*gib {
+		t.Fatalf("available = %d, %v; want the 20 GiB left in the budget", free, err)
+	}
+	if _, free, err := m.Stats(); err != nil || free != 20*gib {
+		t.Fatalf("Stats free = %d, %v; want the 20 GiB left in the budget", free, err)
+	}
+	if _, err := m.PrepareConvergeSpace(masterKey{}, 200*gib, 200*gib, false, func(error) {}); !errors.Is(err, errMasterTooLargeToKeep) {
+		t.Fatalf("converging a 200 GiB master into a 220 GiB budget: %v, want errMasterTooLargeToKeep", err)
+	}
+
+	att := mustAllocate(t, m, "job")
+	if _, _, err := m.Materialize(att, "3"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	if _, err := os.Stat(older); !os.IsNotExist(err) {
+		t.Fatalf("a job reserving 30 GiB with 20 GiB left in the budget kept the oldest master: %v", err)
+	}
+	if _, err := os.Stat(m.masterImage("2", ReservedTuistCacheVolume)); err != nil {
+		t.Fatalf("evicted more than the job needed: %v", err)
+	}
+}
+
+// The quota stays the hard bound when the budget is set above it, as on a
+// host whose volume was created before the budget was raised.
+func TestCacheBudgetAboveTheQuotaLeavesTheQuota(t *testing.T) {
+	m, be := newTestManager(t, 240)
+	m.BudgetGiB = 512
+	be.perMaster = 100 * gib
+	seedMaster(t, m, "1")
+
+	if free, err := m.availableBytes(); err != nil || free != 140*gib {
+		t.Fatalf("available = %d, %v; want the quota's 140 GiB", free, err)
+	}
+	if capacity, err := m.volumeCapacityBytes(); err != nil || capacity != 240*gib {
+		t.Fatalf("capacity = %d, %v; want the 240 GiB quota", capacity, err)
 	}
 }

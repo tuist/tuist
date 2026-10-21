@@ -36,8 +36,8 @@ func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex
 func main() {
 	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
 		var err error
-		if os.Args[1] == "mount-worker" && len(os.Args) == 2 {
-			err = mountWorker()
+		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "local")) {
+			err = mountWorker(len(os.Args) == 3)
 		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
 			err = serveMounts(os.Args[2], os.Args[3])
 		} else {
@@ -50,8 +50,8 @@ func main() {
 		return
 	}
 	detach := flag.Bool("detach-all", false, "Detach macOS volumes after the job")
-	checkout := flag.String("checkout", "", "Mount the job's cached checkout at this workspace (macOS, before the first step)")
-	export := flag.Bool("checkout-export", false, "Hand the host what the job's checkout added (macOS, after the job)")
+	checkout := flag.String("checkout", "", "Mount the job's cached checkout at this workspace (before the first step)")
+	export := flag.Bool("checkout-export", false, "Hand the host what the job's checkout added (after the job)")
 	key := flag.String("key", "", "Stable cache name; change it to invalidate")
 	var targets paths
 	flag.Var(&targets, "path", "Directory to cache (repeatable; relative to the working directory)")
@@ -60,6 +60,8 @@ func main() {
 		// Never fails the job: without a cached checkout, actions/checkout clones as usual.
 		if runtime.GOOS == "darwin" {
 			fmt.Println("Tuist cached checkout: " + checkoutMac(*checkout))
+		} else {
+			fmt.Println("Tuist cached checkout: " + checkoutLinux(*checkout))
 		}
 		return
 	}
@@ -67,6 +69,8 @@ func main() {
 		// Never fails the teardown: without an export the host keeps its master.
 		if runtime.GOOS == "darwin" {
 			fmt.Println("Tuist cached checkout export: " + exportCheckoutMac())
+		} else {
+			fmt.Println("Tuist cached checkout export: " + exportCheckoutLinux())
 		}
 		return
 	}

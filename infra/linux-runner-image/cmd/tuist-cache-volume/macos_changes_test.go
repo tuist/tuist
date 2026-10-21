@@ -19,7 +19,7 @@ func mountedVolume(t *testing.T, seed map[string]string) (share, mount, base str
 	response := macResponse{Directory: digest("volume"), ID: "lease", Warm: true}
 	data, _ := json.Marshal(response)
 	respondMac(t, share, data)
-	_ = os.Mkdir(filepath.Join(share, response.Directory), 0755)
+	makeShare(t, share, response.Directory)
 	base = filepath.Join(mount, response.Directory)
 	for name, contents := range seed {
 		writeVolumeFile(t, base, name, contents)

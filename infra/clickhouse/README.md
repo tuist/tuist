@@ -45,8 +45,22 @@ The migration job reconciles it the same way as the operator identity, when
 - The role reads the Tuist database, `system.tables`, `system.columns` and
   `system.query_log`. Queries run read-only, for at most 120 seconds, with at
   most 8 GiB of memory and 8 threads.
+- Every replica's query log from the last day is readable through the
+  `grafana_query_log` view in the Tuist database. The view runs as `default`,
+  so the role needs no `REMOTE` grant. The other replicas run their part of it
+  as the role itself, which is why it reads `system.query_log` too. The
+  operator role is denied the view.
 - The data source connects to the ClickHouse Service's HTTP port, which
   `pdcAgent.permitRemoteOpen` must list.
+
+## Cluster
+
+The managed server defines a `default` cluster holding every replica, as
+ClickHouse Cloud does, so `clusterAllReplicas('default', ...)` reads all of
+them. Replicas authenticate to each other with the interserver password.
+Queries forwarded to another replica run as the user who sent them, who needs
+the `REMOTE` grant. A replica added later joins its peers' cluster at their
+next restart.
 
 ## Recovery fallback
 

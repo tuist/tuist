@@ -964,7 +964,8 @@ semantics; this doc is just about the VM image.
   it records the workspace and the mounted master's commit and LFS objects in
   `/Users/runner/.tuist-checkout.json`. The teardown then runs
   `tuist-cache-volume --checkout-export`, which packs what the job's checkout added
-  and copies its new LFS objects into the share's `checkout-export/` (45 s budget)
+  (the job commit and the objects of its tree the master's tip tree lacks; see
+  `infra/linux-runner-image/AGENTS.md`) and copies its new LFS objects into the share's `checkout-export/` (45 s budget)
   for the host to verify and build from. Neither step fails the job.
 
 - `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial

@@ -26,9 +26,10 @@ stays with your project: set `COMPILATION_CACHE_ENABLE_CACHING`, or run
 `XCODE_XCCONFIG_FILE` the job already sets is included last, so its settings
 win.
 
-Successful push, schedule and web pipelines on the default branch save their
-changes. Other jobs, including merge requests, use the cache and discard their
-changes.
+Successful push, schedule and web pipelines of your project save their changes,
+on any branch. Merge request and tag pipelines use the cache but never save. To
+save only from some branches, limit them on the runner profile; see
+[Choose which branches save](https://tuist.dev/en/docs/guides/features/runners/cache-volumes#choose-which-branches-save).
 
 On runners that are not Tuist macOS runners the snippet does nothing. If the
 runner could not restore the cache, it warns and the job runs with an empty

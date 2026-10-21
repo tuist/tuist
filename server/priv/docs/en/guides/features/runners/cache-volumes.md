@@ -323,18 +323,20 @@ are unsupported. Ignore workspace links without a trailing slash in `.gitignore`
 
 ## Saving changes {#saving-changes}
 
-The managed caches and custom volumes save the changes of successful jobs:
+The managed caches and custom volumes save the changes of successful jobs from
+your own repository, on any branch:
 
 | Provider | Jobs that save changes |
 | --- | --- |
-| GitHub Actions | Push, schedule, manual dispatch and pull request jobs from the repository itself, on any branch |
-| Buildkite | Webhook and schedule builds on the default branch |
-| GitLab CI | Push, schedule and web pipelines on the default branch |
+| GitHub Actions | Push, schedule, manual dispatch and pull request jobs from the repository itself |
+| Buildkite | Webhook and schedule builds of the pipeline's repository, including its pull requests |
+| GitLab CI | Push, schedule and web pipelines of the project |
 
-Other jobs, including fork pull requests, `pull_request_target` jobs, merge
-requests and tags, can use the cache, but their changes are discarded. A job
-that doesn't change a volume leaves the saved version in place. With GitHub
-Actions, you can narrow which branches save on the runner profile; see
+Other jobs can use the cache, but their changes are discarded. These include
+fork pull requests, `pull_request_target` jobs, Buildkite builds started from
+the API or the dashboard, GitLab merge request pipelines, and tags. A job that
+doesn't change a volume leaves the saved version in place. You can narrow which
+branches save on the runner profile; see
 [Choose which branches save](#choose-which-branches-save).
 
 Concurrent jobs work independently; changes from different jobs are not merged.
@@ -342,9 +344,10 @@ Never cache credentials or irreplaceable data.
 
 ### Choose which branches save {#choose-which-branches-save}
 
-For GitHub Actions, you can change which branches save the managed caches and
-custom volumes. Open **Runners → Profiles**, edit the profile your workflows use
-in `runs-on:`, and expand **Save cache from**. The settings apply to every
+You can change which branches save the managed caches and custom volumes. Open
+**Runners → Profiles**, edit the profile your jobs use, and expand **Save cache
+from**. Jobs use the profile they request: in `runs-on:` on GitHub Actions, as
+the queue on Buildkite, or in `tags:` on GitLab CI. The settings apply to every
 volume used by jobs on that profile, including volumes created later.
 
 ![The runner profile form with the Save cache from section expanded, with Default branch turned on and develop and release/* added as additional branches](/images/guides/features/runners/save-cache-from.png)
@@ -357,15 +360,15 @@ only from some branches, turn on **Limit to specific branches**:
 - Under **Additional branches**, add up to 20 branch names that also save. Use
   `*` as a wildcard: `release/*` matches `release/1.0`.
 
-Successful push, schedule and manual-dispatch jobs, and pull requests from the
-same repository, save their changes when their branch matches. On push and
-manual-dispatch runs, a tag with a matching name also matches.
+The jobs listed in [Saving changes](#saving-changes) save their changes when
+their branch matches. On GitHub Actions push and manual-dispatch runs, a tag
+with a matching name also matches.
 
-Jobs on other branches can still use the cache, but their changes are discarded.
-Fork pull requests and `pull_request_target` jobs never save. Narrowing these
-settings or deleting the profile discards pending changes they no longer allow;
-a deleted profile falls back to saving from every branch. Buildkite and GitLab
-CI always save from the default branch.
+Jobs on other branches can still use the cache, but their changes are
+discarded. Jobs that never save, such as fork pull requests, don't save on a
+matching branch either. Narrowing these settings or deleting the profile
+discards pending changes they no longer allow; a deleted profile falls back to
+saving from every branch.
 
 ## Capacity and retention {#capacity-and-retention}
 

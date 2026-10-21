@@ -67,7 +67,7 @@ class AtlasPeopleScreen(
                 val padding = (16 * resources.displayMetrics.density).toInt()
                 setPadding(padding, padding / 2, padding, padding / 2)
                 minHeight = (48 * resources.displayMetrics.density).toInt()
-                if (heading && Build.VERSION.SDK_INT >= 28) accessibilityHeading = true
+                if (heading && Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
             },
             LinearLayout.LayoutParams(-1, -2),
         )

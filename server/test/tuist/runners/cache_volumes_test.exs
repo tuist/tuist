@@ -1450,11 +1450,82 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       assert {:ok, %{can_publish: true}} =
                CacheVolumes.allocate_for_job(other_job, branch_identity("feature"), attrs("other-account"))
+    end
 
-      buildkite =
-        Map.merge(branch_identity("feature"), %{provider: "buildkite", provider_instance: "org", scope_id: "pipeline"})
+    test "GitLab and Buildkite jobs follow their profile's policy", %{job: job, account: account, profile: profile} do
+      default_policy =
+        Repo.insert!(%Profile{account_id: account.id, name: "every-branch", platform: :linux, vcpus: 4, memory_gb: 16})
 
-      assert {:ok, %{can_publish: false}} = CacheVolumes.allocate_for_job(job, buildkite, attrs("buildkite"))
+      providers = [
+        %{provider: "gitlab", provider_instance: "gitlab.com", scope_id: "123", repository_id: 123},
+        %{provider: "buildkite", provider_instance: "org", scope_id: "pipeline:repo", repository_id: nil}
+      ]
+
+      for scope <- providers do
+        every_branch = %{job | requested_dispatch_label: Profile.dispatch_label(default_policy)}
+        pod = &"#{scope.provider}-#{&1}"
+
+        for identity <- [main_identity(), branch_identity("feature/x")] do
+          assert {:ok, %{can_publish: true}} =
+                   CacheVolumes.allocate_for_job(
+                     every_branch,
+                     Map.merge(identity, scope),
+                     attrs(pod.(identity.writer_branch))
+                   )
+        end
+
+        assert {:ok, %{can_publish: false}} =
+                 CacheVolumes.allocate_for_job(every_branch, Map.merge(branch_identity(nil), scope), attrs(pod.("mr")))
+
+        set_policy(profile, %{cache_writer_default_branch: true, cache_writer_branches: ["release/*"]})
+
+        assert {:ok, %{can_publish: true}} =
+                 CacheVolumes.allocate_for_job(job, Map.merge(main_identity(), scope), attrs(pod.("limited-main")))
+
+        assert {:ok, %{can_publish: true}} =
+                 CacheVolumes.allocate_for_job(
+                   job,
+                   Map.merge(branch_identity("release/1.0"), scope),
+                   attrs(pod.("limited-release"))
+                 )
+
+        assert {:ok, %{can_publish: false}} =
+                 CacheVolumes.allocate_for_job(
+                   job,
+                   Map.merge(branch_identity("feature/x"), scope),
+                   attrs(pod.("limited-feature"))
+                 )
+
+        set_policy(profile, %{cache_writer_default_branch: false, cache_writer_branches: nil})
+
+        assert {:ok, %{can_publish: false}} =
+                 CacheVolumes.allocate_for_job(job, Map.merge(main_identity(), scope), attrs(pod.("no-default")))
+      end
+    end
+
+    test "turning off the default branch revokes pending GitLab saves granted without a profile", %{
+      job: job,
+      account: account,
+      profile: profile
+    } do
+      gitlab = %{provider: "gitlab", provider_instance: "gitlab.com", scope_id: "123", repository_id: 123}
+      {:ok, legacy} = CacheVolumes.allocate_for_job(job, Map.merge(main_identity(), gitlab), attrs("legacy"))
+      Repo.update!(Ecto.Changeset.change(Repo.get!(Usage, legacy.id), writer_profile_id: nil, writer_branch: nil))
+
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: job.workflow_job_id,
+        workflow_run_id: job.workflow_run_id,
+        account_id: account.id,
+        fleet_name: "test",
+        status: "running",
+        provider: "gitlab",
+        requested_dispatch_label: job.requested_dispatch_label,
+        enqueued_at: DateTime.utc_now()
+      })
+
+      assert Repo.get!(Usage, legacy.id).can_publish
+      set_policy(profile, %{cache_writer_default_branch: false})
+      refute Repo.get!(Usage, legacy.id).can_publish
     end
 
     test "narrowing the policy revokes pending saves it no longer allows", %{job: job, profile: profile} do
@@ -1626,6 +1697,71 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert checkout.generation == Repo.get!(Volume, Repo.get!(Usage, checkout.id).volume_id).generation
       assert volume(account).key == "checkout"
       assert volume(account).platform == "macos"
+    end
+
+    test "allocates a Linux job's checkout volume on its own platform and architecture", %{
+      account: account,
+      job: job,
+      params: params
+    } do
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: job.workflow_job_id,
+        executed_workflow_job_id: job.workflow_job_id,
+        fleet_name: "linux",
+        pod_name: "linux-pod",
+        node_name: "linux-node",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: DateTime.utc_now()
+      })
+
+      {:ok, mac} = CacheVolumes.allocate_checkout(params)
+
+      assert {:ok, linux} =
+               CacheVolumes.allocate_checkout(%{
+                 params
+                 | "pod_name" => "linux-pod",
+                   "pod_uid" => "linux-uid",
+                   "node_name" => "linux-node",
+                   "architecture" => "amd64",
+                   "uid" => 1000
+               })
+
+      assert linux.clone_url == "https://github.com/org/repo"
+      assert linux.default_branch_job
+      refute linux.can_publish
+      assert linux.scope != mac.scope
+      assert linux.volume_key != mac.volume_key
+
+      volume = Repo.get!(Volume, Repo.get!(Usage, linux.id).volume_id)
+      assert {volume.key, volume.platform, volume.architecture, volume.uid} == {"checkout", "linux", "amd64", 1000}
+      assert CacheVolumes.storage_name(volume) =~ ~r/^linux-/
+
+      # The Linux host publishes its master as the volume's HEAD, and a cold Linux host restores it.
+      digest = String.duplicate("e", 40)
+      content = String.duplicate("f", 64)
+
+      assert {:ok, %{generation: 1}} =
+               CacheVolumes.image("linux-node", linux.id, %{
+                 "operation" => "publish",
+                 "image_digest" => digest,
+                 "content_digest" => content
+               })
+
+      assert {:ok, next} =
+               CacheVolumes.allocate_checkout(%{
+                 params
+                 | "pod_name" => "linux-pod",
+                   "pod_uid" => "next-linux-uid",
+                   "node_name" => "linux-node",
+                   "architecture" => "amd64",
+                   "uid" => 1000
+               })
+
+      assert {next.base_generation, next.content_digest} == {1, content}
     end
 
     test "never lets a use of the checkout volume publish, even from the default branch", %{params: params} do

@@ -206,7 +206,7 @@ defmodule Tuist.Runners.CacheVolumes do
       grant =
         if attrs.key == @checkout_key,
           do: :denied,
-          else: writer_grant(identity, writer_profile(job, identity))
+          else: writer_grant(identity, writer_profile(job))
 
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
@@ -296,23 +296,19 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  # The job's runner profile decides which GitHub branches save. Without a
-  # profile, a new profile's policy applies. The other providers save from the
-  # default branch.
-  defp writer_grant(%{provider: "github"} = identity, %Profile{} = profile) do
+  # The job's runner profile decides which branches save. Without a profile, a
+  # new profile's policy applies.
+  defp writer_grant(identity, %Profile{} = profile) do
     if writer_allowed?(profile, identity.trusted, Map.get(identity, :writer_branch)),
       do: {:ok, profile.id},
       else: :denied
   end
 
-  defp writer_grant(%{provider: "github"} = identity, nil) do
+  defp writer_grant(identity, nil) do
     if writer_allowed?(%Profile{}, identity.trusted, Map.get(identity, :writer_branch)),
       do: {:ok, nil},
       else: :denied
   end
-
-  defp writer_grant(%{trusted: true}, _profile), do: {:ok, nil}
-  defp writer_grant(_identity, _profile), do: :denied
 
   defp writer_fields(identity, grant) do
     %{
@@ -327,10 +323,7 @@ defmodule Tuist.Runners.CacheVolumes do
     }
   end
 
-  defp writer_profile(job, %{provider: "github"}),
-    do: Profiles.lock_for_dispatch_label(job.account_id, Map.get(job, :requested_dispatch_label))
-
-  defp writer_profile(_job, _identity), do: nil
+  defp writer_profile(job), do: Profiles.lock_for_dispatch_label(job.account_id, Map.get(job, :requested_dispatch_label))
 
   @doc """
   Revokes pending saves granted under a runner profile's previous policy that
@@ -395,7 +388,7 @@ defmodule Tuist.Runners.CacheVolumes do
         on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
         where:
           is_nil(u.writer_profile_id) and u.can_publish and u.status not in ["published", "discarded"] and
-            v.account_id == ^account_id and v.provider == "github" and is_nil(v.builtin_name) and
+            v.account_id == ^account_id and is_nil(v.builtin_name) and
             j.requested_dispatch_label == ^label,
         select: u.id
       )

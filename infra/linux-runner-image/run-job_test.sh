@@ -16,6 +16,14 @@ test -s "${fixtures}/generate-hook.sh"
 export JOB_STARTED_HOOK="${fixtures}/job-started.sh"
 export JOB_STARTED_MARKER="${fixtures}/job-started"
 export WATCHDOG_PID_FILE="${fixtures}/watchdog.pid"
+export CACHE_VOLUME_BIN="${fixtures}/tuist-cache-volume"
+cat > "${CACHE_VOLUME_BIN}" <<'CLIENT'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${CHECKOUT_CALLS}"
+exit "${CHECKOUT_EXIT:-0}"
+CLIENT
+chmod +x "${CACHE_VOLUME_BIN}"
+export CHECKOUT_CALLS="${fixtures}/checkout-calls"
 env -u GITHUB_ENV -u TUIST_CACHE_ENDPOINT bash -eu "${fixtures}/generate-hook.sh"
 bash -n "${JOB_STARTED_HOOK}"
 
@@ -96,3 +104,12 @@ chmod +x "${BUILDKITE_AGENT_TEST_BINARY}"
 bash -eu "${fixtures}/launch-buildkite.sh"
 test -f "${TUIST_RUNNER_STATE_DIR}/plugins/checkout-probe"
 echo "ok: Buildkite receives a writable job-local plugin checkout directory"
+
+# The hook mounts the job's cached checkout only where cache volumes are routed,
+# and a failing client never fails the job.
+rm -f "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo env -u TUIST_CACHE_VOLUME_URL bash -eu "${JOB_STARTED_HOOK}"
+test ! -e "${CHECKOUT_CALLS}"
+GITHUB_WORKSPACE=/home/runner/work/repo/repo CHECKOUT_EXIT=1 bash -eu "${JOB_STARTED_HOOK}"
+grep -qx -- "--checkout /home/runner/work/repo/repo" "${CHECKOUT_CALLS}"
+echo "ok: the job-start hook asks for a cached checkout of the workspace"

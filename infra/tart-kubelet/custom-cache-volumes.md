@@ -143,8 +143,9 @@ volume capacity remains 20 decimal GB. No M5 rack capacity is enabled here.
 
 Cache admission, built-in convergence and built-in master eviction use the lesser
 of quota free space and physical host free space above the 15% golden-image
-reclamation floor. Raw quota free-space telemetry is unchanged. Probe errors
-decline new allocations. Existing jobs and non-cache host writes can still reduce
+reclamation floor. Free-space telemetry reports the volume within its budget,
+without the host floor. Probe errors decline new allocations. Existing jobs and
+non-cache host writes can still reduce
 physical free space; this admission guard complements the existing golden-image
 reclaimer and Node DiskPressure reporting rather than enforcing a disk partition.
 Custom requests first evict their own reusable masters, then may reclaim built-in
@@ -179,6 +180,29 @@ The 512 GiB quota must not be deployed without the physical-space guard.
 Rollback of the chart affects replacement hosts only. Return to a smaller quota
 through the same drained replacement process; never shrink a live filesystem.
 Keep the host free-space guard in place on hosts already provisioned at 512 GiB.
+
+### Budget below the quota
+
+`runnerCacheVolumeGiB` is passed to tart-kubelet as `--runner-cache-budget-gib`:
+the space every cache on the volume may take together. Admission, convergence,
+eviction and `tart_kubelet_cache_volume_root_free_bytes` measure the volume's
+free space as the lesser of its quota headroom and the budget less what the
+volume uses (`df` reports an APFS volume's own usage). APFS fixes a quota when
+the volume is created, so on a disk of 1 TiB or more bootstrap creates it at
+half the disk, or the budget when that is larger. A budget change up to that
+quota applies with the next host-config push and needs no new volume. Above it,
+the quota still bounds the caches until the host is replaced or reinstalled. On
+a smaller disk (the M2-L's 460 GiB) the other half does not hold the goldens and
+job VMs, so the quota is the budget, as before.
+
+BER1 rack hosts created before the budget have a 240 GiB quota. Reinstall one
+at a time (`kubectl annotate rasm <machine> tuist.dev/os-reinstall=<version it
+runs>`, see "Reinstalling a rack host" in
+[cluster-api-provider-tuist](../cluster-api-provider-tuist/AGENTS.md)); each
+comes back with a 929 GiB quota and the configured budget. A lent host refuses
+the reinstall until it is returned. Confirm the new quota with
+`node_filesystem_size_bytes{mountpoint="/Volumes/tuist-runner-cache"}` before
+the next host.
 
 For deployed GitHub smoke validation, dispatch `macos-cache-volumes-smoke.yml`
 on `main` with a fresh key prefix and phase `seed`. The volume retains `.build`
@@ -215,7 +239,11 @@ explaining that affected volumes will not publish.
 
 The host scans requests once per second with independent per-pod workers (at most
 eight, without a queue), and publishes/reclaims on a separate worker every
-30 seconds. Slow verification, uploads and another guest's restore cannot block
+30 seconds, and every 5 seconds for two minutes after a runner Pod stops
+running, so a finished job's branch is published soon after its VM stops
+rather than on the next tick. When the guest could not mount a volume, it
+leaves the reason in the share's `.attach-error`, which the host logs when it
+deletes that never-mounted branch. Slow verification, uploads and another guest's restore cannot block
 an unrelated mailbox. Shutdown joins all workers before closing the store. It
 reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.

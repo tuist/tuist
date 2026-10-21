@@ -40,9 +40,11 @@ workflow code runs in the guest. Never expose host credentials or masters.
   boot) is not fixable by a kick: restart the host. Bootstrap verifies the
   session, so a new host should not reach this (see "The console session" in
   [`cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
-- A Node this process creates (a host joining or rejoining the cluster) is
-  tainted `tuist.dev/prewarming:NoSchedule` while `podagent.Prewarmer` pulls
-  the images of its fleet's macOS RunnerPools that keep a warm floor or have
+- A Node this process creates (a host joining or rejoining the cluster), or
+  a registered Node whose disk has never held a runner image (a host
+  reinstalled in place keeps its Node), is tainted
+  `tuist.dev/prewarming:NoSchedule` while `podagent.Prewarmer` pulls the
+  images of its fleet's macOS RunnerPools that keep a warm floor or have
   `spec.replicas > 0`, warm floors first, through `ensureGolden` (the path a
   Pod's first VM takes). An image the rack's image cache is still fetching
   (`errMirrorSyncing`) is asked for again every 30 seconds, not skipped.
@@ -50,12 +52,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
   hand and tart-kubelet must never lift that. Runner Pods
   do not tolerate it, and the runners-controller leaves tainted Nodes out of
   fleet capacity (`nodeFilterReason`), so the allocator agrees with the
-  scheduler. A restart on a registered Node never taints or prewarms: that
-  host is serving, and a deploy rolling both runner images and tart-kubelet
-  would otherwise empty the fleet. Pulls stop below 30% free disk (a golden is
-  tens of GB) and the taint lifts after an hour regardless; a leftover taint is
-  removed on the next start. Evidence: on 2026-10-14 b04-b09 joined untainted
-  and their first VM per image sat in `CreatingVM` for 5+ minutes downloading.
+  scheduler. "Never held a runner image" is no golden and no
+  `<user-data dir>/.holds-runner-images` marker (`podagent.HostDisk`), which
+  `ensureGolden` writes whenever a golden exists and an erase removes. A
+  restart on any other registered Node never taints or prewarms, including an
+  idle host whose goldens a release just superseded: that host is serving, and
+  a deploy rolling both runner images and tart-kubelet would otherwise empty
+  the fleet. A failed probe counts as not fresh. Pulls stop below 30% free
+  disk (a golden is tens of GB) and the taint lifts after an hour regardless;
+  a leftover taint is removed on the next start. Evidence: on 2026-10-14 b04-b09 joined untainted
+  and their first VM per image sat in `CreatingVM` for 5+ minutes downloading;
+  on 2026-10-21 ber1-runner-b05 came back from `tuist.dev/os-reinstall`
+  untainted with no goldens and took runner Pods that waited on downloads.
 - Built-in cache behavior remains in `internal/podagent/volume*.go` and the
   runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared
@@ -74,6 +82,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   runner image, not with tart-kubelet, so it rolls out with an image release.
 - Built-in and custom admission share the existing quota-bounded APFS filesystem
   and account for each other's private-image capacity. Storage failure goes cold.
+  `--runner-cache-budget-gib` caps the free space and capacity they see below
+  the quota (`volume_space.go`), so the budget can change without a new
+  volume; APFS cannot change a quota after the volume is created.
   Admission, convergence and cache eviction also preserve the host's 15% physical
   free-space floor. Custom admission reclaims its own masters first, then built-in
   masters/convergence staging under the shared lock; remeasure actual space after
@@ -130,16 +141,17 @@ workflow code runs in the guest. Never expose host credentials or masters.
   probes stay opt-in per PodSpec.
 
 - Cached checkouts (spec #99) are custom volumes with the reserved key
-  `checkout`, written only by the host. `checkout_volumes.go` (the populator)
-  keeps one master per (scope, clear generation) under `<custom root>/checkouts`
-  with real git and a pinned, checksum-verified git-lfs it installs into
-  `checkouts/.bin`; the host needs the Command Line Tools (bootstrap installs
+  `checkout`, written only by the host. The populator is the shared
+  `cachevolumes.Checkouts` (`infra/runner-cache/checkout.go`, with
+  `APFSCheckoutImages`); it keeps one master per (scope, clear generation) under
+  `<custom root>/checkouts` with real git and a pinned, checksum-verified git-lfs
+  that `checkout_git_lfs.go` installs into `checkouts/.bin`; the host needs the Command Line Tools (bootstrap installs
   them) and otherwise leaves checkouts off. The host never fetches from GitHub.
   After the job the guest writes `checkout-export/` (pack, head, shallow, LFS
   objects) into its share; `collectCheckout` moves it to `checkouts/.incoming/`
   when the pod's share is cleaned, only for a pod the host granted a checkout,
   and only a real directory. Never mount guest APFS for this. Everything in an
-  export is untrusted (`checkout_export.go`): read through `os.Root` without
+  export is untrusted (runner-cache `checkout_export.go`): read through `os.Root` without
   following links and bounded, the pack goes through `git index-pack --strict`
   after the shallow boundary is recorded, LFS objects are hashed against their
   names, and the host writes the working tree and the index itself. Only LFS
@@ -161,7 +173,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   working git answers `denied`, so guests do not export. `Track` maps the
   server's stable `volume_key` to the current scope and drops the previous
   scope's copies after a clear. Custom-volume admission evicts idle checkout
-  copies before refusing.
+  copies before refusing. Pressure eviction skips masters with a live or attaching
+  clone (`Checkouts.InUse = Store.InUse`).
 - A guest asks with `{"checkout": true}` in the mailbox (15 s budget); the host
   allocates through `/checkout`, marks the identity `Kind: checkout` itself,
   strips the HEAD fields (the branch is a clone of this host's master) and seeds
@@ -170,7 +183,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   custom admission (`checkoutReserved`) and evict LRU checkout masters only when
   that can make the room; a build refused for room is retried every reconcile
   for an hour.
-  Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test ./internal/podagent -run CheckoutMasterEndToEnd`.
+  Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test -run CheckoutMasterEndToEnd .` in
+  `infra/runner-cache`; the podagent tests cover the mailbox and collection.
 
 ## Tart versions
 
