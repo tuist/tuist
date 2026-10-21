@@ -311,8 +311,12 @@ real cross-job snapshot restore whose `.run-id` matches the current run.
 Only manually dispatched jobs get package-write permissions, and all writes go
 to the isolated `tuist-mix-benchmark` package, never the deployment cache or image
 tags. Count restore/export and asynchronous publication separately; a compilation
-speedup alone does not establish a net win. Production workflows must not adopt
-the bridge before those measurements justify it.
+speedup alone does not establish a net win. The deployment workflows share the
+stable `server-image-prod-hosted-amd64-projects-v1` volume after a measured win.
+Keep fetched dependencies layer-cached, retain only the four local projects,
+and make attachment/preparation/export failures fall back without failing the
+image build. Historical deployment SHAs without the helper stay registry-only.
+Mix owns Elixir/OTP invalidation; native outputs never enter this snapshot.
 
 The Docker smoke eval also runs the shipped activity-log parser with no arguments
 and requires its usage message and exit code 2. Keep that assertion: app startup
