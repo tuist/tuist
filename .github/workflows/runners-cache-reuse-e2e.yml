@@ -78,6 +78,11 @@ jobs:
       fill_gb: ${{ steps.config.outputs.fill_gb }}
       grow_gb: ${{ steps.config.outputs.grow_gb }}
     steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'push'
+        with:
+          sparse-checkout: .github/runners-cache-reuse-e2e.trigger
+          sparse-checkout-cone-mode: false
       - id: config
         env:
           EVENT: ${{ github.event_name }}
@@ -96,6 +101,15 @@ jobs:
             LARGE_SIZE=20gb
             FILL_GB=6
             GROW_GB=3
+            # The trigger file may override these with name=value lines.
+            while IFS='=' read -r name value; do
+              case "$name" in
+                gap_seconds) [[ "$value" =~ ^[0-9]+$ ]] && GAP_SECONDS=$value ;;
+                fill_gb) [[ "$value" =~ ^[0-9]+$ ]] && FILL_GB=$value ;;
+                grow_gb) [[ "$value" =~ ^[0-9]+$ ]] && GROW_GB=$value ;;
+                large_size) [[ "$value" =~ ^[0-9]+gb$ ]] && LARGE_SIZE=$value ;;
+              esac
+            done < .github/runners-cache-reuse-e2e.trigger
           fi
           {
             echo "runner_label=$RUNNER_LABEL"
