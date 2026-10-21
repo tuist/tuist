@@ -96,11 +96,19 @@ func (f *fakeCheckoutHost) ran(name string, args ...string) bool {
 type fakeCheckoutTransfer struct {
 	published []Slot
 	downloads []Slot
-	conflict  bool
+	paths     []string
+	// partials records which partial downloads were next to the download.
+	partials []string
+	conflict bool
 }
 
 func (f *fakeCheckoutTransfer) Download(_ context.Context, slot Slot, path string) error {
 	f.downloads = append(f.downloads, slot)
+	f.paths = append(f.paths, path)
+	parts, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "*.part"))
+	for _, part := range parts {
+		f.partials = append(f.partials, filepath.Base(part))
+	}
 	return os.WriteFile(path, []byte("head"), 0600)
 }
 
@@ -324,7 +332,7 @@ func TestCheckoutRestoresTheHeadOnAHostWithoutAMaster(t *testing.T) {
 	if data, _ := os.ReadFile(c.Master(checkoutTestScope, 1)); string(data) != "head" {
 		t.Fatal("the HEAD did not become this host's master")
 	}
-	if !host.ran("hdiutil", "attach", filepath.Join(c.dir(checkoutTestScope, 1), "next.sparseimage"), "-readonly") {
+	if !host.ran("hdiutil", "attach", c.restorePath(task), "-readonly") {
 		t.Fatal("the restored master's tip is read from a read-only mount")
 	}
 	if meta, err := c.readMeta(checkoutTestScope, 1); err != nil || meta.Tip != checkoutTestCommit {
@@ -663,5 +671,66 @@ func TestCheckoutEvictableCountsOnlyMastersNoBuildHolds(t *testing.T) {
 	c.setBusy(other.Scope, true)
 	if got := c.Evictable(size); got != 3 {
 		t.Fatalf("evictable %d, want only the idle master", got)
+	}
+}
+
+// A download interrupted by a restart leaves a partial archive that the transfer
+// resumes. A restore only resumes one of the HEAD it restores: appending another
+// HEAD's archive to it makes an image that cannot be read.
+func TestCheckoutRestoreOnlyResumesItsOwnHeadsDownload(t *testing.T) {
+	c, _ := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ImageDigest, task.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	dir := c.dir(checkoutTestScope, 1)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	own := filepath.Join(dir, "restore-00000000000000000003-"+task.ContentDigest+".sparseimage")
+	stale := []string{
+		filepath.Join(dir, "next.sparseimage.part"),
+		filepath.Join(dir, "restore-00000000000000000002-"+strings.Repeat("e", 64)+".sparseimage.part"),
+	}
+	for _, path := range append(stale, own+".part") {
+		if err := os.WriteFile(path, []byte("partial"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	c.Process(context.Background(), task)
+
+	if len(transfer.paths) != 1 || transfer.paths[0] != own {
+		t.Fatalf("downloaded into %v, want %s", transfer.paths, own)
+	}
+	if strings.Join(transfer.partials, ",") != filepath.Base(own)+".part" {
+		t.Fatalf("partials beside the download: %v", transfer.partials)
+	}
+	if data, _ := os.ReadFile(c.Master(checkoutTestScope, 1)); string(data) != "head" {
+		t.Fatal("the HEAD did not become this host's master")
+	}
+}
+
+func TestCheckoutMaintainRemovesAbandonedRestoreDownloads(t *testing.T) {
+	c, _ := newCheckouts(t)
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ContentDigest = 3, strings.Repeat("c", 64)
+	if err := os.MkdirAll(c.dir(checkoutTestScope, 1), 0700); err != nil {
+		t.Fatal(err)
+	}
+	abandoned, recent := c.restorePath(task)+".part", c.restorePath(task)+".other.part"
+	for _, path := range []string{abandoned, recent} {
+		if err := os.WriteFile(path, []byte("partial"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	_ = os.Chtimes(abandoned, old, old)
+	c.Maintain()
+	if _, err := os.Stat(abandoned); !os.IsNotExist(err) {
+		t.Fatal("kept a download abandoned for two hours")
+	}
+	if _, err := os.Stat(recent); err != nil {
+		t.Fatal("removed a download still being written")
 	}
 }
