@@ -161,6 +161,7 @@ dashboard presentation belong in `server/`.
 - Options resolved by `TuistEx.Analytics.Config` mirror `TuistEx.Auth`: env
   overrides beat runtime options beat `Mix.Project.config()[:tuist]`.
 
+- `CertificateTrust` embeds the shared 12-key SPKI policy so published packages do not depend on repository files. All HTTPS paths, including `HTTP` JSON/upload/download and gRPC/Mint REAPI, must use its TLS options. Filter known blocked anchors and reject blocked intermediate/peer keys in the verification callback without overriding ordinary certificate or hostname failures. Never mutate the host application's global CA cache. Preserve explicit private-network plaintext REAPI overrides; TLS failures must not fall back to them. Exercise actual TLS handshakes and all real policy certificates, not only option construction.
 - Quokka runs through `mix format`; use `mix format --check-formatted` for checks.
 - Use Mimic for mocks. Register copied modules in `test/test_helper.exs`.
 - Do not change shared environment variables in tests; use dependency injection
