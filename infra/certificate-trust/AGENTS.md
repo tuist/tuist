@@ -9,6 +9,10 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
 - Do not recreate the removed generic image-overlay/publishing framework.
   Prefer qualified upstream images or each component's normal source build and
   release pipeline. Preserve prior Go `godebug default` compatibility.
+- Keep independently embedded policies synchronized, including standalone SwifterPM;
+  a shared CLI change does not protect separately distributed clients. Check real
+  policy DER and otherwise accepted-key differentials, and retain each product's
+  native runtime/artifact/release gates in `CLIENTS.md`.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight
   intermediate-key controls; Go 1.27.1 fails. Qualify replacement SDKs by actual
   behavior and update the explicit CI/test allowlist, not numeric ordering.

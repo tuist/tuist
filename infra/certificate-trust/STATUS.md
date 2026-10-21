@@ -138,6 +138,27 @@ application verification paths must be assessed separately.
   qualification. Linux FoundationNetworking, complete proxy/gRPC/device flows
   and independent releases remain open.
 
+- Standalone SwifterPM now embeds the twelve-key policy independently of the CLI.
+  Its Apple session preserves native validation and rejects keys over the full
+  constructed chain. Archive/metadata optimizations propagate TLS/cancellation
+  rather than retrying, falling back to Git or silently ignoring registry seeding
+  failures after native resolution. Ordinary unavailable metadata stays best effort,
+  and failed seeding preserves the native download without publishing a cache entry.
+  All 287 generated-core tests pass on Xcode 26.6 with public probes enabled,
+  including actual HTTP data/download rejection of twelve hosts and unrelated
+  positives. No native reference was recorded; application enforcement is proved
+  only by offline accepted-root/leaf differentials through data/download/redirect
+  factories. Production delegate wiring, private-CA/hostname/unknown-CA TLS checks,
+  direct SecTrust expiry/signature checks and registry metadata/seeding failure
+  propagation are checked too. The registry archive-download catch and full
+  provider archive-to-Git failure flow retain helper-only coverage.
+  Bazel builds the independent macOS candidate, but its test binary crashes during
+  discovery while loading Xcode.app's 26.6 Testing framework despite selecting 27.2.
+  Explicit 26.6 selection is unavailable to Bazel. Attempted test-process environment
+  alignment still loaded the 26.6 framework and crashed; it did not test the mismatch
+  hypothesis. Root cause is unestablished. Bazel runtime, Linux, native SwiftPM/Git
+  and exact published artifacts remain open. No SwifterPM release.
+
 Candidate builds at `47d307fdde` successfully published SHA-only CAPI, egress
 agent, runners-controller and cache-agent images. They were not deployed.
 Both macOS runner builds (26.5/26.6) and xcresult failed closed when the guest refused the
