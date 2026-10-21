@@ -392,7 +392,12 @@ This warms hosts after an observed miss and does not replicate every volume to
 every host. Dispatch separately prefers handing a polling host a queued job whose
 predicted custom volumes the host's Node labels advertise (see
 `Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
-the built-in volume. The `prefetch` results and subsequent `attach{source="local"}` observations
+the built-in volume. Both that preference and the macOS Pod placement preference
+apply only while the job's volumes fit the host's cache room: tart-kubelet
+labels each macOS Node `tuist.dev/cache-volume-capacity-gib`, and the server
+subtracts the allocated and predicted volumes of every job whose runner session
+is still open there. A job that does not fit loses the preference and is still
+dispatched as usual. The `prefetch` results and subsequent `attach{source="local"}` observations
 should determine whether its bounded extra bandwidth earns enough later hits.
 
 Publishing a generation supersedes every other host's replica of that volume.

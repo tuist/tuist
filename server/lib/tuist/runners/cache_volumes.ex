@@ -30,6 +30,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @retention_seconds 7 * 24 * 60 * 60
   @checkout_key "checkout"
+  @checkout_reserved_bytes 8_000_000_000
 
   # A saved snapshot at or above @full_percent of its capacity, which a clone filled
   # to @out_of_space_percent, is not cloned again: the next use starts a fresh lineage.
@@ -777,32 +778,70 @@ defmodule Tuist.Runners.CacheVolumes do
     do: Map.get(@managed_volume_bytes, key) || (saved_head && saved_head.volume_bytes) || @volume_bytes
 
   @doc """
-  The lineage scopes of the custom volumes that jobs of `repository` attached
-  since `since`, keyed by the `{workflow_name, job_name}` of the job. A job
-  attaches its volumes at runtime, so this history is how dispatch predicts the
-  volumes a queued job will attach.
+  The custom volumes that jobs of `repository` attached since `since`, keyed by
+  the `{workflow_name, job_name}` of the job. A job attaches its volumes at
+  runtime, so this history is how dispatch predicts the volumes a queued job
+  will attach. Each is `%{id, scope, reserved_bytes}`: the volume, its lineage
+  scope, and the cache disk room a host reserves when a job attaches it.
   """
-  def recent_job_scopes(account_id, repository, %DateTime{} = since)
+  def recent_job_volumes(account_id, repository, %DateTime{} = since)
       when is_integer(account_id) and is_binary(repository) do
     from(v in Volume,
       join: u in Usage,
       on: u.volume_id == v.id,
       join: j in WorkflowJob,
       on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
+      left_join: head in Usage,
+      on: head.id == v.head_id,
       where:
         v.account_id == ^account_id and v.repository == ^repository and is_nil(v.builtin_name) and
           is_nil(v.deleted_at) and u.inserted_at >= ^since,
       distinct: true,
-      select: {j.workflow_name, j.job_name, v.id, v.generation}
+      select: {j.workflow_name, j.job_name, v, head.volume_bytes}
     )
     |> Repo.all()
     |> Enum.group_by(
-      fn {workflow_name, job_name, _id, _generation} -> {workflow_name, job_name} end,
-      fn {_workflow_name, _job_name, id, generation} -> scope(%{id: id, generation: generation}) end
+      fn {workflow_name, job_name, _volume, _head_volume_bytes} -> {workflow_name, job_name} end,
+      fn {_workflow_name, _job_name, volume, head_volume_bytes} ->
+        %{
+          id: volume.id,
+          scope: scope(volume),
+          reserved_bytes: reserved_bytes(volume.key, next_volume_bytes(volume, head_volume_bytes))
+        }
+      end
     )
   end
 
-  def recent_job_scopes(_account_id, _repository, _since), do: %{}
+  def recent_job_volumes(_account_id, _repository, _since), do: %{}
+
+  @doc """
+  The cache disk room the custom volumes that `workflow_job_ids` allocated on
+  `node_names` hold, as `%{{node_name, workflow_job_id} => %{volume_id =>
+  bytes}}`. A use the host deleted holds nothing.
+  """
+  def allocated_reserved_bytes([], _workflow_job_ids), do: %{}
+  def allocated_reserved_bytes(_node_names, []), do: %{}
+
+  def allocated_reserved_bytes(node_names, workflow_job_ids) when is_list(node_names) and is_list(workflow_job_ids) do
+    from(u in Usage,
+      join: v in Volume,
+      on: v.id == u.volume_id,
+      where:
+        u.node_name in ^node_names and is_nil(u.deleted_at) and u.workflow_job_id in ^workflow_job_ids and
+          is_nil(v.builtin_name),
+      select: {u.node_name, u.workflow_job_id, v.id, v.key, u.volume_bytes}
+    )
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn {node_name, workflow_job_id, volume_id, key, volume_bytes}, acc ->
+      bytes = reserved_bytes(key, volume_bytes || default_volume_bytes(key))
+      Map.update(acc, {node_name, workflow_job_id}, %{volume_id => bytes}, &Map.put(&1, volume_id, bytes))
+    end)
+  end
+
+  # A cached checkout clones its master and the host reserves only its growth
+  # (runner-cache's CheckoutGrowthBytes); any other volume reserves its capacity.
+  defp reserved_bytes(@checkout_key, _volume_bytes), do: @checkout_reserved_bytes
+  defp reserved_bytes(_key, volume_bytes), do: volume_bytes
 
   @doc """
   The saved HEADs of the macOS custom volumes jobs used on `node_names` since

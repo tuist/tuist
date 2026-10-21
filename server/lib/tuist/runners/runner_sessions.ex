@@ -51,6 +51,7 @@ defmodule Tuist.Runners.RunnerSessions do
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.WorkflowJob
 
   require Logger
 
@@ -736,5 +737,34 @@ defmodule Tuist.Runners.RunnerSessions do
       nil -> :error
       session -> {:ok, session}
     end
+  end
+
+  @doc """
+  The jobs whose runners still occupy `node_names`: one per open session, from
+  committed dispatch through post-job cache work and Pod teardown, so it covers
+  a job before it attaches its cache volumes and while it publishes them. Each
+  is the job the runner executed, or the one it was dispatched for until GitHub
+  says which it ran.
+  """
+  def open_jobs_on_nodes([]), do: []
+
+  def open_jobs_on_nodes(node_names) when is_list(node_names) do
+    since = DateTime.add(DateTime.utc_now(), -@max_session_lifetime_seconds, :second)
+
+    Repo.all(
+      from(s in RunnerSession,
+        left_join: j in WorkflowJob,
+        on: j.workflow_job_id == coalesce(s.executed_workflow_job_id, s.workflow_job_id) and j.account_id == s.account_id,
+        where: is_nil(s.ended_at) and s.node_name in ^node_names and s.started_at >= ^since,
+        select: %{
+          node_name: s.node_name,
+          account_id: s.account_id,
+          workflow_job_id: coalesce(s.executed_workflow_job_id, s.workflow_job_id),
+          repository: coalesce(j.repository, s.repository),
+          workflow_name: coalesce(j.workflow_name, s.workflow_name),
+          job_name: j.job_name
+        }
+      )
+    )
   end
 end
