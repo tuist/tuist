@@ -62,6 +62,14 @@ Keep `:immutable_shard_reports` disabled throughout this procedure. `:clickhouse
 
 This is an operator procedure, not an automatic rollout performed by this PR. Future view-definition changes require an explicit destination DDL plan because additive reconciliation only creates missing views.
 
+## Query cost and rolling-job compatibility
+
+Callers that already loaded a run pass it to failure counts and metrics, and pass `test_run:` to case lists. Its persisted reporting version selects the source without another parent lookup. Case-list hints are used only when the run ID or shard-plan ID matches the requested scope; unrelated hints fall back to lookup. ID-only callers remain supported. A genuinely missing ID still requires both the physical legacy lookup and immutable fallback: the creation flag cannot identify an existing run's persisted contract, especially after enrollment is disabled.
+
+Deterministic fact UUIDs are UUIDv8 hashes, not UUIDv7 timestamps, so ID-only fact reads cannot infer a safe month for partition pruning. Keep their correctness-preserving fallback rather than deriving a month from receipt time or dropping occurrence identity. Populated-report joins and this pruning limitation require representative `EXPLAIN` and `system.query_log` measurements before enrollment, including legacy-project reads; local schema checks are not a substitute.
+
+Xcresult-job uniqueness includes attempt and revision so a new execution or terminal correction is not discarded as a duplicate of older work. Old and new pods can therefore enqueue duplicate parsing during mixed-version overlap. This is an accepted rollout cost, not a reason to collapse distinct producer versions. Keep enrollment off until all web and processor binaries, including baked Tart releases, support the contract; pre-compatibility processors must not consume version-1 plans.
+
 ## Validation
 
 - Real ClickHouse tests exercise immutable assignment reads, canonical IDs, duplicate-insensitive run/shard counts, sparse metadata within a cohort, clearing metadata across attempts/corrections, phase-before-revision precedence, late processing reports, parsed-result recovery, fact publication ordering and failed writes. Controller tests verify a transient plan miss returns 503, a replay succeeds for legacy and immutable plans, and foreign plans remain non-retryable.
