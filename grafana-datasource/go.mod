@@ -2,6 +2,8 @@ module github.com/tuist/tuist/grafana-datasource
 
 go 1.26.10
 
+godebug default=go1.26
+
 require github.com/grafana/grafana-plugin-sdk-go v0.292.1
 
 require (

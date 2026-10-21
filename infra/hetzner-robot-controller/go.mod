@@ -2,6 +2,8 @@ module github.com/tuist/tuist/infra/hetzner-robot-controller
 
 go 1.26.10
 
+godebug default=go1.25
+
 require (
 	github.com/syself/hrobot-go v0.2.6
 	k8s.io/apimachinery v0.32.1

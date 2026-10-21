@@ -6,4 +6,6 @@
 // forcing those dependency versions onto the infra modules.
 go 1.26.10
 
+godebug default=go1.26
+
 use .

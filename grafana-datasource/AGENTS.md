@@ -41,12 +41,16 @@ only — they are intentionally not part of the generated CLI client.
 
 - Backend: `mage -v` (build), `go test ./...` (unit tests). The plugin has its
   own `go.work` (`use .`), intentionally separate from the repo-root infra
-  workspace, so it tracks the latest `grafana-plugin-sdk-go` + go 1.26.3 without
+  workspace, so it tracks the latest `grafana-plugin-sdk-go` + qualified Go 1.26.10 without
   forcing those versions onto the infra controllers.
 - Frontend: `npm install` then `npm run typecheck` / `npm run lint` /
   `npm run build` (outputs `dist/`). Node is pinned to 24 via `mise.toml`. The
   `.config/` harness is committed and managed by `@grafana/create-plugin` —
   update it with `npx @grafana/create-plugin@latest update`, don't hand-edit.
+  The public `docker-compose.yaml` overrides the generated harness's old
+  `GO_VERSION` default with 1.26.10; use Compose rather than building `.config/`
+  directly without that argument. Qualify new SDKs with the certificate-trust
+  Go verifier, not release-number ordering.
 
 ## Releasing / publishing
 
@@ -64,7 +68,7 @@ only — they are intentionally not part of the generated CLI client.
   writes a stub when it's absent (the release generates the real one first, so the
   stub only ever appears in local/CI builds).
 - Catalog readiness was checked with `@grafana/plugin-validator`. The plugin runs
-  the **latest** `grafana-plugin-sdk-go` on go 1.26.3 (in its own `go.work`),
+  the **latest** `grafana-plugin-sdk-go` on Go 1.26.10 (in its own `go.work`),
   which clears the validator's "SDK older than 5 months" check and the
   grpc/otel/kin-openapi CVEs. The latest SDK pulls k8s app-platform deps; those
   stay inside this plugin's workspace and do not reach the infra controllers —

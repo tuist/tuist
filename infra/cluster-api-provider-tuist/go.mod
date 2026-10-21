@@ -2,6 +2,8 @@ module github.com/tuist/tuist/infra/cluster-api-provider-tuist
 
 go 1.26.10
 
+godebug default=go1.25
+
 require (
 	github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.3
 	github.com/google/go-attestation v0.6.4

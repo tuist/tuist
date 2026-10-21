@@ -18,6 +18,8 @@
 
 go 1.26.10
 
+godebug default=go1.25
+
 use (
 	./infra/cloudflare-operator
 	./infra/cluster-api-provider-tuist

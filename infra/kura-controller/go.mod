@@ -2,6 +2,8 @@ module github.com/tuist/tuist/infra/kura-controller
 
 go 1.26.10
 
+godebug default=go1.25
+
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.2
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
