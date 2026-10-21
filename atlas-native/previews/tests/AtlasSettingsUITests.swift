@@ -64,7 +64,6 @@ final class AtlasSettingsUITests: XCTestCase {
         XCTAssertTrue(app.alerts["Link preview"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.alerts.staticTexts["https://code.claude.com/docs/en/setup"].exists)
         app.alerts.buttons["Done"].tap()
-        tap(app.buttons["How to get a token"], in: app, up: false)
         tap(app.secureTextFields["claude-token"], in: app, up: false)
         app.secureTextFields["claude-token"].typeText("preview-only")
         XCTAssertTrue(app.buttons["Save connection"].isEnabled)
