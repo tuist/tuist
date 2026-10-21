@@ -224,6 +224,16 @@ source still uses individual-record verification; batching applies after the
 source supports negotiation too. Keep `OnDelete` and the explicit image pin
 through this procedure.
 
+While the requested image waits on this procedure, `status.imageHold` reads
+`FencedImagePin` (the pin differs from the requested image) or
+`FencedReplacement` (the template carries the qualified image and old-revision
+pods remain). The control plane's progressive rollout leaves a held server out
+of wave convergence instead of pausing the fleet at the wave deadline, so a
+fenced instance never blocks other accounts. It does not soak the target on
+the held instance: the operator procedure is that instance's qualification,
+and once both pods run the requested image the server rejoins convergence and
+the health gate. A canary wave made only of held servers still pauses.
+
 `/status/rollout.serving_authority` exposes identity, observed grant, deadline,
 in-flight mutations, receipt and revocation acknowledgment. The ConfigMap keeps
 the epoch, phase, reason and fence evidence. Recovery phases/IDs are in the CR's
