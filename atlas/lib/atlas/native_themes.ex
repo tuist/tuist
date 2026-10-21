@@ -52,7 +52,7 @@ defmodule Atlas.NativeThemes do
 
   defp id?(value) do
     text?(value, 64) and value != "server-default" and
-      Regex.match?(~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/, value)
+      Regex.match?(~r/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/, value)
   end
 
   defp text?(value, max), do: is_binary(value) and byte_size(value) in 1..max and String.trim(value) != ""
@@ -61,7 +61,7 @@ defmodule Atlas.NativeThemes do
 
   defp palette?(palette) when is_map(palette) do
     Enum.all?(@palette_keys, fn key ->
-      is_binary(palette[key]) and Regex.match?(~r/^#[0-9a-fA-F]{6}$/, palette[key])
+      is_binary(palette[key]) and Regex.match?(~r/\A#[0-9a-fA-F]{6}\z/, palette[key])
     end) and
       Enum.all?(~w(background surface), fn surface ->
         Enum.all?(~w(text secondary_text tint), &(contrast(palette[&1], palette[surface]) >= 4.5))

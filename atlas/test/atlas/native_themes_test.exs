@@ -27,6 +27,12 @@ defmodule Atlas.NativeThemesTest do
           %{defaults | "default_theme_id" => "missing"},
           %{defaults | "themes" => defaults["themes"] ++ defaults["themes"]},
           put_in(defaults, ["themes", Access.at(0), "id"], "server-default"),
+          %{
+            defaults
+            | "default_theme_id" => "company\n",
+              "themes" => [defaults["themes"] |> hd() |> Map.put("id", "company\n")]
+          },
+          put_in(defaults, ["themes", Access.at(0), "light", "secondary_text"], "#FFFFFF\n"),
           put_in(defaults, ["themes", Access.at(0), "light", "secondary_text"], "#FFFFFF"),
           put_in(defaults, ["themes", Access.at(0), "dark", "on_accent"], "#8EDBD2")
         ] do
