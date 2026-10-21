@@ -6915,25 +6915,20 @@ histogram_quantile(
 
 ### Slow or cancelled ClickHouse query
 
-Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`),
-not the metrics data source. Live as rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
-query") since 2026-09-15. Its definition before then could not have fired on
-the 2026-09-05 Modules page outage, and errored on every evaluation.
-
-Paused since 2026-10-21. ClickHouse Cloud stopped receiving production traffic
-on 2026-10-20, and the in-cluster data source cannot run `clusterAllReplicas`:
-that needs the `REMOTE` grant, which `tuist_grafana` deliberately lacks.
+Data source: ClickHouse `Tuist Production ClickHouse` (uid `cg1vnyjs65blsc`), the
+in-cluster server through the PDC agent, not the metrics data source. Live as
+rule `ffeb6l2ax5qtcf` ("Slow ClickHouse query") since 2026-09-15, on the
+in-cluster server since 2026-10-21. Its definition before 2026-09-15 could not
+have fired on the 2026-09-05 Modules page outage, and errored on every
+evaluation.
 
 ```sql
 SELECT
   toString(normalized_query_hash) AS query_hash,
-  substring(replaceRegexpAll(normalizeQuery(any(query)), '\\s+', ' '), 1, 120) AS query_preview,
   countIf(type = 'ExceptionWhileProcessing' AND exception_code IN (394, 210, 159))
     + countIf(type = 'QueryFinish' AND query_duration_ms >= 10000) AS slow_or_cancelled
-FROM clusterAllReplicas('default', system.query_log)
+FROM grafana_query_log
 WHERE event_time >= now() - INTERVAL 15 MINUTE
-  AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
-  AND is_initial_query
   AND http_user_agent LIKE 'ch/%'
 GROUP BY query_hash
 HAVING slow_or_cancelled > 0
@@ -6943,21 +6938,30 @@ LIMIT 20
 
 - Query `A` relative time range: 15 minutes.
 - Condition: expression `B`, **Threshold** on `A`, `IS ABOVE 2`. No Reduce
-  expression: the query returns one numeric column and string columns only,
-  which Grafana reads as one series per `(query_hash, query_preview)` label
-  set. The previous definition returned a string `query_preview` column next to
-  several numeric ones and its Reduce step failed with `input data must be a
+  expression: the query returns one numeric column and one string column,
+  which Grafana reads as one series per `query_hash` label. The previous
+  definition returned a string `query_preview` column next to several numeric
+  ones and its Reduce step failed with `input data must be a
   wide series`, so the rule errored instead of evaluating whenever rows came
   back.
 - Pending period: 2 minutes; keep firing for 10 minutes
 - Label `severity=warning`
 - Folder `Alerts`, group `Server`; no receiver set on the rule
-- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.A }} times in 15 minutes: {{ $labels.query_preview }}`.
+- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.A }} times in 15 minutes`.
   Use `$values.A`: `$values.B` is the threshold result, 0 or 1.
 - Set **No Data** to Normal: a healthy cluster returns no rows. Error state: Error.
-- `clusterAllReplicas('default', system.query_log)` reads every replica's log.
-  The data source hits one of the three ClickHouse Cloud replicas per request,
-  so the previous `system.query_log` saw a third of the attempts at best.
+- `grafana_query_log` reads every replica's log: it is a view over
+  `clusterAllReplicas('default', system.query_log)` that `Tuist.Release.migrate`
+  creates, limited to the last day of initial queries. It runs as `default`,
+  so `tuist_grafana` needs no `REMOTE` grant. The data source reaches one
+  replica per request, so plain `system.query_log` would see half the
+  attempts.
+- No query text in the rule. Reading it for every recent query across both
+  replicas exceeded the evaluation deadline (`context deadline exceeded`). To
+  find a hash's text: `SELECT replica, event_time, type, exception_code,
+  query_duration_ms, query FROM grafana_query_log WHERE normalized_query_hash
+  = <hash> AND event_time >= now() - INTERVAL 1 HOUR ORDER BY event_time DESC
+  LIMIT 5`.
 - `type = 'QueryFinish'` alone never sees a query the client gave up on.
   ClickHouse records those as `ExceptionWhileProcessing`, under an
   `exception_code` that depends on where the abort lands: 394
