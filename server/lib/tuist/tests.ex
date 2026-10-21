@@ -826,6 +826,17 @@ defmodule Tuist.Tests do
   defp valid_report_revision?(revision), do: is_integer(revision) and revision >= 0 and revision <= 4_294_967_295
 
   defp create_immutable_shard_report(attrs, plan, index, attempt, revision) do
+    if Enum.any?([:coverage, :xcode_coverage, :coverage_evidence], &Map.get(attrs, &1)) do
+      Logger.warning("Coverage is unsupported for immutable shard plan #{plan.id}")
+    end
+
+    attrs =
+      attrs
+      |> Map.drop([:coverage, :xcode_coverage, :coverage_evidence])
+      |> Map.put(:coverage_enabled, false)
+      |> Map.put(:coverage_evidence_status, "")
+      |> TestReport.normalize_facts()
+
     stress = Map.get(attrs, :stress_new_tests)
     attrs = if stress, do: Map.merge(attrs, StressNewTests.run_attrs(stress)), else: attrs
 
@@ -841,26 +852,15 @@ defmodule Tuist.Tests do
 
     with {:ok, test} <- %Test{} |> Test.create_changeset(run_attrs) |> Ecto.Changeset.apply_action(:insert) do
       identity =
-        {plan.id, index, attempt, revision, TestReport.phase(test.status),
-         TestReport.digest(Map.drop(attrs, [:id, :ran_at, :inserted_at]))}
+        {plan.id, index, attempt, revision, TestReport.phase(test.status), TestReport.identity_digest(attrs)}
 
       {test, test_case_runs, fact_set_id} =
-        Batch.run(identity, fn ->
+        Batch.run(identity, plan.inserted_at, fn ->
           modules = Map.get(attrs, :test_modules, [])
           create_run_destinations(test, Map.get(attrs, :run_destinations, []))
           create_run_errors(test, Map.get(attrs, :run_errors, []))
           StressNewTests.insert_candidates(test, stress)
-          coverage = Coverage.rows(test.project_id, Map.get(attrs, :coverage))
-          record_coverage_data(test, attrs, coverage, index, plan.shard_count)
-
-          {_newly_flaky, runs} =
-            create_test_modules(
-              test,
-              modules,
-              index,
-              plan,
-              Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
-            )
+          {_newly_flaky, runs} = create_test_modules(test, modules, index, plan, %{})
 
           flaky? = test.is_flaky or flaky_run?(test, runs) or (test.is_ci and has_any_flaky_test_case?(modules))
           {%{test | is_flaky: flaky?}, runs, Batch.uuid(:report)}
@@ -2105,28 +2105,21 @@ defmodule Tuist.Tests do
 
     query =
       case Keyword.get(opts, :project_id) do
-        nil ->
-          case uuidv7_to_yyyymm(id) do
-            {:ok, month} ->
-              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
-
-            :error ->
-              query
-          end
-
-        project_id ->
-          query = where(query, [tcr], tcr.project_id == ^project_id)
-
-          case uuidv7_to_yyyymm(id) do
-            {:ok, month} ->
-              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
-
-            :error ->
-              query
-          end
+        nil -> query
+        project_id -> where(query, [tcr], tcr.project_id == ^project_id)
       end
 
-    case ClickHouseRepo.one(query) do
+    run =
+      case uuidv7_to_yyyymm(id) do
+        {:ok, month} ->
+          pruned = where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
+          ClickHouseRepo.one(pruned) || ClickHouseRepo.one(query)
+
+        :error ->
+          ClickHouseRepo.one(query)
+      end
+
+    case run do
       nil ->
         {:error, :not_found}
 
@@ -2142,7 +2135,9 @@ defmodule Tuist.Tests do
   # monthly partitions (~93K rows read, ~2.7s p50 in production). UUIDv7 encodes
   # a millisecond timestamp in the first 48 bits, which closely matches
   # inserted_at, so we extract the month and add a toYYYYMM filter to prune all
-  # but one partition (~8K rows read, ~35x improvement).
+  # but one partition (~8K rows read, ~35x improvement). Immutable facts use
+  # the stable plan timestamp, so a cross-month write must fall back to the
+  # unpruned query when this hint misses; the timestamp is not row location.
   defp uuidv7_to_yyyymm(<<_prefix::binary-size(14), "7", _rest::binary>> = uuid_string) do
     hex = uuid_string |> String.replace("-", "") |> String.slice(0, 12)
     timestamp_ms = String.to_integer(hex, 16)

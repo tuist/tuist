@@ -10,9 +10,9 @@ defmodule Tuist.Ingestion.Batch do
   @max_bytes 8 * 1024 * 1024
   @report_fact_sources ~w(test_case_runs test_module_runs test_suite_runs test_run_errors test_run_destinations test_run_stress_candidates)
 
-  def run(identity, fun) do
+  def run(identity, timestamp, fun) do
     if Process.get(@key), do: raise(ArgumentError, "ingestion batches cannot be nested")
-    Process.put(@key, %{identity: identity, tables: %{}})
+    Process.put(@key, %{identity: identity, timestamp: timestamp, tables: %{}})
 
     try do
       result = fun.()
@@ -50,10 +50,8 @@ defmodule Tuist.Ingestion.Batch do
       nil ->
         UUIDv7.generate()
 
-      %{identity: identity} ->
-        payload = :erlang.term_to_binary({identity, discriminator}, [:deterministic])
-        <<a::48, _::4, b::12, _::2, c::62, _::binary>> = :crypto.hash(:sha256, payload)
-        Ecto.UUID.cast!(<<a::48, 8::4, b::12, 2::2, c::62>>)
+      %{identity: identity, timestamp: timestamp} ->
+        Tuist.UUIDv7.deterministic(timestamp, {identity, discriminator})
     end
   end
 

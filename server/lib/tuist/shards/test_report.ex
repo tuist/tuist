@@ -73,6 +73,41 @@ defmodule Tuist.Shards.TestReport do
   def phase("failed_processing"), do: 1
   def phase(_status), do: 2
 
+  # The shared native parser groups modules/suites with Swift dictionaries.
+  # Normalize that incidental order for both local and remote producers, while
+  # preserving repeated same-name modules and case/attachment occurrence order.
+  def normalize_facts(attrs) do
+    Map.update(attrs, :test_modules, [], fn modules ->
+      modules
+      |> Enum.sort_by(&Map.get(&1, :name))
+      |> Enum.map(fn module ->
+        Map.update(module, :test_suites, [], &Enum.sort_by(&1, fn suite -> Map.get(suite, :name) end))
+      end)
+    end)
+  end
+
+  def identity_digest(attrs) do
+    attrs
+    |> Map.drop([:id, :ran_at, :inserted_at, :xcode_coverage])
+    |> without_local_paths()
+    |> digest()
+  end
+
+  defp without_local_paths(%_{} = value), do: value
+
+  defp without_local_paths(%{} = value) do
+    Map.new(value, fn
+      {key, %{} = report} when key in [:crash_report, "crash_report"] ->
+        {key, Map.drop(report, [:file_path, "file_path"])}
+
+      {key, nested} ->
+        {key, without_local_paths(nested)}
+    end)
+  end
+
+  defp without_local_paths(values) when is_list(values), do: Enum.map(values, &without_local_paths/1)
+  defp without_local_paths(value), do: value
+
   def digest(row) do
     row
     |> Map.drop([:inserted_at, :report_digest])

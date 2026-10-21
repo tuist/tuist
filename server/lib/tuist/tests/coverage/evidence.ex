@@ -50,6 +50,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
   whose lines would exceed what is left keeps only its path.
   """
   def record(test, evidence, shard_index \\ nil, opts \\ [])
+  def record(%{reporting_version: 1}, _evidence, _shard_index, _opts), do: :skipped
   def record(_test, nil, _shard_index, _opts), do: :ok
 
   def record(%{id: test_run_id, project_id: project_id} = test, evidence, shard_index, opts) do

@@ -13,6 +13,7 @@ defmodule Tuist.Shards.ImmutableReportsTest do
   alias Tuist.Storage
   alias Tuist.Tasks
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestModuleRun
@@ -32,6 +33,39 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     assert %{"modules" => [_ | _], "test_suites" => []} = JSON.decode!(plan.assignments)
     assert {:ok, %{reporting_version: 1, assignments: assignments}} = Shards.get_shard_plan(plan.id)
     assert assignments == plan.assignments
+  end
+
+  @tag capture_log: true
+  test "coverage enabled after enrollment cannot publish stale coverage or lose test results", %{project: project} do
+    %{plan: plan} = plan(project, 1)
+    stub(FeatureFlags, :xcode_coverage_enabled?, fn _ -> true end)
+
+    assert {:ok, run} =
+             report(project, plan, 0,
+               coverage_enabled: true,
+               coverage: %{files: []},
+               xcode_coverage: %{path: "/nonexistent/coverage.ndjson"},
+               coverage_evidence: %{paths: ["Sources/App.swift"], scopes: []},
+               test_modules: [
+                 %{name: "Tests", status: "success", test_cases: [%{name: "test_one", status: "success", duration: 10}]}
+               ]
+             )
+
+    refute run.coverage_enabled
+    assert run.coverage_evidence_status == ""
+    assert %{total_count: 1} = Tuist.Tests.Analytics.get_test_run_metrics(run)
+    assert {:ok, %{rows: [[0]]}} = ClickHouseRepo.query("SELECT count() FROM coverage_files")
+    assert {:ok, %{rows: [[0]]}} = ClickHouseRepo.query("SELECT count() FROM coverage_runs")
+    assert :skipped = Coverage.publish(run, %{}, 0, 1)
+    assert :skipped = Coverage.enqueue_publish(run, %{storage_key: "ignored"}, 0, 1)
+    assert :skipped = Tuist.Tests.Coverage.Evidence.record(run, %{paths: ["Sources/App.swift"]}, 0)
+
+    reject(Storage, :download_to_file, 3)
+
+    assert {:cancel, :immutable_shard_coverage_unsupported} =
+             Tuist.Tests.Workers.PublishCoverageWorker.perform(%Oban.Job{
+               args: %{"test_run_id" => run.id, "project_id" => project.id, "storage_key" => "ignored"}
+             })
   end
 
   test "assignment reads never depend on separately published assignment rows", %{project: project} do
@@ -371,6 +405,68 @@ defmodule Tuist.Shards.ImmutableReportsTest do
 
     assert ClickHouseRepo.aggregate(from(m in TestModuleRun, where: m.test_run_id == ^plan.id, select: m.id), :count, :id) >=
              1
+  end
+
+  @tag capture_log: true
+  test "xcresult replay identities ignore extraction paths and keep UUIDv7 facts", %{project: project} do
+    %{plan: plan} = plan(project, 1)
+
+    [first, replay] =
+      for root <- ["/tmp/first", "/tmp/replay"] do
+        assert {:ok, run} =
+                 report(project, plan, 0,
+                   xcode_coverage: %{path: root <> "/coverage.ndjson"},
+                   test_modules: [
+                     %{
+                       name: "Tests",
+                       status: "success",
+                       test_cases: [
+                         %{
+                           name: "test_one",
+                           status: "success",
+                           duration: 10,
+                           crash_report: %{file_path: root <> "/report.ips", exception_type: "EXC_CRASH"}
+                         }
+                       ]
+                     }
+                   ]
+                 )
+
+        run
+      end
+
+    assert [first_case] = first.test_case_runs
+    assert [replay_case] = replay.test_case_runs
+    assert first_case.id == replay_case.id
+    assert Tuist.UUIDv7.valid?(first_case.id)
+    assert {:ok, %{rows: [[1]]}} = ClickHouseRepo.query("SELECT uniqExact(fact_set_id) FROM shard_test_reports")
+  end
+
+  test "dictionary-derived module and suite ordering cannot change fact identities", %{project: project} do
+    %{plan: plan} = plan(project, 1)
+
+    [first, replay] =
+      for names <- [["B", "A"], ["A", "B"]] do
+        modules =
+          Enum.map(names, fn name ->
+            %{
+              name: name,
+              status: "success",
+              test_suites: Enum.map(names, &%{name: &1, status: "success", duration: 10}),
+              test_cases:
+                Enum.map(["A", "B"], fn suite ->
+                  %{name: "test_one", test_suite_name: suite, status: "success", duration: 10}
+                end)
+            }
+          end)
+
+        assert {:ok, run} = report(project, plan, 0, test_modules: modules)
+        run
+      end
+
+    assert Enum.map(first.test_case_runs, & &1.id) == Enum.map(replay.test_case_runs, & &1.id)
+    assert {:ok, %{rows: [[1]]}} = ClickHouseRepo.query("SELECT uniqExact(fact_set_id) FROM shard_test_reports")
+    assert %{total_count: 4} = Tuist.Tests.Analytics.get_test_run_metrics(replay)
   end
 
   test "replays do not multiply children or collapse genuine identical failures", %{project: project} do

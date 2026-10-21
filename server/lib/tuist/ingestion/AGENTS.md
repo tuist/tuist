@@ -10,7 +10,7 @@ without repeating `otp_app: :tuist, repo: Tuist.IngestRepo`.
 ## Responsibilities
 - Present the shared ingestion buffer under the server-friendly namespace.
 - Preload the `:tuist` + `Tuist.IngestRepo` defaults so schemas stay concise.
-- `Batch` is request-local transport for immutable shard facts: flush per-schema encoded batches directly before publishing the report, bound staging by 8 MiB plus one row, and clear context on failure. It is not a shared coordinator or durable staging store. It adds physical `shard_report_id` metadata only to run-scoped fact tables, without changing legacy schema buffers. Keep its fact-source list and the shard-report migration/views aligned.
+- `Batch.run/3` takes the report identity, stable plan timestamp and callback. It is request-local transport for immutable shard facts: flush per-schema encoded batches directly before publishing the report, bound staging by 8 MiB plus one row, and clear context on failure. Its deterministic UUIDv7s preserve replay and occurrence identity; their plan-time prefix is a partition hint, not the row's receipt month. It is not a shared coordinator or durable staging store. It adds physical `shard_report_id` metadata only to run-scoped fact tables, without changing legacy schema buffers. Keep its fact-source list and the shard-report migration/views aligned.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

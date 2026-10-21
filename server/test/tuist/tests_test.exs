@@ -48,7 +48,57 @@ defmodule Tuist.TestsTest do
       assert run.id == test_case_run.id
     end
 
+    test "same-month UUIDv7 lookups keep the partition-pruned single query" do
+      row = RunsFixtures.test_case_run_fixture()
+
+      expect(ClickHouseRepo, :one, fn query ->
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: id}} = Tests.get_test_case_run_by_id(row.id, project_id: row.project_id)
+      assert id == row.id
+    end
+
+    test "a stable UUIDv7 from another month falls back without losing the project scope" do
+      timestamp = NaiveDateTime.add(NaiveDateTime.utc_now(), -40, :day)
+      id = Tuist.UUIDv7.deterministic(timestamp, Ecto.UUID.generate())
+      row = RunsFixtures.test_case_run_fixture(id: id)
+      assert {:error, :not_found} = Tests.get_test_case_run_by_id(id, project_id: row.project_id + 1)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        assert is_nil(Mimic.call_original(ClickHouseRepo, :one, [query]))
+        nil
+      end)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        refute Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        assert Enum.any?(query.wheres, &(inspect(&1.expr) =~ "project_id"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: ^id}} = Tests.get_test_case_run_by_id(id, project_id: row.project_id)
+    end
+
+    test "historical UUIDv8 facts retain their unpruned lookup" do
+      <<prefix::binary-size(14), _::binary-size(1), rest::binary>> = Ecto.UUID.generate()
+      row = RunsFixtures.test_case_run_fixture(id: prefix <> "8" <> rest)
+
+      expect(ClickHouseRepo, :one, fn query ->
+        refute Enum.any?(query.wheres, &(inspect(&1.expr) =~ "toYYYYMM"))
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
+      assert {:ok, %{id: id}} = Tests.get_test_case_run_by_id(row.id, project_id: row.project_id)
+      assert id == row.id
+    end
+
     test "returns error when test case run does not exist" do
+      expect(ClickHouseRepo, :one, 2, fn query ->
+        Mimic.call_original(ClickHouseRepo, :one, [query])
+      end)
+
       # When
       result = Tests.get_test_case_run_by_id(UUIDv7.generate())
 

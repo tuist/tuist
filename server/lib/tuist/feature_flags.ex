@@ -4,9 +4,9 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
   alias Tuist.Projects.Project
 
-  @doc "Default-off creation gate for immutable shard plans and report aggregation."
+  @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
   def immutable_shard_reports_enabled?(account) do
-    FunWithFlags.enabled?(:immutable_shard_reports, for: account)
+    FunWithFlags.enabled?(:immutable_shard_reports, for: account) and not xcode_coverage_enabled?(account)
   end
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."
