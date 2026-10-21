@@ -10,9 +10,12 @@ import TuistHTTP
 
 struct ServerReportPublishingTests {
     @Test(arguments: [
-        (200, #"{"network_trusted_report_publishing":true,"future":42}"#, true),
+        (200, #"{"network_trusted_report_publishing":true,"future":{"version":2,"capabilities":["unknown"]}}"#, true),
         (200, #"{"network_trusted_report_publishing":false}"#, false),
         (200, #"{"network_trusted_report_publishing":"true"}"#, false),
+        (200, #"{"network_trusted_report_publishing":null}"#, false),
+        (200, #"{"network_trusted_report_publishing":{"enabled":true}}"#, false),
+        (200, "[]", false),
         (200, "{}", false),
         (200, "not json", false),
         (302, #"{"network_trusted_report_publishing":true}"#, false),

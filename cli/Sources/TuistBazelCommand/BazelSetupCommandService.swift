@@ -230,7 +230,8 @@ public struct BazelSetupCommandService {
             bazelrcPath: bazelrcPath,
             bazelrcImportResult: bazelrcImportResult,
             buildInsights: buildInsights,
-            remoteCacheConfigured: setupConfiguration.endpoint != nil && !setupConfiguration.networkTrustedReporting
+            remoteCacheConfigured: setupConfiguration.endpoint != nil && !setupConfiguration.networkTrustedReporting,
+            networkTrustedReporting: setupConfiguration.networkTrustedReporting
         )
     }
 
@@ -314,26 +315,35 @@ public struct BazelSetupCommandService {
         bazelrcPath: AbsolutePath,
         bazelrcImportResult: BazelrcImportResult,
         buildInsights: Bool,
-        remoteCacheConfigured: Bool
+        remoteCacheConfigured: Bool,
+        networkTrustedReporting: Bool
     ) {
         var takeaways = [
             bazelrcImportTakeaway(
                 result: bazelrcImportResult,
-                buildInsights: buildInsights
+                buildInsights: buildInsights,
+                networkTrustedReporting: networkTrustedReporting
             ),
         ]
         if remoteCacheConfigured {
             takeaways
                 .append("Run Bazel normally to use the Tuist remote cache\(buildInsights ? " and record build insights" : "")")
         }
+        if networkTrustedReporting {
+            takeaways
+                .append("Reporting only: no remote cache is configured. Sign in and rerun tuist bazel setup to enable caching.")
+        }
         AlertController.current.success(.alert("Generated \(bazelrcPath.pathString)", takeaways: takeaways))
     }
 
     private func bazelrcImportTakeaway(
         result: BazelrcImportResult,
-        buildInsights: Bool
+        buildInsights: Bool,
+        networkTrustedReporting: Bool
     ) -> TerminalText {
-        let capabilities = buildInsights ? "remote cache and build insights" : "remote cache"
+        let capabilities = networkTrustedReporting
+            ? "credential-free build insights"
+            : (buildInsights ? "remote cache and build insights" : "remote cache")
 
         switch result {
         case .added:

@@ -396,6 +396,97 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     refute File.exists?(Path.join([directory, "tuist", "credentials"]))
   end
 
+  test "self-hosted empty environment and stale stored tokens retain authenticated fallback", %{
+    tmp_dir: directory
+  } do
+    stub(HTTP, :request, fn method, url, _ -> flunk("Unexpected #{method} request to #{url}") end)
+
+    payload =
+      %{exp: System.system_time(:second) + 3_600}
+      |> JSON.encode!()
+      |> Base.url_encode64(padding: false)
+
+    token = "header.#{payload}.signature"
+
+    for mode <- [:empty_with_stored, :empty_with_oidc, :expired_with_oidc] do
+      host = "#{mode}-#{System.unique_integer([:positive])}.example"
+      url = "https://#{host}"
+      on_exit(fn -> :persistent_term.erase({Auth, :provider_token, url}) end)
+      values = %{"TUIST_URL" => url, "XDG_STATE_HOME" => Path.join(directory, "state")}
+      values = if mode == :expired_with_oidc, do: values, else: Map.put(values, "TUIST_TOKEN", "")
+
+      values =
+        if mode == :empty_with_stored,
+          do: values,
+          else: Map.merge(values, %{"CIRCLECI" => "true", "CIRCLE_OIDC_TOKEN_V2" => "identity"})
+
+      opts = options(directory, values)
+      path = Path.join([directory, "tuist", "credentials", "#{host}.json"])
+
+      if mode != :empty_with_oidc do
+        File.mkdir_p!(Path.dirname(path))
+        access = if mode == :empty_with_stored, do: token, else: "expired"
+        File.write!(path, JSON.encode!(%{"accessToken" => access}))
+      end
+
+      if mode != :empty_with_stored do
+        expect(HTTP, :request, fn :post, exchange_url, %{token: "identity"} ->
+          assert exchange_url == url <> "/api/auth/oidc/token"
+          {:ok, 200, %{"access_token" => token}}
+        end)
+      end
+
+      refute Auth.network_publishing?(opts)
+      assert {:ok, ^token} = Auth.reporting_token(opts)
+
+      expect(HTTP, :request, fn :post, report_url, body, headers ->
+        assert report_url == url <> "/api/projects/acme/widgets/tests"
+        assert {"authorization", "Bearer " <> token} in headers
+        assert body.git_remote_url_origin == "private-origin"
+        {:ok, 200, %{"id" => "signed-report"}}
+      end)
+
+      assert :ok = AnalyticsHTTP.submit_test_run(%{git_remote_url_origin: "private-origin"}, opts)
+    end
+  end
+
+  test "failed authenticated fallbacks never discover or publish anonymously", %{
+    tmp_dir: directory
+  } do
+    stub(HTTP, :request, fn :get, url, _ -> flunk("Must not discover #{url}") end)
+
+    for mode <- [:empty, :expired] do
+      host = "failed-#{mode}-#{System.unique_integer([:positive])}.example"
+
+      values = %{
+        "TUIST_URL" => "https://#{host}",
+        "CIRCLECI" => "true",
+        "CIRCLE_OIDC_TOKEN_V2" => "rejected",
+        "XDG_STATE_HOME" => Path.join(directory, "state")
+      }
+
+      values = if mode == :empty, do: Map.put(values, "TUIST_TOKEN", ""), else: values
+
+      if mode == :expired do
+        path = Path.join([directory, "tuist", "credentials", "#{host}.json"])
+        File.mkdir_p!(Path.dirname(path))
+        File.write!(path, JSON.encode!(%{"accessToken" => "expired"}))
+      end
+
+      expect(HTTP, :request, 2, fn :post, url, %{token: "rejected"} ->
+        assert String.ends_with?(url, "/api/auth/oidc/token")
+        {:ok, 401, %{}}
+      end)
+
+      opts = options(directory, values)
+
+      for _ <- 1..2 do
+        refute Auth.network_publishing?(opts)
+        assert {:error, _} = Auth.reporting_token(opts)
+      end
+    end
+  end
+
   test "hosted empty tokens and corrupt stored credentials retain authenticated OIDC fallback", %{
     tmp_dir: directory
   } do
@@ -543,12 +634,29 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     assert message =~ "GitHub Actions identity token request"
   end
 
+  test "future discovery metadata does not change the explicit publishing capability", %{
+    tmp_dir: directory
+  } do
+    expect(HTTP, :request, fn :get, _, nil ->
+      {:ok, 200,
+       %{
+         "network_trusted_report_publishing" => true,
+         "future" => %{"version" => 2, "capabilities" => ["unknown"]}
+       }}
+    end)
+
+    assert {:ok, nil} = Auth.reporting_token(options(directory))
+  end
+
   test "disabled, old, malformed and unavailable servers do not permit unsigned reports", %{
     tmp_dir: directory
   } do
     for response <- [
           {:ok, 200, %{"network_trusted_report_publishing" => false}},
           {:ok, 200, %{"network_trusted_report_publishing" => "true"}},
+          {:ok, 200, %{"network_trusted_report_publishing" => nil}},
+          {:ok, 200, %{"network_trusted_report_publishing" => %{"enabled" => true}}},
+          {:ok, 200, []},
           {:ok, 200, %{}},
           {:ok, 404, %{}},
           {:ok, 302, %{}},

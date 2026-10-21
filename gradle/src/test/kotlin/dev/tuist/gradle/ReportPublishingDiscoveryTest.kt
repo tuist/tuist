@@ -31,7 +31,7 @@ class ReportPublishingDiscoveryTest {
     @Test fun `discovers credential-free reporting without client configuration`() {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse().setBody("{\"network_trusted_report_publishing\":true,\"future\":42}"))
+            server.enqueue(MockResponse().setBody("{\"network_trusted_report_publishing\":true,\"future\":{\"version\":2,\"capabilities\":[\"unknown\"]}}"))
             val config = provider(server.url("/").toString()).getConfiguration()
             assertEquals("", config.token)
             val request = server.takeRequest()
@@ -48,6 +48,9 @@ class ReportPublishingDiscoveryTest {
             for ((status, body) in listOf(
                 200 to "{\"network_trusted_report_publishing\":false}",
                 200 to "{\"network_trusted_report_publishing\":\"true\"}",
+                200 to "{\"network_trusted_report_publishing\":null}",
+                200 to "{\"network_trusted_report_publishing\":{\"enabled\":true}}",
+                200 to "[]",
                 200 to "{}",
                 200 to "not json",
                 404 to "{}",

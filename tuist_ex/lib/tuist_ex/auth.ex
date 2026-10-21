@@ -60,6 +60,9 @@ defmodule TuistEx.Auth do
       nil ->
         stored_or_network_token(server_url, environment, options)
 
+      "" ->
+        authenticated_reporting_token(server_url, environment, options)
+
       token when is_binary(token) ->
         if String.trim(token) == "",
           do: {:error, "TUIST_TOKEN must not be blank"},
@@ -74,7 +77,7 @@ defmodule TuistEx.Auth do
     with {:ok, path} <- credentials_path(server_url, environment) do
       case File.lstat(path) do
         {:ok, _} ->
-          stored_token(server_url, environment)
+          authenticated_reporting_token(server_url, environment, options)
 
         {:error, :enoent} ->
           provider_or_network_token(server_url, environment, options)
@@ -82,6 +85,18 @@ defmodule TuistEx.Auth do
         {:error, _} ->
           {:error, "Could not read Tuist credentials. Sign in again or deliberately remove them."}
       end
+    end
+  end
+
+  defp authenticated_reporting_token(server_url, environment, options) do
+    case stored_token(server_url, environment) do
+      {:error, reason} = error ->
+        if oidc_supplied?(environment),
+          do: provider_token(server_url, environment, reason, options),
+          else: error
+
+      result ->
+        result
     end
   end
 
