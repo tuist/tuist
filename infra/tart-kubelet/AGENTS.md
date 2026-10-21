@@ -142,6 +142,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   unless the report response pairs `seal` with `cold_publish: true` (the Store's
   `publish` action); either way its base is queued. A superseded master used in the last day stays
   until its successor is downloaded through the queue (`LocalImages.Replace`).
+  An unchanged branch of its own base reinstalls that master if admission
+  evicted it during the job (see `runner-cache/AGENTS.md`).
   The host maximum is `--custom-cache-max-volume-gb` (100 GB by default, env
   `TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB`), sent as `max_volume_bytes` with every
   authorization alongside the guest's valid `requested_volume_bytes`; a 507 is

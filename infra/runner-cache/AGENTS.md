@@ -89,6 +89,12 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   newer than the one it recorded. The first attach writes `.entries` after the
   marker; later attaches of the branch keep it. A missing baseline means changed;
   a `.verified` or `.checking` branch skips the check.
+- An `ErrUnchanged` branch cloned from its own base (APFS: no `.base`) becomes
+  that generation's local master when the host no longer holds it, after the
+  same verification publication runs (`keepUnchanged`, `keep` observation).
+  Admission may evict a master while a job runs, and an unchanged lineage never
+  publishes, so otherwise only a download brings its copy back. Linux removes
+  the `.verified` marker afterwards so a retried seal withholds it again.
 - `Identity.VolumeBytes` is the capacity the server chose for this use; zero
   means the host default (`SizeGB`). `HeadSizeBytes` is the saved head's measured
   used bytes, zero when unknown. `Store.MaxVolumeBytes` is the host maximum each

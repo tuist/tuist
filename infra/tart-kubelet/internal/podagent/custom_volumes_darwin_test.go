@@ -183,3 +183,92 @@ func TestCustomAPFSReclaimsInterruptedUnmountedInspection(t *testing.T) {
 		t.Fatal("inspection device retained", err)
 	}
 }
+
+func TestCustomAPFSRealKeepsAnUnchangedBranchAsAnEvictedMaster(t *testing.T) {
+	root := t.TempDir()
+	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: root, SizeGB: 20, MinFreeBytes: 40_000_000_000, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }, Transfer: apfsSmokeTransfer{}}, Create: createCustomImage, Verify: verifyCustomImage}
+	if err := backend.Init(); err != nil {
+		t.Fatal(err)
+	}
+	mount := t.TempDir()
+	defer runCmd(time.Minute, "hdiutil", "detach", mount, "-force", "-quiet")
+	attach := func(path string) {
+		t.Helper()
+		if _, err := runCmd(time.Minute, "hdiutil", "attach", path, "-owners", "off", "-quiet", "-nobrowse", "-mountpoint", mount); err != nil {
+			t.Fatal(err)
+		}
+	}
+	finish := func(slot cachevolumes.Slot, branch string, changed bool) {
+		t.Helper()
+		if _, err := runCmd(time.Minute, "hdiutil", "detach", mount, "-quiet"); err != nil {
+			t.Fatal(err)
+		}
+		usage, _ := json.Marshal(map[string]any{"id": slot.ID, "used_bytes": 1_000_000, "capacity_bytes": 20_000_000_000, "changed": changed})
+		if err := os.WriteFile(filepath.Join(branch, ".usage"), usage, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(branch, ".detached"), []byte(slot.ID), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start := func(slot cachevolumes.Slot) string {
+		t.Helper()
+		branch := filepath.Join(root, "pods", slot.PodUID, slot.Scope)
+		if err := os.MkdirAll(branch, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := backend.Attach(context.Background(), slot, branch); err != nil {
+			t.Fatal(err)
+		}
+		if backend.Cold(slot) {
+			t.Fatal("started cold")
+		}
+		attach(filepath.Join(branch, "cache.sparseimage"))
+		return branch
+	}
+
+	first := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa", Account: 1, Scope: strings.Repeat("a", 64), CanPublish: true, UID: 501}, PodUID: "first"}
+	branch := start(first)
+	if err := os.WriteFile(filepath.Join(mount, "dependency"), []byte("published"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	finish(first, branch, true)
+	if err := backend.Seal(first, branch); err != nil {
+		t.Fatal(err)
+	}
+	masters, _ := filepath.Glob(filepath.Join(root, "masters", first.Scope, "*.img"))
+	if len(masters) != 1 {
+		t.Fatal(masters)
+	}
+	saved := first
+	saved.BaseGeneration = 1
+	saved.ImageDigest = strings.Repeat("b", 40)
+	saved.ContentDigest = strings.TrimSuffix(strings.SplitN(filepath.Base(masters[0]), "-", 2)[1], ".img")
+
+	unchanged := saved
+	unchanged.ID, unchanged.PodUID = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb", "second"
+	branch = start(unchanged)
+	if data, err := os.ReadFile(filepath.Join(mount, "dependency")); err != nil || string(data) != "published" {
+		t.Fatal(string(data), err)
+	}
+	finish(unchanged, branch, false)
+	if err := os.Remove(masters[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := backend.Seal(unchanged, branch); cachevolumes.Result(err) != "unchanged" {
+		t.Fatal(err)
+	}
+	if err := backend.Delete(unchanged, branch); err != nil {
+		t.Fatal(err)
+	}
+	if !backend.HasMaster(saved.Identity) {
+		t.Fatal("the host lost its only copy of the saved version")
+	}
+
+	next := saved
+	next.ID, next.PodUID = "cccccccc-cccc-4ccc-cccc-cccccccccccc", "third"
+	start(next)
+	if data, err := os.ReadFile(filepath.Join(mount, "dependency")); err != nil || string(data) != "published" {
+		t.Fatal(string(data), err)
+	}
+}
