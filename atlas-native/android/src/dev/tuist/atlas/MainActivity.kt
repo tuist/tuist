@@ -28,6 +28,9 @@ class MainActivity : Activity() {
     private var businesses = mutableMapOf<String, AtlasBusinessModel>()
     private var business: AtlasBusinessScreen? = null
     private var home: AtlasHomeScreen? = null
+    private var presence: AtlasPresenceModel? = null
+    private var people: AtlasPeopleScreen? = null
+    private var restorePeople = false
     private var tab = "tasks"
     private var unregisterBack: (() -> Unit)? = null
 
@@ -39,6 +42,7 @@ class MainActivity : Activity() {
         val navigation: AtlasWorkspaceModel?,
         val businesses: MutableMap<String, AtlasBusinessModel>,
         val tab: String,
+        val presence: AtlasPresenceModel?,
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,25 +53,29 @@ class MainActivity : Activity() {
         accounts = retained?.accounts
         profile = retained?.profile
         holidays = retained?.holidays
+        presence = retained?.presence
         businesses = retained?.businesses ?: mutableMapOf()
         tab = retained?.tab ?: savedInstanceState?.getString("tab")?.takeIf { it in tabIds } ?: "tasks"
         navigation = retained?.navigation ?: catalogNavigation(savedInstanceState?.getString("workspace_group"))
         restoreTimeOff = savedInstanceState?.getBoolean("time_off") == true
+        restorePeople = savedInstanceState?.getBoolean("people") == true
         recoveredLoginId = if (retained?.accounts == null) savedInstanceState?.getString("chatgpt_login_id") else null
         if (retained == null && intent.data == null) authentication.restore()
         if (savedInstanceState == null) handleCallback(intent)
     }
 
     override fun onRetainNonConfigurationInstance(): Any =
-        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab)
+        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab, presence)
 
     override fun onStart() {
         super.onStart()
         authentication.listener = { render() }
         render()
+        presence?.setActive(authentication.server != null)
     }
 
     override fun onStop() {
+        presence?.setActive(false)
         authentication.listener = null
         super.onStop()
     }
@@ -76,6 +84,7 @@ class MainActivity : Activity() {
         outState.putString("workspace_group", navigation?.groupId)
         outState.putString("tab", tab)
         outState.putBoolean("time_off", timeOff != null || restoreTimeOff)
+        outState.putBoolean("people", people != null || restorePeople)
         outState.putString("chatgpt_login_id", accounts?.pendingLoginId ?: recoveredLoginId)
         super.onSaveInstanceState(outState)
     }
@@ -128,7 +137,15 @@ class MainActivity : Activity() {
             )
             return
         }
-        if (home != null || timeOff != null) return
+        if (presence == null) {
+            presence = AtlasPresenceModel(authentication::presence).also { it.setActive(true) }
+        }
+        if (home != null || timeOff != null || people != null) return
+        if (restorePeople) {
+            restorePeople = false
+            showPeople()
+            return
+        }
         if (restoreTimeOff) {
             restoreTimeOff = false
             showTimeOff(AtlasCore().sections().first { it.screen == "time-off" }.title)
@@ -151,9 +168,11 @@ class MainActivity : Activity() {
         val content =
             when (tab) {
                 "browse" -> {
+                    presence?.show()
                     val screen =
                         AtlasWorkspaceScreen(this, catalog, Uri.parse(server).host.orEmpty(), { section ->
                             when (section.screen) {
+                                "people" -> showPeople()
                                 "time-off" -> showTimeOff(section.title)
                                 "tasks", "accounts", "invoices" -> selectTab(section.screen)
                             }
@@ -163,16 +182,19 @@ class MainActivity : Activity() {
                     screen.view
                 }
                 "profile" -> {
+                    presence?.show("profile")
                     val model = accounts ?: AtlasAIAccountsModel(recoveredLoginId, authentication::aiAccounts).also { accounts = it }
                     recoveredLoginId = null
                     val identity = profile ?: AtlasProfileModel(authentication::business).also { profile = it }
                     val screen =
                         AtlasAIAccountsScreen(this, server, model, ::openBrowser, ::back) {
-                            closeScreen()
-                            clearModels()
-                            navigation = null
-                            tab = "tasks"
-                            authentication.signOut()
+                            presence?.stop {
+                                closeScreen()
+                                clearModels()
+                                navigation = null
+                                tab = "tasks"
+                                authentication.signOut()
+                            }
                         }
                     settings = screen
                     screen.profile(identity, ::updateBack)
@@ -180,7 +202,7 @@ class MainActivity : Activity() {
                 }
                 else -> {
                     val model = businesses.getOrPut(tab) { AtlasBusinessModel(tab, authentication::business) }
-                    val screen = AtlasBusinessScreen(this, titles.getValue(tab), model, ::updateBack)
+                    val screen = AtlasBusinessScreen(this, titles.getValue(tab), model, ::updateBack, presence)
                     business = screen
                     setActionBar(screen.toolbar)
                     screen.view
@@ -202,6 +224,8 @@ class MainActivity : Activity() {
     }
 
     private fun closeScreen(cancelPending: Boolean = true) {
+        people?.close()
+        people = null
         settings?.close(cancelPending)
         settings = null
         timeOff?.close()
@@ -214,6 +238,9 @@ class MainActivity : Activity() {
     }
 
     private fun clearModels() {
+        presence?.setActive(false)
+        presence?.listener = null
+        presence = null
         businesses.values.forEach { it.clear() }
         businesses.clear()
         profile?.clear()
@@ -236,6 +263,10 @@ class MainActivity : Activity() {
 
     private fun back(): Boolean {
         when {
+            people != null -> {
+                closeScreen()
+                showHome()
+            }
             timeOff != null -> {
                 if (timeOff?.back() != true) {
                     closeScreen()
@@ -259,6 +290,7 @@ class MainActivity : Activity() {
 
     private fun showTimeOff(title: String) {
         closeScreen()
+        presence?.show("time_off")
         val model = holidays ?: AtlasTimeOffModel(authentication::timeOff).also { holidays = it }
         val screen = AtlasTimeOffScreen(this, title, model)
         timeOff = screen
@@ -268,9 +300,22 @@ class MainActivity : Activity() {
         screen.load()
     }
 
+    private fun showPeople() {
+        closeScreen()
+        val model = presence ?: return
+        val screen = AtlasPeopleScreen(this, model)
+        people = screen
+        setActionBar(screen.toolbar)
+        setContentView(screen.view)
+        updateBack()
+    }
+
     private fun updateBack() {
+        if (tab == "profile" && settings != null) {
+            presence?.show(if (accounts?.page == "settings") "profile" else null)
+        }
         val canUp =
-            timeOff != null || (tab == "profile" && accounts?.page != "settings") ||
+            people != null || timeOff != null || (tab == "profile" && accounts?.page != "settings") ||
                 (business != null && businesses[tab]?.canBack == true) || (workspace != null && navigation?.canBack == true)
         actionBar?.setDisplayHomeAsUpEnabled(canUp)
         home?.fullScreen(businesses[tab]?.draft != null || (tab == "profile" && accounts?.page != "settings"))

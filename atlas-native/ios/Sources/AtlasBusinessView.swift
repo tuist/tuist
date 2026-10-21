@@ -5,6 +5,7 @@ struct AtlasBusinessView: View {
     @StateObject private var model: AtlasBusiness
     @State private var query = ""
     @State private var creating = false
+    @Environment(\.atlasPresence) private var presence
 
     init(resource: AtlasBusinessResource, request: @escaping ([String: Any]) async throws -> Data) {
         _model = StateObject(wrappedValue: AtlasBusiness(resource: resource, request: request))
@@ -73,6 +74,7 @@ struct AtlasBusinessView: View {
         }
         .refreshable { await model.load(query: query, page: model.page?.page ?? 1) }
         .task { if model.page == nil { await model.load() } }
+        .onAppear { presence?.show(resource: model.resource.rawValue) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if model.page?.canWrite == true {
@@ -127,6 +129,7 @@ struct AtlasBusinessDetail: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
     @State private var deleting = false
+    @Environment(\.atlasPresence) private var presence
     private var item: AtlasBusinessRecord { model.records[original.id] ?? original }
 
     var body: some View {
@@ -170,6 +173,7 @@ struct AtlasBusinessDetail: View {
             Button("Delete", role: .destructive) { Task { if await model.delete(item) { dismiss() } } }
         } message: { Text("This cannot be undone.") }
         .task { await model.show(original) }
+        .onAppear { presence?.show(resource: model.resource.rawValue, id: original.id) }
         .onChange(of: model.forbidden) { _, denied in
             if denied { editing = false; dismiss() }
         }

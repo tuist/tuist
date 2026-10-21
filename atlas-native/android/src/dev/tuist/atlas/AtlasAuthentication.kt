@@ -90,6 +90,7 @@ class AtlasAuthentication(
     private val storage = AtlasSecureStorage(context.applicationContext)
     private val worker = Executors.newSingleThreadExecutor()
     private val holidayWorker = Executors.newFixedThreadPool(2)
+    private val presenceWorker = Executors.newFixedThreadPool(2)
 
     @Volatile private var sessionIdentity = 0
     private val main = Handler(Looper.getMainLooper())
@@ -105,6 +106,7 @@ class AtlasAuthentication(
         if (apiRequests == 0) {
             worker.shutdown()
             holidayWorker.shutdown()
+            presenceWorker.shutdown()
         }
         listener = null
     }
@@ -204,6 +206,7 @@ class AtlasAuthentication(
                 if (closing && apiRequests == 0) {
                     worker.shutdown()
                     holidayWorker.shutdown()
+                    presenceWorker.shutdown()
                 }
             }
         }
@@ -218,6 +221,29 @@ class AtlasAuthentication(
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
     ) = operation("business", action, completion)
+
+    fun presence(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        if (action.optString("action") == "open") {
+            operation("presence", action, completion)
+            return
+        }
+        apiRequests += 1
+        presenceWorker.execute {
+            val result = runCatching { command(JSONObject(action.toString()).put("operation", "presence")) }
+            main.post {
+                apiRequests -= 1
+                completion(result)
+                if (closing && apiRequests == 0) {
+                    worker.shutdown()
+                    holidayWorker.shutdown()
+                    presenceWorker.shutdown()
+                }
+            }
+        }
+    }
 
     private fun operation(
         operation: String,
@@ -234,6 +260,11 @@ class AtlasAuthentication(
         fun finish(result: Result<JSONObject>) {
             main.post {
                 apiRequests -= 1
+                if (identity != sessionIdentity && operation == "presence") {
+                    result.getOrNull()?.optString("connection")?.takeIf { it.isNotEmpty() }?.let { id ->
+                        presence(JSONObject().put("action", "close").put("connection", id)) {}
+                    }
+                }
                 completion(
                     if (identity ==
                         sessionIdentity
@@ -247,6 +278,7 @@ class AtlasAuthentication(
                 if (closing && apiRequests == 0) {
                     worker.shutdown()
                     holidayWorker.shutdown()
+                    presenceWorker.shutdown()
                 }
             }
         }

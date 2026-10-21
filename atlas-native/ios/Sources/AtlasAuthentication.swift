@@ -37,7 +37,27 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var browser: ASWebAuthenticationSession?
     private var apiWaiters: [CheckedContinuation<Void, Never>] = []
     private var accountModel: AtlasAIAccounts?
+    private var presenceModel: AtlasPresence?
     private var sessionIdentity = UUID()
+
+    var presence: AtlasPresence {
+        if let presenceModel { return presenceModel }
+        let open = authenticatedRequest(operation: "presence")
+        let model = AtlasPresence { action in
+            if action["action"] as? String == "open" { return try await open(action) }
+            var request = action
+            request["operation"] = "presence"
+            let envelope = try JSONSerialization.jsonObject(with: Data(try await AtlasAuthBridge.execute(
+                String(decoding: JSONSerialization.data(withJSONObject: request), as: UTF8.self)
+            ).utf8)) as? [String: Any]
+            guard let result = envelope?["ok"] else {
+                throw AtlasAuthenticationError(kind: "closed", message: "Presence is disconnected.")
+            }
+            return try JSONSerialization.data(withJSONObject: result)
+        }
+        presenceModel = model
+        return model
+    }
 
     var accountSettings: AtlasAIAccounts {
         if let accountModel { return accountModel }
@@ -99,6 +119,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
 
     func signOut() {
         Task {
+            await presenceModel?.stop()
             await accountModel?.cancelLogin()
             await acquireAPI()
             defer { releaseAPI() }
@@ -111,6 +132,8 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
 
     private func discardSession(removeRegistration: Bool = false) throws {
         try AtlasSecureStorage.delete("session")
+        presenceModel?.setActive(false)
+        presenceModel = nil
         server = nil
         accountModel = nil
         sessionIdentity = UUID()
@@ -174,7 +197,12 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             request["operation"] = operation
             request["session"] = session
             let response = try await self.command(request)
-            guard self.sessionIdentity == identity else { throw CancellationError() }
+            guard self.sessionIdentity == identity else {
+                if operation == "presence", let connection = response["connection"] as? String {
+                    _ = try? await self.command(["operation": "presence", "action": "close", "connection": connection])
+                }
+                throw CancellationError()
+            }
             return try JSONSerialization.data(withJSONObject: response)
         }
     }
