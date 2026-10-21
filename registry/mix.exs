@@ -28,10 +28,7 @@ defmodule TuistRegistry.MixProject do
     [
       # Remove the eMudhra roots until certifi publishes https://github.com/certifi/erlang-certifi/pull/56.
       {:certifi,
-       github: "certifi/erlang-certifi",
-       ref: "f5d808c59ee727ddcfe8abaff7f4ea036950c8e9",
-       depth: 1,
-       override: true},
+       github: "certifi/erlang-certifi", ref: "f5d808c59ee727ddcfe8abaff7f4ea036950c8e9", depth: 1, override: true},
       {:sentry, "~> 11.0.4"},
       {:hackney, "~> 1.8"},
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
