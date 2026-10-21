@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 )
@@ -150,8 +149,9 @@ func (s Subject) ForFields() []any {
 	return fields
 }
 
+// Eviction reasons beside the admission tiers of evictionOrder.
 const (
-	EvictCapacity   = "capacity"
+	EvictExpired    = "expired"
 	EvictIdle       = "idle"
 	EvictSuperseded = "superseded"
 	EvictConflict   = "head_conflict"
@@ -179,14 +179,10 @@ func allocatedBytes(path string) int64 {
 	return info.Size()
 }
 
-// masterGeneration reads the generation from a master's file name.
-func masterGeneration(path string) int64 {
-	name := filepath.Base(path)
-	if len(name) < 21 || name[20] != '-' {
-		return 0
-	}
-	generation, _ := strconv.ParseInt(name[:20], 10, 64)
-	return generation
+// masterSubject names an installed master by its lineage and generation.
+func masterSubject(path string) Subject {
+	generation, _ := masterGeneration(path)
+	return Subject{Scope: filepath.Base(filepath.Dir(path)), Generation: generation}
 }
 
 func Result(err error) string {

@@ -127,5 +127,6 @@ func removeMaster(path string) error {
 		return err
 	}
 	_ = os.Remove(path + ".json")
+	_ = os.Remove(path + ".spare")
 	return nil
 }

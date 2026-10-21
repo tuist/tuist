@@ -54,11 +54,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Every master removal logs `cache master evicted` (`LocalImages.Log`) or
   `checkout master evicted` (`Checkouts.Log`) with `scope`, `generation` or
   `checkout_generation`, `bytes` (allocated; blocks shared with clones stay in
-  use) and `reason`: `capacity` (with `needed_bytes`, `free_bytes` and the
-  `for_*` subject that admission ran for, from `WithSubject`), `idle` (unused 7
-  days), `superseded` (with `head_generation`), `head_conflict` (lineage
-  cleared or expired), `no_metadata` or `cleared` (the checkout volume's scope
-  changed).
+  use) and `reason`. Admission (`reserveBytes`) logs the `evictionOrder` reason
+  (`superseded`, `speculative`, `idle`, `in_use`) under pressure or `expired`
+  (unused 7 days) without, with `needed_bytes`, `free_bytes` and the `for_*`
+  subject it ran for (`WithSubject`). Maintenance logs `expired`, `superseded`
+  (with `head_generation`), `head_conflict` (lineage cleared or expired) or
+  `no_metadata`. Checkouts log `expired`, `idle` (LRU under pressure) or
+  `cleared` (the checkout volume's scope changed). The `evict` observation also
+  names the master's `scope` and `generation`.
 - Linux may prefetch one immutable master after a timed-out warm acquisition,
   bounded to two minutes with no queue and the same disk reserve. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
@@ -116,6 +119,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   used in the last day while its successor is queued, instead of removing it.
 - `PrefetchSpare` admits only into free space and never evicts or reclaims; use it
   for speculative downloads no job waits on. `HasMaster` reports a warm identity's master.
+- Pressure eviction (`reserveBytes`, `evictionOrder`) removes, in order: generations a
+  newer local master of their lineage supersedes; speculative masters (`<master>.spare`,
+  written by a spare prefetch of a lineage with no used copy here, removed by the
+  first clone); the rest least recently used first (mtime). Lineages
+  `LocalImages.InUse` (each host passes `Store.InUse`) reports held or attaching go
+  last: their clones share the masters' blocks, and an attaching job would lose its
+  base and go cold. The order never changes what admission can free, only what goes
+  first. Each removal is an `evict` observation whose source is the reason.
 - `MasterNodeLabels(root)` advertises one `tuist.dev/cache-volume-<first 48 hex of
   scope>` label per lineage with an installed `*.img` master. tart-kubelet
   publishes it on the node heartbeat and the Linux agent merges it into its Node

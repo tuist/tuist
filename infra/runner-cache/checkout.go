@@ -959,7 +959,7 @@ func (c *Checkouts) Maintain() {
 	}
 	for _, master := range c.masters() {
 		if c.now().Sub(master.used) > checkoutIdleFor {
-			c.remove(master, false, EvictIdle)
+			c.remove(master, false, EvictExpired)
 		}
 	}
 	c.removeAbandonedDownloads()
@@ -1009,7 +1009,7 @@ func (c *Checkouts) Evict(enough func() bool) bool {
 		if enough() {
 			break
 		}
-		if c.remove(master, true, EvictCapacity) {
+		if c.remove(master, true, EvictIdle) {
 			removed = true
 		}
 	}

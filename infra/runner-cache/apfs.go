@@ -339,21 +339,26 @@ const PrefetchReservation = "prefetch"
 // Prefetch restores a master, evicting idle masters for room. It needs room for
 // the archive beside the expanded image (Identity.RestoreBytes).
 func (b *APFSImages) Prefetch(ctx context.Context, slot Slot) error {
-	return b.prefetchWith(ctx, slot, b.reserveBytes)
+	return b.prefetchWith(ctx, slot, false)
 }
 
 // PrefetchSpare restores a master like Prefetch, but only into free space: it
 // never evicts a master or reclaims a sharing cache, so a speculative download
-// cannot push out masters that jobs on this host still read.
+// cannot push out masters that jobs on this host still read. Its master of a
+// lineage no job used here is speculative until a job clones it.
 func (b *APFSImages) PrefetchSpare(ctx context.Context, slot Slot) error {
-	return b.prefetchWith(ctx, slot, b.reserveSpare)
+	return b.prefetchWith(ctx, slot, true)
 }
 
-func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(context.Context, uint64) error) error {
+func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, spare bool) error {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
 		return errors.New("invalid prefetch identity")
 	}
 	ctx = WithSubject(ctx, SubjectOf(slot))
+	reserve := b.reserveBytes
+	if spare {
+		reserve = b.reserveSpare
+	}
 	// A download keeps its archive beside the restored image until it expands.
 	if err := reserve(ctx, uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
 		return err
@@ -367,7 +372,7 @@ func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, reserve func(c
 		}
 		defer finish(false)
 	}
-	return b.prefetch(ctx, slot)
+	return b.prefetch(ctx, slot, spare)
 }
 
 var errNoLocalCopy = errors.New("no local copy of the lineage")
@@ -398,7 +403,7 @@ func (b *APFSImages) cloneLocal(ctx context.Context, slot Slot, image, tmp strin
 			return err
 		}
 	}
-	_ = os.Chtimes(master, time.Now(), time.Now())
+	markUsed(master)
 	return nil
 }
 

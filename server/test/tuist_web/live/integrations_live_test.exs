@@ -1119,6 +1119,38 @@ defmodule TuistWeb.IntegrationsLiveTest do
       refute has_element?(lv, "button[phx-click=disconnect-gitlab]")
     end
 
+    test "stores an optional API token without reflecting it and keeps it on a blank save", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      assert html |> Floki.parse_document!() |> Floki.find("input#gitlab-api-token") |> Floki.attribute("type") == [
+               "password"
+             ]
+
+      html =
+        lv
+        |> form("#connect-gitlab-form", %{
+          url: "https://gitlab.com",
+          runner_token: "glrt-private-token",
+          api_token: "glpat-private-api-token"
+        })
+        |> render_submit()
+
+      [connection] = GitLab.list_connections(account.id)
+      assert connection.api_token == "glpat-private-api-token"
+      refute html =~ "glpat-private-api-token"
+
+      html =
+        lv
+        |> form("#gitlab-connection-#{connection.id}", %{runner_token: "", api_token: ""})
+        |> render_submit()
+
+      assert [%{api_token: "glpat-private-api-token"}] = GitLab.list_connections(account.id)
+      refute html =~ "glpat-private-api-token"
+    end
+
     test "rejects invalid credentials without exposing the submitted token", %{conn: conn, account: account} do
       {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
 

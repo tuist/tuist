@@ -97,7 +97,7 @@ func TestCapacityEvictionNamesTheMasterAndWhatItMadeRoomFor(t *testing.T) {
 		t.Fatal(err)
 	}
 	line := out.String()
-	for _, want := range []string{`msg="cache master evicted"`, "scope=" + scope, "generation=3", "reason=capacity", "needed_bytes=20", "free_bytes=0", "for_use=" + first, "for_pod=runner-1", "bytes="} {
+	for _, want := range []string{`msg="cache master evicted"`, "scope=" + scope, "generation=3", "reason=idle", "needed_bytes=20", "free_bytes=0", "for_use=" + first, "for_pod=runner-1", "bytes="} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("missing %s in %s", want, line)
 		}
@@ -126,7 +126,7 @@ func TestMaintenanceEvictionsLogTheirReason(t *testing.T) {
 	for _, want := range []string{
 		"scope=" + filepath.Base(filepath.Dir(idle)) + " generation=2 bytes=",
 		"scope=" + slot.Scope + " generation=1 bytes=",
-		"reason=idle",
+		"reason=expired",
 		"reason=superseded head_generation=2",
 	} {
 		if !strings.Contains(lines, want) {
