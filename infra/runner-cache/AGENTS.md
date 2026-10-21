@@ -54,6 +54,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
   detached branch's `.usage` before sealing so a withheld branch still reports its size.
+- APFS `Seal` poisons a branch whose share no longer exposes the branch image
+  itself (`ErrReplaced`, result `replaced`): the guest's writes went elsewhere.
+  `publish` withholds a branch whose content digest equals its base's
+  (`ErrIdentical`, result `identical`): the guest reported changes that never
+  reached the host, and publishing would only advance the generation.
 - `LocalImages` (Linux) decides the same on the host, while the volume is still
   mounted and before verification: `ErrFull` from `MeasureFS`, `ErrUnchanged`
   when the top-level entries match `<image>.entries` and no entry's ctime is

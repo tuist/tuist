@@ -297,6 +297,13 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
   kill the image helper before dispatch detaches it. Keep job process tracking
   intact for all other commands and preserve the clean-detach publication gate.
+- Attach shared images without `-quiet` so a failure carries hdiutil's reason,
+  and retry a failed attach (three attempts, freeing the mountpoint between
+  them): it fails transiently with the image intact. A final failure is left in
+  the share's `.attach-error` for the host to log. After a clean detach, flush
+  the shared image with `F_FULLFSYNC` before writing `.usage` and `.detached`; a
+  failed flush withholds publication, since the host would otherwise seal an
+  image still missing the job's writes.
 
 ## Cached checkouts
 
