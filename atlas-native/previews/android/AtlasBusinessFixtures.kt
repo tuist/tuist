@@ -1,5 +1,9 @@
 package dev.tuist.atlas.preview
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -11,13 +15,28 @@ internal class AtlasBusinessFixtures {
                 mutableListOf(
                     row(
                         "task-1",
-                        """{"title":"Prepare renewal proposal","description":"Review next year’s scope with the team.","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","account_id":"account-1","account_name":"Sample Studio","due_on":"2027-06-11","remind_at":"2027-06-10T07:00:00Z"}""",
+                        """{"title":"Prepare renewal proposal","description":"Review next year’s scope with the team.","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","account_id":"account-1","account_name":"Sample Studio","due_on":"2099-06-11","remind_at":"2026-06-10T07:00:00Z","reminder_group":"overdue"}""",
                     ),
                     row(
                         "task-2",
-                        """{"title":"Review mobile release","description":"Check Android and iOS builds.","status":"completed","assignee_name":"Jordan Example"}""",
+                        """{"title":"Review mobile release","description":"Check Android and iOS builds.","status":"completed","assignee_id":"user-2","assignee_name":"Jordan Example","reminder_group":"completed"}""",
                     ),
-                    row("task-3", """{"title":"Send follow-up","status":"open","assignee_name":"Alex Example"}"""),
+                    row(
+                        "task-3",
+                        """{"title":"Send follow-up","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","reminder_group":"none"}""",
+                    ),
+                    row(
+                        "task-4",
+                        """{"title":"Check contract details","status":"open","assignee_id":"user-2","assignee_name":"Jordan Example","remind_at":"2026-05-01T09:00:00Z","reminder_group":"overdue"}""",
+                    ),
+                    row(
+                        "task-5",
+                        """{"title":"Plan next quarter","status":"open","assignee_id":"user-1","assignee_name":"Alex Example","due_on":"2020-01-01","remind_at":"2099-01-01T09:00:00Z","reminder_group":"upcoming"}""",
+                    ),
+                    row(
+                        "task-6",
+                        """{"title":"Review onboarding notes","status":"open","assignee_id":"user-2","assignee_name":"Jordan Example","reminder_group":"none"}""",
+                    ),
                 ),
             "accounts" to
                 mutableListOf(
@@ -29,6 +48,7 @@ internal class AtlasBusinessFixtures {
                         "account-2",
                         """{"name":"Example Labs","primary_domain":"labs.example.org","segment":"prospect","status":"trial","deal_stage":"discovery"}""",
                     ),
+                    row("account-3", """{"name":"Northwind Demo","segment":"lead","status":"paused","deal_stage":"discovery"}"""),
                 ),
             "invoices" to
                 mutableListOf(
@@ -40,6 +60,10 @@ internal class AtlasBusinessFixtures {
                         "invoice-2",
                         """{"vendor_name":"Example imported invoice","invoice_number":"IMP-42","invoice_date":"2027-05-15","total_amount_value":"95.10","total_amount_currency":"USD","status":"extracted"}""",
                         false,
+                    ),
+                    row(
+                        "invoice-3",
+                        """{"vendor_name":"Demo Office","invoice_number":"OFF-1","invoice_date":"2027-06-02","total_amount_value":"25.00","total_amount_currency":"EUR","status":"needs_review"}""",
                     ),
                 ),
         )
@@ -54,7 +78,21 @@ internal class AtlasBusinessFixtures {
         val id = action.optString("id")
         return when (action.getString("action")) {
             "list" -> {
-                val matches = rows.filter { it.getJSONObject("fields").toString().contains(action.optString("query"), ignoreCase = true) }
+                val filters = action.optJSONObject("filters") ?: JSONObject()
+                var matches =
+                    rows.filter { row ->
+                        val fields = row.getJSONObject("fields")
+                        fields.toString().contains(action.optString("query"), ignoreCase = true) &&
+                            filters.keys().asSequence().all { key ->
+                                val expected = filters.getString(key)
+                                key == "group_by" || expected.isEmpty() ||
+                                    fields.optString(if (key == "reminder") "reminder_group" else key) == expected
+                            }
+                    }
+                if (filters.optString("group_by") == "reminder") {
+                    val order = listOf("overdue", "upcoming", "none", "completed")
+                    matches = matches.sortedBy { order.indexOf(it.getJSONObject("fields").optString("reminder_group")) }
+                }
                 val page = action.optInt("page", 1).coerceAtLeast(1)
                 JSONObject()
                     .put("items", JSONArray(matches.drop((page - 1) * 2).take(2)))
@@ -83,7 +121,7 @@ internal class AtlasBusinessFixtures {
             }
             "complete" -> {
                 val value = rows.first { it.getString("id") == id }
-                value.getJSONObject("fields").put("status", "completed")
+                value.getJSONObject("fields").put("status", "completed").put("reminder_group", "completed")
                 JSONObject().put("item", value)
             }
             else -> {
@@ -96,11 +134,39 @@ internal class AtlasBusinessFixtures {
                 }
                 if (resource == "tasks") {
                     if (!fields.has("status")) fields.put("status", "open")
+                    if (!fields.has("reminder_group")) fields.put("reminder_group", "none")
                     fields.put("assignee_name", "Alex Example")
                 }
                 JSONObject().put("item", value)
             }
         }
+    }
+
+    fun logo(
+        domain: String,
+        completion: (Bitmap?) -> Unit,
+    ): () -> Unit {
+        val bitmap =
+            if (domain == "sample.example.org") {
+                Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888).apply {
+                    val canvas = Canvas(this)
+                    canvas.drawColor(Color.rgb(25, 100, 160))
+                    canvas.drawText(
+                        "S",
+                        64f,
+                        96f,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = Color.WHITE
+                            textSize = 90f
+                            textAlign = Paint.Align.CENTER
+                        },
+                    )
+                }
+            } else {
+                null
+            }
+        completion(bitmap)
+        return {}
     }
 
     private fun options(resource: String) =

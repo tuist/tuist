@@ -11,6 +11,7 @@ fun main() {
 }
 
 internal fun checkBusinessModels() {
+    checkBusinessLists()
     val fixtures = AtlasBusinessFixtures()
     val pending = mutableListOf<Pair<JSONObject, (Result<JSONObject>) -> Unit>>()
     val model = AtlasBusinessModel("tasks") { action, done -> pending.add(action to done) }
@@ -24,13 +25,13 @@ internal fun checkBusinessModels() {
         pending.removeAt(0).second(Result.failure(IllegalStateException("Preview failure")))
     }
 
-    model.load(2, "follow-up")
-    check(pending.single().first.getString("query") == "follow-up" && pending.single().first.getInt("page") == 2)
+    model.load(search = "follow-up")
+    check(pending.single().first.getString("query") == "follow-up" && pending.single().first.getInt("page") == 1)
     succeed()
-    check(model.page == 2 && model.total == 1 && model.items.isEmpty() && model.query == "follow-up")
-    model.load(1, "")
+    check(model.page == 1 && model.total == 1 && model.items.single().id == "task-3" && model.query == "follow-up")
+    model.load(search = "")
     succeed()
-    check(model.items.size == 2 && model.total == 3 && model.pages == 2)
+    check(model.items.size == 2 && model.total == 6 && model.pages == 3)
     check(model.options.getValue("users").map { it.id } == listOf("user-1", "user-2"))
     model.edit()
     model.field("title", "Keep this draft")
@@ -92,7 +93,7 @@ internal fun checkBusinessModels() {
     check(invoices.draft == null && invoices.items.contains(imported))
     invoices.show(invoices.items.first { it.canEdit })
     invoices.delete(invoices.selected!!)
-    check(invoices.selected == null && invoices.items.size == 1 && invoices.total == 1)
+    check(invoices.selected == null && invoices.items.size == 2 && invoices.total == 2)
 
     val accounts = AtlasBusinessModel("accounts") { action, done -> done(Result.success(fixtures.execute(action))) }
     accounts.load()
@@ -133,4 +134,128 @@ internal fun checkBusinessModels() {
     profile.clear()
     completeProfile(Result.success(fixtures.execute(JSONObject().put("resource", "profile"))))
     check(profile.name.isEmpty() && profile.email.isEmpty() && profile.version.isEmpty())
+}
+
+private fun checkBusinessLists() {
+    for ((resource, count) in listOf("tasks" to 6, "accounts" to 3, "invoices" to 3)) {
+        val fixtures = AtlasBusinessFixtures()
+        val pending = mutableListOf<Pair<JSONObject, (Result<JSONObject>) -> Unit>>()
+        val model = AtlasBusinessModel(resource) { action, done -> pending.add(action to done) }
+
+        fun finish() {
+            val (action, done) = pending.removeAt(0)
+            done(Result.success(fixtures.execute(action)))
+        }
+        model.load()
+        model.load()
+        check(pending.size == 1)
+        finish()
+        val firstIds = model.items.map { it.id }
+        model.rememberScroll(137)
+        model.loadMore()
+        model.loadMore()
+        check(pending.size == 1 && model.loadingMore && model.items.map { it.id } == firstIds)
+        pending.removeAt(0).second(Result.failure(IllegalStateException("Next page failed")))
+        check(model.nextPageError == "Next page failed" && model.error == null && model.page == 1 && !model.loadingMore)
+        repeat(3) { model.loadMore() }
+        check(pending.isEmpty() && model.listScrollY == 137)
+        model.retryNextPage()
+        model.retryNextPage()
+        check(pending.size == 1 && pending.single().first.getInt("page") == 2)
+        val (next, done) = pending.removeAt(0)
+        val response = fixtures.execute(next)
+        val overlap =
+            JSONObject()
+                .put("id", firstIds.last())
+                .put("fields", JSONObject().put("description", "Updated overlap"))
+                .put("can_edit", true)
+                .put("can_delete", true)
+        response.getJSONArray("items").put(overlap)
+        done(Result.success(response))
+        check(model.items.take(2).map { it.id } == firstIds && model.items[1]["description"] == "Updated overlap")
+        check(
+            model.items
+                .map { it.id }
+                .distinct()
+                .size == model.items.size && model.listScrollY == 137 && model.nextPageError == null,
+        )
+        if (resource == "tasks") {
+            model.loadMore()
+            finish()
+        }
+        check(model.items.size == count && model.page == model.pages)
+        model.loadMore()
+        check(pending.isEmpty())
+        model.load()
+        check(pending.single().first.getInt("page") == 1 && model.listScrollY == 0)
+        finish()
+        check(model.items.map { it.id } == firstIds)
+        model.loadMore()
+        val stale = pending.removeAt(0)
+        val filterKey = if (resource == "accounts") "segment" else "status"
+        val filterValue =
+            when (resource) {
+                "tasks" -> "completed"
+                "accounts" -> "prospect"
+                else -> "extracted"
+            }
+        model.load(filters = mapOf(filterKey to filterValue))
+        check(model.items.isEmpty() && model.filters == mapOf(filterKey to filterValue))
+        check(
+            pending
+                .single()
+                .first
+                .getJSONObject("filters")
+                .getString(filterKey) == filterValue,
+        )
+        finish()
+        val filtered = model.items
+        stale.second(Result.success(fixtures.execute(stale.first)))
+        check(model.items == filtered && model.total == 1 && model.page == 1 && !model.busy)
+        model.clear()
+        model.loadMore()
+        check(pending.isEmpty())
+    }
+
+    val fixtures = AtlasBusinessFixtures()
+    val pending = mutableListOf<Pair<JSONObject, (Result<JSONObject>) -> Unit>>()
+    val model = AtlasBusinessModel("tasks") { action, done -> pending.add(action to done) }
+    model.load()
+    model.load(search = "follow-up", filters = mapOf("status" to "open"))
+    model.load(
+        search = "quarter",
+        filters =
+            mapOf(
+                "status" to "",
+                "reminder" to "upcoming",
+                "group_by" to "reminder",
+                "unsupported" to "ignored",
+            ),
+    )
+    check(pending.size == 3 && model.query == "quarter" && model.filters == mapOf("reminder" to "upcoming", "group_by" to "reminder"))
+    val latest = pending.removeAt(2)
+    latest.second(Result.success(fixtures.execute(latest.first)))
+    check(model.items.single().id == "task-5" && model.items.single()["reminder_group"] == "upcoming")
+    pending[1].second(Result.success(fixtures.execute(pending[1].first)))
+    pending[0].second(Result.failure(IllegalStateException("Old failure")))
+    check(model.items.single().id == "task-5" && model.error == null && !model.busy)
+    pending.clear()
+    model.load(search = "", filters = mapOf("group_by" to "reminder"))
+
+    fun finish() {
+        val (action, done) = pending.removeAt(0)
+        done(Result.success(fixtures.execute(action)))
+    }
+    finish()
+    check(model.items.map { it.id } == listOf("task-1", "task-4"))
+    model.loadMore()
+    finish()
+    check(model.items.map { it["reminder_group"] } == listOf("overdue", "overdue", "upcoming", "none"))
+    model.loadMore()
+    model.load(search = "", filters = emptyMap())
+    check(pending.size == 2 && pending.last().first.getInt("page") == 1)
+    val refresh = pending.removeAt(1)
+    refresh.second(Result.success(fixtures.execute(refresh.first)))
+    pending.removeAt(0).second(Result.failure(IllegalStateException("Old next-page failure")))
+    check(model.items.map { it.id } == listOf("task-1", "task-2") && model.nextPageError == null && model.filters.isEmpty())
 }

@@ -68,15 +68,33 @@ struct AtlasBusinessPage: Decodable {
 
 private struct AtlasBusinessMutation: Decodable { let item: AtlasBusinessRecord }
 
+enum AtlasTaskReminderGroup: String, CaseIterable, Identifiable {
+    case overdue, upcoming, none, completed
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .overdue: "Overdue reminders"
+        case .upcoming: "Upcoming reminders"
+        case .none: "No reminder"
+        case .completed: "Completed"
+        }
+    }
+}
+
 @MainActor
 final class AtlasBusiness: ObservableObject {
     let resource: AtlasBusinessResource
     @Published private(set) var page: AtlasBusinessPage?
     @Published private(set) var records: [String: AtlasBusinessRecord] = [:]
     @Published private(set) var busy = false
+    @Published private(set) var loading = false
+    @Published private(set) var nextPageFailed = false
+    @Published private(set) var filters: [String: String] = [:]
+    @Published private(set) var options = AtlasBusinessOptions()
     @Published private(set) var forbidden = false
     @Published var errorMessage: String?
     private(set) var query = ""
+    private var generation = 0
     private let request: ([String: Any]) async throws -> Data
 
     init(resource: AtlasBusinessResource, request: @escaping ([String: Any]) async throws -> Data) {
@@ -84,12 +102,58 @@ final class AtlasBusiness: ObservableObject {
         self.request = request
     }
 
-    func load(query: String? = nil, page: Int = 1) async {
-        guard !busy else { return }
+    func load(query: String? = nil, page: Int = 1, filters: [String: String]? = nil) async {
+        guard !busy || loading else { return }
+        let query = query ?? self.query
+        let filters = (filters ?? self.filters).filter { !$0.value.isEmpty }
+        if query != self.query || filters != self.filters {
+            self.page = nil
+            records = [:]
+        }
+        self.query = query
+        self.filters = filters
+        generation += 1
+        let identity = generation
         busy = true
+        loading = true
+        nextPageFailed = false
         errorMessage = nil
-        defer { busy = false }
-        do { try await fetch(query: query ?? self.query, page: page) } catch is CancellationError {} catch { report(error) }
+        defer { if identity == generation { busy = false; loading = false } }
+        do {
+            let response = try await requestPage(page)
+            guard identity == generation, !Task.isCancelled else { return }
+            accept(response)
+        } catch is CancellationError {} catch {
+            if identity == generation { report(error) }
+        }
+    }
+
+    func setFilter(_ key: String, value: String) async {
+        var filters = self.filters
+        filters[key] = value
+        await load(filters: filters)
+    }
+
+    func loadMore(retry: Bool = false) async {
+        guard !busy, let page, page.page < page.totalPages, !nextPageFailed || retry else { return }
+        let identity = generation
+        busy = true
+        loading = true
+        nextPageFailed = false
+        errorMessage = nil
+        defer { if identity == generation { busy = false; loading = false } }
+        do {
+            let response = try await requestPage(page.page + 1)
+            guard identity == generation, !Task.isCancelled else { return }
+            var ids = Set(page.items.map(\.id))
+            let items = page.items + response.items.filter { ids.insert($0.id).inserted }
+            accept(response, items: items)
+        } catch is CancellationError {} catch {
+            if identity == generation {
+                nextPageFailed = true
+                report(error)
+            }
+        }
     }
 
     func show(_ item: AtlasBusinessRecord) async {
@@ -137,7 +201,7 @@ final class AtlasBusiness: ObservableObject {
                 updatePage(item: response.item)
             }
         } catch is CancellationError { return false } catch { report(error); return false }
-        do { try await fetch(query: query, page: page?.page ?? 1) } catch {
+        do { accept(try await requestPage(1)) } catch {
             report(error)
             errorMessage = "Saved. The list could not refresh. Pull to refresh for current results."
         }
@@ -152,11 +216,17 @@ final class AtlasBusiness: ObservableObject {
                                       totalCount: page.totalCount, canWrite: page.canWrite, options: page.options, summary: page.summary)
     }
 
-    private func fetch(query: String, page: Int) async throws {
-        let response: AtlasBusinessPage = try await call(["action": "list", "query": query, "page": page])
-        self.page = response
-        self.query = query
+    private func requestPage(_ page: Int) async throws -> AtlasBusinessPage {
+        try await call(["action": "list", "query": query, "page": page, "filters": filters])
+    }
+
+    private func accept(_ response: AtlasBusinessPage, items: [AtlasBusinessRecord]? = nil) {
+        page = AtlasBusinessPage(items: items ?? response.items, page: response.page, totalPages: response.totalPages,
+                                 totalCount: response.totalCount, canWrite: response.canWrite,
+                                 options: response.options, summary: response.summary)
+        options = response.options
         forbidden = false
+        nextPageFailed = false
         for item in response.items { records[item.id] = item }
     }
 
@@ -174,6 +244,8 @@ final class AtlasBusiness: ObservableObject {
             forbidden = true
             page = nil
             records = [:]
+            options = AtlasBusinessOptions()
+            nextPageFailed = false
         }
         errorMessage = error.localizedDescription
     }
@@ -193,5 +265,14 @@ enum AtlasBusinessFormatting {
     static func date(_ value: String) -> String {
         guard let date = AtlasHolidayDates.decode(value) else { return value }
         return date.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    static func dateTime(_ value: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fractional = formatter.date(from: value)
+        formatter.formatOptions = [.withInternetDateTime]
+        guard let date = fractional ?? formatter.date(from: value) else { return value }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }

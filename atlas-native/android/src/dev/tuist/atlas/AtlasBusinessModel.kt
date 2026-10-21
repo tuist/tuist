@@ -46,6 +46,8 @@ class AtlasBusinessModel(
         private set
     var query = ""
         private set
+    var filters = emptyMap<String, String>()
+        private set
     var page = 1
         private set
     var pages = 0
@@ -60,65 +62,138 @@ class AtlasBusinessModel(
         private set
     var saving = false
         private set
+    var loadingMore = false
+        private set
+    var nextPageError: String? = null
+        private set
+    var listScrollY = 0
+        private set
     var error: String? = null
         private set
     var notice: String? = null
         private set
     private var generation = 0
     private var cleared = false
+    private var loadingList = false
     val canBack get() = saving || draft != null || selected != null || query.isNotEmpty()
+    val canLoadMore get() =
+        !cleared && loaded && !busy && error == null && nextPageError == null && page < pages && draft == null &&
+            selected == null
 
     init {
         require(resource in listOf("tasks", "accounts", "invoices"))
     }
 
     fun load(
-        nextPage: Int = page,
         search: String = query,
+        filters: Map<String, String> = this.filters,
     ) {
-        if (busy || draft != null || cleared) return
-        fetch(nextPage, search)
+        if ((busy && !loadingList) || draft != null || cleared) return
+        val nextQuery = search.trim()
+        val nextFilters = filters.filter { it.key in filterKeys && it.value.isNotEmpty() }.toMap()
+        val changed = nextQuery != query || nextFilters != this.filters
+        if (loadingList && !loadingMore && !changed) return
+        if (changed) {
+            items = emptyList()
+            loaded = false
+            page = 1
+            pages = 0
+            total = 0
+        }
+        query = nextQuery
+        this.filters = nextFilters
+        listScrollY = 0
+        fetch(1)
+    }
+
+    fun rememberScroll(y: Int) {
+        listScrollY = y.coerceAtLeast(0)
+    }
+
+    fun loadMore() {
+        if (canLoadMore) fetch(page + 1, append = true)
+    }
+
+    fun retryNextPage() {
+        if (nextPageError == null || busy || cleared || draft != null || selected != null) return
+        fetch(page + 1, append = true)
     }
 
     private fun fetch(
         nextPage: Int,
-        search: String,
+        append: Boolean = false,
     ) {
-        send(JSONObject().put("action", "list").put("page", nextPage).put("query", search)) { response ->
-            val rows = response.getJSONArray("items").objects().map(::record)
-            val choices = response.optJSONObject("options") ?: JSONObject()
-            val nextOptions =
-                choices.keys().asSequence().associateWith { key ->
-                    val values = choices.getJSONArray(key)
-                    List(values.length()) { index ->
-                        when (val value = values.get(index)) {
-                            is JSONObject -> Choice(value.getString("id"), value.getString("name"))
-                            else -> Choice(value.toString(), value.toString())
+        busy = true
+        loadingList = true
+        loadingMore = append
+        error = null
+        nextPageError = null
+        val identity = ++generation
+        val action =
+            JSONObject()
+                .put("action", "list")
+                .put("resource", resource)
+                .put("page", nextPage)
+                .put("query", query)
+                .put("filters", JSONObject(filters))
+        listener?.invoke()
+        request(action) { result ->
+            if (cleared || identity != generation) return@request
+            val parsed =
+                result.mapCatching { response ->
+                    val rows = response.getJSONArray("items").objects().map(::record)
+                    val choices = response.optJSONObject("options") ?: JSONObject()
+                    val nextOptions =
+                        choices.keys().asSequence().associateWith { key ->
+                            val values = choices.getJSONArray(key)
+                            List(values.length()) { index ->
+                                when (val value = values.get(index)) {
+                                    is JSONObject -> Choice(value.getString("id"), value.getString("name"))
+                                    else -> Choice(value.toString(), value.toString())
+                                }
+                            }
                         }
-                    }
+                    val months =
+                        response.optJSONArray("summary")?.objects().orEmpty().map {
+                            Month(it.getString("month"), it.getString("currency"), it.getString("amount").toBigDecimal())
+                        }
+                    val nextPageNumber = response.getInt("page")
+                    check(nextPageNumber == nextPage)
+                    val nextPages = response.getInt("total_pages")
+                    val nextTotal = response.getInt("total_count")
+                    val write = response.getBoolean("can_write")
+                    // Refresh replaces the accumulated list; overlapping pages update rows without duplicating IDs.
+                    val combined = if (append) items.associateByTo(linkedMapOf()) { it.id } else linkedMapOf()
+                    rows.forEach { combined[it.id] = it }
+                    items = combined.values.toList()
+                    options = nextOptions
+                    summary = months
+                    page = nextPageNumber
+                    pages = nextPages
+                    total = nextTotal
+                    canWrite = write
+                    loaded = true
                 }
-            val months =
-                response.optJSONArray("summary")?.objects().orEmpty().map {
-                    Month(it.getString("month"), it.getString("currency"), it.getString("amount").toBigDecimal())
+            parsed.onFailure {
+                val message = it.message ?: "Could not load records. Try again."
+                if (it is AuthFailure && it.kind == "forbidden") {
+                    revokeRead()
+                    error = message
+                } else if (append) {
+                    nextPageError = message
+                } else {
+                    error = message
                 }
-            val nextPageNumber = response.getInt("page")
-            val nextPages = response.getInt("total_pages")
-            val nextTotal = response.getInt("total_count")
-            val write = response.getBoolean("can_write")
-            items = rows
-            options = nextOptions
-            summary = months
-            page = nextPageNumber
-            pages = nextPages
-            total = nextTotal
-            query = search
-            canWrite = write
-            loaded = true
+            }
+            busy = false
+            loadingList = false
+            loadingMore = false
+            listener?.invoke()
         }
     }
 
     fun show(value: Record) {
-        if (busy || cleared) return
+        if ((busy && !loadingList) || cleared) return
         selected = value
         notice = null
         send(JSONObject().put("action", "show").put("id", value.id)) { response ->
@@ -149,8 +224,10 @@ class AtlasBusinessModel(
             selected = null
             generation += 1
             busy = false
+            loadingList = false
+            loadingMore = false
         } else if (query.isNotEmpty()) {
-            if (!busy) load(1, "")
+            load(search = "")
             return true
         } else {
             return false
@@ -218,7 +295,8 @@ class AtlasBusinessModel(
             saving = false
             // The successful result is already applied. A failed reload must never reopen a create draft.
             busy = false
-            fetch(1, query)
+            listScrollY = 0
+            fetch(1)
         }
     }
 
@@ -231,7 +309,16 @@ class AtlasBusinessModel(
         draft = null
         options = emptyMap()
         summary = emptyList()
+        loaded = false
+        canWrite = false
+        busy = false
+        saving = false
+        loadingList = false
+        loadingMore = false
         query = ""
+        filters = emptyMap()
+        nextPageError = null
+        listScrollY = 0
         error = null
         notice = null
     }
@@ -241,6 +328,8 @@ class AtlasBusinessModel(
         accept: (JSONObject) -> Unit,
     ) {
         busy = true
+        loadingList = false
+        loadingMore = false
         error = null
         val identity = ++generation
         listener?.invoke()
@@ -255,12 +344,7 @@ class AtlasBusinessModel(
                 }
             }, {
                 if (it is AuthFailure && it.kind == "forbidden" && action.getString("action") in listOf("list", "show")) {
-                    items = emptyList()
-                    selected = null
-                    options = emptyMap()
-                    summary = emptyList()
-                    canWrite = false
-                    loaded = false
+                    revokeRead()
                 }
                 error = it.message ?: "Could not complete the request. Try again."
             })
@@ -268,6 +352,24 @@ class AtlasBusinessModel(
             listener?.invoke()
         }
     }
+
+    private fun revokeRead() {
+        items = emptyList()
+        selected = null
+        options = emptyMap()
+        summary = emptyList()
+        canWrite = false
+        loaded = false
+        nextPageError = null
+    }
+
+    val filterKeys: List<String>
+        get() =
+            when (resource) {
+                "tasks" -> listOf("status", "assignee_id", "reminder", "group_by")
+                "accounts" -> listOf("segment", "status", "deal_stage")
+                else -> listOf("status")
+            }
 
     val editableFields: List<String>
         get() =

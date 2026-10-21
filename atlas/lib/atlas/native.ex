@@ -23,14 +23,23 @@ defmodule Atlas.Native do
   def fields("invoices"), do: Invoice.manual_fields()
 
   def list(resource, params, user) do
+    now = DateTime.utc_now()
+
     with :ok <- validate_query(params["query"]),
+         :ok <- validate_filters(resource, params),
          {:ok, flop} <-
            Flop.validate(%{"page" => Map.get(params, "page", 1), "page_size" => 25}, pagination_types: [:page]) do
-      {items, meta} = resource |> query() |> search(params["query"], resource) |> Flop.run(flop)
+      {items, meta} =
+        resource
+        |> query()
+        |> search(params["query"], resource)
+        |> filter(resource, params, now)
+        |> group(resource, params["group_by"], now)
+        |> Flop.run(flop)
 
       {:ok,
        %{
-         items: Enum.map(items, &record(resource, &1, user)),
+         items: Enum.map(items, &record(resource, &1, user, now)),
          page: meta.current_page,
          total_pages: max(meta.total_pages || 0, 1),
          total_count: meta.total_count,
@@ -52,7 +61,9 @@ defmodule Atlas.Native do
     end
   end
 
-  def record("tasks", task, user) do
+  def record(resource, item, user, now \\ DateTime.utc_now())
+
+  def record("tasks", task, user, now) do
     task = Repo.preload(task, [:assignee, :account])
 
     values =
@@ -60,14 +71,15 @@ defmodule Atlas.Native do
       |> values(@task_fields)
       |> Map.put(:assignee_name, association_name(task.assignee))
       |> Map.put(:account_name, association_name(task.account))
+      |> Map.put(:reminder_group, reminder_group(task, now))
 
     item(task.id, values, can_write?("tasks", user))
   end
 
-  def record("accounts", account, user),
+  def record("accounts", account, user, _now),
     do: item(account.id, values(account, @account_fields), can_write?("accounts", user))
 
-  def record("invoices", invoice, user) do
+  def record("invoices", invoice, user, _now) do
     item(
       invoice.id,
       values(invoice, Invoice.manual_fields()),
@@ -107,6 +119,81 @@ defmodule Atlas.Native do
   end
 
   defp search(query, _value, _resource), do: query
+
+  defp filter_options("tasks"),
+    do: [status: ~w(open completed), assignee_id: :uuid, reminder: ~w(overdue upcoming none), group_by: ~w(reminder)]
+
+  defp filter_options("accounts"),
+    do: [
+      segment: Enum.map(Account.segments(), &to_string/1),
+      status: Account.statuses(),
+      deal_stage: Account.deal_stages()
+    ]
+
+  defp filter_options("invoices"), do: [status: Invoice.statuses()]
+
+  defp validate_filters(resource, params) do
+    options = Map.new(filter_options(resource), fn {key, values} -> {to_string(key), values} end)
+
+    valid? =
+      params
+      |> Map.drop(["page", "query"])
+      |> Enum.all?(fn {key, value} ->
+        case Map.fetch(options, key) do
+          {:ok, values} when is_binary(value) ->
+            value == "" or if(values == :uuid, do: match?({:ok, _}, Ecto.UUID.cast(value)), else: value in values)
+
+          _invalid ->
+            false
+        end
+      end)
+
+    if valid?, do: :ok, else: {:error, :invalid_params}
+  end
+
+  defp filter(query, resource, params, now) do
+    Enum.reduce(filter_options(resource), query, fn {key, _values}, query ->
+      filter_value(query, key, params[to_string(key)], now)
+    end)
+  end
+
+  defp filter_value(query, _key, value, _now) when value in [nil, ""], do: query
+  defp filter_value(query, :group_by, _value, _now), do: query
+
+  defp filter_value(query, :reminder, "overdue", now),
+    do: where(query, [task], task.status == "open" and task.remind_at <= ^now)
+
+  defp filter_value(query, :reminder, "upcoming", now),
+    do: where(query, [task], task.status == "open" and task.remind_at > ^now)
+
+  defp filter_value(query, :reminder, "none", _now),
+    do: where(query, [task], task.status == "open" and is_nil(task.remind_at))
+
+  defp filter_value(query, key, value, _now), do: where(query, [item], field(item, ^key) == ^value)
+
+  defp group(query, "tasks", "reminder", now) do
+    query
+    |> exclude(:order_by)
+    |> order_by([task],
+      asc:
+        fragment(
+          "CASE WHEN ? = 'completed' THEN 3 WHEN ? <= ? THEN 0 WHEN ? > ? THEN 1 ELSE 2 END",
+          task.status,
+          task.remind_at,
+          ^now,
+          task.remind_at,
+          ^now
+        ),
+      asc_nulls_last: task.remind_at,
+      asc: task.id
+    )
+  end
+
+  defp group(query, _resource, _group_by, _now), do: query
+
+  defp reminder_group(%Task{status: "completed"}, _now), do: "completed"
+  defp reminder_group(%Task{remind_at: nil}, _now), do: "none"
+  defp reminder_group(task, now), do: if(DateTime.after?(task.remind_at, now), do: "upcoming", else: "overdue")
 
   defp options(resource) do
     %{
