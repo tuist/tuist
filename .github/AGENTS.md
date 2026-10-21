@@ -63,7 +63,7 @@ Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
 The separate native iOS UI job builds the isolated Once fixture runner, exercises
-CRUD/navigation with `xcodebuild test-without-building`, and exports xcresult
+CRUD/navigation, including `AtlasNavigationUITests` object links, with `xcodebuild test-without-building`, and exports xcresult
 screenshots plus a simulator recording as `atlas-native-ui-evidence`. Fixtures
 make no live account-management requests and never enter production source globs.
 Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64

@@ -54,6 +54,7 @@ struct AtlasBusinessEditor: View {
                 Button("Discard changes", role: .destructive) { dismiss() }
             }
         }
+        .protectsAtlasNavigation()
     }
 
     private var taskFields: some View {

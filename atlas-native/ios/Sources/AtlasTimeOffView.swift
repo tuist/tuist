@@ -71,6 +71,8 @@ struct AtlasTimeOffView: View {
         }
         .navigationTitle(title)
         .disabled(model.busy)
+        .protectsAtlasNavigation(model.mutating && editor == nil)
+        .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)
         .refreshable { await model.load() }
         .task { await model.load() }
         .sheet(item: $editor) {
@@ -157,6 +159,7 @@ private struct AtlasHolidayForm: View {
             .onChange(of: first) { _, value in if last < value { last = value } }
             .onAppear { model.errorMessage = nil }
         }
+        .protectsAtlasNavigation()
     }
 
     @ViewBuilder private func dateField(

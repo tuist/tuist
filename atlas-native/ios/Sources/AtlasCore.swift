@@ -74,6 +74,15 @@ struct AtlasCatalog {
 }
 
 enum AtlasCore {
+    static func destinations() -> [String: Bool] {
+        var result: [String: Bool] = [:]
+        for index in 0..<atlas_destination_count() {
+            guard let screen = atlas_destination_field(index, 0), let records = atlas_destination_field(index, 1) else { continue }
+            result[String(cString: screen)] = String(cString: records) == "1"
+        }
+        return result
+    }
+
     static func sections() -> [AtlasSection] {
         (0..<atlas_section_count()).compactMap { index in
             guard

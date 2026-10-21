@@ -64,6 +64,35 @@ pub extern "system" fn Java_dev_tuist_atlas_AtlasCore_groupFieldByte(
     atlas_group_field_byte(group, field_id, offset)
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_tuist_atlas_AtlasCore_destinationCount(
+    _environment: *mut c_void,
+    _instance: *mut c_void,
+) -> i32 {
+    crate::ffi::atlas_destination_count()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_tuist_atlas_AtlasCore_destinationFieldLength(
+    _environment: *mut c_void,
+    _instance: *mut c_void,
+    destination: i32,
+    field: i32,
+) -> i32 {
+    crate::ffi::atlas_destination_field_length(destination, field)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_tuist_atlas_AtlasCore_destinationFieldByte(
+    _environment: *mut c_void,
+    _instance: *mut c_void,
+    destination: i32,
+    field: i32,
+    offset: i32,
+) -> i32 {
+    crate::ffi::atlas_destination_field_byte(destination, field, offset)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,6 +165,69 @@ mod tests {
             Java_dev_tuist_atlas_AtlasCore_groupFieldByte(env, instance, 0, 0, -1),
             -1
         );
+    }
+
+    #[test]
+    fn destination_bridge_matches_c_and_rejects_invalid_indices() {
+        use crate::ffi::*;
+        let env = core::ptr::null_mut();
+        let instance = core::ptr::null_mut();
+        assert_eq!(
+            Java_dev_tuist_atlas_AtlasCore_destinationCount(env, instance),
+            atlas_destination_count()
+        );
+        for destination in 0..atlas_destination_count() {
+            for field in 0..2 {
+                let expected = crate::destinations::field(destination, field).unwrap();
+                assert_eq!(
+                    atlas_destination_field(destination, field),
+                    expected.as_ptr()
+                );
+                let len = Java_dev_tuist_atlas_AtlasCore_destinationFieldLength(
+                    env,
+                    instance,
+                    destination,
+                    field,
+                );
+                let bytes: Vec<_> = (0..len)
+                    .map(|offset| {
+                        Java_dev_tuist_atlas_AtlasCore_destinationFieldByte(
+                            env,
+                            instance,
+                            destination,
+                            field,
+                            offset,
+                        ) as u8
+                    })
+                    .collect();
+                assert_eq!(bytes, expected.to_bytes());
+                assert_eq!(atlas_destination_field_byte(destination, field, len), -1);
+            }
+        }
+        for (destination, field) in [(-1, 0), (atlas_destination_count(), 0), (0, -1), (0, 2)] {
+            assert!(atlas_destination_field(destination, field).is_null());
+            assert_eq!(
+                Java_dev_tuist_atlas_AtlasCore_destinationFieldLength(
+                    env,
+                    instance,
+                    destination,
+                    field
+                ),
+                -1
+            );
+            assert_eq!(
+                Java_dev_tuist_atlas_AtlasCore_destinationFieldByte(
+                    env,
+                    instance,
+                    destination,
+                    field,
+                    0
+                ),
+                -1
+            );
+        }
+        assert_eq!(atlas_destination_field_byte(0, 0, -1), -1);
+        assert_eq!(atlas_destination_field_byte(0, 0, i32::MAX), -1);
     }
 
     #[test]

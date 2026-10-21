@@ -96,6 +96,11 @@ final class AtlasBusinessPreviewData: ObservableObject {
                 ]))
             }
         }
+        if ProcessInfo.processInfo.arguments.contains("--deep-links") {
+            items["tasks", default: []].append(Self.record("123e4567-e89b-12d3-a456-426614174000", [
+                "title": "Deep-linked task beyond the first page", "description": "Opened directly by UUID.", "status": "open"
+            ]))
+        }
     }
 
     private static func record(_ id: String, _ fields: [String: String], writable: Bool = true) -> [String: Any] {
@@ -172,7 +177,10 @@ final class AtlasBusinessPreviewData: ObservableObject {
         var rows = items[resource] ?? []
         let id = action["id"] as? String
         let index = rows.firstIndex { $0["id"] as? String == id }
-        if command == "show", let index { return try JSONSerialization.data(withJSONObject: ["item": rows[index]]) }
+        if command == "show" {
+            guard let index else { throw AtlasAuthenticationError(kind: "unavailable", message: "This record could not be found.") }
+            return try JSONSerialization.data(withJSONObject: ["item": rows[index]])
+        }
         if ProcessInfo.processInfo.arguments.contains("--fail-business-save") {
             throw AtlasAuthenticationError(kind: "server", message: "Preview save failed. Your changes are still here.")
         }

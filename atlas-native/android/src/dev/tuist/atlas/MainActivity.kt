@@ -33,6 +33,8 @@ class MainActivity : Activity() {
     private var restorePeople = false
     private var tab = "tasks"
     private var unregisterBack: (() -> Unit)? = null
+    private lateinit var router: AtlasDestinationRouter
+    private var linkDialog: AlertDialog? = null
 
     private data class Retained(
         val authentication: AtlasAuthentication,
@@ -43,6 +45,7 @@ class MainActivity : Activity() {
         val businesses: MutableMap<String, AtlasBusinessModel>,
         val tab: String,
         val presence: AtlasPresenceModel?,
+        val router: AtlasDestinationRouter,
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,18 +57,23 @@ class MainActivity : Activity() {
         profile = retained?.profile
         holidays = retained?.holidays
         presence = retained?.presence
+        router = retained?.router ?: AtlasDestinationRouter()
         businesses = retained?.businesses ?: mutableMapOf()
         tab = retained?.tab ?: savedInstanceState?.getString("tab")?.takeIf { it in tabIds } ?: "tasks"
         navigation = retained?.navigation ?: catalogNavigation(savedInstanceState?.getString("workspace_group"))
         restoreTimeOff = savedInstanceState?.getBoolean("time_off") == true
         restorePeople = savedInstanceState?.getBoolean("people") == true
         recoveredLoginId = if (retained?.accounts == null) savedInstanceState?.getString("chatgpt_login_id") else null
-        if (retained == null && intent.data == null) authentication.restore()
-        if (savedInstanceState == null) handleCallback(intent)
+        // Navigation links still need the saved session; only an OAuth callback replaces restoration.
+        val data = intent.data?.toString()
+        val completingLogin =
+            savedInstanceState == null && intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY == 0 && isOAuthCallback(data)
+        if (retained == null && !completingLogin) authentication.restore()
+        if (savedInstanceState == null) handleIntent(intent)
     }
 
     override fun onRetainNonConfigurationInstance(): Any =
-        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab, presence)
+        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab, presence, router)
 
     override fun onStart() {
         super.onStart()
@@ -91,6 +99,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         closeScreen(cancelPending = !isChangingConfigurations)
+        linkDialog?.dismiss()
         unregisterBack?.invoke()
         if (!isChangingConfigurations) {
             clearModels()
@@ -102,13 +111,89 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleCallback(intent)
+        handleIntent(intent)
     }
 
-    private fun handleCallback(intent: Intent) {
-        val callback = intent.data ?: return
+    private fun handleIntent(intent: Intent) {
+        val data = intent.data?.toString() ?: return
         intent.data = null
-        authentication.callback(callback.toString())
+        // Reopening Atlas from Recents redelivers the original intent; never replay its link.
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        if (isOAuthCallback(data)) {
+            authentication.callback(data)
+            return
+        }
+        val link = AtlasDestination.parse(data, AtlasCore().destinations())
+        if (link == null) {
+            linkMessage("This Atlas link is invalid or is not supported by this app.")
+            return
+        }
+        router.receive(link)
+        // Until the signed-in shell has rendered, render() opens the pending link.
+        if (authentication.server != null && presence != null) openPendingLink()
+    }
+
+    private fun isOAuthCallback(data: String?): Boolean {
+        val uri = data?.let(Uri::parse) ?: return false
+        return uri.scheme.equals("dev.tuist.atlas", ignoreCase = true) && uri.host.equals("oauth-callback", ignoreCase = true)
+    }
+
+    // Returns true when the link replaced the current screen.
+    private fun openPendingLink(): Boolean =
+        when (val outcome = router.resolve(authentication.server)) {
+            AtlasDestinationRouter.Outcome.None -> false
+            AtlasDestinationRouter.Outcome.WrongServer -> {
+                linkMessage("This link belongs to a different Atlas server. Sign in to that server and open the link again.")
+                false
+            }
+            is AtlasDestinationRouter.Outcome.Open -> navigate(outcome.destination)
+        }
+
+    private fun navigate(destination: AtlasDestination): Boolean {
+        if (hasUnsavedWork()) {
+            linkMessage("Finish or discard your changes, then open the link again.")
+            return false
+        }
+        closeScreen()
+        when (destination.screen) {
+            // Browse is the parent of these screens, so Back returns there rather than to the previous tab.
+            "time-off" -> {
+                tab = "browse"
+                showTimeOff(AtlasCore().sections().first { it.screen == "time-off" }.title)
+            }
+            "people" -> {
+                tab = "browse"
+                showPeople()
+            }
+            "profile" -> {
+                tab = "profile"
+                showHome()
+            }
+            else -> {
+                tab = destination.screen
+                val model = businesses.getOrPut(tab) { AtlasBusinessModel(tab, authentication::business) }
+                destination.recordId?.let(model::open) ?: model.showList()
+                showHome()
+            }
+        }
+        return true
+    }
+
+    // Links never discard a draft, an in-flight save, or an AI provider setup (leaving it cancels ChatGPT sign-in).
+    private fun hasUnsavedWork(): Boolean =
+        businesses.values.any { it.draft != null || it.saving } ||
+            holidays?.let { it.draft != null || it.saving } == true ||
+            accounts?.let { it.page != "settings" || it.login != null } == true
+
+    private fun linkMessage(message: String) {
+        linkDialog?.dismiss()
+        linkDialog =
+            AlertDialog
+                .Builder(this)
+                .setTitle("Couldn’t open link")
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
     }
 
     private fun render() {
@@ -117,6 +202,7 @@ class MainActivity : Activity() {
             openBrowser(Uri.parse(url))
         }
         if (authentication.server == null) {
+            router.resolve(null)
             closeScreen()
             clearModels()
             if (!authentication.busy) {
@@ -140,6 +226,7 @@ class MainActivity : Activity() {
         if (presence == null) {
             presence = AtlasPresenceModel(authentication::presence).also { it.setActive(true) }
         }
+        if (openPendingLink()) return
         if (home != null || timeOff != null || people != null) return
         if (restorePeople) {
             restorePeople = false
@@ -193,6 +280,7 @@ class MainActivity : Activity() {
                                 clearModels()
                                 navigation = null
                                 tab = "tasks"
+                                router.reset()
                                 authentication.signOut()
                             }
                         }

@@ -13,7 +13,7 @@ Native clients for Atlas, with a shared Rust core and builds powered by
 | Internal distribution | [tuist/atlas-mobile](https://tuist.dev/tuist/atlas-mobile) |
 
 The app signs in to hosted or self-hosted Atlas using its existing browser login
-page, then presents Accounts, Tasks and Notes using the shared Rust catalog.
+page, then presents a native workspace using the shared Rust catalog.
 Rust owns OAuth discovery, dynamic public-client registration, S256 PKCE, token
 exchange and refresh. iOS presents a system authentication session and stores
 credentials in Keychain; Android opens the system browser and encrypts credentials
@@ -26,10 +26,20 @@ and the same Tuist mark used by Atlas's web login and dashboard. They offer Atla
 selection happens on the server's login page. Light and dark assets share a
 checked-in generator under `resources/`.
 
-Selecting a section still opens its Atlas page in the system browser, which may
-ask for a separate browser sign-in. Native OAuth tokens do not create browser
-cookies. The app does not yet fetch workspace data or provide offline editing;
-this is a foundation for native features, not a WebView wrapper.
+Tasks, sales accounts, manual invoice bookkeeping, employee time off, People and
+Profile use native screens and authenticated APIs. Browse displays implemented
+native destinations only; the shared catalog/CLI also retain browser routes.
+Native OAuth tokens do not create browser cookies. The app is not a WebView
+wrapper and does not provide offline editing.
+
+## Object navigation
+
+Both clients accept server-bound native object links for Tasks, Accounts, Finance,
+Time off, People and Profile. A link can open a task, account or invoice directly
+by UUID, independently of loaded list pages. Notifications, other systems and UI
+agents use the same read-only destination contract and normal authentication.
+See [Native object navigation](navigation.md) for the protocol, lifecycle,
+security boundaries, platform research and simulator/emulator commands.
 
 ## Develop
 

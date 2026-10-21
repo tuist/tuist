@@ -88,6 +88,7 @@ final class AtlasBusiness: ObservableObject {
     @Published private(set) var records: [String: AtlasBusinessRecord] = [:]
     @Published private(set) var busy = false
     @Published private(set) var loading = false
+    @Published private(set) var mutating = false
     @Published private(set) var nextPageFailed = false
     @Published private(set) var filters: [String: String] = [:]
     @Published private(set) var options = AtlasBusinessOptions()
@@ -156,6 +157,16 @@ final class AtlasBusiness: ObservableObject {
         }
     }
 
+    func record(id: String) async throws -> AtlasBusinessRecord {
+        let response: AtlasBusinessMutation = try await call(["action": "show", "id": id])
+        try Task.checkCancellation()
+        guard response.item.id == id else {
+            throw AtlasAuthenticationError(kind: "invalid_response", message: "Atlas returned an invalid response. Try again.")
+        }
+        records[id] = response.item
+        return response.item
+    }
+
     func show(_ item: AtlasBusinessRecord) async {
         guard !busy else { return }
         records[item.id] = records[item.id] ?? item
@@ -184,8 +195,9 @@ final class AtlasBusiness: ObservableObject {
     private func mutate(_ action: [String: Any]) async -> Bool {
         guard !busy else { return false }
         busy = true
+        mutating = true
         errorMessage = nil
-        defer { busy = false }
+        defer { busy = false; mutating = false }
         do {
             if action["action"] as? String == "delete" {
                 var input = action

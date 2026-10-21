@@ -20,6 +20,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="dev.tuist.atlas" android:host="oauth-callback" />
             </intent-filter>
+            <!-- Navigation-only links: dev.tuist.atlas://navigate/<screen>[/<uuid>]?server=<origin>. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dev.tuist.atlas" android:host="navigate" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>
