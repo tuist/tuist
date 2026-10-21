@@ -505,7 +505,11 @@ longer on `main` before deleting the `Cluster` resource.
 KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist delete cluster <cluster_name>
 ```
 
-caph drains + deletes the nodes and releases the Hetzner LB and servers.
+caph drains + deletes the nodes and servers, and releases its API-server load
+balancer and network. It does not touch the load balancers the Hetzner cloud
+controller created for `type: LoadBalancer` Services such as ingress-nginx:
+delete those Services first, while the controller still runs, or remove the
+leftover load balancers in the Hetzner console afterwards.
 
 ---
 
