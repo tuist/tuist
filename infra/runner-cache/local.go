@@ -576,6 +576,13 @@ func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	_, checking := os.Stat(b.image(slot) + ".checking")
 	if os.IsNotExist(verified) && os.IsNotExist(checking) {
 		if err := b.withheld(slot, path); err != nil {
+			if errors.Is(err, ErrUnchanged) {
+				b.keepUnchanged(slot, func() error {
+					// A retried seal must withhold this branch again, never publish it.
+					defer os.Remove(b.image(slot) + ".verified")
+					return b.verify(slot, path)
+				})
+			}
 			return err
 		}
 	}
@@ -612,19 +619,51 @@ func (b *LocalImages) publish(slot Slot) error {
 	slot.ContentDigest = content
 	unlock := b.lock(slot.Scope)
 	defer unlock()
+	return b.installBranch(slot)
+}
+
+// installBranch makes the slot's branch the master of its generation. The
+// caller holds the scope lock.
+func (b *LocalImages) installBranch(slot Slot) error {
 	master := b.master(slot)
-	if err = os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
 		return err
 	}
 	tmp := master + ".tmp"
 	_ = os.Remove(tmp)
-	if err = b.clone(b.image(slot), tmp); err != nil {
+	if err := b.clone(b.image(slot), tmp); err != nil {
 		return err
 	}
-	if err = durableRename(tmp, master); err != nil {
+	if err := durableRename(tmp, master); err != nil {
 		return err
 	}
 	return b.recordMaster(slot, master)
+}
+
+// keepUnchanged installs a branch the job left unchanged as the master of its
+// base generation when this host no longer holds that master, as when admission
+// evicted it while the job ran. The branch is a clone of that master, so the
+// lineage stays warm here without a download. Only a job that may publish seals
+// a branch, and verify checks it as publication would.
+func (b *LocalImages) keepUnchanged(slot Slot, verify func() error) {
+	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) || b.HasMaster(slot.Identity) {
+		return
+	}
+	_ = b.operation("keep", "unchanged", func() error {
+		if err := verify(); err != nil {
+			return err
+		}
+		unlock := b.lock(slot.Scope)
+		defer unlock()
+		if b.HasMaster(slot.Identity) {
+			return nil
+		}
+		if err := b.installBranch(slot); err != nil {
+			return err
+		}
+		now := time.Now()
+		return os.Chtimes(b.master(slot), now, now)
+	})
 }
 
 // The guard is durable before consuming one-shot kernel write-back errors.

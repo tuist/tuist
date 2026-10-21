@@ -237,6 +237,10 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 		return ErrFull
 	}
 	if !usage.Changed {
+		// A branch cloned from an older generation holds that generation's content.
+		if b.MountedGeneration(slot) == 0 {
+			b.keepUnchanged(slot, func() error { return b.Verify(image) })
+		}
 		return ErrUnchanged
 	}
 	if _, err := os.Stat(image + ".checking"); err == nil {
