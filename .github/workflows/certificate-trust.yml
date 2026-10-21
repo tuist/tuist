@@ -22,6 +22,8 @@ on:
       - tuist_ex/test/tuist_ex/fixtures/certificate_trust/**
       - cli/Sources/TuistHTTP/CertificateTrust.swift
       - cli/Sources/TuistHTTP/TuistURLSessionDelegate.swift
+      - cli/Sources/TuistHTTP/URLSession+Tuist.swift
+      - cli/Sources/TuistREAPI/REAPITransport.swift
       - gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt
       - gradle/src/test/kotlin/dev/tuist/gradle/CertificateTrust*Test.kt
   push:

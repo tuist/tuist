@@ -95,23 +95,44 @@ application verification paths must be assessed separately.
 - Gradle now applies a per-client `X509ExtendedTrustManager` to both OkHttp and
   HTTPS URL connections. It retains the original validator and socket/engine
   context, rejects the twelve keys, and performs additional validation against
-  filtered anchors. It never changes JVM-global trust defaults. Twenty-two
-  focused tests pass, including preserved private CAs and rejected hostname,
+  filtered anchors. It never changes JVM-global trust defaults. An additional PKIX checker covers built/AIA/cached intermediates, not only
+  certificates supplied by the peer. Twenty-three focused tests pass, including
+  all eight real intermediate paths, preserved private CAs and rejected hostname,
   expired-certificate and unknown-CA cases. Both actual transports in the shaded
   candidate JAR reject all twelve public controls and accept unrelated HTTPS
   on JDK 21.0.2. Candidate JAR SHA-256:
-  `82415c7ac17ae7a53902eda23c6017a5103aad0d8d95f659d25d23d19b785ac2`.
+  `75d86bb3106f9f054954e700c5c64a0a775a20c8a5ba721b9cd7c660df1a1b66`.
   This is not a published plugin or qualification of every JVM/provider.
+
+- The subsequent Swift sweep routes default/shared/configured Apple sessions and
+  direct CLI/app authentication, OIDC, artifact, shard and image calls through
+  the policy. Native-default cache/cookie/timeout behavior is retained for direct
+  callers. Review caught that NIOSSL's Darwin default-root verifier bypasses
+  legacy callbacks, so the original public-negative tests did not prove our deny
+  was running. Corrected Darwin origin/proxy handling explicitly reproduces
+  normal asynchronous Security.framework SSL/hostname verification and checks
+  the full evaluated chain. Explicit roots on Darwin and other platforms retain
+  BoringSSL verification plus the per-certificate deny. Normalized anchors come
+  from the context, avoiding mismatched configuration; disabled/hostname-less
+  verification is refused. Thirty-nine focused Xcode tests pass after correction,
+  including production-config generated root/leaf deny regressions independent
+  of platform revocation, effective-system-anchor DER compatibility, actual
+  Foundation controls with affected anchors, twelve public NIOSSL controls and
+  unrelated/private-CA positives and refresh/OIDC. The full CLI build passed
+  after an earlier timeout. macOS and iOS Simulator app builds both passed again
+  after the corrected shared helper; simulator compilation is not iOS runtime
+  qualification. Linux FoundationNetworking, complete proxy/gRPC/device flows
+  and independent releases remain open.
 
 Candidate builds at `47d307fdde` successfully published SHA-only CAPI, egress
 agent, runners-controller and cache-agent images. They were not deployed.
-The fresh macOS 26.5 runner build failed closed when the guest refused the
+Both macOS runner builds (26.5/26.6) and xcresult failed closed when the guest refused the
 `com.apple.trust-settings.admin` authorization database write (`-60005`); no
 artifact was created. Linux image builds lost their self-hosted runner again
 even on the larger shape; bind-mount tests passed but image qualification did
 not. Do not treat the unexecuted native checks or lost builds as passed.
-Remaining macOS/xcresult candidates and client/platform rows still require
-separate qualification and release.
+No successful macOS/xcresult candidate was produced. Those images and the
+remaining client/platform rows still require separate qualification and release.
 
 ## Validation and limits
 
