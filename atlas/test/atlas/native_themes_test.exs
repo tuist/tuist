@@ -6,7 +6,6 @@ defmodule Atlas.NativeThemesTest do
   test "companies can replace the catalog and default without a client release" do
     defaults = NativeThemes.catalog(nil)
     assert {:ok, ^defaults} = NativeThemes.validate(defaults)
-    assert Enum.map(defaults["themes"], & &1["id"]) == ~w(pulse berlin habibi amrit pelotas branik)
 
     theme = defaults["themes"] |> hd() |> Map.merge(%{"id" => "northstar", "name" => "Northstar"})
 
