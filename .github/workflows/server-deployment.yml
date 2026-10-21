@@ -1074,6 +1074,61 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Pre-pull the server image
+        # The migration Job and every server Pod the rollout replaces one at a
+        # time otherwise start by pulling the new image on their node (22-40s
+        # each). A throwaway DaemonSet on the nodes server Pods schedule to
+        # pulls it now, while the steps before the Helm upgrade run, and
+        # "Remove the server image pre-pull" deletes it afterwards. Nothing
+        # waits on it: a node that has not finished pulling just pulls for
+        # the Pod as before. Only the server Deployment's node placement is
+        # copied; its pod anti-affinity would keep these Pods off its nodes.
+        run: |
+          set -euo pipefail
+          if ! scheduling="$(
+            kubectl -n "$NAMESPACE" get deployment tuist-tuist-server -o json 2>/dev/null \
+              | jq -c '.spec.template.spec | {
+                  nodeSelector,
+                  tolerations,
+                  affinity: (if .affinity.nodeAffinity then {nodeAffinity: .affinity.nodeAffinity} else null end)
+                } | with_entries(select(.value != null))'
+          )"; then
+            echo "No server Deployment in $NAMESPACE yet; nothing to pre-pull."
+            exit 0
+          fi
+          image="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+          jq -n --arg namespace "$NAMESPACE" --arg image "$image" --argjson scheduling "$scheduling" '{
+            apiVersion: "apps/v1",
+            kind: "DaemonSet",
+            metadata: {
+              name: "tuist-server-image-prepull",
+              namespace: $namespace,
+              labels: {"app.kubernetes.io/name": "tuist-server-image-prepull"}
+            },
+            spec: {
+              selector: {matchLabels: {"app.kubernetes.io/name": "tuist-server-image-prepull"}},
+              template: {
+                metadata: {labels: {"app.kubernetes.io/name": "tuist-server-image-prepull"}},
+                spec: ($scheduling + {
+                  automountServiceAccountToken: false,
+                  terminationGracePeriodSeconds: 0,
+                  securityContext: {
+                    runAsNonRoot: true,
+                    runAsUser: 65534,
+                    seccompProfile: {type: "RuntimeDefault"}
+                  },
+                  containers: [{
+                    name: "pull",
+                    image: $image,
+                    command: ["sh", "-c", "exec sleep infinity"],
+                    resources: {requests: {cpu: "1m", memory: "8Mi"}, limits: {memory: "32Mi"}},
+                    securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: ["ALL"]}}
+                  }]
+                })
+              }
+            }
+          }' | kubectl apply -f -
+          echo "Pre-pulling ${image} on the nodes server Pods schedule to: ${scheduling}"
       - name: Resolve Kura controller image tag
         run: |
           set -euo pipefail
@@ -1877,6 +1932,9 @@ jobs:
           kubectl -n "$NAMESPACE" get externalsecret,secretstore 2>&1 || true
           kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
           echo "::endgroup::"
+      - name: Remove the server image pre-pull
+        if: always()
+        run: kubectl -n "$NAMESPACE" delete daemonset tuist-server-image-prepull --ignore-not-found --wait=false || true
       - name: Post-deploy smoke test
         run: |
           kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
