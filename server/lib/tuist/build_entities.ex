@@ -3,8 +3,8 @@ defmodule Tuist.BuildEntities do
   Stable, project-scoped build entities and their execution history.
 
   Entities are things a toolchain executes repeatedly across builds: Gradle
-  tasks, Xcode generated-project modules and cache actions, Bazel cache
-  actions, Once actions, and Mix files and modules. Each has a deterministic ID
+  tasks, Xcode generated-project modules, Bazel BEP actions, Once actions,
+  and Mix files and modules. Each has a deterministic ID
   derived from its identity contract (`Tuist.BuildEntities.Identity`), and every
   execution is recorded as one slim observation in ClickHouse. Native fact
   tables stay the source of truth for execution details; observations link back
@@ -227,7 +227,16 @@ defmodule Tuist.BuildEntities do
 
   Options: `:start_datetime`, `:end_datetime`, `:environment` (`"any"`, `"ci"`,
   `"local"`), `:branch`, `:search`, `:page`, `:page_size`, `:sort_by`
-  (`"last_seen_at"` or `"name"`), `:sort_order` (`"asc"` or `"desc"`).
+  (`"last_seen_at"`, `"name"`, `"avg_duration_ms"`, `"p50_duration_ms"`,
+  `"p90_duration_ms"` or `"p99_duration_ms"`), `:sort_order` (`"asc"` or `"desc"`).
+  Dashboard metrics also include `:last_status` and `:last_ran_at` from the
+  latest evidenced execution (not cache activity) in the matching cohort.
+  `"last_ran_at"` sorting keeps unavailable executions last in either direction.
+  `:filters` supports the same bounded branch/outcome/cache predicates as history.
+  Membership, counts and duration statistics use matching observations in the
+  selected cohort, after resolving replacements and before sorting/pagination.
+  `:include_metrics` defaults to true; false retains the metadata-only public
+  inventory response (including its observation count).
   """
   def list(project_id, system, kind, opts \\ []) do
     case Identity.resolve(system, kind) do
@@ -241,7 +250,10 @@ defmodule Tuist.BuildEntities do
     page = page(opts)
     page_size = page_size(opts)
     search = opts |> Keyword.get(:search) |> blank_to_nil()
-    {observation_filters, filter_params} = observation_filters(opts)
+    {cohort_filters, cohort_params} = observation_filters(opts)
+    {table_filters, table_params} = history_filters(Keyword.delete(opts, :search))
+    observation_filters = cohort_filters ++ table_filters
+    filter_params = Map.merge(cohort_params, table_params)
 
     params =
       Map.merge(filter_params, %{
@@ -269,7 +281,42 @@ defmodule Tuist.BuildEntities do
       #{if search, do: "AND (positionCaseInsensitive(entity_name, {search:String}) > 0 OR positionCaseInsensitive(entity_identity, {search:String}) > 0)", else: ""}
     """
 
-    catalog = filtered_catalog(catalog, observation_filters)
+    include_metrics? = Keyword.get(opts, :include_metrics, true)
+
+    candidates =
+      if not include_metrics? and observation_filters == [] do
+        catalog <> " ORDER BY #{list_order(opts)} LIMIT {limit:UInt32} OFFSET {offset:UInt32}"
+      else
+        catalog
+      end
+
+    candidates = "AND entity_id IN (SELECT toUUID(entity) FROM (#{candidates}))"
+    join = if observation_filters == [], do: "LEFT", else: "INNER"
+
+    aggregate =
+      if include_metrics?, do: metrics_select() <> last_execution_select(system), else: "count() AS observations"
+
+    columns =
+      if include_metrics? do
+        """
+        matching.observations, matching.hits, matching.misses, matching.failures,
+        matching.duration_samples, matching.avg_duration_ms, matching.p50_duration_ms,
+        matching.p90_duration_ms, matching.p99_duration_ms, matching.last_status, matching.last_ran_at
+        """
+      else
+        "matching.observations"
+      end
+
+    catalog = """
+    SELECT catalog.*, #{columns}
+    FROM (#{catalog}) AS catalog
+    #{join} JOIN (
+      SELECT toString(entity_id) AS entity, #{aggregate}
+      FROM (#{latest_observations(candidates)})
+      #{where([time_range() | observation_filters])}
+      GROUP BY entity_id
+    ) AS matching USING (entity)
+    """
 
     {:ok, %{rows: rows}} =
       bounded_query(
@@ -283,41 +330,15 @@ defmodule Tuist.BuildEntities do
       )
 
     {total_count, rows} = page_count(rows, catalog, params, @kind_scan_settings)
-    entries = inventory_entries(rows, params, observation_filters)
+
+    entries =
+      Enum.map(rows, fn row ->
+        {catalog_fields, metrics} = Enum.split(row, 5)
+        metrics = if include_metrics?, do: list_metrics_from_row(metrics), else: %{observations: hd(metrics)}
+        Map.merge(entity_from_row(catalog_fields), metrics)
+      end)
 
     {entries, pagination_metadata(total_count, page, page_size)}
-  end
-
-  defp filtered_catalog(catalog, []), do: catalog
-
-  defp filtered_catalog(catalog, filters) do
-    # Catalog ranges include every version, so candidates cannot exclude a
-    # latest observation in the window. Restrict only whole replacement groups.
-    candidates = "AND entity_id IN (SELECT toUUID(entity) FROM (#{catalog}))"
-
-    """
-    SELECT catalog.*, matching.observations
-    FROM (#{catalog}) AS catalog
-    INNER JOIN (
-      SELECT toString(entity_id) AS entity, count() AS observations
-      FROM (#{latest_cohorts(candidates)})
-      WHERE #{time_range()} AND #{Enum.join(filters, " AND ")}
-      GROUP BY entity_id
-    ) AS matching USING (entity)
-    """
-  end
-
-  defp inventory_entries(rows, params, []) do
-    entities = Enum.map(rows, &entity_from_row/1)
-    counts = observation_counts(params, [], Enum.map(entities, & &1.id))
-    Enum.map(entities, &Map.put(&1, :observations, Map.get(counts, &1.id, 0)))
-  end
-
-  defp inventory_entries(rows, _params, _filters) do
-    Enum.map(rows, fn row ->
-      {count, catalog_fields} = List.pop_at(row, -1)
-      Map.put(entity_from_row(catalog_fields), :observations, count)
-    end)
   end
 
   defp page_count([], cohort, params, settings) do
@@ -333,27 +354,15 @@ defmodule Tuist.BuildEntities do
     direction = if Keyword.get(opts, :sort_order) == "asc", do: "ASC", else: "DESC"
 
     case Keyword.get(opts, :sort_by) do
-      "name" -> "entity_name #{direction}, entity ASC"
-      _ -> "last_seen #{direction}, entity ASC"
+      "name" ->
+        "entity_name #{direction}, entity ASC"
+
+      field when field in ~w(avg_duration_ms p50_duration_ms p90_duration_ms p99_duration_ms last_ran_at) ->
+        "#{field} #{direction} NULLS LAST, entity ASC"
+
+      _ ->
+        "last_seen #{direction}, entity ASC"
     end
-  end
-
-  defp observation_counts(_params, _filters, []), do: %{}
-
-  defp observation_counts(params, filters, ids) do
-    {:ok, %{rows: rows}} =
-      bounded_query(
-        """
-        SELECT toString(entity_id), count()
-        FROM (#{latest_observations("AND entity_id IN {ids:Array(UUID)}")})
-        #{where([time_range() | filters])}
-        GROUP BY entity_id
-        """,
-        Map.put(params, :ids, ids),
-        @entity_read_settings
-      )
-
-    Map.new(rows, fn [id, count] -> {id, count} end)
   end
 
   @doc """
@@ -390,7 +399,8 @@ defmodule Tuist.BuildEntities do
   @doc """
   Native context for each parent build, command or run of one page
   of history: at most #{@max_parent_lookups} distinct valid IDs, answered by one
-  bounded lookup against the native parent plus one batch of account names.
+  bounded lookup against the native parent (two for Xcode's commands and builds)
+  plus one batch of account names per actor kind.
 
   Returns `%{parent_id => context}`, keyed by the IDs as given, with an entry
   only for parents that exist in the project. A context has:
@@ -398,12 +408,15 @@ defmodule Tuist.BuildEntities do
     * `:label` - the human-readable name the native run pages show, or `nil`
       when the parent recorded none. It is never replaced by an ID or a guess.
       Gradle builds use the root project name; Xcode commands the raw command
-      name (for example `"generate"`); Mix builds the literal `"mix compile"`;
+      name (for example `"generate"`) and Xcode builds their scheme;
+      Mix builds the literal `"mix compile"`;
       Once runs their safe `command_display`. Surfaces format commands.
     * `:ran_by_name` - the recorded actor, as described in
       `parent_actor_names/4`, or `nil`.
     * Report actor fields for parents with explicit provenance, so shared
       actor components distinguish verified identities from opaque claims.
+    * `:source` - `:xcode_build` for compilation parents, so their scheme is not
+      formatted as a Tuist command.
     * `:tags` - Gradle only: the build's `custom_tags`.
     * `:command_arguments` - Xcode modules only: the command's recorded
       `command_arguments`, or `nil`, for native command rendering.
@@ -485,13 +498,20 @@ defmodule Tuist.BuildEntities do
 
   defp parent_source(:gradle, "task"), do: :gradle_build
   defp parent_source(:mix, _kind), do: :mix_build
-  defp parent_source(:xcode, "module"), do: :command_event
+  defp parent_source(:xcode, "module"), do: :xcode_module
   defp parent_source(:once, "action"), do: :once_run
+  defp parent_source(:bazel, "action"), do: :bazel_invocation
 
   # Normalized lookup key => the caller's IDs that map to it.
   defp parent_keys(:once_run, parent_ids) do
     parent_ids
     |> Enum.filter(&once_run_id?/1)
+    |> Enum.group_by(& &1)
+  end
+
+  defp parent_keys(:bazel_invocation, parent_ids) do
+    parent_ids
+    |> Enum.filter(&(is_binary(&1) and byte_size(&1) in 1..255 and String.valid?(&1) and not String.contains?(&1, <<0>>)))
     |> Enum.group_by(& &1)
   end
 
@@ -547,6 +567,23 @@ defmodule Tuist.BuildEntities do
     end)
   end
 
+  defp parent_records(project_id, :xcode_module, uuids) do
+    builds =
+      project_id
+      |> latest_parent_rows(
+        "build_runs",
+        "account_id, scheme, actor_account_id, claimed_actor_id, submission_auth",
+        "updated_at",
+        uuids
+      )
+      |> Enum.map(fn [id, account_id, scheme, actor_id, claim, submission] ->
+        record = %{label: blank_to_nil(scheme), source: :xcode_build}
+        {id, parent_actor(record, account_actor(account_id), actor_id, claim, submission)}
+      end)
+
+    parent_records(project_id, :command_event, uuids) ++ builds
+  end
+
   defp parent_records(project_id, :command_event, uuids) do
     project_id
     |> latest_parent_rows(
@@ -559,6 +596,27 @@ defmodule Tuist.BuildEntities do
       legacy_actor = if is_integer(user_id) and user_id > 0, do: {:user, user_id}
       record = %{label: blank_to_nil(name), command_arguments: blank_to_nil(command_arguments)}
       {id, parent_actor(record, legacy_actor, actor_id, claim, submission)}
+    end)
+  end
+
+  defp parent_records(project_id, :bazel_invocation, ids) do
+    {:ok, %{rows: rows}} =
+      bounded_query(
+        """
+        SELECT invocation_id, latest.1, latest.2
+        FROM (
+          SELECT invocation_id, argMax(tuple(command, target_patterns), inserted_at) AS latest
+          FROM bazel_invocations
+          WHERE project_id = {project_id:Int64} AND invocation_id IN {ids:Array(String)}
+          GROUP BY invocation_id
+        )
+        """,
+        %{project_id: project_id, ids: ids},
+        @entity_read_settings
+      )
+
+    Enum.map(rows, fn [id, command, patterns] ->
+      {id, %{label: if(command != "", do: Enum.join(["bazel", command | patterns || []], " ")), actor: nil}}
     end)
   end
 
@@ -859,46 +917,99 @@ defmodule Tuist.BuildEntities do
 
     case scope(project_id, system, kind, id, Keyword.put(opts, :start_datetime, previous_start_at)) do
       {:ok, params, filters} ->
-        params = Map.put(params, :current_start_at, start_at)
-        deduped = deduplicated_observations(filters)
-
-        {:ok, %{rows: rows}} =
-          bounded_query(
-            """
-            SELECT GROUPING(day) AS period, current, toString(day), #{metrics_select()}
-            FROM (
-              SELECT *, observed_at >= {current_start_at:DateTime64(6)} AS current,
-                     toDate(observed_at) AS day
-              FROM (#{deduped})
-            )
-            GROUP BY GROUPING SETS ((current), (current, day))
-            """,
-            params,
-            @entity_read_settings
-          )
-
-        periods =
-          Map.new(for [1, current, _date | metrics] <- rows, do: {current in [true, 1], metrics_from_row(metrics)})
-
-        points =
-          Map.new(for [0, current, date | metrics] <- rows, current in [true, 1], do: {date, metrics_from_row(metrics)})
-
-        %{
-          total: Map.get(periods, true, empty_metrics()),
-          previous: Map.get(periods, false, empty_metrics()),
-          points:
-            start_at
-            |> DateTime.to_date()
-            |> Date.range(end_at |> DateTime.add(-1, :microsecond) |> DateTime.to_date())
-            |> Enum.map(fn date ->
-              date = Date.to_iso8601(date)
-              Map.put(Map.get(points, date, empty_metrics()), :date, date)
-            end)
-        }
+        read_analytics(params, filters, start_at, end_at, false)
 
       :error ->
         %{total: empty_metrics(), previous: empty_metrics(), points: []}
     end
+  end
+
+  @doc """
+  Metrics across one project's system/kind inventory, independently of table
+  search, sorting and pagination. Includes the entity metrics plus `entities`
+  (distinct units active in the cohort), `outcome_samples` (observations
+  with an explicit success or failure), and `executions` (uncached success or
+  failure observations, independent of timing availability). Daily entity
+  counts are not additive.
+
+  Resolves replacement rows before period/environment/branch filters, with
+  whole-inventory query budgets. Compares equal current and previous windows.
+  """
+  def inventory_analytics(project_id, system, kind, opts \\ []) do
+    case Identity.resolve(system, kind) do
+      {:ok, {system, kind, _fields}} ->
+        {start_at, end_at} = window(opts)
+        previous_start_at = DateTime.add(start_at, -DateTime.diff(end_at, start_at, :microsecond), :microsecond)
+        {filters, filter_params} = observation_filters(opts)
+
+        params =
+          Map.merge(filter_params, %{
+            project_id: project_id,
+            system: Atom.to_string(system),
+            kind: kind,
+            start_at: previous_start_at,
+            end_at: end_at
+          })
+
+        read_analytics(params, filters, start_at, end_at, true)
+
+      :error ->
+        %{total: empty_inventory_metrics(), previous: empty_inventory_metrics(), points: []}
+    end
+  end
+
+  defp read_analytics(params, filters, start_at, end_at, inventory?) do
+    {source, select, parser, empty, settings} =
+      if inventory? do
+        source = "SELECT * FROM (#{latest_observations("")}) #{where([time_range() | filters])}"
+
+        select =
+          metrics_select() <>
+            """
+            , uniqExact(entity_id), countIf(status IN ('success', 'failure')),
+            countIf(status IN ('success', 'failure') AND cache_status NOT IN ('hit', 'hit_local', 'hit_remote'))
+            """
+
+        {source, select, &inventory_metrics_from_row/1, empty_inventory_metrics(), @kind_scan_settings}
+      else
+        {deduplicated_observations(filters), metrics_select(), &metrics_from_row/1, empty_metrics(),
+         @entity_read_settings}
+      end
+
+    {:ok, %{rows: rows}} =
+      bounded_query(
+        """
+        SELECT GROUPING(day) AS period, current, toString(day), #{select}
+        FROM (
+          SELECT *, observed_at >= {current_start_at:DateTime64(6)} AS current,
+                 toDate(observed_at) AS day
+          FROM (#{source})
+        )
+        GROUP BY GROUPING SETS ((current), (current, day))
+        """,
+        Map.put(params, :current_start_at, start_at),
+        settings
+      )
+
+    analytics_result(rows, start_at, end_at, parser, empty)
+  end
+
+  defp analytics_result(rows, start_at, end_at, parser, empty) do
+    periods = Map.new(for [1, current, _date | metrics] <- rows, do: {current in [true, 1], parser.(metrics)})
+    points = Map.new(for [0, current, date | metrics] <- rows, current in [true, 1], do: {date, parser.(metrics)})
+
+    %{
+      total: Map.get(periods, true, empty),
+      previous: Map.get(periods, false, empty),
+      points:
+        start_at
+        |> DateTime.to_date()
+        |> Date.range(end_at |> DateTime.add(-1, :microsecond) |> DateTime.to_date())
+        |> Enum.map(fn date ->
+          date = Date.to_iso8601(date)
+          Map.put(Map.get(points, date, empty), :date, date)
+        end)
+    }
   end
 
   @doc """
@@ -938,21 +1049,84 @@ defmodule Tuist.BuildEntities do
             @entity_read_settings
           )
 
-        observations = rows |> Enum.take(limit) |> Enum.map(&observation_from_row/1)
-
-        %{
-          rows: observations,
-          truncated: length(rows) > limit,
-          oldest_entry:
-            case List.last(observations) do
-              nil -> nil
-              observation -> DateTime.to_naive(observation.observed_at)
-            end
-        }
+        scatter_result(rows, limit, &observation_from_row/1)
 
       :error ->
         %{rows: [], truncated: false, oldest_entry: nil}
     end
+  end
+
+  @doc """
+  The latest measured observations across a project's system/kind inventory.
+  Uses whole-inventory budgets and the same cap-plus-one bound as entity scatter.
+  Table search, sorting and pagination do not narrow the analytics cohort.
+
+  Mix module observations sharing a native file execution contribute one point,
+  labeled by a representative module with its shared containing-file timing.
+  Missing parent/execution references are never collapsed together.
+  """
+  def inventory_duration_scatter(project_id, system, kind, opts \\ []) do
+    case Identity.resolve(system, kind) do
+      {:ok, {system, kind, _fields}} ->
+        {start_at, end_at} = window(opts)
+        {filters, filter_params} = observation_filters(opts)
+        limit = scatter_limit(opts)
+
+        params =
+          Map.merge(filter_params, %{
+            project_id: project_id,
+            system: Atom.to_string(system),
+            kind: kind,
+            start_at: start_at,
+            end_at: end_at,
+            limit: limit + 1
+          })
+
+        distinct_file =
+          if system == :mix and kind == "module",
+            do: "LIMIT 1 BY parent_id, execution_id, if(parent_id = '' OR execution_id = '', toString(id), '')",
+            else: ""
+
+        {:ok, %{rows: rows}} =
+          bounded_query(
+            """
+            SELECT toString(entity_id), name, identity, toString(id), observed_at, parent_id, execution_id,
+                   status, cache_status, duration_ms, git_branch, git_commit_sha, is_ci
+            FROM (#{latest_observations("")})
+            #{where([time_range(), "duration_ms IS NOT NULL" | filters])}
+            ORDER BY observed_at DESC, id DESC
+            #{distinct_file}
+            LIMIT {limit:UInt32}
+            """,
+            params,
+            @kind_scan_settings
+          )
+
+        scatter_result(rows, limit, fn [entity_id, name, identity | observation] ->
+          Map.merge(observation_from_row(observation), %{
+            entity_id: entity_id,
+            name: name,
+            identity: JSON.decode!(identity)
+          })
+        end)
+
+      :error ->
+        %{rows: [], truncated: false, oldest_entry: nil}
+    end
+  end
+
+  defp scatter_result(rows, limit, parser) do
+    observations = rows |> Enum.take(limit) |> Enum.map(parser)
+
+    %{
+      rows: observations,
+      truncated: length(rows) > limit,
+      oldest_entry:
+        case List.last(observations) do
+          nil -> nil
+          observation -> DateTime.to_naive(observation.observed_at)
+        end
+    }
   end
 
   defp scatter_limit(opts) do
@@ -960,6 +1134,28 @@ defmodule Tuist.BuildEntities do
       limit when is_integer(limit) and limit > 0 -> min(limit, @max_scatter_observations)
       _ -> @max_scatter_observations
     end
+  end
+
+  defp last_execution_select(system) do
+    evidence =
+      case system do
+        :xcode -> "duration_ms IS NOT NULL"
+        :mix -> "1"
+        _ -> "status IN ('success', 'failure')"
+      end
+
+    executed = "cache_status NOT IN ('hit', 'hit_local', 'hit_remote') AND (#{evidence})"
+
+    """
+    , if(countIf(#{executed}) = 0, NULL,
+         argMaxIf(status, tuple(observed_at, id), #{executed})) AS last_status,
+      maxOrNullIf(observed_at, #{executed}) AS last_ran_at
+    """
+  end
+
+  defp list_metrics_from_row(row) do
+    {metrics, [status, ran_at]} = Enum.split(row, 9)
+    Map.merge(metrics_from_row(metrics), %{last_status: status, last_ran_at: if(ran_at, do: to_datetime(ran_at))})
   end
 
   defp metrics_select do
@@ -994,6 +1190,13 @@ defmodule Tuist.BuildEntities do
   end
 
   defp empty_metrics, do: metrics_from_row([0, 0, 0, 0, 0, nil, nil, nil, nil])
+
+  defp inventory_metrics_from_row(row) do
+    {metrics, [entities, outcome_samples, executions]} = Enum.split(row, 9)
+    Map.merge(metrics_from_row(metrics), %{entities: entities, outcome_samples: outcome_samples, executions: executions})
+  end
+
+  defp empty_inventory_metrics, do: Map.merge(empty_metrics(), %{entities: 0, outcome_samples: 0, executions: 0})
 
   defp hit_rate(0, 0), do: nil
   defp hit_rate(hits, misses), do: Float.round(hits * 100 / (hits + misses), 1)
@@ -1036,16 +1239,8 @@ defmodule Tuist.BuildEntities do
   # PREWHERE selects complete replacement groups before loading payload columns.
   defp latest_observations(entity_filter) do
     """
-    SELECT entity_id, id, observed_at, parent_id, execution_id, status, cache_status,
+    SELECT entity_id, id, name, identity, observed_at, parent_id, execution_id, status, cache_status,
            duration_ms, git_branch, git_commit_sha, is_ci
-    FROM build_entity_observations FINAL
-    PREWHERE #{entity_range()} #{entity_filter}
-    """
-  end
-
-  defp latest_cohorts(entity_filter) do
-    """
-    SELECT entity_id, observed_at, is_ci, git_branch, cache_status
     FROM build_entity_observations FINAL
     PREWHERE #{entity_range()} #{entity_filter}
     """

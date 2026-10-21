@@ -9,6 +9,7 @@ defmodule TuistWeb.BuildEntityLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.ProjectWithTags, only: [project_with_tags_cell: 1]
   import TuistWeb.Runs.RanByBadge, only: [run_ran_by_badge_cell: 1]
 
@@ -26,10 +27,11 @@ defmodule TuistWeb.BuildEntityLive do
 
   @date_keys ~w(analytics-date-range analytics-start-date analytics-end-date)
   @duration_fields ~w(avg_duration_ms p50_duration_ms p90_duration_ms p99_duration_ms)
+  @inventory_sort_fields ~w(name last_seen_at last_ran_at) ++ @duration_fields
   @activity_keys ~w(activity-search activity-sort activity-order filter_git_branch_op filter_git_branch_val filter_status_op filter_status_val filter_cache_status_op filter_cache_status_val)
   @query_keys @date_keys ++
                 @activity_keys ++
-                ~w(tab widget duration duration-chart-type duration-group-by environment branch q page after before)
+                ~w(tab widget duration duration-chart-type duration-group-by environment branch q sort order page after before)
 
   def mount(_params, _session, socket) do
     resource = BuildEntityResources.fetch!(socket.assigns.live_action)
@@ -70,8 +72,12 @@ defmodule TuistWeb.BuildEntityLive do
     {start_at, end_at} = period
     environment = selection(params, "environment", ~w(ci local), "any")
     tab = selection(params, "tab", ~w(history), "overview")
-    widget = selection(params, "widget", ~w(hit_rate duration), "observations")
-    duration_field = selection(params, "duration", @duration_fields, "p90_duration_ms")
+    widgets = if id, do: ~w(hit_rate duration), else: ~w(failures duration entities)
+    widget = selection(params, "widget", widgets, "observations")
+
+    duration_field =
+      selection(params, "duration", @duration_fields, if(id, do: "p90_duration_ms", else: "avg_duration_ms"))
+
     page = page(params["page"])
     sort_by = selection(params, "activity-sort", ~w(duration_ms), "observed_at")
     sort_order = selection(params, "activity-order", ~w(asc), "desc")
@@ -107,13 +113,18 @@ defmodule TuistWeb.BuildEntityLive do
       |> assign(:branch, params["branch"] || "")
       |> assign(:search, params["q"] || "")
       |> assign(:activity_search, params["activity-search"] || "")
+      |> assign(
+        :inventory_sort_by,
+        selection(params, "sort", @inventory_sort_fields, "p90_duration_ms")
+      )
+      |> assign(:inventory_sort_order, selection(params, "order", ~w(asc), "desc"))
       |> assign(:sort_by, sort_by)
       |> assign(:sort_order, sort_order)
       |> assign(:active_filters, active_filters)
       |> assign(:tab, tab)
       |> assign(:widget, widget)
       |> assign(:duration_field, duration_field)
-      |> assign(:duration_chart_type, duration_chart_type(params, resource))
+      |> assign(:duration_chart_type, duration_chart_type(params, id))
       |> assign(
         :duration_group_by,
         selection(params, "duration-group-by", ~w(environment), "status")
@@ -145,8 +156,13 @@ defmodule TuistWeb.BuildEntityLive do
     end
   end
 
-  defp table_options(nil, params, _filters, _sort_by, _sort_order),
-    do: [search: params["q"] || "", sort_by: "last_seen_at", sort_order: "desc"]
+  defp table_options(nil, params, filters, _sort_by, _sort_order),
+    do: [
+      search: params["q"] || "",
+      filters: Filter.Operations.convert_filters_to_flop(filters),
+      sort_by: selection(params, "sort", @inventory_sort_fields, "p90_duration_ms"),
+      sort_order: selection(params, "order", ~w(asc), "desc")
+    ]
 
   defp table_options(_id, params, filters, sort_by, sort_order),
     do: [
@@ -172,9 +188,16 @@ defmodule TuistWeb.BuildEntityLive do
   end
 
   defp load(socket, resource, project_id, nil, opts, reset?) do
-    key = {nil, opts}
+    analytics_opts = Keyword.take(opts, [:start_datetime, :end_datetime, :environment, :branch])
 
-    maybe_load(socket, :entries, key, reset?, fn ->
+    socket =
+      maybe_load(socket, :analytics, {:inventory, resource.key, analytics_opts}, reset?, fn ->
+        {:ok, %{analytics: BuildEntities.inventory_analytics(project_id, resource.system, resource.kind, analytics_opts)}}
+      end)
+
+    socket = maybe_load_duration_scatter(socket, resource, project_id, nil, analytics_opts, reset?)
+
+    maybe_load(socket, :entries, {nil, opts}, reset?, fn ->
       {entries, meta} = BuildEntities.list(project_id, resource.system, resource.kind, opts)
       {:ok, %{entries: %{rows: entries, meta: meta}}}
     end)
@@ -219,19 +242,13 @@ defmodule TuistWeb.BuildEntityLive do
     end)
   end
 
-  defp duration_supported?(%{system: :xcode, kind: "module"}), do: false
-  defp duration_supported?(_resource), do: true
-
-  defp duration_chart_type(params, %{system: :xcode, kind: "module"}),
-    do: selection(params, "duration-chart-type", [], "line")
-
-  defp duration_chart_type(params, _resource), do: selection(params, "duration-chart-type", ~w(scatter), "line")
+  defp duration_chart_type(params, _id), do: selection(params, "duration-chart-type", ~w(scatter), "line")
 
   defp maybe_load_duration_scatter(socket, resource, project_id, id, opts, reset?) do
     if socket.assigns.tab == "overview" and socket.assigns.widget == "duration" and
          socket.assigns.duration_chart_type == "scatter" do
       maybe_load(socket, :duration_scatter, {id, opts}, reset?, fn ->
-        result = BuildEntities.duration_scatter(project_id, resource.system, resource.kind, id, opts)
+        result = read_duration_scatter(project_id, resource, id, opts)
         period = {Keyword.fetch!(opts, :start_datetime), Keyword.fetch!(opts, :end_datetime)}
         {:ok, %{duration_scatter: Map.put(result, :period, period)}}
       end)
@@ -239,6 +256,12 @@ defmodule TuistWeb.BuildEntityLive do
       socket
     end
   end
+
+  defp read_duration_scatter(project_id, resource, nil, opts),
+    do: BuildEntities.inventory_duration_scatter(project_id, resource.system, resource.kind, opts)
+
+  defp read_duration_scatter(project_id, resource, id, opts),
+    do: BuildEntities.duration_scatter(project_id, resource.system, resource.kind, id, opts)
 
   defp history_context(rows, resource, project_id) do
     ids = rows |> Enum.map(& &1.parent_id) |> Enum.reject(&(&1 == "")) |> Enum.uniq()
@@ -265,6 +288,8 @@ defmodule TuistWeb.BuildEntityLive do
   end
 
   defp context_label(_resource, %{label: label}) when label in [nil, ""], do: nil
+
+  defp context_label(_resource, %{source: :xcode_build, label: label}), do: label
 
   defp context_label(%{system: :xcode, kind: "module"}, %{label: label} = context) do
     CommandFormatter.format_command(%{name: label, command_arguments: Map.get(context, :command_arguments)})
@@ -313,13 +338,22 @@ defmodule TuistWeb.BuildEntityLive do
     end
   end
 
-  def handle_event("select_widget", %{"widget" => widget}, socket) when widget in ~w(observations hit_rate duration) do
+  def handle_event("select_widget", %{"widget" => widget}, socket)
+      when widget in ~w(observations hit_rate duration failures entities) do
     {:noreply, push_patch(socket, to: patch(socket.assigns, %{"widget" => widget}), replace: true)}
   end
 
   def handle_event("select_duration", %{"duration" => duration}, socket) when duration in @duration_fields do
     {:noreply,
      push_patch(socket, to: patch(socket.assigns, %{"duration" => duration, "widget" => "duration"}), replace: true)}
+  end
+
+  def handle_event("select_inventory_duration", %{"type" => type}, socket) when type in ~w(avg p50 p90 p99) do
+    {:noreply,
+     push_patch(socket,
+       to: patch(socket.assigns, %{"duration" => "#{type}_duration_ms", "widget" => "duration"}),
+       replace: true
+     )}
   end
 
   def handle_event("select_duration_chart_type", %{"type" => type}, socket) when type in ~w(line scatter) do
@@ -337,7 +371,7 @@ defmodule TuistWeb.BuildEntityLive do
 
   def handle_event("add_filter", %{"value" => id}, socket) do
     if Enum.any?(socket.assigns.available_filters, &(&1.id == id)) do
-      params = Filter.Operations.add_filter_to_query(id, socket, filter_params(socket.assigns))
+      params = Filter.Operations.add_filter_to_query(id, socket, filter_params(socket.assigns, id))
 
       {:noreply,
        socket
@@ -350,7 +384,12 @@ defmodule TuistWeb.BuildEntityLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    query = Filter.Operations.update_filters_in_query(params, socket, filter_params(socket.assigns))
+    query =
+      Filter.Operations.update_filters_in_query(
+        params,
+        socket,
+        filter_params(socket.assigns, params["payload_filter_id"])
+      )
 
     {:noreply,
      socket
@@ -374,17 +413,35 @@ defmodule TuistWeb.BuildEntityLive do
     {:noreply, push_patch(socket, to: patch(socket.assigns, reset_pagination(values)))}
   end
 
-  defp filter_params(assigns),
-    do:
-      assigns.params
-      |> Map.delete("branch")
-      |> Map.merge(Filter.Operations.encode_filters_to_query(assigns.active_filters))
+  defp filter_params(assigns, filter_id) do
+    params = if filter_id == "git_branch", do: Map.delete(assigns.params, "branch"), else: assigns.params
+    Map.merge(params, Filter.Operations.encode_filters_to_query(assigns.active_filters))
+  end
 
   defp reset_pagination(changes), do: Map.merge(changes, %{"page" => nil, "after" => nil, "before" => nil})
 
   defp sort_patch(assigns, field) do
     order = if assigns.sort_by == field and assigns.sort_order == "desc", do: "asc", else: "desc"
     patch(assigns, reset_pagination(%{"activity-sort" => field, "activity-order" => order}))
+  end
+
+  defp inventory_sort_patch(assigns, field) do
+    order = if assigns.inventory_sort_by == field and assigns.inventory_sort_order == "desc", do: "asc", else: "desc"
+    patch(assigns, reset_pagination(%{"sort" => field, "order" => order}))
+  end
+
+  defp inventory_sort_options(assigns) do
+    [{"name", Labels.singular(assigns.resource.system, assigns.resource.kind)}] ++
+      inventory_duration_sort_options() ++ [{"last_ran_at", dgettext("dashboard_builds", "Last ran at")}]
+  end
+
+  defp inventory_duration_sort_options do
+    [
+      {"p50_duration_ms", "p50"},
+      {"p90_duration_ms", "p90"},
+      {"p99_duration_ms", "p99"},
+      {"avg_duration_ms", dgettext("dashboard_builds", "Avg.")}
+    ]
   end
 
   defp cursor_order?(assigns), do: assigns.history.result.cursor_order
@@ -469,11 +526,25 @@ defmodule TuistWeb.BuildEntityLive do
     parent = URI.encode(row.parent_id, &URI.char_unreserved?/1)
 
     case assigns.resource.system do
-      :gradle when row.execution_id != "" -> root <> "/builds/build-runs/#{parent}/tasks/#{row.execution_id}"
-      :once -> root <> "/once/runs/#{parent}"
-      :mix -> root <> "/builds/mix-builds/#{parent}"
-      :xcode when assigns.resource.kind == "module" -> root <> "/runs/#{parent}?tab=module-cache"
-      _ -> root <> "/builds/build-runs/#{parent}"
+      :gradle when row.execution_id != "" ->
+        root <> "/builds/build-runs/#{parent}/tasks/#{row.execution_id}"
+
+      :once ->
+        root <> "/once/runs/#{parent}"
+
+      :bazel ->
+        root <> "/builds/invocations/#{URI.encode(parent, &URI.char_unreserved?/1)}"
+
+      :mix ->
+        root <> "/builds/mix-builds/#{parent}"
+
+      :xcode when assigns.resource.kind == "module" ->
+        if String.starts_with?(row.execution_id, "build_target:"),
+          do: root <> "/builds/build-runs/#{parent}",
+          else: root <> "/runs/#{parent}?tab=module-cache"
+
+      _ ->
+        root <> "/builds/build-runs/#{parent}"
     end
   end
 
@@ -507,6 +578,9 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp relative_time(value), do: DateFormatter.from_now(value)
 
+  defp identity_label("target_label"), do: dgettext("dashboard_builds", "Target")
+  defp identity_label("mnemonic"), do: dgettext("dashboard_builds", "Mnemonic")
+  defp identity_label("primary_output"), do: dgettext("dashboard_builds", "Primary output")
   defp identity_label("root_project_name"), do: dgettext("dashboard_builds", "Root project")
   defp identity_label("build_path"), do: dgettext("dashboard_builds", "Build path")
   defp identity_label("task_path"), do: dgettext("dashboard_builds", "Task path")
@@ -526,7 +600,7 @@ defmodule TuistWeb.BuildEntityLive do
   defp observations_label(assigns) do
     case {assigns.resource.system, assigns.resource.kind} do
       {:mix, _} -> dgettext("dashboard_builds", "Compilations")
-      {:xcode, "module"} -> dgettext("dashboard_builds", "Cache lookups")
+      {:xcode, "module"} -> dgettext("dashboard_builds", "Builds and cache lookups")
       _ -> dgettext("dashboard_builds", "Executions")
     end
   end
@@ -536,6 +610,202 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp trend(0, 0), do: 0.0
   defp trend(_current, _previous), do: nil
+
+  defp inventory_count_widget(assigns) do
+    field = inventory_count_field(assigns, assigns.metric)
+    value = if assigns.ready, do: inventory_count_value(assigns.analytics.result.total, field)
+    previous = if assigns.ready, do: inventory_count_value(assigns.analytics.result.previous, field)
+    no_data? = assigns.ready && assigns.analytics.result.total.observations == 0
+
+    assigns =
+      assigns
+      |> assign(:value, value)
+      |> assign(:empty, assigns.ready && (no_data? or is_nil(value)))
+      |> assign(
+        :empty_label,
+        if(no_data?, do: dgettext("dashboard_builds", "No data"), else: dgettext("dashboard_builds", "Not recorded"))
+      )
+      |> assign(:trend_value, if(assigns.ready && !no_data?, do: trend(value, previous)))
+      |> assign(
+        :legend_color,
+        Map.fetch!(%{observations: "primary", failures: "destructive", entities: "p99"}, assigns.metric)
+      )
+
+    ~H"""
+    <.widget
+      id={"inventory-#{@metric}"}
+      loading={!@ready}
+      title={inventory_count_label(assigns, @metric)}
+      description={inventory_count_description(assigns, @metric)}
+      value={if is_number(@value), do: format_number(@value)}
+      empty={@empty}
+      empty_label={@empty_label}
+      selected={@widget == to_string(@metric)}
+      legend_color={@legend_color}
+      phx_click="select_widget"
+      phx_value_widget={to_string(@metric)}
+      trend_value={@trend_value}
+      trend_type={if @metric == :failures, do: :inverse, else: :neutral}
+      trend_label={dgettext("dashboard_builds", "since the previous period")}
+    />
+    """
+  end
+
+  defp inventory_count_field(%{entity: nil, resource: %{system: :xcode}}, :observations), do: :duration_samples
+
+  defp inventory_count_field(%{entity: nil, resource: %{system: system}}, :observations)
+       when system in [:gradle, :once, :bazel], do: :executions
+
+  defp inventory_count_field(_assigns, metric), do: metric
+
+  defp inventory_count_value(%{outcome_samples: 0}, :failures), do: nil
+  defp inventory_count_value(metrics, metric), do: Map.fetch!(metrics, metric)
+
+  defp inventory_count_label(assigns, :entities), do: Labels.plural(assigns.resource.system, assigns.resource.kind)
+
+  defp inventory_count_label(assigns, :observations) do
+    case {assigns.resource.system, assigns.resource.kind} do
+      {:xcode, _} -> dgettext("dashboard_builds", "Compilations")
+      {:gradle, _} -> dgettext("dashboard_builds", "Task executions")
+      {system, _} when system in [:once, :bazel] -> dgettext("dashboard_builds", "Action executions")
+      {:mix, "file"} -> dgettext("dashboard_builds", "File compilations")
+      {:mix, "module"} -> dgettext("dashboard_builds", "Module compilations")
+    end
+  end
+
+  defp inventory_count_label(assigns, :failures) do
+    case assigns.resource.system do
+      :gradle -> dgettext("dashboard_builds", "Failed task executions")
+      system when system in [:once, :bazel] -> dgettext("dashboard_builds", "Failed action executions")
+      _ -> dgettext("dashboard_builds", "Failed compilations")
+    end
+  end
+
+  defp inventory_count_description(%{resource: %{system: :xcode}}, :observations),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Recorded target compilations during the selected period. Module-cache resolutions and targets without compilation work are excluded."
+      )
+
+  defp inventory_count_description(%{resource: %{system: :bazel}}, :observations),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "BEP-reported action executions, not cache lookups. Reporting must publish all actions for complete execution coverage; missing timing remains unavailable."
+      )
+
+  defp inventory_count_description(%{resource: %{system: :gradle}}, :observations),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Task executions with a recorded success or failure. Cache hits, skipped, up-to-date and no-source tasks are excluded, regardless of timing availability."
+      )
+
+  defp inventory_count_description(%{resource: %{system: :once}}, :observations),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Uncached action executions with a recorded success or failure. Cached, skipped, cancelled and unknown outcomes are excluded, regardless of timing availability."
+      )
+
+  defp inventory_count_description(%{resource: %{system: :mix, kind: "file"}}, :observations),
+    do: dgettext("dashboard_builds", "Reported file compilations, including those without a measured duration.")
+
+  defp inventory_count_description(%{resource: %{system: :mix, kind: "module"}}, :observations),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Module compilation records derived from compiled files, including those without measured timing. A file defining multiple modules contributes one record per module, not independent compilation work."
+      )
+
+  defp inventory_count_description(_assigns, :failures),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Recorded failures during the selected period. Unknown outcomes are not counted as successes or failures."
+      )
+
+  defp inventory_count_description(_assigns, :entities),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Distinct build units with recorded activity during the selected period. The chart shows distinct units per day, not a cumulative total."
+      )
+
+  defp inventory_duration_title(assigns) do
+    type = String.replace_suffix(assigns.duration_field, "_duration_ms", "")
+    percentile = if type == "avg", do: dgettext("dashboard_builds", "Avg."), else: type
+
+    case {assigns.resource.system, assigns.resource.kind} do
+      {:mix, "module"} ->
+        dgettext("dashboard_builds", "%{percentile} file compilation duration", percentile: percentile)
+
+      {system, _} when system in [:xcode, :mix] ->
+        dgettext("dashboard_builds", "%{percentile} compilation duration", percentile: percentile)
+
+      _ ->
+        dgettext("dashboard_builds", "%{percentile} execution duration", percentile: percentile)
+    end
+  end
+
+  defp inventory_duration_description(%{resource: %{system: :xcode}}),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Measured target compilation durations. Cache resolutions and builds without compilation work do not contribute timing samples."
+      )
+
+  defp inventory_duration_description(%{resource: %{system: :mix, kind: "module"}}),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Each module contributes its containing file's measured compilation duration. Sibling modules share that measurement; their durations are not additive."
+      )
+
+  defp inventory_duration_description(_assigns),
+    do:
+      dgettext(
+        "dashboard_builds",
+        "Measured durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
+      )
+
+  defp inventory_duration_metrics(metrics) do
+    Map.new([:avg, :p50, :p90, :p99], fn type ->
+      {type, duration(Map.fetch!(metrics, String.to_existing_atom("#{type}_duration_ms")))}
+    end)
+  end
+
+  defp duration_scatter_plot(assigns) do
+    ~H"""
+    <.async_section :let={ready?} results={[@duration_scatter]}>
+      <.skeleton_box :if={!ready?} width="100%" height={@height} />
+      <.scatter_chart
+        :if={ready? && @duration_scatter.result.rows != []}
+        id={@chart_id}
+        chart={scatter_chart_result(assigns)}
+        period={@duration_scatter.result.period}
+        value_format="fn:formatMilliseconds"
+        truncation_title={
+          dgettext(
+            "dashboard_builds",
+            "Showing the latest 10,000 measured durations since %{date}. Narrow the period or environment to see other observations.",
+            date: scatter_oldest_entry_formatted({:scatter, @duration_scatter.result})
+          )
+        }
+      />
+      <.empty_card_section
+        :if={ready? && @duration_scatter.result.rows == []}
+        title={dgettext("dashboard_builds", "No recorded durations")}
+      >
+        <:image>
+          <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
+          <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
+        </:image>
+      </.empty_card_section>
+    </.async_section>
+    """
+  end
 
   defp controls(assigns) do
     ~H"""
@@ -602,6 +872,7 @@ defmodule TuistWeb.BuildEntityLive do
     case assigns.widget do
       "duration" -> total.duration_samples > 0
       "hit_rate" -> not is_nil(total.hit_rate)
+      "failures" -> total.outcome_samples > 0
       _ -> total.observations > 0
     end
   end
@@ -610,6 +881,7 @@ defmodule TuistWeb.BuildEntityLive do
     do: dgettext("dashboard_builds", "No data in this period")
 
   defp empty_chart_title(%{widget: "duration"}), do: dgettext("dashboard_builds", "No recorded durations")
+  defp empty_chart_title(%{widget: "failures"}), do: dgettext("dashboard_builds", "No recorded outcomes")
   defp empty_chart_title(_assigns), do: dgettext("dashboard_builds", "No recorded cache lookups")
 
   defp chart_series(assigns, points) do
@@ -626,14 +898,21 @@ defmodule TuistWeb.BuildEntityLive do
         "hit_rate" ->
           [{:hit_rate, dgettext("dashboard_builds", "Cache hit rate"), "primary"}]
 
+        "failures" ->
+          [{:failures, inventory_count_label(assigns, :failures), "destructive"}]
+
+        "entities" ->
+          [{:entities, Labels.plural(assigns.resource.system, assigns.resource.kind), "p99"}]
+
         _ ->
-          [{:observations, observations_label(assigns), "primary"}]
+          label = if assigns.entity, do: observations_label(assigns), else: inventory_count_label(assigns, :observations)
+          [{inventory_count_field(assigns, :observations), label, "primary"}]
       end
 
     Enum.map(fields, fn {field, name, color} ->
       %{
         name: name,
-        type: if(assigns.widget == "observations", do: "bar", else: "line"),
+        type: chart_type(assigns),
         color: "var:noora-chart-#{color}",
         data: Enum.map(points, &chart_point(&1, field, name)),
         connectNulls: false,
@@ -643,6 +922,15 @@ defmodule TuistWeb.BuildEntityLive do
         showAllSymbol: true
       }
     end)
+  end
+
+  defp chart_type(%{entity: nil}), do: "line"
+  defp chart_type(%{widget: "observations"}), do: "bar"
+  defp chart_type(_assigns), do: "line"
+
+  defp chart_point(point, :failures, _name) do
+    value = if point.observations > 0 and point.outcome_samples == 0, do: nil, else: point.failures
+    [point.date, value]
   end
 
   defp chart_point(point, :hit_rate, name) do
@@ -726,19 +1014,44 @@ defmodule TuistWeb.BuildEntityLive do
       id: row.id,
       value: [DateTime.to_unix(row.observed_at, :millisecond), row.duration_ms],
       url: scatter_point_path(assigns, row),
-      tooltipExtra: [
-        %{label: dgettext("dashboard_builds", "Outcome"), value: Labels.status(row.status)},
-        %{label: dgettext("dashboard_builds", "Cache"), value: scatter_group_label(row.cache_status, "cache_status")},
-        %{label: dgettext("dashboard_builds", "Environment"), value: scatter_group_label(row.is_ci, "environment")},
-        %{
-          label: dgettext("dashboard_builds", "Recorded at"),
-          value: DateFormatter.format_with_timezone_short(row.observed_at, assigns.user_timezone)
-        },
-        %{label: dgettext("dashboard_builds", "Branch"), value: reported(row.git_branch)},
-        %{label: dgettext("dashboard_builds", "Commit"), value: reported(row.git_commit_sha)}
-      ]
+      tooltipExtra:
+        scatter_identity_fields(assigns, row) ++
+          [
+            %{label: dgettext("dashboard_builds", "Outcome"), value: Labels.status(row.status)},
+            %{label: dgettext("dashboard_builds", "Cache"), value: scatter_group_label(row.cache_status, "cache_status")},
+            %{label: dgettext("dashboard_builds", "Environment"), value: scatter_group_label(row.is_ci, "environment")},
+            %{
+              label: dgettext("dashboard_builds", "Recorded at"),
+              value: DateFormatter.format_with_timezone_short(row.observed_at, assigns.user_timezone)
+            },
+            %{label: dgettext("dashboard_builds", "Branch"), value: reported(row.git_branch)},
+            %{label: dgettext("dashboard_builds", "Commit"), value: reported(row.git_commit_sha)}
+          ]
     }
   end
+
+  defp scatter_identity_fields(%{entity: nil} = assigns, row) do
+    fields = [
+      %{label: Labels.singular(assigns.resource.system, assigns.resource.kind), value: row.name}
+      | Enum.map(Enum.reject(Enum.sort(row.identity), fn {_key, value} -> value == row.name end), fn {key, _value} ->
+          %{label: identity_label(key), value: Labels.identity_value(row.identity, key)}
+        end)
+    ]
+
+    if assigns.resource.system == :mix and assigns.resource.kind == "module" do
+      fields ++
+        [
+          %{
+            label: dgettext("dashboard_builds", "Measurement"),
+            value: dgettext("dashboard_builds", "Shared containing-file compilation")
+          }
+        ]
+    else
+      fields
+    end
+  end
+
+  defp scatter_identity_fields(_assigns, _row), do: []
 
   defp reported(value) when value in [nil, ""], do: dgettext("dashboard_builds", "Not reported")
   defp reported(value), do: value
@@ -750,7 +1063,8 @@ defmodule TuistWeb.BuildEntityLive do
         |> Map.drop(@activity_keys)
         |> Map.merge(reset_pagination(%{"tab" => "history", "activity-search" => row.parent_id}))
 
-      query_path(assigns.path, params)
+      path = if assigns.entity, do: assigns.path, else: inventory_path(assigns) <> "/" <> row.entity_id
+      query_path(path, params)
     else
       execution_path(assigns, row)
     end
@@ -787,7 +1101,7 @@ defmodule TuistWeb.BuildEntityLive do
       grid: %{left: "0.4%", right: "3%", top: "5%", bottom: if(show_legend, do: "18%", else: "5%"), containLabel: true},
       xAxis: %{
         type: "category",
-        boundaryGap: assigns.widget == "observations",
+        boundaryGap: chart_type(assigns) == "bar",
         axisLabel: %{
           color: "var:noora-surface-label-secondary",
           formatter: "fn:toLocaleDate",

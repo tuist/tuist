@@ -4,6 +4,9 @@ defmodule TuistTestSupport.Fixtures.BuildEntitiesFixtures do
   alias Tuist.BuildEntities
 
   @identities %{
+    bazel_actions:
+      {:bazel, "action",
+       %{"target_label" => "//app:lib", "mnemonic" => "CppCompile", "primary_output" => "bazel-out/debug/bin/app/lib.o"}},
     gradle_tasks:
       {:gradle, "task",
        %{"root_project_name" => "app", "build_path" => ":", "task_path" => ":app:test", "task_type" => "Test"}},

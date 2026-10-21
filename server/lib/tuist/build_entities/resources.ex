@@ -5,6 +5,21 @@ defmodule Tuist.BuildEntities.Resources do
 
   @resources [
     %{
+      key: :bazel_actions,
+      system: :bazel,
+      kind: "action",
+      singular: :action,
+      plural: :actions,
+      id_param: :action_id,
+      history_key: :executions,
+      title: "BazelBuildAction",
+      label: "Bazel actions",
+      label_singular: "a Bazel action",
+      api_path: "/bazel/actions",
+      history_path: "executions",
+      path: "/builds/bazel/actions"
+    },
+    %{
       key: :gradle_tasks,
       system: :gradle,
       kind: "task",
@@ -28,8 +43,8 @@ defmodule Tuist.BuildEntities.Resources do
       id_param: :module_id,
       history_key: :cache_events,
       title: "XcodeCachedModule",
-      label: "Xcode generated-project modules",
-      label_singular: "an Xcode generated-project module",
+      label: "Xcode modules",
+      label_singular: "an Xcode module",
       api_path: "/xcode/modules",
       history_path: "events",
       path: "/builds/xcode/modules"

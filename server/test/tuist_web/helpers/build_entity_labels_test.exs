@@ -13,7 +13,7 @@ defmodule TuistWeb.Helpers.BuildEntityLabelsTest do
 
   test "inventory fields use native scope without repeating the primary task, file or module identifier" do
     assert BuildEntityLabels.inventory_fields(:gradle, "task") == ~w(root_project_name build_path task_type)
-    assert BuildEntityLabels.inventory_fields(:xcode, "module") == ~w(project)
+    assert BuildEntityLabels.inventory_fields(:xcode, "module") == []
     assert BuildEntityLabels.inventory_fields(:once, "action") == ~w(target_id capability action_index)
     assert BuildEntityLabels.inventory_fields(:mix, "file") == []
     assert BuildEntityLabels.inventory_fields(:mix, "module") == []
@@ -38,7 +38,17 @@ defmodule TuistWeb.Helpers.BuildEntityLabelsTest do
     assert BuildEntityLabels.inventory_sublabel(:mix, "file", %{name: "lib/app.ex", identity: %{"path" => "lib/app.ex"}}) ==
              nil
 
-    assert BuildEntityLabels.inventory_sublabel(:xcode, "module", %{name: "App", identity: %{}}) == nil
+    assert BuildEntityLabels.inventory_sublabel(:xcode, "module", %{name: "App", identity: %{}}) == "Not reported"
+
+    assert BuildEntityLabels.inventory_sublabel(:xcode, "module", %{
+             name: "App",
+             identity: %{"target" => "App", "project" => "Workspace"}
+           }) == "Workspace"
+
+    assert BuildEntityLabels.inventory_sublabel(:xcode, "module", %{
+             name: "Display",
+             identity: %{"target" => "App", "project" => "Workspace"}
+           }) == "App · Workspace"
   end
 
   test "parent columns match the native build runs human-readable context" do
