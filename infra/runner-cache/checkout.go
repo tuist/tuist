@@ -59,7 +59,8 @@ type CheckoutImages interface {
 }
 
 // Checkouts keeps the host-built masters of checkout volumes: a repository's
-// working tree at a default-branch commit plus its .git and LFS objects. Only
+// working tree at a default-branch commit (or, until one ran, the commit of the
+// job that started the master) plus its .git and LFS objects. Only
 // this type writes them. It builds them from what jobs export after their own
 // checkout, never trusting that data: git verifies every object of the pack and
 // the host hashes every LFS object, and the host writes the working tree and the
@@ -103,6 +104,10 @@ type CheckoutTask struct {
 	DefaultBranch    string
 	Commit           string
 	DefaultBranchJob bool
+	// MayStartMaster lets the job's commit start the lineage's master when it has
+	// no HEAD: the server sets it for same-repository branches its runner profile
+	// saves from, never for forks or events that run untrusted code.
+	MayStartMaster bool
 	// The job's use names the lineage a master is published to and restored from.
 	Use            string
 	BaseGeneration int64
@@ -442,8 +447,9 @@ func (c *Checkouts) build(ctx context.Context, task CheckoutTask, cold bool, met
 		return err
 	}
 	defer export.Close()
-	// A master only starts from a default-branch commit; other exports only add to one.
-	if cold && !(task.DefaultBranchJob && export.Head == task.Commit) {
+	// A master starts from a default-branch commit, or from an eligible job's while
+	// the lineage has no HEAD; other exports only add to one.
+	if cold && !onDefault(task, export) && !startsLineage(task, export) {
 		return nil
 	}
 	// The image grows by about twice the export: its objects and their checked-out files.
@@ -505,7 +511,7 @@ func (c *Checkouts) build(ctx context.Context, task CheckoutTask, cold bool, met
 	if err := c.install(task, next, meta); err != nil {
 		return err
 	}
-	if moved && task.DefaultBranchJob {
+	if moved {
 		done := c.Observe.Start("checkout_publish", "remote")
 		err := c.publish(ctx, task)
 		done(err)
@@ -528,7 +534,7 @@ func (c *Checkouts) install(task CheckoutTask, next string, meta *checkoutMeta) 
 
 // ingest adds a job's export to the mounted master and, when the export's commit
 // should become the tip, writes that commit's working tree. It reports whether
-// the tip moved to a default-branch commit.
+// the tip moved.
 func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExport, task CheckoutTask, cold bool, meta *checkoutMeta) (bool, error) {
 	git := func(args ...string) ([]byte, error) { return c.run(ctx, repo, c.gitEnv(), "git", args...) }
 	if cold {
@@ -577,8 +583,8 @@ func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExp
 	}
 	// Branches stay remote-tracking: actions/checkout deletes local branches
 	// before it fetches, and the refs it keeps are what it advertises as haves.
-	onDefault := task.DefaultBranchJob && export.Head == task.Commit
-	if onDefault {
+	defaultTip := onDefault(task, export)
+	if defaultTip {
 		if _, err := git("update-ref", "refs/remotes/origin/"+task.DefaultBranch, export.Head); err != nil {
 			return false, err
 		}
@@ -606,9 +612,11 @@ func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExp
 		}
 	}
 	// The tip's tree is what every later job is handed, so it only moves to a
-	// default-branch commit, and only when all its LFS objects are here: a pointer
-	// left in the working tree would be served as the file's content.
-	if !onDefault || export.Head == meta.Tip || !complete {
+	// default-branch commit, or starts at an eligible job's commit when the lineage
+	// has no HEAD, and only when all its LFS objects are here: a pointer left in
+	// the working tree would be served as the file's content.
+	tip := defaultTip || (cold && startsLineage(task, export))
+	if !tip || export.Head == meta.Tip || !complete {
 		if cold {
 			return false, errors.New("checkout export cannot start a master")
 		}
@@ -637,7 +645,19 @@ func (c *Checkouts) ingest(ctx context.Context, repo string, export *checkoutExp
 	_, _ = git("gc", "--auto", "--quiet")
 	meta.Tip = export.Head
 	meta.RefreshedAt = c.now()
-	return onDefault, nil
+	return true, nil
+}
+
+// onDefault reports whether the export is the server-verified commit of a
+// default-branch job.
+func onDefault(task CheckoutTask, export *checkoutExport) bool {
+	return task.DefaultBranchJob && export.Head == task.Commit
+}
+
+// startsLineage reports whether the export may start a lineage that has no HEAD
+// yet: the job's own verified commit, on a branch the server let it start from.
+func startsLineage(task CheckoutTask, export *checkoutExport) bool {
+	return task.MayStartMaster && task.BaseGeneration == 0 && export.Head == task.Commit
 }
 
 // addPack lets git index the exported pack: `--strict` hashes every object and

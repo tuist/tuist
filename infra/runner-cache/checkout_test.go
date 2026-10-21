@@ -447,6 +447,80 @@ func TestCheckoutColdBuildsOnlyStartFromDefaultBranchCommits(t *testing.T) {
 	}
 }
 
+func TestCheckoutEligibleBranchJobStartsALineageWithoutAHead(t *testing.T) {
+	c, host := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	branch := exportFrom(t, c, "branch", checkoutTestCommit, nil)
+	branch.DefaultBranchJob, branch.MayStartMaster = false, true
+
+	c.Process(context.Background(), branch)
+
+	if c.Master(checkoutTestScope, 1) == "" || !host.ran("hdiutil", "create") {
+		t.Fatal("an eligible branch job did not start the master")
+	}
+	if !host.ran("git", "checkout", "-q", "--detach", "--force", checkoutTestCommit) || host.ran("git", "update-ref", "refs/remotes/origin/main") {
+		t.Fatal("the master's tip is the job's commit, without moving the default branch")
+	}
+	if meta, _ := c.readMeta(checkoutTestScope, 1); meta.Tip != checkoutTestCommit {
+		t.Fatalf("tip %s", meta.Tip)
+	}
+	if len(transfer.published) != 1 || transfer.published[0].ID != checkoutTestUse || transfer.published[0].BaseGeneration != 0 {
+		t.Fatalf("published %+v", transfer.published)
+	}
+
+	// Once the master exists, another branch job only adds its objects.
+	host.reset()
+	other := exportFrom(t, c, "other", checkoutTestOther, nil)
+	other.Commit, other.DefaultBranchJob, other.MayStartMaster = checkoutTestOther, false, true
+	c.Process(context.Background(), other)
+	if !host.ran("git", "update-ref", "refs/tuist/recent/"+checkoutTestOther) || host.ran("git", "checkout") || len(transfer.published) != 1 {
+		t.Fatal("a branch job moved or republished an existing master")
+	}
+
+	// The first default-branch job moves the tip and republishes.
+	host.reset()
+	main := exportFrom(t, c, "main", checkoutTestOther, nil)
+	main.Commit, main.BaseGeneration = checkoutTestOther, 1
+	main.ImageDigest, main.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
+	c.Process(context.Background(), main)
+	if !host.ran("git", "checkout", "-q", "--detach", "--force", checkoutTestOther) || !host.ran("git", "update-ref", "refs/remotes/origin/main", checkoutTestOther) {
+		t.Fatal("a default-branch job did not move the tip")
+	}
+	if len(transfer.published) != 2 || transfer.published[1].BaseGeneration != 1 {
+		t.Fatalf("published %+v", transfer.published)
+	}
+}
+
+func TestCheckoutBranchJobsOnlyStartLineagesTheServerAllows(t *testing.T) {
+	cases := map[string]func(*CheckoutTask){
+		// The server never allows forks or events that run untrusted code.
+		"not eligible": func(task *CheckoutTask) {},
+		// A host without a master of a lineage that has a HEAD restores it instead.
+		"lineage has a HEAD": func(task *CheckoutTask) {
+			task.MayStartMaster, task.BaseGeneration = true, 2
+			task.ImageDigest, task.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
+		},
+		"export is not the job's commit": func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit = true, checkoutTestOther
+		},
+	}
+	for name, change := range cases {
+		t.Run(name, func(t *testing.T) {
+			c, host := newCheckouts(t)
+			transfer := &fakeCheckoutTransfer{}
+			c.Transfer = transfer
+			task := exportFrom(t, c, "branch", checkoutTestCommit, nil)
+			task.DefaultBranchJob = false
+			change(&task)
+			c.Process(context.Background(), task)
+			if c.Master(checkoutTestScope, 1) != "" || host.ran("hdiutil", "create") || len(transfer.published) != 0 {
+				t.Fatal("a branch job started a master")
+			}
+		})
+	}
+}
+
 func TestCheckoutKeepsOnlyLFSObjectsTheCommitReferences(t *testing.T) {
 	c, host := newCheckouts(t)
 	used, unused := "used content", "unused content"

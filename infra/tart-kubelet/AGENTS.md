@@ -163,17 +163,21 @@ workflow code runs in the guest. Never expose host credentials or masters.
   names, and the host writes the working tree and the index itself. Only LFS
   objects the exported commit references are kept, an export is capped at half
   an image (and 200,000 LFS entries), and a build reserves twice its size. A
-  master only starts from, and its tip only moves to, a default-branch job's
-  commit (`default_branch_job` is the server's verified `trusted`, never the
-  branch name) whose LFS objects are all present: its tree is handed to every
-  later job, and a pointer left in it would be served as the file. Branches stay
+  master's tip only moves to a default-branch job's commit (`default_branch_job`
+  is the server's verified `trusted`, never the branch name) whose LFS objects
+  are all present: its tree is handed to every later job, and a pointer left in
+  it would be served as the file. While the lineage has no HEAD
+  (`base_generation` 0), a job with `may_start_master` (a same-repository writer
+  branch its profile saves from; never forks or pull_request_target) may also
+  start the master at its own verified commit; once a master exists, its exports
+  only add objects. Branches stay
   `refs/remotes/origin/*` (actions/checkout deletes local branches before
   fetching) and job commits live under `refs/tuist/recent/*`. Wait past the
   smudged files' mtimes before the final `update-index --really-refresh`: racily
   clean LFS entries turn back into pointers in a guest that has not configured
   the LFS filter.
-- A master that moved to a default-branch commit is published under the job's
-  use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
+- A master whose tip moved (a default-branch commit, or a started lineage) is
+  published under the job's use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
   one); a cold host with a HEAD restores it in the background instead. A cold
   answer journals no branch and reports the use deleted at once. A host without
   working git answers `denied`, so guests do not export. `Track` maps the
