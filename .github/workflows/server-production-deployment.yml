@@ -1199,6 +1199,18 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore production project builds
+        id: project-volume
+        continue-on-error: true
+        uses: tuist/cache-volume@v1
+        with:
+          key: server-image-prod-hosted-amd64-projects-v1
+          path: ~/.cache/tuist-server-docker-mix
+      - name: Prepare the production Mix build context
+        id: project-cache
+        if: steps.project-volume.outcome == 'success'
+        continue-on-error: true
+        run: bash .github/scripts/server-docker-mix-cache.sh prepare
       # The Dockerfile's `--mount=type=cache` for /og-cache is local to the
       # BuildKit builder, which starts empty on every ephemeral runner, so
       # Chromium re-renders every OG image (~6 min, on the critical path that
@@ -1232,6 +1244,7 @@ jobs:
           context: .
           file: ./server/Dockerfile
           target: runner
+          build-contexts: ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
@@ -1253,6 +1266,31 @@ jobs:
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
+      - name: Export production project builds
+        id: project-export
+        if: steps.project-cache.outcome == 'success'
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
+          DOCKER_BUILD_SUMMARY: "false"
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: mix-cache-export
+          provenance: false
+          build-contexts: ${{ steps.project-cache.outputs.context }}
+          outputs: ${{ steps.project-cache.outputs.export }}
+          secrets: github_token=${{ secrets.GITHUB_TOKEN }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=prod
+      - name: Retain the production project snapshot
+        if: always() && steps.project-cache.outcome == 'success'
+        continue-on-error: true
+        env:
+          TUIST_MIX_CACHE_EXPORTED: ${{ steps.project-export.outcome == 'success' }}
+        run: bash .github/scripts/server-docker-mix-cache.sh commit
 
   # The deploy's other images, each in its own job beside `build` so none of
   # them waits on the server image. Their tags match the server image's.

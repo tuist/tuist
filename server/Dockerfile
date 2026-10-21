@@ -39,6 +39,12 @@ RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-p
     mkdir -p /nif/swift-libs && \
     cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
+# Isolate the shipped artifacts so downstream COPYs do not materialize the
+# Swift toolchain and .build tree on a fresh BuildKit worker.
+FROM scratch AS swift-artifacts
+COPY --from=swift-builder /nif/xcactivitylog-parser /xcactivitylog-parser
+COPY --from=swift-builder /nif/swift-libs/ /swift-libs/
+
 # ========================================
 # Stage 1: NPM dependencies
 # ========================================
@@ -58,6 +64,11 @@ RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
 COPY noora /noora
 RUN aube run build
 WORKDIR /app
+
+# Empty by default. CI can supply production project builds with
+# --build-context mix-cache=<directory>, without replacing fetched dependencies.
+FROM ${BUILDER_IMAGE} AS mix-cache
+RUN mkdir /_build
 
 # ========================================
 # Stage 2: Base dependencies builder
@@ -145,7 +156,7 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
 # ========================================
 # Stage 3: Main application builder
 # ========================================
-FROM deps-builder AS builder
+FROM deps-builder AS compiled
 
 COPY tuist_common /tuist_common
 COPY tuist_ex /tuist_ex
@@ -161,7 +172,21 @@ COPY examples/xcode priv/examples/xcode
 
 COPY server/lib lib
 
-RUN mix compile --warnings-as-errors
+RUN --mount=type=bind,from=mix-cache,source=/_build,target=/mix-cache \
+    mkdir -p "_build/${MIX_ENV}/lib" && \
+    cp -a /mix-cache/. "_build/${MIX_ENV}/lib/" && \
+    mix compile --warnings-as-errors
+
+# Keep fetched dependencies layer-cached; retain only the four local projects.
+# Export before assets/release so the snapshot never contains an old release.
+FROM scratch AS mix-cache-export
+ARG MIX_ENV=prod
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist/ /_build/tuist/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_common/ /_build/tuist_common/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_ex/ /_build/tuist_ex/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/noora/ /_build/noora/
+
+FROM compiled AS builder
 
 COPY server/config/runtime.exs config/
 COPY server/rel rel
@@ -180,7 +205,7 @@ RUN mix release
 # ========================================
 FROM builder AS release-with-parser
 
-COPY --from=swift-builder /nif/xcactivitylog-parser /tmp/nif/xcactivitylog-parser
+COPY --from=swift-artifacts /xcactivitylog-parser /tmp/nif/xcactivitylog-parser
 
 RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
     mkdir -p "$TUIST_REL_DIR/priv/native" && \
@@ -230,7 +255,7 @@ ENV TUIST_VERSION=$TUIST_VERSION
 # Swift runtime libs the parser links against. Small (~20 MB) but carried by
 # every release image because any pod may run in processor mode
 # (TUIST_PROCESSOR_MODE=true) and spawn the xcactivitylog parser.
-COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+COPY --from=swift-artifacts /swift-libs/ /usr/local/lib/
 RUN ldconfig
 
 # Release taken from release-with-parser so xcactivitylog-parser is already

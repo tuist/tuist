@@ -322,6 +322,37 @@ they cannot flip the CLI's own unit tests. The coverage runs pass no
 result bundle's xccov report, which never covers cached code; the server shows
 that run's `coverage_tool` as `xccov`.
 
+Keep persistent cache mounts outside `RUNNER_TEMP`: GitHub's end-of-job temp
+cleanup deletes their contents before the cache-volume backend publishes them.
+A warm attachment alone does not prove the snapshot retained the intended files.
+
+`server-docker-mix-cache.yml` tests the production Mix snapshot bridge. Its manual
+benchmark seeds one shared registry cache and compares the same Dockerfile and
+app change with/without project-build state on fresh large runners. Require a
+real cross-job snapshot restore whose `.run-id` matches the current run.
+Only manually dispatched jobs get package-write permissions, and all writes go
+to the isolated `tuist-mix-benchmark` package, never the deployment cache or image
+tags. Count restore/export and asynchronous publication separately; a compilation
+speedup alone does not establish a net win. The deployment workflows share the
+stable `server-image-prod-hosted-amd64-projects-v1` volume after a measured win.
+Keep fetched dependencies layer-cached, retain only the four local projects,
+and make attachment/preparation/export failures fall back without failing the
+image build. Historical deployment SHAs without the helper stay registry-only.
+Mix owns Elixir/OTP invalidation; native outputs never enter this snapshot.
+
+The production snapshot is executable build input. It uses the existing
+same-repository writer trust model, as does the registry build cache: a permitted
+same-repo writer can influence production artifacts. Forks cannot publish. Do
+not describe this as default-branch-only protection; deployments requiring that
+boundary need server-enforced per-key restrictions or account-wide writer policy.
+No workflow-side check can fence another job that can publish the same key.
+If a snapshot causes compilation to fail, clear that volume in Runners → Volumes
+or rotate its `-v1` key; do not retry the image build automatically.
+
+The Docker smoke eval also runs the shipped activity-log parser with no arguments
+and requires its usage message and exit code 2. Keep that assertion: app startup
+alone does not check the parser's executable permissions or Swift runtime linkage.
+
 ## Restore drills
 
 CNPG restore drills resolve production to namespace `tuist`, not `tuist-production`; staging and canary retain their prefixed namespaces. Validate the resolver with `python3 .github/scripts/cnpg-restore-drill.test.py` without credentials. Recovery clusters are isolated and must never archive into or delete the source backup path. Use a run-scoped disposable StorageClass cloned from the source data volume's provisioning settings, with `Delete` reclamation and no default-class annotation. Never change the source class or existing volumes. Teardown must target only the run's `pg-restore-drill-*` resources, use foreground cluster deletion, verify PVC/PV removal, and propagate failures rather than silently leaving copied data. Previously retained drill volumes require separate human-authorized cleanup.
