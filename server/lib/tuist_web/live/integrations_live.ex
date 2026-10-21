@@ -530,7 +530,7 @@ defmodule TuistWeb.IntegrationsLive do
     |> Enum.sort_by(& &1.name, :asc)
   end
 
-  attr(:connection, Projects.VCSConnection, required: true)
+  attr(:connection, :map, required: true)
   attr(:actions_id, :string, required: true)
   slot(:repository_icon, required: true)
 
