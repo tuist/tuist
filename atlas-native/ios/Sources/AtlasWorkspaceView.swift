@@ -3,7 +3,7 @@ import SwiftUI
 struct AtlasWorkspaceView<Profile: View>: View {
     let holidayRequest: ([String: Any]) async throws -> Data
     let businessRequest: ([String: Any]) async throws -> Data
-    var presence: AtlasPresence? = nil
+    var presence: AtlasPresence?
     @ViewBuilder var settings: () -> Profile
     @State private var selection = "tasks"
     @Environment(\.scenePhase) private var scenePhase

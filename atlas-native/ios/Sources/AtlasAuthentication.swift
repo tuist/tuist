@@ -47,9 +47,11 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             if action["action"] as? String == "open" { return try await open(action) }
             var request = action
             request["operation"] = "presence"
-            let envelope = try JSONSerialization.jsonObject(with: Data(try await AtlasAuthBridge.execute(
-                String(decoding: JSONSerialization.data(withJSONObject: request), as: UTF8.self)
-            ).utf8)) as? [String: Any]
+            guard let input = String(bytes: try JSONSerialization.data(withJSONObject: request), encoding: .utf8) else {
+                throw AtlasAuthenticationError(kind: "invalid_request", message: "Could not encode presence request.")
+            }
+            let response = try await AtlasAuthBridge.execute(input)
+            let envelope = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any]
             guard let result = envelope?["ok"] else {
                 throw AtlasAuthenticationError(kind: "closed", message: "Presence is disconnected.")
             }

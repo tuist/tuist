@@ -21,6 +21,6 @@ struct AtlasPresenceTests {
         model.setActive(false)
         finish?.resume(returning: Data("{\"connection\":\"fixture-connection\"}".utf8))
         await model.stop()
-        #expect(closed && model.people.isEmpty())
+        #expect(closed && model.people.isEmpty)
     }
 }
