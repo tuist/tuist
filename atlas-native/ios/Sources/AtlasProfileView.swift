@@ -50,7 +50,7 @@ struct AtlasSettingsView: View {
             }
             Section {
                 NavigationLink {
-                    AtlasAppearanceView()
+                    AtlasAppearanceView().onAppear { presence?.show() }
                 } label: {
                     Label("Appearance", systemImage: "paintpalette")
                 }
