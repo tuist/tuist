@@ -60,6 +60,8 @@ This area owns LiveView pages and components for the web UI.
 
 - Gradle build Cache Summary uses five widgets: Task hits, Task misses, Hit rate, Cache downloads, and Cache uploads. Keep remote-miss diagnostics in task-level inspection rather than additional summary cards.
 
+- Keep requested work separate from executed work. Gradle build details render each original requested selector as an escaped monospace list entry, preserving invocation order and duplicates. Omit the list when no explicit requests were reported; never infer requested work from executed tasks.
+
 - `GradleTaskExecutionLive` renders `/builds/build-runs/:build_run_id/tasks/:task_id`. Scope lookups to both the selected project and parent build. Build Tasks, cacheable tasks, and task-overview execution rows navigate here. The page links back to its build and to the task overview with root project, build path, task path, and type preserved. Use shared `Helpers.GradleTask` outcome labels and colors.
 
 - Task execution details use one compact summary card (duration, runner, timestamp, cacheability, branch, shortened commit); show build identity and incremental status as further metadata rows. Display the root build path (`:`) as “Root build”. Omit raw execution reasons, caching-disabled explanations and dependency navigation. Use a single Cache badge for Not cacheable or the observed cache result (hit, local hit, miss, error), falling back to Cacheable or Unknown cacheability when no result is available; omit a separate Remote lookup field. Reuse VCS branch/commit links.
