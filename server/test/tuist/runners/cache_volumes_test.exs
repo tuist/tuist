@@ -1055,7 +1055,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
 
     test "a profile's jobs get its default volume, kept across a rename", %{
-      job: job,
       profiled: profiled,
       profile: profile,
       account: account
