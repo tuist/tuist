@@ -138,61 +138,62 @@
         />
       </.form>
     </div>
-    <div :if={@oidc_trust_policies != []} data-part="policies-table">
-      <.table
-        id="oidc-trust-policies-table"
-        rows={@oidc_trust_policies}
-        row_key={fn policy -> "oidc-trust-policy-#{policy.id}" end}
-        row_expandable={fn _policy -> true end}
-        expand_label={dgettext("dashboard_account", "Show workload identity details")}
+    <div
+      :if={@oidc_trust_policies != []}
+      id="oidc-trust-policy-cards"
+      data-part="policies"
+    >
+      <article
+        :for={policy <- @oidc_trust_policies}
+        id={"oidc-trust-policy-#{policy.id}"}
+        data-part="policy"
+        aria-labelledby={"oidc-trust-policy-#{policy.id}-title"}
       >
-        <:col :let={policy} label={dgettext("dashboard_account", "Name")}>
-          <.text_cell label={policy.name} data-field="name" />
-        </:col>
-        <:col :let={policy} label={dgettext("dashboard_account", "Issuer URL")}>
-          <.text_cell label={policy.issuer} data-field="issuer" />
-        </:col>
-        <:col :let={policy} label={dgettext("dashboard_account", "Audience")}>
-          <.text_cell label={policy.audience} data-field="audience" />
-        </:col>
-        <:col :let={policy} label={dgettext("dashboard_account", "Created")}>
-          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(policy.inserted_at)} />
-        </:col>
-        <:col :let={policy} label="">
-          <.button_cell>
-            <:button>
-              <.button
-                icon_only
-                variant="secondary"
-                size="small"
-                phx-click="delete_oidc_trust_policy"
-                phx-value-policy-id={policy.id}
-                aria-label={dgettext("dashboard_account", "Remove %{name}", name: policy.name)}
-              >
-                <.icon name="trash" />
-              </.button>
-            </:button>
-          </.button_cell>
-        </:col>
-        <:expanded_content :let={policy}>
-          <div data-part="policy-details">
-            <span>
-              {dgettext("dashboard_account", "JWKS: %{url}", url: policy.jwks_url)}
-            </span>
-            <span>
-              {dgettext("dashboard_account", "Claims: %{claims}",
-                claims: format_claims(policy.claims)
-              )}
-            </span>
-            <span data-scope="account">
-              {dgettext(
-                "dashboard_account",
-                "Access: all current and future projects in this account."
-              )}
-            </span>
+        <div data-part="policy-header">
+          <h3 id={"oidc-trust-policy-#{policy.id}-title"}>{policy.name}</h3>
+          <.button
+            icon_only
+            variant="secondary"
+            size="small"
+            phx-click="delete_oidc_trust_policy"
+            phx-value-policy-id={policy.id}
+            aria-label={dgettext("dashboard_account", "Remove %{name}", name: policy.name)}
+          >
+            <.icon name="trash" />
+          </.button>
+        </div>
+        <dl data-part="configuration">
+          <div data-field="issuer">
+            <dt>{dgettext("dashboard_account", "Issuer URL")}</dt>
+            <dd>{policy.issuer}</dd>
           </div>
-        </:expanded_content>
-      </.table>
+          <div data-field="jwks">
+            <dt>{dgettext("dashboard_account", "JWKS URL")}</dt>
+            <dd>{policy.jwks_url}</dd>
+          </div>
+          <div data-field="audience">
+            <dt>{dgettext("dashboard_account", "Audience")}</dt>
+            <dd>{policy.audience}</dd>
+          </div>
+          <div data-field="claims">
+            <dt>{dgettext("dashboard_account", "Claims")}</dt>
+            <dd><pre>{format_claims(policy.claims)}</pre></dd>
+          </div>
+        </dl>
+        <div data-part="policy-footer">
+          <p data-scope="account">
+            {dgettext(
+              "dashboard_account",
+              "Access: all current and future projects in this account."
+            )}
+          </p>
+          <time datetime={DateTime.to_iso8601(policy.inserted_at)}>
+            {dgettext("dashboard_account", "Created %{time}",
+              time: Tuist.Utilities.DateFormatter.from_now(policy.inserted_at)
+            )}
+          </time>
+        </div>
+      </article>
     </div>
   </.card_section>
 </section>

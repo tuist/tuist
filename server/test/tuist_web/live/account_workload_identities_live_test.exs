@@ -99,11 +99,11 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     render_hook(lv, "toggle_oidc_configuration", %{"checked" => false})
     assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
     assert has_element?(lv, "#oidc-trust-policies > [data-part=content][hidden]")
-    assert has_element?(lv, "#oidc-trust-policies-table #oidc-trust-policy-#{policy.id}", policy.name)
+    assert has_element?(lv, "#oidc-trust-policy-cards #oidc-trust-policy-#{policy.id}", policy.name)
 
     assert has_element?(
              lv,
-             "#oidc-trust-policy-#{policy.id}-expanded [data-scope=account]",
+             "#oidc-trust-policy-#{policy.id} [data-scope=account]",
              "all current and future projects"
            )
 
@@ -143,7 +143,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert has_element?(lv, "#oidc-trust-policy-claims[maxlength='8192']")
     refute has_element?(lv, "#oidc-projects")
     assert has_element?(lv, "[data-part=subtitle]", "all current and future projects in this account")
-    refute has_element?(lv, "#oidc-trust-policies-table")
+    refute has_element?(lv, "#oidc-trust-policy-cards")
 
     assert has_element?(
              lv,
@@ -216,7 +216,7 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
 
     assert has_element?(
              lv,
-             "#oidc-trust-policy-#{policy.id}-expanded [data-scope=account]",
+             "#oidc-trust-policy-#{policy.id} [data-scope=account]",
              "all current and future projects"
            )
 
@@ -226,32 +226,40 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert [] = Accounts.list_oidc_trust_policies(context.account)
   end
 
-  test "lists multiple identities in a table with full details and row-specific removal", context do
+  test "lists multiple identities as named cards with visible details and individual removal", context do
     lv = open(context)
     submit(lv, Map.put(context.params, "name", "First identity"))
     submit(lv, Map.put(context.params, "name", "Second identity"))
     assert [first, second] = Accounts.list_oidc_trust_policies(context.account)
-
-    headers =
-      lv
-      |> render()
-      |> Floki.parse_fragment!()
-      |> Floki.find("#oidc-trust-policies-table th")
-      |> Enum.map(fn header -> String.trim(Floki.text(header)) end)
-
-    assert headers == ["Name", "Issuer URL", "Audience", "Created", ""]
+    refute has_element?(lv, "#oidc-trust-policies-table")
+    refute has_element?(lv, "#oidc-trust-policy-cards [data-part=expand-toggle]")
 
     for policy <- [first, second] do
-      assert has_element?(lv, "#oidc-trust-policy-#{policy.id}[data-state=collapsed]", policy.name)
-      assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=issuer]", policy.issuer)
-      assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=audience]", policy.audience)
-      assert has_element?(lv, "#oidc-trust-policy-#{policy.id}-expanded", policy.jwks_url)
-      assert has_element?(lv, "#oidc-trust-policy-#{policy.id}-expanded", ~s(app_id = "456"))
+      assert has_element?(
+               lv,
+               "article#oidc-trust-policy-#{policy.id}[aria-labelledby='oidc-trust-policy-#{policy.id}-title']"
+             )
+
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id}-title", policy.name)
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=issuer] dd", policy.issuer)
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=jwks] dd", policy.jwks_url)
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=audience] dd", policy.audience)
 
       assert has_element?(
                lv,
-               "#oidc-trust-policy-#{policy.id} [data-part=expand-toggle][aria-expanded=false][aria-controls='oidc-trust-policy-#{policy.id}-expanded']"
+               "#oidc-trust-policy-#{policy.id} time[datetime='#{DateTime.to_iso8601(policy.inserted_at)}']",
+               "Created"
              )
+
+      claims =
+        lv
+        |> element("#oidc-trust-policy-#{policy.id} pre")
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.text()
+        |> JSON.decode!()
+
+      assert claims == policy.claims
 
       assert has_element?(
                lv,
@@ -269,6 +277,25 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert has_element?(lv, "#oidc-trust-policy-claims", "{unfinished")
     assert [%{id: remaining_id}] = Accounts.list_oidc_trust_policies(context.account)
     assert remaining_id == second.id
+  end
+
+  test "card claims preserve JSON types and escape workload-controlled text", context do
+    lv = open(context)
+    claims = %{"sub" => "<script>not executable</script>", "app_id" => 42, "protected" => true}
+    submit(lv, %{context.params | "name" => "Production & staging", "claims" => JSON.encode!(claims)})
+    assert [policy] = Accounts.list_oidc_trust_policies(context.account)
+    assert has_element?(lv, "#oidc-trust-policy-#{policy.id}-title", "Production & staging")
+    refute has_element?(lv, "#oidc-trust-policy-cards script")
+
+    displayed =
+      lv
+      |> element("#oidc-trust-policy-#{policy.id} pre")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.text()
+      |> JSON.decode!()
+
+    assert displayed == claims
   end
 
   test "obsolete project and forged account parameters cannot change the owning account", context do

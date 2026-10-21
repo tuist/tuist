@@ -279,9 +279,7 @@ defmodule TuistWeb.Components.WorkloadIdentities do
   defp field_error(_field), do: nil
 
   defp format_claims(claims) when is_map(claims) do
-    claims
-    |> Enum.sort_by(fn {key, _value} -> key end)
-    |> Enum.map_join(", ", fn {key, value} -> "#{key} = #{JSON.encode!(value)}" end)
+    IO.iodata_to_binary(:json.format(claims))
   end
 
   defp authorize_account_update!(socket) do

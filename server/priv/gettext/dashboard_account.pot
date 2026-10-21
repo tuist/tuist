@@ -501,7 +501,6 @@ msgid "Most Popular"
 msgstr ""
 
 #: lib/tuist_web/components/workload_identities.html.heex:62
-#: lib/tuist_web/components/workload_identities.html.heex:149
 #: lib/tuist_web/live/account_token_live.html.heex:74
 #: lib/tuist_web/live/account_tokens_live.html.heex:277
 #: lib/tuist_web/live/authentication_settings_live.html.heex:871
@@ -912,7 +911,7 @@ msgstr ""
 msgid "Via shared Slack channel"
 msgstr ""
 
-#: lib/tuist_web/components/workload_identities.ex:292
+#: lib/tuist_web/components/workload_identities.ex:290
 #: lib/tuist_web/live/account_settings_live.ex:19
 #: lib/tuist_web/live/account_token_live.ex:19
 #: lib/tuist_web/live/account_tokens_live.ex:27
@@ -1256,7 +1255,6 @@ msgstr ""
 msgid "Copy token"
 msgstr ""
 
-#: lib/tuist_web/components/workload_identities.html.heex:158
 #: lib/tuist_web/live/account_token_live.html.heex:92
 #: lib/tuist_web/live/account_tokens_live.html.heex:286
 #: lib/tuist_web/live/authentication_settings_live.html.heex:874
@@ -2968,12 +2966,13 @@ msgid "Application ID"
 msgstr ""
 
 #: lib/tuist_web/components/workload_identities.html.heex:102
-#: lib/tuist_web/components/workload_identities.html.heex:155
+#: lib/tuist_web/components/workload_identities.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "Audience"
 msgstr ""
 
 #: lib/tuist_web/components/workload_identities.ex:134
+#: lib/tuist_web/components/workload_identities.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Claims"
 msgstr ""
@@ -2993,11 +2992,6 @@ msgstr ""
 msgid "Claims must be valid JSON."
 msgstr ""
 
-#: lib/tuist_web/components/workload_identities.html.heex:183
-#, elixir-autogen, elixir-format
-msgid "Claims: %{claims}"
-msgstr ""
-
 #: lib/tuist_web/components/workload_identities.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Custom provider"
@@ -3009,19 +3003,15 @@ msgid "Enter a valid Fly.io organization slug and numeric organization and appli
 msgstr ""
 
 #: lib/tuist_web/components/workload_identities.ex:119
-#: lib/tuist_web/components/workload_identities.html.heex:152
+#: lib/tuist_web/components/workload_identities.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "Issuer URL"
 msgstr ""
 
 #: lib/tuist_web/components/workload_identities.ex:126
+#: lib/tuist_web/components/workload_identities.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "JWKS URL"
-msgstr ""
-
-#: lib/tuist_web/components/workload_identities.html.heex:180
-#, elixir-autogen, elixir-format
-msgid "JWKS: %{url}"
 msgstr ""
 
 #: lib/tuist_web/components/workload_identities.html.heex:81
@@ -3080,7 +3070,7 @@ msgstr ""
 msgid "Show configuration"
 msgstr ""
 
-#: lib/tuist_web/components/workload_identities.html.heex:188
+#: lib/tuist_web/components/workload_identities.html.heex:185
 #, elixir-autogen, elixir-format
 msgid "Access: all current and future projects in this account."
 msgstr ""
@@ -3090,7 +3080,7 @@ msgstr ""
 msgid "Allow trusted workloads to access all current and future projects in this account without long-lived tokens."
 msgstr ""
 
-#: lib/tuist_web/components/workload_identities.html.heex:170
+#: lib/tuist_web/components/workload_identities.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Remove %{name}"
 msgstr ""
@@ -3100,7 +3090,7 @@ msgstr ""
 msgid "Set up workload authentication"
 msgstr ""
 
-#: lib/tuist_web/components/workload_identities.html.heex:147
+#: lib/tuist_web/components/workload_identities.html.heex:191
 #, elixir-autogen, elixir-format
-msgid "Show workload identity details"
+msgid "Created %{time}"
 msgstr ""
