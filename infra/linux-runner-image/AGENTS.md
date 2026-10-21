@@ -215,6 +215,10 @@ Linux/macOS Buildkite hooks' TLS settings after environment sanitization.
 The image removes the compromised eMudhra roots from its OS bundle and
 directs Node/Python to that store. The GitLab executor forwards those settings
 explicitly, because its generated job environment is sanitized too.
+The Android SDK builder also sanitizes Java's `cacerts` before sdkmanager runs;
+OS bundle changes alone do not protect Java. Builds require the named
+`certificate-trust` context pointing at `infra/certificate-trust`; keep release,
+ad-hoc and local callers aligned. Shared policy changes must trigger releases.
 `.github/workflows/linux-runners-staging-smoke.yml` with `gradle_cache`
 enabled validates a deployed image with a real Docker job container. Select the runner
 profile, matching server URL, and an existing Gradle project authorized

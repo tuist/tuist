@@ -172,8 +172,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   the one image because which one runs is decided per job at dispatch,
   so a warm Pod has to be able to serve either; forking the image would
   split the warm pool to save one binary.
-- Packer removes the compromised eMudhra roots from macOS curl's independent
-  `/etc/ssl/cert.pem` and updates Homebrew's CA bundle. Dispatch and the Buildkite
+- Packer uses the shared SPKI policy in `../certificate-trust/` to remove the
+  compromised eMudhra keys from curl's independent `/etc/ssl/cert.pem`, verifies
+  curl/Homebrew bundles, and installs system-keychain deny settings from Apple's
+  root certificates. A real AAA intermediate is tested before/after with offline
+  native verification and a known ISRG root positive; already-denied baselines
+  are recorded without claiming differential success. Controls are actual Packer
+  and release-plan inputs. Qualify fresh-VM Apple and effective job-user behavior
+  before release; source/syntax checks or a settings write are not proof. Preserve warm pools and cache masters
+  during rollout; see `../certificate-trust/README.md`. Dispatch and the Buildkite
   environment hook force Node/Python onto the patched PEM store; the GitLab
   executor explicitly forwards those settings to its sanitized job environment.
 - `/opt/tuist/buildkite-hooks/` — global agent hooks (`--hooks-path`),

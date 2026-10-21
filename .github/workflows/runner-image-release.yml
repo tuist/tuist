@@ -15,6 +15,9 @@ on:
       - main
     paths:
       - infra/runner-image/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
+      - infra/certificate-trust/controls/**
       - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/actions/build-runner-image-binaries/**
       - .github/scripts/runner-image-release-plan.sh
@@ -22,6 +25,9 @@ on:
   pull_request:
     paths:
       - infra/runner-image/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
+      - infra/certificate-trust/controls/**
       - .github/workflows/runner-image-release.yml
   workflow_dispatch:
 

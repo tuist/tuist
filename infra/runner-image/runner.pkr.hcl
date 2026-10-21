@@ -206,15 +206,56 @@ source "tart-cli" "runner" {
 build {
   sources = ["source.tart-cli.runner"]
 
-  # Apple revocation updates do not protect /usr/bin/curl's PEM trust store.
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/pem-store.sh"
+    destination = "/tmp/tuist-pem-store.sh"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/policy.json"
+    destination = "/tmp/policy.json"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/aaa-cross-signed-intermediate.pem"
+    destination = "/tmp/tuist-negative-intermediate.pem"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/issuer-roots.pem"
+    destination = "/tmp/tuist-issuer-roots.pem"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/positive-isrg-root-x1.pem"
+    destination = "/tmp/tuist-positive-root.pem"
+  }
+
+  # Keychain clients and curl use independent stores. Do not rely on Apple's
+  # asynchronous revocation updates or silently matching certificate filenames.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "awk '/^(###|===) /{skip=0} /^=== .*\\/CN=(AAA Certificate Services|emSign ECC Root CA - G3)$/{skip=1} !skip' /etc/ssl/cert.pem > /tmp/tuist-cacerts.pem",
+      "security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > /tmp/tuist-system-roots.pem",
+      "bash /tmp/tuist-pem-store.sh extract-blocked /tmp/tuist-system-roots.pem /tmp/tuist-blocked-cas",
+      "openssl verify -CAfile /tmp/tuist-issuer-roots.pem /tmp/tuist-negative-intermediate.pem",
+      "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native negative-chain baseline: trusted before containment'; else echo 'Native negative-chain baseline: already rejected; no differential containment claim'; fi",
+      "echo 'admin' | sudo -S true",
+      "right=$(mktemp)",
+      "sudo security authorizationdb read com.apple.trust-settings.admin > \"$right\"",
+      "trap 'sudo security authorizationdb write com.apple.trust-settings.admin < \"$right\" || exit 1; rm -f \"$right\"' EXIT",
+      "sudo security authorizationdb write com.apple.trust-settings.admin allow",
+      "for cert in /tmp/tuist-blocked-cas/*.pem; do [ -e \"$cert\" ] || continue; sudo security add-trusted-cert -d -r deny -k /Library/Keychains/System.keychain \"$cert\"; if security verify-cert -c \"$cert\" -p basic >/dev/null 2>&1; then echo 'Native verifier accepted a denied root' >&2; exit 1; fi; done",
+      "sudo security authorizationdb write com.apple.trust-settings.admin < \"$right\"; rm -f \"$right\"; trap - EXIT",
+      "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native verifier accepted a compromised intermediate chain' >&2; exit 1; fi",
+      "security verify-cert -c /tmp/tuist-positive-root.pem -p basic -R offline",
+      "bash /tmp/tuist-pem-store.sh filter /etc/ssl/cert.pem /tmp/tuist-cacerts.pem",
+      "bash /tmp/tuist-pem-store.sh check /tmp/tuist-cacerts.pem",
       "echo 'admin' | sudo -S install -m 0644 /tmp/tuist-cacerts.pem /etc/ssl/cert.pem",
       "rm /tmp/tuist-cacerts.pem",
       "/opt/homebrew/bin/brew update",
-      "/opt/homebrew/bin/brew upgrade ca-certificates"
+      "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 /opt/homebrew/bin/brew upgrade ca-certificates",
+      "bash /tmp/tuist-pem-store.sh filter /opt/homebrew/etc/ca-certificates/cert.pem /tmp/tuist-homebrew-roots.pem",
+      "sudo install -m 0644 /tmp/tuist-homebrew-roots.pem /opt/homebrew/etc/ca-certificates/cert.pem",
+      "bash /tmp/tuist-pem-store.sh check /etc/ssl/cert.pem /opt/homebrew/etc/ca-certificates/cert.pem",
+      "rm -f /tmp/tuist-negative-intermediate.pem /tmp/tuist-issuer-roots.pem /tmp/tuist-positive-root.pem /tmp/tuist-system-roots.pem /tmp/tuist-homebrew-roots.pem",
+      "rm -rf /tmp/tuist-blocked-cas"
     ]
   }
 
@@ -424,7 +465,7 @@ build {
   }
 
   provisioner "file" {
-    source = "${path.root}/build/tuist-cache-volume"
+    source      = "${path.root}/build/tuist-cache-volume"
     destination = "/tmp/tuist-cache-volume"
   }
 

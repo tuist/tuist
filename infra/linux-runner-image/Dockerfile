@@ -79,8 +79,14 @@ ARG ANDROID_BUILD_TOOLS_MIN_VERSION=34
 
 ENV ANDROID_SDK_ROOT=/opt/android-sdk
 
+COPY --from=certificate-trust /pem-store.sh /java-store.sh /policy.json /opt/tuist/certificate-trust/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl unzip \
+    && apt-get install -y --no-install-recommends bash ca-certificates curl openssl unzip \
+    && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
+    && update-ca-certificates \
+    && bash /opt/tuist/certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt \
+    && bash /opt/tuist/certificate-trust/java-store.sh filter "${JAVA_HOME}/lib/security/cacerts" \
+    && bash /opt/tuist/certificate-trust/java-store.sh check "${JAVA_HOME}/lib/security/cacerts" \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
@@ -241,6 +247,7 @@ RUN apt-get update \
     && update-ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,from=certificate-trust,target=/certificate-trust bash /certificate-trust/pem-store.sh check /etc/ssl/certs/ca-certificates.crt
 
 ENV NODE_OPTIONS=--use-openssl-ca \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
