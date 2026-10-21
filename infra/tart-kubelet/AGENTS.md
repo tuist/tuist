@@ -121,8 +121,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   deadline is `execution_pending`, not `denied`.
   A job never waits for a download. Without its base locally it mounts the newest
   older master of the same lineage (reported as `mounted_generation`), or else an
-  empty image marked `.cold` that reports a miss and is withheld from publication;
-  either way its base is queued. A superseded master used in the last day stays
+  empty image marked `.cold` that reports a miss and is withheld from publication
+  unless the report response pairs `seal` with `cold_publish: true` (the Store's
+  `publish` action); either way its base is queued. A superseded master used in the last day stays
   until its successor is downloaded through the queue (`LocalImages.Replace`).
   The host maximum is `--custom-cache-max-volume-gb` (100 GB by default, env
   `TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB`), sent as `max_volume_bytes` with every

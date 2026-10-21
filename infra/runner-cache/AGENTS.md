@@ -50,7 +50,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   master of the same scope (recorded in `<image>.base` and
   `Slot.MountedGeneration`), else formats an empty image marked `<image>.cold`.
   A cold branch reports `Warm=false` and `Seal` returns `ErrWithheld`, which the
-  Store treats like a poisoned branch: deleted, never published.
+  Store treats like a poisoned branch: deleted, never published. Only the Store's
+  `publish` action (the server's size rule, see `CacheVolumes`) sets
+  `Slot.PublishCold` for that one seal; the full, unchanged, identical and
+  generation checks still apply. Linux never starts a branch empty over a HEAD.
 - APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
