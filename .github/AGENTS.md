@@ -52,6 +52,9 @@ Kura and Android SDK image builds require the shared named `certificate-trust`
 Docker context. Keep direct E2E Docker callers and release path detection aligned.
 Management Tailscale image replacements require the manual workflow's separate
 access-path qualification; never bypass its singleton Recreate guard on push.
+Server image builds combine the certificate-trust and optional Mix-cache named
+contexts in one multiline `build-contexts` input; duplicate YAML keys invalidate
+both the manual staging and production workflows.
 
 ## Server production deployment
 

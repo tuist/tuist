@@ -1256,9 +1256,10 @@ jobs:
         with:
           context: .
           file: ./server/Dockerfile
-          build-contexts: certificate-trust=./infra/certificate-trust
           target: runner
-          build-contexts: ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
+          build-contexts: |
+            certificate-trust=./infra/certificate-trust
+            ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
