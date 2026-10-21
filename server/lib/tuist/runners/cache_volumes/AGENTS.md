@@ -19,7 +19,7 @@ these schemas persist volume identities and per-job uses.
   "Xcode cache" and "Module cache" and keeps listing built-in volumes from
   earlier jobs.
 - `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
-  affinity: the lineage scopes jobs of the same repository, workflow name and job
+  affinity and for the macOS Pod placement preferences in the scaling signals: the lineage scopes jobs of the same repository, workflow name and job
   name attached since a cutoff. It starts from the account's volumes so the uses
   `(volume_id, inserted_at)` index applies; `VolumeAffinities` caches it per
   account and repository.

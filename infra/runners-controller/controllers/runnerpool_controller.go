@@ -27,6 +27,7 @@ import (
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
 )
 
@@ -134,6 +135,11 @@ type RunnerPoolReconciler struct {
 	ClusterDomain string
 
 	Recorder record.EventRecorder
+
+	// SignalsClient is the autoscaler's client for the server's scaling
+	// signals, shared so its cache serves both. nil leaves new Pods without
+	// cache volume placement preferences.
+	SignalsClient *scaling.Client
 
 	creationReservations creationReservationStore
 
@@ -730,6 +736,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 	if err != nil {
 		return "", fmt.Errorf("build pod: %w", err)
 	}
+	r.preferCacheVolumeNodes(ctx, pool, pod)
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
 		return "", fmt.Errorf("pod owner ref: %w", err)
 	}
@@ -738,6 +745,22 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 	}
 
 	return name, nil
+}
+
+// preferCacheVolumeNodes steers a macOS Pod toward the hosts holding the custom
+// cache volumes the pool's queued jobs are predicted to attach. A macOS Pod is
+// placed before any job is assigned to it, and a host with no copy of a volume
+// starts it empty. Without signals the Pod keeps only the golden preference.
+func (r *RunnerPoolReconciler) preferCacheVolumeNodes(ctx context.Context, pool *tuistv1.RunnerPool, pod *corev1.Pod) {
+	if r.SignalsClient == nil || pool.Spec.OS == "linux" {
+		return
+	}
+	signals, err := r.SignalsClient.Signals(ctx, pool.Name)
+	if err != nil {
+		log.FromContext(ctx).V(1).Info("no scaling signals for cache volume placement", "pool", pool.Name, "error", err.Error())
+		return
+	}
+	podtemplate.PreferCacheVolumeNodes(pod, signals.PreferredNodeLabels)
 }
 
 // reapRunner deletes a Pod and its same-named ServiceAccount.
