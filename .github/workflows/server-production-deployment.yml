@@ -1548,8 +1548,9 @@ jobs:
         with:
           ref: ${{ github.sha }}
           submodules: false
+      # No tuist/module-cache: the suite must pull its binary from canary, so a
+      # module cache that outlives the job would only hold throwaway artifacts.
       - uses: tuist/xcode-cache@v1
-      - uses: tuist/module-cache@v1
       - name: Resolve backward-compatibility CLI version
         # Test the oldest supported CLI that can build on this runner's Xcode:
         # max(minimum_supported_version, the Xcode-26 build floor). See the
