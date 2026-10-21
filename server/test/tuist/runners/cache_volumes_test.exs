@@ -2020,6 +2020,30 @@ defmodule Tuist.Runners.CacheVolumesTest do
                CacheVolumes.image("other-node", cold.id, %{"operation" => "download", "generation" => 1})
     end
 
+    test "a use seeded on a host without the HEAD still uploads the host's next master", %{params: params} do
+      stub(Runners, :volume_master_upload_url, fn _, _, _, _ -> {:ok, "https://storage/upload", "checksum"} end)
+      stub(Runners, :track_volume_master_upload, fn _, _, _, _ -> :ok end)
+      {:ok, first} = CacheVolumes.allocate_checkout(params)
+
+      publish = %{
+        "operation" => "publish",
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => String.duplicate("c", 64)
+      }
+
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", first.id, publish)
+      {:ok, seeded} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "seeded-uid"})
+      assert seeded.base_generation == 1
+      CacheVolumes.report("mac-node", seeded.id, Map.put(report("active", false), "warm", false))
+
+      assert {:ok, %{upload_url: "https://storage/upload"}} =
+               CacheVolumes.image("mac-node", seeded.id, %{
+                 publish
+                 | "operation" => "upload",
+                   "content_digest" => String.duplicate("d", 64)
+               })
+    end
+
     test "the host publishes its master once, under a use whose job is already gone", %{params: params} do
       {:ok, checkout} = CacheVolumes.allocate_checkout(params)
       assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
@@ -2101,6 +2125,110 @@ defmodule Tuist.Runners.CacheVolumesTest do
     test "the reserved name cannot be requested as a custom volume", %{params: params} do
       assert {:error, :unavailable} = CacheVolumes.allocate(Map.put(params, "key", "checkout"))
       assert {:ok, _} = CacheVolumes.allocate(Map.put(params, "key", "checkouts"))
+    end
+  end
+
+  describe "a use that started empty although its volume has a saved head" do
+    setup do
+      stub(Runners, :volume_master_upload_url, fn _, _, _, _ -> {:ok, "https://1.1.1.1/upload", "checksum"} end)
+      stub(Runners, :track_volume_master_upload, fn _, _, _, _ -> :ok end)
+      :ok
+    end
+
+    defp mac_attrs(pod, key), do: Map.put(%{attrs(pod) | key: key}, :platform, "macos")
+
+    defp saved_head(job, key, size) do
+      {:ok, head} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("head", key))
+      if is_nil(Repo.get_by(JobCompletion, workflow_job_id: job.workflow_job_id)), do: complete(job)
+      assert {:ok, %{action: "keep"}} = publish_report("node", head.id, %{"size_bytes" => size})
+      head
+    end
+
+    defp finished(id, size, warm \\ false),
+      do: CacheVolumes.report("node", id, Map.merge(report(), %{"size_bytes" => size, "warm" => warm}))
+
+    defp image(id, operation) do
+      CacheVolumes.image("node", id, %{
+        "operation" => operation,
+        "image_digest" => :sha |> :crypto.hash(id) |> Base.encode16(case: :lower),
+        "content_digest" => :sha256 |> :crypto.hash(id) |> Base.encode16(case: :lower)
+      })
+    end
+
+    test "replaces it only with at least twice its size and 1 GB more", %{job: job} do
+      for {key, head_size, size, replaces?} <- [
+            {"tiny-head", 80_000_000, 15_000_000_000, true},
+            {"double", 1_000_000_000, 2_000_000_000, true},
+            {"less-than-double", 1_000_000_000, 1_999_999_999, false},
+            {"less-than-1-gb-more", 300_000_000, 1_299_999_999, false},
+            {"exactly-1-gb-more", 300_000_000, 1_300_000_000, true},
+            {"smaller", 9_000_000_000, 4_900_000_000, false},
+            {"same", 4_622_692_352, 4_625_457_152, false}
+          ] do
+        saved_head(job, key, head_size)
+        {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", key))
+        assert cold.base_generation == 1
+
+        if replaces? do
+          assert {:ok, %{action: "seal", cold_publish: true}} = finished(cold.id, size), key
+          assert {:ok, %{upload_url: _}} = image(cold.id, "upload"), key
+          assert {:ok, %{generation: 2}} = image(cold.id, "publish"), key
+        else
+          assert {:ok, decision} = finished(cold.id, size)
+          assert decision == %{action: "seal"}, key
+          assert {:error, :conflict} = image(cold.id, "upload"), key
+        end
+      end
+    end
+
+    test "a warm use is not held to the rule", %{job: job} do
+      saved_head(job, "warm", 9_000_000_000)
+      {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("warm", "warm"))
+      assert {:ok, decision} = finished(warm.id, 1_000_000, true)
+      assert decision == %{action: "seal"}
+      assert {:ok, %{upload_url: _}} = image(warm.id, "upload")
+    end
+
+    test "an unknown size never replaces the saved head", %{job: job} do
+      saved_head(job, "unknown-head", nil)
+      {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", "unknown-head"))
+      assert {:ok, decision} = finished(cold.id, 15_000_000_000)
+      assert decision == %{action: "seal"}
+      assert {:error, :conflict} = image(cold.id, "upload")
+
+      saved_head(job, "unknown-use", 80_000_000)
+      {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", "unknown-use"))
+      assert {:ok, decision} = finished(cold.id, nil)
+      assert decision == %{action: "seal"}
+      assert {:error, :conflict} = image(cold.id, "upload")
+    end
+
+    test "only the head it started from can be replaced", %{job: job} do
+      saved_head(job, "advanced", 80_000_000)
+      {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", "advanced"))
+      {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("warm", "advanced"))
+      assert {:ok, %{action: "keep"}} = publish_report("node", warm.id, %{"size_bytes" => 100_000_000})
+
+      assert {:ok, decision} = finished(cold.id, 15_000_000_000)
+      assert decision == %{action: "seal"}
+      assert {:error, :conflict} = image(cold.id, "upload")
+    end
+
+    test "races a warm use of the same base through the head's compare-and-swap", %{job: job, account: account} do
+      saved_head(job, "race", 80_000_000)
+      {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", "race"))
+      {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("warm", "race"))
+      assert {:ok, %{action: "seal", cold_publish: true}} = finished(cold.id, 15_000_000_000)
+      assert {:ok, %{action: "seal"}} = finished(warm.id, 100_000_000, true)
+      assert {:ok, %{upload_url: _}} = image(cold.id, "upload")
+      assert {:ok, %{upload_url: _}} = image(warm.id, "upload")
+
+      assert {:ok, %{generation: 2}} = image(cold.id, "publish")
+      assert {:ok, %{conflict: true}} = image(warm.id, "publish")
+      assert Repo.get!(Usage, warm.id).status == "discarded"
+      volume = Repo.get!(Volume, Repo.get!(Usage, cold.id).volume_id)
+      assert volume.head_id == cold.id
+      assert %{generation: 2} = VolumeHeads.get_head(account.id, CacheVolumes.storage_name(volume))
     end
   end
 end

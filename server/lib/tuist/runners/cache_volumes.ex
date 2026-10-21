@@ -37,6 +37,10 @@ defmodule Tuist.Runners.CacheVolumes do
   @full_percent 80
   @out_of_space_percent 99
 
+  # A use that started empty although its volume has a saved head replaces that
+  # head only when it used at least twice the head's bytes and this much more.
+  @cold_publish_margin_bytes 1_000_000_000
+
   @volume_bytes 20_000_000_000
   # Tuist sizes its managed volumes and ignores requested sizes for them.
   @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000, "tuist-module" => 20_000_000_000}
@@ -730,6 +734,9 @@ defmodule Tuist.Runners.CacheVolumes do
       is_nil(completion) or completion.conclusion != "success" ->
         discard(usage, now)
 
+      state == "active" and cold_publish?(volume, usage) ->
+        %{action: "seal", cold_publish: true}
+
       state == "active" ->
         %{action: "seal"}
 
@@ -738,6 +745,24 @@ defmodule Tuist.Runners.CacheVolumes do
         discard(usage, now)
     end
   end
+
+  # A host withholds a use that started empty although its lineage had a saved
+  # head (`warm: false` with a base), so a cold start cannot replace a good head
+  # with less. Such a use may replace the head it was based on only when it used
+  # at least twice that head's bytes and @cold_publish_margin_bytes more: the
+  # head was saved before it held what jobs need. Unknown sizes never qualify.
+  defp cold_publish?(volume, usage) do
+    head = volume.head_id && Repo.get(Usage, volume.head_id)
+
+    cold?(volume, usage) and not is_nil(head) and head.published_generation == usage.base_generation and
+      is_integer(head.size_bytes) and is_integer(usage.size_bytes) and
+      usage.size_bytes >= 2 * head.size_bytes and
+      usage.size_bytes - head.size_bytes >= @cold_publish_margin_bytes
+  end
+
+  # A checkout use publishes the host's master, never the branch it started from.
+  defp cold?(%Volume{key: @checkout_key}, _usage), do: false
+  defp cold?(_volume, usage), do: usage.warm == false and usage.base_generation > 0
 
   def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
@@ -1053,8 +1078,9 @@ defmodule Tuist.Runners.CacheVolumes do
   defp image_publish(volume, usage, "upload", digest, content) do
     name = storage_name(volume)
 
-    if not Runners.fast_forward_viable?(volume.account_id, name, usage.base_generation),
-      do: Repo.rollback(:conflict)
+    if not Runners.fast_forward_viable?(volume.account_id, name, usage.base_generation) or
+         (cold?(volume, usage) and not cold_publish?(volume, usage)),
+       do: Repo.rollback(:conflict)
 
     case Runners.volume_master_upload_url(volume.account_id, name, digest, content) do
       {:ok, url, checksum} ->

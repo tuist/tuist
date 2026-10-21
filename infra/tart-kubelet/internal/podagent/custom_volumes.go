@@ -381,9 +381,15 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	var result struct {
-		Action string `json:"action"`
+		Action      string `json:"action"`
+		ColdPublish bool   `json:"cold_publish"`
 	}
 	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil, "mounted_generation": mountedGeneration(slot)}, &result)
+	// Only an explicit server decision lets a branch that started empty replace
+	// the saved version; a plain seal keeps withholding it.
+	if result.Action == "seal" && result.ColdPublish {
+		return "publish", err
+	}
 	return result.Action, err
 }
 
