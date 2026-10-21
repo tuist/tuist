@@ -3,7 +3,17 @@ import XCTest
 @MainActor
 final class AtlasBusinessUITests: XCTestCase {
     func testTaskCreateEditCompleteAndDelete() throws {
+        try exerciseTaskCRUD(launch())
+    }
+
+    func testTaskActionsRemainReachableInLandscape() throws {
         let app = launch()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        try exerciseTaskCRUD(app)
+    }
+
+    private func exerciseTaskCRUD(_ app: XCUIApplication) throws {
         defer { app.terminate() }
         app.buttons["business-create"].tap()
         XCTAssertFalse(app.buttons["business-save"].isEnabled)
