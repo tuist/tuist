@@ -14,7 +14,7 @@ configuration:
       items:
         type: object
         additionalProperties: false
-        required: [path]
+        required: [key, path]
         properties:
           key:
             type: string

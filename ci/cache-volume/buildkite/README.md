@@ -38,7 +38,7 @@ steps:
 
 | Field | Contract |
 | --- | --- |
-| `key` | Optional stable volume name. Omit it to use the default volume of the runner profile and pipeline. Keys starting with `tuist-` are reserved. |
+| `key` | Required stable volume name. Keys starting with `tuist-` are reserved. |
 | `path` | Required. One absent or empty directory, or a list of up to 16. |
 | `size` | Optional capacity, a whole number of GB from `1gb` to `100gb`, such as `50gb`. New volumes start at `20gb` without it. |
 
@@ -53,8 +53,6 @@ steps:
   toward its capacity. Clear the volume after removing a path.
 - Each saved copy replaces the whole volume, so the last saved copy wins. Give
   pipelines that save at the same time separate keys.
-- Without a `key`, jobs on another runner profile get their own default volume, and deleting a profile clears its default volumes. Jobs on a queue that is not a Tuist runner profile need a `key`.
-  Use a named `key` for directories that several profiles should share.
 - A larger `size` grows the volume, keeping its contents, from its next job. A
   smaller one applies after the volume is next cleared or expires. When steps
   ask for different sizes of one key, the largest applies.

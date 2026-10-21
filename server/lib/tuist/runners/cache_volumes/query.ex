@@ -9,11 +9,10 @@ defmodule Tuist.Runners.CacheVolumes.Query do
     with {:ok, page, size} <- pagination(params),
          {:ok, options} <- filters(params) do
       data = CacheVolumes.list(account_id, "", page, options ++ [page_size: size])
-      names = CacheVolumes.default_profile_names(account_id, data.volumes)
 
       {:ok,
        %{
-         volumes: Enum.map(data.volumes, &volume(&1, Map.get(data.stats, &1.id, %{}), names)),
+         volumes: Enum.map(data.volumes, &volume(&1, Map.get(data.stats, &1.id, %{}))),
          pagination_metadata: metadata(page, size, CacheVolumes.count(account_id, "", options))
        }}
     end
@@ -21,8 +20,7 @@ defmodule Tuist.Runners.CacheVolumes.Query do
 
   def run(:show, account_id, params) do
     with {:ok, found} <- find(account_id, params) do
-      names = CacheVolumes.default_profile_names(account_id, [found])
-      {:ok, volume(found, Map.get(CacheVolumes.statistics([found.id]), found.id, %{}), names)}
+      {:ok, volume(found, Map.get(CacheVolumes.statistics([found.id]), found.id, %{}))}
     end
   end
 
@@ -42,13 +40,12 @@ defmodule Tuist.Runners.CacheVolumes.Query do
       {:ok, job} ->
         uses = CacheVolumes.for_job(account_id, job.workflow_run_id, job.workflow_job_id)
         stats = CacheVolumes.statistics(Enum.map(uses, & &1.volume_id))
-        names = CacheVolumes.default_profile_names(account_id, Enum.map(uses, & &1.volume))
 
         {:ok,
          %{
            volumes:
              Enum.map(uses, fn use ->
-               %{volume: volume(use.volume, Map.get(stats, use.volume_id, %{}), names), usage: usage(use, use.volume)}
+               %{volume: volume(use.volume, Map.get(stats, use.volume_id, %{})), usage: usage(use, use.volume)}
              end)
          }}
 
@@ -156,7 +153,7 @@ defmodule Tuist.Runners.CacheVolumes.Query do
 
   defp datetime(_), do: {:error, :invalid_parameters}
 
-  defp volume(volume, stats, profile_names) do
+  defp volume(volume, stats) do
     used =
       if stats[:retained_copies] == 0 or
            (is_nil(volume.head_id) and is_nil(volume.deleted_at) and is_nil(stats[:retained_bytes])),
@@ -178,8 +175,7 @@ defmodule Tuist.Runners.CacheVolumes.Query do
       unmeasured_copies: stats[:unmeasured_copies] || 0,
       unmeasured_capacity_copies: stats[:unmeasured_capacity_copies] || 0,
       volume_bytes: CacheVolumes.volume_bytes(volume, stats[:head_volume_bytes]),
-      pending_volume_bytes: CacheVolumes.pending_volume_bytes(volume, stats[:head_volume_bytes]),
-      default_profile_name: Map.get(profile_names, volume.id)
+      pending_volume_bytes: CacheVolumes.pending_volume_bytes(volume, stats[:head_volume_bytes])
     }
   end
 

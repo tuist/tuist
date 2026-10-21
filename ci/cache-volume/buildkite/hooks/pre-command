@@ -8,17 +8,17 @@ config=$(jq -ce '
   select(type == "object" and (keys == ["volumes"])) |
   select(.volumes | type == "array" and length > 0 and length <= 8) |
   select(all(.volumes[];
-    type == "object" and has("path") and (keys - ["key", "path", "size"] == []) and
-    ((has("key") | not) or (.key | valid)) and
+    type == "object" and has("key") and has("path") and (keys - ["key", "path", "size"] == []) and
+    (.key | valid) and
     ((has("size") | not) or (.size | valid)) and
     (.path | if type == "array" then length > 0 and length <= 16 and all(.[]; valid) else valid end)))
 ' <<< "$plugin_config") || {
-  echo "Tuist cache volumes: expected one to eight volumes, each with one to sixteen paths and an optional key and size." >&2
+  echo "Tuist cache volumes: expected one to eight volumes, each with a key, one to sixteen paths and an optional size." >&2
   exit 1
 }
-reserved=$(jq -r '[.volumes[].key // empty | select(ascii_downcase | startswith("tuist-"))][0] // empty' <<< "$config")
+reserved=$(jq -r '[.volumes[].key | select(ascii_downcase | startswith("tuist-"))][0] // empty' <<< "$config")
 if [ -n "$reserved" ]; then
-  echo "Tuist cache volumes: keys starting with tuist- are reserved for Tuist ($reserved). Choose another key, or omit key to use the default volume." >&2
+  echo "Tuist cache volumes: keys starting with tuist- are reserved for Tuist ($reserved). Choose another key." >&2
   exit 1
 fi
 invalid_size=$(jq -r '
@@ -43,7 +43,7 @@ if jq -e 'any(.volumes[]; has("size"))' <<< "$config" >/dev/null; then
 fi
 count=$(jq '.volumes | length' <<< "$config")
 for ((index = 0; index < count; index++)); do
-  key=$(jq -r --argjson index "$index" '.volumes[$index].key // "tuist-default"' <<< "$config")
+  key=$(jq -r --argjson index "$index" '.volumes[$index].key' <<< "$config")
   arguments=(--key "$key")
   while IFS= read -r path; do
     arguments+=(--path "$path")

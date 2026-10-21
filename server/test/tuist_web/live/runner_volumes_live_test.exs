@@ -44,13 +44,11 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
         activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
         previous_activity: %{uses: 4, hit_rate: 75.0, points: []}
       },
-      history: [],
-      profile_names: %{}
+      history: []
     }
 
     %{
       selected_account: %{id: 1, name: "org"},
-      profile_names: %{},
       selected: volume,
       selected_tab: "overview",
       storage_metric: "used_bytes",
@@ -580,21 +578,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       })
 
     assert inventory =~ "50.0 GB"
-  end
-
-  test "default volumes are named after their runner profile" do
-    assigns = assigns(true)
-    profiled = %{assigns.selected | key: "tuist-default/42"}
-    named = %{assigns.selected | id: Ecto.UUID.generate(), key: "spm-checkouts"}
-    names = %{profiled.id => "macos"}
-    data = %{assigns.data.result | volumes: [profiled, named], profile_names: names}
-
-    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
-    cells = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child") |> Enum.map(&Floki.text/1)
-    assert Enum.map(cells, &String.trim/1) == ["Default (tuist-macos)", "spm-checkouts"]
-
-    detail = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: profiled, profile_names: names})
-    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Default (tuist-macos)"
   end
 
   test "reader sees metrics but no mutation controls" do

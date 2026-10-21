@@ -208,7 +208,7 @@ jobs:
       - name: Exercise real APFS and custom cache lifecycle
         run: go test -race -v ./infra/runner-cache/... ./infra/tart-kubelet/internal/podagent ./infra/linux-runner-image/cmd/tuist-cache-volume
 
-  # Sized, multi-path and keyless custom cache volumes, with this branch's
+  # Sized and multi-path custom cache volumes, with this branch's
   # client (built into the job, ahead of the image's on PATH) and this branch's
   # action. The server must run the matching branch, and sizes above 20 GB need
   # the account's `runner_custom_volume_sizes` flag. Run seed, then verify after
@@ -250,14 +250,15 @@ jobs:
             .tuist-sizes-smoke/two
             ~/.tuist-sizes-smoke
       - uses: ./.github/actions/cache-volume
-        id: default
+        id: small
         with:
+          key: ${{ inputs.cache_volume_key }}-${{ matrix.platform }}-small
           size: 5gb
-          path: .tuist-sizes-smoke/default
+          path: .tuist-sizes-smoke/small
       - name: Verify sizes, paths and retained contents
         env:
           SIZED_HIT: ${{ steps.sized.outputs.cache-hit }}
-          DEFAULT_HIT: ${{ steps.default.outputs.cache-hit }}
+          SMALL_HIT: ${{ steps.small.outputs.cache-hit }}
         run: |
           set -euo pipefail
           test "$(command -v tuist-cache-volume)" = "$RUNNER_TEMP/bin/tuist-cache-volume"
@@ -265,14 +266,14 @@ jobs:
           paths=(.tuist-sizes-smoke/one .tuist-sizes-smoke/two "$HOME/.tuist-sizes-smoke")
           capacity() { echo $(( $(df -Pk "$1/" | awk 'NR == 2 { print $2 }') * 1024 )); }
           sized=$(capacity "${paths[0]}")
-          default=$(capacity .tuist-sizes-smoke/default)
+          small=$(capacity .tuist-sizes-smoke/small)
           for path in "${paths[@]:1}"; do
             test "$(capacity "$path")" = "$sized"
           done
           {
             echo "### Cache volume sizes: $PHASE on $RUNNER_OS"
             echo "- Sized volume: hit $SIZED_HIT, requested $SIZE, filesystem $((sized / 1000000)) MB"
-            echo "- Default volume: hit $DEFAULT_HIT, requested 5gb, filesystem $((default / 1000000)) MB"
+            echo "- Small volume: hit $SMALL_HIT, requested 5gb, filesystem $((small / 1000000)) MB"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$sized" -lt $(( requested * 9 / 10 )) ]; then
             echo "::error::the sized volume holds $sized bytes for a $SIZE request; is runner_custom_volume_sizes on for the account and the server on this branch?"
@@ -282,7 +283,7 @@ jobs:
             echo "::error::a new volume holds $sized bytes for a $SIZE request"
             exit 1
           fi
-          test "$default" -ge 4500000000
+          test "$small" -ge 4500000000
           if [ "$RUNNER_OS" = macOS ]; then
             root=$(dirname "$(cd -P "${paths[0]}" && pwd)")
             test -s "$root/.tuist-paths"
@@ -299,7 +300,7 @@ jobs:
                 test -z "$(ls -A "$path/")"
                 printf '%s' "$path" > "$path/sentinel"
               done
-              printf 'retained' > .tuist-sizes-smoke/default/sentinel
+              printf 'retained' > .tuist-sizes-smoke/small/sentinel
               for (( i = 1; i <= FILL_GB; i++ )); do
                 head -c 1000000000 /dev/urandom > "${paths[$(( i % 3 ))]}/fill-$i"
               done
@@ -307,11 +308,11 @@ jobs:
               ;;
             verify|fail)
               test "$SIZED_HIT" = true
-              test "$DEFAULT_HIT" = true
+              test "$SMALL_HIT" = true
               for path in "${paths[@]}"; do
                 test "$(cat "$path/sentinel")" = "$path"
               done
-              test "$(cat .tuist-sizes-smoke/default/sentinel)" = retained
+              test "$(cat .tuist-sizes-smoke/small/sentinel)" = retained
               count=$(cat "${paths[0]}/fill-count")
               for (( i = 1; i <= count; i++ )); do
                 test "$(wc -c < "${paths[$(( i % 3 ))]}/fill-$i" | tr -d ' ')" = 1000000000

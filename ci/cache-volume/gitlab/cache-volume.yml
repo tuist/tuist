@@ -1,7 +1,7 @@
 # Include this file at an immutable commit, then reference the snippet before
 # dependency installation. CI variables are arguments, never interpolated code.
 # TUIST_VOLUME_PATH holds one path per line; all paths share the volume.
-# TUIST_VOLUME_KEY and TUIST_VOLUME_SIZE are optional.
+# TUIST_VOLUME_KEY is required; TUIST_VOLUME_SIZE is optional.
 .tuist-cache-volume:
   before_script:
     - |
@@ -10,9 +10,12 @@
       tuist_volume_key=${tuist_volume_key#"${tuist_volume_key%%[![:space:]]*}"}
       tuist_volume_key=${tuist_volume_key%"${tuist_volume_key##*[![:space:]]}"}
       case "$tuist_volume_key" in
-        "") tuist_volume_key=tuist-default ;;
+        "")
+          echo "Set TUIST_VOLUME_KEY." >&2
+          exit 1
+          ;;
         [Tt][Uu][Ii][Ss][Tt]-*)
-          echo "TUIST_VOLUME_KEY: keys starting with tuist- are reserved for Tuist. Choose another key, or leave it unset to use the default volume." >&2
+          echo "TUIST_VOLUME_KEY: keys starting with tuist- are reserved for Tuist. Choose another key." >&2
           exit 1
           ;;
       esac

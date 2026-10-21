@@ -4648,12 +4648,6 @@ components:
                     type: integer
                     x-struct:
                     x-validate:
-                  default_profile_name:
-                    description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
                   id:
                     nullable: false
                     type: string
@@ -4715,7 +4709,6 @@ components:
                 required:
                   - architecture
                   - capacity_bytes
-                  - default_profile_name
                   - id
                   - key
                   - last_used_at
@@ -5381,12 +5374,6 @@ components:
           type: integer
           x-struct:
           x-validate:
-        default_profile_name:
-          description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
         id:
           nullable: false
           type: string
@@ -5448,7 +5435,6 @@ components:
       required:
         - architecture
         - capacity_bytes
-        - default_profile_name
         - id
         - key
         - last_used_at
@@ -9786,12 +9772,6 @@ components:
               type: integer
               x-struct:
               x-validate:
-            default_profile_name:
-              description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
             id:
               nullable: false
               type: string
@@ -9853,7 +9833,6 @@ components:
           required:
             - architecture
             - capacity_bytes
-            - default_profile_name
             - id
             - key
             - last_used_at
@@ -11890,12 +11869,12 @@ components:
     RunnerProfile:
       properties:
         cache_writer_all_branches:
-          description: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+          description: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
           type: boolean
           x-struct:
           x-validate:
         cache_writer_branches:
-          description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+          description: Additional branch names or * patterns whose jobs save custom cache volume changes.
           items:
             type: string
             x-struct:
@@ -11904,7 +11883,7 @@ components:
           x-struct:
           x-validate:
         cache_writer_default_branch:
-          description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+          description: Whether jobs on each repository's default branch save custom cache volume changes.
           type: boolean
           x-struct:
           x-validate:
@@ -14065,12 +14044,6 @@ components:
                 type: integer
                 x-struct:
                 x-validate:
-              default_profile_name:
-                description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
               id:
                 nullable: false
                 type: string
@@ -14132,7 +14105,6 @@ components:
             required:
               - architecture
               - capacity_bytes
-              - default_profile_name
               - id
               - key
               - last_used_at
@@ -16360,12 +16332,12 @@ paths:
                     items:
                       properties:
                         cache_writer_all_branches:
-                          description: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                          description: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                           type: boolean
                           x-struct:
                           x-validate:
                         cache_writer_branches:
-                          description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                          description: Additional branch names or * patterns whose jobs save custom cache volume changes.
                           items:
                             type: string
                             x-struct:
@@ -16374,7 +16346,7 @@ paths:
                           x-struct:
                           x-validate:
                         cache_writer_default_branch:
-                          description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                          description: Whether jobs on each repository's default branch save custom cache volume changes.
                           type: boolean
                           x-struct:
                           x-validate:
@@ -16568,12 +16540,12 @@ paths:
               schema:
                 properties:
                   cache_writer_all_branches:
-                    description: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                    description: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                     type: boolean
                     x-struct:
                     x-validate:
                   cache_writer_branches:
-                    description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                    description: Additional branch names or * patterns whose jobs save custom cache volume changes.
                     items:
                       type: string
                       x-struct:
@@ -16582,7 +16554,7 @@ paths:
                     x-struct:
                     x-validate:
                   cache_writer_default_branch:
-                    description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                    description: Whether jobs on each repository's default branch save custom cache volume changes.
                     type: boolean
                     x-struct:
                     x-validate:
@@ -21054,12 +21026,6 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
-                  default_profile_name:
-                    description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
                   id:
                     nullable: false
                     type: string
@@ -21121,7 +21087,6 @@ paths:
                 required:
                   - architecture
                   - capacity_bytes
-                  - default_profile_name
                   - id
                   - key
                   - last_used_at
@@ -25917,12 +25882,6 @@ paths:
                               type: integer
                               x-struct:
                               x-validate:
-                            default_profile_name:
-                              description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
                             id:
                               nullable: false
                               type: string
@@ -25984,7 +25943,6 @@ paths:
                           required:
                             - architecture
                             - capacity_bytes
-                            - default_profile_name
                             - id
                             - key
                             - last_used_at
@@ -36677,7 +36635,7 @@ paths:
         - Runners
     patch:
       callbacks: {}
-      description: "Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows."
+      description: "Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows."
       operationId: updateRunnerProfile
       parameters:
         - description: The account handle.
@@ -36747,12 +36705,12 @@ paths:
               schema:
                 properties:
                   cache_writer_all_branches:
-                    description: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                    description: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                     type: boolean
                     x-struct:
                     x-validate:
                   cache_writer_branches:
-                    description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                    description: Additional branch names or * patterns whose jobs save custom cache volume changes.
                     items:
                       type: string
                       x-struct:
@@ -36761,7 +36719,7 @@ paths:
                     x-struct:
                     x-validate:
                   cache_writer_default_branch:
-                    description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                    description: Whether jobs on each repository's default branch save custom cache volume changes.
                     type: boolean
                     x-struct:
                     x-validate:
@@ -43188,12 +43146,6 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
-                        default_profile_name:
-                          description: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
                         id:
                           nullable: false
                           type: string
@@ -43255,7 +43207,6 @@ paths:
                       required:
                         - architecture
                         - capacity_bytes
-                        - default_profile_name
                         - id
                         - key
                         - last_used_at

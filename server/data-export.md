@@ -505,9 +505,7 @@ The archive contains everything needed to understand the account's complete data
 
 - **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
   provider, provider instance, immutable scope ID, optional numeric repository/project ID,
-  repository or pipeline display name, user-chosen key (a workflow that names no key
-  attaches `tuist-default/<runner profile ID>`, which references the account's runner
-  profile; deleting the profile clears these volumes), platform (Linux or macOS), architecture,
+  repository or pipeline display name, user-chosen key, platform (Linux or macOS), architecture,
   execution UID, generation, published head use UUID, optional built-in storage name,
   a legacy additional writer branch list that is no longer read (empty for every volume),
   the repository's default branch as last reported by GitHub (nullable),

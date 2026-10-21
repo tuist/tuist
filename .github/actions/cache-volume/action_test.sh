@@ -72,13 +72,15 @@ echo 'ok: a block path with a single line is one path'
 export TUIST_VOLUME_PATH=cache
 
 for key in '' ' ' $'\t\n'; do
-  TUIST_VOLUME_KEY="$key" attach
-  printf '%s\n' --key tuist-default --path cache > "$fixture/expected"
-  cmp "$fixture/expected" "$CAPTURE_ARGS"
+  rm -f "$CAPTURE_ARGS"
+  status=0
+  TUIST_VOLUME_KEY="$key" attach > "$fixture/error" 2>&1 || status=$?
+  [[ "$status" != 0 && ! -e "$CAPTURE_ARGS" ]]
+  grep -q 'key input is required' "$fixture/error"
 done
-echo 'ok: an omitted key attaches the default volume'
+echo 'ok: a missing key fails'
 
-for key in tuist-default tuist-gradle Tuist-Cache TUIST-X; do
+for key in tuist-mine tuist-gradle Tuist-Cache TUIST-X; do
   rm -f "$CAPTURE_ARGS"
   status=0
   TUIST_VOLUME_KEY="$key" attach > "$fixture/error" 2>&1 || status=$?

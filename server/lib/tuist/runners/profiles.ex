@@ -213,7 +213,6 @@ defmodule Tuist.Runners.Profiles do
   `:no_matching_profile` on their next dispatch; in-flight Pods
   already claimed against the corresponding shape pool finish
   normally (the shape pool isn't going anywhere).
-  Its default cache volumes are cleared with it.
 
   Protected profiles (the per-account `linux` default) refuse
   deletion — every account always has a Linux profile so the
@@ -224,8 +223,7 @@ defmodule Tuist.Runners.Profiles do
   def delete(%Profile{} = profile) do
     Repo.transaction(fn ->
       with {:ok, deleted} <- Repo.delete(profile),
-           :ok <- CacheVolumes.revoke_profile_writers({:deleted, deleted}),
-           :ok <- CacheVolumes.clear_profile_volumes(deleted) do
+           :ok <- CacheVolumes.revoke_profile_writers({:deleted, deleted}) do
         deleted
       else
         {:error, changeset} -> Repo.rollback(changeset)

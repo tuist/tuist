@@ -888,7 +888,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert saved_volume(account).requested_volume_bytes == gb(5)
       id = volume(account).id
 
-      assert {:ok, %{volume_bytes: 20_000_000_000, pending_volume_bytes: 5_000_000_000, default_profile_name: nil}} =
+      assert {:ok, %{volume_bytes: 20_000_000_000, pending_volume_bytes: 5_000_000_000}} =
                Query.run(:show, account.id, %{"volume_id" => id})
 
       CacheVolumes.delete(account.id, id)
@@ -1028,78 +1028,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
       volume = saved_volume(account)
       assert CacheVolumes.volume_bytes(volume, stats.head_volume_bytes) == gb(20)
       refute CacheVolumes.full?(stats.saved_bytes, CacheVolumes.next_volume_bytes(volume, stats.head_volume_bytes))
-    end
-  end
-
-  describe "default volumes" do
-    setup %{account: account, job: job} do
-      profile =
-        Repo.insert!(%Profile{account_id: account.id, name: "macos-ci", platform: :linux, vcpus: 4, memory_gb: 16})
-
-      %{profile: profile, profiled: Map.put(job, :requested_dispatch_label, Profile.dispatch_label(profile))}
-    end
-
-    defp default_attrs(pod), do: %{attrs(pod) | key: "tuist-default"}
-
-    test "a job without a runner profile has no default volume", %{job: job, account: account} do
-      assert {:error, :unavailable} = CacheVolumes.allocate_for_job(job, identity(), default_attrs("none"))
-
-      assert {:error, :unavailable} =
-               CacheVolumes.allocate_for_job(
-                 Map.put(job, :requested_dispatch_label, "macos-15"),
-                 identity(),
-                 default_attrs("legacy")
-               )
-
-      assert Repo.all(from(v in Volume, where: v.account_id == ^account.id)) == []
-    end
-
-    test "a profile's jobs get its default volume, kept across a rename", %{
-      profiled: profiled,
-      profile: profile,
-      account: account
-    } do
-      {:ok, first} = CacheVolumes.allocate_for_job(profiled, identity(), default_attrs("first"))
-      key = "tuist-default/#{profile.id}"
-      volume = Repo.get_by!(Volume, account_id: account.id, key: key)
-      assert CacheVolumes.default_profile_names(account.id, [volume]) == %{volume.id => "macos-ci"}
-
-      renamed = Repo.update!(Ecto.Changeset.change(profile, name: "renamed-ci"))
-      renamed_job = %{profiled | requested_dispatch_label: Profile.dispatch_label(renamed)}
-      {:ok, again} = CacheVolumes.allocate_for_job(renamed_job, identity(), default_attrs("again"))
-      assert again.scope == first.scope
-
-      assert {:ok, %{default_profile_name: "renamed-ci", key: ^key}} =
-               Query.run(:show, account.id, %{"volume_id" => volume.id})
-    end
-
-    test "deleting a profile clears its default volumes and hides them", %{
-      profiled: profiled,
-      profile: profile,
-      account: account
-    } do
-      {:ok, use} = CacheVolumes.allocate_for_job(profiled, identity(), default_attrs("first"))
-      {:ok, _named} = CacheVolumes.allocate_for_job(profiled, identity(), attrs("named"))
-      volume = Usage |> Repo.get_by!(id: use.id) |> Repo.preload(:volume) |> Map.fetch!(:volume)
-      {:ok, _} = Profiles.delete(profile)
-
-      cleared = Repo.get!(Volume, volume.id)
-      assert cleared.generation == volume.generation + 1
-      assert cleared.deleted_at
-      assert is_nil(CacheVolumes.get(account.id, volume.id))
-      assert {:error, :not_found} = Query.run(:show, account.id, %{"volume_id" => volume.id})
-      assert [%Volume{key: "gradle/caches"}] = CacheVolumes.list(account.id).volumes
-      assert CacheVolumes.count(account.id) == 1
-    end
-
-    test "other providers resolve their profile", %{
-      profiled: profiled,
-      profile: profile,
-      account: account
-    } do
-      buildkite = Map.merge(identity(), %{provider: "buildkite", provider_instance: "org", scope_id: "pipeline"})
-      {:ok, _} = CacheVolumes.allocate_for_job(profiled, buildkite, default_attrs("buildkite"))
-      assert Repo.get_by(Volume, account_id: account.id, provider: "buildkite", key: "tuist-default/#{profile.id}")
     end
   end
 

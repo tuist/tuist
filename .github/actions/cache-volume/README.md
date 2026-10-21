@@ -11,15 +11,14 @@ every directory to keep, one per line:
 ```yaml
 - uses: tuist/cache-volume@v1
   with:
+    key: gradle
     path: |
       ~/.gradle/caches
       ~/.gradle/wrapper
 - run: ./gradlew test
 ```
 
-Without a `key`, the action attaches the default volume of the job's runner
-profile and repository. Name a volume with `key` and set its capacity with
-`size`:
+Set a volume's capacity with `size`:
 
 ```yaml
 - uses: tuist/cache-volume@v1
@@ -55,7 +54,7 @@ teardown; unavailable agents remain pending. A future use of the key starts fres
 
 | Name | Contract |
 | --- | --- |
-| `key` | Optional stable name within the repository, architecture and execution user, such as `spm-checkouts`. Omit it to use the default volume of the runner profile and repository. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. `checkout` and keys starting with `tuist-` are reserved for Tuist. |
+| `key` | Required stable name within the repository, architecture and execution user, such as `spm-checkouts`. Not a content hash: do not include lockfile, tool-version or commit hashes. Use a new key only to start a separate, empty cache. `checkout` and keys starting with `tuist-` are reserved for Tuist. |
 | `path` | Required. Up to 16 absent or empty directories, one per line. Blank lines and surrounding whitespace are ignored. Absolute paths, workspace-relative paths and `~/` are supported. |
 | `size` | Optional volume capacity, a whole number of GB from `1gb` to `100gb`, such as `50gb`. New volumes start at `20gb` without it. |
 | `cache-hit` | Output string `true` for a mounted saved snapshot; `false` for a cold directory or unavailable storage. |
@@ -95,14 +94,6 @@ One key holds every directory you list:
   (`~/.npm` instead of `/home/runner/.npm`), starts empty.
 - Contents of paths that are no longer listed stay in the volume and count
   toward its capacity. Clear the volume after removing a path.
-
-### Default volume
-
-Without a `key`, the action attaches the default volume of the runner profile
-the job runs on and the repository. Jobs on another profile get their own
-default volume, and deleting a profile clears its default volumes. Jobs on a
-runner label that is not a Tuist runner profile need a `key`. Use a named `key`
-for directories that jobs on several profiles should share.
 
 Each saved copy replaces the whole volume, so the last saved copy wins. Give
 workflows that save at the same time separate keys, and keep each workflow's

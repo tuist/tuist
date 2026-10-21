@@ -14,9 +14,8 @@ The release workflow is `.github/workflows/cache-volume-action.yml`.
 - Provider integration implementation and rollout live in `infra/runners-controller/cache-volume-integrations.md`.
 
 - Document ordinary bind-mounted directories and preserve the absent/empty target
-  contract. `key` stays single-line and optional: empty attaches `tuist-default`,
-  which the server maps to the runner profile's default volume, and keys
-  starting with `tuist-` (any case) are rejected because Tuist reserves them.
+  contract. `key` stays single-line and required, and keys starting with `tuist-` (any
+  case) are rejected because Tuist reserves them.
   `path` takes one path per line (blank lines ignored, surrounding whitespace
   trimmed) and `attach.sh` passes one `--path` per line from a Bash array. A
   single-line `path` behaves as one `--path`. `size` is passed as `--size` only

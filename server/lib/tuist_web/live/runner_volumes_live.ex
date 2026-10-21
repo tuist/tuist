@@ -8,7 +8,6 @@ defmodule TuistWeb.RunnerVolumesLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.CacheVolumes
-  alias Tuist.Runners.Profile
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
@@ -58,7 +57,6 @@ defmodule TuistWeb.RunnerVolumesLive do
      socket
      |> assign(
        params: Map.drop(params, ["account_handle", "id"]),
-       profile_names: CacheVolumes.default_profile_names(socket.assigns.selected_account.id, List.wrap(selected)),
        analytics_preset: preset,
        analytics_period: period,
        selected: selected,
@@ -179,7 +177,6 @@ defmodule TuistWeb.RunnerVolumesLive do
             volumes: List.wrap(volume),
             more?: false,
             stats: CacheVolumes.statistics([selected.id]),
-            profile_names: CacheVolumes.default_profile_names(account.id, List.wrap(volume)),
             history:
               case tab do
                 "overview" -> CacheVolumes.history(account.id, selected.id, 1, 5)
@@ -198,7 +195,6 @@ defmodule TuistWeb.RunnerVolumesLive do
         else
           account.id
           |> CacheVolumes.list(search, page, sort_options)
-          |> then(&Map.put(&1, :profile_names, CacheVolumes.default_profile_names(account.id, &1.volumes)))
           |> Map.put(:history, [])
           |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, nil, period))
           |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, nil, previous_period(period)))
@@ -413,32 +409,17 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   # Managed caches show what they hold rather than their storage key; the
-  # Xcode and module caches share the built-in volume. Default volumes show
-  # the runner profile they belong to.
-  def display_name(volume, profile_names \\ %{})
-
-  def display_name(%{builtin_name: name}, _profile_names) when is_binary(name),
+  # Xcode and module caches share the built-in volume.
+  def display_name(%{builtin_name: name}) when is_binary(name),
     do: dgettext("dashboard_runners", "Xcode and module caches")
 
-  def display_name(%{key: "tuist-xcode"}, _profile_names), do: dgettext("dashboard_runners", "Xcode cache")
-  def display_name(%{key: "tuist-module"}, _profile_names), do: dgettext("dashboard_runners", "Module cache")
-  def display_name(%{key: "tuist-gradle"}, _profile_names), do: dgettext("dashboard_runners", "Gradle cache")
+  def display_name(%{key: "tuist-xcode"}), do: dgettext("dashboard_runners", "Xcode cache")
+  def display_name(%{key: "tuist-module"}), do: dgettext("dashboard_runners", "Module cache")
+  def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
+  def display_name(%{key: key}), do: key
 
-  def display_name(%{key: key} = volume, profile_names) do
-    cond do
-      name = Map.get(profile_names, volume.id) ->
-        dgettext("dashboard_runners", "Default (%{profile})", profile: Profile.dispatch_label(%Profile{name: name}))
-
-      CacheVolumes.default_volume?(volume) ->
-        dgettext("dashboard_runners", "Default")
-
-      true ->
-        key
-    end
-  end
-
-  def volume_name(volume, profile_names \\ %{}) do
-    name = display_name(volume, profile_names)
+  def volume_name(volume) do
+    name = display_name(volume)
 
     if String.length(name) > @volume_name_max_length,
       do: String.slice(name, 0, @volume_name_max_length - 1) <> "…",

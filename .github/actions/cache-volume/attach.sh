@@ -17,16 +17,16 @@ trim() {
 }
 
 key=$(trim "${TUIST_VOLUME_KEY:-}")
-if [ -z "$key" ]; then
-  key=tuist-default
-else
-  case "$key" in
-    [Tt][Uu][Ii][Ss][Tt]-*)
-      echo '::error::Cache volume keys starting with tuist- are reserved for Tuist. Choose another key, or omit key to use the default volume.'
-      exit 1
-      ;;
-  esac
-fi
+case "$key" in
+  "")
+    echo '::error::The key input is required.'
+    exit 1
+    ;;
+  [Tt][Uu][Ii][Ss][Tt]-*)
+    echo '::error::Cache volume keys starting with tuist- are reserved for Tuist. Choose another key.'
+    exit 1
+    ;;
+esac
 
 arguments=(--key "$key")
 while IFS= read -r line || [ -n "$line" ]; do

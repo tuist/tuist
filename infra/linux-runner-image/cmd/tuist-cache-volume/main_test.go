@@ -310,10 +310,13 @@ func TestContentHashedKeyFlagsLockfileAndCommitHashes(t *testing.T) {
 	}
 }
 
-func TestParseArgumentsDefaultsTheKeyAndValidatesSizeAndPaths(t *testing.T) {
+func TestParseArgumentsRequiresAKeyAndValidatesSizeAndPaths(t *testing.T) {
 	parse := func(args ...string) (options, error) { return parseArguments(args, io.Discard) }
-	got, err := parse("--path", ".npm")
-	if err != nil || got.key != defaultKey || got.size != 0 || len(got.targets) != 1 {
+	if _, err := parse("--path", ".npm"); err == nil {
+		t.Fatal("accepted a volume without a key")
+	}
+	got, err := parse("--key", "deps", "--path", ".npm")
+	if err != nil || got.key != "deps" || got.size != 0 || len(got.targets) != 1 {
 		t.Fatal(got, err)
 	}
 	for size, want := range map[string]int64{"1gb": 1_000_000_000, "50GB": 50_000_000_000, "100Gb": 100_000_000_000} {
@@ -323,16 +326,16 @@ func TestParseArgumentsDefaultsTheKeyAndValidatesSizeAndPaths(t *testing.T) {
 		}
 	}
 	for _, size := range []string{"0gb", "101gb", "50", "50gib", "2.5gb", "", "-5gb", "1000gb", " 5gb"} {
-		_, err := parse("--path", ".npm", "--size", size)
+		_, err := parse("--key", "deps", "--path", ".npm", "--size", size)
 		if err == nil || !strings.Contains(err.Error(), "use a whole number of GB from 1gb to 100gb, such as 50gb") {
 			t.Fatalf("accepted size %q: %v", size, err)
 		}
 	}
-	paths := []string{}
+	paths := []string{"--key", "deps"}
 	for i := range maxPaths + 1 {
 		paths = append(paths, "--path", fmt.Sprintf("p%d", i))
 	}
-	if _, err := parse(paths[:2*maxPaths]...); err != nil {
+	if _, err := parse(paths[:2+2*maxPaths]...); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := parse(paths...); err == nil || !strings.Contains(err.Error(), "at most 16 paths") {
@@ -361,11 +364,11 @@ func TestAcquireSendsTheRequestedSizeOnlyWhenGiven(t *testing.T) {
 			w.Write([]byte(`{"directory":"` + digest("scope") + `","id":"lease","warm":true}`))
 		}))
 		t.Setenv("TUIST_CACHE_VOLUME_URL", agent.URL)
-		if _, _, _, err := acquire(agent.Client(), defaultKey, size); err != nil {
+		if _, _, _, err := acquire(agent.Client(), "deps", size); err != nil {
 			t.Fatal(err)
 		}
 		agent.Close()
-		if body["key"] != defaultKey || body["requested_volume_bytes"] != want {
+		if body["key"] != "deps" || body["requested_volume_bytes"] != want {
 			t.Fatalf("size %d sent %v", size, body)
 		}
 		if _, sent := body["requested_volume_bytes"]; size == 0 && sent {

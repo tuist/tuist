@@ -26,9 +26,6 @@ type paths []string
 func (p *paths) String() string         { return fmt.Sprint([]string(*p)) }
 func (p *paths) Set(value string) error { *p = append(*p, value); return nil }
 
-// defaultKey is reserved: the server maps it to the default volume of the job's
-// runner profile and repository.
-const defaultKey = "tuist-default"
 const maxPaths = 16
 
 var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
@@ -134,7 +131,7 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 	detach := flags.Bool("detach-all", false, "Detach macOS volumes after the job")
 	checkout := flags.String("checkout", "", "Mount the job's cached checkout at this workspace (before the first step)")
 	export := flags.Bool("checkout-export", false, "Hand the host what the job's checkout added (after the job)")
-	key := flags.String("key", defaultKey, "Stable cache name; change it to invalidate")
+	key := flags.String("key", "", "Stable cache name; change it to invalidate")
 	var targets paths
 	flags.Var(&targets, "path", "Directory to cache (repeatable, up to 16; relative to the working directory)")
 	size := flags.String("size", "", "Volume capacity, a whole number of GB from 1gb to 100gb, such as 50gb")
@@ -155,7 +152,7 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 		return options{detach: true}, nil
 	}
 	if !keyPattern.MatchString(*key) || len(targets) == 0 {
-		return options{}, errors.New("usage: tuist-cache-volume [--key NAME] --path DIR [--path DIR] [--size NGB]")
+		return options{}, errors.New("usage: tuist-cache-volume --key NAME --path DIR [--path DIR] [--size NGB]")
 	}
 	if len(targets) > maxPaths {
 		return options{}, fmt.Errorf("a cache volume takes at most %d paths", maxPaths)

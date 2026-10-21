@@ -25,12 +25,6 @@ defmodule Tuist.Runners.CacheVolumes.Schemas do
         type: :integer,
         nullable: true,
         description: "A smaller requested capacity in bytes that applies once the volume is next cleared or expires."
-      },
-      default_profile_name: %Schema{
-        type: :string,
-        nullable: true,
-        description:
-          "The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles."
       }
     })
   end

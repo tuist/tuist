@@ -12,9 +12,7 @@ A volume can take several paths: Buildkite `path` is a string or a list of up to
 16, and the GitLab template reads one path per line from `TUIST_VOLUME_PATH`
 (blank lines ignored, whitespace trimmed). Both pass one `--path` per entry from
 a Bash array in one client call and stay compatible with macOS `/bin/bash` 3.2.
-`key` is optional (absent or empty attaches `tuist-default`, the runner
-profile's default volume) and keys starting with `tuist-` in any case are
-rejected. `size` (Buildkite per volume, GitLab `TUIST_VOLUME_SIZE`) is passed as
+`key` is required and keys starting with `tuist-` in any case are rejected. `size` (Buildkite per volume, GitLab `TUIST_VOLUME_SIZE`) is passed as
 `--size` only when `tuist-cache-volume -h` lists `-size`; otherwise the wrapper
 warns and attaches without it. Buildkite also checks the size format and range
 in jq so that every entry is validated before any attach; keep that check in

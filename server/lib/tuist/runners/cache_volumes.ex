@@ -41,7 +41,6 @@ defmodule Tuist.Runners.CacheVolumes do
   @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000, "tuist-module" => 20_000_000_000}
   # The largest volume a host that does not advertise its maximum accepts.
   @legacy_max_volume_bytes 32_000_000_000
-  @default_key "tuist-default"
 
   def allocate(
         %{
@@ -214,12 +213,13 @@ defmodule Tuist.Runners.CacheVolumes do
 
       # Lock the profile before the volume, in the same order as policy changes,
       # so their revocation sees every use granted under the previous policy.
-      profile = writer_profile(job)
-
       # A job's own checkout branch never publishes: the host publishes the master
       # it builds from verified exports instead (`image/3`).
-      grant = if attrs.key == @checkout_key, do: :denied, else: writer_grant(identity, profile)
-      attrs = %{attrs | key: volume_key(attrs.key, profile)}
+      grant =
+        if attrs.key == @checkout_key,
+          do: :denied,
+          else: writer_grant(identity, writer_profile(job))
+
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
       timestamp = DateTime.truncate(now, :second)
@@ -371,12 +371,6 @@ defmodule Tuist.Runners.CacheVolumes do
       _ -> @legacy_max_volume_bytes
     end
   end
-
-  # Without a key, a job attaches the default volume of its runner profile. A job
-  # without a profile has none and must name a key.
-  defp volume_key(@default_key, %Profile{id: id}), do: "#{@default_key}/#{id}"
-  defp volume_key(@default_key, nil), do: Repo.rollback(:unavailable)
-  defp volume_key(key, _profile), do: key
 
   defp ensure_allocation_matches!(usage, job, attrs) do
     if usage.node_name != attrs.node_name or usage.workflow_job_id != job.workflow_job_id do
@@ -779,77 +773,6 @@ defmodule Tuist.Runners.CacheVolumes do
   def next_volume_bytes(%Volume{} = volume, head_volume_bytes),
     do: max(volume_bytes(volume, head_volume_bytes), volume.requested_volume_bytes || 0)
 
-  @doc """
-  The runner profile a default volume belongs to, or `nil` for named volumes
-  and a repository's default volume.
-  """
-  def default_profile_id(%{key: @default_key <> "/" <> id}) do
-    case Integer.parse(id) do
-      {id, ""} -> id
-      _ -> nil
-    end
-  end
-
-  def default_profile_id(_volume), do: nil
-
-  def default_volume?(volume), do: not is_nil(default_profile_id(volume))
-
-  # A default volume is listed only while its runner profile exists. Deleting the
-  # profile clears it (`clear_profile_volumes/1`); its rows remain until hosts
-  # acknowledge reclaiming its data.
-  defp visible(query) do
-    prefix = @default_key <> "/"
-
-    where(
-      query,
-      [volume: v],
-      not like(v.key, ^(prefix <> "%")) or
-        exists(
-          from(p in Profile,
-            where:
-              p.account_id == parent_as(:volume).account_id and
-                fragment("? = ? || ?::text", parent_as(:volume).key, ^prefix, p.id)
-          )
-        )
-    )
-  end
-
-  @doc """
-  Clears the default volumes of a deleted runner profile, like a clear from the
-  dashboard. Call inside the transaction that deleted the profile, after the
-  profile row, matching the lock order of allocation.
-  """
-  def clear_profile_volumes(%Profile{id: id, account_id: account_id}) do
-    key = "#{@default_key}/#{id}"
-
-    for volume <-
-          Repo.all(from(v in Volume, where: v.account_id == ^account_id and v.key == ^key, lock: "FOR UPDATE")),
-        is_nil(volume.deleted_at) do
-      Runners.clear_volume_master(volume.account_id, storage_name(volume))
-      Repo.update!(Ecto.Changeset.change(volume, clear_changes(volume)))
-    end
-
-    :ok
-  end
-
-  @doc """
-  The current names of the runner profiles `volumes` are the default volumes
-  of, keyed by volume ID. Deleted profiles are absent.
-  """
-  def default_profile_names(account_id, volumes) do
-    ids = volumes |> Enum.map(&default_profile_id/1) |> Enum.reject(&is_nil/1) |> Enum.uniq()
-
-    names =
-      if ids == [],
-        do: %{},
-        else:
-          Map.new(
-            Repo.all(from(p in Profile, where: p.account_id == ^account_id and p.id in ^ids, select: {p.id, p.name}))
-          )
-
-    for volume <- volumes, name = Map.get(names, default_profile_id(volume)), into: %{}, do: {volume.id, name}
-  end
-
   defp saved_volume_bytes(key, saved_head),
     do: Map.get(@managed_volume_bytes, key) || (saved_head && saved_head.volume_bytes) || @volume_bytes
 
@@ -1155,7 +1078,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def get(account_id, id) do
     case Ecto.UUID.cast(id) do
-      {:ok, id} -> Repo.one(visible(from(v in Volume, as: :volume, where: v.id == ^id and v.account_id == ^account_id)))
+      {:ok, id} -> Repo.get_by(Volume, id: id, account_id: account_id)
       _ -> nil
     end
   end
@@ -1164,11 +1087,9 @@ defmodule Tuist.Runners.CacheVolumes do
     mutate(account_id, id, fn volume ->
       if volume.builtin_name, do: Repo.rollback(:unsupported)
       Runners.clear_volume_master(volume.account_id, storage_name(volume))
-      clear_changes(volume)
+      [generation: volume.generation + 1, head_id: nil, deleted_at: DateTime.utc_now()]
     end)
   end
-
-  defp clear_changes(volume), do: [generation: volume.generation + 1, head_id: nil, deleted_at: DateTime.utc_now()]
 
   defp mutate(account_id, id, changes) do
     case Ecto.UUID.cast(id) do
@@ -1199,7 +1120,10 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   defp inventory_query(account_id, search, opts) do
-    query = visible(from(v in Volume, as: :volume, where: v.account_id == ^account_id))
+    query =
+      from(v in Volume,
+        where: v.account_id == ^account_id
+      )
 
     query =
       if search == "",
@@ -1496,8 +1420,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def for_job(account_id, workflow_run_id, workflow_job_id) do
     Usage
-    |> join(:inner, [u], v in Volume, as: :volume, on: v.id == u.volume_id)
-    |> visible()
+    |> join(:inner, [u], v in Volume, on: v.id == u.volume_id)
     |> where(
       [u, v],
       v.account_id == ^account_id and u.workflow_run_id == ^workflow_run_id and

@@ -265,9 +265,8 @@ job-local directories and reports `cache-hit=false`; it must never schedule a
 late bind mount after returning cold. The host has a shorter, cancellable restore
 budget. Mount errors after acquisition still fail visibly.
 
-`--key` defaults to `tuist-default`, which the server maps to the runner
-profile's default volume; the client accepts `tuist-` keys because Tuist's own
-steps use them, and only the wrappers reject them. `--size NGB` (1 to 100,
+`--key` is required; the client accepts `tuist-` keys because Tuist's own steps
+use them, and only the wrappers reject them. `--size NGB` (1 to 100,
 decimal GB) and at most 16 `--path` values are validated before acquiring; the
 size travels as `requested_volume_bytes` in the Linux `/acquire` body and the
 macOS mailbox request, and only when given. `.tuist-paths` at the volume root

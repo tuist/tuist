@@ -791,7 +791,7 @@ public protocol APIProtocol: Sendable {
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -3168,7 +3168,7 @@ extension APIProtocol {
     }
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -10871,10 +10871,6 @@ public enum Components {
                     public var architecture: Swift.String
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/capacity_bytes`.
                     public var capacity_bytes: Swift.Int?
-                    /// The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                    ///
-                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/default_profile_name`.
-                    public var default_profile_name: Swift.String?
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/id`.
                     public var id: Swift.String
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/key`.
@@ -10906,7 +10902,6 @@ public enum Components {
                     /// - Parameters:
                     ///   - architecture:
                     ///   - capacity_bytes:
-                    ///   - default_profile_name: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
                     ///   - id:
                     ///   - key:
                     ///   - last_used_at:
@@ -10921,7 +10916,6 @@ public enum Components {
                     public init(
                         architecture: Swift.String,
                         capacity_bytes: Swift.Int? = nil,
-                        default_profile_name: Swift.String? = nil,
                         id: Swift.String,
                         key: Swift.String,
                         last_used_at: Foundation.Date? = nil,
@@ -10936,7 +10930,6 @@ public enum Components {
                     ) {
                         self.architecture = architecture
                         self.capacity_bytes = capacity_bytes
-                        self.default_profile_name = default_profile_name
                         self.id = id
                         self.key = key
                         self.last_used_at = last_used_at
@@ -10952,7 +10945,6 @@ public enum Components {
                     public enum CodingKeys: String, CodingKey {
                         case architecture
                         case capacity_bytes
-                        case default_profile_name
                         case id
                         case key
                         case last_used_at
@@ -10974,10 +10966,6 @@ public enum Components {
                         self.capacity_bytes = try container.decodeIfPresent(
                             Swift.Int.self,
                             forKey: .capacity_bytes
-                        )
-                        self.default_profile_name = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .default_profile_name
                         )
                         self.id = try container.decode(
                             Swift.String.self,
@@ -11026,7 +11014,6 @@ public enum Components {
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
                             "architecture",
                             "capacity_bytes",
-                            "default_profile_name",
                             "id",
                             "key",
                             "last_used_at",
@@ -12016,10 +12003,6 @@ public enum Components {
             public var architecture: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/capacity_bytes`.
             public var capacity_bytes: Swift.Int?
-            /// The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-            ///
-            /// - Remark: Generated from `#/components/schemas/RunnerVolume/default_profile_name`.
-            public var default_profile_name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/id`.
             public var id: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/key`.
@@ -12051,7 +12034,6 @@ public enum Components {
             /// - Parameters:
             ///   - architecture:
             ///   - capacity_bytes:
-            ///   - default_profile_name: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
             ///   - id:
             ///   - key:
             ///   - last_used_at:
@@ -12066,7 +12048,6 @@ public enum Components {
             public init(
                 architecture: Swift.String,
                 capacity_bytes: Swift.Int? = nil,
-                default_profile_name: Swift.String? = nil,
                 id: Swift.String,
                 key: Swift.String,
                 last_used_at: Foundation.Date? = nil,
@@ -12081,7 +12062,6 @@ public enum Components {
             ) {
                 self.architecture = architecture
                 self.capacity_bytes = capacity_bytes
-                self.default_profile_name = default_profile_name
                 self.id = id
                 self.key = key
                 self.last_used_at = last_used_at
@@ -12097,7 +12077,6 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case architecture
                 case capacity_bytes
-                case default_profile_name
                 case id
                 case key
                 case last_used_at
@@ -12119,10 +12098,6 @@ public enum Components {
                 self.capacity_bytes = try container.decodeIfPresent(
                     Swift.Int.self,
                     forKey: .capacity_bytes
-                )
-                self.default_profile_name = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .default_profile_name
                 )
                 self.id = try container.decode(
                     Swift.String.self,
@@ -12171,7 +12146,6 @@ public enum Components {
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                     "architecture",
                     "capacity_bytes",
-                    "default_profile_name",
                     "id",
                     "key",
                     "last_used_at",
@@ -18150,10 +18124,6 @@ public enum Components {
                 public var architecture: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/capacity_bytes`.
                 public var capacity_bytes: Swift.Int?
-                /// The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                ///
-                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/default_profile_name`.
-                public var default_profile_name: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/id`.
                 public var id: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/key`.
@@ -18185,7 +18155,6 @@ public enum Components {
                 /// - Parameters:
                 ///   - architecture:
                 ///   - capacity_bytes:
-                ///   - default_profile_name: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
                 ///   - id:
                 ///   - key:
                 ///   - last_used_at:
@@ -18200,7 +18169,6 @@ public enum Components {
                 public init(
                     architecture: Swift.String,
                     capacity_bytes: Swift.Int? = nil,
-                    default_profile_name: Swift.String? = nil,
                     id: Swift.String,
                     key: Swift.String,
                     last_used_at: Foundation.Date? = nil,
@@ -18215,7 +18183,6 @@ public enum Components {
                 ) {
                     self.architecture = architecture
                     self.capacity_bytes = capacity_bytes
-                    self.default_profile_name = default_profile_name
                     self.id = id
                     self.key = key
                     self.last_used_at = last_used_at
@@ -18231,7 +18198,6 @@ public enum Components {
                 public enum CodingKeys: String, CodingKey {
                     case architecture
                     case capacity_bytes
-                    case default_profile_name
                     case id
                     case key
                     case last_used_at
@@ -18253,10 +18219,6 @@ public enum Components {
                     self.capacity_bytes = try container.decodeIfPresent(
                         Swift.Int.self,
                         forKey: .capacity_bytes
-                    )
-                    self.default_profile_name = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .default_profile_name
                     )
                     self.id = try container.decode(
                         Swift.String.self,
@@ -18305,7 +18267,6 @@ public enum Components {
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "architecture",
                         "capacity_bytes",
-                        "default_profile_name",
                         "id",
                         "key",
                         "last_used_at",
@@ -20842,15 +20803,15 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/RunnerProfile`.
         public struct RunnerProfile: Codable, Hashable, Sendable {
-            /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+            /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_all_branches`.
             public var cache_writer_all_branches: Swift.Bool
-            /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+            /// Additional branch names or * patterns whose jobs save custom cache volume changes.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_branches`.
             public var cache_writer_branches: [Swift.String]
-            /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+            /// Whether jobs on each repository's default branch save custom cache volume changes.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_default_branch`.
             public var cache_writer_default_branch: Swift.Bool
@@ -20884,9 +20845,9 @@ public enum Components {
             /// Creates a new `RunnerProfile`.
             ///
             /// - Parameters:
-            ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
-            ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-            ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+            ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+            ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+            ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
             ///   - id:
             ///   - inserted_at:
             ///   - memory_gb:
@@ -23832,10 +23793,6 @@ public enum Components {
                 public var architecture: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/capacity_bytes`.
                 public var capacity_bytes: Swift.Int?
-                /// The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                ///
-                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/default_profile_name`.
-                public var default_profile_name: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/id`.
                 public var id: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/key`.
@@ -23867,7 +23824,6 @@ public enum Components {
                 /// - Parameters:
                 ///   - architecture:
                 ///   - capacity_bytes:
-                ///   - default_profile_name: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
                 ///   - id:
                 ///   - key:
                 ///   - last_used_at:
@@ -23882,7 +23838,6 @@ public enum Components {
                 public init(
                     architecture: Swift.String,
                     capacity_bytes: Swift.Int? = nil,
-                    default_profile_name: Swift.String? = nil,
                     id: Swift.String,
                     key: Swift.String,
                     last_used_at: Foundation.Date? = nil,
@@ -23897,7 +23852,6 @@ public enum Components {
                 ) {
                     self.architecture = architecture
                     self.capacity_bytes = capacity_bytes
-                    self.default_profile_name = default_profile_name
                     self.id = id
                     self.key = key
                     self.last_used_at = last_used_at
@@ -23913,7 +23867,6 @@ public enum Components {
                 public enum CodingKeys: String, CodingKey {
                     case architecture
                     case capacity_bytes
-                    case default_profile_name
                     case id
                     case key
                     case last_used_at
@@ -23935,10 +23888,6 @@ public enum Components {
                     self.capacity_bytes = try container.decodeIfPresent(
                         Swift.Int.self,
                         forKey: .capacity_bytes
-                    )
-                    self.default_profile_name = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .default_profile_name
                     )
                     self.id = try container.decode(
                         Swift.String.self,
@@ -23987,7 +23936,6 @@ public enum Components {
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "architecture",
                         "capacity_bytes",
-                        "default_profile_name",
                         "id",
                         "key",
                         "last_used_at",
@@ -31382,15 +31330,15 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload`.
                         public struct profilesPayloadPayload: Codable, Hashable, Sendable {
-                            /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                            /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_all_branches`.
                             public var cache_writer_all_branches: Swift.Bool
-                            /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                            /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_branches`.
                             public var cache_writer_branches: [Swift.String]
-                            /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                            /// Whether jobs on each repository's default branch save custom cache volume changes.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_default_branch`.
                             public var cache_writer_default_branch: Swift.Bool
@@ -31424,9 +31372,9 @@ public enum Operations {
                             /// Creates a new `profilesPayloadPayload`.
                             ///
                             /// - Parameters:
-                            ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
-                            ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                            ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                            ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                            ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                            ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                             ///   - id:
                             ///   - inserted_at:
                             ///   - memory_gb:
@@ -31901,15 +31849,15 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_all_branches`.
                         public var cache_writer_all_branches: Swift.Bool
-                        /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_branches`.
                         public var cache_writer_branches: [Swift.String]
-                        /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        /// Whether jobs on each repository's default branch save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_default_branch`.
                         public var cache_writer_default_branch: Swift.Bool
@@ -31943,9 +31891,9 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
-                        ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                        ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                        ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - memory_gb:
@@ -45447,10 +45395,6 @@ public enum Operations {
                         public var architecture: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/capacity_bytes`.
                         public var capacity_bytes: Swift.Int?
-                        /// The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/default_profile_name`.
-                        public var default_profile_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/id`.
                         public var id: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/key`.
@@ -45482,7 +45426,6 @@ public enum Operations {
                         /// - Parameters:
                         ///   - architecture:
                         ///   - capacity_bytes:
-                        ///   - default_profile_name: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
                         ///   - id:
                         ///   - key:
                         ///   - last_used_at:
@@ -45497,7 +45440,6 @@ public enum Operations {
                         public init(
                             architecture: Swift.String,
                             capacity_bytes: Swift.Int? = nil,
-                            default_profile_name: Swift.String? = nil,
                             id: Swift.String,
                             key: Swift.String,
                             last_used_at: Foundation.Date? = nil,
@@ -45512,7 +45454,6 @@ public enum Operations {
                         ) {
                             self.architecture = architecture
                             self.capacity_bytes = capacity_bytes
-                            self.default_profile_name = default_profile_name
                             self.id = id
                             self.key = key
                             self.last_used_at = last_used_at
@@ -45528,7 +45469,6 @@ public enum Operations {
                         public enum CodingKeys: String, CodingKey {
                             case architecture
                             case capacity_bytes
-                            case default_profile_name
                             case id
                             case key
                             case last_used_at
@@ -45550,10 +45490,6 @@ public enum Operations {
                             self.capacity_bytes = try container.decodeIfPresent(
                                 Swift.Int.self,
                                 forKey: .capacity_bytes
-                            )
-                            self.default_profile_name = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .default_profile_name
                             )
                             self.id = try container.decode(
                                 Swift.String.self,
@@ -45602,7 +45538,6 @@ public enum Operations {
                             try decoder.ensureNoAdditionalProperties(knownKeys: [
                                 "architecture",
                                 "capacity_bytes",
-                                "default_profile_name",
                                 "id",
                                 "key",
                                 "last_used_at",
@@ -58051,10 +57986,6 @@ public enum Operations {
                                 public var architecture: Swift.String
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/capacity_bytes`.
                                 public var capacity_bytes: Swift.Int?
-                                /// The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                                ///
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/default_profile_name`.
-                                public var default_profile_name: Swift.String?
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/id`.
                                 public var id: Swift.String
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/key`.
@@ -58086,7 +58017,6 @@ public enum Operations {
                                 /// - Parameters:
                                 ///   - architecture:
                                 ///   - capacity_bytes:
-                                ///   - default_profile_name: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
                                 ///   - id:
                                 ///   - key:
                                 ///   - last_used_at:
@@ -58101,7 +58031,6 @@ public enum Operations {
                                 public init(
                                     architecture: Swift.String,
                                     capacity_bytes: Swift.Int? = nil,
-                                    default_profile_name: Swift.String? = nil,
                                     id: Swift.String,
                                     key: Swift.String,
                                     last_used_at: Foundation.Date? = nil,
@@ -58116,7 +58045,6 @@ public enum Operations {
                                 ) {
                                     self.architecture = architecture
                                     self.capacity_bytes = capacity_bytes
-                                    self.default_profile_name = default_profile_name
                                     self.id = id
                                     self.key = key
                                     self.last_used_at = last_used_at
@@ -58132,7 +58060,6 @@ public enum Operations {
                                 public enum CodingKeys: String, CodingKey {
                                     case architecture
                                     case capacity_bytes
-                                    case default_profile_name
                                     case id
                                     case key
                                     case last_used_at
@@ -58154,10 +58081,6 @@ public enum Operations {
                                     self.capacity_bytes = try container.decodeIfPresent(
                                         Swift.Int.self,
                                         forKey: .capacity_bytes
-                                    )
-                                    self.default_profile_name = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: .default_profile_name
                                     )
                                     self.id = try container.decode(
                                         Swift.String.self,
@@ -58206,7 +58129,6 @@ public enum Operations {
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                                         "architecture",
                                         "capacity_bytes",
-                                        "default_profile_name",
                                         "id",
                                         "key",
                                         "last_used_at",
@@ -88597,7 +88519,7 @@ public enum Operations {
     }
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -88727,15 +88649,15 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_all_branches`.
                         public var cache_writer_all_branches: Swift.Bool
-                        /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_branches`.
                         public var cache_writer_branches: [Swift.String]
-                        /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        /// Whether jobs on each repository's default branch save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_default_branch`.
                         public var cache_writer_default_branch: Swift.Bool
@@ -88769,9 +88691,9 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
-                        ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                        ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                        ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - memory_gb:
@@ -106980,10 +106902,6 @@ public enum Operations {
                             public var architecture: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/capacity_bytes`.
                             public var capacity_bytes: Swift.Int?
-                            /// The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/default_profile_name`.
-                            public var default_profile_name: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/id`.
                             public var id: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/key`.
@@ -107015,7 +106933,6 @@ public enum Operations {
                             /// - Parameters:
                             ///   - architecture:
                             ///   - capacity_bytes:
-                            ///   - default_profile_name: The name of the runner profile whose default volume this is. Null for other volumes and deleted profiles.
                             ///   - id:
                             ///   - key:
                             ///   - last_used_at:
@@ -107030,7 +106947,6 @@ public enum Operations {
                             public init(
                                 architecture: Swift.String,
                                 capacity_bytes: Swift.Int? = nil,
-                                default_profile_name: Swift.String? = nil,
                                 id: Swift.String,
                                 key: Swift.String,
                                 last_used_at: Foundation.Date? = nil,
@@ -107045,7 +106961,6 @@ public enum Operations {
                             ) {
                                 self.architecture = architecture
                                 self.capacity_bytes = capacity_bytes
-                                self.default_profile_name = default_profile_name
                                 self.id = id
                                 self.key = key
                                 self.last_used_at = last_used_at
@@ -107061,7 +106976,6 @@ public enum Operations {
                             public enum CodingKeys: String, CodingKey {
                                 case architecture
                                 case capacity_bytes
-                                case default_profile_name
                                 case id
                                 case key
                                 case last_used_at
@@ -107083,10 +106997,6 @@ public enum Operations {
                                 self.capacity_bytes = try container.decodeIfPresent(
                                     Swift.Int.self,
                                     forKey: .capacity_bytes
-                                )
-                                self.default_profile_name = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .default_profile_name
                                 )
                                 self.id = try container.decode(
                                     Swift.String.self,
@@ -107135,7 +107045,6 @@ public enum Operations {
                                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                                     "architecture",
                                     "capacity_bytes",
-                                    "default_profile_name",
                                     "id",
                                     "key",
                                     "last_used_at",

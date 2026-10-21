@@ -5,9 +5,8 @@ branding:
   color: purple
 inputs:
   key:
-    description: Stable volume name, shared across jobs and branches in this repository. Not a content hash; do not include lockfile or tool-version hashes. Omit it to use the default volume of the runner profile and repository. Keys starting with tuist- are reserved.
-    required: false
-    default: ""
+    description: Stable volume name, shared across jobs and branches in this repository. Not a content hash; do not include lockfile or tool-version hashes. Keys starting with tuist- are reserved.
+    required: true
   path:
     description: Directories to retain, one per line. Supports absolute paths, workspace-relative paths, and ~/. Several paths share one volume.
     required: true
