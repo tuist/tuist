@@ -8,6 +8,8 @@ defmodule Atlas.PresenceTest do
   alias Atlas.Presence.Connection
   alias Atlas.Repo
 
+  @moduletag :presence_tracking
+
   test "availability aggregates devices, hides locations, and expires abandoned connections", %{conn: conn} do
     {_, viewer} = log_in_user(conn)
     {_, teammate} = log_in_user(conn)
@@ -38,6 +40,30 @@ defmodule Atlas.PresenceTest do
     assert :ok = Presence.renew(teammate, second, %{"resource" => "people"})
     assert Enum.find(Presence.snapshot(viewer, "people").people, &(&1.id == teammate.id)).here
     refute Enum.find(Presence.snapshot(viewer, "tasks").people, &(&1.id == teammate.id)).here
+  end
+
+  test "owner loss cleans up only its own lease even after an untrappable exit", %{conn: conn} do
+    {_, user} = log_in_user(conn)
+    first = Ecto.UUID.generate()
+    second = Ecto.UUID.generate()
+    assert {:ok, _} = Presence.sync(user, first, %{"resource" => "people"})
+    assert {:ok, _} = Presence.sync(user, second, %{"resource" => "tasks"})
+    supervisor = start_supervised!(Task.Supervisor)
+    test_pid = self()
+
+    owner =
+      Task.Supervisor.async_nolink(supervisor, fn ->
+        {:ok, tracker} = Presence.track(user, first)
+        send(test_pid, {:tracking, tracker})
+        receive do: (:stop -> :ok)
+      end)
+
+    assert_receive {:tracking, tracker}
+    ref = Process.monitor(tracker)
+    Process.exit(owner.pid, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^tracker, :normal}
+    refute Repo.exists?(from c in Connection, where: c.user_id == ^user.id and c.connection_id == ^first)
+    assert Repo.exists?(from c in Connection, where: c.user_id == ^user.id and c.connection_id == ^second)
   end
 
   test "exact records require current read access and existence", %{conn: conn} do

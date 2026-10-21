@@ -31,6 +31,18 @@ defmodule Atlas.Presence do
     end
   end
 
+  def track(%User{} = user, connection_id) do
+    owner = self()
+
+    Task.Supervisor.start_child(Atlas.TaskSupervisor, fn ->
+      ref = Process.monitor(owner)
+
+      receive do
+        {:DOWN, ^ref, :process, ^owner, _reason} -> drop_connection(user.id, connection_id)
+      end
+    end)
+  end
+
   def leave(%User{} = user, connection_id) do
     with false <- Demo.enabled?(),
          {:ok, connection_id} <- Ecto.UUID.cast(connection_id) do

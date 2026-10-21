@@ -21,6 +21,7 @@ defmodule AtlasWeb.PresenceLive do
       params = get_connect_params(socket) || %{}
 
       id = Ecto.UUID.generate()
+      {:ok, _tracker} = Presence.track(socket.assigns.current_user, id)
       Presence.subscribe()
       Process.send_after(self(), :presence_renew, 10_000)
 
