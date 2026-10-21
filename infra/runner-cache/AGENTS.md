@@ -113,6 +113,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded from a host-built master; attach fails rather than format an empty image.
   The host publishes and restores checkout masters itself, with `CompressImage`
   and the same `HTTPTransfer`; a checkout branch never goes through `Seal`.
+- A restore downloads into `restore-<generation>-<content digest>` beside the
+  master, because the transfer resumes a partial it finds at the same path: a
+  fixed name let a restart splice another HEAD's archive into this one. Other
+  HEADs' partials are removed before a restore, and `Maintain` drops downloads
+  nobody wrote for an hour.
 - `Checkouts` (`checkout.go`) is the one populator for both hosts: it builds,
   ingests, publishes, restores and evicts checkout masters, and the host only
   wires it to its admission (`Room`), transfer and tools. `CheckoutImages` is the
