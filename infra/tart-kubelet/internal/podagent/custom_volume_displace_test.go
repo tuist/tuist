@@ -84,7 +84,7 @@ func TestCustomAdmissionCancelsABackgroundPrefetch(t *testing.T) {
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
 	done := holdSparePrefetch(t, c)
 
-	finish, err := c.reserve(context.Background(), cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111"}})
+	finish, err := c.reserve(context.Background(), cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", HeadSizeBytes: customCapacity}})
 	if err != nil {
 		t.Fatalf("job declined beside a background prefetch: %v", err)
 	}

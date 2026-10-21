@@ -17,14 +17,19 @@ import (
 // customCapacity is the size of a volume the server allocated without one.
 const customCapacity = 20_000_000_000
 
-func customVolumeBytes(slot cachevolumes.Slot) uint64 {
-	return uint64(slot.VolumeSize(customCapacity))
+// customExpectedBytes is what a job's copy is admitted with and, while its VM
+// runs, what its growth is reserved up to (Identity.ExpectedBytes). runner-cache
+// admits the same bytes; if they disagree, the second check rejects what the
+// first admitted.
+func customExpectedBytes(slot cachevolumes.Slot) uint64 {
+	return uint64(slot.ExpectedBytes(customCapacity))
 }
 
 // CacheCapacityNodeLabel advertises the cache disk capacity in whole GiB. The
 // server subtracts the volumes of the jobs it placed here, attached or not yet,
 // and prefers this host for a job only while its volumes fit: admission reserves
-// a volume's full capacity, and a second job that cannot get it runs cold.
+// what each volume is expected to write (customExpectedBytes), and a second job
+// that cannot get it runs cold.
 const CacheCapacityNodeLabel = "tuist.dev/cache-volume-capacity-gib"
 
 // CapacityNodeLabels returns the label advertising the cache disk's capacity
@@ -93,15 +98,15 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 		if err != nil {
 			allocated = 0
 		}
-		if size := customVolumeBytes(slot); allocated < size {
+		if size := customExpectedBytes(slot); allocated < size {
 			total += size - allocated
 		}
 	}
 	return total
 }
 
-// A job clones a local master or starts empty, so it needs one image of room.
-// Only a prefetch downloads, keeping its archive beside the restored image:
+// A job clones a local master or starts empty, so it needs what it is expected
+// to write. Only a prefetch downloads, keeping its archive beside the restored image:
 // twice the head's used bytes, or twice the volume when that is unknown.
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
 	if slot.Kind == cachevolumes.KindCheckout {
@@ -110,7 +115,7 @@ func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
 	if slot.ID == cachevolumes.PrefetchReservation {
 		return uint64(slot.RestoreBytes(customCapacity))
 	}
-	return customVolumeBytes(slot)
+	return customExpectedBytes(slot)
 }
 
 func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (func(bool), error) {
@@ -256,4 +261,50 @@ func (c *CustomVolumes) displaceSpareLocked(forFields ...any) bool {
 	delete(c.reservations, cachevolumes.PrefetchReservation)
 	log.Log.WithName("custom-cache-volumes").Info("admission cancelled a background prefetch to make room for a job", append([]any{"scope", scope}, forFields...)...)
 	return true
+}
+
+// customPressureBytes is how close to the cache filesystem's hard limit
+// (hardFreeBytes) running branches are withheld from publication.
+const customPressureBytes = 2_000_000_000
+
+// Admission reserves what a job is expected to write, not its capacity, so jobs
+// can write past their reservations. Between the admission budget and the APFS
+// quota they only crowd out later admissions, and relieve gives the space back.
+// Near the quota a write may fail on the host without the guest noticing, so
+// notePressure withholds every running branch from publication.
+func (c *CustomVolumes) notePressure(ctx context.Context) {
+	if c.images == nil {
+		return
+	}
+	free, err := c.Builtins.hardFreeBytes()
+	if err != nil || free >= customPressureBytes {
+		return
+	}
+	release, err := c.guard(ctx)
+	if err != nil {
+		return
+	}
+	defer release()
+	for id, slot := range c.reservations {
+		if id == cachevolumes.PrefetchReservation || slot.Kind == cachevolumes.KindCheckout {
+			continue
+		}
+		if err := c.images.MarkPressure(slot); err != nil {
+			log.FromContext(ctx).Error(err, "withhold custom cache branch under disk pressure", "use", id)
+		}
+	}
+}
+
+// relieve evicts idle custom masters once running jobs have written past what
+// admission left free, so later jobs are admitted again within the budget.
+func (c *CustomVolumes) relieve(ctx context.Context) {
+	if c.images == nil {
+		return
+	}
+	evicted, err := c.images.Relieve(ctx, 1)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "relieve custom cache pressure")
+	} else if evicted > 0 {
+		log.FromContext(ctx).Info("jobs outgrew their cache reservations; evicted idle custom masters", "count", evicted)
+	}
 }

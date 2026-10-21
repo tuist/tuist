@@ -1437,6 +1437,11 @@ rackFleet:
     # host-config push. A host whose volume predates that keeps its 240 GiB
     # quota until it is reinstalled (`tuist.dev/os-reinstall`, see
     # infra/cluster-api-provider-tuist/AGENTS.md).
+    #
+    # The gap between this budget and the quota is the safeguard for custom
+    # cache volumes: admission reserves what a job is expected to write, not its
+    # capacity, so a job that writes more lands in that gap. Keep the budget well
+    # below the quota (infra/tart-kubelet/custom-cache-volumes.md).
     runnerCacheVolumeGiB: 512
   # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
   # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image

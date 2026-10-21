@@ -55,7 +55,8 @@ defmodule Tuist.Runners.VolumeAffinities do
   ## Cache room
 
   A host admits a job's custom volumes only while its cache disk has room for
-  their full capacity, and an attach it cannot admit runs cold. Affinity pulls an
+  what they are expected to write (`CacheVolumes` mirrors runner-cache's
+  `Identity.ExpectedBytes`), and an attach it cannot admit runs cold. Affinity pulls an
   account's concurrent jobs toward the same host, so a preference that ignored
   room would stack jobs whose volumes cannot fit together. Every preference here
   therefore requires the job to fit: a host advertises its cache disk capacity

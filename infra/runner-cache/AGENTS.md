@@ -99,8 +99,15 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   means the host default (`SizeGB`). `HeadSizeBytes` is the saved head's measured
   used bytes, zero when unknown. `Store.MaxVolumeBytes` is the host maximum each
   agent configures (`DefaultMaxVolumeBytes`, 32 GB, when unset); `Acquire`
-  rejects larger volumes, journal reads do not. Create and attach admission use
-  `volumeBytes(slot)`; never size an image from `SizeGB` directly. Guest usage
+  rejects larger volumes, journal reads do not. Images are created at
+  `volumeBytes(slot)`; never size an image from `SizeGB` directly. Attach
+  admission uses `Identity.ExpectedBytes`: the head's used bytes plus half again
+  (at least `GrowthBytes`), else `UnmeasuredVolumeBytes`, capped at the capacity.
+  A job can write past it; the reservation is an estimate, not a quota.
+  `Relieve` evicts idle masters (never an `inUse` scope) while free space is
+  below a minimum, without reclaiming other caches. `APFSImages.MarkPressure`
+  makes `Seal` withhold a branch (`ErrPressure`) that was written near the hard
+  limit, where a failed host write may have left it silently incomplete. Guest usage
   validation and transfer `MaxBytes` use the host maximum, so grown masters pass.
 - Guests may request a size: `RequestedSize` decodes any JSON value and keeps
   only whole decimal GB from 1 to 100 GB. Agents forward it as
@@ -112,8 +119,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   after mounting when the ext4 superblock is smaller than the image. APFS calls
   the injected `Grow` on the private copy, which only extends the image
   (`-imageonly`); the guest grows the container.
-- Linux attach admission is `MinFreeBytes` plus whatever the volume exceeds
-  `SizeGB` by. APFS prefetch needs `Identity.RestoreBytes`: twice the head's used
+- Linux attach admission is `MinFreeBytes` plus whatever the expected size
+  exceeds `SizeGB` by. APFS prefetch needs `Identity.RestoreBytes`: twice the head's used
   bytes, else twice the capacity.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
@@ -151,7 +158,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - APFS admission records a reservation under the built-in lock, then releases it
   before downloads or formatting. Reserve remaining growth only for running VMs;
   retain journal recovery and bounded, separately reserved prefetch work.
-  Cold creation needs one image's capacity; restoration and prefetch also need
+  An attach needs its expected size; restoration and prefetch also need
   the archive budget. Keep the backend check and host reservation consistent.
   After local-master eviction, the optional shared-filesystem reclamation hook
   may reclaim built-in macOS masters. Remeasure free space before admitting;

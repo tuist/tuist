@@ -60,7 +60,7 @@ before the successful detach. These measurements do not authorize disk admission
 They are logical filesystem bytes, not unique physical allocation or billing
 measurements. APFS shares
 extents. Both backends use real free space and local master eviction. Admission
-reserves only the remaining growth (capacity minus allocated blocks) of running
+reserves only the remaining growth (expected size minus allocated blocks) of running
 custom guests alongside built-in reservations on the same bounded filesystem.
 Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
@@ -76,16 +76,41 @@ smaller than its capacity is extended with `hdiutil resize -imageonly` before th
 guest sees it, never shrunk, and the guest grows the APFS container after
 attaching; a copy that cannot grow attaches warm at its saved size.
 
-Cold creation reserves one image of its capacity. A warm attach reserves the
-larger of its capacity and twice the head's measured used bytes
-(`head_size_bytes`). Restoration and prefetch reserve twice the head's used
-bytes for the archive and expanded image. Without a known head size, warm
-attaches and prefetches reserve twice the capacity. Applying that restore budget
-to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
-with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
-even though a 20 GB image fits. Both the backend's eviction/admission check and
-the host's in-flight reservation use the cold budget. Genuine capacity pressure
-still falls back, and warm restoration still requires its larger budget.
+A job never downloads, so its attach reserves what it is expected to write
+(`Identity.ExpectedBytes`), not its capacity: the head's measured used bytes
+(`head_size_bytes`) plus half again, at least 2 GB, or 5 GB when no head size
+is known, never more than the capacity. The image stays sparse at its full
+capacity. Restoration and prefetch reserve twice the head's used bytes for the
+archive and expanded image, or twice the capacity without a known head size.
+The backend's eviction/admission check and the host's in-flight reservation use
+the same number. Genuine capacity pressure still falls back to a cold job.
+
+Admission overcommits: a job can write past its reservation, up to its
+capacity, and nothing stops it. The safeguard is the gap between the admission
+budget (`--runner-cache-budget-gib`) and the cache volume's APFS quota, which is
+where writes actually fail. Admission and the 15% host floor only bound what is
+admitted; the quota bounds what is written. Keep the budget well below the quota
+on every host that runs custom volumes.
+
+- Past the budget but below the quota, writes succeed. Later jobs on the host
+  are refused (`capacity`) and run cold, and each reconcile evicts idle custom
+  masters, least recently used first and never one a job holds, until the
+  reservations fit again (`LocalImages.Relieve`). The built-in evictor does the
+  same for built-in masters on its own tick.
+- With under 2 GB left below the quota, or on the host's disk, tart-kubelet
+  marks every running custom branch `.pressure` (checked every second), and
+  `Seal` withholds it (`ErrPressure`, result `pressure`). A write that failed on
+  the host may not reach the guest, and fsck does not check file contents, so
+  such a branch is never published.
+- At the quota, writes to the guests' images fail. Jobs on the host see I/O or
+  out-of-space errors on their cache paths while the guest still reports free
+  space, and can fail, including a neighbour that stayed within its
+  reservation. The quota keeps the cache off the system and VM disks.
+
+A host whose quota equals its budget (disks under 1 TiB, and hosts whose volume
+predates the half-disk quota) has no gap, so only the pressure guard and
+eviction stand between an overshooting job and failed writes. A job never waits
+for room.
 
 GitHub Actions, Buildkite and GitLab use the same installed client. macOS
 supports native commands and GitLab's shell executor. GitHub container jobs and

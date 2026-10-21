@@ -31,6 +31,8 @@ defmodule Tuist.Runners.CacheVolumes do
   @retention_seconds 7 * 24 * 60 * 60
   @checkout_key "checkout"
   @checkout_reserved_bytes 8_000_000_000
+  @unmeasured_reserved_bytes 5_000_000_000
+  @growth_reserved_bytes 2_000_000_000
 
   # A saved snapshot at or above @full_percent of its capacity, which a clone filled
   # to @out_of_space_percent, is not cloned again: the next use starts a fresh lineage.
@@ -827,16 +829,16 @@ defmodule Tuist.Runners.CacheVolumes do
         v.account_id == ^account_id and v.repository == ^repository and is_nil(v.builtin_name) and
           is_nil(v.deleted_at) and u.inserted_at >= ^since,
       distinct: true,
-      select: {j.workflow_name, j.job_name, v, head.volume_bytes}
+      select: {j.workflow_name, j.job_name, v, head.volume_bytes, head.size_bytes}
     )
     |> Repo.all()
     |> Enum.group_by(
-      fn {workflow_name, job_name, _volume, _head_volume_bytes} -> {workflow_name, job_name} end,
-      fn {_workflow_name, _job_name, volume, head_volume_bytes} ->
+      fn {workflow_name, job_name, _volume, _head_volume_bytes, _head_size_bytes} -> {workflow_name, job_name} end,
+      fn {_workflow_name, _job_name, volume, head_volume_bytes, head_size_bytes} ->
         %{
           id: volume.id,
           scope: scope(volume),
-          reserved_bytes: reserved_bytes(volume.key, next_volume_bytes(volume, head_volume_bytes))
+          reserved_bytes: reserved_bytes(volume.key, next_volume_bytes(volume, head_volume_bytes), head_size_bytes)
         }
       end
     )
@@ -856,22 +858,31 @@ defmodule Tuist.Runners.CacheVolumes do
     from(u in Usage,
       join: v in Volume,
       on: v.id == u.volume_id,
+      left_join: head in Usage,
+      on: head.id == u.parent_id,
       where:
         u.node_name in ^node_names and is_nil(u.deleted_at) and u.workflow_job_id in ^workflow_job_ids and
           is_nil(v.builtin_name),
-      select: {u.node_name, u.workflow_job_id, v.id, v.key, u.volume_bytes}
+      select: {u.node_name, u.workflow_job_id, v.id, v.key, u.volume_bytes, head.size_bytes}
     )
     |> Repo.all()
-    |> Enum.reduce(%{}, fn {node_name, workflow_job_id, volume_id, key, volume_bytes}, acc ->
-      bytes = reserved_bytes(key, volume_bytes || default_volume_bytes(key))
+    |> Enum.reduce(%{}, fn {node_name, workflow_job_id, volume_id, key, volume_bytes, head_size_bytes}, acc ->
+      bytes = reserved_bytes(key, volume_bytes || default_volume_bytes(key), head_size_bytes)
       Map.update(acc, {node_name, workflow_job_id}, %{volume_id => bytes}, &Map.put(&1, volume_id, bytes))
     end)
   end
 
-  # A cached checkout clones its master and the host reserves only its growth
-  # (runner-cache's CheckoutGrowthBytes); any other volume reserves its capacity.
-  defp reserved_bytes(@checkout_key, _volume_bytes), do: @checkout_reserved_bytes
-  defp reserved_bytes(_key, volume_bytes), do: volume_bytes
+  # The room a host reserves when a job attaches a volume, as runner-cache's
+  # Identity.ExpectedBytes computes it: the head's used bytes plus half again, at
+  # least @growth_reserved_bytes, else @unmeasured_reserved_bytes, never more than
+  # the capacity. A cached checkout clones its master and reserves only its
+  # growth (CheckoutGrowthBytes).
+  defp reserved_bytes(@checkout_key, _volume_bytes, _head_size_bytes), do: @checkout_reserved_bytes
+
+  defp reserved_bytes(_key, volume_bytes, head_size_bytes) when is_integer(head_size_bytes) and head_size_bytes > 0,
+    do: min(volume_bytes, head_size_bytes + max(@growth_reserved_bytes, div(head_size_bytes, 2)))
+
+  defp reserved_bytes(_key, volume_bytes, _head_size_bytes), do: min(volume_bytes, @unmeasured_reserved_bytes)
 
   @doc """
   The saved HEADs of the macOS custom volumes jobs used on `node_names` since

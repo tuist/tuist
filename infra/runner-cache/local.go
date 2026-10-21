@@ -142,11 +142,17 @@ func (b *LocalImages) maxVolumeBytes() int64 {
 	return DefaultMaxVolumeBytes
 }
 
+// expectedBytes is what admission reserves for a job's copy (Identity.ExpectedBytes).
+func (b *LocalImages) expectedBytes(slot Slot) int64 {
+	return slot.ExpectedBytes(int64(b.SizeGB) * 1_000_000_000)
+}
+
 // attachBytes is the free space an attach needs: the host floor, raised by as
-// much as the volume exceeds the default size. With a 40 GB floor and 20 GB
-// default that is the larger of 40 GB and the volume plus 20 GB.
+// much as the job is expected to write beyond the default size. With a 40 GB
+// floor and 20 GB default that is the larger of 40 GB and the expected size
+// plus 20 GB.
 func (b *LocalImages) attachBytes(slot Slot) uint64 {
-	return b.MinFreeBytes + uint64(max(0, b.volumeBytes(slot)-int64(b.SizeGB)*1_000_000_000))
+	return b.MinFreeBytes + uint64(max(0, b.expectedBytes(slot)-int64(b.SizeGB)*1_000_000_000))
 }
 
 // growClone extends a private copy smaller than the slot's capacity before it
@@ -339,20 +345,9 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 		if b.refreshing(path) {
 			continue
 		}
-		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
-		if err != nil {
+		if err = b.evictForRoom(ctx, path, reason, minimum, free); err != nil {
 			return err
 		}
-		bytes := allocatedBytes(path)
-		done := b.Observe.With(masterSubject(path)).Start("evict", reason)
-		err = removeMaster(path)
-		done(err)
-		unlock()
-		if err != nil {
-			return err
-		}
-		fields := []any{"needed_bytes", minimum, "free_bytes", free}
-		b.logEviction(path, bytes, reason, append(fields, SubjectFrom(ctx).ForFields()...)...)
 		free, err = b.freeBytes(ctx)
 		if err != nil {
 			return err
@@ -371,6 +366,60 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 		return ErrCapacity
 	}
 	return nil
+}
+
+// evictForRoom removes a master under its lineage lock to make room for minimum.
+func (b *LocalImages) evictForRoom(ctx context.Context, path, reason string, minimum, free uint64) error {
+	unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	done := b.Observe.With(masterSubject(path)).Start("evict", reason)
+	err = b.evictMaster(path, reason, append([]any{"needed_bytes", minimum, "free_bytes", free}, SubjectFrom(ctx).ForFields()...)...)
+	done(err)
+	return err
+}
+
+// Relieve evicts masters in eviction order while free space is below minimum,
+// which happens once running jobs wrote more than admission reserved for them.
+// Unlike admission it never takes a lineage a job holds or is attaching (InUse),
+// a refresh in flight, or another cache's space. Reports how many it evicted.
+func (b *LocalImages) Relieve(ctx context.Context, minimum uint64) (int, error) {
+	if err := b.admission.LockContext(ctx); err != nil {
+		return 0, err
+	}
+	defer b.admission.Unlock()
+	free, err := b.freeBytes(ctx)
+	if err != nil || free >= minimum {
+		return 0, err
+	}
+	candidates, err := b.evictionOrder(true)
+	if err != nil {
+		return 0, err
+	}
+	evicted := 0
+	for _, candidate := range candidates {
+		if free >= minimum {
+			break
+		}
+		if candidate.reason == "in_use" || b.refreshing(candidate.path) {
+			continue
+		}
+		if _, err := os.Stat(candidate.path); os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			return evicted, err
+		}
+		if err = b.evictForRoom(ctx, candidate.path, candidate.reason, minimum, free); err != nil {
+			return evicted, err
+		}
+		evicted++
+		if free, err = b.freeBytes(ctx); err != nil {
+			return evicted, err
+		}
+	}
+	return evicted, nil
 }
 
 type evictionCandidate struct {

@@ -21,8 +21,10 @@ these schemas persist volume identities and per-job uses.
 - `recent_job_volumes/3` predicts a queued job's custom volumes for dispatch
   affinity and for the macOS Pod placement preferences in the scaling signals:
   the volumes jobs of the same repository, workflow name and job name attached
-  since a cutoff, each with the cache disk room a host reserves for it (its
-  capacity, or the checkout growth reservation). It starts from the account's
+  since a cutoff, each with the cache disk room a host reserves for it (what it
+  is expected to write, as runner-cache's `Identity.ExpectedBytes` computes it
+  from the capacity and the saved head's size, or the checkout growth
+  reservation; keep the two in step). It starts from the account's
   volumes so the uses `(volume_id, inserted_at)` index applies;
   `VolumeAffinities` caches it per account and repository.
   `allocated_reserved_bytes/2` is the same room for the volumes running jobs

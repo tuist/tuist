@@ -59,9 +59,9 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	}
 	image := b.image(slot)
 	if _, statErr := os.Lstat(image); os.IsNotExist(statErr) {
-		// A job never downloads: it clones a local copy or starts empty, so one
-		// image of room is enough either way.
-		minimum := uint64(b.volumeBytes(slot))
+		// A job never downloads: it clones a local copy or starts empty, so what
+		// it is expected to write is enough either way.
+		minimum := uint64(b.expectedBytes(slot))
 		if slot.Kind == KindCheckout {
 			minimum = CheckoutGrowthBytes
 		}
@@ -163,6 +163,29 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	return nil
 }
 
+// ErrPressure withholds a branch that could be written while its cache filesystem
+// was nearly out of space: a write that failed on the host may have left the image
+// incomplete in a way neither the guest nor a filesystem check notices.
+var ErrPressure = fmt.Errorf("%w: cache filesystem ran out of space", ErrWithheld)
+
+// MarkPressure withholds the slot's branch from publication (ErrPressure). A slot
+// without a branch image yet has written nothing and is left alone.
+func (b *APFSImages) MarkPressure(slot Slot) error {
+	image := b.image(slot)
+	if _, err := os.Lstat(image); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if _, err := os.Lstat(image + ".pressure"); err == nil {
+		return nil
+	}
+	if err := os.WriteFile(image+".pressure", nil, 0600); err != nil {
+		return err
+	}
+	return syncFile(filepath.Dir(image))
+}
+
 // ErrReplaced poisons a branch whose share no longer exposes the branch image:
 // whatever the guest wrote went to another file, so sealing the branch would
 // publish its untouched clone.
@@ -223,6 +246,11 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	image := b.image(slot)
 	if !APFSMarker(path, ".detached", slot.ID) {
 		return ErrPoisoned
+	}
+	if _, err := os.Lstat(image + ".pressure"); err == nil {
+		return ErrPressure
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 	if b.Cold(slot) && !slot.PublishCold {
 		return ErrWithheld
@@ -306,7 +334,7 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 			return err
 		}
 	}
-	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics", ".base", ".cold"} {
+	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics", ".base", ".cold", ".pressure"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}

@@ -56,6 +56,8 @@ type CustomVolumes struct {
 	spare context.CancelCauseFunc
 	// spareScope is the scope that prefetch restores; guarded by Builtins.mu.
 	spareScope string
+	// images is the backend run() serves; nil until then.
+	images *cachevolumes.APFSImages
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -194,6 +196,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	defer store.Close()
 	store.MaxVolumeBytes = c.maxVolumeBytes()
 	c.Store = store
+	c.images = backend
 	// Pressure eviction takes the masters of lineages a job holds or is cloning last.
 	backend.InUse = store.InUse
 	if c.Checkouts != nil {
@@ -272,6 +275,7 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			}
 			reconcile()
 		case <-requests:
+			c.notePressure(ctx)
 			listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 			pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
 			stop()
@@ -397,6 +401,7 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 }
 
 func (c *CustomVolumes) reconcile(ctx context.Context) error {
+	c.relieve(ctx)
 	if err := c.refreshReservations(ctx); err != nil {
 		return err
 	}

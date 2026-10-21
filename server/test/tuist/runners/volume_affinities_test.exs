@@ -405,25 +405,44 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
 
   # macOS custom volumes sized like the managed ones: `CI / Build` attaches the
   # 30 GB Xcode cache and the 20 GB module cache, `CI / Lint` only the module
-  # cache. Each job in the history ran on `mac-01`.
-  defp macos_volumes(account) do
-    xcode = macos_volume(account, "tuist-xcode")
-    module = macos_volume(account, "tuist-module")
+  # cache. Each job in the history ran on `mac-01`. The default saved heads are
+  # large enough that a host reserves each volume's whole capacity.
+  defp macos_volumes(account, head_sizes \\ %{"tuist-xcode" => 25_000_000_000, "tuist-module" => 15_000_000_000}) do
+    xcode = macos_volume(account, "tuist-xcode", head_sizes["tuist-xcode"])
+    module = macos_volume(account, "tuist-module", head_sizes["tuist-module"])
     record_job(account, "CI", "Build", [xcode, module])
     record_job(account, "CI", "Lint", [module])
     %{xcode: xcode, module: module}
   end
 
-  defp macos_volume(account, key) do
-    Repo.insert!(%Volume{
-      account_id: account.id,
-      repository: "tuist/app",
-      scope_id: "123",
-      key: key,
-      platform: "macos",
-      architecture: "arm64",
-      uid: 501
-    })
+  defp macos_volume(account, key, head_size_bytes) do
+    volume =
+      Repo.insert!(%Volume{
+        account_id: account.id,
+        repository: "tuist/app",
+        scope_id: "123",
+        key: key,
+        platform: "macos",
+        architecture: "arm64",
+        uid: 501
+      })
+
+    head =
+      Repo.insert!(%Usage{
+        volume_id: volume.id,
+        generation: 0,
+        workflow_job_id: System.unique_integer([:positive]),
+        workflow_run_id: 1,
+        pod_name: "head",
+        pod_uid: "head-#{key}",
+        node_name: "mac-00",
+        can_publish: true,
+        status: "published",
+        size_bytes: head_size_bytes,
+        inserted_at: DateTime.utc_now(:second)
+      })
+
+    Repo.update!(Ecto.Changeset.change(volume, head_id: head.id))
   end
 
   # A job of `workflow_name / job_name`, with a use on `node_name` for each of
@@ -451,6 +470,7 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
         workflow_run_id: 1,
         pod_name: "pod-#{workflow_job_id}",
         pod_uid: "pod-#{workflow_job_id}-#{volume.key}",
+        parent_id: volume.head_id,
         node_name: node_name,
         can_publish: true,
         inserted_at: DateTime.utc_now(:second)
@@ -580,6 +600,19 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
 
       assert VolumeAffinities.select_candidate([context.head, context.build], "mac-01", tolerance_seconds: 30) ==
                {context.build, :resident}
+    end
+
+    test "fits a job beside another whose volumes hold little" do
+      account = AccountsFixtures.account_fixture()
+      volumes = macos_volumes(account, %{"tuist-xcode" => 1_000_000_000, "tuist-module" => 500_000_000})
+      now = DateTime.utc_now()
+      head = queued_macos(AccountsFixtures.account_fixture(), "CI", "Build", now)
+      build = queued_macos(account, "CI", "Build", DateTime.add(now, 5, :second))
+      # A Build reserves 3 GB and 2.5 GB, not the 50 GB of the volumes' capacities.
+      stub_node([volumes.xcode, volumes.module], 12)
+      occupy("mac-01", account, "CI", "Build", [volumes.xcode, volumes.module])
+
+      assert VolumeAffinities.select_candidate([head, build], "mac-01", tolerance_seconds: 30) == {build, :resident}
     end
 
     test "keeps the preference on a node that advertises no capacity", context do
