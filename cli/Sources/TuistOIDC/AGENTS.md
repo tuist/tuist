@@ -15,3 +15,4 @@ This module provides OIDC auth helpers for CLI/server integration.
 
 ## Invariants
 - OIDC token fetch expects HTTP 200 and a JSON payload with `value`.
+- Bearer-token requests use the policy-protected `URLSession.tuistDefault`, not `URLSession.shared`. TLS failures must never trigger plaintext or weaker-session retries.

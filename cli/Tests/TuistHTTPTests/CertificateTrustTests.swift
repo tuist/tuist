@@ -24,6 +24,19 @@
             #expect(certificates.allSatisfy(CertificateTrust.isAllowed))
         }
 
+        #if os(macOS)
+            @Test
+            func parses_every_effective_system_anchor() throws {
+                var anchors: CFArray?
+                #expect(SecTrustCopyAnchorCertificates(&anchors) == errSecSuccess)
+                let certificates = try #require(anchors as? [SecCertificate])
+                #expect(!certificates.isEmpty)
+                for certificate in certificates {
+                    _ = try CertificateTrust.spkiHash(SecCertificateCopyData(certificate) as Data)
+                }
+            }
+        #endif
+
         @Test(arguments: [Data(), Data([0x30, 0x80]), Data([0x30, 0x84, 0xFF, 0xFF, 0xFF, 0xFF]), Data([0x30, 0x81, 0])])
         func refuses_malformed_truncated_or_indefinite_DER(data: Data) {
             #expect(throws: (any Error).self) { try CertificateTrust.spkiHash(data) }

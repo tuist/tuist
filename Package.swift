@@ -77,6 +77,7 @@ var tuistCargoCommandDependencies: [Target.Dependency] = [
     "TuistCAS",
     tuistCargoCacheDependency,
     "TuistREAPI",
+    "TuistHTTP",
     .product(name: "Crypto", package: "apple.swift-crypto"),
     processDependency,
     pathDependency,
@@ -166,6 +167,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     .product(name: "Crypto", package: "apple.swift-crypto"),
 ]
 var tuistHTTPDependencies: [Target.Dependency] = [
+    .product(name: "Crypto", package: "apple.swift-crypto"),
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",
@@ -882,6 +884,7 @@ var targets: [Target] = [
     .target(
         name: "TuistOIDC",
         dependencies: [
+            "TuistHTTP",
             "TuistConstants",
             "TuistEnvironment",
             "TuistLogging",
@@ -1136,6 +1139,14 @@ var targets: [Target] = [
         name: "TuistREAPITests",
         dependencies: [
             "TuistREAPI",
+            "TuistHTTP",
+            "TuistEnvironment",
+            "TuistTestSupport",
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            .product(name: "NIOSSL", package: "apple.swift-nio-ssl"),
+            .product(name: "NIOCore", package: "apple.swift-nio"),
+            .product(name: "NIOPosix", package: "apple.swift-nio"),
+            .product(name: "NIOTLS", package: "apple.swift-nio"),
             "TuistEnvironmentTesting",
             .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
