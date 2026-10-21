@@ -177,6 +177,7 @@ jobs:
             "tuist (preview)|infra/helm/tuist|preview-validation|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
             "tuist (pentest)|infra/helm/tuist|pentest|values-pentest.yaml values-ci.yaml"
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
+            "k8s-monitoring (pentest)|infra/helm/k8s-monitoring|k8s-monitoring|values-pentest.yaml"
             "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
             "platform (preview)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-preview.yaml"
             "platform (pentest)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-pentest.yaml"

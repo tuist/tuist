@@ -27,6 +27,8 @@ The recommended incident alerts and Grafana setup steps are in
 
 Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the managed workload clusters. The path is idempotent, so the chart tracks whatever's committed on `main`.
 
+The pentest cluster is the exception: no deploy upgrades it. Dispatch the **Pentest Platform Reconcile** workflow ([`.github/workflows/pentest-platform-reconcile.yml`](../../../.github/workflows/pentest-platform-reconcile.yml)) after changing this chart, or pentest keeps running the collector config it was bootstrapped with.
+
 Manual install (only needed when bootstrapping a fresh cluster ahead of the first CI deploy, or iterating locally):
 
 ```bash
