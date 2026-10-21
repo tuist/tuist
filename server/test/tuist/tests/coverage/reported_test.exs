@@ -1110,6 +1110,68 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
            }
   end
 
+  test "keeps the carried files no run at the commit compiled past what one query binds", %{
+    project: project,
+    account: account
+  } do
+    # More paths than one chunk of hashes, long enough that 900 of them bound
+    # as one list take more than 128 KiB. Non-ASCII and quoted paths check
+    # that the server hashes them as ClickHouse does.
+    paths =
+      ["Sources/Café/Ünïcödé.swift", "Sources/It's/Quoted.swift"] ++
+        for index <- 1..5_100,
+            do:
+              "Sources/Features/Feature#{div(index, 40)}/Implementation/Generated/Networking/Models/Responses/" <>
+                "File#{index}WithAVeryLongDescriptiveNameForTheGeneratedNetworkingResponseModel.swift"
+
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("s1", ["base"], 2)])
+
+    run =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        Enum.map(paths, &file(&1, [1, 0], targets: ["TextKit"])),
+        %{
+          git_commit_sha: "s1",
+          git_branch: "feature/text",
+          recompute: false,
+          test_modules: [
+            %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
+          ],
+          coverage_evidence: %{
+            paths: paths,
+            scopes: [
+              %{
+                kind: "target",
+                module: "TextKitTests",
+                suite: "",
+                name: "",
+                files: Enum.to_list(0..(length(paths) - 1)),
+                lines: Enum.map(paths, fn _path -> [1, 1] end)
+              }
+            ]
+          }
+        }
+      )
+
+    selective_testing(project, run, [{"TextKitTests", :miss, "text"}])
+    CoverageFixtures.recompute_commit(run)
+    skipped_head(project, account, [{"TextKitTests", :local, "text"}])
+    CoverageFixtures.seed_listing(account, "head", paths)
+
+    assert %{carried_tests_count: 1, files: files} = Reported.compute(project, "head")
+
+    for path <- [hd(paths), "Sources/It's/Quoted.swift", List.last(paths)] do
+      assert Map.take(files[path], [:targets, :covered_lines, :executable_lines]) == %{
+               targets: ["TextKit"],
+               covered_lines: 1,
+               executable_lines: 2
+             }
+    end
+
+    assert Enum.count(paths, &Map.has_key?(files, &1)) == length(paths)
+  end
+
   test "carries a recorded target although a file it executed has another blob: the hash is trusted", %{
     project: project,
     account: account

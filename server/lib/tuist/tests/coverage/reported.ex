@@ -1238,16 +1238,17 @@ defmodule Tuist.Tests.Coverage.Reported do
   # chunk of paths at a time instead of all being held at once.
   defp unbuilt_carried_files(project_id, run_id, paths, carried_lines) do
     paths
-    |> Coverage.id_chunks(2)
-    |> Enum.flat_map(fn chunk ->
+    |> Coverage.path_hash_chunks()
+    |> Enum.flat_map(fn hashes ->
       from(f in Coverage.report_files_for_runs(project_id, [run_id]),
-        where: f.path in ^chunk,
+        where: fragment("bitShiftRight(halfMD5(?), 1) IN (?)", f.path, type(^hashes, {:array, :integer})),
         group_by: f.path,
         select:
           {f.path, fragment("anyIf(?, ? != '')", f.git_blob_id, f.git_blob_id),
            fragment("groupUniqArrayArray(?)", f.targets), fragment("groupUniqArrayArray(?)", f.line_numbers)}
       )
       |> ClickHouseRepo.all()
+      |> Enum.filter(&Map.has_key?(carried_lines, elem(&1, 0)))
       |> Enum.map(fn {path, git_blob_id, targets, executable} ->
         carried = carried_lines[path]
 

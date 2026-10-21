@@ -50,6 +50,7 @@ defmodule Tuist.GitHistory do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
 
@@ -1087,8 +1088,8 @@ defmodule Tuist.GitHistory do
     ) || 0
   end
 
-  # One HTTP form field per bound path or directory, and ClickHouse refuses a
-  # request over `http_max_fields` (1000 by default).
+  # One HTTP form field per bound directory, and ClickHouse refuses a request
+  # over `http_max_fields` (1000 by default).
   @blob_paths_chunk 900
 
   @doc """
@@ -1156,17 +1157,22 @@ defmodule Tuist.GitHistory do
   def blobs_at(_repository_id, _sha, []), do: %{}
 
   def blobs_at(repository_id, sha, paths) do
-    paths
-    |> Enum.chunk_every(@blob_paths_chunk)
-    |> Enum.flat_map(fn chunk ->
+    wanted = MapSet.new(paths)
+
+    wanted
+    |> Coverage.path_hash_chunks()
+    |> Enum.flat_map(fn hashes ->
       ClickHouseRepo.all(
         from(f in CommitFile,
-          where: f.repository_id == ^repository_id and f.sha == ^sha and f.path in ^chunk,
+          where:
+            f.repository_id == ^repository_id and f.sha == ^sha and
+              fragment("bitShiftRight(halfMD5(?), 1) IN (?)", f.path, type(^hashes, {:array, :integer})),
           group_by: f.path,
           select: {f.path, fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)}
         )
       )
     end)
+    |> Enum.filter(&MapSet.member?(wanted, elem(&1, 0)))
     |> Map.new()
   end
 end

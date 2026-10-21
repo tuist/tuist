@@ -568,6 +568,29 @@ defmodule Tuist.GitHistoryTest do
       GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 3)
       assert %{files_count: 3, truncated: true} = CoverageFixtures.listing(repository, "c")
     end
+
+    test "read the blobs of more paths than one query binds", %{repository: repository} do
+      # More paths than one chunk of hashes, long enough that 900 of them bound
+      # as one list take more than 128 KiB. Non-ASCII and quoted paths check
+      # that the server hashes them as ClickHouse does.
+      paths =
+        ["Sources/Café/Ünïcödé.swift", "Sources/It's/Quoted.swift"] ++
+          for index <- 1..5_100,
+              do:
+                "Sources/Features/Feature#{div(index, 40)}/Implementation/Generated/Networking/Models/Responses/" <>
+                  "File#{index}WithAVeryLongDescriptiveNameForTheGeneratedNetworkingResponseModel.swift"
+
+      GitHistory.record_listing(repository, "c", Enum.map(paths, &%{path: &1, git_blob_id: "blob-" <> &1}),
+        files_count: length(paths)
+      )
+
+      blobs = GitHistory.blobs_at(repository, "c", ["Sources/Missing.swift" | paths])
+
+      assert map_size(blobs) == length(paths)
+      assert blobs[hd(paths)] == "blob-" <> hd(paths)
+      assert blobs["Sources/It's/Quoted.swift"] == "blob-Sources/It's/Quoted.swift"
+      assert blobs[List.last(paths)] == "blob-" <> List.last(paths)
+    end
   end
 
   describe "expired commit listings" do
