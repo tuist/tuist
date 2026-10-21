@@ -109,6 +109,11 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#coverage-commit-status-b")
     refute has_element?(lv, "#coverage-commit-status-a")
 
+    # Any is asked for explicitly; Measured, the default, leaves the query.
+    html = render(lv)
+    assert html =~ ~r/href="\?commits-status=any&amp;tab=commits"[^>]*data-value="any"/
+    assert html =~ ~r/href="\?tab=commits"[^>]*data-value="measured"/
+
     {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits&commits-status=any")
     assert has_element?(lv, "#coverage-commit-status-b")
     assert has_element?(lv, "#coverage-commit-status-a", "Not measured")
