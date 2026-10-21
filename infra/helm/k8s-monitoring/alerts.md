@@ -4929,7 +4929,7 @@ with the pod and volume events in the `kura` namespace.
 ### Kura region admission headroom running out
 
 ```promql
-predict_linear(
+(
   (
     max by (cluster, region) (
       tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
@@ -4939,6 +4939,19 @@ predict_linear(
       floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
       - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
     )
+  )
+  - (
+    predict_linear(
+      max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})[3d:30m],
+      3 * 86400
+    )
+    - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
+  )
+)
+or
+predict_linear(
+  max by (cluster, region) (
+    tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
   )[3d:30m],
   3 * 86400
 )
@@ -4954,9 +4967,10 @@ predict_linear(
 - Summary: `Kura region {{ $labels.region }} in {{ $labels.cluster }} is on
   course to stop admitting enterprise instances within three days (projected
   headroom {{ $values.A.Value | printf "%.0f" }} GiB)`
-- Description: `Extrapolates the last three days of capacity admission
-  headroom (see "Kura region admission cannot take an enterprise instance")
-  three days forward. A box takes days to order and join, so this is the tier
+- Description: `Subtracts three more days of the region's reserved-disk growth,
+  extrapolated from the last three, from its capacity admission headroom (see
+  "Kura region admission cannot take an enterprise instance"). A box takes days
+  to order and join, so this is the tier
   to act on: order a node for the region's pool, or find what is reserving
   disk it does not use (instances that have stored nothing, claims far above
   their rings).`
@@ -4970,12 +4984,29 @@ history is the time an order takes. The 2-hour pending period keeps a region
 that has just started reporting, whose first samples are a steep drop, from
 firing on its first hour: eu-east did that for 1.5 hours on 2026-09-10.
 
+**The trend is of reserved disk, not of headroom.** Headroom moves both when
+instances reserve disk and when the region gains or loses a box, and only the
+first is burn. Extrapolating headroom read a box's retirement as consumption:
+when us-central's two old boxes left on 2026-10-19, headroom stepped from 2576
+GiB to 1161 and stayed there, and the rule projected -1289 GiB for three days.
+It also read a new box as a reversal of the burn, which hid eu-west's queued
+claim growth taking about 440 GiB of its fifth box within a day of it joining
+on 2026-10-15. Reserved disk does not move when a box joins, leaves, or is
+evacuated, so its slope is the burn alone. The private runner-cache regions
+(`ber1-runners`, `scw-fr-par-runners`) report headroom but no reserved series,
+so they fall through the `or` to the headroom trend.
+
 Backtested over 2026-09-03 to 2026-09-17, it fired for us-west from
 2026-09-11 14:33 and eu-west from 2026-09-11 12:03, four and five days before
 each crossed 32 GiB, for us-central from 2026-09-11 12:33, and for
 ap-southeast from 2026-09-16 12:33 (121 GiB left, projected -329 on
 2026-09-17). us-east fired from 2026-09-04 16:33, dropping out whenever
-archival released reservations.
+archival released reservations. These are the times of the headroom form;
+the reserved form, at a 6-hour step over the same window, starts within the
+same 6 hours in each region. Over 2026-10-17 to 2026-10-21 it reads
+us-central at about 1080 GiB where the headroom form read -1300, eu-west at
+-535 on 2026-10-17 where the headroom form read +576, and ber1-runners at
+-284 in both.
 
 ### Kura admission refusing instances
 
