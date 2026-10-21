@@ -1,6 +1,46 @@
 import XCTest
 
 final class AtlasWorkspaceUITests: XCTestCase {
+    @MainActor func testThemeCatalogLightDarkAndPersistence() throws {
+        let app = launch()
+        defer { app.terminate() }
+        app.tabBars.buttons["Profile"].tap()
+        try tap("profile-appearance", in: app)
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 5))
+        for theme in ["pulse", "berlin", "habibi"] {
+            let choice = try app.visibleElement("theme-\(theme)", up: false)
+            XCTAssertGreaterThanOrEqual(choice.frame.height, 44)
+            choice.tap()
+            XCTAssertEqual(choice.value as? String, "Selected")
+            for mode in ["Light", "Dark"] {
+                let picker = try app.visibleElement("appearance-mode")
+                picker.buttons[mode].tap()
+                XCTAssertTrue(picker.buttons[mode].isSelected)
+                _ = try app.visibleElement("appearance-preview")
+                attach(app, "ios-theme-\(theme)-\(mode.lowercased())")
+            }
+        }
+        app.terminate()
+        app.launchArguments = ["--workspace", "--keep-appearance"]
+        app.launch()
+        app.tabBars.buttons["Profile"].tap()
+        try tap("profile-appearance", in: app)
+        let selected = try app.visibleElement("theme-habibi")
+        XCTAssertEqual(selected.value as? String, "Selected")
+        let picker = try app.visibleElement("appearance-mode")
+        XCTAssertTrue(picker.buttons["Dark"].isSelected)
+    }
+
+    @MainActor func testOlderServerAppearanceWithAccessibilityText() throws {
+        let app = launch(arguments: ["--old-server", "--dark", "--large-text"])
+        defer { app.terminate() }
+        app.tabBars.buttons["Profile"].tap()
+        try tap("profile-appearance", in: app)
+        _ = try app.visibleElement("theme-atlas")
+        XCTAssertFalse(app.buttons["theme-pulse"].exists)
+        attach(app, "ios-theme-older-server-large-dark")
+    }
+
     @MainActor func testStableTabsNativeBrowseAndProfile() throws {
         let app = launch()
         defer { app.terminate() }

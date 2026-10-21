@@ -30,6 +30,7 @@ struct AtlasPeopleView: View {
                 ProgressView("Loading people")
             }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle("People")
         .onAppear { presence.show(resource: "people") }
     }

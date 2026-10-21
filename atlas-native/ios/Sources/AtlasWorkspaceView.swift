@@ -74,6 +74,7 @@ private struct AtlasBrowsePage: View {
                 }
             }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle(group?.title ?? "Browse")
         .searchable(text: $query, prompt: "Find a feature")
         .autocorrectionDisabled().textInputAutocapitalization(.never)

@@ -83,6 +83,7 @@ struct AtlasBusinessView: View {
                 ProgressView().frame(maxWidth: .infinity).accessibilityLabel("Loading")
             }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle(model.resource.title)
         .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
         .onSubmit(of: .search) { Task { await model.load(query: query) } }
@@ -282,6 +283,7 @@ struct AtlasBusinessDetail: View {
             }
             if model.busy { ProgressView() }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle(model.resource.singular).navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

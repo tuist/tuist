@@ -82,6 +82,7 @@ class AtlasTimeOffScreen(
         content.addView(
             Button(activity).apply {
                 text = label
+                setTag(R.id.atlas_primary_action, true)
                 isAllCaps = false
                 minHeight = dp(48)
                 isEnabled = enabled

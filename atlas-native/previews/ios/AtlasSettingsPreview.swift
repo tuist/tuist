@@ -7,6 +7,15 @@ struct AtlasSettingsPreview: App {
     @StateObject private var holidays = AtlasTimeOffPreviewData()
     @StateObject private var business = AtlasBusinessPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
+    @StateObject private var appearance = AtlasAppearance(request: { action in
+        if action["operation"] as? String == "themes" {
+            if ProcessInfo.processInfo.arguments.contains("--old-server") { throw CancellationError() }
+            let url = Bundle.main.url(forResource: "native_themes", withExtension: "json")!
+            let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+            return try await AtlasAppearance.bridge(["operation": "validate_themes", "catalog": catalog])
+        }
+        return try await AtlasAppearance.bridge(action)
+    })
     @StateObject private var accounts = AtlasAIAccounts { request in
         let response: String
         switch request["action"] as? String {
@@ -63,8 +72,15 @@ struct AtlasSettingsPreview: App {
             } message: {
                 Text(openedURL?.absoluteString ?? "")
             }
-            .tint(AtlasSettingsStyle.tint)
-            .preferredColorScheme(ProcessInfo.processInfo.arguments.contains("--dark") ? .dark : .light)
+            .modifier(AtlasThemeScope(appearance: appearance, server: URL(string: "https://atlas.example.org")))
+            .task {
+                await appearance.configure(server: URL(string: "https://atlas.example.org"))
+                if !ProcessInfo.processInfo.arguments.contains("--keep-appearance") {
+                    appearance.choose(theme: "server-default")
+                    appearance.choose(mode: .system)
+                }
+            }
+            .preferredColorScheme(appearance.mode.scheme ?? (ProcessInfo.processInfo.arguments.contains("--dark") ? .dark : .light))
             .dynamicTypeSize(ProcessInfo.processInfo.arguments.contains("--large-text") ? .accessibility2 : .large)
         }
     }
