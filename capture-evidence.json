@@ -1,0 +1,50 @@
+{
+  "head": "4acfca907765cadc1d1dc34b011b631ec4391fe2",
+  "capturedAt": "2026-10-21T15:41:12.367Z",
+  "browser": "155.0.8059.85",
+  "resources": [
+    {
+      "name": "xcode",
+      "inventoryPath": "/tuistrocks/inventory-xcode/builds/xcode/modules",
+      "detailHref": "/tuistrocks/inventory-xcode/builds/xcode/modules/02a0b25c-6125-8a39-b738-41c0ea81ed5d?analytics-date-range=last-7-days",
+      "inventoryWidgets": "Compilations\n1,269\n+422.2%\nsince last week\nFailed compilations\n0\nNo change\nsince last week\nAvg. compilation duration\n3.1s\n-6.6%\nsince last week\nModules\n28\n+3.7%\nsince last week",
+      "detailWidgets": "Builds and cache lookups\n47\n+422.2%\nsince last week\nCache hit rate\nNo recorded lookups\nCompilation duration\n5.3s\n+0.9%\nsince last week"
+    },
+    {
+      "name": "gradle",
+      "inventoryPath": "/tuistrocks/inventory-gradle/builds/gradle/tasks",
+      "detailHref": "/tuistrocks/inventory-gradle/builds/gradle/tasks/034c16ef-64a3-80d9-8b29-efbbc2dac500",
+      "inventoryWidgets": "Task executions\n1,110\n+411.5%\nsince last week\nFailed task executions\n3\n+3\nsince last week\nAvg. execution duration\n2.2s\n-8.6%\nsince last week\nTasks\n29\nNo change\nsince last week",
+      "detailWidgets": "Executions\n47\n+422.2%\nsince last week\nCache hit rate\n100.0%\nNo change\nsince last week\nDuration\n3.7s\n-73.6%\nsince last week"
+    },
+    {
+      "name": "once",
+      "inventoryPath": "/tuistrocks/inventory-once/builds/once/actions",
+      "detailHref": "/tuistrocks/inventory-once/builds/once/actions/1199c294-f777-8f1c-9edf-886e5b4b4e68",
+      "inventoryWidgets": "Action executions\n1,212\n+413.6%\nsince last week\nFailed action executions\n3\n+3\nsince last week\nAvg. execution duration\n1.4s\n-9.3%\nsince last week\nActions\n29\nNo change\nsince last week",
+      "detailWidgets": "Executions\n47\n+422.2%\nsince last week\nCache hit rate\n100.0%\nNo change\nsince last week\nDuration\n2.8s\n-73.4%\nsince last week"
+    },
+    {
+      "name": "bazel",
+      "inventoryPath": "/tuistrocks/inventory-bazel/builds/bazel/actions",
+      "detailHref": "/tuistrocks/inventory-bazel/builds/bazel/actions/8c908879-7900-892a-862e-e3e25247e031?analytics-date-range=last-7-days",
+      "inventoryWidgets": "Action executions\n780\n+1200%\nsince last week\nFailed action executions\n15\n+15\nsince last week\nAvg. execution duration\n2.1s\n-12.4%\nsince last week\nActions\n30\nNo change\nsince last week",
+      "detailWidgets": "Executions\n26\n+1200%\nsince last week\nCache hit rate\nNo recorded lookups\nDuration\n3.9s\n+2.3%\nsince last week"
+    },
+    {
+      "name": "mix-files",
+      "inventoryPath": "/tuistrocks/inventory-mix/builds/mix/files",
+      "detailHref": "/tuistrocks/inventory-mix/builds/mix/files/233c3968-8401-82af-85af-efd09db3b36f?analytics-date-range=last-7-days",
+      "inventoryWidgets": "File compilations\n1,363\n+422.2%\nsince last week\nFailed compilations\n0\nNo change\nsince last week\nAvg. compilation duration\n412ms\n-7.4%\nsince last week\nFiles\n29\nNo change\nsince last week",
+      "detailWidgets": "Compilations\n47\n+422.2%\nsince last week\nCache hit rate\nNo recorded lookups\nCompilation duration\n747ms\n+2.8%\nsince last week"
+    },
+    {
+      "name": "mix-modules",
+      "inventoryPath": "/tuistrocks/inventory-mix/builds/mix/modules",
+      "detailHref": "/tuistrocks/inventory-mix/builds/mix/modules/0ff92211-b68f-8fac-81e9-ea547be8ce1a?analytics-date-range=last-7-days",
+      "inventoryWidgets": "Module compilations\n1,387\n+423.4%\nsince last week\nFailed compilations\n0\nNo change\nsince last week\nAvg. file compilation duration\n406ms\n-7.5%\nsince last week\nModules\n30\nNo change\nsince last week",
+      "detailWidgets": "Compilations\n47\n+422.2%\nsince last week\nCache hit rate\nNo recorded lookups\nFile compilation duration\n747ms\n+2.8%\nsince last week"
+    }
+  ],
+  "errors": []
+}
