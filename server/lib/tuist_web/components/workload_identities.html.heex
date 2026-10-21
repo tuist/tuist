@@ -21,68 +21,14 @@
         )}
       </span>
       <.link
+        id="oidc-workload-guide"
         href="/en/docs/guides/server/authentication#workload-identity-trust-policies"
         data-part="documentation"
       >
-        {dgettext("dashboard_account", "Learn about workload identities")}
+        {dgettext("dashboard_account", "Set up workload authentication")}
       </.link>
     </div>
-    <div
-      data-part="content"
-      hidden={not @oidc_configuration_visible and @oidc_trust_policies == []}
-    >
-      <div
-        :for={policy <- @oidc_trust_policies}
-        id={"oidc-trust-policy-#{policy.id}"}
-        data-part="policy"
-      >
-        <div data-part="identity">
-          <span data-part="name">{policy.name}</span>
-          <span data-part="issuer">{policy.issuer}</span>
-          <span data-part="details">
-            {dgettext("dashboard_account", "JWKS: %{url}", url: policy.jwks_url)}
-          </span>
-          <span data-part="details">
-            {dgettext("dashboard_account", "Audience: %{audience}", audience: policy.audience)}
-          </span>
-          <span data-part="details">
-            {dgettext("dashboard_account", "Claims: %{claims}",
-              claims: format_claims(policy.claims)
-            )}
-          </span>
-          <span data-part="details" data-scope="account">
-            {dgettext(
-              "dashboard_account",
-              "Access: all current and future projects in this account."
-            )}
-          </span>
-        </div>
-        <.button
-          variant="secondary"
-          label={dgettext("dashboard_account", "Remove")}
-          phx-click="delete_oidc_trust_policy"
-          phx-value-policy-id={policy.id}
-        />
-      </div>
-      <.alert
-        :if={@oidc_trust_policies != []}
-        id="oidc-workload-setup"
-        status="information"
-        type="secondary"
-        size="large"
-        title={dgettext("dashboard_account", "Authenticate your workload")}
-      >
-        <p>
-          {dgettext(
-            "dashboard_account",
-            "Provide a fresh provider token as TUIST_OIDC_TOKEN, then run:"
-          )}
-        </p>
-        <pre><code>{~s(export TUIST_OIDC_ACCOUNT="#{@selected_account.name}") <> "\ntuist auth login"}</code></pre>
-        <p>
-          {dgettext("dashboard_account", "For Elixir projects, use mix tuist.login instead.")}
-        </p>
-      </.alert>
+    <div data-part="content" hidden={not @oidc_configuration_visible}>
       <.form
         for={@oidc_trust_policy_form}
         id="oidc-trust-policy-form"
@@ -191,6 +137,62 @@
           label={dgettext("dashboard_account", "Add trust policy")}
         />
       </.form>
+    </div>
+    <div :if={@oidc_trust_policies != []} data-part="policies-table">
+      <.table
+        id="oidc-trust-policies-table"
+        rows={@oidc_trust_policies}
+        row_key={fn policy -> "oidc-trust-policy-#{policy.id}" end}
+        row_expandable={fn _policy -> true end}
+        expand_label={dgettext("dashboard_account", "Show workload identity details")}
+      >
+        <:col :let={policy} label={dgettext("dashboard_account", "Name")}>
+          <.text_cell label={policy.name} data-field="name" />
+        </:col>
+        <:col :let={policy} label={dgettext("dashboard_account", "Issuer URL")}>
+          <.text_cell label={policy.issuer} data-field="issuer" />
+        </:col>
+        <:col :let={policy} label={dgettext("dashboard_account", "Audience")}>
+          <.text_cell label={policy.audience} data-field="audience" />
+        </:col>
+        <:col :let={policy} label={dgettext("dashboard_account", "Created")}>
+          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(policy.inserted_at)} />
+        </:col>
+        <:col :let={policy} label="">
+          <.button_cell>
+            <:button>
+              <.button
+                icon_only
+                variant="secondary"
+                size="small"
+                phx-click="delete_oidc_trust_policy"
+                phx-value-policy-id={policy.id}
+                aria-label={dgettext("dashboard_account", "Remove %{name}", name: policy.name)}
+              >
+                <.icon name="trash" />
+              </.button>
+            </:button>
+          </.button_cell>
+        </:col>
+        <:expanded_content :let={policy}>
+          <div data-part="policy-details">
+            <span>
+              {dgettext("dashboard_account", "JWKS: %{url}", url: policy.jwks_url)}
+            </span>
+            <span>
+              {dgettext("dashboard_account", "Claims: %{claims}",
+                claims: format_claims(policy.claims)
+              )}
+            </span>
+            <span data-scope="account">
+              {dgettext(
+                "dashboard_account",
+                "Access: all current and future projects in this account."
+              )}
+            </span>
+          </div>
+        </:expanded_content>
+      </.table>
     </div>
   </.card_section>
 </section>

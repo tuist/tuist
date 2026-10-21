@@ -98,17 +98,24 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert [policy] = Accounts.list_oidc_trust_policies(context.account)
     render_hook(lv, "toggle_oidc_configuration", %{"checked" => false})
     assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
-    refute has_element?(lv, "#oidc-trust-policies > [data-part=content][hidden]")
-    assert has_element?(lv, "#oidc-trust-policy-#{policy.id}", policy.name)
-    assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-scope=account]", "all current and future projects")
-    assert has_element?(lv, "#oidc-workload-setup", "tuist auth login")
+    assert has_element?(lv, "#oidc-trust-policies > [data-part=content][hidden]")
+    assert has_element?(lv, "#oidc-trust-policies-table #oidc-trust-policy-#{policy.id}", policy.name)
+
+    assert has_element?(
+             lv,
+             "#oidc-trust-policy-#{policy.id}-expanded [data-scope=account]",
+             "all current and future projects"
+           )
+
+    assert has_element?(lv, "#oidc-workload-guide", "Set up workload authentication")
+    refute has_element?(lv, "#oidc-workload-setup")
     assert [^policy] = Accounts.list_oidc_trust_policies(context.account)
 
     {:ok, reloaded, _} = live(context.conn, path(context.account))
     assert has_element?(reloaded, "#oidc-trust-policy-form[hidden]")
     assert has_element?(reloaded, "#oidc-trust-policy-#{policy.id}")
-    assert has_element?(reloaded, "#oidc-workload-setup")
-    reloaded |> element("#oidc-trust-policy-#{policy.id} button") |> render_click()
+    assert has_element?(reloaded, "#oidc-workload-guide")
+    reloaded |> element("#oidc-trust-policy-#{policy.id} [phx-click=delete_oidc_trust_policy]") |> render_click()
     assert [] = Accounts.list_oidc_trust_policies(context.account)
     assert has_element?(reloaded, "#oidc-trust-policies > [data-part=content][hidden]")
   end
@@ -136,7 +143,13 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert has_element?(lv, "#oidc-trust-policy-claims[maxlength='8192']")
     refute has_element?(lv, "#oidc-projects")
     assert has_element?(lv, "[data-part=subtitle]", "all current and future projects in this account")
-    refute has_element?(lv, "#oidc-workload-setup")
+    refute has_element?(lv, "#oidc-trust-policies-table")
+
+    assert has_element?(
+             lv,
+             "#oidc-workload-guide[href='/en/docs/guides/server/authentication#workload-identity-trust-policies']"
+           )
+
     assert page_title(lv) == "Authentication · #{context.account.name} · Tuist"
   end
 
@@ -195,17 +208,67 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert id == user.account.id
   end
 
-  test "one account identity displays its account-wide scope and login instructions", context do
+  test "one account identity displays its account-wide scope and points to setup documentation", context do
     lv = open(context)
     submit(lv, context.params)
     assert [policy] = Accounts.list_oidc_trust_policies(context.account)
     assert policy.account_id == context.account.id
-    assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-scope=account]", "all current and future projects")
-    assert has_element?(lv, "#oidc-workload-setup", context.account.name)
-    assert has_element?(lv, "#oidc-workload-setup", "tuist auth login")
-    assert has_element?(lv, "#oidc-workload-setup", "mix tuist.login")
-    lv |> element("#oidc-trust-policy-#{policy.id} button") |> render_click()
+
+    assert has_element?(
+             lv,
+             "#oidc-trust-policy-#{policy.id}-expanded [data-scope=account]",
+             "all current and future projects"
+           )
+
+    assert has_element?(lv, "#oidc-workload-guide", "Set up workload authentication")
+    refute has_element?(lv, "#oidc-workload-setup")
+    lv |> element("#oidc-trust-policy-#{policy.id} [phx-click=delete_oidc_trust_policy]") |> render_click()
     assert [] = Accounts.list_oidc_trust_policies(context.account)
+  end
+
+  test "lists multiple identities in a table with full details and row-specific removal", context do
+    lv = open(context)
+    submit(lv, Map.put(context.params, "name", "First identity"))
+    submit(lv, Map.put(context.params, "name", "Second identity"))
+    assert [first, second] = Accounts.list_oidc_trust_policies(context.account)
+
+    headers =
+      lv
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find("#oidc-trust-policies-table th")
+      |> Enum.map(fn header -> String.trim(Floki.text(header)) end)
+
+    assert headers == ["Name", "Issuer URL", "Audience", "Created", ""]
+
+    for policy <- [first, second] do
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id}[data-state=collapsed]", policy.name)
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=issuer]", policy.issuer)
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=audience]", policy.audience)
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id}-expanded", policy.jwks_url)
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id}-expanded", ~s(app_id = "456"))
+
+      assert has_element?(
+               lv,
+               "#oidc-trust-policy-#{policy.id} [data-part=expand-toggle][aria-expanded=false][aria-controls='oidc-trust-policy-#{policy.id}-expanded']"
+             )
+
+      assert has_element?(
+               lv,
+               "#oidc-trust-policy-#{policy.id} [phx-click=delete_oidc_trust_policy][aria-label='Remove #{policy.name}']"
+             )
+    end
+
+    lv
+    |> form("#oidc-trust-policy-form", %{"oidc_trust_policy" => Map.put(context.params, "claims", "{unfinished")})
+    |> render_change()
+
+    lv |> element("#oidc-trust-policy-#{first.id} [phx-click=delete_oidc_trust_policy]") |> render_click()
+    refute has_element?(lv, "#oidc-trust-policy-#{first.id}")
+    assert has_element?(lv, "#oidc-trust-policy-#{second.id}")
+    assert has_element?(lv, "#oidc-trust-policy-claims", "{unfinished")
+    assert [%{id: remaining_id}] = Accounts.list_oidc_trust_policies(context.account)
+    assert remaining_id == second.id
   end
 
   test "obsolete project and forged account parameters cannot change the owning account", context do
