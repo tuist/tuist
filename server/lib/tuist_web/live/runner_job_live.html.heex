@@ -560,8 +560,16 @@
             </div>
           </div>
           <div :if={expanded} data-part="step-expanded">
-            <div data-part="step-logs">
-              <% step_page = Map.get(@step_logs, step.number, :loading) %>
+            <% step_page = Map.get(@step_logs, step.number, :loading) %>
+            <div
+              id={"runner-step-logs-#{step.number}"}
+              phx-hook="ScrollToTail"
+              data-part="step-logs"
+              data-scroll-to-tail-active={
+                to_string(TuistWeb.RunnerJobLive.step_logs_start_at_end?(step, step_page))
+              }
+              data-scroll-to-tail-item-selector="[data-part='log-line']"
+            >
               <div
                 :if={step_page == :loading}
                 data-part="step-logs-loading"
@@ -606,9 +614,10 @@
                     do: dgettext("dashboard_runners", "Loading..."),
                     else: dgettext("dashboard_runners", "Load earlier lines")}
                 </button>
-                <TuistWeb.RunnerJobLive.log_tree tree={
-                  Tuist.Runners.LogFormatter.group_lines(step_page.lines)
-                } />
+                <TuistWeb.RunnerJobLive.log_tree
+                  id_prefix={"runner-step-#{step.number}-line"}
+                  tree={Tuist.Runners.LogFormatter.group_lines(step_page.lines)}
+                />
               <% end %>
             </div>
           </div>

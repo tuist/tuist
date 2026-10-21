@@ -1151,6 +1151,34 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     refute has_element?(lv, ~s{[data-part="step-logs-loading"]})
     assert has_element?(lv, ~s{[data-part="step-logs"]}, "inside the build step")
+    assert has_element?(lv, ~s{[data-part="step-logs"][data-scroll-to-tail-active="false"]})
+  end
+
+  test "expands failed steps on load and opens their logs at the end", %{conn: conn, account: account} do
+    complete_job_with_logs!(
+      account,
+      31_607,
+      316_070,
+      ["Set up job", "Build", "Complete job"],
+      [
+        "Current runner version",
+        "##[group]Run build.sh",
+        "##[endgroup]",
+        "##[error]Process completed with exit code 65.",
+        "Cleaning up orphan processes"
+      ],
+      failed_steps: [2]
+    )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316070/jobs/31607")
+
+    assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|)
+    assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|)
+
+    render_async(lv)
+
+    assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"]}, "Process completed with exit code 65.")
+    assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"][data-scroll-to-tail-active="true"]})
   end
 
   test "renders the tail of a long step and loads earlier lines on demand", %{conn: conn, account: account} do
@@ -1186,6 +1214,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert length(tail) == 1_000
     assert List.first(tail) == {"7", "build line 0006"}
     assert List.last(tail) == {"1006", "build line 1005"}
+    assert has_element?(lv, ~s{[data-part="step-logs"][data-scroll-to-tail-active="true"]})
+    assert has_element?(lv, ~s{#runner-step-2-line-7[data-part="log-line"]}, "build line 0006")
     refute has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
 
     lv |> element(~s{[data-part="step-logs-load-earlier"]}) |> render_click()
@@ -2190,7 +2220,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "tuist-gradle"
   end
 
-  defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages) do
+  defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages, opts \\ []) do
+    failed_steps = Keyword.get(opts, :failed_steps, [])
+
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: workflow_job_id,
@@ -2221,7 +2253,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
           number: number,
           name: name,
           status: "completed",
-          conclusion: "success",
+          conclusion: if(number in failed_steps, do: "failure", else: "success"),
           started_at: ~U[2026-05-28 12:00:00.000000Z],
           completed_at: ~U[2026-05-28 12:00:01.000000Z]
         }

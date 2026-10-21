@@ -92,6 +92,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
+         |> expand_failed_steps()
          |> assign(:search, "")
          |> assign(:search_results, [])
          |> assign(:show_timestamps, false)
@@ -1122,21 +1123,27 @@ defmodule TuistWeb.RunnerJobLive do
   # lines render with ANSI SGR codes decoded into `<span>` classes so
   # the user sees colours instead of literal `[36;1m` artefacts.
   attr(:tree, :list, required: true)
+  attr(:id_prefix, :string, default: nil)
 
   def log_tree(assigns) do
     ~H"""
-    <.log_node :for={node <- @tree} node={node} />
+    <.log_node :for={node <- @tree} node={node} id_prefix={@id_prefix} />
     """
   end
 
   attr(:node, :any, required: true)
+  attr(:id_prefix, :string, default: nil)
 
   def log_node(%{node: {:line, _line}} = assigns) do
     {:line, line} = assigns.node
     assigns = assign(assigns, :line, line)
 
     ~H"""
-    <div data-part="log-line" data-annotation={LogFormatter.annotation(@line.message)}>
+    <div
+      id={@id_prefix && @line.line_number && "#{@id_prefix}-#{@line.line_number}"}
+      data-part="log-line"
+      data-annotation={LogFormatter.annotation(@line.message)}
+    >
       <span data-part="log-ln">{@line.line_number}</span>
       <span data-part="log-ts">{log_ts(@line.ts)}</span>
       <span data-part="log-message">{LogFormatter.render_message(@line.message)}</span>
@@ -1160,7 +1167,7 @@ defmodule TuistWeb.RunnerJobLive do
         </span>
       </summary>
       <div data-part="log-group-body">
-        <.log_tree tree={@children} />
+        <.log_tree tree={@children} id_prefix={@id_prefix} />
       </div>
     </details>
     """
@@ -1202,7 +1209,7 @@ defmodule TuistWeb.RunnerJobLive do
         </span>
       </summary>
       <div data-part="log-group-body">
-        <.log_tree tree={@children} />
+        <.log_tree tree={@children} id_prefix={@id_prefix} />
       </div>
     </details>
     """
@@ -1232,6 +1239,24 @@ defmodule TuistWeb.RunnerJobLive do
         socket
     end
   end
+
+  defp expand_failed_steps(socket) do
+    socket.assigns.steps
+    |> Enum.filter(&(&1.conclusion == "failure"))
+    |> Enum.reduce(socket, fn %{number: number}, socket ->
+      socket
+      |> update(:expanded_steps, &MapSet.put(&1, number))
+      |> load_step_logs(number)
+    end)
+  end
+
+  @doc """
+  Whether an expanded step's log panel opens scrolled to its last
+  line: when the step failed, or when only its tail is loaded.
+  """
+  def step_logs_start_at_end?(%{conclusion: "failure"}, _step_page), do: true
+  def step_logs_start_at_end?(_step, %{first: first, from: from}) when from > first, do: true
+  def step_logs_start_at_end?(_step, _step_page), do: false
 
   defp last_step_page(workflow_job_id, {first, last}) do
     from = max(first, last - @step_page_size + 1)
