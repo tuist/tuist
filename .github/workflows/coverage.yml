@@ -179,6 +179,8 @@ jobs:
       # builds, so the compilation cache replays across runners; the CLI maps the
       # covered paths back (llvm-cov export plus each target's
       # compilation-prefix-map.json).
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       - name: Run tests with coverage
         run: tuist test TuistUnitTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 4
 

@@ -175,6 +175,14 @@ regressions in `kura/spec/e2e/xcode_lookups_lifecycle_spec.sh`. These validate
 cleanup and deletion guards without Xcode or a cache service; actual compiler
 replay remains an opt-in Apple silicon test.
 
+## SwifterPM certificate fixtures
+
+The standalone SwifterPM unit job and the CLI unit/coverage jobs explicitly install
+Homebrew `openssl@3` for loopback-only TLS test servers. Do not rely on incidental
+runner formula dependencies or use LibreSSL's all-interface server instead. This
+is a test-fixture dependency, not client/runtime verifier qualification or a
+production trust-store change.
+
 ## SwifterPM E2E credentials
 
 `swifterpm.yml` passes its read-only job token to the E2E task's HTTPS GitHub
