@@ -384,22 +384,18 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 		return // not dispatched yet — nothing to materialize
 	}
 
-	// Fork-exclusion: an untrusted job never touches the shared cache. It gets an
-	// EMPTY image rather than a master, and SourceAccount stays empty so
-	// Finalize's SourceAccount==account guard discards the branch — the job can
-	// neither read a warm master nor promote into it. It still needs an image of
-	// its own: cache-ready tells the guest to attach, and signalling without one
-	// would drop every fork job onto the local cold cache. A malformed volume
-	// label is isolated the same way.
+	// An untrusted job never touches the shared cache, and neither does a job on
+	// managed cache volumes, which the server marks untrusted for the built-in one.
+	// It gets no image and no reservation: SourceAccount stays empty so Finalize's
+	// SourceAccount==account guard discards the branch, and cache-ready without an
+	// image sends a guest that still attaches onto its local cold cache. A
+	// malformed volume label is isolated the same way.
 	volume, validVolume := RunnerCacheVolumeFromPod(pod)
 	if !validVolume {
-		log.Log.WithName("volume").Info("cache volume label is not a volume name; running the job on an empty image",
+		log.Log.WithName("volume").Info("cache volume label is not a volume name; running the job without a cache image",
 			"vm", entry.VMName, "account", account, "volume", pod.Labels[runnerCacheVolumeLabel])
 	}
 	if pod.Labels[runnerCacheUntrustedLabel] == "true" || !validVolume {
-		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil && !errors.Is(err, errAdmissionDeclined) {
-			log.Log.WithName("volume").Error(err, "create empty cache image for untrusted job", "vm", entry.VMName)
-		}
 		entry.Volume.Materialized = true
 		// Mark it on disk too, not just in memory: without the marker a kubelet
 		// restart re-enters here and recreates the image while the guest still has
