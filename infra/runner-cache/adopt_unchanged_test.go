@@ -23,7 +23,7 @@ func evictMaster(t *testing.T, b *LocalImages, slot Slot) {
 func TestAPFSKeepsAnUnchangedBranchAsTheMasterEvictedWhileTheJobRan(t *testing.T) {
 	b, remote, slot, path := finishedClone(t, map[string]any{"used_bytes": 3, "capacity_bytes": 20_000_000_000, "changed": false})
 	evictMaster(t, &b.LocalImages, slot)
-	if err := os.WriteFile(b.image(slot), []byte("branch"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(path, SharedImageName), []byte("branch"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -52,7 +52,7 @@ func TestAPFSKeepsAnUnchangedBranchAsTheMasterEvictedWhileTheJobRan(t *testing.T
 
 func TestAPFSKeepsTheMasterAnUnchangedBranchWasClonedFrom(t *testing.T) {
 	b, _, slot, path := finishedClone(t, map[string]any{"used_bytes": 3, "capacity_bytes": 20_000_000_000, "changed": false})
-	if err := os.WriteFile(b.image(slot), []byte("branch"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(path, SharedImageName), []byte("branch"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	verified := false

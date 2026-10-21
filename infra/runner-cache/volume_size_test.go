@@ -195,7 +195,7 @@ func TestAPFSGrowsAWarmCopyToTheChosenCapacity(t *testing.T) {
 	if len(*grown) != 1 || (*grown)[0] != 50_000_000_000 {
 		t.Fatalf("grew %v, want one growth to 50 GB", *grown)
 	}
-	if data, _ := os.ReadFile(b.image(slot)); string(data) != "saved APFS" {
+	if data, _ := os.ReadFile(filepath.Join(apfsPath(t, b, slot), SharedImageName)); string(data) != "saved APFS" {
 		t.Fatal("did not attach the warm copy")
 	}
 }

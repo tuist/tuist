@@ -27,7 +27,7 @@ func TestAPFSStartsEmptyInsteadOfDownloadingWhenNoCopyIsLocal(t *testing.T) {
 	if remote.downloads != 0 {
 		t.Fatal("downloaded inside the job's budget")
 	}
-	if data, _ := os.ReadFile(b.image(slot)); string(data) != "cold APFS" {
+	if data, _ := os.ReadFile(filepath.Join(apfsPath(t, b, slot), SharedImageName)); string(data) != "cold APFS" {
 		t.Fatalf("attached %q, want an empty image", data)
 	}
 	if !b.Cold(slot) || b.MountedGeneration(slot) != 0 {

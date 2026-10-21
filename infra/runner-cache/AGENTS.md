@@ -6,8 +6,15 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 
 - Linux LocalImages uses ext4 and reflinks. Preserve syncfs/error verification,
   durable checking guards, CRI plus API writer fences and no-follow cleanup.
-- APFSImages uses private APFS sparse images. Guests mount an image hard link
-  through their own virtio-fs share. Host image paths and masters stay private.
+- APFSImages uses private APFS sparse images. While a VM runs, its branch image
+  has one name, `cache.sparseimage` in its own virtio-fs share (`expose`), and
+  `<image>.shared` records its device and inode; `Seal` links it back to its
+  private name only after the VM stopped and the share still holds that inode
+  (`claim`), else `ErrReplaced`. Never keep a second name while the VM runs: its
+  sandboxed virtio-fs server opens files by inode, which macOS checks against
+  the name last looked up, so any host lookup of a private name denies the
+  guest's next open (`permission denied`). Find a running branch through
+  `APFSBranchFile`/`APFSHasBranch`. Masters stay private.
   Require clean guest detach, API absence AND stopped Tart VM before verifying
   and publishing. Never mount guest-written APFS on the host; use an unmounted read-only device
   and userspace fsck. Validate lease-bound guest usage separately from admission.

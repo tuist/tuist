@@ -58,7 +58,11 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 		return err
 	}
 	image := b.image(slot)
-	if _, statErr := os.Lstat(image); os.IsNotExist(statErr) {
+	_, statErr := os.Lstat(image)
+	if os.IsNotExist(statErr) && b.exposed(slot) {
+		statErr = nil
+	}
+	if os.IsNotExist(statErr) {
 		// A job never downloads: it clones a local copy or starts empty, so what
 		// it is expected to write is enough either way.
 		minimum := uint64(b.expectedBytes(slot))
@@ -135,9 +139,17 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	// A hard link exposes this branch's inode, never its host-only pathname.
-	// Linkat pins the destination directory, so guest symlink replacement cannot
-	// redirect a privileged operation outside its own share. Never overwrite it.
+	return b.expose(slot, path)
+}
+
+// SharedImageName is a branch image's name in its VM's share.
+const SharedImageName = "cache.sparseimage"
+
+// The VM's sandboxed virtio-fs server opens files by inode, which macOS checks
+// against the name last looked up: a branch image keeps one name, in the share,
+// while its VM runs.
+func (b *APFSImages) expose(slot Slot, path string) error {
+	image := b.image(slot)
 	root, err := os.OpenRoot(filepath.Dir(path))
 	if err != nil {
 		return err
@@ -151,16 +163,134 @@ func (b *APFSImages) Attach(ctx context.Context, slot Slot, path string) (err er
 		return err
 	}
 	defer dir.Close()
-	if err = os.Chmod(image, 0666); err != nil {
-		return err
-	}
-	err = unix.Linkat(unix.AT_FDCWD, image, int(dir.Fd()), "cache.sparseimage", 0)
-	if errors.Is(err, unix.EEXIST) {
-		return sharedImage(image, dir)
+	recorded, err := readSharedInode(image)
+	if os.IsNotExist(err) {
+		if err = os.Chmod(image, 0666); err != nil {
+			return err
+		}
+		if recorded, err = recordSharedInode(image); err != nil {
+			return err
+		}
 	} else if err != nil {
 		return err
 	}
+	if _, err = os.Lstat(image); os.IsNotExist(err) {
+		return sharedInode(dir, recorded)
+	} else if err != nil {
+		return err
+	}
+	// Linkat pins the destination directory, so guest symlink replacement cannot
+	// redirect a privileged operation outside its own share. Never overwrite it.
+	err = unix.Linkat(unix.AT_FDCWD, image, int(dir.Fd()), SharedImageName, 0)
+	if errors.Is(err, unix.EEXIST) {
+		err = sharedInode(dir, recorded)
+	}
+	if err != nil {
+		return err
+	}
+	if err = dir.Sync(); err != nil {
+		return err
+	}
+	if err = os.Remove(image); err != nil {
+		return err
+	}
+	return syncFile(filepath.Dir(image))
+}
+
+// claim gives a stopped VM's branch image its private name back.
+func (b *APFSImages) claim(slot Slot, path string) error {
+	image := b.image(slot)
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	dir, err := root.Open(filepath.Base(path))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	if _, err = os.Lstat(image); err == nil {
+		// Claimed before, or exposed through a second link.
+		return sharedImage(image, dir)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	recorded, err := readSharedInode(image)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("%w: branch image missing", ErrReplaced)
+	} else if err != nil {
+		return err
+	}
+	if err = sharedInode(dir, recorded); err != nil {
+		return err
+	}
+	if err = unix.Linkat(int(dir.Fd()), SharedImageName, unix.AT_FDCWD, image, 0); err != nil {
+		return err
+	}
+	if err = syncFile(filepath.Dir(image)); err != nil {
+		return err
+	}
+	return sharedImage(image, dir)
+}
+
+type inode struct{ Dev, Ino uint64 }
+
+func recordSharedInode(image string) (inode, error) {
+	var stat unix.Stat_t
+	if err := unix.Lstat(image, &stat); err != nil {
+		return inode{}, err
+	}
+	recorded := inode{uint64(stat.Dev), stat.Ino}
+	data, _ := json.Marshal(recorded)
+	tmp := image + ".shared.tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return inode{}, err
+	}
+	return recorded, durableRename(tmp, image+".shared")
+}
+
+func readSharedInode(image string) (inode, error) {
+	var recorded inode
+	data, err := os.ReadFile(image + ".shared")
+	if err != nil {
+		return recorded, err
+	}
+	return recorded, json.Unmarshal(data, &recorded)
+}
+
+// sharedInode checks that the share directory still exposes the recorded image.
+func sharedInode(dir *os.File, recorded inode) error {
+	var stat unix.Stat_t
+	if err := unix.Fstatat(int(dir.Fd()), SharedImageName, &stat, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return fmt.Errorf("%w: %v", ErrReplaced, err)
+	}
+	if stat.Mode&unix.S_IFMT != unix.S_IFREG || uint64(stat.Dev) != recorded.Dev || stat.Ino != recorded.Ino {
+		return ErrReplaced
+	}
 	return nil
+}
+
+func (b *APFSImages) exposed(slot Slot) bool {
+	_, err := os.Lstat(b.image(slot) + ".shared")
+	return err == nil
+}
+
+// APFSHasBranch reports whether a slot of the store at root has a branch image.
+func APFSHasBranch(root string, slot Slot) bool {
+	b := &APFSImages{LocalImages: LocalImages{Root: root}}
+	_, err := os.Lstat(b.image(slot))
+	return err == nil || b.exposed(slot)
+}
+
+// APFSBranchFile is the one name of a slot's branch image in the store at root:
+// in its share while exposed, else private.
+func APFSBranchFile(root string, slot Slot) string {
+	b := &APFSImages{LocalImages: LocalImages{Root: root}}
+	if _, err := os.Lstat(b.image(slot)); os.IsNotExist(err) && b.exposed(slot) {
+		return filepath.Join(root, "pods", slot.PodUID, slot.Scope, SharedImageName)
+	}
+	return b.image(slot)
 }
 
 // ErrPressure withholds a branch that could be written while its cache filesystem
@@ -172,10 +302,8 @@ var ErrPressure = fmt.Errorf("%w: cache filesystem ran out of space", ErrWithhel
 // without a branch image yet has written nothing and is left alone.
 func (b *APFSImages) MarkPressure(slot Slot) error {
 	image := b.image(slot)
-	if _, err := os.Lstat(image); os.IsNotExist(err) {
+	if !APFSHasBranch(b.Root, slot) {
 		return nil
-	} else if err != nil {
-		return err
 	}
 	if _, err := os.Lstat(image + ".pressure"); err == nil {
 		return nil
@@ -197,28 +325,13 @@ func sharedImage(image string, dir *os.File) error {
 	if err := unix.Stat(image, &source); err != nil {
 		return err
 	}
-	if err := unix.Fstatat(int(dir.Fd()), "cache.sparseimage", &destination, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+	if err := unix.Fstatat(int(dir.Fd()), SharedImageName, &destination, unix.AT_SYMLINK_NOFOLLOW); err != nil {
 		return fmt.Errorf("%w: %v", ErrReplaced, err)
 	}
 	if source.Dev != destination.Dev || source.Ino != destination.Ino {
 		return ErrReplaced
 	}
 	return nil
-}
-
-// shareExposes opens the share directory without following a guest symlink.
-func shareExposes(image, path string) error {
-	root, err := os.OpenRoot(filepath.Dir(path))
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	dir, err := root.Open(filepath.Base(path))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return sharedImage(image, dir)
 }
 
 // Running guests are the only writers; do not attach their image on the host.
@@ -255,7 +368,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 	if b.Cold(slot) && !slot.PublishCold {
 		return ErrWithheld
 	}
-	if err := shareExposes(image, path); err != nil {
+	if err := b.claim(slot, path); err != nil {
 		return err
 	}
 	usage, err := APFSUsage(path, slot.ID, b.maxVolumeBytes())
@@ -334,7 +447,7 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 			return err
 		}
 	}
-	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics", ".base", ".cold", ".pressure"} {
+	for _, suffix := range []string{"", ".sparseimage", ".zst", ".gz", ".checking", ".verified", ".metrics", ".base", ".cold", ".pressure", ".shared", ".shared.tmp"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
