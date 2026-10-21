@@ -103,6 +103,21 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     refute has_element?(lv, "#coverage-commit-status-b")
   end
 
+  test "lists a branch's measured commits by default, and every commit under any status", %{conn: conn, base: base} do
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
+    assert has_element?(lv, "#coverage-commits-status-dropdown-label-portal", "Measured")
+    assert has_element?(lv, "#coverage-commit-status-b")
+    refute has_element?(lv, "#coverage-commit-status-a")
+
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits&commits-status=any")
+    assert has_element?(lv, "#coverage-commit-status-b")
+    assert has_element?(lv, "#coverage-commit-status-a", "Not measured")
+
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits&commits-status=not-measured")
+    assert has_element?(lv, "#coverage-commit-status-a")
+    refute has_element?(lv, "#coverage-commit-status-b")
+  end
+
   test "lists the targets taken from the binary cache without counters as not measured, and says why the commit is incomplete",
        %{conn: conn, base: base, organization: organization, project: project, run: run} do
     # Calculator was measured; Net came plain from the cache in the only run that executed its tests.
