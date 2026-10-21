@@ -1,0 +1,180 @@
+name: Runners Cache Reuse E2E Probe
+
+on:
+  workflow_call:
+    inputs:
+      runner_label:
+        type: string
+        required: true
+      key_prefix:
+        type: string
+        required: true
+      phase:
+        description: seed, sequential, concurrent or final
+        type: string
+        required: true
+      index:
+        type: string
+        required: true
+      large_size:
+        type: string
+        required: true
+      fill_gb:
+        type: string
+        required: true
+      grow_gb:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 45
+    env:
+      PHASE: ${{ inputs.phase }}
+      INDEX: ${{ inputs.index }}
+      FILL_GB: ${{ inputs.fill_gb }}
+      GROW_GB: ${{ inputs.grow_gb }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Cache endpoint resolves
+        id: endpoint
+        run: |
+          set -uo pipefail
+          endpoint="${TUIST_CACHE_ENDPOINT:-}"
+          if [ -z "$endpoint" ]; then
+            echo "status=unset" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          host=${endpoint#*://}
+          host=${host%%/*}
+          host=${host%%:*}
+          if dscacheutil -q host -a name "$host" | grep -q ip_address; then
+            echo "status=resolves" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::TUIST_CACHE_ENDPOINT host $host does not resolve"
+            echo "status=unresolvable:$host" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: ./.github/actions/cache-volume
+        id: large
+        with:
+          key: ${{ inputs.key_prefix }}-large
+          size: ${{ inputs.large_size }}
+          path: .e2e/large
+      - uses: ./.github/actions/cache-volume
+        id: build
+        with:
+          key: ${{ inputs.key_prefix }}-build
+          path: .e2e/build
+      - uses: ./.github/actions/cache-volume
+        id: grow
+        with:
+          key: ${{ inputs.key_prefix }}-grow
+          path: .e2e/grow
+      - uses: ./.github/actions/cache-volume
+        id: static
+        with:
+          key: ${{ inputs.key_prefix }}-static
+          path: .e2e/static
+      - uses: ./.github/actions/cache-volume
+        id: tiny
+        with:
+          key: ${{ inputs.key_prefix }}-tiny
+          path: .e2e/tiny
+
+      - name: Classify, check and write volumes
+        env:
+          HIT_LARGE: ${{ steps.large.outputs.cache-hit }}
+          HIT_BUILD: ${{ steps.build.outputs.cache-hit }}
+          HIT_GROW: ${{ steps.grow.outputs.cache-hit }}
+          HIT_STATIC: ${{ steps.static.outputs.cache-hit }}
+          HIT_TINY: ${{ steps.tiny.outputs.cache-hit }}
+          ENDPOINT_STATUS: ${{ steps.endpoint.outputs.status }}
+        run: |
+          set -euo pipefail
+          origin="${GITHUB_RUN_ID}/${PHASE}-${INDEX}"
+          home_device=$(df -P "$HOME" | awk 'NR == 2 { print $1 }')
+          mb() { du -sk "$1/" | awk '{ printf "%d", $1 / 1024 }'; }
+          fill() { # path, megabytes, name
+            head -c $(( $2 * 1000000 )) /dev/urandom > "$1/$3"
+          }
+          results="$RUNNER_TEMP/e2e.jsonl"
+          : > "$results"
+          for volume in large build grow static tiny; do
+            path=".e2e/$volume"
+            hit_var="HIT_$(echo "$volume" | tr '[:lower:]' '[:upper:]')"
+            hit="${!hit_var:-false}"
+            device=$(df -P "$path/" | awk 'NR == 2 { print $1 }')
+            if [ "$device" = "$home_device" ]; then
+              state=unavailable
+            elif [ "$hit" = true ]; then
+              state=restored
+            else
+              state=empty
+            fi
+            restored_from=""
+            [ -f "$path/.e2e-origin" ] && restored_from=$(cat "$path/.e2e-origin")
+            before_mb=$(mb "$path")
+            capacity_gb=$(df -Pk "$path/" | awk 'NR == 2 { printf "%d", $2 * 1024 / 1000000000 }')
+            case "$volume" in
+              large|build)
+                # Changes every run, like a compilation cache or .build.
+                if [ "$before_mb" -lt $(( FILL_GB * 900 )) ]; then
+                  for (( i = 1; i <= FILL_GB; i++ )); do fill "$path" 1000 "fill-$i"; done
+                fi
+                rm -f "$path"/churn-*
+                fill "$path" 200 "churn-$GITHUB_RUN_ID-$PHASE-$INDEX"
+                ;;
+              grow)
+                # The seed saves a near-empty copy; every later job holds GROW_GB.
+                if [ "$PHASE" = seed ]; then
+                  [ -f "$path/seed" ] || fill "$path" 80 seed
+                elif [ "$before_mb" -lt $(( GROW_GB * 900 )) ]; then
+                  for (( i = 1; i <= GROW_GB; i++ )); do fill "$path" 1000 "grow-$i"; done
+                fi
+                ;;
+              static|tiny)
+                # Never changes once written, like gems or a tool cache.
+                size=400
+                [ "$volume" = tiny ] && size=100
+                [ -f "$path/content" ] || fill "$path" "$size" content
+                ;;
+            esac
+            case "$volume" in
+              static|tiny) [ -f "$path/.e2e-origin" ] || printf '%s' "$origin" > "$path/.e2e-origin" ;;
+              *) printf '%s' "$origin" > "$path/.e2e-origin" ;;
+            esac
+            printf '{"phase":"%s","index":"%s","runner":"%s","volume":"%s","state":"%s","restored_from":"%s","restored_mb":%d,"capacity_gb":%d,"endpoint":"%s"}\n' \
+              "$PHASE" "$INDEX" "$RUNNER_NAME" "$volume" "$state" "$restored_from" "$before_mb" "$capacity_gb" "$ENDPOINT_STATUS" >> "$results"
+          done
+          sync
+          {
+            echo "### $PHASE $INDEX on $RUNNER_NAME"
+            echo
+            echo "| Volume | State | Restored MB | Capacity GB | Restored from |"
+            echo "| --- | --- | --- | --- | --- |"
+            while IFS= read -r line; do
+              v=$(echo "$line" | sed -E 's/.*"volume":"([^"]*)".*/\1/')
+              s=$(echo "$line" | sed -E 's/.*"state":"([^"]*)".*/\1/')
+              m=$(echo "$line" | sed -E 's/.*"restored_mb":([0-9]+).*/\1/')
+              c=$(echo "$line" | sed -E 's/.*"capacity_gb":([0-9]+).*/\1/')
+              f=$(echo "$line" | sed -E 's/.*"restored_from":"([^"]*)".*/\1/')
+              echo "| $v | $s | $m | $c | $f |"
+            done < "$results"
+            echo
+            echo "Cache endpoint: $ENDPOINT_STATUS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-${{ inputs.phase }}-${{ inputs.index }}
+          path: ${{ runner.temp }}/e2e.jsonl
+          if-no-files-found: ignore

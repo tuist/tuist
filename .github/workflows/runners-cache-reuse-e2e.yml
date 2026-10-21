@@ -1,0 +1,246 @@
+name: Runners Cache Reuse E2E
+
+# Reproduces how macOS custom cache volumes behave across consecutive runs of
+# one repository: a seed job, sequential jobs a few minutes apart, concurrent
+# jobs, and a final job. Five volumes reserve about what a large iOS project
+# does (one large plus four default-capacity volumes):
+#   large, build  change every run (compilation cache, .build)
+#   grow          saved near-empty by the seed, GROW_GB in every later job
+#   static, tiny  never change once written (tool caches, gems)
+# The report job fails, when strict, on any of:
+#   E1 a sequential or final job did not restore every volume
+#   E2 a concurrent job could not attach a volume
+#   E3 the final job did not restore grow at its full size
+#   E4 a later job did not restore static or tiny
+#   E5 a later job's cached checkout was unavailable
+#   E6 TUIST_CACHE_ENDPOINT did not resolve
+# Dispatch from a branch other than the default branch to also check that a
+# checkout cache starts there. Server-side detail (host per use, generations):
+#   select * from runner_cache_volume_uses where workflow_run_id = <run id>
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: macOS runner label (tuist-staging-macos, tuist-canary-macos or a production profile)
+        type: string
+        default: tuist-staging-macos
+      key_prefix:
+        description: Volume key prefix; use a fresh one to start from empty volumes
+        type: string
+        default: e2e-reuse-v1
+      gap_seconds:
+        description: Seconds between sequential jobs
+        type: string
+        default: "180"
+      large_size:
+        description: Capacity of the large volume (above 20gb needs runner_custom_volume_sizes)
+        type: string
+        default: 30gb
+      fill_gb:
+        description: GB of incompressible data in the large and build volumes
+        type: string
+        default: "6"
+      grow_gb:
+        description: GB the grow volume holds after the seed
+        type: string
+        default: "3"
+      strict:
+        description: Fail the run when an expectation is not met
+        type: boolean
+        default: true
+  push:
+    branches:
+      - claude/qonto-runner-issues-16e553
+    paths:
+      - .github/workflows/runners-cache-reuse-e2e.yml
+      - .github/workflows/runners-cache-reuse-e2e-probe.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runners-cache-reuse-e2e-${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    if: github.repository == 'tuist/tuist'
+    uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
+    with:
+      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
+      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      phase: seed
+      index: "0"
+      large_size: ${{ inputs.large_size || '30gb' }}
+      fill_gb: ${{ inputs.fill_gb || '6' }}
+      grow_gb: ${{ inputs.grow_gb || '3' }}
+
+  wait-1:
+    needs: seed
+    runs-on: ubuntu-latest
+    steps:
+      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+  sequential-1:
+    needs: wait-1
+    uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
+    with:
+      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
+      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      phase: sequential
+      index: "1"
+      large_size: ${{ inputs.large_size || '30gb' }}
+      fill_gb: ${{ inputs.fill_gb || '6' }}
+      grow_gb: ${{ inputs.grow_gb || '3' }}
+
+  wait-2:
+    needs: sequential-1
+    runs-on: ubuntu-latest
+    steps:
+      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+  sequential-2:
+    needs: wait-2
+    uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
+    with:
+      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
+      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      phase: sequential
+      index: "2"
+      large_size: ${{ inputs.large_size || '30gb' }}
+      fill_gb: ${{ inputs.fill_gb || '6' }}
+      grow_gb: ${{ inputs.grow_gb || '3' }}
+
+  wait-3:
+    needs: sequential-2
+    runs-on: ubuntu-latest
+    steps:
+      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+  sequential-3:
+    needs: wait-3
+    uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
+    with:
+      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
+      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      phase: sequential
+      index: "3"
+      large_size: ${{ inputs.large_size || '30gb' }}
+      fill_gb: ${{ inputs.fill_gb || '6' }}
+      grow_gb: ${{ inputs.grow_gb || '3' }}
+
+  wait-4:
+    needs: sequential-3
+    runs-on: ubuntu-latest
+    steps:
+      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+  concurrent:
+    needs: wait-4
+    strategy:
+      fail-fast: false
+      matrix:
+        index: ["1", "2"]
+    uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
+    with:
+      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
+      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      phase: concurrent
+      index: ${{ matrix.index }}
+      large_size: ${{ inputs.large_size || '30gb' }}
+      fill_gb: ${{ inputs.fill_gb || '6' }}
+      grow_gb: ${{ inputs.grow_gb || '3' }}
+
+  wait-5:
+    needs: concurrent
+    if: always() && needs.concurrent.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - run: sleep "${{ inputs.gap_seconds || '180' }}"
+  final:
+    needs: wait-5
+    uses: ./.github/workflows/runners-cache-reuse-e2e-probe.yml
+    with:
+      runner_label: ${{ inputs.runner_label || 'tuist-staging-macos' }}
+      key_prefix: ${{ inputs.key_prefix || 'e2e-reuse-v1' }}
+      phase: final
+      index: "0"
+      large_size: ${{ inputs.large_size || '30gb' }}
+      fill_gb: ${{ inputs.fill_gb || '6' }}
+      grow_gb: ${{ inputs.grow_gb || '3' }}
+
+  report:
+    needs: [seed, sequential-1, sequential-2, sequential-3, concurrent, final]
+    if: always() && github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-*
+          path: results
+      - name: Report and check expectations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          GROW_GB: ${{ inputs.grow_gb || '3' }}
+          STRICT: ${{ github.event_name == 'push' || inputs.strict }}
+        run: |
+          set -euo pipefail
+          cat results/*/e2e.jsonl > all.jsonl 2>/dev/null || : > all.jsonl
+
+          gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.name | test("probe")) | "\(.id)\t\(.name)"' > jobs.tsv
+          : > checkouts.tsv
+          : > warnings.tsv
+          while IFS=$'\t' read -r id name; do
+            gh api "repos/$REPO/actions/jobs/$id/logs" > "log-$id.txt" 2>/dev/null || continue
+            checkout=$(grep -o 'Tuist cached checkout: [^\r]*' "log-$id.txt" | head -1 | sed 's/Tuist cached checkout: //' || true)
+            printf '%s\t%s\n' "$name" "${checkout:-none}" >> checkouts.tsv
+            grep -o 'Cache volume unavailable: [^\r]*' "log-$id.txt" | sed "s|^|$name\t|" >> warnings.tsv || true
+          done < jobs.tsv
+
+          {
+            echo "## Cache reuse e2e (run $RUN_ID)"
+            echo
+            echo "| Job | Runner | large | build | grow | static | tiny | Endpoint |"
+            echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
+            jq -rs 'group_by(.phase + "-" + .index) | .[] |
+              (map({(.volume): (.state + (if .state == "restored" then " (\(.restored_mb) MB)" else "" end))}) | add) as $v |
+              "| \(.[0].phase)-\(.[0].index) | \(.[0].runner) | \($v.large) | \($v.build) | \($v.grow) | \($v.static) | \($v.tiny) | \(.[0].endpoint) |"' all.jsonl
+            echo
+            echo "### Cached checkout"
+            echo
+            echo "| Job | Status |"
+            echo "| --- | --- |"
+            sed 's/\t/ | /; s/^/| /; s/$/ |/' checkouts.tsv
+            echo
+            echo "### Unavailable volumes"
+            echo
+            if [ -s warnings.tsv ]; then sed 's/\t/: /; s/^/- /' warnings.tsv; else echo "None"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failures=()
+          later='select(.phase != "seed")'
+          n=$(jq -s "[.[] | select(.phase == \"sequential\" or .phase == \"final\") | select(.state != \"restored\")] | length" all.jsonl)
+          [ "$n" -eq 0 ] || failures+=("E1: $n volume uses in sequential or final jobs did not restore")
+          n=$(jq -s '[.[] | select(.phase == "concurrent" and .state == "unavailable")] | length' all.jsonl)
+          [ "$n" -eq 0 ] || failures+=("E2: $n volume uses in concurrent jobs could not attach")
+          ok=$(jq -s --argjson gb "$GROW_GB" '[.[] | select(.phase == "final" and .volume == "grow" and .state == "restored" and .restored_mb >= ($gb * 900))] | length' all.jsonl)
+          [ "$ok" -eq 1 ] || failures+=("E3: the final job did not restore grow at ${GROW_GB} GB")
+          n=$(jq -s "[.[] | $later | select(.volume == \"static\" or .volume == \"tiny\") | select(.state != \"restored\")] | length" all.jsonl)
+          [ "$n" -eq 0 ] || failures+=("E4: $n uses of never-changing volumes did not restore")
+          n=$(grep -v -E '^[^\t]*seed' checkouts.tsv | grep -c -E $'\t(unavailable|none)' || true)
+          [ "$n" -eq 0 ] || failures+=("E5: $n later jobs had no cached checkout")
+          n=$(jq -s '[.[] | select(.endpoint | startswith("unresolvable"))] | length' all.jsonl)
+          [ "$n" -eq 0 ] || failures+=("E6: TUIST_CACHE_ENDPOINT did not resolve in $n volume uses")
+          missing=$(( 7 * 5 - $(wc -l < all.jsonl) ))
+          [ "$missing" -le 0 ] || failures+=("$missing volume results are missing (a probe job failed or never ran)")
+
+          {
+            echo
+            echo "### Expectations"
+            echo
+            if [ "${#failures[@]}" -eq 0 ]; then echo "All met"; else printf -- '- %s\n' "${failures[@]}"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "${failures[@]}"
+          if [ "${#failures[@]}" -gt 0 ] && [ "$STRICT" = true ]; then exit 1; fi
