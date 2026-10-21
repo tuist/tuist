@@ -323,3 +323,9 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   (hard-linking LFS objects where it can) and streams it as a tar to the agent's
   `/checkout-export` (3 minutes; a cold export carries the whole repository).
   The runner never gets a writable host directory.
+- The export (shared with macOS, `checkout_export.go`) packs the job commit and
+  the trees and blobs of its tree that the mounted master's tip tree lacks, and
+  names the job commit as its only shallow boundary. It never asks git to walk
+  history: a job that fetched full history (`fetch-depth: 0`) would otherwise
+  leave out objects only the tip's ancestors had, which the shallow master on
+  the host does not hold, and the host's `index-pack --strict` refuses the pack.
