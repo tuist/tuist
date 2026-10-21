@@ -82,6 +82,7 @@ defmodule Tuist.Release do
             grant_swift_registry_sync_role(repo)
             grant_grafana_role(repo)
             reconcile_ops_clickhouse(repo)
+            reconcile_grafana_clickhouse(repo)
           end)
       end
     end)
@@ -582,17 +583,37 @@ defmodule Tuist.Release do
   defp ensure_database_schema(_repo), do: :ok
 
   defp reconcile_ops_clickhouse(repo) when repo == IngestRepo do
-    username = Environment.ops_clickhouse_username()
-    password = Environment.ops_clickhouse_password()
-    role = Environment.ops_clickhouse_role()
+    reconcile_clickhouse_identity(
+      repo,
+      Environment.ops_clickhouse_username(),
+      Environment.ops_clickhouse_password(),
+      Environment.ops_clickhouse_role(),
+      &ops_clickhouse_reconciliation_queries/4
+    )
+  end
 
+  defp reconcile_ops_clickhouse(_repo), do: :ok
+
+  defp reconcile_grafana_clickhouse(repo) when repo == IngestRepo do
+    reconcile_clickhouse_identity(
+      repo,
+      Environment.grafana_clickhouse_username(),
+      Environment.grafana_clickhouse_password(),
+      Environment.grafana_clickhouse_role(),
+      &grafana_clickhouse_reconciliation_queries/4
+    )
+  end
+
+  defp reconcile_grafana_clickhouse(_repo), do: :ok
+
+  defp reconcile_clickhouse_identity(repo, username, password, role, reconciliation_queries) do
     if Enum.all?([username, password, role], &(is_binary(&1) and &1 != "")) do
       database = repo.config() |> Keyword.fetch!(:database) |> to_string()
       password_hash = :sha256 |> :crypto.hash(password) |> Base.encode16(case: :lower)
 
       {setup_queries, assignment_queries} =
         database
-        |> ops_clickhouse_reconciliation_queries(username, role, password_hash)
+        |> reconciliation_queries.(username, role, password_hash)
         |> Enum.split(-2)
 
       Enum.each(setup_queries, &run_clickhouse_access_query(repo, &1))
@@ -602,8 +623,6 @@ defmodule Tuist.Release do
 
     :ok
   end
-
-  defp reconcile_ops_clickhouse(_repo), do: :ok
 
   defp revoke_unexpected_clickhouse_roles(repo, username, expected_role) do
     result =
@@ -620,7 +639,7 @@ defmodule Tuist.Release do
 
     Enum.each(result.rows, fn [role] ->
       role = quote_clickhouse_identifier!(role, "granted ClickHouse role")
-      username = quote_clickhouse_identifier!(username, "TUIST_OPS_CLICKHOUSE_USERNAME")
+      username = quote_clickhouse_identifier!(username, "ClickHouse username")
       run_clickhouse_access_query(repo, {"REVOKE #{role} FROM #{username}", []})
     end)
   end
@@ -638,45 +657,78 @@ defmodule Tuist.Release do
 
     # Mode 2 still rejects writes but permits client-supplied query settings.
     # The bounds below prevent callers from raising or disabling resource limits.
+    readonly_clickhouse_identity_queries(
+      username,
+      role,
+      password_hash,
+      """
+      ALTER ROLE #{role} SETTINGS
+        readonly = 2,
+        max_execution_time = 10 MIN 1 MAX 10,
+        max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
+        max_rows_to_read = 100000000 MIN 1 MAX 100000000,
+        max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
+        max_result_rows = 10001 MIN 1 MAX 10001,
+        max_result_bytes = 5242880 MIN 1 MAX 5242880,
+        max_block_size = 10001 MIN 1 MAX 10001,
+        max_threads = 2 MIN 1 MAX 2
+      """,
+      ["#{database}.*", "system.tables", "system.columns"]
+    )
+  end
+
+  @doc false
+  def grafana_clickhouse_reconciliation_queries(database, username, role, password_hash) do
+    database = quote_clickhouse_identifier!(database, "ClickHouse database")
+    username = quote_clickhouse_identifier!(username, "TUIST_GRAFANA_CLICKHOUSE_USERNAME")
+    role = quote_clickhouse_identifier!(role, "TUIST_GRAFANA_CLICKHOUSE_ROLE")
+    password_hash = validate_clickhouse_password_hash!(password_hash)
+
+    # Dashboards and alert rules aggregate over weeks of builds, so the bounds
+    # are wider than the ops role's, but still capped so a panel cannot take the
+    # memory or cores the application's own queries need. `system.query_log`
+    # backs the slow-query alert.
+    readonly_clickhouse_identity_queries(
+      username,
+      role,
+      password_hash,
+      """
+      ALTER ROLE #{role} SETTINGS
+        readonly = 2,
+        max_execution_time = 60 MIN 1 MAX 120,
+        max_memory_usage = 8589934592 MIN 1 MAX 8589934592,
+        max_threads = 8 MIN 1 MAX 8
+      """,
+      ["#{database}.*", "system.tables", "system.columns", "system.query_log"]
+    )
+  end
+
+  defp readonly_clickhouse_identity_queries(username, role, password_hash, role_settings, readable) do
     [
       {"CREATE ROLE IF NOT EXISTS #{role}", []},
       {"REVOKE ALL ON *.* FROM #{role}", []},
-      {
-        """
-        ALTER ROLE #{role} SETTINGS
-          readonly = 2,
-          max_execution_time = 10 MIN 1 MAX 10,
-          max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
-          max_rows_to_read = 100000000 MIN 1 MAX 100000000,
-          max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
-          max_result_rows = 10001 MIN 1 MAX 10001,
-          max_result_bytes = 5242880 MIN 1 MAX 5242880,
-          max_block_size = 10001 MIN 1 MAX 10001,
-          max_threads = 2 MIN 1 MAX 2
-        """,
-        []
-      },
-      {"GRANT SELECT ON #{database}.* TO #{role}", []},
-      {"GRANT SELECT ON system.tables TO #{role}", []},
-      {"GRANT SELECT ON system.columns TO #{role}", []},
-      {
-        """
-        CREATE USER IF NOT EXISTS #{username}
-        IDENTIFIED WITH sha256_hash BY '#{password_hash}'
-        """,
-        []
-      },
-      {
-        """
-        ALTER USER #{username}
-        IDENTIFIED WITH sha256_hash BY '#{password_hash}'
-        """,
-        []
-      },
-      {"REVOKE ALL ON *.* FROM #{username}", []},
-      {"GRANT #{role} TO #{username}", []},
-      {"ALTER USER #{username} DEFAULT ROLE #{role}", []}
-    ]
+      {role_settings, []}
+    ] ++
+      Enum.map(readable, &{"GRANT SELECT ON #{&1} TO #{role}", []}) ++
+      [
+        {
+          """
+          CREATE USER IF NOT EXISTS #{username}
+          IDENTIFIED WITH sha256_hash BY '#{password_hash}'
+          """,
+          []
+        },
+        {
+          """
+          ALTER USER #{username}
+          IDENTIFIED WITH sha256_hash BY '#{password_hash}'
+          """,
+          []
+        },
+        {"REVOKE ALL ON *.* FROM #{username}", []},
+        {"GRANT #{role} TO #{username}", []},
+        {"ALTER USER #{username} DEFAULT ROLE #{role}", []}
+      ]
   end
 
   defp quote_clickhouse_identifier!(identifier, source) do

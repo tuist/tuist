@@ -1482,6 +1482,18 @@ defmodule Tuist.Environment do
     get([:ops, :clickhouse_role], secrets)
   end
 
+  def grafana_clickhouse_username(secrets \\ secrets()) do
+    get([:grafana, :clickhouse_username], secrets)
+  end
+
+  def grafana_clickhouse_password(secrets \\ secrets()) do
+    get([:grafana, :clickhouse_password], secrets)
+  end
+
+  def grafana_clickhouse_role(secrets \\ secrets()) do
+    get([:grafana, :clickhouse_role], secrets)
+  end
+
   def build_ops_clickhouse_url(application_url, username, password)
       when is_binary(application_url) and application_url != "" and is_binary(username) and username != "" and
              is_binary(password) and password != "" do

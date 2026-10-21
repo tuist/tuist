@@ -893,6 +893,22 @@ release converges the database user before the new pods start.
 {{- end -}}
 
 {{/*
+The Grafana identity's name and role, for the migration Job that reconciles
+it. Its password reaches the Job through the managed external secrets.
+*/}}
+{{- define "tuist.grafanaClickHouseEnv" -}}
+{{- if and .Values.server.enabled .Values.server.config.grafanaClickHouse.enabled }}
+{{- if not .Values.server.config.managedSecrets }}
+{{- fail "server.config.grafanaClickHouse needs server.config.managedSecrets: its password comes from the managed external secrets." }}
+{{- end }}
+- name: TUIST_GRAFANA_CLICKHOUSE_USERNAME
+  value: {{ required "server.config.grafanaClickHouse.username is required when enabled" .Values.server.config.grafanaClickHouse.username | quote }}
+- name: TUIST_GRAFANA_CLICKHOUSE_ROLE
+  value: {{ required "server.config.grafanaClickHouse.role is required when enabled" .Values.server.config.grafanaClickHouse.role | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
 ClickHouse repo pool sizes and the shared user memory budget are non-secret
 operational knobs. Render them from chart values so the server, migration,
 processor, and xcresult-processor pods stay aligned without relying on the

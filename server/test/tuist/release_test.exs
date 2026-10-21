@@ -219,6 +219,58 @@ defmodule Tuist.ReleaseTest do
     end
   end
 
+  describe "grafana_clickhouse_reconciliation_queries/4" do
+    test "converges a bounded read-only role that can also read the query log" do
+      queries =
+        Release.grafana_clickhouse_reconciliation_queries(
+          "tuist",
+          "tuist_grafana",
+          "tuist_grafana_readonly",
+          String.duplicate("b", 64)
+        )
+
+      statements = Enum.map(queries, &elem(&1, 0))
+
+      assert statements == [
+               "CREATE ROLE IF NOT EXISTS `tuist_grafana_readonly`",
+               "REVOKE ALL ON *.* FROM `tuist_grafana_readonly`",
+               """
+               ALTER ROLE `tuist_grafana_readonly` SETTINGS
+                 readonly = 2,
+                 max_execution_time = 60 MIN 1 MAX 120,
+                 max_memory_usage = 8589934592 MIN 1 MAX 8589934592,
+                 max_threads = 8 MIN 1 MAX 8
+               """,
+               "GRANT SELECT ON `tuist`.* TO `tuist_grafana_readonly`",
+               "GRANT SELECT ON system.tables TO `tuist_grafana_readonly`",
+               "GRANT SELECT ON system.columns TO `tuist_grafana_readonly`",
+               "GRANT SELECT ON system.query_log TO `tuist_grafana_readonly`",
+               """
+               CREATE USER IF NOT EXISTS `tuist_grafana`
+               IDENTIFIED WITH sha256_hash BY '#{String.duplicate("b", 64)}'
+               """,
+               """
+               ALTER USER `tuist_grafana`
+               IDENTIFIED WITH sha256_hash BY '#{String.duplicate("b", 64)}'
+               """,
+               "REVOKE ALL ON *.* FROM `tuist_grafana`",
+               "GRANT `tuist_grafana_readonly` TO `tuist_grafana`",
+               "ALTER USER `tuist_grafana` DEFAULT ROLE `tuist_grafana_readonly`"
+             ]
+    end
+
+    test "rejects identifiers that could change the access statements" do
+      assert_raise RuntimeError, ~r/TUIST_GRAFANA_CLICKHOUSE_ROLE must be a valid ClickHouse identifier/, fn ->
+        Release.grafana_clickhouse_reconciliation_queries(
+          "tuist",
+          "tuist_grafana",
+          "tuist_grafana_readonly TO default",
+          String.duplicate("b", 64)
+        )
+      end
+    end
+  end
+
   describe "grafana_role_grant_statements/3" do
     # Columns are granted individually rather than by table, so parse them back
     # out and compare sets: the assertion is about which columns are reachable,
