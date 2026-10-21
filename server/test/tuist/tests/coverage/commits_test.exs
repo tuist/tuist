@@ -116,7 +116,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     CoverageFixtures.run_with_coverage(project, account, Enum.map(paths, &file(&1, [1, 0])))
     CoverageFixtures.run_with_coverage(project, account, [file(List.last(paths), [2, 3])], %{scheme: "Other"})
 
-    counts = Commits.line_counts(project.id, "abc123", ["Sources/Missing.swift" | paths])
+    counts = Commits.line_counts(project.id, "abc123", ["Sources/Missing.swift" | paths] ++ [hd(paths)])
 
     assert map_size(counts) == length(paths)
     assert counts[hd(paths)] == [{1, 1}, {2, 0}]

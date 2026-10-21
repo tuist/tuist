@@ -1486,6 +1486,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           Coverage.without_excluded(Coverage.report_files_for_runs(project_id, ids), Coverage.excluded(project_id, opts))
 
         paths
+        |> Enum.uniq()
         |> Coverage.id_chunks()
         |> Enum.flat_map(fn chunk ->
           ClickHouseRepo.all(
