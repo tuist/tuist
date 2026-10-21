@@ -339,6 +339,7 @@ deps = ["./AtlasAuthAndroid", "./AtlasCore"]
 
 [target.attrs]
 application_id = "dev.tuist.atlas.preview"
+namespace = "dev.tuist.atlas"
 manifest = "previews/android/AndroidManifest.xml"
 resource_files = ["android/res/**"]
 resource_dirs = ["android/res"]

@@ -15,12 +15,7 @@ defmodule Atlas.NativeThemes do
     end
   end
 
-  def validate(%{
-        "schema_version" => 1,
-        "revision" => revision,
-        "default_theme_id" => default,
-        "themes" => themes
-      })
+  def validate(%{"schema_version" => 1, "revision" => revision, "default_theme_id" => default, "themes" => themes})
       when is_list(themes) and length(themes) in 1..16 do
     ids = Enum.map(themes, fn theme -> if is_map(theme), do: theme["id"] end)
 
@@ -60,8 +55,7 @@ defmodule Atlas.NativeThemes do
       Regex.match?(~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/, value)
   end
 
-  defp text?(value, max),
-    do: is_binary(value) and byte_size(value) in 1..max and String.trim(value) != ""
+  defp text?(value, max), do: is_binary(value) and byte_size(value) in 1..max and String.trim(value) != ""
 
   defp radius?(value, max), do: is_number(value) and value >= 0 and value <= max
 
@@ -90,8 +84,7 @@ defmodule Atlas.NativeThemes do
     |> Enum.reduce(0, fn {channel, weight}, sum ->
       value = channel / 255
 
-      linear =
-        if value <= 0.04045, do: value / 12.92, else: :math.pow((value + 0.055) / 1.055, 2.4)
+      linear = if value <= 0.04045, do: value / 12.92, else: :math.pow((value + 0.055) / 1.055, 2.4)
 
       sum + linear * weight
     end)
