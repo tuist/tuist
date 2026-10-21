@@ -354,10 +354,6 @@ jobs:
           fi
           sed -i 's/^appVersion: .*/appVersion: "'"$KURA_APPVERSION"'"/' kura/ops/helm/kura/Chart.yaml
 
-      - name: Update CHANGELOG.md
-        working-directory: infra/helm
-        run: git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.helm-next-version }}" -o CHANGELOG.md 2>/dev/null
-
       - name: Install Helm
         uses: azure/setup-helm@v4
 
@@ -380,7 +376,6 @@ jobs:
         with:
           name: helm-artifacts
           path: |
-            infra/helm/CHANGELOG.md
             infra/helm/tuist/Chart.yaml
             kura/ops/helm/kura/Chart.yaml
           retention-days: 1
@@ -425,18 +420,6 @@ jobs:
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Update CHANGELOG.md
-        working-directory: infra/cluster-api-provider-tuist
-        run: |
-          INCLUDE_PATHS=(
-            --include-path "infra/cluster-api-provider-tuist/**/*"
-            --include-path "infra/macos-host-bootstrap/**/*"
-            --include-path "infra/macos-log-shipper/**/*"
-            --include-path "infra/tart-kubelet/**/*"
-          )
-
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.capi-scaleway-next-version }}" -o CHANGELOG.md 2>/dev/null
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -457,17 +440,6 @@ jobs:
           tags: |
             ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}
             ghcr.io/tuist/capi-provider-scaleway-applesilicon:latest
-
-      - name: Upload capi-scaleway artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          # No values file is packaged: the image version is resolved at
-          # deploy time from this run's `<component>@<semver>` tag (created
-          # by tag-infra-releases), so there is no chart pin to bump.
-          name: capi-scaleway-artifacts
-          path: |
-            infra/cluster-api-provider-tuist/CHANGELOG.md
-          retention-days: 1
 
   release-runners-controller:
     name: Release runners-controller
@@ -505,15 +477,6 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config infra/runners-controller/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update CHANGELOG.md
-        working-directory: infra/runners-controller
-        run: |
-          INCLUDE_PATHS=(
-            --include-path "infra/runners-controller/**/*"
-          )
-
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runners-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       # The cache-volumes stage runs apt-get for linux/arm64, which needs
       # emulation on the amd64 runner.
@@ -553,17 +516,6 @@ jobs:
             ghcr.io/tuist/tuist-runner-cache-volumes:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
             ghcr.io/tuist/tuist-runner-cache-volumes:latest
 
-      - name: Upload runners-controller artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          # No values file is packaged: the image version is resolved at
-          # deploy time from this run's `<component>@<semver>` tag (created
-          # by tag-infra-releases), so there is no chart pin to bump.
-          name: runners-controller-artifacts
-          path: |
-            infra/runners-controller/CHANGELOG.md
-          retention-days: 1
-
   release-stable-egress-controller:
     name: Release stable-egress-controller
     needs: check-releases
@@ -601,15 +553,6 @@ jobs:
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Update CHANGELOG.md
-        working-directory: infra/stable-egress-controller
-        run: |
-          INCLUDE_PATHS=(
-            --include-path "infra/stable-egress-controller/**/*"
-          )
-
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.stable-egress-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -630,19 +573,6 @@ jobs:
           tags: |
             ghcr.io/tuist/tuist-stable-egress-controller:${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}
             ghcr.io/tuist/tuist-stable-egress-controller:latest
-
-      - name: Upload stable-egress-controller artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          # The platform chart image pin
-          # (infra/helm/platform/values-tuist.yaml's failoverController.image.tag)
-          # is bumped by a Renovate PR that tracks the ghcr tag pushed above, not
-          # by the release pipeline — see renovate.json. The platform chart
-          # deploy rolls it out on that PR's merge. So we only ship the CHANGELOG.
-          name: stable-egress-controller-artifacts
-          path: |
-            infra/stable-egress-controller/CHANGELOG.md
-          retention-days: 1
 
   release-egress-tree-agent:
     name: Release egress-tree-agent
@@ -681,15 +611,6 @@ jobs:
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Update CHANGELOG.md
-        working-directory: infra/egress-tree-agent
-        run: |
-          INCLUDE_PATHS=(
-            --include-path "infra/egress-tree-agent/**/*"
-          )
-
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.egress-tree-agent-next-version }}" -o CHANGELOG.md 2>/dev/null
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -710,17 +631,6 @@ jobs:
           tags: |
             ghcr.io/tuist/egress-tree-agent:${{ needs.check-releases.outputs.egress-tree-agent-next-version-number }}
             ghcr.io/tuist/egress-tree-agent:latest
-
-      - name: Upload egress-tree-agent artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          # No values file is packaged: the image version is resolved at
-          # deploy time from this run's `<component>@<semver>` tag (created
-          # by tag-infra-releases), so there is no chart pin to bump.
-          name: egress-tree-agent-artifacts
-          path: |
-            infra/egress-tree-agent/CHANGELOG.md
-          retention-days: 1
 
   release-xcresult-processor-image:
     name: Release xcresult processor image
@@ -764,15 +674,6 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config infra/xcresult-processor-image/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update CHANGELOG.md
-        working-directory: infra/xcresult-processor-image
-        run: |
-          INCLUDE_PATHS=(
-            --include-path "infra/xcresult-processor-image/**/*"
-          )
-
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -824,17 +725,6 @@ jobs:
             ghcr.io/tuist/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
             ghcr.io/tuist/tuist-xcresult-processor:latest
 
-      - name: Upload xcresult-processor-image artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          # No values file is packaged: the image version is resolved at
-          # deploy time from this run's `<component>@<semver>` tag (created
-          # by tag-infra-releases), so there is no chart pin to bump.
-          name: xcresult-processor-image-artifacts
-          path: |
-            infra/xcresult-processor-image/CHANGELOG.md
-          retention-days: 1
-
       - name: Cleanup
         if: always()
         run: |
@@ -874,13 +764,6 @@ jobs:
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Update CHANGELOG.md
-        working-directory: infra/linux-runner-image
-        run: |
-          INCLUDE_PATHS=( --include-path "infra/linux-runner-image/**/*" )
-
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.linux-runner-image-next-version }}" -o CHANGELOG.md 2>/dev/null
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -910,14 +793,6 @@ jobs:
       # server-deployment.yml resolves that version at deploy time from
       # this run's `linux-runner-image@<semver>` tag and passes
       # `tuist-linux-runner:<semver>` to the chart via --set.
-
-      - name: Upload linux-runner-image artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-runner-image-artifacts
-          path: |
-            infra/linux-runner-image/CHANGELOG.md
-          retention-days: 1
 
   publish-releases:
     # Publishes the GitHub Releases (which create the component tags via the
@@ -978,61 +853,6 @@ jobs:
         with:
           name: helm-artifacts
           path: infra/helm
-
-      - name: Download CAPI operator artifacts
-        # `path:` matches the upload's LCA so CHANGELOG.md lands back at
-        # `infra/cluster-api-provider-tuist/CHANGELOG.md`
-        # for the later `git add` to find. upload-artifact@v4 strips the
-        # LCA from each entry's archive path, so a workspace-root
-        # download would put it at `<workspace>/CHANGELOG.md`.
-        if: needs.check-releases.outputs.capi-scaleway-should-release == 'true' && needs.release-capi-scaleway.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: capi-scaleway-artifacts
-          path: infra/cluster-api-provider-tuist
-
-      - name: Download runners-controller artifacts
-        # The upload contains only files rooted at
-        # `infra/runners-controller`, so download into that directory
-        # for the later `git add infra/runners-controller/CHANGELOG.md`.
-        if: needs.check-releases.outputs.runners-controller-should-release == 'true' && needs.release-runners-controller.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: runners-controller-artifacts
-          path: infra/runners-controller
-
-      - name: Download stable-egress-controller artifacts
-        # Carries only infra/stable-egress-controller/CHANGELOG.md; the platform
-        # chart image pin is bumped by a Renovate PR (see renovate.json), not here.
-        if: needs.check-releases.outputs.stable-egress-controller-should-release == 'true' && needs.release-stable-egress-controller.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: stable-egress-controller-artifacts
-          path: infra/stable-egress-controller
-
-      - name: Download egress-tree-agent artifacts
-        # Carries only infra/egress-tree-agent/CHANGELOG.md; the chart pin is
-        # gone — the deploy resolves the version from the tag.
-        if: needs.check-releases.outputs.egress-tree-agent-should-release == 'true' && needs.release-egress-tree-agent.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: egress-tree-agent-artifacts
-          path: infra/egress-tree-agent
-
-      - name: Download xcresult-processor-image artifacts
-        if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: xcresult-processor-image-artifacts
-          path: infra/xcresult-processor-image
-
-      - name: Download linux-runner-image artifacts
-        # Carries only linux-runner-image/CHANGELOG.md now; the chart pin is gone.
-        if: needs.check-releases.outputs.linux-runner-image-should-release == 'true' && needs.release-linux-runner-image.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-runner-image-artifacts
-          path: infra
 
       # Component git tags are created by softprops/action-gh-release below
       # (via tag_name, through the GitHub API) for the published components,
