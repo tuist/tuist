@@ -40,6 +40,13 @@ defmodule AtlasWeb.ConnCase do
 
   setup tags do
     Atlas.DataCase.setup_sandbox(tags)
+
+    # Lifecycle tests opt in and await cleanup while their sandbox is still owned.
+    # Unrelated LiveViews must not start cleanup tasks that outlive that sandbox.
+    if !tags[:presence_tracking] do
+      Mimic.stub(Atlas.Presence, :track, fn _user, _connection_id -> {:ok, self()} end)
+    end
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 

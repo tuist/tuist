@@ -7,6 +7,7 @@ struct AtlasSettingsView: View {
     var profileRequest: (([String: Any]) async throws -> Data)?
     @State private var profile: AtlasNativeProfile?
     @State private var profileError: String?
+    @Environment(\.atlasPresence) private var presence
 
     var body: some View {
         Form {
@@ -70,6 +71,7 @@ struct AtlasSettingsView: View {
         }
         .navigationTitle(profileRequest == nil ? "Settings" : "Profile")
         .tint(AtlasSettingsStyle.tint)
+        .onAppear { presence?.show(resource: "profile") }
         .task { await accounts.load(); await loadProfile() }
         .refreshable { await accounts.load(); await loadProfile() }
     }
@@ -92,7 +94,9 @@ struct AtlasSettingsView: View {
     private func accountLink<Destination: View>(
         _ service: AtlasAIService, @ViewBuilder destination: () -> Destination
     ) -> some View {
-        NavigationLink(destination: destination) {
+        NavigationLink {
+            destination().onAppear { presence?.show() }
+        } label: {
             HStack(spacing: 12) {
                 AtlasServiceIcon(service: service)
                 VStack(alignment: .leading, spacing: 4) {
