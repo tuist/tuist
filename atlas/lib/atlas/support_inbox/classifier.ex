@@ -170,6 +170,20 @@ defmodule Atlas.SupportInbox.Classifier do
     do: "provider returned status #{status}"
 
   defp failure_summary(:llm_not_configured), do: "no model provider is configured"
+  defp failure_summary(:nxdomain), do: "model transport DNS lookup failed"
+  defp failure_summary(:timeout), do: "model request timed out"
+  defp failure_summary(:etimedout), do: "model request timed out"
+  defp failure_summary(:econnrefused), do: "model transport connection was refused"
+  defp failure_summary(:closed), do: "model transport connection closed"
+  defp failure_summary(:no_result_submitted), do: "model did not submit a classification result"
+  defp failure_summary(:invalid_classifier_output), do: "model returned an invalid classification result"
+  defp failure_summary({:missing_field, _field}), do: failure_summary(:invalid_classifier_output)
+  defp failure_summary({:invalid_enum, _field, _value}), do: failure_summary(:invalid_classifier_output)
+  defp failure_summary({:invalid_output, _details}), do: failure_summary(:invalid_classifier_output)
+  defp failure_summary({:error, reason}), do: failure_summary(reason)
+  defp failure_summary({:session_exit, :timeout}), do: failure_summary(:timeout)
+  defp failure_summary(%{cause: cause}) when not is_nil(cause), do: failure_summary(cause)
+  defp failure_summary(%{reason: reason}), do: failure_summary(reason)
   defp failure_summary(_reason), do: "classification failed"
 
   defp persist(%Thread{id: thread_id}, %Message{} = message, %{} = decision) do
