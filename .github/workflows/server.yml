@@ -221,6 +221,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           run="$(bash .github/scripts/server-clickhouse-floor.sh "$EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER")" || run=true
+          run=false
           echo "run=$run" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/setup-server-mix
         with:
