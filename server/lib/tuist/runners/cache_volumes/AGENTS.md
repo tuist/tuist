@@ -83,9 +83,13 @@ these schemas persist volume identities and per-job uses.
   capacity the next job gets and on failed jobs whose copy reached 99%.
 - The reserved key `tuist-default` maps to `tuist-default/<profile ID>` when the
   job's `requested_dispatch_label` resolves to a runner profile (the GitHub path
-  reuses the profile locked for the writer policy), else stays one default volume
-  per repository. Renames keep the volume; deleted profiles follow normal expiry.
-  `default_profile_names/2` serializes the profile's current name.
+  reuses the profile locked for the writer policy). A job without a profile has no
+  default volume: allocation answers unavailable. Renames keep the volume.
+  Deleting a profile clears its default volumes in the same transaction
+  (`clear_profile_volumes/1`, after the profile row, as allocation locks), and
+  every read path hides default volumes whose profile is gone; their rows remain
+  until hosts acknowledge reclaiming the data. `default_profile_names/2`
+  serializes the profile's current name.
 
 - Evict cache data after seven days without a mount. Refresh last_used_at only
   on the first valid attachment report for a use, never allocation, heartbeats

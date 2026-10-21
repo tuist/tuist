@@ -100,8 +100,9 @@ One key holds every directory you list:
 
 Without a `key`, the action attaches the default volume of the runner profile
 the job runs on and the repository. Jobs on another profile get their own
-default volume. Use a named `key` for directories that jobs on several profiles
-should share.
+default volume, and deleting a profile clears its default volumes. Jobs on a
+runner label that is not a Tuist runner profile need a `key`. Use a named `key`
+for directories that jobs on several profiles should share.
 
 Each saved copy replaces the whole volume, so the last saved copy wins. Give
 workflows that save at the same time separate keys, and keep each workflow's

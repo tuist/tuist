@@ -1041,20 +1041,17 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
     defp default_attrs(pod), do: %{attrs(pod) | key: "tuist-default"}
 
-    test "a job without a runner profile gets the repository's default volume", %{job: job, account: account} do
-      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), default_attrs("first"))
+    test "a job without a runner profile has no default volume", %{job: job, account: account} do
+      assert {:error, :unavailable} = CacheVolumes.allocate_for_job(job, identity(), default_attrs("none"))
 
-      {:ok, legacy} =
-        CacheVolumes.allocate_for_job(
-          Map.put(job, :requested_dispatch_label, "macos-15"),
-          identity(),
-          default_attrs("legacy")
-        )
+      assert {:error, :unavailable} =
+               CacheVolumes.allocate_for_job(
+                 Map.put(job, :requested_dispatch_label, "macos-15"),
+                 identity(),
+                 default_attrs("legacy")
+               )
 
-      assert first.scope == legacy.scope
-      assert [%Volume{key: "tuist-default"} = volume] = CacheVolumes.list(account.id).volumes
-      assert CacheVolumes.default_volume?(volume)
-      assert CacheVolumes.default_profile_names(account.id, [volume]) == %{}
+      assert Repo.all(from(v in Volume, where: v.account_id == ^account.id)) == []
     end
 
     test "a profile's jobs get its default volume, kept across a rename", %{
@@ -1063,9 +1060,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       profile: profile,
       account: account
     } do
-      {:ok, repository} = CacheVolumes.allocate_for_job(job, identity(), default_attrs("repository"))
       {:ok, first} = CacheVolumes.allocate_for_job(profiled, identity(), default_attrs("first"))
-      refute first.scope == repository.scope
       key = "tuist-default/#{profile.id}"
       volume = Repo.get_by!(Volume, account_id: account.id, key: key)
       assert CacheVolumes.default_profile_names(account.id, [volume]) == %{volume.id => "macos-ci"}
@@ -1077,12 +1072,28 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       assert {:ok, %{default_profile_name: "renamed-ci", key: ^key}} =
                Query.run(:show, account.id, %{"volume_id" => volume.id})
-
-      Repo.delete!(renamed)
-      assert {:ok, %{default_profile_name: nil}} = Query.run(:show, account.id, %{"volume_id" => volume.id})
     end
 
-    test "other providers resolve the profile without the writer policy lock", %{
+    test "deleting a profile clears its default volumes and hides them", %{
+      profiled: profiled,
+      profile: profile,
+      account: account
+    } do
+      {:ok, use} = CacheVolumes.allocate_for_job(profiled, identity(), default_attrs("first"))
+      {:ok, _named} = CacheVolumes.allocate_for_job(profiled, identity(), attrs("named"))
+      volume = Usage |> Repo.get_by!(id: use.id) |> Repo.preload(:volume) |> Map.fetch!(:volume)
+      {:ok, _} = Profiles.delete(profile)
+
+      cleared = Repo.get!(Volume, volume.id)
+      assert cleared.generation == volume.generation + 1
+      assert cleared.deleted_at
+      assert is_nil(CacheVolumes.get(account.id, volume.id))
+      assert {:error, :not_found} = Query.run(:show, account.id, %{"volume_id" => volume.id})
+      assert [%Volume{key: "gradle/caches"}] = CacheVolumes.list(account.id).volumes
+      assert CacheVolumes.count(account.id) == 1
+    end
+
+    test "other providers resolve their profile", %{
       profiled: profiled,
       profile: profile,
       account: account

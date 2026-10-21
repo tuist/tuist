@@ -585,14 +585,13 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   test "default volumes are named after their runner profile" do
     assigns = assigns(true)
     profiled = %{assigns.selected | key: "tuist-default/42"}
-    repository = %{assigns.selected | id: Ecto.UUID.generate(), key: "tuist-default"}
-    deleted = %{assigns.selected | id: Ecto.UUID.generate(), key: "tuist-default/43"}
+    named = %{assigns.selected | id: Ecto.UUID.generate(), key: "spm-checkouts"}
     names = %{profiled.id => "macos"}
-    data = %{assigns.data.result | volumes: [profiled, repository, deleted], profile_names: names}
+    data = %{assigns.data.result | volumes: [profiled, named], profile_names: names}
 
     inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
     cells = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child") |> Enum.map(&Floki.text/1)
-    assert Enum.map(cells, &String.trim/1) == ["Default (tuist-macos)", "Default", "Default"]
+    assert Enum.map(cells, &String.trim/1) == ["Default (tuist-macos)", "spm-checkouts"]
 
     detail = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: profiled, profile_names: names})
     assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Default (tuist-macos)"

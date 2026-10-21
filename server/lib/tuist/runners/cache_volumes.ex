@@ -372,9 +372,10 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  # Without a key, a job attaches the default volume of its runner profile, or
-  # of its repository when the job has no profile.
+  # Without a key, a job attaches the default volume of its runner profile. A job
+  # without a profile has none and must name a key.
   defp volume_key(@default_key, %Profile{id: id}), do: "#{@default_key}/#{id}"
+  defp volume_key(@default_key, nil), do: Repo.rollback(:unavailable)
   defp volume_key(key, _profile), do: key
 
   defp ensure_allocation_matches!(usage, job, attrs) do
@@ -791,8 +792,45 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def default_profile_id(_volume), do: nil
 
-  def default_volume?(%{key: @default_key}), do: true
   def default_volume?(volume), do: not is_nil(default_profile_id(volume))
+
+  # A default volume is listed only while its runner profile exists. Deleting the
+  # profile clears it (`clear_profile_volumes/1`); its rows remain until hosts
+  # acknowledge reclaiming its data.
+  defp visible(query) do
+    prefix = @default_key <> "/"
+
+    where(
+      query,
+      [volume: v],
+      not like(v.key, ^(prefix <> "%")) or
+        exists(
+          from(p in Profile,
+            where:
+              p.account_id == parent_as(:volume).account_id and
+                fragment("? = ? || ?::text", parent_as(:volume).key, ^prefix, p.id)
+          )
+        )
+    )
+  end
+
+  @doc """
+  Clears the default volumes of a deleted runner profile, like a clear from the
+  dashboard. Call inside the transaction that deleted the profile, after the
+  profile row, matching the lock order of allocation.
+  """
+  def clear_profile_volumes(%Profile{id: id, account_id: account_id}) do
+    key = "#{@default_key}/#{id}"
+
+    for volume <-
+          Repo.all(from(v in Volume, where: v.account_id == ^account_id and v.key == ^key, lock: "FOR UPDATE")),
+        is_nil(volume.deleted_at) do
+      Runners.clear_volume_master(volume.account_id, storage_name(volume))
+      Repo.update!(Ecto.Changeset.change(volume, clear_changes(volume)))
+    end
+
+    :ok
+  end
 
   @doc """
   The current names of the runner profiles `volumes` are the default volumes
@@ -1117,7 +1155,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def get(account_id, id) do
     case Ecto.UUID.cast(id) do
-      {:ok, id} -> Repo.get_by(Volume, id: id, account_id: account_id)
+      {:ok, id} -> Repo.one(visible(from(v in Volume, as: :volume, where: v.id == ^id and v.account_id == ^account_id)))
       _ -> nil
     end
   end
@@ -1126,9 +1164,11 @@ defmodule Tuist.Runners.CacheVolumes do
     mutate(account_id, id, fn volume ->
       if volume.builtin_name, do: Repo.rollback(:unsupported)
       Runners.clear_volume_master(volume.account_id, storage_name(volume))
-      [generation: volume.generation + 1, head_id: nil, deleted_at: DateTime.utc_now()]
+      clear_changes(volume)
     end)
   end
+
+  defp clear_changes(volume), do: [generation: volume.generation + 1, head_id: nil, deleted_at: DateTime.utc_now()]
 
   defp mutate(account_id, id, changes) do
     case Ecto.UUID.cast(id) do
@@ -1159,10 +1199,7 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   defp inventory_query(account_id, search, opts) do
-    query =
-      from(v in Volume,
-        where: v.account_id == ^account_id
-      )
+    query = visible(from(v in Volume, as: :volume, where: v.account_id == ^account_id))
 
     query =
       if search == "",
@@ -1459,7 +1496,8 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def for_job(account_id, workflow_run_id, workflow_job_id) do
     Usage
-    |> join(:inner, [u], v in Volume, on: v.id == u.volume_id)
+    |> join(:inner, [u], v in Volume, as: :volume, on: v.id == u.volume_id)
+    |> visible()
     |> where(
       [u, v],
       v.account_id == ^account_id and u.workflow_run_id == ^workflow_run_id and

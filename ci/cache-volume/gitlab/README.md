@@ -78,7 +78,7 @@ lint:
   toward its capacity. Clear the volume after removing a path.
 - Each saved copy replaces the whole volume, so the last saved copy wins. Give
   jobs that save at the same time separate keys.
-- Without a key, jobs on another runner profile get their own default volume.
+- Without a key, jobs on another runner profile get their own default volume, and deleting a profile clears its default volumes. Jobs whose tags name no Tuist runner profile need a key.
   Use a named key for directories that several profiles should share.
 - A larger size grows the volume, keeping its contents, from its next job. A
   smaller one applies after the volume is next cleared or expires. When jobs
