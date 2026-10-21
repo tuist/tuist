@@ -16,12 +16,12 @@ and `repo-*` HEADs, objects, local masters, capacities and retention remain in
 place. No migration deletes or renames them. Custom-volume clear affects only
 that custom identity; it does not clear the built-in Tuist or Xcode cache.
 
-The automatic wiring is being retired account by account. With the server's
-`:runner_opt_in_caches` flag on, the host still materializes and the guest still
-mounts the built-in image, but a job reaches it only through `tuist/module-cache`
-and `tuist/xcode-cache`; a job that uses neither is discarded and not reported.
-The storage identity, budgets and lifecycle are unchanged. See the "Opt-in
-caches" paragraph in `infra/runner-image/AGENTS.md`.
+The automatic wiring is retired. The server now puts every macOS job on the
+`tuist-xcode` and `tuist-module` custom volumes, which a job reaches only through
+`tuist/xcode-cache` and `tuist/module-cache`. Dispatch stamps the untrusted label,
+so the host gives the job an empty built-in image and never promotes it. See the
+"Opt-in caches" and "Managed cache volumes" paragraphs in
+`infra/runner-image/AGENTS.md`.
 
 New identities include platform, preventing APFS and ext4 image reuse even when
 repository, key, architecture and UID happen to match. Existing Linux UUIDs and
@@ -66,8 +66,21 @@ Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
 it. Live reservations are recovered from the durable journal after restart.
 
-Cold creation reserves one 20 GB image. Restoration and prefetch retain the
-40 GB budget for the archive and expanded image. Applying that restore budget
+Each volume is created at the capacity the server chooses for the use
+(`volume_bytes`, 1 to 100 GB; 20 GB when it sends none). The host sends its
+maximum (`--custom-cache-max-volume-gb`, 100 GB by default) with every
+authorization, together with the guest's requested size when valid; a larger
+volume is refused with 507 and the job continues cold with reason `capacity`.
+Guest usage reports and downloads are bounded by that maximum. A warm copy
+smaller than its capacity is extended with `hdiutil resize -imageonly` before the
+guest sees it, never shrunk, and the guest grows the APFS container after
+attaching; a copy that cannot grow attaches warm at its saved size.
+
+Cold creation reserves one image of its capacity. A warm attach reserves the
+larger of its capacity and twice the head's measured used bytes
+(`head_size_bytes`). Restoration and prefetch reserve twice the head's used
+bytes for the archive and expanded image. Without a known head size, warm
+attaches and prefetches reserve twice the capacity. Applying that restore budget
 to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
 with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
 even though a 20 GB image fits. Both the backend's eviction/admission check and
@@ -81,13 +94,11 @@ the APFS mount; no macOS container-volume support is implied.
 
 ## Rollout and rollback
 
-Managed canary and production enable custom volumes fleet-wide through
-`runnersFleet.customCacheVolumes.enabled`. Workflows opt in per directory with
-`tuist/cache-volume@v1`; no project or account allowlist is required. The chart's
-self-hosted default remains disabled. Staging also stays disabled: its 40 GiB
-cache quota cannot fit the built-in reservation plus the custom admission floor.
-Enabling staging requires a separately planned capacity change; setting the flag
-alone does not make that fleet capable of retaining custom volumes.
+Managed staging, canary and production enable custom volumes fleet-wide through
+`runnersFleet.customCacheVolumes.enabled`; staging and canary run them on the
+BER1 rack hosts production lends them (240 GiB cache filesystems). Workflows opt
+in per directory with `tuist/cache-volume@v1`; no project or account allowlist is
+required. The chart's self-hosted default remains disabled.
 
 1. Deploy the platform migration and matching server code while macOS custom
    volumes remain disabled. Linux rows retain `platform=linux` and their existing
@@ -141,8 +152,9 @@ volume capacity remains 20 decimal GB. No M5 rack capacity is enabled here.
 
 Cache admission, built-in convergence and built-in master eviction use the lesser
 of quota free space and physical host free space above the 15% golden-image
-reclamation floor. Raw quota free-space telemetry is unchanged. Probe errors
-decline new allocations. Existing jobs and non-cache host writes can still reduce
+reclamation floor. Free-space telemetry reports the volume within its budget,
+without the host floor. Probe errors decline new allocations. Existing jobs and
+non-cache host writes can still reduce
 physical free space; this admission guard complements the existing golden-image
 reclaimer and Node DiskPressure reporting rather than enforcing a disk partition.
 Custom requests first evict their own reusable masters, then may reclaim built-in
@@ -177,6 +189,29 @@ The 512 GiB quota must not be deployed without the physical-space guard.
 Rollback of the chart affects replacement hosts only. Return to a smaller quota
 through the same drained replacement process; never shrink a live filesystem.
 Keep the host free-space guard in place on hosts already provisioned at 512 GiB.
+
+### Budget below the quota
+
+`runnerCacheVolumeGiB` is passed to tart-kubelet as `--runner-cache-budget-gib`:
+the space every cache on the volume may take together. Admission, convergence,
+eviction and `tart_kubelet_cache_volume_root_free_bytes` measure the volume's
+free space as the lesser of its quota headroom and the budget less what the
+volume uses (`df` reports an APFS volume's own usage). APFS fixes a quota when
+the volume is created, so on a disk of 1 TiB or more bootstrap creates it at
+half the disk, or the budget when that is larger. A budget change up to that
+quota applies with the next host-config push and needs no new volume. Above it,
+the quota still bounds the caches until the host is replaced or reinstalled. On
+a smaller disk (the M2-L's 460 GiB) the other half does not hold the goldens and
+job VMs, so the quota is the budget, as before.
+
+BER1 rack hosts created before the budget have a 240 GiB quota. Reinstall one
+at a time (`kubectl annotate rasm <machine> tuist.dev/os-reinstall=<version it
+runs>`, see "Reinstalling a rack host" in
+[cluster-api-provider-tuist](../cluster-api-provider-tuist/AGENTS.md)); each
+comes back with a 929 GiB quota and the configured budget. A lent host refuses
+the reinstall until it is returned. Confirm the new quota with
+`node_filesystem_size_bytes{mountpoint="/Volumes/tuist-runner-cache"}` before
+the next host.
 
 For deployed GitHub smoke validation, dispatch `macos-cache-volumes-smoke.yml`
 on `main` with a fresh key prefix and phase `seed`. The volume retains `.build`
@@ -213,7 +248,11 @@ explaining that affected volumes will not publish.
 
 The host scans requests once per second with independent per-pod workers (at most
 eight, without a queue), and publishes/reclaims on a separate worker every
-30 seconds. Slow verification, uploads and another guest's restore cannot block
+30 seconds, and every 5 seconds for two minutes after a runner Pod stops
+running, so a finished job's branch is published soon after its VM stops
+rather than on the next tick. When the guest could not mount a volume, it
+leaves the reason in the share's `.attach-error`, which the host logs when it
+deletes that never-mounted branch. Slow verification, uploads and another guest's restore cannot block
 an unrelated mailbox. Shutdown joins all workers before closing the store. It
 reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.
@@ -251,6 +290,9 @@ turn behind the masters queued meanwhile. Downloads land in `staging/` and
 only take the lineage's lock to install the finished master, and maintenance asks
 the server for a lineage's HEAD before taking that lock, so neither ever delays a
 job cloning the same lineage. Requests for the same master join.
+Each heartbeat also advertises one `tuist.dev/cache-volume-<scope prefix>` Node
+label per lineage with an installed master, read from the `masters/` directory,
+so the server can tell which custom volumes this host holds.
 The converge worker also hands it the saved custom-volume HEADs the server lists
 for the host class: dispatch cannot know which custom volumes a job attaches, so
 every host of the class warms them. These speculative downloads use free space

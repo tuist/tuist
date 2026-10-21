@@ -101,7 +101,9 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
             scope: "scope",
             generation: 2,
             image_digest: "d",
-            content_digest: "c"
+            content_digest: "c",
+            volume_bytes: 30_000_000_000,
+            head_size_bytes: 12_000_000_000
           }
         ]
       end)
@@ -120,7 +122,9 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
                    "scope" => "scope",
                    "generation" => 2,
                    "image_digest" => "d",
-                   "content_digest" => "c"
+                   "content_digest" => "c",
+                   "volume_bytes" => 30_000_000_000,
+                   "head_size_bytes" => 12_000_000_000
                  }
                ]
              }

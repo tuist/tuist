@@ -25,12 +25,31 @@ SDK_TARGET="$ARCH-swift-linux-musl"
 # The static SDK yields fully static musl binaries with no shared library
 # dependencies, avoiding cross-distro issues (e.g. Ubuntu's CURL_OPENSSL_4 vs
 # Fedora's libcurl-minimal).
-if swift sdk list | grep -qxF "$SDK_ID"; then
+sdk_installed() {
+    swift sdk list | grep -qxF "$SDK_ID"
+}
+
+if sdk_installed; then
     echo "==> Swift Static Linux SDK already installed" >&2
 else
     echo "==> Installing Swift Static Linux SDK" >&2
-    swift sdk install "https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/$SDK_ID.artifactbundle.tar.gz" \
-        --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c >&2
+    # `swift sdk install` intermittently segfaults while FoundationNetworking tears
+    # down its libcurl handle after the download, so retry the whole install.
+    for attempt in 1 2 3; do
+        if swift sdk install "https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/$SDK_ID.artifactbundle.tar.gz" \
+            --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c >&2; then
+            break
+        fi
+        if sdk_installed; then
+            break
+        fi
+        if [ "$attempt" -eq 3 ]; then
+            echo "ERROR: Failed to install the Swift Static Linux SDK" >&2
+            exit 1
+        fi
+        echo "==> Swift SDK install failed (attempt $attempt), retrying" >&2
+        swift sdk remove "$SDK_ID" >/dev/null 2>&1 || true
+    done
 fi
 
 # The musl SDK provides its own minimal static libraries, but the linker also finds

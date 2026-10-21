@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -28,7 +30,65 @@ type Identity struct {
 	ContentDigest  string `json:"content_digest"`
 	CanPublish     bool   `json:"can_publish"`
 	UID            int    `json:"uid"`
+	// Kind is set by the host, never by a guest. A checkout starts from the
+	// host-built master of its volume's clear Generation and is never published.
+	Kind       string `json:"kind,omitempty"`
+	Generation int64  `json:"generation,omitempty"`
+	// VolumeBytes is the capacity the server chose for this use. Zero from a
+	// server that predates per-volume sizes.
+	VolumeBytes int64 `json:"volume_bytes"`
+	// HeadSizeBytes is the measured used bytes of the saved head, or zero when
+	// unknown.
+	HeadSizeBytes int64 `json:"head_size_bytes"`
 }
+
+// DefaultMaxVolumeBytes is the largest volume a host accepts when its agent
+// configures no maximum.
+const DefaultMaxVolumeBytes = 32_000_000_000
+
+// RequestedVolumeBytes is a guest's requested capacity when it is a whole
+// number of decimal GB from 1 to 100, else zero.
+func RequestedVolumeBytes(bytes int64) int64 {
+	if bytes < 1_000_000_000 || bytes > 100_000_000_000 || bytes%1_000_000_000 != 0 {
+		return 0
+	}
+	return bytes
+}
+
+// RequestedSize is the capacity a guest requested. It decodes any JSON value
+// and keeps only a valid size, so a malformed one never fails the request.
+type RequestedSize int64
+
+func (r *RequestedSize) UnmarshalJSON(data []byte) error {
+	bytes, _ := strconv.ParseInt(string(data), 10, 64)
+	*r = RequestedSize(RequestedVolumeBytes(bytes))
+	return nil
+}
+
+// VolumeSize is the size the volume's image is created at: the allocated size,
+// or defaultBytes when the server did not send one.
+func (i Identity) VolumeSize(defaultBytes int64) int64 {
+	if i.VolumeBytes > 0 {
+		return i.VolumeBytes
+	}
+	return defaultBytes
+}
+
+// RestoreBytes is the free space restoring the head needs: its archive beside
+// the expanded image, twice its used bytes, or twice the volume when unknown.
+func (i Identity) RestoreBytes(defaultBytes int64) int64 {
+	if i.HeadSizeBytes > 0 {
+		return 2 * i.HeadSizeBytes
+	}
+	return 2 * i.VolumeSize(defaultBytes)
+}
+
+const KindCheckout = "checkout"
+
+// CheckoutGrowthBytes is what a checkout clone is admitted with: it shares the
+// master's blocks, so only the job's writes to its workspace take new space.
+const CheckoutGrowthBytes = 8_000_000_000
+
 type Slot struct {
 	Identity
 	PodUID        string    `json:"pod_uid"`
@@ -63,6 +123,8 @@ type Store struct {
 	path     string
 	backend  Backend
 	MaxSlots int
+	// MaxVolumeBytes is the largest volume this host accepts.
+	MaxVolumeBytes int64
 }
 
 func Open(path string, backend Backend) (*Store, error) {
@@ -79,7 +141,7 @@ func Open(path string, backend Backend) (*Store, error) {
 			return nil, err
 		}
 	}
-	return &Store{root: root, path: path, backend: backend, MaxSlots: 100, locks: map[string]*leaseLock{}}, nil
+	return &Store{root: root, path: path, backend: backend, MaxSlots: 100, MaxVolumeBytes: DefaultMaxVolumeBytes, locks: map[string]*leaseLock{}}, nil
 }
 func (s *Store) Close() error { return s.root.Close() }
 
@@ -119,15 +181,26 @@ func (s *Store) slots() ([]Slot, error) {
 		if err = json.Unmarshal(b, &slot); err != nil {
 			return nil, err
 		}
-		if !valid(slot.Identity, slot.PodName, slot.PodUID) || name != slot.ID+".json" {
+		// A lease journaled under a larger host maximum stays readable.
+		if !valid(slot.Identity, slot.PodName, slot.PodUID, math.MaxInt64) || name != slot.ID+".json" {
 			return nil, errors.New("invalid cache journal")
 		}
 		slots = append(slots, slot)
 	}
 	return slots, nil
 }
-func valid(identity Identity, pod, uid string) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && validHead(identity)
+func valid(identity Identity, pod, uid string, maxVolumeBytes int64) bool {
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= maxVolumeBytes && identity.HeadSizeBytes >= 0 && validHead(identity) && validKind(identity)
+}
+func validKind(identity Identity) bool {
+	switch identity.Kind {
+	case "":
+		return identity.Generation == 0
+	case KindCheckout:
+		return identity.Generation >= 0 && identity.BaseGeneration == 0 && !identity.CanPublish
+	default:
+		return false
+	}
 }
 func validHead(identity Identity) bool {
 	if identity.BaseGeneration == 0 {
@@ -189,7 +262,7 @@ func (s *Store) lock(id string) func() {
 	}
 }
 func (s *Store) Acquire(ctx context.Context, identity Identity, pod, uid string) (bool, error) {
-	if !valid(identity, pod, uid) {
+	if !valid(identity, pod, uid, s.MaxVolumeBytes) {
 		return false, errors.New("invalid identity")
 	}
 	unlock := s.lock(identity.ID)
@@ -225,7 +298,8 @@ func (s *Store) allocate(identity Identity, pod, uid string) (Slot, error) {
 			}
 		}
 	}
-	slot := Slot{Identity: identity, PodName: pod, PodUID: uid, State: "allocated", Warm: identity.BaseGeneration > 0, UsedAt: time.Now().UTC()}
+	// A checkout is only acquired once its host-built master exists.
+	slot := Slot{Identity: identity, PodName: pod, PodUID: uid, State: "allocated", Warm: identity.BaseGeneration > 0 || identity.Kind == KindCheckout, UsedAt: time.Now().UTC()}
 	if active >= s.MaxSlots || perPod >= 8 {
 		// The server already allocated this use and pinned its parent. No local
 		// storage exists yet, but its deletion acknowledgement must survive a
@@ -444,4 +518,19 @@ func (s *Store) cleanPod(uid string) error {
 		}
 	}
 	return s.root.RemoveAll("pods/" + uid)
+}
+
+// InUse reports whether a job holds, or is attaching, a branch of the scope.
+// It answers true when the journal cannot be read.
+func (s *Store) InUse(scope string) bool {
+	slots, err := s.Snapshot()
+	if err != nil {
+		return true
+	}
+	for _, slot := range slots {
+		if slot.Scope == scope && (slot.State == "allocated" || slot.State == "active") {
+			return true
+		}
+	}
+	return false
 }

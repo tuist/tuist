@@ -87,11 +87,13 @@ concurrency:
 # (stale workspace state pointing at moved local SPM paths; Linux linker failures
 # from partial-artifact reuse) that motivate the narrower scope.
 jobs:
+  # Lint and SwiftPM Build run on pull requests only: a push to main carries
+  # sources its pull request already checked.
   cli-lint:
     name: Lint
     runs-on: tuist-macos-27-0
     timeout-minutes: 30
-    if: github.repository == 'tuist/tuist'
+    if: github.repository == 'tuist/tuist' && github.event_name == 'pull_request'
     permissions:
       contents: read
       id-token: write
@@ -126,6 +128,23 @@ jobs:
           "$(mise which swiftlint)" lint --quiet --config .swiftlint.yml --only-rule no_fatal_error_in_tests cli/Tests
           tuist inspect dependencies --only implicit
 
+  # The originHash is the SHA-256 of the root Package.swift. Runs on pushes too because
+  # a squash merge can produce a Package.swift that no branch resolved.
+  cli-package-resolved:
+    name: Package.resolved
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check originHash
+        run: |
+          expected="$(sha256sum Package.swift | cut -d' ' -f1)"
+          actual="$(sed -n 's/^ *"originHash" : "\([0-9a-f]*\)",$/\1/p' Package.resolved)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error file=Package.resolved,line=2::originHash is ${actual:-missing}, but Package.swift hashes to $expected. Run 'tuist install' and commit Package.resolved."
+            exit 1
+          fi
+
   cli-spm-build:
     name: SwiftPM Build
     runs-on: tuist-macos-27-0
@@ -133,7 +152,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    if: github.repository == 'tuist/tuist' && github.event_name == 'pull_request' && github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: tuist/xcode-cache@v1
@@ -161,10 +180,7 @@ jobs:
   cli-cache:
     name: Cache
     runs-on: tuist-macos-27-0
-    # Two warms: the plain one and the coverage one below, which builds every
-    # changed repository target a second time, with coverage and without the
-    # compilation cache's replay.
-    timeout-minutes: 90
+    timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
@@ -192,19 +208,10 @@ jobs:
         uses: tuist/install@v1
         with:
           cache-key: cli-macos-workspace-${{ github.job }}
+      # With mise.toml's TUIST_COVERAGE_ENABLED, CLIs with tuist/tuist#14404
+      # warm the coverage variant the coverage runs read; older ones warm plain.
       - name: Cache
         run: tuist cache
-      # The coverage variant of the binary cache, read by the runs that collect
-      # coverage: coverage.yml on main, and the unit tests above, which run with
-      # `-enableCodeCoverage YES`. Only repository-owned targets are built again,
-      # with coverage counters; external packages are the plain warm's. Those
-      # builds get no compilation-cache replay: coverage builds leave Xcode's
-      # prefix mapping off by default, and `tuist cache` has no xcodebuild
-      # passthrough for the override the test runs use. The manifest option
-      # (`enableCoveragePrefixMapping`) would turn it on for both, once the
-      # backward-compatibility gate's CLI knows it.
-      - name: Cache with coverage
-        run: tuist cache --coverage
 
   cli-unit-tests:
     name: Unit Tests
@@ -251,14 +258,11 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
-      # The derived data path is where the coverage export finds the test
-      # products and the run's profile; cached binaries only show up in the
-      # coverage when it reads them, never in the result bundle's own report.
+      # Coverage comes from mise.toml's [env]: the scheme leaves its test
+      # action's coverage unset, so it follows TUIST_COVERAGE_ENABLED, which CLIs
+      # before tuist/tuist#14404 ignore.
       - name: Run tests
-        run: tuist test TuistUnitTests --derived-data-path "$RUNNER_TEMP/DerivedData" -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
-        env:
-          # Xcode code coverage is in early access behind this client flag.
-          TUIST_FEATURE_FLAG_COVERAGE: "1"
+        run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests

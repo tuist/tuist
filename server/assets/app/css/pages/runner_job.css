@@ -672,7 +672,14 @@
     flex-direction: column;
   }
 
-  & [data-part="load-older"] {
+  & [data-part="step-logs-loading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="load-older"],
+  & [data-part="step-logs-load-earlier"] {
     align-self: center;
     cursor: pointer;
     margin-bottom: var(--noora-spacing-3);

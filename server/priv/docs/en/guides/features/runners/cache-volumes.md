@@ -31,9 +31,6 @@ authentication for the module cache, and the
 In GitLab CI, combine snippets with `!reference`, because `extends` replaces
 `before_script`.
 
-Some accounts still get the Xcode and module caches in every macOS job
-automatically. There, those two steps change nothing, so you can add them now.
-
 ### Xcode cache {#xcode-cache}
 
 Keeps the store of Xcode's compilation cache on macOS runners.
@@ -183,8 +180,9 @@ test:
 
 Choose a stable `key` and a `path`, then attach the volume before installing
 dependencies. The path must be empty or absent. Remove any archive cache or
-artifact restore that writes to the same directory. Use a different key for
-each directory.
+artifact restore that writes to the same directory. To keep several directories
+in one volume, see
+[Several directories in one volume](#several-directories-in-one-volume).
 
 ::: code-group
 
@@ -229,6 +227,71 @@ test:
 <!-- -->
 :::
 
+### Several directories in one volume {#several-directories-in-one-volume}
+
+A volume can hold several directories. In GitHub Actions, list one path per
+line; in Buildkite, set `path` to a list; in GitLab CI, pass `--path` once per
+directory. Blank lines and surrounding whitespace are ignored.
+
+::: code-group
+
+```yaml [GitHub Actions]
+jobs:
+  lint:
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/cache-volume@v1
+        with:
+          key: python-tools
+          path: |
+            ~/.cache/pip
+            ~/.cache/pre-commit
+      - run: pip install pre-commit
+      - run: pre-commit run --all-files
+```
+
+```yaml [Buildkite]
+steps:
+  - label: Lint
+    agents:
+      queue: tuist-linux
+    plugins:
+      - tuist/cache-volume#v1:
+          volumes:
+            - key: python-tools
+              path:
+                - ~/.cache/pip
+                - ~/.cache/pre-commit
+    command: |
+      pip install pre-commit
+      pre-commit run --all-files
+```
+
+```yaml [GitLab CI]
+lint:
+  tags: [tuist-linux]
+  before_script:
+    - tuist-cache-volume --key python-tools --path ~/.cache/pip --path ~/.cache/pre-commit
+  script:
+    - pip install pre-commit
+    - pre-commit run --all-files
+```
+<!-- -->
+:::
+
+- **Shared capacity.** All paths share the volume's 20 GB capacity and are
+  restored and saved together.
+- **Group small, related directories.** Give a large or fast-changing directory
+  its own volume.
+- **No nesting.** Paths in one volume must not contain each other.
+- **Changing the list starts cold.** Each path is stored in its own directory
+  inside the volume, identified by how the path is written. Switching between
+  one path and several, or adding, removing or rewriting a path, changes that
+  layout: the first job after the change starts cold for the affected paths.
+  Content of paths that are no longer listed stays in the volume until you
+  clear it.
+
 ### How keys work {#how-keys-work}
 
 A key names a volume that changes over time; it is not the name of a fixed
@@ -260,67 +323,61 @@ are unsupported. Ignore workspace links without a trailing slash in `.gitignore`
 
 ## Saving changes {#saving-changes}
 
-The Xcode and module caches save the changes of successful jobs from your own
-repository. Jobs from forks start with empty caches and never save, and neither
-do failed or cancelled jobs or jobs that use neither cache.
+The managed caches and custom volumes save the changes of successful jobs from
+your own repository, on any branch:
 
-| Provider | Xcode and module caches |
+| Provider | Jobs that save changes |
 | --- | --- |
-| GitHub Actions | Successful jobs from the repository itself, including its pull requests |
-| Buildkite | Successful builds from the pipeline's own repository |
-| GitLab CI | Not saved yet: each job starts with empty caches |
+| GitHub Actions | Push, schedule, manual dispatch and pull request jobs from the repository itself |
+| Buildkite | Webhook and schedule builds of the pipeline's repository, including its pull requests |
+| GitLab CI | Push, schedule and web pipelines of the project |
 
-The Gradle cache and custom volumes save the changes of successful jobs on the
-repository's default branch when triggered by these events:
-
-| Provider | Events that save changes |
-| --- | --- |
-| GitHub Actions | Push, schedule, manual dispatch |
-| Buildkite | Webhook, schedule |
-| GitLab CI | Push, schedule, web |
-
-Other jobs, including pull requests, merge requests and tags, can use the cache,
-but their changes are discarded. With GitHub Actions, you can change which
-branches save on the runner profile, for example to let pull requests or release
-branches update the cache; see [Choose which branches save](#choose-which-branches-save).
+Other jobs can use the cache, but their changes are discarded. These include
+fork pull requests, `pull_request_target` jobs, Buildkite builds started from
+the API or the dashboard, GitLab merge request pipelines, and tags. A job that
+doesn't change a volume leaves the saved version in place. You can narrow which
+branches save on the runner profile; see
+[Choose which branches save](#choose-which-branches-save).
 
 Concurrent jobs work independently; changes from different jobs are not merged.
 Never cache credentials or irreplaceable data.
 
 ### Choose which branches save {#choose-which-branches-save}
 
-For GitHub Actions, you can change which branches save the Gradle cache and
-custom volumes. Open **Runners → Profiles**, edit the profile your workflows use
-in `runs-on:`, and expand **Save cache from**. The settings apply to every
-volume used by jobs on that profile, including volumes created later. They don't
-apply to the Xcode and module caches.
+You can change which branches save the managed caches and custom volumes. Open
+**Runners → Profiles**, edit the profile your jobs use, and expand **Save cache
+from**. Jobs use the profile they request: in `runs-on:` on GitHub Actions, as
+the queue on Buildkite, or in `tags:` on GitLab CI. The settings apply to every
+volume used by jobs on that profile, including volumes created later.
 
 ![The runner profile form with the Save cache from section expanded, with Default branch turned on and develop and release/* added as additional branches](/images/guides/features/runners/save-cache-from.png)
 
-**Default branch** is on by default, so jobs on each repository's default branch
-save their changes. Turn it off to save only from the additional branches.
+By default every successful job from the repository saves its changes. To save
+only from some branches, turn on **Limit to specific branches**:
 
-Under **Additional branches**, add up to 20 branch names that also save. Use `*`
-as a wildcard: `release/*` matches `release/1.0`, and `*` matches every branch.
-Successful push, schedule and manual-dispatch jobs, and pull requests from the
-same repository, save their changes when their branch matches. On push and
-manual-dispatch runs, a tag with a matching name also matches.
+- **Default branch** lets jobs on each repository's default branch save. Turn it
+  off to save only from the additional branches.
+- Under **Additional branches**, add up to 20 branch names that also save. Use
+  `*` as a wildcard: `release/*` matches `release/1.0`.
 
-Jobs on other branches can still use the cache, but their changes are discarded.
-Fork pull requests and `pull_request_target` jobs never save. Narrowing these
-settings or deleting the profile discards pending changes they no longer allow;
-a deleted profile falls back to the default branch. Buildkite and GitLab CI
-always save from the default branch.
+The jobs listed in [Saving changes](#saving-changes) save their changes when
+their branch matches. On GitHub Actions push and manual-dispatch runs, a tag
+with a matching name also matches.
+
+Jobs on other branches can still use the cache, but their changes are
+discarded. Jobs that never save, such as fork pull requests, don't save on a
+matching branch either. Narrowing these settings or deleting the profile
+discards pending changes they no longer allow; a deleted profile falls back to
+saving from every branch.
 
 ## Capacity and retention {#capacity-and-retention}
 
-The Xcode and module caches share storage that Tuist sizes and prunes for you,
-and they don't count against the capacity of the volumes below.
-
-The Gradle cache and each custom volume hold up to **20 GB** and expire after
-**7 days without a job mount**. The next job starts with an empty volume after
-expiry. The Gradle cache step has Gradle remove entries unused for seven days
-after every build.
+The Xcode cache holds up to **30 GB**. The module cache, the Gradle cache and
+each custom volume hold up to **20 GB**. All of them expire after **7 days
+without a job mount**, and the next job starts with an empty volume after
+expiry. Tuist prunes the Xcode and module caches to stay within their size, and
+the Gradle cache step has Gradle remove entries unused for seven days after
+every build.
 
 Custom volumes do not prune old dependencies: use your tool's cleanup settings
 to keep them small. Writes to a full volume can fail the job. When saved

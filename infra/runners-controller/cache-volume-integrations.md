@@ -1,16 +1,16 @@
 # Cache volume integrations
 
 GitHub Actions, Buildkite and GitLab CI share entry points for Linux and native
-macOS jobs, with server identity adapters. They share private per-job local image clones, 20 GB capacity,
-seven-day idle expiry, generation fencing, teardown checks and the dashboard.
-macOS uses the [APFS backend](../tart-kubelet/custom-cache-volumes.md) and retains
-automatic built-in caches. Provider and platform namespaces never share data implicitly.
+macOS jobs, with server identity adapters. They share private per-job local image clones, per-volume
+capacity (see [Size](#size)), seven-day idle expiry, generation fencing, teardown checks and the dashboard.
+macOS uses the [APFS backend](../tart-kubelet/custom-cache-volumes.md), including
+for the managed `tuist-xcode` and `tuist-module` volumes. Provider and platform namespaces never share data implicitly.
 
 | Provider | Entry point | Publication policy after a successful job |
 | --- | --- | --- |
-| GitHub Actions | `tuist/cache-volume@v1`, key/path and `cache-hit` output | Same-repository default-branch push, schedule or workflow_dispatch |
-| Buildkite | `tuist/cache-volume#v1` plugin with a list of key/path pairs | Default-branch webhook or schedule, no PR or tag |
-| GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Default-branch push, schedule or web pipeline, no tag |
+| GitHub Actions | `tuist/cache-volume@v1`, key, one or more paths (one per line) and `cache-hit` output | Same-repository push, schedule, workflow_dispatch or pull request on any branch, narrowed by the runner profile |
+| Buildkite | `tuist/cache-volume#v1` plugin with a list of volumes, each with a key and one or more paths | Webhook or schedule on any branch, no tag; PRs only from the pipeline's repository; narrowed by the runner profile |
+| GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Push, schedule or web branch pipeline on any branch, no tag or MR; narrowed by the runner profile |
 
 All three entry points are packaged and automatically released from `main`.
 The initial distribution-repository setup and local-image/Kata fleet smoke gates remain
@@ -27,8 +27,8 @@ checkout. The wrapper uses the installed native or job-container client.
 The Buildkite plugin is in
 [`ci/cache-volume/buildkite`](../../ci/cache-volume/buildkite/README.md).
 Its `pre-command` hook parses `BUILDKITE_PLUGIN_CONFIGURATION` as JSON, validates
-all key/path pairs before attaching, and invokes the installed client once per
-volume. It propagates failures and does not run a publication hook. The Linux
+all volumes before attaching, and invokes the installed client once per
+volume with one `--path` per configured path. It propagates failures and does not run a publication hook. The Linux
 image persists pod routing into the staged job environment before Buildkite
 sanitizes inherited variables; the global environment hook exports it again.
 See [plugin hooks](https://buildkite.com/docs/pipelines/integrations/plugins/writing).
@@ -103,9 +103,11 @@ permission from the mount request or job environment.
   the assigned job ID, project ID, running status and commit SHA. Scope by the
   canonical instance digest and immutable project ID. Find the exact branch
   with an escaped anchored regex through the
-  [branches listing API](https://docs.gitlab.com/api/branches/); require its
-  `default` flag and an allowed job `pipeline.source`, with `tag == false`, to
-  save. Use the top-level `source` only when the nested field is absent;
+  [branches listing API](https://docs.gitlab.com/api/branches/); its
+  `default` flag marks a default-branch writer. Any branch pipeline with an
+  allowed job `pipeline.source` and `tag == false` carries its ref as the writer
+  branch the runner profile matches. Merge request pipelines never save: the
+  job token cannot read the merge request, so a fork's cannot be told apart. Use the top-level `source` only when the nested field is absent;
   an unknown or denied nested source cannot fall back to a permissive value.
   Both endpoints are available to [job tokens](https://docs.gitlab.com/ci/jobs/ci_job_token/).
   `CI_PROJECT_ID`, `CI_DEFAULT_BRANCH` and other overridable variables grant
@@ -123,6 +125,34 @@ All providers require a successful recorded job outcome and local pod/writer
 teardown. The GitLab executor's zero process exit after a reported job failure
 does not authorize publication. Failed/cancelled jobs, clear-generation fences,
 orphan reconciliation and acknowledged deletion use the common existing logic.
+
+## Size
+
+A volume's capacity is chosen by the server for each use. The guest may send
+`requested_volume_bytes` (a whole number of decimal GB, 1 to 100 GB) with its
+acquire request; hosts drop any other value and never fail a request because of
+it. Hosts forward a valid request and always send `max_volume_bytes`, their
+largest accepted volume: 32 GB on Linux (`--max-volume-gb`,
+`runnersFleetLinux.cacheVolumes.maxVolumeGB`) and 100 GB on macOS
+(`--custom-cache-max-volume-gb`) by default. A server answer of 507 means the
+volume exceeds that maximum: the host does not retry and the job continues
+cold (macOS mailbox reason `capacity`, Linux status 503). A volume without a server-chosen size is
+created at the host default of 20 GB.
+
+A cold branch is created at its capacity. A warm copy smaller than the capacity
+is grown before the job sees it and never shrunk: Linux extends the cloned image
+and grows ext4 online after mounting it on the host; macOS extends the private
+sparse image with `hdiutil resize -imageonly` and the guest grows the APFS
+container after attaching. A copy that cannot grow attaches warm at its saved size.
+
+Admission scales with the volume. Linux requires the `--min-free-gb` floor
+raised by however much the volume exceeds `--volume-gb`: with the defaults, the
+larger of 40 GB and the capacity plus 20 GB. macOS reserves the capacity for a
+cold branch, the larger of the capacity and twice the head's measured used
+bytes (`head_size_bytes`) for a warm one, and twice the head's used bytes for a
+prefetch. Without a known head size, warm attaches and prefetches reserve twice
+the capacity. Guest usage reports and expanded downloads are bounded by the host
+maximum, so a host accepts grown masters.
 
 ## Migration and rollback
 

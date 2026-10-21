@@ -23,3 +23,7 @@ This context owns marketing content aggregation (blog posts, case studies, chang
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+## Replica-safety rollout
+
+Expensive stats polling elects one connected global registrant. Resolve partition conflicts by deterministically selecting a pid and notifying the loser, never killing a supervised Stats process. Followers consume broadcasts; cache-globe polling remains read-only and keeps its existing behavior.

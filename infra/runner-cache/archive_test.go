@@ -28,7 +28,7 @@ func TestImageArchiveRestoresIncompressibleImageAtCapacity(t *testing.T) {
 	if err := os.WriteFile(src, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, digest, err := compressImage(src, src+".zst")
+	_, digest, err := CompressImage(src, src+".zst")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestImageArchiveRestoresZerosAndRejectsCorruptionAndOversize(t *testing.T) 
 	data := make([]byte, 2<<20)
 	copy(data[1<<20:], "cache payload")
 	os.WriteFile(src, data, 0600)
-	_, digest, err := compressImage(src, archive)
+	_, digest, err := CompressImage(src, archive)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestRestoreCancellationStopsBufferedExpansionAndRemovesPartialImage(t *test
 	if err := os.WriteFile(src, make([]byte, 2<<20), 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, digest, err := compressImage(src, src+".zst")
+	_, digest, err := CompressImage(src, src+".zst")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestImageArchiveStoresOnlyDataOfSparseImage(t *testing.T) {
 	if err = f.Close(); err != nil {
 		t.Fatal(err)
 	}
-	_, digest, err := compressImage(src, src+".zst")
+	_, digest, err := CompressImage(src, src+".zst")
 	if err != nil {
 		t.Fatal(err)
 	}

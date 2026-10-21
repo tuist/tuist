@@ -5,7 +5,12 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
 
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.VolumeAffinities
+  alias Tuist.Runners.WorkflowJob
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :verify_on_exit!
 
@@ -283,6 +288,157 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
 
       assert VolumeAffinities.select_candidate([head, newer_resident], "mac-01", tolerance_seconds: 30) ==
                {head, :head_resident}
+    end
+  end
+
+  describe "select_candidate/3 with custom volumes" do
+    setup do
+      %{account: AccountsFixtures.account_fixture(), other: AccountsFixtures.account_fixture()}
+    end
+
+    # A custom volume a past job of the given workflow and job name attached.
+    defp used_custom_volume(account, workflow_name, job_name, used_at \\ DateTime.utc_now()) do
+      volume =
+        Repo.insert!(%Volume{
+          account_id: account.id,
+          repository: "tuist/app",
+          scope_id: "123",
+          key: "gradle-#{System.unique_integer([:positive])}",
+          platform: "linux",
+          architecture: "amd64",
+          uid: 1001
+        })
+
+      workflow_job_id = System.unique_integer([:positive])
+
+      Repo.insert!(%WorkflowJob{
+        workflow_job_id: workflow_job_id,
+        workflow_run_id: 1,
+        account_id: account.id,
+        fleet_name: "test",
+        status: "completed",
+        repository: "tuist/app",
+        workflow_name: workflow_name,
+        job_name: job_name,
+        enqueued_at: used_at
+      })
+
+      Repo.insert!(%Usage{
+        volume_id: volume.id,
+        generation: 1,
+        workflow_job_id: workflow_job_id,
+        workflow_run_id: 1,
+        pod_name: "pod",
+        pod_uid: "pod-#{workflow_job_id}",
+        node_name: "linux-01",
+        can_publish: true,
+        inserted_at: DateTime.truncate(used_at, :second)
+      })
+
+      volume
+    end
+
+    defp stub_custom_residency(volumes) do
+      labels =
+        Map.new(volumes, fn volume ->
+          {"tuist.dev/cache-volume-" <> String.slice(CacheVolumes.scope(volume), 0, 48), "true"}
+        end)
+
+      stub(K8sClient, :get_node, fn _ -> {:ok, %{"metadata" => %{"labels" => labels}}} end)
+    end
+
+    defp queued(account, workflow_name, job_name, enqueued_at) do
+      %{
+        account_id: account.id,
+        repository: "tuist/app",
+        workflow_name: workflow_name,
+        job_name: job_name,
+        enqueued_at: enqueued_at
+      }
+    end
+
+    test "prefers a queued job whose recently used custom volume the node holds", %{account: account, other: other} do
+      volume = used_custom_volume(account, "CI", "Build")
+      stub_custom_residency([volume])
+      now = DateTime.utc_now()
+      head = queued(other, "CI", "Build", now)
+      resident = queued(account, "CI", "Build", DateTime.add(now, 5, :second))
+
+      assert VolumeAffinities.select_candidate([head, resident], "linux-01", tolerance_seconds: 30) ==
+               {resident, :resident}
+    end
+
+    test "matches the workflow and job that used the volume", %{account: account} do
+      volume = used_custom_volume(account, "CI", "Build")
+      stub_custom_residency([volume])
+      now = DateTime.utc_now()
+      head = queued(account, "CI", "Lint", now)
+      other_workflow = queued(account, "Release", "Build", DateTime.add(now, 5, :second))
+
+      assert VolumeAffinities.select_candidate([head, other_workflow], "linux-01", tolerance_seconds: 30) ==
+               {head, :no_resident_candidate}
+    end
+
+    test "only predicts from the last week of uses", %{account: account, other: other} do
+      volume = used_custom_volume(account, "CI", "Build", DateTime.add(DateTime.utc_now(), -8, :day))
+      stub_custom_residency([volume])
+      now = DateTime.utc_now()
+      head = queued(other, "CI", "Build", now)
+      stale = queued(account, "CI", "Build", DateTime.add(now, 5, :second))
+
+      assert VolumeAffinities.select_candidate([head, stale], "linux-01", tolerance_seconds: 30) ==
+               {head, :no_resident_candidate}
+    end
+
+    test "a node that holds no custom volume gets no preference", %{account: account, other: other} do
+      used_custom_volume(account, "CI", "Build")
+      stub_custom_residency([])
+      now = DateTime.utc_now()
+      head = queued(other, "CI", "Build", now)
+      candidate = queued(account, "CI", "Build", DateTime.add(now, 5, :second))
+
+      assert VolumeAffinities.select_candidate([head, candidate], "linux-01", tolerance_seconds: 30) ==
+               {head, :no_residency}
+    end
+  end
+
+  describe "custom_volume_node_labels/2" do
+    setup do
+      %{account: AccountsFixtures.account_fixture(), other: AccountsFixtures.account_fixture()}
+    end
+
+    defp node_label(volume), do: "tuist.dev/cache-volume-" <> String.slice(CacheVolumes.scope(volume), 0, 48)
+
+    test "lists the volumes the queued jobs are predicted to attach, oldest job first", %{account: account, other: other} do
+      build = used_custom_volume(account, "CI", "Build")
+      lint = used_custom_volume(other, "CI", "Lint")
+      now = DateTime.utc_now()
+
+      candidates = [
+        queued(other, "CI", "Lint", now),
+        queued(account, "CI", "Build", DateTime.add(now, 5, :second)),
+        queued(account, "CI", "Lint", DateTime.add(now, 10, :second))
+      ]
+
+      assert VolumeAffinities.custom_volume_node_labels(candidates, 4) == [node_label(lint), node_label(build)]
+    end
+
+    test "lists a volume two queued jobs share once and stops at the limit", %{account: account} do
+      first = used_custom_volume(account, "CI", "Build")
+      used_custom_volume(account, "CI", "Test")
+      now = DateTime.utc_now()
+
+      candidates = [
+        queued(account, "CI", "Build", now),
+        queued(account, "CI", "Build", DateTime.add(now, 5, :second)),
+        queued(account, "CI", "Test", DateTime.add(now, 10, :second))
+      ]
+
+      assert VolumeAffinities.custom_volume_node_labels(candidates, 1) == [node_label(first)]
+    end
+
+    test "is empty for jobs with no recent volume", %{account: account} do
+      assert VolumeAffinities.custom_volume_node_labels([queued(account, "CI", "Build", DateTime.utc_now())], 4) == []
     end
   end
 end

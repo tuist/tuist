@@ -10,6 +10,7 @@ public struct RunnerProfileChanges: Equatable, Sendable {
     public var vcpus: Int?
     public var memoryGB: Int?
     public var xcodeVersion: String?
+    public var saveCacheFromAllBranches: Bool?
     public var saveCacheFromDefaultBranch: Bool?
     public var saveCacheFromBranches: [String]?
 
@@ -17,12 +18,14 @@ public struct RunnerProfileChanges: Equatable, Sendable {
         vcpus: Int? = nil,
         memoryGB: Int? = nil,
         xcodeVersion: String? = nil,
+        saveCacheFromAllBranches: Bool? = nil,
         saveCacheFromDefaultBranch: Bool? = nil,
         saveCacheFromBranches: [String]? = nil
     ) {
         self.vcpus = vcpus
         self.memoryGB = memoryGB
         self.xcodeVersion = xcodeVersion
+        self.saveCacheFromAllBranches = saveCacheFromAllBranches
         self.saveCacheFromDefaultBranch = saveCacheFromDefaultBranch
         self.saveCacheFromBranches = saveCacheFromBranches
     }
@@ -71,6 +74,7 @@ public struct UpdateRunnerProfileService: UpdateRunnerProfileServicing {
                 path: .init(account_handle: accountHandle, profile_name: profileName),
                 body: .json(
                     .init(
+                        cache_writer_all_branches: changes.saveCacheFromAllBranches,
                         cache_writer_branches: changes.saveCacheFromBranches,
                         cache_writer_default_branch: changes.saveCacheFromDefaultBranch,
                         memory_gb: changes.memoryGB,

@@ -808,7 +808,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -1220,14 +1220,14 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT\n    tr.account_id,\n    count() AS test_suite_run_count\nFROM default.test_suite_runs AS tsr FINAL\nINNER JOIN default.test_runs AS tr FINAL ON tsr.test_run_id = tr.id\nWHERE $__timeFilter(tsr.inserted_at)\nGROUP BY tr.account_id\nORDER BY test_suite_run_count DESC"
+                        "rawSql": "SELECT\n    tr.account_id,\n    count() AS test_suite_run_count\nFROM tuist.test_suite_runs AS tsr FINAL\nINNER JOIN tuist.test_runs AS tr FINAL ON tsr.test_run_id = tr.id\nWHERE $__timeFilter(tsr.inserted_at)\nGROUP BY tr.account_id\nORDER BY test_suite_run_count DESC"
                       }
                     },
                     "refId": "A",
@@ -2012,7 +2012,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -2524,7 +2524,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -2636,7 +2636,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -2748,7 +2748,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -3030,7 +3030,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -3142,7 +3142,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -3254,7 +3254,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -3366,7 +3366,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -3478,7 +3478,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -3590,7 +3590,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -4149,7 +4149,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -4261,7 +4261,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -4373,7 +4373,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -4485,7 +4485,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -4597,7 +4597,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -4709,7 +4709,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",
@@ -4891,7 +4891,7 @@
                       "group": "grafana-clickhouse-datasource",
                       "version": "v0",
                       "datasource": {
-                        "name": "dexgs9hv7rjswd"
+                        "name": "cg1vnyjs65blsc"
                       },
                       "spec": {
                         "editorType": "sql",

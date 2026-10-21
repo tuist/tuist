@@ -21,6 +21,7 @@ public protocol CreateRunnerProfileServicing {
         vcpus: Int,
         memoryGB: Int,
         xcodeVersion: String?,
+        saveCacheFromAllBranches: Bool?,
         saveCacheFromDefaultBranch: Bool?,
         saveCacheFromBranches: [String]?
     ) async throws -> RunnerProfileCreateResult
@@ -54,6 +55,7 @@ public struct CreateRunnerProfileService: CreateRunnerProfileServicing {
         vcpus: Int,
         memoryGB: Int,
         xcodeVersion: String?,
+        saveCacheFromAllBranches: Bool?,
         saveCacheFromDefaultBranch: Bool?,
         saveCacheFromBranches: [String]?
     ) async throws -> RunnerProfileCreateResult {
@@ -63,6 +65,7 @@ public struct CreateRunnerProfileService: CreateRunnerProfileServicing {
                 path: .init(account_handle: accountHandle),
                 body: .json(
                     .init(
+                        cache_writer_all_branches: saveCacheFromAllBranches,
                         cache_writer_branches: saveCacheFromBranches,
                         cache_writer_default_branch: saveCacheFromDefaultBranch,
                         memory_gb: memoryGB,

@@ -9,7 +9,7 @@ defmodule Tuist.Mix.Cache do
   alias Tuist.Repo
 
   @outcomes ~w(local_hit remote_hit miss bypass)
-  @reasons ~w(not_enabled local_dependency custom_compiler unmodeled_input inputs_changed store_failed)
+  @reasons ~w(not_enabled local_dependency custom_compiler unmodeled_input inputs_changed store_failed up_to_date)
   @max_events 5_000
   @scatter_limit 10_000
   @uint32 4_294_967_295
@@ -408,10 +408,28 @@ defmodule Tuist.Mix.Cache do
     name = field(event, :dependency)
 
     valid_name?(name) and outcome in @outcomes and reason in ["" | @reasons] and
-      valid_key?(key, outcome) and valid_metrics?(event, outcome)
+      valid_key?(key, outcome, reason) and valid_metrics?(event, outcome) and valid_reuse?(event, outcome, reason)
   end
 
   defp valid?(_), do: false
+
+  defp valid_reuse?(event, outcome, "up_to_date") do
+    outcome == "local_hit" and field(event, :key) in [nil, ""] and
+      Enum.all?(
+        [
+          :saved_duration_ms,
+          :read_bytes,
+          :read_duration_us,
+          :read_source,
+          :write_bytes,
+          :write_duration_us,
+          :write_source
+        ],
+        &is_nil(field(event, &1))
+      )
+  end
+
+  defp valid_reuse?(_event, _outcome, _reason), do: true
 
   defp valid_metrics?(event, outcome) do
     uint32?(field(event, :duration_ms)) and valid_savings?(field(event, :saved_duration_ms), outcome) and
@@ -443,9 +461,10 @@ defmodule Tuist.Mix.Cache do
   defp valid_savings?(nil, _), do: true
   defp valid_savings?(value, outcome) when outcome in ["local_hit", "remote_hit"], do: uint32?(value)
   defp valid_savings?(_, _), do: false
-  defp valid_key?("", "bypass"), do: true
-  defp valid_key?(key, _) when is_binary(key), do: Regex.match?(~r/^[a-f0-9]{64}$/, key)
-  defp valid_key?(_, _), do: false
+  defp valid_key?("", "local_hit", "up_to_date"), do: true
+  defp valid_key?("", "bypass", _), do: true
+  defp valid_key?(key, _, _) when is_binary(key), do: Regex.match?(~r/^[a-f0-9]{64}$/, key)
+  defp valid_key?(_, _, _), do: false
   defp uint32?(value), do: is_integer(value) and value >= 0 and value <= @uint32
   defp field(map, key) when is_map(map), do: Map.get(map, key, Map.get(map, Atom.to_string(key)))
   defp field(_, _), do: nil

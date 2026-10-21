@@ -157,7 +157,8 @@ public struct GenerateService {
             includedTargets: includedTargets,
             configuration: configuration,
             cacheProfile: resolvedCacheProfile,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            coverage: .resolved(config: config)
         )
         let (workspacePath, _, _) = try await generator.generateWithGraph(
             path: path,

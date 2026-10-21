@@ -408,10 +408,11 @@ pdcAgent:
   # single replica would make a node drain take every PDC-routed panel down.
   # Three is Grafana's production recommendation.
   replicas: 3
-  # Pin the tunnel to the CNPG read-only service. Without this the agent
-  # permits any destination reachable from its pod, not just Postgres.
+  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
+    - tuist-tuist-clickhouse.tuist.svc.cluster.local:8123
 
 capi:
   vultrPrivateNetwork:
@@ -580,12 +581,6 @@ postgresql:
       destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73), running alongside ClickHouse Cloud
-  # while the copy is built. `mode` stays `external` in
-  # `values-managed-common.yaml`: Cloud is the system of record until the
-  # cutover, and this workload takes backfilled history and shadow writes
-  # until then. Staging and canary have both finished that sequence, canary on
-  # 2026-09-17 and staging on 2026-09-22.
   managed:
     enabled: true
     # Two from the start, one per AX102-4 in the `clickhouse` pool
@@ -691,59 +686,16 @@ clickhouse:
       # 24 GiB of the replica's 96. The nightly incremental needed 10 GiB on
       # 2026-09-27 and grows with the dataset.
       maxMemoryUsageForUserBytes: "25769803776"
-    # Step 4 for production: mirror every ClickHouse write onto the in-cluster
-    # server as well as Cloud.
-    #
-    # Dual writes come before the backfill, not after it. From the moment this
-    # is on, every new row reaches both servers, and the backfill then copies
-    # what was written before a stated cutoff. The other order leaves the rows
-    # written between the copy finishing and the mirror starting on Cloud
-    # alone, with nothing later looking for them.
-    #
-    # Cloud stays the system of record. Nothing reads the in-cluster server
-    # yet, so a mirrored write that fails costs a metric rather than a
-    # request: inserts are handed to a bounded Task.Supervisor instead of
-    # being awaited, and mutations stay synchronous so an
-    # `ALTER TABLE ... DELETE` cannot overtake the inserts it is meant to
-    # erase. Production writes an order of magnitude more than canary did, so
-    # expect the bound to be the thing under test here.
-    #
-    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
-    # settles with no `dropped` once the pods have started. A pod's shadow
-    # pool is not ready for the first seconds of its life, which is what the
-    # retry covers, and retrying is safe because every destination table is
-    # `Replicated*` and deduplicates identical insert blocks by checksum. The
-    # same property makes the two replicas behind one Service safe: an insert
-    # lands on whichever answers and reaches the other through replication.
-    #
-    # Note when the rollout of this deploy finishes. That instant is the
-    # backfill's `cutoff`.
-    #
-    # Rollback: turn it off. Nothing has read from that server.
-    shadowWrites:
-      enabled: true
-    # Off, because the clone has run here: 82 tables, 31 views, 278 migration
-    # versions, 11 materialized-view inner tables skipped, nothing failed, in
-    # 26 seconds. Each step is a post-upgrade hook, so leaving one enabled
-    # re-runs it on every deploy. That was harmless for the clone, which
-    # creates what is missing and leaves the rest alone, and it is not
-    # harmless for what comes next.
-    #
-    # `cutoff` stays unset until the backfill, which is the next step and the
-    # one that reads it.
-    migration:
-      enabled: false
-      name: schema-clone
-      task: Tuist.Release.clone_clickhouse_schema
 
   poolSize: "15"
   bufferPoolSize: "15"
-  # The ClickHouse replica has an 18-gibibyte process ceiling. Bound all Tuist
-  # reads and writes to eight gibibytes in aggregate, leaving ten gibibytes for
-  # background merges and allocator overhead instead of discovering pressure
-  # at the process-wide ceiling. Ingestion retries and retains buffered rows
-  # when the shared application budget is temporarily full.
-  maxMemoryUsageForUserBytes: "8589934592"
+  # Bound all Tuist reads and writes to 32 GiB in aggregate on each 96 GiB
+  # replica. With the `backup` user's 24 GiB that leaves about 40 GiB for
+  # background merges and the page cache, which the replica's cgroup counts
+  # against the same limit, instead of discovering pressure at the
+  # process-wide ceiling. Ingestion retries and retains buffered rows when the
+  # shared application budget is temporarily full.
+  maxMemoryUsageForUserBytes: "34359738368"
   external:
     url: ""  # Set via helm --set at deploy time; see runbook.
 
@@ -1132,17 +1084,19 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
-  # Public EU West runs on these five OVH nodes in Gravelines. Keep the
-  # historical pool name: live KuraInstances, local PVs and gateways still
-  # select it. All Dedibox hosts have been retired.
+  # Public EU West runs on these six OVH nodes in Gravelines: five Advance-1
+  # 2024 (EPYC 4244P) and ns3008615 (Advance-1 2026, EPYC 4245P, 2026-10-20).
+  # The offer matches both ranges. Keep the historical pool name: live
+  # KuraInstances, local PVs and gateways still select it. All Dedibox hosts
+  # have been retired.
   eu-west:
     enabled: true
-    replicas: 5
+    replicas: 6
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-west
-      offer: "ADVANCE-1 | AMD EPYC 4244P"
+      offer: advance-1
       datacenter: gra
       os: ubuntu_24.04
       egressBudgetMbps: 3000
@@ -1472,7 +1426,18 @@ rackFleet:
     # guest slot can transiently hold its running Pod plus a predecessor GC has
     # not collected yet.
     maxPods: 5
-    runnerCacheVolumeGiB: 240
+    # Shared built-in/custom cache budget on the 1858 GiB disk, enforced by
+    # tart-kubelet (`--runner-cache-budget-gib`). Planning allowance: 512 GiB
+    # cache + up to 540 GiB goldens (every catalog image; hosts usually hold
+    # 1 to 3) + 280 GiB guest disks + 100 GiB host data, which stays above the
+    # 15% (279 GiB) free floor cache admission and the golden GC keep.
+    #
+    # The volume's APFS quota is half the disk (929 GiB), fixed when the
+    # volume is created, so a budget up to that applies with the next
+    # host-config push. A host whose volume predates that keeps its 240 GiB
+    # quota until it is reinstalled (`tuist.dev/os-reinstall`, see
+    # infra/cluster-api-provider-tuist/AGENTS.md).
+    runnerCacheVolumeGiB: 512
   # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
   # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image
   # is a macOS 26 guest, which fits the hosts' macOS 27.
@@ -1490,6 +1455,8 @@ rackFleet:
   # `tuist-macos` resolves there; the rest start cold.
   runners:
     enabled: true
+    # Every BER1 host runs macOS 27 and Tart 2.41.1.
+    stackedImages: true
     guestShapes:
       6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
       12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
@@ -2108,6 +2075,23 @@ runnersFleet:
       pod:
         cpuMilli: 8000
         memoryMB: 24576
+    # The rented fleet's probe pool for the Runners Acceptance workflow
+    # (`runs-on: tuist-runners-acceptance`). An account on the `runner_site`
+    # flag has its profiles routed to the rack first, so no profile label lands
+    # on this fleet deterministically. No `site`, so its jobs take the
+    # scw-fr-par-runners cache like the fleet's other jobs. The `macos-` name
+    # prefix is what makes the server treat it as a macOS pool on the cluster
+    # network (`Catalog.fleet_platform/1`). Autoscaled from zero so it shares
+    # the fleet's guest slots through the allocator; one probe job at a time.
+    - name: macos-acceptance
+      platform: macos
+      xcodeVersion: "26.6"
+      dispatchLabel: tuist-runners-acceptance
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+        holdRecentPeak: false
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env
@@ -2127,10 +2111,19 @@ runnersFleet:
 # total. The operator's pre-order job for production already
 # tracks the macos + runners side; bump it by 2 ahead of the
 # `helm upgrade` that applies this replica count.
+#
+# The fleet is moving to macOS 27 (Golden Gates), see "Moving the fleet
+# to a new macOS release" in vm-image-builder.md. The two Tahoe builders
+# keep their own os pin and runner labels. Machines created from here on
+# adopt a Golden Gates host and register without `vm-image-builder`, so
+# they take no image jobs until that label is added to their runner.
 buildersFleet:
   enabled: true
-  replicas: 2
+  replicas: 3
   adoptPoolPrefix: "tuist-pool-"
+  ghRunnerLabels: "self-hosted,macos,bare-metal,macos-27"
+  machine:
+    os: "Golden Gates"
   externalSecrets:
     enabled: true
 

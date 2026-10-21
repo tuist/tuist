@@ -1,5 +1,6 @@
 <main class="layout" data-part="account-layout" id="account-layout">
   <AtlasWeb.AccountMenu.headerbar current_user={@current_user} account_settings? />
+  <div id="presence-visibility" phx-hook="Presence" phx-update="ignore"></div>
   <.line_divider />
   <section class="layout__main" data-part="account-main">
     <.sidebar id="account-settings-sidebar">
@@ -28,6 +29,10 @@
     <div class="layout__content" data-part="account-content">
       <div data-part="account-settings-content">
         <.flash_group flash={@flash} />
+        <div :if={@presence_here != []} id="also-here" data-part="also-here" role="status">
+          <span>{gettext("Also here")}</span>
+          <span>{Enum.map_join(@presence_here, ", ", & &1.name)}</span>
+        </div>
         {@inner_content}
       </div>
     </div>

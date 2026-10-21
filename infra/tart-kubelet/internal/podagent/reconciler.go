@@ -193,6 +193,10 @@ type Reconciler struct {
 	// Nil pulls every image from its own registry.
 	Images *ImageSources
 
+	// HostDisk, when set, records that the host holds a golden, which the
+	// prewarm gate reads to tell an erased disk from an idle one.
+	HostDisk *HostDisk
+
 	// goldenMu guards goldenLocks; goldenLocks serializes golden-base
 	// materialization per image digest so two Pods admitted close
 	// together don't both run the one-time pull+clone for the same
@@ -772,6 +776,7 @@ func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name strin
 	// Warm path: golden already on disk for this digest — no network.
 	vm, getErr := r.Tart.Get(ctx, name)
 	if getErr == nil && vm != nil {
+		r.recordGolden(ctx)
 		return name, false, nil
 	}
 	if getErr != nil {
@@ -796,7 +801,17 @@ func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name strin
 		_ = r.Tart.Delete(ctx, name)
 		return "", false, fmt.Errorf("materialize golden base: %w", cloneErr)
 	}
+	r.recordGolden(ctx)
 	return name, true, nil
+}
+
+func (r *Reconciler) recordGolden(ctx context.Context) {
+	if r.HostDisk == nil {
+		return
+	}
+	if err := r.HostDisk.Record(); err != nil {
+		log.FromContext(ctx).Error(err, "record that the host holds a golden", "marker", r.HostDisk.MarkerPath)
+	}
 }
 
 // pullGoldenImage pulls image from the first rack image cache that holds it,

@@ -1,6 +1,7 @@
 defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import ExUnit.CaptureLog
   import Mimic
 
   alias Tuist.GitHub.Client
@@ -104,6 +105,8 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
   end
 
   test "leaves the session unbound when no run has a job running on its runner", %{account: account} do
+    Logger.put_module_level(ExecutionLookupWorker, :info)
+    on_exit(fn -> Logger.delete_module_level(ExecutionLookupWorker) end)
     minted = workflow_job(account, %{})
     session = session(account, minted)
 
@@ -111,7 +114,9 @@ defmodule Tuist.Runners.Workers.ExecutionLookupWorkerTest do
       {:ok, [%{id: minted.workflow_job_id, status: "completed", runner_name: "pod-runner"}]}
     end)
 
-    assert :ok = perform(session)
+    log = capture_log([level: :info], fn -> assert :ok = perform(session) end)
+
+    assert log =~ "execution lookup found no job GitHub reports running on this runner"
     assert is_nil(Repo.reload!(session).executed_workflow_job_id)
   end
 

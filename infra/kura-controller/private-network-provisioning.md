@@ -43,7 +43,10 @@ The script probes private next hops before attesting route installation. The
 controller publishes a common membership digest only after the script succeeds,
 and publishes the scheduling label after every participating host has installed
 that same membership. This prevents a new host from advertising a private path
-before its existing peers have installed routes to it.
+before its existing peers have installed routes to it. While a host waits,
+its `PrivateNetworkReady` condition is False with reason `WaitingForPeerRoutes`
+and names every lagging peer. The lagging peer's own condition carries the
+failure that keeps it behind, with reason `ConfigurationFailed`.
 
 `kuraController.privateReplication.enabled` derives runtime topology from the
 actual provider IDs and matching route attestations of all candidate Nodes.

@@ -23,6 +23,9 @@ defmodule Tuist.Runners.Profile do
   branch, unless turned off, and jobs on additional branches. See
   `Tuist.Runners.CacheVolumes`.
 
+  Cached checkouts, on by default, let macOS and Linux jobs start with
+  their repository already checked out.
+
   Backed by [priv/repo/migrations/20260527130000_create_runner_profiles.exs](priv/repo/migrations/20260527130000_create_runner_profiles.exs)
   and [priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs](priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs).
   """
@@ -54,9 +57,14 @@ defmodule Tuist.Runners.Profile do
     field :memory_gb, :integer
     field :xcode_version, :string
     field :protected, :boolean, default: false
+    # Every branch of the repository saves. Forks and pull_request_target never
+    # have a writer branch, so they never do. When false, only the default
+    # branch, if enabled, and the branches below save.
+    field :cache_writer_all_branches, :boolean, default: true
     field :cache_writer_default_branch, :boolean, default: true
     # Branches that save besides the default branch. nil when there are none.
     field :cache_writer_branches, {:array, :string}
+    field :cached_checkouts, :boolean, default: true
 
     belongs_to :account, Account
 
@@ -97,10 +105,20 @@ defmodule Tuist.Runners.Profile do
         :memory_gb,
         :xcode_version,
         :protected,
+        :cache_writer_all_branches,
         :cache_writer_default_branch,
-        :cache_writer_branches
+        :cache_writer_branches,
+        :cached_checkouts
       ])
-      |> validate_required([:account_id, :name, :platform, :vcpus, :memory_gb, :cache_writer_default_branch])
+      |> validate_required([
+        :account_id,
+        :name,
+        :platform,
+        :vcpus,
+        :memory_gb,
+        :cache_writer_all_branches,
+        :cache_writer_default_branch
+      ])
       |> update_change(:name, &normalize_name/1)
       |> validate_format(:name, @name_format,
         message: "must start with a letter and contain only lowercase letters, digits, and hyphens"
@@ -131,13 +149,14 @@ defmodule Tuist.Runners.Profile do
   end
 
   @doc """
-  Changeset for the cache writer policy alone. Unlike `changeset/3` it does
-  not validate the profile's shape against the current catalog.
+  Changeset for the cache settings alone: the writer policy and cached
+  checkouts. Unlike `changeset/3` it does not validate the profile's shape
+  against the current catalog.
   """
-  def cache_writer_changeset(profile, attrs) do
+  def cache_settings_changeset(profile, attrs) do
     profile
-    |> cast(attrs, [:cache_writer_default_branch, :cache_writer_branches])
-    |> validate_required([:cache_writer_default_branch])
+    |> cast(attrs, [:cache_writer_all_branches, :cache_writer_default_branch, :cache_writer_branches, :cached_checkouts])
+    |> validate_required([:cache_writer_all_branches, :cache_writer_default_branch, :cached_checkouts])
     |> validate_cache_writer_branches()
   end
 

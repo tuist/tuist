@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -172,6 +173,12 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
       html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ ~r/data-part="summary">\s*Any branch\s*</
+      assert html =~ ~s(id="runner-profile-cache-limit-branches-false")
+      refute html =~ ~s(id="runner-profile-cache-default-branch-true")
+      refute html =~ ~s(data-part="additional-branches")
+
+      html = render_hook(lv, "toggle_cache_writer_all_branches", %{})
       assert html =~ ~r/data-part="summary">\s*Default branch\s*</
       assert html =~ ~s(aria-expanded="false")
       assert html =~ ~r/id="runner-profile-cache-saving-panel"[^>]*hidden/
@@ -194,8 +201,11 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert html =~ ~r/data-part="summary">\s*release\/\*, feature\s*</
       render_hook(lv, "save_profile", %{})
 
-      assert %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "feature"]} =
-               Profiles.get_by_name(account, "ci")
+      assert %{
+               cache_writer_all_branches: false,
+               cache_writer_default_branch: false,
+               cache_writer_branches: ["release/*", "feature"]
+             } = Profiles.get_by_name(account, "ci")
 
       render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
       render_hook(lv, "remove_cache_writer_branch", %{"data" => "release/*"})
@@ -207,7 +217,9 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       html = render_hook(lv, "toggle_cache_writer_default_branch", %{})
       assert html =~ ~r/data-part="summary">\s*Default branch\s*</
       render_hook(lv, "save_profile", %{})
-      assert %{cache_writer_default_branch: true, cache_writer_branches: nil} = Profiles.get_by_name(account, "ci")
+
+      assert %{cache_writer_all_branches: false, cache_writer_default_branch: true, cache_writer_branches: nil} =
+               Profiles.get_by_name(account, "ci")
     end
 
     test "rejects invalid cache writer branches before adding them", %{conn: conn, account: account} do
@@ -215,6 +227,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 
       render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      render_hook(lv, "toggle_cache_writer_all_branches", %{})
       html = render_hook(lv, "add_cache_writer_branch", %{"branch" => "feature branch"})
 
       assert html =~ ~r/data-variant="destructive">.*Use a branch name, optionally with \* to match any characters\./s
@@ -226,8 +239,65 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       refute html =~ "Use a branch name, optionally with * to match any characters."
       render_hook(lv, "save_profile", %{})
 
-      assert %{cache_writer_default_branch: true, cache_writer_branches: ["feature"]} =
+      assert %{cache_writer_all_branches: false, cache_writer_default_branch: true, cache_writer_branches: ["feature"]} =
                Profiles.get_by_name(account, "ci")
+    end
+  end
+
+  describe "cached checkouts" do
+    setup %{account: account} do
+      stub(Catalog, :shapes, fn
+        :linux -> @catalog
+        :macos -> [%{vcpus: 6, memory_gb: 14, key: "6vcpu-14gb", default?: true, pool_dispatch_label: ""}]
+      end)
+
+      stub(Catalog, :xcode_versions, fn -> [%{xcode_version: "26.5", tag: "26-5", default?: true}] end)
+
+      profile =
+        Tuist.Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "mac",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          xcode_version: "26.5"
+        })
+
+      %{profile: profile}
+    end
+
+    test "a macOS profile turns them off", %{
+      conn: conn,
+      account: account,
+      profile: profile
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ "Cached checkouts"
+
+      render_hook(lv, "toggle_cached_checkouts", %{})
+      render_hook(lv, "save_profile", %{})
+      refute Profiles.get_by_name(account, "mac").cached_checkouts
+    end
+
+    test "a Linux profile turns them off", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci-linux", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cached_checkouts
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      html = render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      assert html =~ "Cached checkouts"
+
+      render_hook(lv, "toggle_cached_checkouts", %{})
+      render_hook(lv, "save_profile", %{})
+      refute Profiles.get_by_name(account, "ci-linux").cached_checkouts
+    end
+
+    test "a new Linux profile is created with them on", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      assert render_hook(lv, "open_create_modal", %{}) =~ "Cached checkouts"
     end
   end
 end

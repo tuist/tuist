@@ -174,6 +174,10 @@ type volumeBackend interface {
 	// of the runner-cache volume, which bounds how large a master this host can
 	// keep at all.
 	capacityBytes(root string) (uint64, error)
+	// usedBytes reports what the volume holding root takes on disk. An APFS
+	// volume reports its own usage, not its container's, so this is what a
+	// budget below the volume's quota is measured against.
+	usedBytes(root string) (uint64, error)
 	// allocatedBytes reports the disk space the file at path occupies, which is
 	// what deleting it can return (less any blocks a CoW clone still shares).
 	allocatedBytes(path string) (uint64, error)
@@ -252,6 +256,13 @@ type VolumeManager struct {
 	// the real aggregate ceiling.
 	CapGiB int
 
+	// BudgetGiB, when > 0, is the space every cache on the volume may take
+	// together, below the volume's quota. Admission, convergence and the
+	// evictor measure free space and capacity against it, so it changes with a
+	// restart, while the quota is fixed when the volume is created. 0 leaves
+	// the quota as the bound.
+	BudgetGiB int
+
 	// CASGiB is the CAS's FOOTPRINT allowance WITHIN the shared cache image (the
 	// CAS is folded in as a subdir, not its own image). It sets the CAS's share of
 	// the CapGiB cap, and the binary cache gets the rest minus a filesystem
@@ -283,6 +294,9 @@ type VolumeManager struct {
 	// not in it, because it writes nothing until it has a job.
 	reserved       map[string]bool
 	CustomReserved func() uint64
+	// DisplaceCustom cancels a background custom-volume prefetch so its space
+	// stops counting in CustomReserved. Called with mu held.
+	DisplaceCustom func() bool
 
 	// converging is the space the in-flight convergence download still needs, or
 	// nil. Admission counts it, so a job admitted mid-download is not promised
@@ -555,22 +569,6 @@ func (m *VolumeManager) hasMasterLocked(key masterKey) bool {
 	return err == nil
 }
 
-// MaterializeEmpty gives a branch an empty image without consulting any
-// account's master. Used for untrusted (fork) jobs, which must neither read the
-// account's warm master nor promote into it, but still need something to attach
-// — cache-ready always means "an image is waiting for you".
-func (m *VolumeManager) MaterializeEmpty(att VolumeAttachment) error {
-	if !m.Enabled() || !att.Attached {
-		return nil
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if err := m.reserveLocked(att, masterKey{}); err != nil {
-		return err
-	}
-	return m.createBranchImageLocked(m.BranchImage(att))
-}
-
 // reserveLocked is admission: it reserves CapGiB for this branch AND for every
 // other reserved branch's worst-case remaining growth. statfs free already
 // reflects what reserved branches have written; reserving CapGiB per branch keeps
@@ -582,9 +580,12 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 	if m.reserved[att.BranchPath] {
 		return nil
 	}
-	want := m.capBytes() * uint64(len(m.reserved)+1)
-	if m.CustomReserved != nil {
-		want += m.CustomReserved()
+	want := m.admissionBytesLocked()
+	// A background custom prefetch gives its space back before a job evicts a master.
+	if m.DisplaceCustom != nil {
+		if free, err := m.availableBytes(); err == nil && free < want && m.DisplaceCustom() {
+			want = m.admissionBytesLocked()
+		}
 	}
 	free, err := m.admitBesideConvergenceLocked(want, keep)
 	if errors.Is(err, errNoRoom) && m.dropConvergeStagingLocked() {
@@ -607,6 +608,16 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 	}
 	m.reserved[att.BranchPath] = true
 	return nil
+}
+
+// admissionBytesLocked is what admitting one more branch needs: a cap for it
+// and every reserved branch, plus what custom volumes hold.
+func (m *VolumeManager) admissionBytesLocked() uint64 {
+	want := m.capBytes() * uint64(len(m.reserved)+1)
+	if m.CustomReserved != nil {
+		want += m.CustomReserved()
+	}
+	return want
 }
 
 // dropConvergeStagingLocked is admission's last resort before declining a job:
@@ -1214,7 +1225,8 @@ func (m *VolumeManager) AwaitMountedRoot(ctx context.Context) {
 	}
 }
 
-// Stats reports the resident master count and free bytes on the quota volume.
+// Stats reports the resident master count and the volume's free bytes within
+// its budget.
 func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error) {
 	if !m.Enabled() {
 		return 0, 0, nil
@@ -1225,7 +1237,7 @@ func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error)
 	if err != nil {
 		return 0, 0, err
 	}
-	free, err := m.backend.freeBytes(m.Root)
+	free, err := m.volumeFreeBytes()
 	if err != nil {
 		return len(masters), 0, err
 	}
@@ -1435,7 +1447,7 @@ func (r *convergeReservation) remaining() uint64 {
 // reserveLocked), and cancel is how admission stops the download when the job
 // and the download do not both fit. The caller must Release the reservation.
 func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uint64, mayEvict bool, cancel context.CancelCauseFunc) (*convergeReservation, error) {
-	capacity, err := m.backend.capacityBytes(m.Root)
+	capacity, err := m.volumeCapacityBytes()
 	if err != nil {
 		return nil, err
 	}

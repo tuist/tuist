@@ -268,6 +268,25 @@ Both field labels are load-bearing: the ExternalSecret reads `TAILSCALE_DEVICE_R
 
 Each env ships with `dryRun: true`. Read one run's logs in Grafana Cloud, confirm the list is what you expect, then set `tailscaleDeviceReaper.dryRun: false` in that env's values file to arm it. A run that reports `0 of 0 in-scope device(s)` is the signature of a mistyped tag, not of a clean tailnet — the log line reports in-scope and tailnet-wide counts separately so the two are distinguishable.
 
+## 5e. Durable server distribution cookies
+
+Staging, canary and production each use the `SERVER_CLUSTER_COOKIE` Password item (`password` field) in their own `tuist-k8s-<env>` vault. Each value is an independently generated 64-character alphanumeric secret. Possession grants remote execution on participating Erlang nodes: restrict access like other server credentials and never print or commit the value. Do not reuse cookies between environments.
+
+For a **new environment only**, first check that the item does not already exist, then create it without displaying the generated value:
+
+```bash
+op item create --vault tuist-k8s-<env> --category Password \
+  --title SERVER_CLUSTER_COOKIE --generate-password=letters,digits,64 >/dev/null
+```
+
+Do not run creation during routine deploys or recovery. Preserve the existing item and field; duplicate item titles make the source ambiguous. If migrating an already-private Kubernetes cookie into 1Password, transfer the existing value securely instead of generating a replacement.
+
+`values-managed-common.yaml` configures a dedicated ExternalSecret using the existing per-environment `onepassword` ClusterSecretStore. When `server.cluster.enabled` is true, it syncs `SERVER_CLUSTER_COOKIE/password` to `tuist-server-cluster-cookie` in the release namespace, key `release-cookie`. Only the web container receives it as a nonoptional `RELEASE_COOKIE` reference. It is deliberately absent from the shared server-config Secret, processors, registry and migration jobs. This configuration does not enable clustering in environments where it is currently disabled.
+
+**Bootstrap and rebuild:** restore the environment's existing SecretStore access to the same vault, deploy the chart, and verify the dedicated ExternalSecret reports `Ready=True` before relying on peer joins. Kubernetes holds only the runtime copy; a namespace/cluster rebuild must retrieve the same value from 1Password, not generate one. Missing source fields or empty values fail synchronization; there is no generated-cookie fallback. The target uses `deletionPolicy: Retain`, so source loss does not delete the last synchronized cookie. Investigate sync failures rather than treating retention as a backup of the durable source. ESO readiness proves synchronization, not actual Erlang membership.
+
+**Rotation and rollback:** this ExternalSecret uses `refreshPolicy: OnChange`, not periodic refresh. Source edits alone do not propagate into the runtime Secret; synchronization happens on creation or ExternalSecret metadata/spec changes. Existing `Ready=True` therefore does not attest that the current 1Password value is unchanged or still accessible. During an approved rotation, explicitly request synchronization by updating the ExternalSecret's `force-sync` annotation, then verify synchronization before replacing **every** participant. Changing the Kubernetes Secret does not update environment variables in already-running BEAMs. Coordinate source change, synchronization and process replacement as one maintenance operation, with membership and cross-node notifications checked afterwards. Never rotate incidentally to fix a deploy or missing key. Application rollback with a chart revision that retains this ExternalSecret preserves its Secret and cookie. A Helm rollback to a pre-ExternalSecret revision deletes the ESO resource and its owner-referenced runtime Secret, reverting to the earlier cookie behavior and membership islands; it does not delete the durable 1Password item. The first migration from image-baked cookies and the mixed-version qualification gates are documented in [multi-replica clustering](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
+
 ## 6. First deploy
 
 ### Manual smoke test

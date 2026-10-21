@@ -1894,7 +1894,7 @@ site's other hosts, since AMT is reached through it. `PowerReachable` (and
 `capt_racklinuxhost_power_reachable`) says whether the host could be powered on
 that way now: AMT activated, a link on the management port, and the last read
 through an edge (`status.amt.lastPowerRead`, hourly while the host is on the
-tailnet) answered. AMT reports no address while it sees no link, so the
+tailnet, a minute after a read that failed) answered. AMT reports no address while it sees no link, so the
 operator falls back to the static one it gave it (`status.amt.assignedAddress`).
 Nothing powers on an edge while no edge is up: the edges need the firmware's
 Restore On AC Power Loss (see `infra/rack-nodes/AGENTS.md`). The annotation
@@ -2531,6 +2531,32 @@ the public path; the value is a `{unit, value}` pair whose unit is a free-form
 string, so the bare number would advertise 5 Mbps for a box reported as
 "5 Gbps"; and every field is nullable, so an absent bandwidth block is an
 ordinary answer that resolves to zero.
+
+## sshd stays reachable on Linux hosts
+
+Every repair the operator makes to a Linux host (kubelet config, private-network
+membership, Kata, containerd quota) arrives over SSH, and kubelet stays Ready
+when sshd is down, so a host without sshd silently stops converging. Ubuntu 24.04
+socket-activates sshd: once ssh.service starts five times within 10s it fails
+with `start-limit-hit`, ssh.socket fails with `service-start-limit-hit`, and
+nothing listens on `:22` until someone runs `systemctl reset-failed`. Package
+upgrades and a temporarily broken `sshd_config` under internet scanner traffic
+both get there.
+
+`internal/sshd` holds `10-tuist-no-start-limit.conf` drop-ins for both units:
+`StartLimitIntervalSec=0` on each, plus `RestartSec=5s` on the service so a
+failing sshd retries every 5s instead of spinning. On the SSH-bootstrapped
+hosts, `sshStartLimitDropIns` (`controllers/linux/linux_cloudinit.go`) writes
+them: the self-join writes them, and the kubelet config re-push writes them and
+runs `systemctl daemon-reload`. Their content is part of
+`desiredKubeletConfigHash`, so changing them rolls to every Ready node. A rack
+Linux host's install writes them into the installed system
+(`internal/rackinstall`), and its converge keeps them in the `units` group,
+which the node agent loads with `systemctl daemon-reload`; they are in the
+converge's hash, so changing them rolls to every rack host. Neither the re-push
+nor the converge restarts sshd, because both run over the session sshd serves.
+A host whose `:22` is already dead cannot receive them. Recover it out of band
+with `systemctl reset-failed ssh.service ssh.socket && systemctl start ssh.socket`.
 
 ## Node memory governance
 
@@ -3283,6 +3309,5 @@ pick it up:
 scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 ```
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

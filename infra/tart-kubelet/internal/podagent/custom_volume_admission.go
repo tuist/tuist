@@ -3,15 +3,22 @@ package podagent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// customCapacity is the size of a volume the server allocated without one.
 const customCapacity = 20_000_000_000
+
+func customVolumeBytes(slot cachevolumes.Slot) uint64 {
+	return uint64(slot.VolumeSize(customCapacity))
+}
 
 // Custom masters are reclaimed by the shared backend first. If that is not
 // enough, unused built-in masters and convergence staging share the same disk
@@ -31,6 +38,14 @@ func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
 	if errors.Is(err, errNoRoom) && c.Builtins.dropConvergeStagingLocked() {
 		_, err = c.Builtins.ensureFreeLocked(want, masterKey{})
 	}
+	// Idle checkout copies are rebuilt from the next jobs' exports, so they go before
+	// a job loses its volume.
+	if errors.Is(err, errNoRoom) && c.Checkouts.Evict(func() bool {
+		free, freeErr := c.freeBytesLocked()
+		return freeErr == nil && free >= minimum
+	}) {
+		_, err = c.Builtins.ensureFreeLocked(want, masterKey{})
+	}
 	if errors.Is(err, errNoRoom) {
 		return cachevolumes.ErrCapacity
 	}
@@ -42,7 +57,11 @@ func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
 func (c *CustomVolumes) reservedBytes() uint64 {
 	var total uint64
 	for id, slot := range c.reservations {
-		// Only a restore retains both an archive and an expanded master.
+		// A clone reports the master's shared blocks as allocated; reserve its budget.
+		if slot.Kind == cachevolumes.KindCheckout {
+			total += cachevolumes.CheckoutGrowthBytes
+			continue
+		}
 		if slot.State != "active" {
 			total += customAdmissionBytes(slot)
 			continue
@@ -51,18 +70,24 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 		if err != nil {
 			allocated = 0
 		}
-		if allocated < customCapacity {
-			total += customCapacity - allocated
+		if size := customVolumeBytes(slot); allocated < size {
+			total += size - allocated
 		}
 	}
 	return total
 }
 
+// A job clones a local master or starts empty, so it needs one image of room.
+// Only a prefetch downloads, keeping its archive beside the restored image:
+// twice the head's used bytes, or twice the volume when that is unknown.
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
-	if slot.BaseGeneration > 0 {
-		return 2 * customCapacity
+	if slot.Kind == cachevolumes.KindCheckout {
+		return cachevolumes.CheckoutGrowthBytes
 	}
-	return customCapacity
+	if slot.ID == cachevolumes.PrefetchReservation {
+		return uint64(slot.RestoreBytes(customCapacity))
+	}
+	return customVolumeBytes(slot)
 }
 
 func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (func(bool), error) {
@@ -74,6 +99,11 @@ func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (fu
 	free, err := c.freeBytesLocked()
 	if err != nil {
 		return nil, err
+	}
+	if free < customAdmissionBytes(slot) && slot.ID != cachevolumes.PrefetchReservation && c.displaceSpareLocked() {
+		if free, err = c.freeBytesLocked(); err != nil {
+			return nil, err
+		}
 	}
 	if free < customAdmissionBytes(slot) {
 		return nil, cachevolumes.ErrCapacity
@@ -155,4 +185,51 @@ func (c *CustomVolumes) refreshReservations(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+var errSpareDisplaced = errors.New("background prefetch gave way to a job")
+
+// prefetchSpare runs a download the server listed for this host so that job
+// admission can cancel it (displaceSpareLocked). The prefetcher runs one
+// download at a time, so at most one is registered.
+func (c *CustomVolumes) prefetchSpare(ctx context.Context, run func(context.Context) error) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	c.Builtins.mu.Lock()
+	c.spare = cancel
+	c.Builtins.mu.Unlock()
+	defer func() {
+		c.Builtins.mu.Lock()
+		c.spare = nil
+		c.Builtins.mu.Unlock()
+	}()
+	err := run(ctx)
+	if err != nil && errors.Is(context.Cause(ctx), errSpareDisplaced) {
+		return fmt.Errorf("%w: %w", errSpareDisplaced, context.Canceled)
+	}
+	return err
+}
+
+func (c *CustomVolumes) displaceSpare(ctx context.Context) bool {
+	release, err := c.guard(ctx)
+	if err != nil {
+		return false
+	}
+	defer release()
+	return c.displaceSpareLocked()
+}
+
+// displaceSpareLocked cancels a background prefetch and drops its reservation,
+// so built-in and custom job admission spend that space before evicting a
+// master. Bytes it already downloaded stay until it unwinds; free space already
+// reflects them. Requires Builtins.mu.
+func (c *CustomVolumes) displaceSpareLocked() bool {
+	if c.spare == nil {
+		return false
+	}
+	c.spare(errSpareDisplaced)
+	c.spare = nil
+	delete(c.reservations, cachevolumes.PrefetchReservation)
+	log.Log.WithName("custom-cache-volumes").Info("admission cancelled a background prefetch to make room for a job")
+	return true
 }

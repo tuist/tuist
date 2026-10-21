@@ -12,7 +12,9 @@ defmodule TuistEx.Cache.Key do
 
   # Enumerating names as well as bytes catches new, removed and missing inputs.
   # Never follow links: a dependency can otherwise read outside the modeled tree.
-  def tree(path), do: walk(Path.expand(path), "")
+  def tree(path), do: walk(Path.expand(path), "", true)
+
+  def paths(path), do: path |> Path.expand() |> walk("", false) |> Enum.map(&elem(&1, 0))
 
   # Resolve directory aliases only for store containment checks, not input discovery.
   def canonical_path(path), do: resolve(Path.expand(path), 40)
@@ -35,12 +37,14 @@ defmodule TuistEx.Cache.Key do
     end
   end
 
-  defp walk(root, relative) do
+  defp walk(root, relative, contents?) do
     path = if relative == "", do: root, else: Path.join(root, relative)
 
     case File.lstat(path) do
       {:ok, %{type: :regular, mode: mode}} ->
-        [{relative, Bitwise.band(mode, 0o111), digest(File.read!(path))}]
+        if contents?,
+          do: [{relative, Bitwise.band(mode, 0o111), digest(File.read!(path))}],
+          else: [{relative, :regular}]
 
       {:ok, %{type: :directory}} ->
         [{relative, :directory}] ++
@@ -48,7 +52,7 @@ defmodule TuistEx.Cache.Key do
            |> File.ls!()
            |> Enum.reject(&(relative == "" and &1 in [".git", "_build"]))
            |> Enum.sort()
-           |> Enum.flat_map(&walk(root, Path.join(relative, &1))))
+           |> Enum.flat_map(&walk(root, Path.join(relative, &1), contents?)))
 
       {:error, :enoent} ->
         [{relative, :missing}]
