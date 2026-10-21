@@ -168,7 +168,12 @@ these schemas persist volume identities and per-job uses.
   `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
-  default branch never qualifies. `volume_key` (sha256 of the volume id) lets
+  default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the
+  job's profile (a new `%Profile{}` without one): a job with a writer branch that
+  profile saves from may start the lineage's first master, so forks and
+  pull_request_target never do. `checkout_publish` enforces the same: a use
+  without `writer_default_branch` publishes only from `base_generation` 0 and
+  only with a `writer_branch`. `volume_key` (sha256 of the volume id) lets
   hosts drop a cleared volume's copies, and a checkout `download` only needs the
   current lineage, so a restore outlives the job that asked for it.
   A job also needs its runner profile's `cached_checkouts` (default true; a job on

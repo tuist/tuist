@@ -2102,5 +2102,105 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert {:error, :unavailable} = CacheVolumes.allocate(Map.put(params, "key", "checkout"))
       assert {:ok, _} = CacheVolumes.allocate(Map.put(params, "key", "checkouts"))
     end
+
+    test "a default-branch job may start a master", %{params: params} do
+      assert {:ok, %{default_branch_job: true, may_start_master: true}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "a same-repository branch job starts the first master, and only a default-branch job moves it", %{
+      job: job,
+      params: params
+    } do
+      stub_checkout_run(job, %{"head_branch" => "feature", "event" => "push"})
+      assert {:ok, branch} = CacheVolumes.allocate_checkout(params)
+      assert {branch.default_branch_job, branch.may_start_master, branch.base_generation} == {false, true, 0}
+
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", branch.id, checkout_publish("b"))
+
+      assert {:ok, %{base_generation: 1} = next} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "next-uid"})
+      assert {:error, :conflict} = CacheVolumes.image("mac-node", next.id, checkout_publish("d"))
+
+      stub_checkout_run(job, %{"head_branch" => "main", "event" => "push"})
+      assert {:ok, main} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "main-uid"})
+      assert {:ok, %{generation: 2}} = CacheVolumes.image("mac-node", main.id, checkout_publish("e"))
+    end
+
+    test "a fork's pull request never starts a master, even when every branch saves", %{job: job, params: params} do
+      stub_checkout_run(job, %{
+        "head_branch" => "feature",
+        "event" => "pull_request",
+        "head_repository" => %{"id" => 456},
+        "pull_requests" => [%{"head" => %{"repo" => %{"id" => 456}, "ref" => "feature"}}]
+      })
+
+      assert {:ok, %{may_start_master: false} = fork} = CacheVolumes.allocate_checkout(params)
+      assert {:error, :conflict} = CacheVolumes.image("mac-node", fork.id, checkout_publish("b"))
+    end
+
+    test "a same-repository pull request may start a master", %{job: job, params: params} do
+      stub_checkout_run(job, %{
+        "head_branch" => "feature",
+        "event" => "pull_request",
+        "pull_requests" => [%{"head" => %{"repo" => %{"id" => 123}, "ref" => "feature"}}]
+      })
+
+      assert {:ok, %{may_start_master: true}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "pull_request_target never starts a master", %{job: job, params: params} do
+      stub_checkout_run(job, %{"head_branch" => "feature", "event" => "pull_request_target"})
+      assert {:ok, %{may_start_master: false}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "a profile that saves only listed branches lets only those start a master", %{
+      account: account,
+      job: job,
+      params: params
+    } do
+      profile =
+        Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "mac",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          cache_writer_all_branches: false,
+          cache_writer_branches: ["release/*"]
+        })
+
+      WorkflowJob
+      |> Repo.get!(job.workflow_job_id)
+      |> Ecto.Changeset.change(requested_dispatch_label: Profile.dispatch_label(profile))
+      |> Repo.update!()
+
+      stub_checkout_run(job, %{"head_branch" => "feature", "event" => "push"})
+      assert {:ok, %{may_start_master: false}} = CacheVolumes.allocate_checkout(params)
+
+      stub_checkout_run(job, %{"head_branch" => "release/1.0", "event" => "push"})
+      assert {:ok, %{may_start_master: true}} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "release-uid"})
+    end
+  end
+
+  defp stub_checkout_run(job, run) do
+    stub(GitHubClient, :get_workflow_run, fn _ ->
+      {:ok,
+       Map.merge(
+         %{
+           "id" => job.workflow_run_id,
+           "run_attempt" => job.run_attempt,
+           "repository" => %{"id" => 123},
+           "head_repository" => %{"id" => 123}
+         },
+         run
+       )}
+    end)
+  end
+
+  defp checkout_publish(digit) do
+    %{
+      "operation" => "publish",
+      "image_digest" => String.duplicate(digit, 40),
+      "content_digest" => String.duplicate(digit, 64)
+    }
   end
 end
