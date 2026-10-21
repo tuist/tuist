@@ -470,7 +470,10 @@ Environment. That Environment also needs `PENTEST_USER_EMAIL` and
 `PENTEST_USER_PASSWORD`; these are used once to create the assessment account.
 
 After bootstrap, run the **Pentest Platform Reconcile** workflow. It installs
-the cluster platform required by the application.
+the cluster platform required by the application and upgrades the monitoring
+chart. Re-run it after `infra/helm/k8s-monitoring` changes: nothing else
+upgrades pentest's collectors, and a stale collector there keeps shipping series
+the current chart drops.
 
 Deploy through **Pentest Deployment** with an `expires_at` timestamp. The
 scheduled cleanup removes the application namespace after that time. Extending
