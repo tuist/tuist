@@ -179,7 +179,12 @@ safe for fork contributors to read. Linux and release/backport workflows have
 separate toolchain and runner requirements and are not part of this migration.
 
 On pushes to `main`, `cli.yml` runs Cache, Unit Tests and the acceptance
-tests. Lint and SwiftPM Build run on pull requests only.
+tests. Lint and SwiftPM Build run on pull requests only. The `Package.resolved`
+job runs on both and checks that the lockfile's `originHash` is the SHA-256 of
+the root `Package.swift`. `tuist/install` forces resolved versions, so the other
+jobs never notice a stale hash, but local installs then fall back to a full
+native resolution. It runs on pushes because a squash merge can produce a
+`Package.swift` that no branch resolved.
 
 Use the released `tuist/install@v1` action after tool installation and authentication.
 It combines one package-relative `.build` volume with forced installation, explicit
