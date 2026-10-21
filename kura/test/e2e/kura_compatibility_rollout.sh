@@ -77,13 +77,13 @@ build_image_from_ref() {
   local context_dir="$3"
 
   if [[ "${ref}" == "${CURRENT_REF}" ]]; then
-    docker build -t "${image}" "${PROJECT_ROOT}"
+    docker build --build-context "certificate-trust=${PROJECT_ROOT}/../infra/certificate-trust" -t "${image}" "${PROJECT_ROOT}"
     return
   fi
 
   git -C "${PROJECT_ROOT}" worktree add --detach "${context_dir}" "${ref}" >/dev/null
   PREVIOUS_WORKTREE_CANONICAL="$(cd "${context_dir}" && pwd -P)"
-  docker build -t "${image}" "${context_dir}/kura"
+  docker build --build-context "certificate-trust=${PROJECT_ROOT}/../infra/certificate-trust" -t "${image}" "${context_dir}/kura"
 }
 
 # Renders a compose override pinning each node's image. KURA_REPLICATION_PULL
