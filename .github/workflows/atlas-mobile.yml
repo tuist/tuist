@@ -224,7 +224,7 @@ jobs:
           once_status=0
           ONCE_APPLE_SIMULATOR_UDID="$device" mise exec -- once test AtlasSettingsUITests || once_status=$?
           cp -R .once/out/AtlasSettingsUITests/test ui-evidence/once-test
-          xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/task-crud.mov" &
+          xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/native-lists.mov" &
           recording=$!
           trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
           xcodebuild test-without-building \
@@ -233,9 +233,6 @@ jobs:
             -collect-test-diagnostics never \
             -only-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
             -resultBundlePath "$PWD/ui-evidence/task-crud.xcresult"
-          kill -INT "$recording"
-          wait "$recording" || true
-          trap - EXIT
           xcodebuild test-without-building \
             -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
             -destination "id=$device" \
@@ -244,6 +241,9 @@ jobs:
             -only-testing:AtlasSettingsUITests/AtlasWorkspaceUITests \
             -skip-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
             -resultBundlePath "$PWD/ui-evidence/native-ui.xcresult"
+          kill -INT "$recording"
+          wait "$recording" || true
+          trap - EXIT
           exit "$once_status"
       - name: Export native screenshots
         if: always()
