@@ -77,6 +77,9 @@ defmodule Tuist.Tests.Coverage do
   # leave room for whatever else the query binds — above all a second list,
   # like the run ids a per-test lookup is scoped to. The budget is kept under
   # the default so an install that never touched the setting still works.
+  # A list bound with `in ^list` travels as one array field, which ClickHouse
+  # also refuses past `http_max_field_value_size` (128 KiB, URL-encoded), so a
+  # list of paths needs chunking as much as a list of ids does.
   @max_query_parameters 900
 
   @doc """
