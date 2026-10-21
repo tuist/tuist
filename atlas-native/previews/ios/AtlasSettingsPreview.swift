@@ -40,12 +40,17 @@ struct AtlasSettingsPreview: App {
         return Data(response.utf8)
     }
 
+    private var previewServer: URL {
+        URL(string: ProcessInfo.processInfo.arguments.contains("--old-server")
+            ? "https://legacy.example.org" : "https://atlas.example.org")!
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("--workspace") {
                     AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request, presence: presence.model) {
-                        AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts,
+                        AtlasSettingsView(server: previewServer, accounts: accounts,
                                           signOut: {}, profileRequest: business.request)
                     }
                 } else {
@@ -56,7 +61,7 @@ struct AtlasSettingsPreview: App {
                                 request: holidays.request
                             )
                         } else {
-                            AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {})
                         }
                     }
                 }
@@ -72,9 +77,9 @@ struct AtlasSettingsPreview: App {
             } message: {
                 Text(openedURL?.absoluteString ?? "")
             }
-            .modifier(AtlasThemeScope(appearance: appearance, server: URL(string: "https://atlas.example.org")))
+            .modifier(AtlasThemeScope(appearance: appearance, server: previewServer))
             .task {
-                await appearance.configure(server: URL(string: "https://atlas.example.org"))
+                await appearance.configure(server: previewServer)
                 if !ProcessInfo.processInfo.arguments.contains("--keep-appearance") {
                     appearance.choose(theme: "server-default")
                     appearance.choose(mode: .system)

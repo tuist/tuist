@@ -130,6 +130,7 @@ class AtlasAIAccountsScreen(
         if (appearance?.showingSettings == true) {
             activity.title = "Appearance"
             renderAppearance()
+            scroll.post { if (!closed) scroll.scrollTo(0, position) }
             navigationChanged()
             return
         }

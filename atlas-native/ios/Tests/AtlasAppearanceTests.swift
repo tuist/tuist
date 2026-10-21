@@ -34,7 +34,7 @@ struct AtlasAppearanceTests {
         await restored.configure(server: first)
         #expect(restored.theme?.id == "berlin" && restored.mode == .dark)
         restored.choose(theme: "unpublished")
-        #expect(restored.theme?.id == "berlin")
+        #expect(restored.theme?.id == "berlin" && restored.activeSelection == "berlin")
     }
 
     @Test func removedThemesFallBackWithoutLosingTheLocalChoice() async throws {
@@ -92,10 +92,10 @@ struct AtlasAppearanceTests {
         let data = try await AtlasAppearance.bridge(["operation": "default_themes"])
         var catalog = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         var theme = try #require((catalog["themes"] as? [[String: Any]])?.first)
+        let original = theme
         theme["id"] = "berlin"
         theme["name"] = "Berlin"
-        catalog["themes"] = [theme]
-        catalog["default_theme_id"] = "berlin"
+        catalog["themes"] = [original, theme]
         return try await AtlasAppearance.bridge(["operation": "validate_themes", "catalog": catalog])
     }
 }
