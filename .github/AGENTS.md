@@ -177,6 +177,9 @@ separate from the built-in account-wide cache policy. Retained contents must be
 safe for fork contributors to read. Linux and release/backport workflows have
 separate toolchain and runner requirements and are not part of this migration.
 
+On pushes to `main`, `cli.yml` runs Cache, Unit Tests and the acceptance
+tests. Lint and SwiftPM Build run on pull requests only.
+
 Use the released `tuist/install@v1` action after tool installation and authentication.
 It combines one package-relative `.build` volume with forced installation, explicit
 scratch/cache paths, and symlink materialization on Tuist Runners. Other runners
