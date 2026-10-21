@@ -611,9 +611,10 @@ func recordAttachError(shared string, err error) {
 }
 
 // syncSharedImage flushes a detached image through the VM's share so the host
-// seals the bytes the job wrote, not a copy still missing them.
+// seals the bytes the job wrote, not a copy still missing them. Flushing
+// needs no write access, which the guest may not have to a cloned image.
 func syncSharedImage(path string) error {
-	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
