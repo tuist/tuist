@@ -379,8 +379,8 @@ The Linux release ships a static musl binary built with the Swift Static Linux S
 any release channel. Keep signing in the checkout-free, read-only `sign-cli` job,
 without the workflow-level release token; the existing publisher uploads the bundle.
 Describe `tuist.zip` as universal macOS. Let Packslip infer Linux libc requirements
-from the archived executables: current builds are static, but older backport
-bundlers may produce dynamic binaries. Never override libc with `any`.
+from the archived executables rather than declaring them. Never override libc
+with `any`.
 Record `inputs.ref`, not the caller's `github.sha`, as the source commit. Builds
 do not currently publish provenance, so keep `attest: false` until provenance
 can truthfully identify each archive's build source.
