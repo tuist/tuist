@@ -62,6 +62,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestModuleRun
 
   # A lookup scoped to runs binds every run id as a query parameter too, so the
   # run ids are chunked first and each chunk is kept small enough that the ids
@@ -669,7 +670,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     skips = skipping |> Enum.flat_map(fn run -> Enum.map(skip_identifiers([run]), &{run.scheme, &1}) end) |> Enum.uniq()
     by_id = Map.new(runs, &{&1.test_run_id, &1})
     modules = Enum.uniq(Enum.map(hits, & &1.name) ++ Enum.map(skips, fn {_scheme, [module | _]} -> module end))
-    executed = executed_modules(project_id, Map.keys(by_id), modules)
+    executed = run_modules(Map.keys(by_id), modules)
 
     whole = whole_targets(executed, by_id, [:only_test_identifiers])
     untouched = whole_targets(executed, by_id, [:only_test_identifiers, :skip_test_identifiers])
@@ -679,6 +680,23 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     {Enum.reject(hits, &MapSet.member?(whole, {schemes[&1.test_run_id], &1.name})),
      (by_target ++ unexecuted_named(project_id, named, runs)) |> Enum.map(&elem(&1, 1)) |> Enum.uniq()}
+  end
+
+  # The targets each run executed, from its module rows: they are keyed by
+  # run, so this reads the runs' own rows, not the project's test history.
+  defp run_modules(run_ids, modules) do
+    for runs <- Enum.chunk_every(run_ids, @run_id_chunk),
+        modules <- Coverage.id_chunks(modules, length(runs)),
+        pair <-
+          ClickHouseRepo.all(
+            from(m in TestModuleRun,
+              where: m.test_run_id in ^runs and m.name in ^modules and m.test_case_count > 0,
+              distinct: true,
+              select: {m.test_run_id, m.name}
+            ),
+            settings: [select_sequential_consistency: 1]
+          ),
+        do: pair
   end
 
   # The scheme and target of each run's executed targets that none of the
