@@ -77,16 +77,21 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		}
 		expected[hash] = true
 	}
-	swift := read(t, "../../cli/Sources/TuistHTTP/CertificateTrust.swift")
-	swiftHashes := map[string]bool{}
-	for _, hash := range regexp.MustCompile(`"([a-f0-9]{64})"`).FindAllSubmatch(swift, -1) {
-		if swiftHashes[string(hash[1])] {
-			t.Fatal("duplicated Swift policy key")
+	for _, path := range []string{
+		"../../cli/Sources/TuistHTTP/CertificateTrust.swift",
+		"../../gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt",
+	} {
+		module := read(t, path)
+		actual := map[string]bool{}
+		for _, hash := range regexp.MustCompile(`"([a-f0-9]{64})"`).FindAllSubmatch(module, -1) {
+			if actual[string(hash[1])] {
+				t.Fatalf("duplicated client policy key in %s", path)
+			}
+			actual[string(hash[1])] = true
 		}
-		swiftHashes[string(hash[1])] = true
-	}
-	if !reflect.DeepEqual(expected, swiftHashes) {
-		t.Fatal("Swift deny list differs from policy.json")
+		if !reflect.DeepEqual(expected, actual) {
+			t.Fatalf("client deny list differs from policy.json in %s", path)
+		}
 	}
 	for _, path := range []string{
 		"../../server/lib/tuist/application/certificate_trust.ex",

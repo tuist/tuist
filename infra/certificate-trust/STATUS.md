@@ -92,6 +92,17 @@ application verification paths must be assessed separately.
   not the default session's certificate-untrusted error. This is scoped source
   and current-macOS evidence, not a released client or Linux/iOS qualification.
 
+- Gradle now applies a per-client `X509ExtendedTrustManager` to both OkHttp and
+  HTTPS URL connections. It retains the original validator and socket/engine
+  context, rejects the twelve keys, and performs additional validation against
+  filtered anchors. It never changes JVM-global trust defaults. Twenty-two
+  focused tests pass, including preserved private CAs and rejected hostname,
+  expired-certificate and unknown-CA cases. Both actual transports in the shaded
+  candidate JAR reject all twelve public controls and accept unrelated HTTPS
+  on JDK 21.0.2. Candidate JAR SHA-256:
+  `82415c7ac17ae7a53902eda23c6017a5103aad0d8d95f659d25d23d19b785ac2`.
+  This is not a published plugin or qualification of every JVM/provider.
+
 Candidate builds at `47d307fdde` successfully published SHA-only CAPI, egress
 agent, runners-controller and cache-agent images. They were not deployed.
 The fresh macOS 26.5 runner build failed closed when the guest refused the
