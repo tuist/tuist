@@ -81,7 +81,10 @@ type LocalImages struct {
 	// Displace, when set, cancels speculative work that holds space on this
 	// filesystem, so admission takes that space before it evicts a master.
 	// Reports whether it cancelled anything.
-	Displace  func(context.Context) bool
+	Displace func(context.Context) bool
+	// InUse reports whether a job holds, or is attaching, a branch of a lineage
+	// (Store.InUse). Pressure eviction takes those lineages' masters last.
+	InUse     func(scope string) bool
 	refresh   refresher
 	locks     sync.Map
 	admission contextMutex
@@ -311,16 +314,12 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 			return err
 		}
 	}
-	entries, err := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
+	candidates, err := b.evictionOrder(free < minimum)
 	if err != nil {
 		return err
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		a, _ := os.Stat(entries[i])
-		c, _ := os.Stat(entries[j])
-		return a != nil && c != nil && a.ModTime().Before(c.ModTime())
-	})
-	for _, path := range entries {
+	for _, candidate := range candidates {
+		path := candidate.path
 		info, err := os.Stat(path)
 		if os.IsNotExist(err) {
 			continue
@@ -328,17 +327,23 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 		if err != nil {
 			return err
 		}
-		if b.refreshing(path) || (free >= minimum && time.Since(info.ModTime()) < 7*24*time.Hour) {
+		reason := candidate.reason
+		if free >= minimum {
+			if time.Since(info.ModTime()) < 7*24*time.Hour {
+				continue
+			}
+			reason = "expired"
+		}
+		if b.refreshing(path) {
 			continue
 		}
 		unlock, err := b.lockContext(ctx, filepath.Base(filepath.Dir(path)))
 		if err != nil {
 			return err
 		}
-		err = os.Remove(path)
-		_ = os.Remove(path + ".json")
+		err = b.operation("evict", reason, func() error { return removeMaster(path) })
 		unlock()
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil {
 			return err
 		}
 		free, err = b.freeBytes(ctx)
@@ -360,6 +365,104 @@ func (b *LocalImages) reserveBytes(ctx context.Context, minimum uint64) error {
 	}
 	return nil
 }
+
+type evictionCandidate struct {
+	path   string
+	reason string
+}
+
+// evictionOrder lists the installed masters least likely to be cloned soon
+// first: generations a newer local master of their lineage supersedes, then
+// speculative copies no job has cloned, then the rest least recently used
+// first. Lineages a job holds or is attaching go last: their clones share the
+// masters' blocks, so removing them frees little, and an attaching job would
+// lose its base. Without pressure only the age of each master matters, so the
+// journal is not read.
+func (b *LocalImages) evictionOrder(pressure bool) ([]evictionCandidate, error) {
+	paths, err := filepath.Glob(filepath.Join(b.Root, "masters", "*", "*.img"))
+	if err != nil {
+		return nil, err
+	}
+	newest := map[string]int64{}
+	for _, path := range paths {
+		scope := filepath.Base(filepath.Dir(path))
+		if generation, ok := masterGeneration(path); ok && generation > newest[scope] {
+			newest[scope] = generation
+		}
+	}
+	type ranked struct {
+		evictionCandidate
+		inUse  bool
+		tier   int
+		usedAt time.Time
+	}
+	inUse := map[string]bool{}
+	var masters []ranked
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		scope := filepath.Base(filepath.Dir(path))
+		held, known := inUse[scope]
+		if !known {
+			held = pressure && b.InUse != nil && b.InUse(scope)
+			inUse[scope] = held
+		}
+		master := ranked{evictionCandidate: evictionCandidate{path: path, reason: "idle"}, inUse: held, tier: 2, usedAt: info.ModTime()}
+		if generation, ok := masterGeneration(path); ok && generation < newest[scope] {
+			master.tier, master.reason = 0, "superseded"
+		} else if speculative(path) {
+			master.tier, master.reason = 1, "speculative"
+		}
+		if held {
+			master.reason = "in_use"
+		}
+		masters = append(masters, master)
+	}
+	sort.SliceStable(masters, func(i, j int) bool {
+		a, c := masters[i], masters[j]
+		if a.inUse != c.inUse {
+			return !a.inUse
+		}
+		if a.tier != c.tier {
+			return a.tier < c.tier
+		}
+		return a.usedAt.Before(c.usedAt)
+	})
+	candidates := make([]evictionCandidate, len(masters))
+	for i, master := range masters {
+		candidates[i] = master.evictionCandidate
+	}
+	return candidates, nil
+}
+
+// masterGeneration parses the generation from a master's file name.
+func masterGeneration(path string) (int64, bool) {
+	name := filepath.Base(path)
+	if len(name) < 21 || name[20] != '-' {
+		return 0, false
+	}
+	generation, err := strconv.ParseInt(name[:20], 10, 64)
+	return generation, err == nil
+}
+
+// A spare prefetch of a lineage with no copy on this host marks its master
+// speculative until a job clones it.
+func speculative(master string) bool {
+	_, err := os.Stat(master + ".spare")
+	return err == nil
+}
+
+// markUsed records that a job cloned the master. The caller holds the scope lock.
+func markUsed(master string) {
+	_ = os.Chtimes(master, time.Now(), time.Now())
+	_ = os.Remove(master + ".spare")
+}
+
 func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err error) {
 	source := "empty"
 	if slot.BaseGeneration > 0 {
@@ -406,7 +509,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 					source = "local"
 				}
 				err = b.operation("clone", "local", func() error { return b.cloneContext(ctx, master, tmp) })
-				_ = os.Chtimes(master, time.Now(), time.Now())
+				markUsed(master)
 			}
 			unlock()
 			if err == nil {
@@ -811,12 +914,8 @@ func (b *LocalImages) olderMaster(slot Slot) (string, int64) {
 	}
 	best, newest := "", int64(0)
 	for _, path := range paths {
-		name := filepath.Base(path)
-		if len(name) < 21 || name[20] != '-' {
-			continue
-		}
-		generation, err := strconv.ParseInt(name[:20], 10, 64)
-		if err != nil || generation <= newest || generation >= slot.BaseGeneration {
+		generation, ok := masterGeneration(path)
+		if !ok || generation <= newest || generation >= slot.BaseGeneration {
 			continue
 		}
 		best, newest = path, generation
@@ -843,12 +942,14 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 	if err := b.reserve(ctx); err != nil {
 		return err
 	}
-	return b.prefetch(ctx, slot)
+	return b.prefetch(ctx, slot, false)
 }
 
 // prefetch downloads into staging without the scope lock, so jobs and maintenance
 // keep using the lineage's local masters while it runs, then installs under it.
-func (b *LocalImages) prefetch(ctx context.Context, slot Slot) error {
+// A spare prefetch of a lineage without a used copy here installs a speculative
+// master, which pressure eviction takes before the masters jobs used.
+func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error {
 	master := b.master(slot)
 	if _, err := os.Stat(master); err == nil {
 		return nil
@@ -878,10 +979,17 @@ func (b *LocalImages) prefetch(ctx context.Context, slot Slot) error {
 	if err = os.MkdirAll(filepath.Dir(master), 0700); err != nil {
 		return err
 	}
+	older, _ := b.olderMaster(slot)
 	if err = durableRename(download, master); err != nil {
 		return err
 	}
-	return b.recordMaster(slot, master)
+	if err = b.recordMaster(slot, master); err != nil {
+		return err
+	}
+	if spare && (older == "" || speculative(older)) {
+		_ = os.WriteFile(master+".spare", nil, 0600)
+	}
+	return nil
 }
 func (b *LocalImages) restoreMaster(ctx context.Context, slot Slot, master string) error {
 	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {

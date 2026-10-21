@@ -39,6 +39,12 @@ defmodule Noora.TextInput do
 
   attr(:label, :string, default: nil, doc: "Label to be rendered in the input.")
   attr(:sublabel, :string, default: nil, doc: "Sublabel to be rendered in the input.")
+
+  attr(:label_tooltip, :string,
+    default: nil,
+    doc: "Help text shown in a tooltip from an icon after the label."
+  )
+
   attr(:hint, :string, default: nil, doc: "Hint text to be rendered below the input.")
   attr(:hint_variant, :string, default: "default", doc: "Hint text variant.")
 
@@ -112,6 +118,8 @@ defmodule Noora.TextInput do
         label={@label}
         sublabel={@sublabel}
         required={@required and @show_required}
+        tooltip={@label_tooltip}
+        tooltip_id={"#{@id}-label-tooltip"}
         disabled={@disabled}
         data-part="label"
       />

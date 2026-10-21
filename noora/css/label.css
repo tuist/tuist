@@ -16,6 +16,30 @@
     font: var(--noora-font-body-medium);
   }
 
+  & [data-part="tooltip"] {
+    display: flex;
+    align-self: center;
+    position: relative;
+    color: var(--noora-surface-label-secondary);
+
+    & [data-part="trigger"] {
+      display: flex;
+      cursor: help;
+      outline: none;
+
+      &:hover,
+      &:focus-visible {
+        color: var(--noora-surface-label-primary);
+      }
+    }
+
+    & svg {
+      flex-shrink: 0;
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+
   &[disabled] label,
   &[disabled] [data-part="required-indicator"],
   &[disabled] [data-part="sublabel"] {

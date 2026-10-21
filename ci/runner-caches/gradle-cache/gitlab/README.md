@@ -42,7 +42,9 @@ reaches. The snippet installs an init script in `$GRADLE_USER_HOME/init.d` that
 cleans after every build and removes entries unused for seven days.
 
 Successful push, schedule and web pipelines of your project save the cache,
-on any branch; merge request and tag pipelines never do. The runner profile's
+on any branch; tag pipelines never do, and merge request pipelines only do
+for the project's own merge requests when the GitLab connection has an API
+access token. The runner profile's
 **Save cache from** setting can limit it to specific branches. On
 runners that are not Tuist runners the snippet does nothing, and if the volume
 is unavailable the job runs with an empty cache; it never fails the job.

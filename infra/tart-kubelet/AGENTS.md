@@ -92,6 +92,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   A background prefetch the server listed for the host gives way first: built-in
   and custom job admission cancel it and drop its reservation (twice its volume
   size) before evicting any master (`displaceSpareLocked`).
+  Among custom masters, eviction takes superseded generations and unused spare
+  prefetches first and the lineages a running or attaching job holds last
+  (`LocalImages.InUse`); see `runner-cache/AGENTS.md`.
 - The heartbeat labels the Node `tuist.dev/cache-volume-capacity-gib` with that
   budgeted capacity (`CustomVolumes.CapacityNodeLabels`), and none while the
   cache filesystem is unmounted. The server subtracts the volumes of every job
