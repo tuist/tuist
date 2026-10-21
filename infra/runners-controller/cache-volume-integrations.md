@@ -10,7 +10,7 @@ for the managed `tuist-xcode` and `tuist-module` volumes. Provider and platform 
 | --- | --- | --- |
 | GitHub Actions | `tuist/cache-volume@v1`, key, one or more paths (one per line) and `cache-hit` output | Same-repository push, schedule, workflow_dispatch or pull request on any branch, narrowed by the runner profile |
 | Buildkite | `tuist/cache-volume#v1` plugin with a list of volumes, each with a key and one or more paths | Webhook or schedule on any branch, no tag; PRs only from the pipeline's repository; narrowed by the runner profile |
-| GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Push, schedule or web branch pipeline on any branch, no tag or MR; narrowed by the runner profile |
+| GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Push, schedule or web branch pipeline on any branch, no tag; MR pipelines only for same-project MRs with a connection API token; narrowed by the runner profile |
 
 All three entry points are packaged and automatically released from `main`.
 The initial distribution-repository setup and local-image/Kata fleet smoke gates remain
@@ -106,8 +106,11 @@ permission from the mount request or job environment.
   [branches listing API](https://docs.gitlab.com/api/branches/); its
   `default` flag marks a default-branch writer. Any branch pipeline with an
   allowed job `pipeline.source` and `tag == false` carries its ref as the writer
-  branch the runner profile matches. Merge request pipelines never save: the
-  job token cannot read the merge request, so a fork's cannot be told apart. Use the top-level `source` only when the nested field is absent;
+  branch the runner profile matches. The job token cannot read merge requests,
+  so merge request pipelines save only when the connection has an optional
+  `api_token`: the ref (`refs/merge-requests/N/...`) names the merge request,
+  and its source project must be the project itself. The writer branch is its
+  source branch. A missing token or failed lookup leaves the job read-only. Use the top-level `source` only when the nested field is absent;
   an unknown or denied nested source cannot fall back to a permissive value.
   Both endpoints are available to [job tokens](https://docs.gitlab.com/ci/jobs/ci_job_token/).
   `CI_PROJECT_ID`, `CI_DEFAULT_BRANCH` and other overridable variables grant

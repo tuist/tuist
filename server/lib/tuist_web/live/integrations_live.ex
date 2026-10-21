@@ -201,7 +201,7 @@ defmodule TuistWeb.IntegrationsLive do
     if FeatureFlags.runners_enabled?(account) do
       attrs =
         params
-        |> Map.take(["_id", "url", "runner_token"])
+        |> Map.take(["_id", "url", "runner_token", "api_token"])
         |> Map.new(fn
           {"_id", value} -> {:id, String.trim(value)}
           {key, value} -> {String.to_existing_atom(key), String.trim(value)}

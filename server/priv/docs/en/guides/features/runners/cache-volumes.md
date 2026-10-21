@@ -330,13 +330,13 @@ your own repository, on any branch:
 | --- | --- |
 | GitHub Actions | Push, schedule, manual dispatch and pull request jobs from the repository itself |
 | Buildkite | Webhook and schedule builds of the pipeline's repository, including its pull requests |
-| GitLab CI | Push, schedule and web pipelines of the project |
+| GitLab CI | Push, schedule and web pipelines of the project, and pipelines of its own merge requests when the connection has an <.localized_link href="/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines">API access token</.localized_link> |
 
 Other jobs can use the cache, but their changes are discarded. These include
 fork pull requests, `pull_request_target` jobs, Buildkite builds started from
-the API or the dashboard, GitLab merge request pipelines, and tags. A job that
-doesn't change a volume leaves the saved version in place. You can narrow which
-branches save on the runner profile; see
+the API or the dashboard, GitLab merge requests from forks or without an API
+access token, and tags. A job that doesn't change a volume leaves the saved
+version in place. You can narrow which branches save on the runner profile; see
 [Choose which branches save](#choose-which-branches-save).
 
 Concurrent jobs work independently; changes from different jobs are not merged.
