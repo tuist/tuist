@@ -21,6 +21,7 @@ struct PackageManifestEnvironmentTests {
             "GITHUB_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL",
             "ACTIONS_RUNTIME_TOKEN", "ACTIONS_RUNTIME_URL", "ACTIONS_RESULTS_URL", "SSH_AUTH_SOCK",
             "RUNNER_TEMP", "GITHUB_WORKSPACE", "GITHUB_EVENT_PATH",
+            "MISE_GITHUB_TOKEN", "SHLVL", "_", "OLDPWD", "TUIST_CACHE_ENDPOINT", "TUIST_CACHE_MAX_BYTES",
         ]
 
         for job in ["first", "second"] {
@@ -71,7 +72,7 @@ struct PackageManifestEnvironmentTests {
         ]
         let variables = credentials.merging([
             "GITHUB_ACTIONS": "true", "GITHUB_REF": "main", "GITHUB_SHA": "commit",
-            "RUNNER_NAME": "runner", "TUIST_CACHE_SIGNING_GRANT": "grant",
+            "RUNNER_NAME": "runner", "TUIST_CACHE_SIGNING_GRANT": "grant", "MISE_GITHUB_TOKEN": "mise-token",
         ], uniquingKeysWith: { _, new in new })
         await PackageManifestEnvironment.withConfiguration(.init()) {
             #expect(PackageManifestEnvironment.filtered(variables) == ["GITHUB_ACTIONS": "true"])
@@ -97,6 +98,21 @@ struct PackageManifestEnvironmentTests {
             ])
         }
         #expect(filtered == ["TUIST_EE": "1", "SSH_AUTH_SOCK": "/agent.sock"])
+    }
+
+    @Test func automatic_defaults_exclude_shell_bookkeeping_and_tuist_cache_settings_without_a_provider_marker() async {
+        let filtered = await PackageManifestEnvironment.withConfiguration(.init()) {
+            PackageManifestEnvironment.filtered([
+                "SHLVL": "5",
+                "_": "/usr/local/bin/tuist",
+                "OLDPWD": "/previous",
+                "TUIST_CACHE_ENDPOINT": "http://cache.local",
+                "TUIST_CACHE_MAX_BYTES": "12884901888",
+                "TUIST_EE": "1",
+                "PATH": "/usr/bin",
+            ])
+        }
+        #expect(filtered == ["TUIST_EE": "1", "PATH": "/usr/bin"])
     }
 
     @Test func automatic_defaults_do_not_filter_unrecognized_local_environments() async {
