@@ -1652,8 +1652,8 @@ defmodule TuistWeb.API.TestsControllerTest do
         {:ok, test_run}
       end)
 
-      stub(Analytics, :get_test_run_metrics, fn id ->
-        assert id == test_run_id
+      stub(Analytics, :get_test_run_metrics, fn run ->
+        assert run == test_run
 
         %{
           total_count: 42,

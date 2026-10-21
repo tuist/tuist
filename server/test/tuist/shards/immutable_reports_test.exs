@@ -69,6 +69,69 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     assert id == legacy.id
   end
 
+  for version <- [0, 1] do
+    @reporting_version version
+    test "loaded version #{version} runs avoid reporting-contract lookups", %{project: project} do
+      stub(FeatureFlags, :immutable_shard_reports_enabled?, fn _ -> @reporting_version == 1 end)
+      %{plan: plan} = plan(project, 1)
+
+      assert {:ok, created} =
+               report(project, plan, 0,
+                 status: "failure",
+                 test_modules: [
+                   %{name: "Tests", status: "failure", test_cases: [%{name: "test_one", status: "failure", duration: 10}]}
+                 ]
+               )
+
+      assert {:ok, run} = Tests.get_test(created.id)
+      assert run.reporting_version == @reporting_version
+      reject(Tests, :get_test, 1)
+      reject(Tests, :get_test, 2)
+      reject_parent_lookups()
+
+      assert Tests.get_test_run_failures_count(run) == 1
+      assert %{total_count: 1, failed_count: 1} = Tuist.Tests.Analytics.get_test_run_metrics(run)
+
+      for {field, id} <- [test_run_id: run.id, shard_id: plan.id] do
+        {cases, meta} =
+          Tests.list_test_case_runs(%{filters: [%{field: field, op: :==, value: id}]}, test_run: run)
+
+        assert meta.total_count == 1
+        assert [%{name: "test_one"}] = cases
+      end
+    end
+  end
+
+  test "a loaded run for another scope cannot select the fact source", %{project: project} do
+    %{plan: plan} = plan(project, 1)
+
+    assert {:ok, _} =
+             report(project, plan, 0,
+               test_modules: [
+                 %{name: "Tests", status: "success", test_cases: [%{name: "test_one", status: "success", duration: 10}]}
+               ]
+             )
+
+    assert {:ok, _run} = Tests.get_test(plan.id)
+    other = %Test{id: Ecto.UUID.generate(), shard_plan_id: Ecto.UUID.generate(), reporting_version: 0}
+
+    stub(ClickHouseRepo, :one, fn query ->
+      if match?(%Ecto.Query{from: %{source: {_table, Test}}}, query), do: send(self(), :parent_lookup)
+      Mimic.call_original(ClickHouseRepo, :one, [query])
+    end)
+
+    for scope <- [:test_run_id, :shard_id] do
+      {cases, meta} =
+        Tests.list_test_case_runs(%{filters: [%{field: scope, op: :==, value: plan.id}]}, test_run: other)
+
+      assert meta.total_count == 1
+      assert [%{name: "test_one"}] = cases
+    end
+
+    for _ <- 1..4, do: assert_receive(:parent_lookup)
+    refute_received :parent_lookup
+  end
+
   test "actor attribution and filters follow the selected immutable execution", %{project: project} do
     %{plan: plan} = plan(project, 1)
     actor_id = project.account_id
@@ -418,6 +481,17 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     assert [%{total_tests: 1}] = Tuist.Tests.Analytics.test_runs_metrics(project.id, [run])
     {modules, _} = Tests.list_test_module_runs(%{filters: [%{field: :test_run_id, op: :==, value: plan.id}]})
     assert [%{status: "success"}] = modules
+
+    reject(Tests, :get_test, 1)
+    reject(Tests, :get_test, 2)
+    reject_parent_lookups()
+    assert Tests.get_test_run_failures_count(run) == 0
+    assert %{total_count: 1, failed_count: 0} = Tuist.Tests.Analytics.get_test_run_metrics(run)
+
+    {cases, _} =
+      Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: plan.id}]}, test_run: run)
+
+    assert [%{status: "success", duration: 20}] = cases
   end
 
   test "unpublished facts are absent from current-run views", %{project: project} do
@@ -454,6 +528,13 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     assert {:error, :invalid_shard_report} = report(project, plan, 0, shard_attempt: -1)
     other = ProjectsFixtures.project_fixture()
     assert {:error, :not_found} = report(other, plan, 0)
+  end
+
+  defp reject_parent_lookups do
+    stub(ClickHouseRepo, :one, fn query ->
+      refute match?(%Ecto.Query{from: %{source: {_table, Test}}}, query)
+      Mimic.call_original(ClickHouseRepo, :one, [query])
+    end)
   end
 
   defp plan(project, count \\ 2) do

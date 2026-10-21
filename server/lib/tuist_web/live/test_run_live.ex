@@ -82,8 +82,8 @@ defmodule TuistWeb.TestRunLive do
             end
           end
         end,
-        fn -> Tests.Analytics.get_test_run_metrics(run.id) end,
-        fn -> Tests.get_test_run_failures_count(run.id) end
+        fn -> Tests.Analytics.get_test_run_metrics(run) end,
+        fn -> Tests.get_test_run_failures_count(run) end
       ])
 
     binary_cache_event = binary_cache_command_event(run, command_event)
@@ -882,7 +882,7 @@ defmodule TuistWeb.TestRunLive do
     }
 
     cached_run_query(run.id, :test_cases, flop_params, fn ->
-      Tests.list_test_case_runs(flop_params)
+      Tests.list_test_case_runs(flop_params, test_run: run)
     end)
   end
 
@@ -992,6 +992,7 @@ defmodule TuistWeb.TestRunLive do
     }
 
     Tests.list_test_case_runs(attrs,
+      test_run: run,
       preload: [
         :failures,
         :repetitions,

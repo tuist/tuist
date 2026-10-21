@@ -821,7 +821,8 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Gets test run metrics for a specific test run.
+  Gets test run metrics for a specific test run. Pass an already-loaded `Test`
+  to avoid looking up its reporting version again; IDs remain supported.
 
   Returns a map with:
   - total_count: Total number of test cases
@@ -829,11 +830,8 @@ defmodule Tuist.Tests.Analytics do
   - flaky_count: Number of flaky test cases
   - avg_duration: Average test case duration in milliseconds
   """
-  def get_test_run_metrics(test_run_id) do
-    source =
-      if match?({:ok, %Test{reporting_version: 1}}, Tests.get_test(test_run_id)),
-        do: TestCaseRun.query(),
-        else: TestCaseRunByTestRun
+  def get_test_run_metrics(%Test{id: test_run_id, reporting_version: reporting_version}) do
+    source = if reporting_version == 1, do: TestCaseRun.query(), else: TestCaseRunByTestRun
 
     query =
       from t in source,
@@ -847,6 +845,13 @@ defmodule Tuist.Tests.Analytics do
         }
 
     ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, flaky_count: 0, avg_duration: 0}
+  end
+
+  def get_test_run_metrics(test_run_id) do
+    case Tests.get_test(test_run_id) do
+      {:ok, test_run} -> get_test_run_metrics(test_run)
+      {:error, :not_found} -> get_test_run_metrics(%Test{id: test_run_id})
+    end
   end
 
   @doc """

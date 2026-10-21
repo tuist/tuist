@@ -426,8 +426,8 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  def get_test_run_failures_count(test_run_id) do
-    source = if immutable_report_run?(test_run_id), do: TestCaseRun.query(), else: TestCaseRunByTestRun
+  def get_test_run_failures_count(%Test{id: test_run_id, reporting_version: reporting_version}) do
+    source = if reporting_version == 1, do: TestCaseRun.query(), else: TestCaseRunByTestRun
 
     query =
       from(tcr in source,
@@ -437,6 +437,13 @@ defmodule Tuist.Tests do
       )
 
     ClickHouseRepo.one(query) || 0
+  end
+
+  def get_test_run_failures_count(test_run_id) do
+    case get_test(test_run_id) do
+      {:ok, test_run} -> get_test_run_failures_count(test_run)
+      {:error, :not_found} -> get_test_run_failures_count(%Test{id: test_run_id})
+    end
   end
 
   def list_test_suite_runs(attrs) do
@@ -1816,6 +1823,8 @@ defmodule Tuist.Tests do
 
   @doc """
   Lists test case runs with optional filters (e.g. test_case_id, test_run_id).
+  Pass `test_run:` with an already-loaded Test to avoid a contract lookup when
+  its run ID or shard-plan ID matches the requested scope.
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
   def list_test_case_runs(attrs, opts \\ []) do
@@ -1826,17 +1835,19 @@ defmodule Tuist.Tests do
         Map.get(filter, :field) in [:verified_actor, :claimed_actor_id]
       end)
 
-    case extract_mv_scope_filter(attrs) do
-      {:shard_id, shard_id} ->
+    scope = extract_mv_scope_filter(attrs)
+
+    case scope do
+      {:shard_id, _shard_id} ->
         cond do
-          immutable_report_run?(shard_id) -> list_test_case_runs_from(TestCaseRun.query(), attrs, preloads)
+          immutable_report_run?(scope, opts) -> list_test_case_runs_from(TestCaseRun.query(), attrs, preloads)
           actor_filter? -> list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
           true -> list_test_case_runs_via_shard_mv(attrs, preloads)
         end
 
-      {:test_run_id, test_run_id} ->
+      {:test_run_id, _test_run_id} ->
         cond do
-          immutable_report_run?(test_run_id) -> list_test_case_runs_from(TestCaseRun.query(), attrs, preloads)
+          immutable_report_run?(scope, opts) -> list_test_case_runs_from(TestCaseRun.query(), attrs, preloads)
           actor_filter? -> list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
           true -> list_test_case_runs_via_test_run_mv(attrs, preloads)
         end
@@ -1852,8 +1863,12 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp immutable_report_run?(id) do
-    match?({:ok, %Test{reporting_version: 1}}, get_test(id))
+  defp immutable_report_run?(scope, opts) do
+    case {scope, Keyword.get(opts, :test_run)} do
+      {{:test_run_id, id}, %Test{id: id, reporting_version: version}} -> version == 1
+      {{:shard_id, id}, %Test{shard_plan_id: id, reporting_version: version}} -> version == 1
+      {{_field, id}, _test_run} -> match?({:ok, %Test{reporting_version: 1}}, get_test(id))
+    end
   end
 
   defp list_test_case_runs_from(base_query, attrs, preloads) do
