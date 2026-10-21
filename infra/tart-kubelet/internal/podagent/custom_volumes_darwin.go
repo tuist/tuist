@@ -26,6 +26,39 @@ func createCustomImage(ctx context.Context, path string, bytes int64) error {
 	return err
 }
 
+var customImageSize = regexp.MustCompile(`(?m)^\s*Total Bytes:\s*([0-9]+)\s*$`)
+
+// growCustomImage extends a private copy's image file to bytes, never shrinking
+// it. -imageonly changes only the image: the host never attaches the guest's
+// filesystem, and the guest grows the APFS container after attaching it.
+func growCustomImage(ctx context.Context, path string, bytes int64) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	current, err := customImageBytes(ctx, path)
+	if err != nil || current >= bytes {
+		return err
+	}
+	_, err = exec.CommandContext(ctx, "hdiutil", "resize", "-sectors", strconv.FormatInt(bytes/512, 10), "-imageonly", path).CombinedOutput()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
+}
+
+// customImageBytes is the image's size from its header. `hdiutil resize
+// -limits` reports the partition instead, which only the guest grows.
+func customImageBytes(ctx context.Context, path string) (int64, error) {
+	out, err := exec.CommandContext(ctx, "hdiutil", "imageinfo", path).Output()
+	if err != nil {
+		return 0, err
+	}
+	match := customImageSize.FindSubmatch(out)
+	if match == nil {
+		return 0, errors.New("image info reports no size")
+	}
+	return strconv.ParseInt(string(match[1]), 10, 64)
+}
+
 var customDisk = regexp.MustCompile(`^/dev/disk[0-9]+$`)
 var customPartition = regexp.MustCompile(`^/dev/disk[0-9]+s[0-9]+$`)
 

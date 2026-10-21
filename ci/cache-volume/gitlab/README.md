@@ -34,13 +34,14 @@ test:
 
 Pass `--path` once per directory, or set `TUIST_VOLUME_PATH` to one path per
 line, to keep several directories in the same volume. Blank lines and
-surrounding whitespace are ignored.
+surrounding whitespace are ignored. Pass `--size` or set `TUIST_VOLUME_SIZE` to
+set the volume's capacity.
 
 ```yaml
 lint:
   tags: [tuist-linux]
   before_script:
-    - tuist-cache-volume --key python-tools --path ~/.cache/pip --path ~/.cache/pre-commit
+    - tuist-cache-volume --key python-tools --size 5gb --path ~/.cache/pip --path ~/.cache/pre-commit
   script:
     - pre-commit run --all-files
 ```
@@ -50,6 +51,7 @@ lint:
   tags: [tuist-linux]
   variables:
     TUIST_VOLUME_KEY: python-tools
+    TUIST_VOLUME_SIZE: 5gb
     TUIST_VOLUME_PATH: |
       ~/.cache/pip
       ~/.cache/pre-commit
@@ -59,15 +61,29 @@ lint:
     - pre-commit run --all-files
 ```
 
-- All paths share the volume's 20 GB capacity and are restored and saved together.
-- Group small, related directories. Give a large or fast-changing directory its
-  own volume.
+| Variable | Contract |
+| --- | --- |
+| `TUIST_VOLUME_KEY` | Required stable volume name. Keys starting with `tuist-` are reserved. |
+| `TUIST_VOLUME_PATH` | Required. Up to 16 absent or empty directories, one per line. |
+| `TUIST_VOLUME_SIZE` | Optional capacity, a whole number of GB from `1gb` to `100gb`, such as `50gb`. New volumes start at `20gb` without it. |
+
+- All paths share the volume's capacity and are restored and saved together.
 - Paths in one volume must not contain each other.
-- Each path is stored in its own directory inside the volume, identified by how
-  the path is written. Switching between one path and several, or adding,
-  removing or rewriting a path, changes that layout: the first job after the
-  change starts cold for the affected paths. Content of paths that are no
-  longer listed stays in the volume until you clear it.
+- A single path keeps the volume's contents when it changes. With several
+  paths, each has its own directory inside the volume, identified by how the
+  path is written: adding a path, removing one or reordering the list keeps the
+  contents of the paths you keep, and a new path, or one written differently
+  (`~/.npm` instead of `/home/runner/.npm`), starts empty.
+- Contents of paths that are no longer listed stay in the volume and count
+  toward its capacity. Clear the volume after removing a path.
+- Each saved copy replaces the whole volume, so the last saved copy wins. Give
+  jobs that save at the same time separate keys.
+- A larger size grows the volume, keeping its contents, from its next job. A
+  smaller one applies after the volume is next cleared or expires. When jobs
+  ask for different sizes of one key, the largest applies.
+- Sizes above `20gb` may not be enabled for every account yet. Runner images
+  without size support attach the volume at its current size; the template
+  warns.
 
 Relevant changes merged to the monorepo’s `main` automatically publish
 `tuist/cache-volume-gitlab` alongside the GitHub action and Buildkite plugin,
@@ -89,8 +105,8 @@ integration remains independent.
 
 Volumes are scoped by Tuist account, GitLab instance, immutable project ID, key,
 architecture and UID. Project renames retain data; another instance with the
-same project ID cannot reuse it. Each job receives a private copy, with 20 GB
-capacity and seven-day idle expiration; when saved contents reach 80% of
+same project ID cannot reuse it. Each job receives a private copy, with `20gb`
+capacity unless a size is set, and seven-day idle expiration; when saved contents reach 80% of
 capacity and a job runs out of space on them, the next job starts empty. The client logs warm/cold reuse and the
 Tuist dashboard records it. Unavailable storage falls back to an empty directory;
 invalid inputs and nonempty targets fail the step.

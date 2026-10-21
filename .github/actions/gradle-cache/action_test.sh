@@ -11,6 +11,14 @@ export CAPTURE_ARGS="$fixture/args" HOME="$fixture/home"
 
 cat > "$fixture/bin/tuist-cache-volume" <<'CLIENT'
 #!/bin/bash
+if [ "$1" = -h ]; then
+  echo '  -key string' >&2
+  if [ -n "${CLIENT_SUPPORTS_SIZE-1}" ]; then
+    echo '  -size string' >&2
+    exit 0
+  fi
+  exit 2
+fi
 printf '%s\n' "$@" > "$CAPTURE_ARGS"
 exit "${CLIENT_EXIT:-0}"
 CLIENT
@@ -33,6 +41,24 @@ printf '%s\n' --key tuist-gradle --path "$fixture/workspace/.gradle/caches" --pa
 cmp "$fixture/expected" "$CAPTURE_ARGS"
 [[ -f "$fixture/workspace/.gradle/init.d/tuist-gradle-cache.gradle" ]]
 echo 'ok: a relative GRADLE_USER_HOME resolves against the working directory'
+
+TUIST_GRADLE_CACHE_SIZE=50gb setup > "$fixture/out"
+printf '%s\n' --key tuist-gradle --path "$fixture/home/.gradle/caches" --path "$fixture/home/.gradle/wrapper" --size 50gb > "$fixture/expected"
+cmp "$fixture/expected" "$CAPTURE_ARGS"
+if grep -q '::warning::' "$fixture/out"; then echo 'FAIL: unexpected warning' >&2; exit 1; fi
+echo 'ok: the size is passed to a client that supports it'
+
+CLIENT_SUPPORTS_SIZE= TUIST_GRADLE_CACHE_SIZE=50gb setup > "$fixture/out"
+printf '%s\n' --key tuist-gradle --path "$fixture/home/.gradle/caches" --path "$fixture/home/.gradle/wrapper" > "$fixture/expected"
+cmp "$fixture/expected" "$CAPTURE_ARGS"
+grep -q '^::warning::This runner image does not support the size input' "$fixture/out"
+echo 'ok: an older client attaches without the size and warns'
+
+rm -rf "$fixture/home/.gradle"
+CLIENT_EXIT=2 TUIST_GRADLE_CACHE_SIZE=50 setup > "$fixture/out"
+grep -q '^::warning::Could not attach the Gradle cache' "$fixture/out"
+[[ ! -e "$fixture/home/.gradle/init.d" ]]
+echo 'ok: a size the client rejects warns without failing the job'
 
 rm -rf "$fixture/home/.gradle"
 CLIENT_EXIT=2 setup > "$fixture/out"

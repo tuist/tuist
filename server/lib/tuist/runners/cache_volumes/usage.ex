@@ -27,6 +27,7 @@ defmodule Tuist.Runners.CacheVolumes.Usage do
     field(:warm, :boolean)
     field(:size_bytes, :integer)
     field(:capacity_bytes, :integer)
+    field(:volume_bytes, :integer)
     field(:attach_ms, :integer)
     field(:last_reported_at, :utc_datetime_usec)
     field(:attached_at, :utc_datetime_usec)

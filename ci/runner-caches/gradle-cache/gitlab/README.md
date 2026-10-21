@@ -23,6 +23,20 @@ restore into those directories. Use `!reference` rather than `extends`, which
 replaces `before_script`. You can also vendor `gradle-cache.yml` and use
 `include:local`.
 
+The cache volume starts at `20gb`. Set `TUIST_GRADLE_CACHE_SIZE` to give it
+another capacity, a whole number of GB from `1gb` to `100gb`:
+
+```yaml
+test:
+  variables:
+    TUIST_GRADLE_CACHE_SIZE: 50gb
+```
+
+A larger size grows the cache, keeping its contents, from its next job. A
+smaller one applies after the volume is next cleared or expires. Sizes above
+`20gb` may not be enabled for every account yet. Runner images without size
+support keep the current size and warn.
+
 Gradle cleans its cache only when its daemon stops, which a CI job rarely
 reaches. The snippet installs an init script in `$GRADLE_USER_HOME/init.d` that
 cleans after every build and removes entries unused for seven days.

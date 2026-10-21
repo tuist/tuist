@@ -9,8 +9,8 @@ these schemas persist volume identities and per-job uses.
   from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
   listed by `VolumePrefetch`) under the use that published it.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
-  (30 GB, `volume_bytes/1`) and `tuist-module` custom volumes, which the
-  module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
+  (30 GB) and `tuist-module` (20 GB) custom volumes, which ignore requested
+  sizes and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
   attach. Dispatch sends `automatic_caches: false` and
   `managed_cache_volumes: true`, stamps the untrusted label so the host creates
   no built-in image for the job, reserves no room for one and never promotes,
@@ -63,11 +63,25 @@ these schemas persist volume identities and per-job uses.
 
 - Storage history is an account-scoped hourly rollup of per-copy measurement deltas for the selected date range (seven days by default). Seed it with earlier reports, carry unchanged sizes forward, preserve unknown fields, and subtract confirmed deletions. Do not sum repeated reports as new storage or present this series as billable usage.
 
+- Allocation picks each use's capacity (`runner_cache_volume_uses.volume_bytes`).
+  The host sends `requested_volume_bytes` (whole GB, 1 to 100; anything else is no
+  request) and `max_volume_bytes` (absent: 32 GB). Managed keys keep their fixed
+  size and ignore requests; `tuist-gradle` is not managed. Requests above 20 GB
+  are capped to 20 GB unless `:runner_custom_volume_sizes` is on for the account.
+  With a saved head the capacity is the larger of the lineage capacity (the head
+  use's `volume_bytes`, else the key default) and the request; without one it is
+  the request or 20 GB. A capacity above the host maximum rolls back and answers
+  507 `capacity`. Uses that may publish record their request on the volume
+  (`requested_volume_bytes`); a smaller one is the pending size shown until the
+  volume next starts empty. Allocations and prefetch listings send `volume_bytes`
+  and the head use's measured `head_size_bytes`.
 - Allocation clears a custom volume whose saved head measured at 80% or more of
-  its capacity (`full?/2`) once a use cloned from that head reached 99% of its own
-  (`out_of_space?/2`), under the same row lock and with the same generation
-  bump as deletion, so the use starts a fresh lineage. Unknown sizes never clear.
-  The dashboard warns on such heads and on failed jobs whose copy reached 99%.
+  the capacity chosen for the job (`full?/2`) once a use cloned from that head
+  reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
+  same generation bump as deletion, then sizes the use as for an empty volume.
+  The decision precedes the host-maximum check, so a refused job changes nothing.
+  Unknown sizes never clear. The dashboard warns on heads nearly full at the
+  capacity the next job gets and on failed jobs whose copy reached 99%.
 
 - Evict cache data after seven days without a mount. Refresh last_used_at only
   on the first valid attachment report for a use, never allocation, heartbeats

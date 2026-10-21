@@ -78,13 +78,14 @@ func (c *CustomVolumes) reservedBytes() uint64 {
 }
 
 // A job clones a local master or starts empty, so it needs one image of room.
-// Only a prefetch downloads, keeping its archive beside the restored image.
+// Only a prefetch downloads, keeping its archive beside the restored image:
+// twice the head's used bytes, or twice the volume when that is unknown.
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
 	if slot.Kind == cachevolumes.KindCheckout {
 		return cachevolumes.CheckoutGrowthBytes
 	}
 	if slot.ID == cachevolumes.PrefetchReservation {
-		return 2 * customVolumeBytes(slot)
+		return uint64(slot.RestoreBytes(customCapacity))
 	}
 	return customVolumeBytes(slot)
 }

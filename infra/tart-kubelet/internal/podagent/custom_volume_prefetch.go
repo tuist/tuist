@@ -35,7 +35,7 @@ func (c *CustomVolumes) PrefetchMaster(identity cachevolumes.Identity) bool {
 }
 
 // customPrefetcher restores immutable masters in the background, one at a time
-// so a single 40 GB disk reservation covers the work. Jobs never wait on it. A
+// so a single disk reservation covers the work. Jobs never wait on it. A
 // master a job asked for but did not get in time goes ahead of masters the
 // server listed for this host, and only the former may evict local masters. A
 // master already queued or downloading is joined rather than fetched twice.

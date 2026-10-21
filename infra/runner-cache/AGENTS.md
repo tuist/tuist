@@ -13,7 +13,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   and userspace fsck. Validate lease-bound guest usage separately from admission.
 - Only accepted publication becomes a master. Failed upload retries and restart
   recovery retain the same journal identity. Clear conflicts discard the branch.
-- Default custom capacity is 20 decimal GB. Built-in Tuist/CAS macOS caches keep
+- Default custom capacity is 20 decimal GB; the server may choose 1 to 100 GB
+  per volume, up to the host maximum. Built-in Tuist/CAS macOS caches keep
   their existing separate identities, capacity and retention policy.
 - Unknown measurements remain unknown; never report unavailable usage as zero.
 - Run `go test -race ./...` here, the Linux agent/client suites, and macOS podagent
@@ -65,10 +66,26 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   newer than the one it recorded. The first attach writes `.entries` after the
   marker; later attaches of the branch keep it. A missing baseline means changed;
   a `.verified` or `.checking` branch skips the check.
-- `Identity.VolumeBytes` is the size the server allocated the volume at; zero
-  means the host default (`SizeGB`). `valid` rejects sizes above
-  `MaxVolumeBytes`. Create, admission and guest usage validation all use
-  `volumeBytes(slot)`; never size an image from `SizeGB` directly.
+- `Identity.VolumeBytes` is the capacity the server chose for this use; zero
+  means the host default (`SizeGB`). `HeadSizeBytes` is the saved head's measured
+  used bytes, zero when unknown. `Store.MaxVolumeBytes` is the host maximum each
+  agent configures (`DefaultMaxVolumeBytes`, 32 GB, when unset); `Acquire`
+  rejects larger volumes, journal reads do not. Create and attach admission use
+  `volumeBytes(slot)`; never size an image from `SizeGB` directly. Guest usage
+  validation and transfer `MaxBytes` use the host maximum, so grown masters pass.
+- Guests may request a size: `RequestedSize` decodes any JSON value and keeps
+  only whole decimal GB from 1 to 100 GB. Agents forward it as
+  `requested_volume_bytes` with `max_volume_bytes`; a 507 from `/authorize` is
+  `ErrCapacity`, never retried.
+- A warm copy smaller than `Identity.VolumeBytes` grows before exposure and
+  never shrinks; failure leaves it warm at its saved size. Linux truncates the
+  clone up before the durable rename and runs `resize2fs` on the loop device
+  after mounting when the ext4 superblock is smaller than the image. APFS calls
+  the injected `Grow` on the private copy, which only extends the image
+  (`-imageonly`); the guest grows the container.
+- Linux attach admission is `MinFreeBytes` plus whatever the volume exceeds
+  `SizeGB` by. APFS prefetch needs `Identity.RestoreBytes`: twice the head's used
+  bytes, else twice the capacity.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
   abandoned after two minutes without bytes, `DownloadClient` without a whole-

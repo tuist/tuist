@@ -354,3 +354,61 @@ func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T)
 		}
 	}
 }
+
+func TestLinuxLocalImagesGrowsAWarmCopyOnline(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated reflink filesystem and loop/mount privileges")
+	}
+	root, err := os.MkdirTemp(cache, "growth-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	remote := &diskTransfer{archive: filepath.Join(t.TempDir(), "remote.image")}
+	b := &LocalImages{Root: root, SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}
+	if err := b.Probe(); err != nil {
+		t.Fatal(err)
+	}
+	seed := Slot{Identity: identity(first), PodUID: "seed"}
+	path := filepath.Join(root, "seed")
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(seed, path)
+	if err := b.Attach(context.Background(), seed, path); err != nil {
+		t.Fatal(err)
+	}
+	afterMarker(t, path)
+	if err := os.WriteFile(filepath.Join(path, "payload"), []byte("saved contents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(seed, path); err != nil {
+		t.Fatal(err)
+	}
+	grown := seed
+	grown.ID = second
+	grown.PodUID = "grown"
+	grown.BaseGeneration = remote.generation
+	grown.ContentDigest = remote.content
+	grown.VolumeBytes = 2_000_000_000
+	grownPath := filepath.Join(root, "grown")
+	if err := os.Mkdir(grownPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(grown, grownPath)
+
+	if err := b.Attach(context.Background(), grown, grownPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if data, err := os.ReadFile(filepath.Join(grownPath, "payload")); err != nil || string(data) != "saved contents" {
+		t.Fatal("growth lost the saved contents", string(data), err)
+	}
+	if _, capacity, err := b.Measure(grown, grownPath); err != nil || capacity < 1_800_000_000 {
+		t.Fatal("filesystem was not grown online", capacity, err)
+	}
+	if info, err := os.Stat(b.master(grown)); err != nil || info.Size() != 1_000_000_000 {
+		t.Fatal("growth changed the master", info, err)
+	}
+}

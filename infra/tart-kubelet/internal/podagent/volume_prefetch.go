@@ -56,6 +56,7 @@ type PrefetchMaster struct {
 	ContentDigest string `json:"content_digest"`
 	DownloadURL   string `json:"download_url"`
 	VolumeBytes   int64  `json:"volume_bytes"`
+	HeadSizeBytes int64  `json:"head_size_bytes"`
 }
 
 // PrefetchSource lists the masters the server wants this host to hold, most

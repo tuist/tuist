@@ -483,7 +483,7 @@ func TestAPFSCheckoutWithoutSeedFailsInsteadOfFormatting(t *testing.T) {
 func TestCheckoutIdentitiesNeverPublishOrCarryHeads(t *testing.T) {
 	checkout := identity(first)
 	checkout.Kind, checkout.CanPublish = KindCheckout, false
-	if !valid(checkout, "pod", "uid") {
+	if !valid(checkout, "pod", "uid", DefaultMaxVolumeBytes) {
 		t.Fatal("a checkout identity is valid")
 	}
 	publishing := checkout
@@ -495,7 +495,7 @@ func TestCheckoutIdentitiesNeverPublishOrCarryHeads(t *testing.T) {
 	custom := identity(first)
 	custom.Generation = 2
 	for _, invalid := range []Identity{publishing, headed, unknown, custom} {
-		if valid(invalid, "pod", "uid") {
+		if valid(invalid, "pod", "uid", DefaultMaxVolumeBytes) {
 			t.Fatalf("accepted %+v", invalid)
 		}
 	}

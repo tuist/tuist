@@ -791,7 +791,7 @@ public protocol APIProtocol: Sendable {
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -3168,7 +3168,7 @@ extension APIProtocol {
     }
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -10877,6 +10877,10 @@ public enum Components {
                     public var key: Swift.String
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/last_used_at`.
                     public var last_used_at: Foundation.Date?
+                    /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/pending_volume_bytes`.
+                    public var pending_volume_bytes: Swift.Int?
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/platform`.
                     public var platform: Swift.String
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/provider`.
@@ -10889,6 +10893,10 @@ public enum Components {
                     public var unmeasured_copies: Swift.Int
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/used_bytes`.
                     public var used_bytes: Swift.Int?
+                    /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/volume_bytes`.
+                    public var volume_bytes: Swift.Int?
                     /// Creates a new `volumePayload`.
                     ///
                     /// - Parameters:
@@ -10897,36 +10905,42 @@ public enum Components {
                     ///   - id:
                     ///   - key:
                     ///   - last_used_at:
+                    ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                     ///   - platform:
                     ///   - provider:
                     ///   - repository:
                     ///   - unmeasured_capacity_copies:
                     ///   - unmeasured_copies:
                     ///   - used_bytes:
+                    ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                     public init(
                         architecture: Swift.String,
                         capacity_bytes: Swift.Int? = nil,
                         id: Swift.String,
                         key: Swift.String,
                         last_used_at: Foundation.Date? = nil,
+                        pending_volume_bytes: Swift.Int? = nil,
                         platform: Swift.String,
                         provider: Swift.String,
                         repository: Swift.String,
                         unmeasured_capacity_copies: Swift.Int,
                         unmeasured_copies: Swift.Int,
-                        used_bytes: Swift.Int? = nil
+                        used_bytes: Swift.Int? = nil,
+                        volume_bytes: Swift.Int? = nil
                     ) {
                         self.architecture = architecture
                         self.capacity_bytes = capacity_bytes
                         self.id = id
                         self.key = key
                         self.last_used_at = last_used_at
+                        self.pending_volume_bytes = pending_volume_bytes
                         self.platform = platform
                         self.provider = provider
                         self.repository = repository
                         self.unmeasured_capacity_copies = unmeasured_capacity_copies
                         self.unmeasured_copies = unmeasured_copies
                         self.used_bytes = used_bytes
+                        self.volume_bytes = volume_bytes
                     }
                     public enum CodingKeys: String, CodingKey {
                         case architecture
@@ -10934,12 +10948,14 @@ public enum Components {
                         case id
                         case key
                         case last_used_at
+                        case pending_volume_bytes
                         case platform
                         case provider
                         case repository
                         case unmeasured_capacity_copies
                         case unmeasured_copies
                         case used_bytes
+                        case volume_bytes
                     }
                     public init(from decoder: any Decoder) throws {
                         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -10962,6 +10978,10 @@ public enum Components {
                         self.last_used_at = try container.decodeIfPresent(
                             Foundation.Date.self,
                             forKey: .last_used_at
+                        )
+                        self.pending_volume_bytes = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .pending_volume_bytes
                         )
                         self.platform = try container.decode(
                             Swift.String.self,
@@ -10987,18 +11007,24 @@ public enum Components {
                             Swift.Int.self,
                             forKey: .used_bytes
                         )
+                        self.volume_bytes = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .volume_bytes
+                        )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
                             "architecture",
                             "capacity_bytes",
                             "id",
                             "key",
                             "last_used_at",
+                            "pending_volume_bytes",
                             "platform",
                             "provider",
                             "repository",
                             "unmeasured_capacity_copies",
                             "unmeasured_copies",
-                            "used_bytes"
+                            "used_bytes",
+                            "volume_bytes"
                         ])
                     }
                 }
@@ -11983,6 +12009,10 @@ public enum Components {
             public var key: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/last_used_at`.
             public var last_used_at: Foundation.Date?
+            /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/pending_volume_bytes`.
+            public var pending_volume_bytes: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/platform`.
             public var platform: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/provider`.
@@ -11995,6 +12025,10 @@ public enum Components {
             public var unmeasured_copies: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/used_bytes`.
             public var used_bytes: Swift.Int?
+            /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/volume_bytes`.
+            public var volume_bytes: Swift.Int?
             /// Creates a new `RunnerVolume`.
             ///
             /// - Parameters:
@@ -12003,36 +12037,42 @@ public enum Components {
             ///   - id:
             ///   - key:
             ///   - last_used_at:
+            ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
             ///   - platform:
             ///   - provider:
             ///   - repository:
             ///   - unmeasured_capacity_copies:
             ///   - unmeasured_copies:
             ///   - used_bytes:
+            ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
             public init(
                 architecture: Swift.String,
                 capacity_bytes: Swift.Int? = nil,
                 id: Swift.String,
                 key: Swift.String,
                 last_used_at: Foundation.Date? = nil,
+                pending_volume_bytes: Swift.Int? = nil,
                 platform: Swift.String,
                 provider: Swift.String,
                 repository: Swift.String,
                 unmeasured_capacity_copies: Swift.Int,
                 unmeasured_copies: Swift.Int,
-                used_bytes: Swift.Int? = nil
+                used_bytes: Swift.Int? = nil,
+                volume_bytes: Swift.Int? = nil
             ) {
                 self.architecture = architecture
                 self.capacity_bytes = capacity_bytes
                 self.id = id
                 self.key = key
                 self.last_used_at = last_used_at
+                self.pending_volume_bytes = pending_volume_bytes
                 self.platform = platform
                 self.provider = provider
                 self.repository = repository
                 self.unmeasured_capacity_copies = unmeasured_capacity_copies
                 self.unmeasured_copies = unmeasured_copies
                 self.used_bytes = used_bytes
+                self.volume_bytes = volume_bytes
             }
             public enum CodingKeys: String, CodingKey {
                 case architecture
@@ -12040,12 +12080,14 @@ public enum Components {
                 case id
                 case key
                 case last_used_at
+                case pending_volume_bytes
                 case platform
                 case provider
                 case repository
                 case unmeasured_capacity_copies
                 case unmeasured_copies
                 case used_bytes
+                case volume_bytes
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -12068,6 +12110,10 @@ public enum Components {
                 self.last_used_at = try container.decodeIfPresent(
                     Foundation.Date.self,
                     forKey: .last_used_at
+                )
+                self.pending_volume_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .pending_volume_bytes
                 )
                 self.platform = try container.decode(
                     Swift.String.self,
@@ -12093,18 +12139,24 @@ public enum Components {
                     Swift.Int.self,
                     forKey: .used_bytes
                 )
+                self.volume_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .volume_bytes
+                )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                     "architecture",
                     "capacity_bytes",
                     "id",
                     "key",
                     "last_used_at",
+                    "pending_volume_bytes",
                     "platform",
                     "provider",
                     "repository",
                     "unmeasured_capacity_copies",
                     "unmeasured_copies",
-                    "used_bytes"
+                    "used_bytes",
+                    "volume_bytes"
                 ])
             }
         }
@@ -18078,6 +18130,10 @@ public enum Components {
                 public var key: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/last_used_at`.
                 public var last_used_at: Foundation.Date?
+                /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/pending_volume_bytes`.
+                public var pending_volume_bytes: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/platform`.
                 public var platform: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/provider`.
@@ -18090,6 +18146,10 @@ public enum Components {
                 public var unmeasured_copies: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/used_bytes`.
                 public var used_bytes: Swift.Int?
+                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/volume_bytes`.
+                public var volume_bytes: Swift.Int?
                 /// Creates a new `volumePayload`.
                 ///
                 /// - Parameters:
@@ -18098,36 +18158,42 @@ public enum Components {
                 ///   - id:
                 ///   - key:
                 ///   - last_used_at:
+                ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                 ///   - platform:
                 ///   - provider:
                 ///   - repository:
                 ///   - unmeasured_capacity_copies:
                 ///   - unmeasured_copies:
                 ///   - used_bytes:
+                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                 public init(
                     architecture: Swift.String,
                     capacity_bytes: Swift.Int? = nil,
                     id: Swift.String,
                     key: Swift.String,
                     last_used_at: Foundation.Date? = nil,
+                    pending_volume_bytes: Swift.Int? = nil,
                     platform: Swift.String,
                     provider: Swift.String,
                     repository: Swift.String,
                     unmeasured_capacity_copies: Swift.Int,
                     unmeasured_copies: Swift.Int,
-                    used_bytes: Swift.Int? = nil
+                    used_bytes: Swift.Int? = nil,
+                    volume_bytes: Swift.Int? = nil
                 ) {
                     self.architecture = architecture
                     self.capacity_bytes = capacity_bytes
                     self.id = id
                     self.key = key
                     self.last_used_at = last_used_at
+                    self.pending_volume_bytes = pending_volume_bytes
                     self.platform = platform
                     self.provider = provider
                     self.repository = repository
                     self.unmeasured_capacity_copies = unmeasured_capacity_copies
                     self.unmeasured_copies = unmeasured_copies
                     self.used_bytes = used_bytes
+                    self.volume_bytes = volume_bytes
                 }
                 public enum CodingKeys: String, CodingKey {
                     case architecture
@@ -18135,12 +18201,14 @@ public enum Components {
                     case id
                     case key
                     case last_used_at
+                    case pending_volume_bytes
                     case platform
                     case provider
                     case repository
                     case unmeasured_capacity_copies
                     case unmeasured_copies
                     case used_bytes
+                    case volume_bytes
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -18163,6 +18231,10 @@ public enum Components {
                     self.last_used_at = try container.decodeIfPresent(
                         Foundation.Date.self,
                         forKey: .last_used_at
+                    )
+                    self.pending_volume_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .pending_volume_bytes
                     )
                     self.platform = try container.decode(
                         Swift.String.self,
@@ -18188,18 +18260,24 @@ public enum Components {
                         Swift.Int.self,
                         forKey: .used_bytes
                     )
+                    self.volume_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .volume_bytes
+                    )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "architecture",
                         "capacity_bytes",
                         "id",
                         "key",
                         "last_used_at",
+                        "pending_volume_bytes",
                         "platform",
                         "provider",
                         "repository",
                         "unmeasured_capacity_copies",
                         "unmeasured_copies",
-                        "used_bytes"
+                        "used_bytes",
+                        "volume_bytes"
                     ])
                 }
             }
@@ -20725,15 +20803,15 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/RunnerProfile`.
         public struct RunnerProfile: Codable, Hashable, Sendable {
-            /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+            /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_all_branches`.
             public var cache_writer_all_branches: Swift.Bool
-            /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+            /// Additional branch names or * patterns whose jobs save custom cache volume changes.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_branches`.
             public var cache_writer_branches: [Swift.String]
-            /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+            /// Whether jobs on each repository's default branch save custom cache volume changes.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_default_branch`.
             public var cache_writer_default_branch: Swift.Bool
@@ -20767,9 +20845,9 @@ public enum Components {
             /// Creates a new `RunnerProfile`.
             ///
             /// - Parameters:
-            ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
-            ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-            ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+            ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+            ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+            ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
             ///   - id:
             ///   - inserted_at:
             ///   - memory_gb:
@@ -23721,6 +23799,10 @@ public enum Components {
                 public var key: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/last_used_at`.
                 public var last_used_at: Foundation.Date?
+                /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/pending_volume_bytes`.
+                public var pending_volume_bytes: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/platform`.
                 public var platform: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/provider`.
@@ -23733,6 +23815,10 @@ public enum Components {
                 public var unmeasured_copies: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/used_bytes`.
                 public var used_bytes: Swift.Int?
+                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/volume_bytes`.
+                public var volume_bytes: Swift.Int?
                 /// Creates a new `volumesPayloadPayload`.
                 ///
                 /// - Parameters:
@@ -23741,36 +23827,42 @@ public enum Components {
                 ///   - id:
                 ///   - key:
                 ///   - last_used_at:
+                ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                 ///   - platform:
                 ///   - provider:
                 ///   - repository:
                 ///   - unmeasured_capacity_copies:
                 ///   - unmeasured_copies:
                 ///   - used_bytes:
+                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                 public init(
                     architecture: Swift.String,
                     capacity_bytes: Swift.Int? = nil,
                     id: Swift.String,
                     key: Swift.String,
                     last_used_at: Foundation.Date? = nil,
+                    pending_volume_bytes: Swift.Int? = nil,
                     platform: Swift.String,
                     provider: Swift.String,
                     repository: Swift.String,
                     unmeasured_capacity_copies: Swift.Int,
                     unmeasured_copies: Swift.Int,
-                    used_bytes: Swift.Int? = nil
+                    used_bytes: Swift.Int? = nil,
+                    volume_bytes: Swift.Int? = nil
                 ) {
                     self.architecture = architecture
                     self.capacity_bytes = capacity_bytes
                     self.id = id
                     self.key = key
                     self.last_used_at = last_used_at
+                    self.pending_volume_bytes = pending_volume_bytes
                     self.platform = platform
                     self.provider = provider
                     self.repository = repository
                     self.unmeasured_capacity_copies = unmeasured_capacity_copies
                     self.unmeasured_copies = unmeasured_copies
                     self.used_bytes = used_bytes
+                    self.volume_bytes = volume_bytes
                 }
                 public enum CodingKeys: String, CodingKey {
                     case architecture
@@ -23778,12 +23870,14 @@ public enum Components {
                     case id
                     case key
                     case last_used_at
+                    case pending_volume_bytes
                     case platform
                     case provider
                     case repository
                     case unmeasured_capacity_copies
                     case unmeasured_copies
                     case used_bytes
+                    case volume_bytes
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -23806,6 +23900,10 @@ public enum Components {
                     self.last_used_at = try container.decodeIfPresent(
                         Foundation.Date.self,
                         forKey: .last_used_at
+                    )
+                    self.pending_volume_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .pending_volume_bytes
                     )
                     self.platform = try container.decode(
                         Swift.String.self,
@@ -23831,18 +23929,24 @@ public enum Components {
                         Swift.Int.self,
                         forKey: .used_bytes
                     )
+                    self.volume_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .volume_bytes
+                    )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "architecture",
                         "capacity_bytes",
                         "id",
                         "key",
                         "last_used_at",
+                        "pending_volume_bytes",
                         "platform",
                         "provider",
                         "repository",
                         "unmeasured_capacity_copies",
                         "unmeasured_copies",
-                        "used_bytes"
+                        "used_bytes",
+                        "volume_bytes"
                     ])
                 }
             }
@@ -31226,15 +31330,15 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload`.
                         public struct profilesPayloadPayload: Codable, Hashable, Sendable {
-                            /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                            /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_all_branches`.
                             public var cache_writer_all_branches: Swift.Bool
-                            /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                            /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_branches`.
                             public var cache_writer_branches: [Swift.String]
-                            /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                            /// Whether jobs on each repository's default branch save custom cache volume changes.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_default_branch`.
                             public var cache_writer_default_branch: Swift.Bool
@@ -31268,9 +31372,9 @@ public enum Operations {
                             /// Creates a new `profilesPayloadPayload`.
                             ///
                             /// - Parameters:
-                            ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
-                            ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                            ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                            ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                            ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                            ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                             ///   - id:
                             ///   - inserted_at:
                             ///   - memory_gb:
@@ -31745,15 +31849,15 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_all_branches`.
                         public var cache_writer_all_branches: Swift.Bool
-                        /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_branches`.
                         public var cache_writer_branches: [Swift.String]
-                        /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        /// Whether jobs on each repository's default branch save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_default_branch`.
                         public var cache_writer_default_branch: Swift.Bool
@@ -31787,9 +31891,9 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
-                        ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                        ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                        ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - memory_gb:
@@ -45297,6 +45401,10 @@ public enum Operations {
                         public var key: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/last_used_at`.
                         public var last_used_at: Foundation.Date?
+                        /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/pending_volume_bytes`.
+                        public var pending_volume_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/platform`.
                         public var platform: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/provider`.
@@ -45309,6 +45417,10 @@ public enum Operations {
                         public var unmeasured_copies: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/used_bytes`.
                         public var used_bytes: Swift.Int?
+                        /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/volume_bytes`.
+                        public var volume_bytes: Swift.Int?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -45317,36 +45429,42 @@ public enum Operations {
                         ///   - id:
                         ///   - key:
                         ///   - last_used_at:
+                        ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                         ///   - platform:
                         ///   - provider:
                         ///   - repository:
                         ///   - unmeasured_capacity_copies:
                         ///   - unmeasured_copies:
                         ///   - used_bytes:
+                        ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                         public init(
                             architecture: Swift.String,
                             capacity_bytes: Swift.Int? = nil,
                             id: Swift.String,
                             key: Swift.String,
                             last_used_at: Foundation.Date? = nil,
+                            pending_volume_bytes: Swift.Int? = nil,
                             platform: Swift.String,
                             provider: Swift.String,
                             repository: Swift.String,
                             unmeasured_capacity_copies: Swift.Int,
                             unmeasured_copies: Swift.Int,
-                            used_bytes: Swift.Int? = nil
+                            used_bytes: Swift.Int? = nil,
+                            volume_bytes: Swift.Int? = nil
                         ) {
                             self.architecture = architecture
                             self.capacity_bytes = capacity_bytes
                             self.id = id
                             self.key = key
                             self.last_used_at = last_used_at
+                            self.pending_volume_bytes = pending_volume_bytes
                             self.platform = platform
                             self.provider = provider
                             self.repository = repository
                             self.unmeasured_capacity_copies = unmeasured_capacity_copies
                             self.unmeasured_copies = unmeasured_copies
                             self.used_bytes = used_bytes
+                            self.volume_bytes = volume_bytes
                         }
                         public enum CodingKeys: String, CodingKey {
                             case architecture
@@ -45354,12 +45472,14 @@ public enum Operations {
                             case id
                             case key
                             case last_used_at
+                            case pending_volume_bytes
                             case platform
                             case provider
                             case repository
                             case unmeasured_capacity_copies
                             case unmeasured_copies
                             case used_bytes
+                            case volume_bytes
                         }
                         public init(from decoder: any Decoder) throws {
                             let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -45382,6 +45502,10 @@ public enum Operations {
                             self.last_used_at = try container.decodeIfPresent(
                                 Foundation.Date.self,
                                 forKey: .last_used_at
+                            )
+                            self.pending_volume_bytes = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .pending_volume_bytes
                             )
                             self.platform = try container.decode(
                                 Swift.String.self,
@@ -45407,18 +45531,24 @@ public enum Operations {
                                 Swift.Int.self,
                                 forKey: .used_bytes
                             )
+                            self.volume_bytes = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .volume_bytes
+                            )
                             try decoder.ensureNoAdditionalProperties(knownKeys: [
                                 "architecture",
                                 "capacity_bytes",
                                 "id",
                                 "key",
                                 "last_used_at",
+                                "pending_volume_bytes",
                                 "platform",
                                 "provider",
                                 "repository",
                                 "unmeasured_capacity_copies",
                                 "unmeasured_copies",
-                                "used_bytes"
+                                "used_bytes",
+                                "volume_bytes"
                             ])
                         }
                     }
@@ -54050,8 +54180,12 @@ public enum Operations {
                     public struct dependency_cachePayloadPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/dependency`.
                         public var dependency: Swift.String
+                        /// Lookup/compilation duration, or validation time for up-to-date local reuse.
+                        ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/duration_ms`.
                         public var duration_ms: Swift.Int
+                        /// Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
+                        ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/key`.
                         public var key: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/outcome`.
@@ -54091,6 +54225,7 @@ public enum Operations {
                             case unmodeled_input = "unmodeled_input"
                             case inputs_changed = "inputs_changed"
                             case store_failed = "store_failed"
+                            case up_to_date = "up_to_date"
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/reason`.
                         public var reason: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.reasonPayload?
@@ -54121,8 +54256,8 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - dependency:
-                        ///   - duration_ms:
-                        ///   - key:
+                        ///   - duration_ms: Lookup/compilation duration, or validation time for up-to-date local reuse.
+                        ///   - key: Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
                         ///   - outcome:
                         ///   - read_bytes: Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source.
                         ///   - read_duration_us: Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation.
@@ -54174,11 +54309,11 @@ public enum Operations {
                             case write_source
                         }
                     }
-                    /// Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    /// Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cache`.
                     public typealias dependency_cachePayload = [Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload]
-                    /// Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    /// Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cache`.
                     public var dependency_cache: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayload?
@@ -54614,7 +54749,7 @@ public enum Operations {
                     ///   - ci_run_id: The CI run identifier.
                     ///   - contract_version: Version of the client-server analytics contract the caller was built against.
                     ///   - custom_metadata: Custom metadata for the build run.
-                    ///   - dependency_cache: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    ///   - dependency_cache: Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///   - diagnostics: Compile-time diagnostics emitted during the build.
                     ///   - duration_ms: Total compile duration in milliseconds.
                     ///   - elixir_version: The Elixir version used to compile (e.g., "1.20.2").
@@ -57857,6 +57992,10 @@ public enum Operations {
                                 public var key: Swift.String
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/last_used_at`.
                                 public var last_used_at: Foundation.Date?
+                                /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/pending_volume_bytes`.
+                                public var pending_volume_bytes: Swift.Int?
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/platform`.
                                 public var platform: Swift.String
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/provider`.
@@ -57869,6 +58008,10 @@ public enum Operations {
                                 public var unmeasured_copies: Swift.Int
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/used_bytes`.
                                 public var used_bytes: Swift.Int?
+                                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/volume_bytes`.
+                                public var volume_bytes: Swift.Int?
                                 /// Creates a new `volumePayload`.
                                 ///
                                 /// - Parameters:
@@ -57877,36 +58020,42 @@ public enum Operations {
                                 ///   - id:
                                 ///   - key:
                                 ///   - last_used_at:
+                                ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                                 ///   - platform:
                                 ///   - provider:
                                 ///   - repository:
                                 ///   - unmeasured_capacity_copies:
                                 ///   - unmeasured_copies:
                                 ///   - used_bytes:
+                                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                                 public init(
                                     architecture: Swift.String,
                                     capacity_bytes: Swift.Int? = nil,
                                     id: Swift.String,
                                     key: Swift.String,
                                     last_used_at: Foundation.Date? = nil,
+                                    pending_volume_bytes: Swift.Int? = nil,
                                     platform: Swift.String,
                                     provider: Swift.String,
                                     repository: Swift.String,
                                     unmeasured_capacity_copies: Swift.Int,
                                     unmeasured_copies: Swift.Int,
-                                    used_bytes: Swift.Int? = nil
+                                    used_bytes: Swift.Int? = nil,
+                                    volume_bytes: Swift.Int? = nil
                                 ) {
                                     self.architecture = architecture
                                     self.capacity_bytes = capacity_bytes
                                     self.id = id
                                     self.key = key
                                     self.last_used_at = last_used_at
+                                    self.pending_volume_bytes = pending_volume_bytes
                                     self.platform = platform
                                     self.provider = provider
                                     self.repository = repository
                                     self.unmeasured_capacity_copies = unmeasured_capacity_copies
                                     self.unmeasured_copies = unmeasured_copies
                                     self.used_bytes = used_bytes
+                                    self.volume_bytes = volume_bytes
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case architecture
@@ -57914,12 +58063,14 @@ public enum Operations {
                                     case id
                                     case key
                                     case last_used_at
+                                    case pending_volume_bytes
                                     case platform
                                     case provider
                                     case repository
                                     case unmeasured_capacity_copies
                                     case unmeasured_copies
                                     case used_bytes
+                                    case volume_bytes
                                 }
                                 public init(from decoder: any Decoder) throws {
                                     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -57942,6 +58093,10 @@ public enum Operations {
                                     self.last_used_at = try container.decodeIfPresent(
                                         Foundation.Date.self,
                                         forKey: .last_used_at
+                                    )
+                                    self.pending_volume_bytes = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .pending_volume_bytes
                                     )
                                     self.platform = try container.decode(
                                         Swift.String.self,
@@ -57967,18 +58122,24 @@ public enum Operations {
                                         Swift.Int.self,
                                         forKey: .used_bytes
                                     )
+                                    self.volume_bytes = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .volume_bytes
+                                    )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                                         "architecture",
                                         "capacity_bytes",
                                         "id",
                                         "key",
                                         "last_used_at",
+                                        "pending_volume_bytes",
                                         "platform",
                                         "provider",
                                         "repository",
                                         "unmeasured_capacity_copies",
                                         "unmeasured_copies",
-                                        "used_bytes"
+                                        "used_bytes",
+                                        "volume_bytes"
                                     ])
                                 }
                             }
@@ -88358,7 +88519,7 @@ public enum Operations {
     }
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -88488,15 +88649,15 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_all_branches`.
                         public var cache_writer_all_branches: Swift.Bool
-                        /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_branches`.
                         public var cache_writer_branches: [Swift.String]
-                        /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        /// Whether jobs on each repository's default branch save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_default_branch`.
                         public var cache_writer_default_branch: Swift.Bool
@@ -88530,9 +88691,9 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - cache_writer_all_branches: Whether every successful GitHub Actions job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
-                        ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                        ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                        ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - memory_gb:
@@ -106747,6 +106908,10 @@ public enum Operations {
                             public var key: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/last_used_at`.
                             public var last_used_at: Foundation.Date?
+                            /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/pending_volume_bytes`.
+                            public var pending_volume_bytes: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/platform`.
                             public var platform: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/provider`.
@@ -106759,6 +106924,10 @@ public enum Operations {
                             public var unmeasured_copies: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/used_bytes`.
                             public var used_bytes: Swift.Int?
+                            /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/volume_bytes`.
+                            public var volume_bytes: Swift.Int?
                             /// Creates a new `volumesPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -106767,36 +106936,42 @@ public enum Operations {
                             ///   - id:
                             ///   - key:
                             ///   - last_used_at:
+                            ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                             ///   - platform:
                             ///   - provider:
                             ///   - repository:
                             ///   - unmeasured_capacity_copies:
                             ///   - unmeasured_copies:
                             ///   - used_bytes:
+                            ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                             public init(
                                 architecture: Swift.String,
                                 capacity_bytes: Swift.Int? = nil,
                                 id: Swift.String,
                                 key: Swift.String,
                                 last_used_at: Foundation.Date? = nil,
+                                pending_volume_bytes: Swift.Int? = nil,
                                 platform: Swift.String,
                                 provider: Swift.String,
                                 repository: Swift.String,
                                 unmeasured_capacity_copies: Swift.Int,
                                 unmeasured_copies: Swift.Int,
-                                used_bytes: Swift.Int? = nil
+                                used_bytes: Swift.Int? = nil,
+                                volume_bytes: Swift.Int? = nil
                             ) {
                                 self.architecture = architecture
                                 self.capacity_bytes = capacity_bytes
                                 self.id = id
                                 self.key = key
                                 self.last_used_at = last_used_at
+                                self.pending_volume_bytes = pending_volume_bytes
                                 self.platform = platform
                                 self.provider = provider
                                 self.repository = repository
                                 self.unmeasured_capacity_copies = unmeasured_capacity_copies
                                 self.unmeasured_copies = unmeasured_copies
                                 self.used_bytes = used_bytes
+                                self.volume_bytes = volume_bytes
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case architecture
@@ -106804,12 +106979,14 @@ public enum Operations {
                                 case id
                                 case key
                                 case last_used_at
+                                case pending_volume_bytes
                                 case platform
                                 case provider
                                 case repository
                                 case unmeasured_capacity_copies
                                 case unmeasured_copies
                                 case used_bytes
+                                case volume_bytes
                             }
                             public init(from decoder: any Decoder) throws {
                                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -106832,6 +107009,10 @@ public enum Operations {
                                 self.last_used_at = try container.decodeIfPresent(
                                     Foundation.Date.self,
                                     forKey: .last_used_at
+                                )
+                                self.pending_volume_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .pending_volume_bytes
                                 )
                                 self.platform = try container.decode(
                                     Swift.String.self,
@@ -106857,18 +107038,24 @@ public enum Operations {
                                     Swift.Int.self,
                                     forKey: .used_bytes
                                 )
+                                self.volume_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .volume_bytes
+                                )
                                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                                     "architecture",
                                     "capacity_bytes",
                                     "id",
                                     "key",
                                     "last_used_at",
+                                    "pending_volume_bytes",
                                     "platform",
                                     "provider",
                                     "repository",
                                     "unmeasured_capacity_copies",
                                     "unmeasured_copies",
-                                    "used_bytes"
+                                    "used_bytes",
+                                    "volume_bytes"
                                 ])
                             }
                         }
