@@ -2,9 +2,6 @@
   <.card_section id="oidc-trust-policies" data-part="oidc-card-section">
     <div data-part="header">
       <div data-part="heading">
-        <span id="oidc-workload-title" data-part="title">
-          {dgettext("dashboard_account", "Workload identities")}
-        </span>
         <.toggle
           id="oidc-configuration-toggle"
           label={dgettext("dashboard_account", "Show configuration")}
@@ -13,6 +10,9 @@
           aria-controls="oidc-trust-policy-form"
           aria-expanded={to_string(@oidc_configuration_visible)}
         />
+        <span id="oidc-workload-title" data-part="title">
+          {dgettext("dashboard_account", "Workload identities")}
+        </span>
       </div>
       <span data-part="subtitle">
         {dgettext(

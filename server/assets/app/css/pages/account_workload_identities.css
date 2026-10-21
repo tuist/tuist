@@ -23,9 +23,21 @@
       & > [data-part="heading"] {
         display: flex;
         flex-wrap: wrap;
-        justify-content: space-between;
         align-items: center;
-        gap: var(--noora-spacing-4);
+        gap: var(--noora-spacing-5);
+
+        & .noora-toggle [data-part="root"] {
+          gap: var(--noora-spacing-0);
+        }
+
+        & .noora-toggle [data-part="label"] {
+          position: absolute;
+          clip-path: inset(50%);
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          white-space: nowrap;
+        }
       }
 
       & [data-part="title"] {

@@ -64,6 +64,17 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
     assert [] = Accounts.list_oidc_trust_policies(context.account)
   end
 
+  test "places the workload section below SCIM with the switch immediately before its title", context do
+    lv = open(context)
+    assert has_element?(lv, "#sso-form + [data-part=scim-card] + #account-workload-identities")
+
+    assert has_element?(
+             lv,
+             "[data-part=heading] > #oidc-configuration-toggle + #oidc-workload-title",
+             "Workload identities"
+           )
+  end
+
   test "hiding configuration retains malformed drafts, helper overrides and project selection", context do
     lv = open(context)
     select_projects(lv, [context.project.id])
