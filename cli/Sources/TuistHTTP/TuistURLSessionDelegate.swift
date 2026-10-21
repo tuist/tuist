@@ -75,11 +75,15 @@ import Foundation
         /// additive (`SecTrustSetAnchorCertificatesOnly(trust, false)`).
         static func evaluate(_ trust: SecTrust, addingAdditionalAnchors anchors: [SecCertificate]) -> Bool {
             if !anchors.isEmpty {
-                SecTrustSetAnchorCertificates(trust, anchors as CFArray)
+                SecTrustSetAnchorCertificates(trust, anchors.filter(CertificateTrust.isAllowed) as CFArray)
                 SecTrustSetAnchorCertificatesOnly(trust, false)
             }
             var error: CFError?
-            return SecTrustEvaluateWithError(trust, &error)
+            guard SecTrustEvaluateWithError(trust, &error),
+                  let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
+                  !chain.isEmpty
+            else { return false }
+            return chain.allSatisfy(CertificateTrust.isAllowed)
         }
     }
 

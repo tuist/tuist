@@ -2,7 +2,8 @@
 
 This boundary owns the 12-key eMudhra policy, small shell checks, Go verifier
 qualification, public control fixtures, access replacement guards and the
-owner-driven warm rollout runbook. See `README.md` and the dated `STATUS.md`.
+owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
+`CLIENTS.md` for the client-by-client verifier inventory and qualification gaps.
 
 - Use the existing Go, shell and Elixir stack. No Python tooling or tests.
 - Do not recreate the removed generic image-overlay/publishing framework.

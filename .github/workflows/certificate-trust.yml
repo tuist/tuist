@@ -17,6 +17,11 @@ on:
       - server/lib/tuist/application/certificate_trust.ex
       - server/test/tuist/application/certificate_trust_test.exs
       - server/test/tuist/application/fixtures/**
+      - tuist_ex/lib/tuist_ex/certificate_trust.ex
+      - tuist_ex/test/tuist_ex/certificate_trust_test.exs
+      - tuist_ex/test/tuist_ex/fixtures/certificate_trust/**
+      - cli/Sources/TuistHTTP/CertificateTrust.swift
+      - cli/Sources/TuistHTTP/TuistURLSessionDelegate.swift
   push:
     branches: [main]
     paths:

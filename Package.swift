@@ -1146,6 +1146,7 @@ var targets: [Target] = [
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",
+            "TuistTestSupport",
             "TuistEnvironment",
             "TuistEnvironmentTesting",
             fileSystemDependency,

@@ -77,20 +77,36 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		}
 		expected[hash] = true
 	}
-	module := read(t, "../../server/lib/tuist/application/certificate_trust.ex")
-	block := regexp.MustCompile(`(?s)@blocked\s+MapSet\.new\(\s*~w\((.*?)\)\s*\)`).FindSubmatch(module)
-	if len(block) != 2 {
-		t.Fatal("cannot establish OTP deny list")
-	}
-	actual := map[string]bool{}
-	for _, hash := range strings.Fields(string(block[1])) {
-		if actual[hash] {
-			t.Fatal("duplicated OTP key")
+	swift := read(t, "../../cli/Sources/TuistHTTP/CertificateTrust.swift")
+	swiftHashes := map[string]bool{}
+	for _, hash := range regexp.MustCompile(`"([a-f0-9]{64})"`).FindAllSubmatch(swift, -1) {
+		if swiftHashes[string(hash[1])] {
+			t.Fatal("duplicated Swift policy key")
 		}
-		actual[hash] = true
+		swiftHashes[string(hash[1])] = true
 	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Fatal("OTP deny list differs from policy.json")
+	if !reflect.DeepEqual(expected, swiftHashes) {
+		t.Fatal("Swift deny list differs from policy.json")
+	}
+	for _, path := range []string{
+		"../../server/lib/tuist/application/certificate_trust.ex",
+		"../../tuist_ex/lib/tuist_ex/certificate_trust.ex",
+	} {
+		module := read(t, path)
+		block := regexp.MustCompile(`(?s)@blocked\s+MapSet\.new\(\s*~w\((.*?)\)\s*\)`).FindSubmatch(module)
+		if len(block) != 2 {
+			t.Fatalf("cannot establish OTP deny list in %s", path)
+		}
+		actual := map[string]bool{}
+		for _, hash := range strings.Fields(string(block[1])) {
+			if actual[hash] {
+				t.Fatalf("duplicated OTP key in %s", path)
+			}
+			actual[hash] = true
+		}
+		if !reflect.DeepEqual(expected, actual) {
+			t.Fatalf("OTP deny list differs from policy.json in %s", path)
+		}
 	}
 }
 

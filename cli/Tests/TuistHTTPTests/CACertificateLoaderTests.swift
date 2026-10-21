@@ -2,6 +2,7 @@
     import Foundation
     import Security
     import Testing
+    import TuistTestSupport
 
     @testable import TuistHTTP
 
@@ -104,6 +105,17 @@
             // Hostname mismatch still fails even with the CA trusted: evaluation is not bypassed.
             let mismatched = try trust(for: leaf, hostname: "evil.com")
             #expect(!TLSValidator.evaluate(mismatched, addingAdditionalAnchors: [ca]))
+        }
+
+        @Test
+        func blocked_anchors_do_not_break_an_unrelated_private_CA() throws {
+            let leaf = try #require(CACertificateLoader.parse(from: Data(Self.leafPEM.utf8)).first)
+            let ca = try #require(CACertificateLoader.parse(from: Data(Self.caPEM.utf8)).first)
+            let path = TestPaths.fixturesDirectory.appending(components: "CertificateTrust", "issuer-roots.pem")
+            let blocked = CACertificateLoader.parse(from: try Data(contentsOf: URL(fileURLWithPath: path.pathString)))
+            #expect(blocked.count == 4)
+            let trust = try trust(for: leaf, hostname: "localhost")
+            #expect(TLSValidator.evaluate(trust, addingAdditionalAnchors: blocked + [ca]))
         }
 
         private func trust(for certificate: SecCertificate, hostname: String) throws -> SecTrust {

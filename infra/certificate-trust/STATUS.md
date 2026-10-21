@@ -63,6 +63,45 @@ and use the larger runner for Linux image validation after a lost-runner failure
 The PR contains a scoped staging-test admonition. Canary/production and the
 remaining host/guest/vendor paths are not qualified by that note.
 
+## Client-verifier follow-up
+
+The client-by-client scope and remaining gaps are tracked in `CLIENTS.md`.
+Cloudflare's [incident response](https://blog.cloudflare.com/emudhra-certificate-compromise/)
+and the linked upstream matrix reinforce that SDK, OS, browser, curl and actual
+application verification paths must be assessed separately.
+
+- `tuist_ex` now embeds the 12-key policy for both `:httpc` and gRPC/Mint. It
+  filters anchors locally and rejects blocked intermediate/peer keys without
+  modifying the host application's CA cache. On OTP 29.0.3 / Elixir 1.20.2,
+  45 focused tests pass with the cold compile fixture explicitly excluded after
+  timeout failures. Real local OTP/Mint HTTP/2 TLS preserves a private CA and
+  rejects unknown CAs/wrong hostnames. All twelve public negative hosts reject
+  through actual `HTTP.request` and Mint HTTP/1 TLS; sampled upload/download
+  calls reject too, while unrelated HTTP and HTTP/2 positives pass. The public
+  negative hosts do not negotiate HTTP/2, so those checks do not prove gRPC
+  behavior by themselves. Compile, format, Hex build and docs passed; no Hex
+  package was published.
+- Current-host default Foundation rejects all twelve public controls. However,
+  the actual custom-CA delegate source accepted some controls when their roots
+  were supplied as additional anchors. `TLSValidator` now filters those anchors
+  and checks the verified chain's DER SPKI hashes after normal evaluation.
+  Ten focused Xcode tests pass, including all twelve policy certificates,
+  malformed DER and preserved private-CA/hostname behavior. Repeating the live
+  delegate test rejects all twelve controls and accepts unrelated HTTPS. The
+  delegate reports rejected challenges as cancellation (`NSURLErrorCancelled`),
+  not the default session's certificate-untrusted error. This is scoped source
+  and current-macOS evidence, not a released client or Linux/iOS qualification.
+
+Candidate builds at `47d307fdde` successfully published SHA-only CAPI, egress
+agent, runners-controller and cache-agent images. They were not deployed.
+The fresh macOS 26.5 runner build failed closed when the guest refused the
+`com.apple.trust-settings.admin` authorization database write (`-60005`); no
+artifact was created. Linux image builds lost their self-hosted runner again
+even on the larger shape; bind-mount tests passed but image qualification did
+not. Do not treat the unexecuted native checks or lost builds as passed.
+Remaining macOS/xcresult candidates and client/platform rows still require
+separate qualification and release.
+
 ## Validation and limits
 
 - The standalone Go policy/store/guard suite passes with actual **Go 1.26.10**.
