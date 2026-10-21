@@ -32,6 +32,7 @@ defmodule Tuist.Release do
     git_commits
   )
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
+  @grafana_query_log_view "grafana_query_log"
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
   # Column-level rather than table-level because every table below sits next to a
@@ -277,16 +278,63 @@ defmodule Tuist.Release do
   defp reconcile_ops_clickhouse(_repo), do: :ok
 
   defp reconcile_grafana_clickhouse(repo) when repo == IngestRepo do
+    role = Environment.grafana_clickhouse_role()
+
+    if is_binary(role) and role != "" do
+      ensure_grafana_query_log_view(repo)
+    end
+
     reconcile_clickhouse_identity(
       repo,
       Environment.grafana_clickhouse_username(),
       Environment.grafana_clickhouse_password(),
-      Environment.grafana_clickhouse_role(),
+      role,
       &grafana_clickhouse_reconciliation_queries/4
     )
   end
 
   defp reconcile_grafana_clickhouse(_repo), do: :ok
+
+  # Querying another replica needs the `REMOTE` grant, which the Grafana
+  # identity does not have, so this view reads every replica's query log with
+  # its definer's rights instead. The `default` cluster comes from the server's
+  # configuration, which a replica reads only when it restarts, after this
+  # pre-upgrade migration. A server without one skips the view until a later
+  # migrate; the view resolves the cluster when it is read, so one created
+  # before the restart covers every replica after it.
+  defp ensure_grafana_query_log_view(repo) do
+    %{rows: rows} = repo.query!("SELECT 1 FROM system.clusters WHERE cluster = 'default' LIMIT 1", [], log: false)
+
+    if rows == [] do
+      Logger.info("Skipping the #{@grafana_query_log_view} view: this server has no `default` cluster yet.")
+    else
+      database = repo.config() |> Keyword.fetch!(:database) |> to_string()
+      repo.query!(grafana_query_log_view_statement(database), [], log: false)
+    end
+  end
+
+  @doc false
+  def grafana_query_log_view_statement(database) do
+    database = quote_clickhouse_identifier!(database, "ClickHouse database")
+
+    """
+    CREATE OR REPLACE VIEW #{database}.#{@grafana_query_log_view}
+    DEFINER = default SQL SECURITY DEFINER
+    AS SELECT
+      hostName() AS replica,
+      event_time,
+      type,
+      exception_code,
+      query_duration_ms,
+      normalized_query_hash,
+      query,
+      http_user_agent
+    FROM clusterAllReplicas('default', system.query_log)
+    WHERE event_time >= now() - INTERVAL 1 DAY
+      AND is_initial_query
+      AND type IN ('QueryFinish', 'ExceptionWhileProcessing')
+    """
+  end
 
   defp reconcile_clickhouse_identity(repo, username, password, role, reconciliation_queries) do
     if Enum.all?([username, password, role], &(is_binary(&1) and &1 != "")) do
@@ -355,7 +403,8 @@ defmodule Tuist.Release do
         max_block_size = 10001 MIN 1 MAX 10001,
         max_threads = 2 MIN 1 MAX 2
       """,
-      ["#{database}.*", "system.tables", "system.columns"]
+      ["#{database}.*", "system.tables", "system.columns"],
+      ["#{database}.#{@grafana_query_log_view}"]
     )
   end
 
@@ -368,8 +417,9 @@ defmodule Tuist.Release do
 
     # Dashboards and alert rules aggregate over weeks of builds, so the bounds
     # are wider than the ops role's, but still capped so a panel cannot take the
-    # memory or cores the application's own queries need. `system.query_log`
-    # backs the slow-query alert.
+    # memory or cores the application's own queries need. The slow-query
+    # alert reads every replica's query log through the `grafana_query_log`
+    # view, which the database grant covers.
     readonly_clickhouse_identity_queries(
       username,
       role,
@@ -381,17 +431,18 @@ defmodule Tuist.Release do
         max_memory_usage = 8589934592 MIN 1 MAX 8589934592,
         max_threads = 8 MIN 1 MAX 8
       """,
-      ["#{database}.*", "system.tables", "system.columns", "system.query_log"]
+      ["#{database}.*", "system.tables", "system.columns"]
     )
   end
 
-  defp readonly_clickhouse_identity_queries(username, role, password_hash, role_settings, readable) do
+  defp readonly_clickhouse_identity_queries(username, role, password_hash, role_settings, readable, unreadable \\ []) do
     [
       {"CREATE ROLE IF NOT EXISTS #{role}", []},
       {"REVOKE ALL ON *.* FROM #{role}", []},
       {role_settings, []}
     ] ++
       Enum.map(readable, &{"GRANT SELECT ON #{&1} TO #{role}", []}) ++
+      Enum.map(unreadable, &{"REVOKE SELECT ON #{&1} FROM #{role}", []}) ++
       [
         {
           """
