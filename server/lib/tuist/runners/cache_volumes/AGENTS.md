@@ -8,13 +8,15 @@ these schemas persist volume identities and per-job uses.
   the allocation. Read-only image `retain` and `download` requests may name a use
   from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
   listed by `VolumePrefetch`) under the use that published it.
-- `Runners.managed_cache_volumes?/1` (`:runner_opt_in_caches` and
-  `:runner_managed_cache_volumes`) puts an account's macOS Xcode and module caches
-  on the `tuist-xcode` (30 GB, `volume_bytes/1`) and `tuist-module` custom
-  volumes. Dispatch sends `managed_cache_volumes: true`, stamps the untrusted
-  label so the host neither materializes nor promotes the built-in volume, and
-  omits its HEAD; the cache signing grant still follows trust. The dashboard
-  names the volumes "Xcode cache" and "Module cache".
+- Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
+  (30 GB, `volume_bytes/1`) and `tuist-module` custom volumes, which the
+  module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
+  attach. Dispatch sends `automatic_caches: false` and
+  `managed_cache_volumes: true`, stamps the untrusted label so the host gives
+  the job an empty built-in image and never promotes it, and omits its HEAD;
+  the cache signing grant still follows trust. The dashboard names the volumes
+  "Xcode cache" and "Module cache" and keeps listing built-in volumes from
+  earlier jobs.
 - `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
   affinity: the lineage scopes jobs of the same repository, workflow name and job
   name attached since a cutoff. It starts from the account's volumes so the uses
@@ -119,15 +121,8 @@ these schemas persist volume identities and per-job uses.
   whole-second precision for the generated Swift client's default ISO8601 decoder.
   Test measured PostgreSQL rows through JSON schema validation, not only empty fixtures.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
-
-- `FeatureFlags.runner_opt_in_caches_enabled?/1` puts `automatic_caches: false`
-  in macOS dispatch responses. The guest then exposes the built-in caches only
-  through the module-cache and xcode-cache actions, Buildkite plugins and GitLab
-  snippets, and a job
-  that uses neither sends no `Builtin` report. Storage identity is unchanged.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - `Builtin` ingests automatic macOS Tuist/Xcode cache measurements through the
   host-audience endpoint. Resolve job/account/repository from the executed session

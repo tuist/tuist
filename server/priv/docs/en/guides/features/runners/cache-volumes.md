@@ -31,9 +31,6 @@ authentication for the module cache, and the
 In GitLab CI, combine snippets with `!reference`, because `extends` replaces
 `before_script`.
 
-Some accounts still get the Xcode and module caches in every macOS job
-automatically. There, those two steps change nothing, so you can add them now.
-
 ### Xcode cache {#xcode-cache}
 
 Keeps the store of Xcode's compilation cache on macOS runners.
@@ -326,17 +323,7 @@ are unsupported. Ignore workspace links without a trailing slash in `.gitignore`
 
 ## Saving changes {#saving-changes}
 
-The Xcode and module caches save the changes of successful jobs from your own
-repository. Jobs from forks start with empty caches and never save, and neither
-do failed or cancelled jobs or jobs that use neither cache.
-
-| Provider | Xcode and module caches |
-| --- | --- |
-| GitHub Actions | Successful jobs from the repository itself, including its pull requests |
-| Buildkite | Successful builds from the pipeline's own repository |
-| GitLab CI | Not saved yet: each job starts with empty caches |
-
-The Gradle cache and custom volumes save the changes of successful jobs:
+The managed caches and custom volumes save the changes of successful jobs:
 
 | Provider | Jobs that save changes |
 | --- | --- |
@@ -355,11 +342,10 @@ Never cache credentials or irreplaceable data.
 
 ### Choose which branches save {#choose-which-branches-save}
 
-For GitHub Actions, you can change which branches save the Gradle cache and
+For GitHub Actions, you can change which branches save the managed caches and
 custom volumes. Open **Runners → Profiles**, edit the profile your workflows use
 in `runs-on:`, and expand **Save cache from**. The settings apply to every
-volume used by jobs on that profile, including volumes created later. They don't
-apply to the Xcode and module caches.
+volume used by jobs on that profile, including volumes created later.
 
 ![The runner profile form with the Save cache from section expanded, with Default branch turned on and develop and release/* added as additional branches](/images/guides/features/runners/save-cache-from.png)
 
@@ -383,13 +369,12 @@ CI always save from the default branch.
 
 ## Capacity and retention {#capacity-and-retention}
 
-The Xcode and module caches share storage that Tuist sizes and prunes for you,
-and they don't count against the capacity of the volumes below.
-
-The Gradle cache and each custom volume hold up to **20 GB** and expire after
-**7 days without a job mount**. The next job starts with an empty volume after
-expiry. The Gradle cache step has Gradle remove entries unused for seven days
-after every build.
+The Xcode cache holds up to **30 GB**. The module cache, the Gradle cache and
+each custom volume hold up to **20 GB**. All of them expire after **7 days
+without a job mount**, and the next job starts with an empty volume after
+expiry. Tuist prunes the Xcode and module caches to stay within their size, and
+the Gradle cache step has Gradle remove entries unused for seven days after
+every build.
 
 Custom volumes do not prune old dependencies: use your tool's cleanup settings
 to keep them small. Writes to a full volume can fail the job. When saved

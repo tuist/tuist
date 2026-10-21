@@ -16,12 +16,12 @@ and `repo-*` HEADs, objects, local masters, capacities and retention remain in
 place. No migration deletes or renames them. Custom-volume clear affects only
 that custom identity; it does not clear the built-in Tuist or Xcode cache.
 
-The automatic wiring is being retired account by account. With the server's
-`:runner_opt_in_caches` flag on, the host still materializes and the guest still
-mounts the built-in image, but a job reaches it only through `tuist/module-cache`
-and `tuist/xcode-cache`; a job that uses neither is discarded and not reported.
-The storage identity, budgets and lifecycle are unchanged. See the "Opt-in
-caches" paragraph in `infra/runner-image/AGENTS.md`.
+The automatic wiring is retired. The server now puts every macOS job on the
+`tuist-xcode` and `tuist-module` custom volumes, which a job reaches only through
+`tuist/xcode-cache` and `tuist/module-cache`. Dispatch stamps the untrusted label,
+so the host gives the job an empty built-in image and never promotes it. See the
+"Opt-in caches" and "Managed cache volumes" paragraphs in
+`infra/runner-image/AGENTS.md`.
 
 New identities include platform, preventing APFS and ext4 image reuse even when
 repository, key, architecture and UID happen to match. Existing Linux UUIDs and
