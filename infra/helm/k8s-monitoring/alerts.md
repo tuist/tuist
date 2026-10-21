@@ -4542,8 +4542,8 @@ Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 - Desired zero is excluded. One Ready replica is degraded but does not fire.
 - StatefulSets created in the last ten minutes are excluded. Runner-region
   instances (ber1, scw-fr-par) run one replica, so a new instance has zero
-  Ready until its initial region passes settle (about 2.5 minutes for
-  `kura-riverside-ber1` on 2026-10-21, incident #130, with no client traffic).
+  Ready until its initial region passes settle (about 2.5 minutes for a new
+  ber1 instance on 2026-10-21, which paged as incident #130).
   A new or recreated instance still unready after ten minutes fires at twelve.
 - Healthy samples remain an explicit zero. Missing readiness is unknown,
   not zero replicas: no-data and execution errors remain visible as Grafana
