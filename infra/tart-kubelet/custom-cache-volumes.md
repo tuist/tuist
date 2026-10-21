@@ -188,10 +188,12 @@ the space every cache on the volume may take together. Admission, convergence,
 eviction and `tart_kubelet_cache_volume_root_free_bytes` measure the volume's
 free space as the lesser of its quota headroom and the budget less what the
 volume uses (`df` reports an APFS volume's own usage). APFS fixes a quota when
-the volume is created, so bootstrap creates it at half the disk, or the budget
-when that is larger. A budget change up to that quota applies with the next
-host-config push and needs no new volume. Above it, the quota still bounds the
-caches until the host is replaced or reinstalled.
+the volume is created, so on a disk of 1 TiB or more bootstrap creates it at
+half the disk, or the budget when that is larger. A budget change up to that
+quota applies with the next host-config push and needs no new volume. Above it,
+the quota still bounds the caches until the host is replaced or reinstalled. On
+a smaller disk (the M2-L's 460 GiB) the other half does not hold the goldens and
+job VMs, so the quota is the budget, as before.
 
 BER1 rack hosts created before the budget have a 240 GiB quota. Reinstall one
 at a time (`kubectl annotate rasm <machine> tuist.dev/os-reinstall=<version it

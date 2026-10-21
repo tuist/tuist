@@ -439,10 +439,11 @@ type Config struct {
 	// `--runner-cache-budget-gib` to tart-kubelet so the feature turns on.
 	// It is the budget: the space ALL cache volumes on the host may take
 	// together, which admission and eviction enforce. The volume's quota is
-	// half the disk, or the budget when that is larger, fixed when the volume
-	// is created: the filesystem-enforced bound that keeps even a buggy
-	// reconciler from taking the disk the golden clones need. A budget within
-	// an existing volume's quota applies with the next host-config push.
+	// fixed when the volume is created: half the disk, or the budget when that
+	// is larger, on a disk of 1 TiB or more, and the budget on a smaller one.
+	// It is the filesystem-enforced bound that keeps even a buggy reconciler
+	// from taking the disk the golden clones need. A budget within an
+	// existing volume's quota applies with the next host-config push.
 	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
 	RunnerCacheVolumeGiB      int
 	CustomCacheURL            string
@@ -2365,14 +2366,16 @@ MOUNT=%[2]s
 BUDGET_GIB=%[3]d
 OWNER=%[4]s
 # Provision the volume only if it isn't already mounted. APFS fixes a volume's
-# quota when it is created, so the quota is half the disk, or the budget when
-# that is larger, and tart-kubelet's --runner-cache-budget-gib bounds the caches
-# below it. A budget change within the quota needs no new volume.
+# quota when it is created, so on a disk of 1 TiB or more the quota is half the
+# disk, or the budget when that is larger, and tart-kubelet's
+# --runner-cache-budget-gib bounds the caches below it: a budget change within
+# the quota needs no new volume. On a smaller disk the other half does not hold
+# the goldens and job VMs, so the quota is the budget.
 if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
   DISK_GIB=$(/bin/df -P -k /System/Volumes/Data | /usr/bin/awk 'NR==2 {print int($2 / 1048576)}')
-  QUOTA_GIB=$((DISK_GIB / 2))
-  if [ "$QUOTA_GIB" -lt "$BUDGET_GIB" ]; then
-    QUOTA_GIB=$BUDGET_GIB
+  QUOTA_GIB=$BUDGET_GIB
+  if [ "$DISK_GIB" -ge 1024 ] && [ $((DISK_GIB / 2)) -gt "$BUDGET_GIB" ]; then
+    QUOTA_GIB=$((DISK_GIB / 2))
   fi
   # Resolve the APFS container backing the boot volume; the cache volume shares
   # that container's free space but is capped by its own quota. On modern macOS

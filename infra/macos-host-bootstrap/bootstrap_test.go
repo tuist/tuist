@@ -2011,10 +2011,12 @@ func TestRenderCommandLineToolsScript_ProbesWithoutPromptingForTheTools(t *testi
 	}
 }
 
-// APFS fixes a volume's quota when it is created, so the script sizes it from
-// the disk rather than the budget: a later budget within it needs no new
-// volume. Runs the quota lines of the rendered script against a fake df.
-func TestRenderRunnerCacheVolumeScript_QuotaIsHalfTheDiskOrTheBudget(t *testing.T) {
+// APFS fixes a volume's quota when it is created, so on a disk of 1 TiB or
+// more the script sizes it from the disk rather than the budget: a later budget
+// within it needs no new volume. A smaller disk keeps the quota at the budget,
+// because its other half does not hold the goldens and job VMs. Runs the quota
+// lines of the rendered script against a fake df.
+func TestRenderRunnerCacheVolumeScript_QuotaFollowsTheDisk(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		diskKiB   uint64
@@ -2022,8 +2024,10 @@ func TestRenderRunnerCacheVolumeScript_QuotaIsHalfTheDiskOrTheBudget(t *testing.
 		want      string
 	}{
 		{"half of a 1858 GiB disk", 1858 * 1024 * 1024, 512, "929"},
-		{"budget above half a 460 GiB disk", 460 * 1024 * 1024, 512, "512"},
-		{"half of a 460 GiB disk", 460 * 1024 * 1024, 80, "230"},
+		{"budget above half a 1858 GiB disk", 1858 * 1024 * 1024, 1000, "1000"},
+		{"half of a 1 TiB disk", 1024 * 1024 * 1024, 80, "512"},
+		{"budget on a disk just under 1 TiB", 1023 * 1024 * 1024, 80, "80"},
+		{"budget on a 460 GiB disk", 460 * 1024 * 1024, 80, "80"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			script := renderRunnerCacheVolumeScript(Config{RunnerCacheVolumeGiB: tc.budgetGiB, SSHUser: "m1"})
