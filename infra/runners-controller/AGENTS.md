@@ -245,9 +245,15 @@ independent workqueues:
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
-    retired, and only once they have been bound longer than `seatGrace`
-    (2m) — a Pod that bound more recently is the seat some other
-    reservation just produced, and dispatch has not yet reached it. The
+    retired, and only once their seat is no longer in flight
+    (`seatInFlight`). A Pod that bound within `seatGrace` (2m) is the
+    seat some other reservation just produced, and dispatch has not yet
+    reached it. A macOS Pod is in flight while it is bound and Pending,
+    up to `macOSProvisioningGrace` (20m), because tart-kubelet may be
+    pulling the image for minutes before the VM exists, and for
+    `macOSClaimGrace` (3m) after its VM starts, so the guest's first
+    dispatch poll can claim the job it was created for. Candidate
+    ranking counts those seats as occupants to wait out. The
     taint is removed when the Pod lands or after
     `reservationTimeout` (15m), and at most one host is held per fleet
     (`maxFleetReservations`; the count is taken over the pool's own
@@ -335,6 +341,12 @@ independent workqueues:
   This deliberately follows maximum-unavailable semantics: a scale-up
   can pause a roll rather than letting the controller remove another
   warm Pod while serving capacity is already unavailable.
+
+  An image roll leaves a stale macOS Pod alone while its seat is in
+  flight (`macOSSeatInFlight`): reaping it mid-pull, or draining it
+  before its first poll, makes the job it was created for wait for a
+  replacement to pull the new image. It runs that job on the old image
+  and exits like any single-shot runner.
 
   `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
   retirement signal. The controller does not apply or clear it. The
