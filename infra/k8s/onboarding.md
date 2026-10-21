@@ -490,10 +490,9 @@ first prevents a later management-cluster reconciliation from recreating it.
 Cluster retirement is deliberately manual because it permanently removes the
 control plane and any remaining persistent volumes.
 
-Delete the `pentest.tuist.dev` record in Cloudflare before running it. The
-record was created by hand at bootstrap, so nothing removes it. The workflow
-deletes the ingress load balancer it points at, and once Hetzner reassigns that
-IP, whoever receives it would serve the hostname.
+Then delete the `pentest.tuist.dev` record in Cloudflare. It was created by
+hand at bootstrap, so nothing removes it, and once Hetzner reassigns the
+released load-balancer IP, whoever receives it would serve that hostname.
 
 ## 10. Teardown
 
@@ -505,11 +504,7 @@ longer on `main` before deleting the `Cluster` resource.
 KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist delete cluster <cluster_name>
 ```
 
-caph drains + deletes the nodes and servers, and releases its API-server load
-balancer and network. It does not touch the load balancers the Hetzner cloud
-controller created for `type: LoadBalancer` Services such as ingress-nginx:
-delete those Services first, while the controller still runs, or remove the
-leftover load balancers in the Hetzner console afterwards.
+caph drains + deletes the nodes and releases the Hetzner LB and servers.
 
 ---
 
