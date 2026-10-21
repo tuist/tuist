@@ -139,7 +139,7 @@ openApiGenerate {
         "library" to "jvm-retrofit2",
         "serializationLibrary" to "moshi",
         "useCoroutines" to "true",
-        "enumPropertyNaming" to "original",
+        "enumPropertyNaming" to "UPPERCASE",
     ))
     globalProperties.set(mapOf(
         "models" to "",

@@ -241,7 +241,7 @@ class PreviewsViewModelTest {
             fullName = fullName,
             defaultBranch = "main",
             token = "",
-            visibility = Project.Visibility.`public`,
+            visibility = Project.Visibility.PUBLIC,
             buildSystem = null,
             repositoryUrl = null,
         )
