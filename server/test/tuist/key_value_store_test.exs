@@ -313,6 +313,58 @@ defmodule Tuist.KeyValueStoreTest do
       refute_received :computed
     end
 
+    for {label, value, cache_errors} <- [
+          {"literal ignore tuple", {:ignore, "value"}, true},
+          {"literal internal-shaped tuple", {:ignore, {KeyValueStore, :uncached, {:error, :literal}}}, true},
+          {"uncached error", {:error, :retry}, false}
+        ] do
+      @callback_value value
+      @cache_errors cache_errors
+      test "concurrent waiters retain #{label}" do
+        cache = :"concurrent_shape_#{System.unique_integer([:positive])}"
+        start_supervised!({Cachex, [cache, []]})
+        parent = self()
+        value = @callback_value
+        opts = [cache: cache, cache_errors: @cache_errors]
+
+        owner =
+          Task.async(fn ->
+            KeyValueStore.get_or_update(:shape, opts, fn ->
+              send(parent, {:computing_shape, self()})
+
+              receive do
+                :release -> value
+              end
+            end)
+          end)
+
+        assert_receive {:computing_shape, worker}
+        on_exit(fn -> send(worker, :release) end)
+
+        waiter =
+          Task.async(fn ->
+            KeyValueStore.get_or_update(:shape, opts, fn -> flunk("duplicate computation") end)
+          end)
+
+        courier = String.to_existing_atom("#{cache}_courier")
+
+        assert Enum.reduce_while(1..100, false, fn _, _ ->
+                 {_cache, tasks} = :sys.get_state(courier)
+
+                 if match?({_worker, [_, _ | _]}, Map.get(tasks, "shape")) do
+                   {:halt, true}
+                 else
+                   Process.sleep(10)
+                   {:cont, false}
+                 end
+               end)
+
+        send(worker, :release)
+        assert Task.await(owner) == value
+        assert Task.await(waiter) == value
+      end
+    end
+
     test "caches the value the function returns, whatever its shape" do
       for value <- [{:error, :unavailable}, {:ignore, "value"}] do
         key = [:shape, System.unique_integer([:positive])]

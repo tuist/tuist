@@ -193,24 +193,38 @@ defmodule Tuist.KeyValueStore do
   # miss would stall every locked lookup on the node, including authentication on API requests.
   defp fetch_from_cachex(cache, cache_key, opts, func) do
     result =
-      Cachex.fetch(cache, cache_key, fn ->
-        value = func.()
-
-        if is_nil(value) or not cache_result?(value, opts) do
-          {:ignore, value}
-        else
-          {:commit, value, expire: cachex_cache_ttl(opts)}
-        end
-      end)
+      Cachex.fetch(cache, cache_key, fn -> format_callback_value(func.(), opts) end)
 
     case result do
-      {:commit, value} -> value
-      {:ignore, value} -> value
-      {:error, %Cachex.Error{message: message}} -> {:error, message}
-      value -> value
+      {:commit, value} ->
+        value
+
+      {:ignore, {__MODULE__, :uncached, value}} ->
+        if cache_result?(value, opts), do: result, else: value
+
+      {:ignore, nil} ->
+        nil
+
+      {:error, %Cachex.Error{message: message}} ->
+        {:error, message}
+
+      value ->
+        value
     end
   rescue
     _error in ArgumentError -> func.()
+  end
+
+  # Cachex returns raw committed values to waiters. Tag uncached errors separately
+  # so literal `{:ignore, value}` cache values retain the same shape for all callers.
+  defp format_callback_value(nil, _opts), do: {:ignore, nil}
+
+  defp format_callback_value(value, opts) do
+    if cache_result?(value, opts) do
+      {:commit, value, expire: cachex_cache_ttl(opts)}
+    else
+      {:ignore, {__MODULE__, :uncached, value}}
+    end
   end
 
   defp update_redis(key, ttl, opts, func) do
