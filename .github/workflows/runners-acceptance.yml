@@ -152,6 +152,22 @@ jobs:
           sparse-checkout: |
             .github
             mise
+      - name: Kura round trip
+        timeout-minutes: 3
+        run: .github/scripts/runners-acceptance/kura-roundtrip.sh
+      - uses: ./.github/actions/mise-install
+        with:
+          install: tuist
+          cache: "false"
+      - name: Authenticate with Tuist
+        timeout-minutes: 3
+        run: tuist auth login
+      - name: Xcode cache hits
+        timeout-minutes: 10
+        run: .github/scripts/runners-acceptance/xcode-cache.sh
+      # After the build, so GitHub has reported which job this runner runs: the
+      # host gives up authorizing a volume after 25 seconds, and that report can
+      # trail the job's start by longer.
       - uses: tuist/cache-volume@v1
         if: matrix.target.label == needs.plan.outputs.volume_label
         id: volume
@@ -166,41 +182,34 @@ jobs:
         env:
           CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
         run: .github/scripts/runners-acceptance/volume.sh seed "$HOME/runners-acceptance-volume"
-      - name: Kura round trip
-        timeout-minutes: 3
-        run: .github/scripts/runners-acceptance/kura-roundtrip.sh
-      - uses: ./.github/actions/mise-install
-        with:
-          install: tuist
-          cache: "false"
-      - name: Authenticate with Tuist
-        timeout-minutes: 3
-        run: tuist auth login
-      - name: Xcode cache hits
-        timeout-minutes: 10
-        run: .github/scripts/runners-acceptance/xcode-cache.sh
 
-  # The host publishes a finished job's volume on a worker that runs every 30
-  # seconds, so this job waits before attaching. It runs on the same label as
-  # the seed job and requires the copy that job saved.
-  macos-volume:
-    name: macOS cache volume (${{ needs.plan.outputs.volume_label }})
+  # The host publishes a finished job's volume once its VM has stopped, which
+  # has taken up to about 90 seconds after the job ends. The wait runs on a
+  # GitHub-hosted runner so it does not hold canary's only Mac.
+  volume-wait:
+    name: Wait for the cache volume to be published
     needs: [plan, macos]
     if: needs.plan.outputs.volume_label != '' && needs.macos.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: sleep 120
+
+  # Runs on the same label as the seed job and requires the copy that job saved.
+  macos-volume:
+    name: macOS cache volume (${{ needs.plan.outputs.volume_label }})
+    needs: [plan, volume-wait]
+    if: needs.volume-wait.result == 'success'
     continue-on-error: true
     runs-on: ${{ needs.plan.outputs.volume_label }}
     timeout-minutes: 10
     permissions:
       contents: read
-    env:
-      PUBLISH_WAIT_SECONDS: 60
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts/runners-acceptance
-      - name: Wait for the seed job's copy to be published
-        run: sleep "${PUBLISH_WAIT_SECONDS}"
       - uses: tuist/cache-volume@v1
         id: volume
         with:

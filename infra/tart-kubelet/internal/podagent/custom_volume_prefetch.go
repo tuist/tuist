@@ -15,6 +15,10 @@ const (
 	// that does not arrive in time is downloaded in the background instead.
 	customAcquireBudget  = 25 * time.Second
 	customAuthorizeRetry = time.Second
+	// customSettleInterval and customSettleWindow pace reconciliation after a
+	// runner Pod stops, until its VM is gone and its branch can be published.
+	customSettleInterval = 5 * time.Second
+	customSettleWindow   = 2 * time.Minute
 	customPrefetchBudget = 5 * time.Minute
 	customPrefetchQueue  = 16
 	// customPrefetchRetry spaces out attempts at a master whose download failed.

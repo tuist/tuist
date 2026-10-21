@@ -215,7 +215,11 @@ explaining that affected volumes will not publish.
 
 The host scans requests once per second with independent per-pod workers (at most
 eight, without a queue), and publishes/reclaims on a separate worker every
-30 seconds. Slow verification, uploads and another guest's restore cannot block
+30 seconds, and every 5 seconds for two minutes after a runner Pod stops
+running, so a finished job's branch is published soon after its VM stops
+rather than on the next tick. When the guest could not mount a volume, it
+leaves the reason in the share's `.attach-error`, which the host logs when it
+deletes that never-mounted branch. Slow verification, uploads and another guest's restore cannot block
 an unrelated mailbox. Shutdown joins all workers before closing the store. It
 reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.

@@ -27,6 +27,11 @@ var ErrWithheld = errors.New("cache branch withheld from publication")
 var ErrUnchanged = fmt.Errorf("%w: unchanged", ErrWithheld)
 var ErrFull = fmt.Errorf("%w: out of space", ErrWithheld)
 
+// ErrIdentical withholds a branch whose image is byte-identical to the master it
+// was cloned from although the job reported changes: its writes never reached
+// the host, and publishing it would only advance the generation.
+var ErrIdentical = fmt.Errorf("%w: identical to its base", ErrWithheld)
+
 // ImageTransfer is the same upload-before-fast-forward protocol used by macOS.
 // URLs and infrastructure credentials never enter the workflow filesystem.
 type ImageTransfer interface {
@@ -500,6 +505,9 @@ func (b *LocalImages) publish(slot Slot) error {
 	compressDone(err)
 	if err != nil {
 		return err
+	}
+	if slot.BaseGeneration > 0 && content == slot.ContentDigest {
+		return ErrIdentical
 	}
 	uploadDone := b.Observe.Start("upload", "none")
 	generation, err := b.Transfer.Publish(slot, archive, digest, content)

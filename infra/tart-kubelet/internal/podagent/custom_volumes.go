@@ -216,6 +216,22 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 	finished := make(chan string, 9)
 	active := make(map[string]bool)
 	publishing := false
+	// A finished job's branch can only be sealed once its VM has stopped, which
+	// trails the Pod by tens of seconds. Pods that stopped running are
+	// reconciled every few seconds until then instead of on the next report tick.
+	running := make(map[string]bool)
+	settling := make(map[string]time.Time)
+	var reconciled time.Time
+	reconcile := func() {
+		publishing = true
+		reconciled = time.Now()
+		workers.Go(func() {
+			if err := c.reconcile(ctx); err != nil {
+				log.FromContext(ctx).Error(err, "custom cache reconciliation")
+			}
+			finished <- ""
+		})
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -230,13 +246,7 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			if publishing {
 				continue
 			}
-			publishing = true
-			workers.Go(func() {
-				if err := c.reconcile(ctx); err != nil {
-					log.FromContext(ctx).Error(err, "custom cache reconciliation")
-				}
-				finished <- ""
-			})
+			reconcile()
 		case <-requests:
 			listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 			pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
@@ -244,6 +254,27 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			if err != nil {
 				log.FromContext(ctx).Error(err, "custom cache pod discovery")
 				continue
+			}
+			now := time.Now()
+			current := make(map[string]bool)
+			for _, pod := range pods.Items {
+				if pod.Labels["tuist.dev/runner"] == "true" && pod.Spec.NodeName == c.Node && pod.DeletionTimestamp == nil && pod.Status.Phase == corev1.PodRunning {
+					current[string(pod.UID)] = true
+				}
+			}
+			for uid := range running {
+				if !current[uid] {
+					settling[uid] = now.Add(customSettleWindow)
+				}
+			}
+			running = current
+			for uid, until := range settling {
+				if now.After(until) {
+					delete(settling, uid)
+				}
+			}
+			if len(settling) > 0 && !publishing && now.Sub(reconciled) >= customSettleInterval {
+				reconcile()
 			}
 			for _, pod := range pods.Items {
 				uid := string(pod.UID)
@@ -319,6 +350,9 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	path := filepath.Join(c.Root, "pods", slot.PodUID, slot.Scope)
 	if slot.State == "active" && !cachevolumes.APFSMarker(path, ".mounted", slot.ID) {
 		if gone {
+			if reason := attachError(path); reason != "" {
+				log.Log.WithName("custom-cache-volumes").Info("guest could not mount its volume; job ran cold", "pod", slot.PodName, "use", slot.ID, "error", reason)
+			}
 			return "delete", nil
 		}
 		return "hold", nil
@@ -542,4 +576,21 @@ func mountedGeneration(slot cachevolumes.Slot) any {
 		return nil
 	}
 	return slot.MountedGeneration
+}
+
+// attachError reads the reason the guest recorded for a mount that failed.
+// The share is guest-writable, so the read never follows it out of the pod's directory.
+func attachError(path string) string {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return ""
+	}
+	defer root.Close()
+	file, err := root.Open(filepath.Join(filepath.Base(path), ".attach-error"))
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	data, _ := io.ReadAll(io.LimitReader(file, 1024))
+	return strings.ToValidUTF8(strings.TrimSpace(string(data)), "?")
 }
