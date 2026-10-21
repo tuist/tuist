@@ -174,6 +174,15 @@ variable "memory_gb" {
   default = 8
 }
 
+# Builds the runner layer as an ASIF overlay on a read-only `base_image`
+# (macOS 27 hosts only). The build runs `tart` through `stacked-tart/`, which
+# turns the plugin's `tart clone` into `tart clone --stacked`. A stacked VM has
+# no `disk.img` for the plugin to edit, so the recovery partition is kept.
+variable "stacked" {
+  type    = bool
+  default = false
+}
+
 source "tart-cli" "runner" {
   vm_base_name = var.base_image
   vm_name      = var.output_image
@@ -189,8 +198,9 @@ source "tart-cli" "runner" {
   # tight values held for years on the original Mac mini but timed out
   # on newly-onboarded hosts. 15m gives headroom for the cold path on a
   # cirruslabs Tahoe base; the warm path returns long before then.
-  ssh_timeout = "15m"
-  headless    = true
+  ssh_timeout        = "15m"
+  headless           = true
+  recovery_partition = var.stacked ? "keep" : "delete"
 }
 
 build {

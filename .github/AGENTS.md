@@ -62,6 +62,10 @@ and all jobs skip draft pull requests. Rust auth dependencies are resolved durin
 Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
+The separate native iOS UI job builds the isolated Once fixture runner, exercises
+CRUD/navigation with `xcodebuild test-without-building`, and exports xcresult
+screenshots plus a simulator recording as `atlas-native-ui-evidence`. Fixtures
+make no live account-management requests and never enter production source globs.
 Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
@@ -293,12 +297,26 @@ instruments each disposable downloaded build using native line counters.
 Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
-whose runs read the binary cache: `cli.yml`'s cache job on main warms the plain
-variant and then the coverage variant (`tuist cache --coverage`), which the runs
-with `-enableCodeCoverage YES` look up. Every `tuist test` that uploads coverage
-passes `--derived-data-path`, because the coverage export reads the test
-products and the profile from derived data, and the result-bundle fallback it
-takes without one never covers cached code.
+whose runs read the binary cache. The coverage settings are set once, in the
+root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
+`TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and
+every developer resolve the same variant and the same prefix mapping; both are
+hashed into binary-cache and selective-testing keys, so never set them per step.
+They stand in for `Tuist.swift`'s `coverage` option until the
+backward-compatibility gate's CLI knows it. The test runs pass no
+`-enableCodeCoverage`: schemes that leave their test action's coverage unset
+follow the resolved option, and the acceptance-test schemes set `coverage: false`
+to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until
+`mise.toml` pins one with it the runs collect no coverage and stay green
+(`tuist coverage complete` leaves the commit pending). `cli.yml`'s single
+`tuist cache` on main warms the variant those settings select: plain binaries
+before that pin, the coverage variant after it. Plain environment variables
+never reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones do), so
+they cannot flip the CLI's own unit tests. The coverage runs pass no
+`--derived-data-path`: the CLI locates Xcode's derived data itself
+(`DerivedDataLocator`). If a run's export can't find it, it falls back to the
+result bundle's xccov report, which never covers cached code; the server shows
+that run's `coverage_tool` as `xccov`.
 
 Keep persistent cache mounts outside `RUNNER_TEMP`: GitHub's end-of-job temp
 cleanup deletes their contents before the cache-volume backend publishes them.

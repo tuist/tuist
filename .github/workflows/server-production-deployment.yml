@@ -150,6 +150,9 @@ jobs:
       egress-tree-agent-next-version: ${{ steps.check.outputs.egress-tree-agent-next-version }}
       egress-tree-agent-next-version-number: ${{ steps.check.outputs.egress-tree-agent-next-version-number }}
       deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
+      platform-changed: ${{ steps.deployable.outputs.platform-changed }}
+      observability-changed: ${{ steps.deployable.outputs.observability-changed }}
+      tailscale-operator-changed: ${{ steps.deployable.outputs.tailscale-operator-changed }}
       kura-changed: ${{ steps.kura.outputs.kura-changed }}
       # Single source of truth for hotfix routing. "(hotfix)" in the commit
       # subject ships straight to production via the production-hotfix leg and
@@ -199,6 +202,17 @@ jobs:
             echo "deployable-changed=$1" >> "$GITHUB_OUTPUT"
             exit 0
           }
+          # The cluster charts each deploy leg installs before the server
+          # chart. One whose inputs are unchanged since production's last
+          # deploy is skipped; without a base, every chart installs.
+          charts_changed() {
+            {
+              echo "platform-changed=$1"
+              echo "observability-changed=$2"
+              echo "tailscale-operator-changed=$3"
+            } >> "$GITHUB_OUTPUT"
+          }
+          charts_changed true true true
           # A dispatch redeploys main's head (e.g. runner-image-release.yml
           # rolling the fleet onto a new image).
           if [ "$EVENT_NAME" != "push" ]; then
@@ -235,6 +249,20 @@ jobs:
           # Captured rather than piped into `grep -q`: an early grep exit
           # would SIGPIPE `git diff` and fail the pipeline under pipefail.
           changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+          chart_changed() {
+            if grep -qE "^($1|\.github/workflows/server-deployment\.yml$)" <<< "$changed"; then
+              echo true
+            else
+              echo false
+            fi
+          }
+          # A new stable-egress-controller release changes the image the
+          # platform chart pins, and infra/mise.* the Helm the task runs.
+          platform="$(chart_changed 'infra/helm/platform/|infra/helm/rack-cache-gateways/|infra/mise/tasks/k8s/install-platform\.sh$|infra/mise\.(toml|lock)$|infra/stable-egress-controller/')"
+          observability="$(chart_changed 'infra/helm/k8s-monitoring/')"
+          tailscale_operator="$(chart_changed 'infra/helm/tailscale-operator/')"
+          charts_changed "$platform" "$observability" "$tailscale_operator"
+          echo "Cluster charts changed since $base: platform=$platform observability=$observability tailscale-operator=$tailscale_operator"
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
           deployable_paths="$(printf '%s\n' "$changed" \
             | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
@@ -816,7 +844,7 @@ jobs:
     name: Release Linux runner image
     needs: check-releases
     if: needs.check-releases.outputs.linux-runner-image-should-release == 'true'
-    runs-on: tuist-linux-large
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1577,6 +1605,9 @@ jobs:
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
+      install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
+      install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
+      install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
     secrets: inherit
 
   acceptance-tests:
@@ -1933,6 +1964,9 @@ jobs:
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
+      install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
+      install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
+      install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
     secrets: inherit
 
   # Hotfix fast-path: "(hotfix)" in the commit subject ships production without
@@ -1958,4 +1992,7 @@ jobs:
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
+      install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
+      install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
+      install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
     secrets: inherit

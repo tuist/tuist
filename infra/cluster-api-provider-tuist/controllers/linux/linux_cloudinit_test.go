@@ -593,3 +593,64 @@ func TestJoinedMarkerWritesWhatTheGuardReads(t *testing.T) {
 		t.Fatalf("expected the guard to accept the marker it follows, got:\n%s", output)
 	}
 }
+
+func TestSSHStartLimitDropInsDisableTheStartLimit(t *testing.T) {
+	for _, tc := range []struct {
+		name, content string
+		want          []string
+	}{
+		// A burst of restarts from openssh-server's maintainer scripts tripped the
+		// default 5-starts-in-10s limit, which failed ssh.socket with it.
+		{"service", sshServiceDropInContent, []string{"[Unit]\nStartLimitIntervalSec=0\n", "[Service]\nRestartSec=5s\n"}},
+		{"socket", sshSocketDropInContent, []string{"[Unit]\nStartLimitIntervalSec=0\n"}},
+	} {
+		for _, want := range tc.want {
+			if !strings.Contains(tc.content, want) {
+				t.Fatalf("expected the ssh.%s drop-in to contain %q, got:\n%s", tc.name, want, tc.content)
+			}
+		}
+	}
+	if strings.Contains(sshSocketDropInContent, "[Service]") {
+		t.Fatalf("a socket unit has no [Service] section, got:\n%s", sshSocketDropInContent)
+	}
+}
+
+func TestSSHStartLimitDropInsWriteBothUnits(t *testing.T) {
+	root := t.TempDir()
+	script := "set -euo pipefail\n" +
+		strings.ReplaceAll(sshStartLimitDropIns("", writeFileFunc("")), "/etc/systemd/system", filepath.Join(root, "etc/systemd/system"))
+	if output, err := exec.Command("bash", "-c", script).CombinedOutput(); err != nil {
+		t.Fatalf("%s: %v", output, err)
+	}
+	for path, want := range map[string]string{
+		sshServiceDropInPath: sshServiceDropInContent,
+		sshSocketDropInPath:  sshSocketDropInContent,
+	} {
+		got, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Fatalf("expected %s to hold:\n%s\ngot:\n%s", path, want, got)
+		}
+	}
+}
+
+func TestRenderLinux_SSHStartLimitDropIns(t *testing.T) {
+	cloudInit := renderLinuxCloudInit("node-a", "apiVersion: v1\nkind: Config\n", "v1.34", nil)
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName:       "node-a",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	})
+	for _, out := range []string{cloudInit, script} {
+		dropIns := strings.Index(out, sshSocketDropInPath)
+		if dropIns < 0 || !strings.Contains(out, sshServiceDropInPath) {
+			t.Fatalf("expected both sshd drop-ins in the self-join, got:\n%s", out)
+		}
+		if reexec := strings.Index(out, "systemctl daemon-reexec"); reexec < dropIns {
+			t.Fatalf("expected the drop-ins before the daemon-reexec that loads them, got:\n%s", out)
+		}
+	}
+}

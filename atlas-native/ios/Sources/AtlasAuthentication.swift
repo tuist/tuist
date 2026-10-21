@@ -154,16 +154,24 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     }
 
     var holidayRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "time_off")
+    }
+
+    var businessRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "business")
+    }
+
+    private func authenticatedRequest(operation: String) -> ([String: Any]) async throws -> Data {
         let identity = sessionIdentity
         return { [weak self] action in
             guard let self, self.server != nil, self.sessionIdentity == identity else {
                 throw AtlasAuthenticationError(kind: "sign_in_required", message: "Sign in to Atlas again.")
             }
-            let session = try await self.holidaySession(identity: identity)
+            let session = try await self.apiSession(identity: identity)
             try Task.checkCancellation()
             guard self.sessionIdentity == identity else { throw CancellationError() }
             var request = action
-            request["operation"] = "time_off"
+            request["operation"] = operation
             request["session"] = session
             let response = try await self.command(request)
             guard self.sessionIdentity == identity else { throw CancellationError() }
@@ -171,7 +179,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         }
     }
 
-    private func holidaySession(identity: UUID) async throws -> [String: Any] {
+    private func apiSession(identity: UUID) async throws -> [String: Any] {
         await acquireAPI()
         defer { releaseAPI() }
         try Task.checkCancellation()

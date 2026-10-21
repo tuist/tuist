@@ -49,6 +49,9 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   Repeated walks share the original deadline; never unfreeze a held corpus to
   retry or bypass storage admission to force convergence.
   Ordinary backward catch-up and forward pages keep their recency cutoffs.
+  The source barrier settles seqs staged before its hold, then compares
+  committed feed rows, floor and mutations, never the head: a write the hold
+  refuses (a cross-region page, say) releases its seq without landing a row.
   Repair completion never replaces
   the final full-corpus verification or authorizes promotion.
   Qualification fixtures and their simulator limits are documented in

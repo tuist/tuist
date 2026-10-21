@@ -74,20 +74,9 @@ This directory contains database migrations and other private assets.
   block-size, and query-memory settings, including catch-up passes. Copying
   one partition at a time alone does not bound their peak memory usage.
 - Build a new skip index for existing parts with one asynchronous mutation per
-  partition (`SchemaClone.partition_ids/3` and
-  `SchemaClone.materialize_index_statements/4`, `mutations_sync = 0`), never a
-  whole-table `MATERIALIZE INDEX`: retention does not bound how much one
-  mutation does. `SchemaClone.reconcile/1` adds skip indexes a migration added
-  to existing tables onto the in-cluster ClickHouse after every deploy
-  (additive only), and logs and reports (`indices_mismatched`) an index both
-  sides define differently instead of replacing it. On every run it also
-  materializes the indexes listed in `@materialized_on_reconcile`
-  (`gradle_builds.idx_id`, `mix_builds.idx_id`) in each partition that still
-  has parts without index data, unless a materialization of that index is
-  already pending; one that keeps failing is logged, not resubmitted. That
-  detection reads per-part index sizes, so an allowlisted index must be its
-  table's only skip index. Add an index there only when a hot read depends on
-  it and the table is small enough to rebuild partition by partition.
+  partition (`Tuist.ClickHouse.IndexMaterialization.partition_ids/3` and
+  `materialize_index_statements/4`, `mutations_sync = 0`), never a whole-table
+  `MATERIALIZE INDEX`: retention does not bound how much one mutation does.
 - Tests reading `system.parts`, `system.data_skipping_indices` or
   `system.mutations`, or running `ALTER`, cannot use DataCase's ClickHouse
   transaction: use `ExUnit.Case, async: false` with

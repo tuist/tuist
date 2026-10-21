@@ -80,6 +80,14 @@ defmodule AtlasWeb.Router do
     plug MCPAuth
   end
 
+  pipeline :native do
+    plug :native_no_store
+    plug :accepts, ["json"]
+    plug MCPAuth
+  end
+
+  defp native_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
+
   pipeline :inference do
     plug :accepts, ["json", "event-stream"]
     plug InferenceAuthentication
@@ -155,6 +163,18 @@ defmodule AtlasWeb.Router do
     pipe_through [:api]
 
     post "/:project_id/envelope/", EnvelopeController, :create
+  end
+
+  scope "/api/native", AtlasWeb do
+    pipe_through :native
+
+    get "/profile", NativeController, :profile
+    get "/:resource", NativeController, :index
+    post "/:resource", NativeController, :create
+    get "/:resource/:id", NativeController, :show
+    patch "/:resource/:id", NativeController, :update
+    delete "/:resource/:id", NativeController, :delete
+    post "/:resource/:id/complete", NativeController, :complete
   end
 
   scope "/api", AtlasWeb do

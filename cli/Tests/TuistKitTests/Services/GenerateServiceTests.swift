@@ -51,7 +51,8 @@ struct GenerateServiceTests {
                 includedTargets: .any,
                 configuration: .any,
                 cacheProfile: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .willReturn(generator)
         cacheStorageFactory = .init()
@@ -374,7 +375,8 @@ struct GenerateServiceTests {
                 includedTargets: .value(["App"]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -413,7 +415,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -452,7 +455,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .none },
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -500,7 +504,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]) },
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -685,7 +690,8 @@ struct GenerateServiceOutdatedDependenciesTests {
                 includedTargets: .any,
                 configuration: .any,
                 cacheProfile: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .willReturn(generator)
         given(cacheStorageFactory)

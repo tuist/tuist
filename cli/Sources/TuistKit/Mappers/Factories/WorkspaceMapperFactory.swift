@@ -53,6 +53,10 @@ public struct WorkspaceMapperFactory: WorkspaceMapperFactorying {
 
         mappers.append(XcodeCachePrefixMappingWorkspaceMapper(tuist: tuist))
 
+        mappers.append(InheritedCoverageSchemesWorkspaceMapper(
+            enabled: tuist.project.generatedProject?.generationOptions.coverage.enabled ?? false
+        ))
+
         mappers.append(
             TuistWorkspaceIdentifierMapper()
         )

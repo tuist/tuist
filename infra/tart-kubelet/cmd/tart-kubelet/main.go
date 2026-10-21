@@ -314,6 +314,12 @@ func main() {
 
 	store := podagent.NewStore()
 
+	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
+	if err != nil {
+		setupLog.Error(err, "parse --node-labels")
+		os.Exit(1)
+	}
+
 	// The orphan-VM GC reaps any local Tart VM not backed by a Pod on
 	// this Node. Builder-fleet Nodes never run Pods (they bake images
 	// with a host-level Packer/`tart` process), so every local VM —
@@ -338,6 +344,7 @@ func main() {
 			// 0 falls back to the collector's own default (1).
 			MinGoldensKept: minGoldensKept,
 			Images:         images,
+			Fleet:          nodeLabels["tuist.dev/fleet"],
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
@@ -453,12 +460,6 @@ func main() {
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
-		os.Exit(1)
-	}
-
-	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
-	if err != nil {
-		setupLog.Error(err, "parse --node-labels")
 		os.Exit(1)
 	}
 

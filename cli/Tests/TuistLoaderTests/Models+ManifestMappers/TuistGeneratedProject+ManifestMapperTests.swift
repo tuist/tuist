@@ -11,12 +11,12 @@ import TuistCore
 struct TuistGeneratedProjectManifestMapperTests {
     private let fileSystem = FileSystem()
 
-    @Test(.inTemporaryDirectory, arguments: [false, true])
-    func generationOptions_mapsCoveragePrefixMapping(enabled: Bool) throws {
+    @Test(.inTemporaryDirectory, arguments: [(false, false), (true, false), (false, true), (true, true)])
+    func generationOptions_mapsCoverage(enabled: Bool, prefixMapping: Bool) throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let options = ProjectDescription.Config.GenerationOptions.options(
             enableCaching: true,
-            enableCoveragePrefixMapping: enabled
+            coverage: .coverage(enabled: enabled, prefixMapping: prefixMapping)
         )
         let manifest = try JSONDecoder().decode(
             ProjectDescription.Config.GenerationOptions.self,
@@ -29,8 +29,50 @@ struct TuistGeneratedProjectManifestMapperTests {
             fullHandle: nil
         )
 
-        #expect(got.enableCoveragePrefixMapping == enabled)
-        #expect(ProjectDescription.Config.GenerationOptions.options().enableCoveragePrefixMapping == false)
+        #expect(got.coverage == .init(enabled: enabled, prefixMapping: prefixMapping))
+    }
+
+    @Test func generationOptions_coverageIsOffByDefault() {
+        let options = ProjectDescription.Config.GenerationOptions.options(enableCaching: true)
+
+        #expect(options.coverage == .coverage())
+        #expect(options.coverage.enabled == false)
+        #expect(options.coverage.prefixMapping == false)
+    }
+
+    /// A manifest encoded before `coverage` existed has no such key; it decodes with coverage off.
+    @Test func generationOptions_decodesAMissingCoverageKeyAsOff() throws {
+        let options = ProjectDescription.Config.GenerationOptions.options(
+            enableCaching: true,
+            coverage: .coverage(enabled: true, prefixMapping: true)
+        )
+        var json = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(options)) as? [String: Any]
+        )
+        json.removeValue(forKey: "coverage")
+
+        let got = try JSONDecoder().decode(
+            ProjectDescription.Config.GenerationOptions.self,
+            from: JSONSerialization.data(withJSONObject: json)
+        )
+
+        #expect(got.coverage == .coverage())
+        #expect(got.enableCaching == true)
+    }
+
+    /// The overload without `coverage` keeps its pre-`coverage` signature, so typed references to it still compile.
+    @Test func generationOptions_factoryWithoutCoverageKeepsItsSignature() {
+        let factory: (
+            Bool, ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets, String?, Bool, Bool, Bool,
+            Bool, Bool, Bool, Bool, [String], ProjectDescription.Config.GenerationOptions.WarningsAsErrors, String,
+            [String], ProjectDescription.Config.GenerationOptions.OutdatedDependenciesAction,
+            ProjectDescription.Config.GenerationOptions.ProjectFormat
+        ) -> ProjectDescription.Config.GenerationOptions = ProjectDescription.Config.GenerationOptions.options
+
+        let got = factory(false, .all, nil, false, false, false, true, true, true, false, [], .none, "5", [], .warn, .pbxproj)
+
+        #expect(got.enableCaching == true)
+        #expect(got.coverage == .coverage())
     }
 
     @Test func installOptions_mapsManifestEnvironment() {

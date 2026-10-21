@@ -291,13 +291,6 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse is canary's system of record (spec #73). Every
-  # workload reads and writes it through TUIST_CLICKHOUSE_URL, and ClickHouse
-  # Cloud receives nothing.
-  #
-  # Going back to `external` does not copy anything back: rows written since
-  # the switch exist only on the in-cluster server.
-  mode: managed
   managed:
     enabled: true
     # Canary carries no production-sized copy: its AX42-1s have a 2x512 GB
@@ -825,6 +818,8 @@ rackFleet:
     - tuist-tuist-rack-fleet-ber1-runner-b02
   runners:
     enabled: true
+    # Every BER1 host runs macOS 27 and Tart 2.41.1.
+    stackedImages: true
     # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
     # rack, which the host's production sizing (16 CPU / 48 GB) fits two of.
     guestShapes:

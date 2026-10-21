@@ -25,6 +25,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
   `runnersFleet.runnerImageDigests` in the tuist chart), so a runner image
   release that only re-tags a profile keeps that profile's golden. A pool
   that pins a tag gets a new golden, and a cold pull, with every new tag.
+- The GC (`internal/podagent/garbage.go`) reads the Node's fleet's macOS
+  RunnerPools as the prewarmer does. A golden or cached OCI image that no pool
+  runs and no Pod on the Node references is reaped on the next pass; one a
+  pool still runs keeps the 24h idle retention. Cached images are matched by
+  full ref, except a repository a Pod or pool names by tag keeps every digest.
+  A fleet without pools, or a failed RunnerPool List, falls back to retention
+  and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
+  goldens, 1 or 2 of them current, because runner images are released several
+  times a day and every catalog image shares one repository.
 - `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
   kicks loginwindow before each run when it is missing; on timeout the error
   names who holds `/dev/console`. `_mbsetupuser` (Setup Assistant from first
@@ -70,8 +79,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   masters/convergence staging under the shared lock; remeasure actual space after
   deletion because running CoW clones can pin blocks. Never reclaim live branches.
   A background prefetch the server listed for the host gives way first: built-in
-  and custom job admission cancel it and drop its 40 GB reservation before
-  evicting any master (`displaceSpareLocked`).
+  and custom job admission cancel it and drop its reservation (twice its volume
+  size) before evicting any master (`displaceSpareLocked`).
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).
@@ -97,8 +106,10 @@ workflow code runs in the guest. Never expose host credentials or masters.
   until its successor is downloaded through the queue (`LocalImages.Replace`).
   Reserve the volume's allocated size (`Identity.VolumeBytes`, 20 GB when the
   server sends none, at most `MaxVolumeBytes`) for every attach and twice that
-  for prefetch, which also holds the
-  archive. Prefetch downloads into `staging/` without the lineage lock, and
+  for prefetch, which also holds the archive, in both the shared-filesystem
+  check (`reserveBytes`/`reserveSpare`) and the custom reservation
+  (`customAdmissionBytes`): if they disagree, the second rejects what the first
+  admitted. Prefetch downloads into `staging/` without the lineage lock, and
   maintenance asks for HEADs before taking it; keep network calls out of that lock.
 - Expose mailboxes while the filesystem is mounted, independently of worker
   readiness. Create pod directories before owner records and serialize owner GC.
@@ -176,9 +187,15 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
   in both, and running is a `fcntl` lock on `config.json` in both. Existing
   goldens, clones and OCI cache entries are reused after an upgrade, not
   re-pulled, and `tart stop`/`delete` from either version manage the other's
-  VMs. 2.36 adds stacked layouts (`manifest.json` + `overlay.asif`) that only
-  `clone --stacked` creates; nothing here creates one yet, and 2.32 cannot read
-  one, so rolling back below 2.36 is only safe while no host holds one.
+  VMs. 2.36 adds stacked layouts (`manifest.json` + `overlay.asif`), and 2.32
+  cannot read one, so rolling back below 2.36 is only safe while no host holds
+  one. Rack pools run stacked runner images when `rackFleet.runners
+  .stackedImages` is on (see `infra/runner-image/AGENTS.md`). tart-kubelet
+  handles them with the same pull, clone and run: the golden and each job VM
+  are a manifest and an overlay, and the read-only base sits once in Tart's
+  content store (`~/.tart/cache/content`). Deleting a local VM leaves the
+  store alone, so the GC runs `tart prune --gc` after it reaps a golden, and
+  before it re-measures free space under disk pressure.
 - `tart run` stays a foreground process for the life of the VM, so the
   `Setsid` launch and the `pgrep` liveness check are unchanged.
 - JSON: `list` and `get` print humanized sizes in text output only (2.36). JSON

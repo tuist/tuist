@@ -86,25 +86,13 @@
         )
         var printHashes: Bool = false
 
-        @Flag(
-            name: .long,
-            help: """
-            When passed, the project's own targets are built with code coverage and stored under the cache key a \
-            `tuist test` run that collects coverage reads, so such runs link cached binaries their coverage measures. \
-            The plain binaries other builds read are not warmed by this run; warm them with a run without the flag. \
-            Only debug configurations can be warmed with coverage.
-            """,
-            envKey: .cacheCoverage
-        )
-        var coverage: Bool = false
-
         public func run() async throws {
             if printHashes {
                 AlertController.current.warning(.alert(
                     "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
                     takeaway: "Use \(.command("tuist hash cache")) instead."
                 ))
-                try await Extension.hashCacheService.run(path: path, configuration: configuration, coverage: coverage)
+                try await Extension.hashCacheService.run(path: path, configuration: configuration)
                 return
             }
 
@@ -123,8 +111,7 @@
                 generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: cacheProfile,
-                scratchDirectory: scratchDirectory,
-                coverage: coverage
+                scratchDirectory: scratchDirectory
             )
         }
     }

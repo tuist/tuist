@@ -151,22 +151,22 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ### Coverage with prefix mapping {#coverage-with-prefix-mapping}
 
-By default, generated projects disable prefix mapping for coverage builds to keep Xcode's coverage reports and `xccov` working. If your team reads coverage with `llvm-cov` and remaps source paths itself, you can keep coverage compilations shareable across checkouts:
+By default, generated projects disable prefix mapping for coverage builds to keep Xcode's coverage reports and `xccov` working. You can turn it on to keep coverage compilations shareable across checkouts:
 
 ```swift
 let tuist = Tuist(
     project: .tuist(
         generationOptions: .options(
             enableCaching: true,
-            enableCoveragePrefixMapping: true
+            coverage: .coverage(prefixMapping: true)
         )
     )
 )
 ```
 
-This option applies on Xcode 27 and later and requires `enableCaching`. It does not add an `llvm-cov` reader or fix `xccov`: Xcode's coverage report can still omit sources with mapped paths. Tuist's coverage upload also reads the Xcode result bundle, so this opt-in is not compatible with that coverage pipeline. Use it only when processing coverage independently. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. Pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
+The `TUIST_COVERAGE_PREFIX_MAPPING` environment variable (`1` or `0`) takes precedence over `prefixMapping`. This option applies on Xcode 27 and later and requires `enableCaching`. The coverage `tuist test` uploads supports it: Tuist measures the run with `llvm-cov`, which reads the sources with mapped paths, and ties them back to your repository's files. Xcode's own coverage report and `xccov` can still omit those sources, and so can an upload that falls back to the result bundle's `xccov` report because the `llvm-cov` export failed. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. If you process coverage yourself, pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
 
-The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
+The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option, or setting `TUIST_COVERAGE_PREFIX_MAPPING` differently, invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
 
 ### Debugging generated projects {#debugging-generated-projects}
 
