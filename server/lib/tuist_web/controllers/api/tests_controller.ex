@@ -809,6 +809,7 @@ defmodule TuistWeb.API.TestsController do
               git_dirty: test_run.git_dirty,
               execution_mode: test_run.execution_mode,
               coverage_enabled: test_run.coverage_enabled,
+              reporting_version: test_run.reporting_version,
               account_id: test_run.account_id,
               actor_account_id: test_run.actor_account_id,
               claimed_actor_id: test_run.claimed_actor_id,

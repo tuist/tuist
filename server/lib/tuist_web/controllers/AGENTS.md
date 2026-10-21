@@ -8,6 +8,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
 - Test-run detail metrics reuse the already-loaded and project-authorized run rather than looking it up again for its persisted reporting version.
+- Xcresult jobs carry the persisted run's `reporting_version` as a parser-work hint, so version-1 jobs skip unsupported coverage parsing. Never take it from client input or use a job hint instead of the persisted shard plan for ingestion behavior; absent hints retain legacy parser behavior.
 - Sharded test reporting maps `:shard_plan_not_visible` to HTTP 503 with `Retry-After: 1`, so the CLI can replay after replica lag for both legacy and immutable plans. Foreign-project plans remain non-retryable 4xx responses; do not turn all not-found/validation errors into retries.
 - `API.BuildEntityController` supplies additive native task/action/module/file controllers using shared resource descriptors and schemas. Authorize project build-read before domain queries, keep IDs scoped to project/system/kind, share bounded Params with MCP, and convert QueryLimitError to 503 rather than empty history. Existing ingestion and run-level controllers remain unchanged.
 - `LlmsTxtController` serves `/llms.txt` as the agent-facing index and `/llms-full.txt` as the complete English documentation Markdown export, including runtime CLI reference pages. Both are public plain-text responses cached for one hour.

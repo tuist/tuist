@@ -1532,6 +1532,8 @@ defmodule TuistWeb.API.TestsControllerTest do
           args: %{
             "test_run_id" => plan.id,
             "source_test_run_id" => id,
+            "reporting_version" => 1,
+            "coverage_enabled" => false,
             "shard_index" => index,
             "shard_attempt" => 2,
             "shard_report_revision" => 3,
