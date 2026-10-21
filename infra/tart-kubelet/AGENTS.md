@@ -41,10 +41,10 @@ workflow code runs in the guest. Never expose host credentials or masters.
   session, so a new host should not reach this (see "The console session" in
   [`cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
 - A Node this process creates (a host joining or rejoining the cluster), or
-  a registered Node whose host holds no golden base (a host reinstalled in
-  place keeps its Node), is tainted `tuist.dev/prewarming:NoSchedule` while
-  `podagent.Prewarmer` pulls the images of its fleet's macOS RunnerPools that
-  keep a warm floor or have
+  a registered Node whose disk has never held a runner image (a host
+  reinstalled in place keeps its Node), is tainted
+  `tuist.dev/prewarming:NoSchedule` while `podagent.Prewarmer` pulls the
+  images of its fleet's macOS RunnerPools that keep a warm floor or have
   `spec.replicas > 0`, warm floors first, through `ensureGolden` (the path a
   Pod's first VM takes). An image the rack's image cache is still fetching
   (`errMirrorSyncing`) is asked for again every 30 seconds, not skipped.
@@ -52,12 +52,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
   hand and tart-kubelet must never lift that. Runner Pods
   do not tolerate it, and the runners-controller leaves tainted Nodes out of
   fleet capacity (`nodeFilterReason`), so the allocator agrees with the
-  scheduler. A restart on a registered Node with goldens never taints or
-  prewarms: that host is serving, and a deploy rolling both runner images and
-  tart-kubelet would otherwise empty the fleet. A failed `tart list` counts as
-  holding goldens. Pulls stop below 30% free disk (a golden is
-  tens of GB) and the taint lifts after an hour regardless; a leftover taint is
-  removed on the next start. Evidence: on 2026-10-14 b04-b09 joined untainted
+  scheduler. "Never held a runner image" is no golden and no
+  `<user-data dir>/.holds-runner-images` marker (`podagent.HostDisk`), which
+  `ensureGolden` writes whenever a golden exists and an erase removes. A
+  restart on any other registered Node never taints or prewarms, including an
+  idle host whose goldens a release just superseded: that host is serving, and
+  a deploy rolling both runner images and tart-kubelet would otherwise empty
+  the fleet. A failed probe counts as not fresh. Pulls stop below 30% free
+  disk (a golden is tens of GB) and the taint lifts after an hour regardless;
+  a leftover taint is removed on the next start. Evidence: on 2026-10-14 b04-b09 joined untainted
   and their first VM per image sat in `CreatingVM` for 5+ minutes downloading;
   on 2026-10-21 ber1-runner-b05 came back from `tuist.dev/os-reinstall`
   untainted with no goldens and took runner Pods that waited on downloads.

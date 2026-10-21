@@ -104,10 +104,10 @@ func TestMaintainerWithoutAGateNeverTaints(t *testing.T) {
 	}
 }
 
-// A host reinstalled in place keeps its Node but comes back with no goldens,
-// so it is held like a new one instead of taking Pods that wait on every
+// A host reinstalled in place keeps its Node but comes back with an erased
+// disk, so it is held like a new one instead of taking Pods that wait on every
 // image's download.
-func TestEnsureNodeHoldsAnExistingNodeOnAnEmptyHost(t *testing.T) {
+func TestEnsureNodeHoldsAnExistingNodeOnAFreshDisk(t *testing.T) {
 	existing := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: "mac-1"},
 		Spec: corev1.NodeSpec{Taints: []corev1.Taint{
@@ -116,17 +116,17 @@ func TestEnsureNodeHoldsAnExistingNodeOnAnEmptyHost(t *testing.T) {
 	}
 	c := newNodeFakeClient(existing)
 	gate := NewPrewarmGate()
-	gate.HostEmpty = func(context.Context) (bool, error) { return true, nil }
+	gate.FreshDisk = func(context.Context) (bool, error) { return true, nil }
 	m := &Maintainer{Client: c, NodeName: "mac-1", Heartbeat: time.Second, PrewarmGate: gate}
 
 	if err := m.ensureNode(context.Background()); err != nil {
 		t.Fatalf("ensureNode: %v", err)
 	}
 	if held, err := gate.Wait(context.Background()); err != nil || !held {
-		t.Fatalf("Wait = %v, %v; want the gate to hold an existing Node whose host has no goldens", held, err)
+		t.Fatalf("Wait = %v, %v; want the gate to hold an existing Node whose disk never held an image", held, err)
 	}
 	if !hasTaint(nodeTaints(t, c, "mac-1"), PrewarmTaintKey) {
-		t.Fatal("an existing Node on an empty host does not carry the prewarm taint")
+		t.Fatal("an existing Node on a fresh disk does not carry the prewarm taint")
 	}
 
 	gate.Release()
@@ -138,21 +138,21 @@ func TestEnsureNodeHoldsAnExistingNodeOnAnEmptyHost(t *testing.T) {
 	}
 }
 
-// A probe that cannot tell whether the host holds goldens must not take a
-// serving host out of scheduling.
-func TestEnsureNodeDoesNotHoldAnExistingNodeWhenTheGoldenProbeFails(t *testing.T) {
+// A probe that cannot tell whether the disk is fresh must not take a serving
+// host out of scheduling.
+func TestEnsureNodeDoesNotHoldAnExistingNodeWhenTheDiskProbeFails(t *testing.T) {
 	c := newNodeFakeClient(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "mac-1"}})
 	gate := NewPrewarmGate()
-	gate.HostEmpty = func(context.Context) (bool, error) { return true, errors.New("tart list failed") }
+	gate.FreshDisk = func(context.Context) (bool, error) { return true, errors.New("tart list failed") }
 	m := &Maintainer{Client: c, NodeName: "mac-1", Heartbeat: time.Second, PrewarmGate: gate}
 
 	if err := m.ensureNode(context.Background()); err != nil {
 		t.Fatalf("ensureNode: %v", err)
 	}
 	if held, _ := gate.Wait(context.Background()); held {
-		t.Fatal("the gate holds an existing Node on a failed golden probe")
+		t.Fatal("the gate holds an existing Node on a failed disk probe")
 	}
 	if hasTaint(nodeTaints(t, c, "mac-1"), PrewarmTaintKey) {
-		t.Fatal("a failed golden probe tainted an existing Node")
+		t.Fatal("a failed disk probe tainted an existing Node")
 	}
 }
