@@ -178,10 +178,12 @@ and the Elixir build, full OTP version (when available), ERTS, compiler bytecode
 OS version, architecture, word size and byte order enter the key. Standard
 compiler/runtime inputs (`ERL_COMPILER_OPTIONS`, `ELIXIR_ERL_OPTIONS`, `ERL_AFLAGS`,
 `ERL_FLAGS`, `ERL_ZFLAGS`, `SOURCE_DATE_EPOCH`, `ERL_LIBS`, `MIX_PATH`, and `MIX_ARCHIVES`) are included automatically;
-declare other compile-time environment variables explicitly. Inputs and effective
-configuration are captured before each dependency lookup and rechecked before
-installing or publishing staged artifacts, so an earlier compilation cannot leave
-later lookups using stale inputs. Keys use deterministic encoding, sorted source
+declare other compile-time environment variables explicitly. The effective context
+is captured before each lookup. Lookup planning shares per-dependency input models
+within one preparation, clearing them after compilation and invalidating restored
+applications. Installation and publication always recheck fresh inputs without the
+lookup memo. A lookup miss also captures a fresh key before compiling, so speculative
+planning cannot install or publish artifacts for stale inputs. Keys use deterministic encoding, sorted source
 enumeration and normalized unordered declarations, without filesystem timestamps;
 ordered compiler settings retain their order. Custom global tracers bypass
 caching so their side effects are not skipped.

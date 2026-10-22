@@ -77,10 +77,13 @@ Standard compiler/runtime variables (`ERL_COMPILER_OPTIONS`, `ELIXIR_ERL_OPTIONS
 `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS`, `SOURCE_DATE_EPOCH`, `ERL_LIBS`, `MIX_PATH`
 and `MIX_ARCHIVES`) are captured automatically. Toolchain identity includes the
 Elixir build, full OTP version when available, ERTS, compiler bytecode, OS/version,
-architecture, word size and byte order. Inputs are captured before each lookup
-and checked again after staging before installation or publication, including
-changes from earlier compilations. A changed input rejects a staged hit rather
-than installing code built for the earlier inputs.
+architecture, word size and byte order. The effective context is captured before
+each lookup. Per-dependency input models may be shared for lookup planning within
+one preparation; compilation clears the plan and restoration invalidates the
+installed application's records. Staged installation and publication always check
+fresh inputs without reusing the lookup plan. A lookup miss also captures a fresh
+key before compilation. Changed inputs reject a staged hit rather than installing
+code built for the earlier inputs.
 
 Keys use deterministic term encoding and sorted filesystem traversal. Unordered
 builder declarations and declared input sets are sorted and deduplicated; ordered
