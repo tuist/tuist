@@ -56,7 +56,9 @@ bazel test //:certificate_trust_test --define=kura_deny_warnings=true \
 
 The clean committed-source rerun at **`d6096523f2e900dba9ce57ca7d2e49b526e001d6`** passes **1,246 library cases with 51 ignored**, **10 independent trust cases with 2 ignored**, and **3 Rust reporter cases**; the main-binary unit target has zero cases. All four public Bazel test targets pass. The library takes **10.639s**. Both ignored independent cases then execute separately and pass in **3.353s**, with ten ordinary cases filtered out. The receipt includes the source SHA and empty worktree status: `/tmp/tuist-emudhra-audit/kura-trust-committed-tests.log`.
 
-Clippy over `//...`, the full Bazel rustfmt aspect, the shared Go policy suite and scoped certificate-workflow actionlint also pass locally. The PR remains open and its last inspected current-head check rollup is empty; these receipts are not current-head CI.
+After the internal retry-guard naming clarification, the clean committed **`b94bb9bd2fe504834533f086ad36f20d687581ab`** repeats all four targets with identical case/ignore counts (library **10.210s**) and both opt-ins (**3.094s**), then passes full Clippy and rustfmt aspects. Receipt: `/tmp/tuist-emudhra-audit/kura-trust-clarified-committed-tests.log`.
+
+Clippy over `//...`, the full Bazel rustfmt aspect, the shared Go policy suite (**45.700s**) and scoped certificate-workflow actionlint also pass locally. The PR remains open and its last inspected current-head check rollup is empty; these receipts are not current-head CI.
 
 The independent target avoids RocksDB. Default cases cover real twelve-key DER and malformed input; otherwise accepted native/explicit private leaf, intermediate and absent-root denial; direct Apple evaluated-chain enforcement with an intentionally unfiltered test anchor; ordinary hostname/expiry/signature/usage/critical-extension/unknown-CA checks; mandatory inbound client authentication; identity parsing/config parity; typed private diagnostics; actual HTTPS denial before request delivery; h2 over TLS 1.2 and 1.3; and HTTPS CONNECT with separate proxy/target PKIs and per-leg credential isolation.
 
