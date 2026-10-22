@@ -249,8 +249,8 @@ defmodule AtlasWeb.NativeControllerTest do
   end
 
   test "finance overview unifies bank currencies, excludes transfers, and ignores invoice filters" do
+    stub(DateTime, :utc_now, fn -> ~U[2026-10-22 12:00:00.000000Z] end)
     {api, _user} = api_user(["finance:read"])
-    stub(DateTime, :utc_now, fn -> ~U[2026-10-22 12:00:00Z] end)
 
     stub(ExchangeRates, :latest_rates, fn _ ->
       {:ok, %{published_on: ~D[2026-10-21], rates: %{"USD" => Decimal.new("2"), "GBP" => Decimal.new("0.5")}}}
