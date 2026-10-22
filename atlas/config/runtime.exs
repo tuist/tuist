@@ -146,6 +146,16 @@ support_chat_parent_origins =
 config :atlas, AtlasWeb.Endpoint, endpoint_config
 config :atlas, :demo_mode, demo_mode
 
+if native_themes = System.get_env("ATLAS_NATIVE_THEME_CATALOG") do
+  catalog =
+    case Jason.decode(native_themes) do
+      {:ok, catalog} -> catalog
+      {:error, _} -> nil
+    end
+
+  config :atlas, :native_theme_catalog, catalog
+end
+
 config :atlas, :gtm_email,
   from_name: System.get_env("ATLAS_GTM_EMAIL_FROM_NAME", "Tuist"),
   from_email: System.get_env("ATLAS_GTM_EMAIL_FROM_EMAIL", "contact@tuist.dev"),

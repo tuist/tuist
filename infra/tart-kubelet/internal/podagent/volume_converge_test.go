@@ -903,7 +903,7 @@ func TestConvergeHandsCustomHeadsToTheCustomAgent(t *testing.T) {
 	scope := strings.Repeat("a", 64)
 	source := &stubPrefetch{masters: []PrefetchMaster{{
 		Kind: "custom", ID: "11111111-1111-4111-8111-111111111111", AccountID: 42, Scope: scope, Generation: 3,
-		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64),
+		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64), VolumeBytes: 50_000_000_000, HeadSizeBytes: 4_000_000_000,
 	}}}
 	custom := &recordingCustomPrefetch{}
 	w := newTestConvergeWorker(m)
@@ -913,7 +913,7 @@ func TestConvergeHandsCustomHeadsToTheCustomAgent(t *testing.T) {
 	drain(w)
 	want := cachevolumes.Identity{
 		ID: "11111111-1111-4111-8111-111111111111", Account: 42, Scope: scope, BaseGeneration: 3,
-		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64),
+		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64), VolumeBytes: 50_000_000_000, HeadSizeBytes: 4_000_000_000,
 	}
 	if len(custom.identities) != 1 || custom.identities[0] != want {
 		t.Fatalf("custom prefetches = %+v", custom.identities)

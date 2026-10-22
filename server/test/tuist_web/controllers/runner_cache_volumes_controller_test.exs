@@ -81,6 +81,35 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     end
   end
 
+  test "a capacity above the host maximum answers 507 without allocating" do
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+    params = %{"key" => "cache", "requested_volume_bytes" => 50_000_000_000, "max_volume_bytes" => 20_000_000_000}
+
+    expect(CacheVolumes, :allocate, fn ^params -> {:error, :capacity} end)
+    result = Controller.authorize(conn(), params)
+    assert result.status == 507
+    assert JSON.decode!(result.resp_body) == %{"error" => "capacity"}
+
+    expect(CacheVolumes, :allocate, fn ^params -> {:error, :volume_limit} end)
+    assert Controller.authorize(conn(), params).status == 403
+  end
+
+  test "allocations carry the chosen capacity and the saved head's size" do
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+
+    expect(CacheVolumes, :allocate, fn _ ->
+      {:ok, %{id: "use", volume_bytes: 50_000_000_000, head_size_bytes: nil}}
+    end)
+
+    result = Controller.authorize(conn(), %{})
+    assert result.status == 200
+    assert JSON.decode!(result.resp_body) == %{"id" => "use", "volume_bytes" => 50_000_000_000, "head_size_bytes" => nil}
+  end
+
   test "only the storage agent can request a checkout" do
     assert %{plug: Controller, plug_opts: :checkout} =
              Phoenix.Router.route_info(

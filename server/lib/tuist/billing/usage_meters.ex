@@ -238,7 +238,7 @@ defmodule Tuist.Billing.UsageMeters do
       )
 
     test_run_ids =
-      from(t in Test,
+      from(t in Test.query(),
         where: fragment("? IN (?)", t.project_id, type(^project_ids, {:array, :integer})),
         where:
           fragment("concat(toString(toInt64OrZero(?)), '\n', ?)", t.ci_run_id, t.ci_project_handle) in subquery(

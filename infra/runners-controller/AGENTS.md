@@ -330,15 +330,21 @@ independent workqueues:
   skips the allocator entirely.
 
   A macOS Pod is placed before any job is assigned to it, so it also
-  prefers the hosts holding the custom cache volumes its pool's queued
-  jobs are predicted to attach. The signals carry them as
-  `preferred_node_labels` (`tuist.dev/cache-volume-<scope prefix>`, from
-  `VolumeAffinities.custom_volume_node_labels/2`), and `createRunner` adds
-  at most four at weight 20 beside the golden preference at weight 100
-  (`podtemplate.PreferCacheVolumeNodes`). Together they weigh less than the
-  golden one, so the image still decides and volumes break ties. The terms
-  are in no revision, so they never make a Pod stale, and a Pod created
-  without signals keeps only the golden preference.
+  prefers a host holding the custom cache volumes of the queued job it is
+  created for. The signals carry `preferred_nodes`
+  (`VolumeAffinities.preferred_nodes/3`): one Node per oldest queued job,
+  in queue order, that holds the job's predicted volumes and whose cache
+  disk still has room for them after the jobs already on it. The server
+  spends a Node's room as it assigns jobs, so a Node repeats only once per
+  job it fits. Idle Pods take the oldest queued jobs, so `createRunner`
+  gives the Pod for queue position `len(idleAlive) + i` that position's
+  Node as one `metadata.name` term at weight 20 beside the golden
+  preference at weight 100 (`podtemplate.PreferCacheVolumeNode`). The
+  image still decides and the volume breaks ties. Two Pods created
+  together are never both steered to a host whose cache disk holds only
+  one job's volumes, which would send the second job's attach cold. The
+  term is in no revision, so it never makes a Pod stale, and a Pod past
+  the list or created without signals keeps only the golden preference.
 
   RuntimeClass overhead is copied into `Pod.spec.overhead` only when
   Kubernetes admits a Pod. Helm therefore hashes the Linux RuntimeClass

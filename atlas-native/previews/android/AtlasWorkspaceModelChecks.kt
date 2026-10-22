@@ -12,7 +12,7 @@ internal fun checkWorkspaceModel() {
     )
     check(model.shortcuts.map { it.id } == listOf("tasks", "time-off"))
     check(model.sections.none { it.group == "settings" })
-    check(model.sections.all { it.screen in listOf("tasks", "accounts", "invoices", "time-off") })
+    check(model.sections.all { it.screen in listOf("tasks", "accounts", "invoices", "time-off", "people") })
     check(!model.back())
     model.open("commercial")
     check(model.children().map { it.id } == listOf("sales", "finance"))

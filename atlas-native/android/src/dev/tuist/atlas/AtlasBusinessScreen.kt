@@ -53,9 +53,16 @@ class AtlasBusinessScreen(
     private val title: String,
     private val model: AtlasBusinessModel,
     private val navigationChanged: () -> Unit = {},
+    private val presence: AtlasPresenceModel? = null,
     private val logoLoader: (String, (Bitmap?) -> Unit) -> (() -> Unit) = AccountLogos::load,
 ) {
     val toolbar = Toolbar(activity)
+    private val alsoHere =
+        TextView(activity).apply {
+            visibility = View.GONE
+            textSize = 14f
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
     private val search =
         SearchView(activity).apply {
             queryHint = "Search $title"
@@ -80,6 +87,7 @@ class AtlasBusinessScreen(
             isSaveEnabled = false
             isSaveFromParentEnabled = false
             addView(toolbar, LinearLayout.LayoutParams(-1, -2))
+            addView(alsoHere, LinearLayout.LayoutParams(-1, -2))
             addView(search, LinearLayout.LayoutParams(-1, -2))
             addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
             setOnApplyWindowInsetsListener { root, insets ->
@@ -100,6 +108,7 @@ class AtlasBusinessScreen(
     private val logoCancellations = mutableListOf<() -> Unit>()
     private val pendingLogos = mutableListOf<() -> Boolean>()
     private val listener: () -> Unit = { render() }
+    private val presenceListener: () -> Unit = { renderPresence() }
     private val layoutListener =
         android.view.ViewTreeObserver.OnGlobalLayoutListener {
             restoreScrollY?.let {
@@ -114,6 +123,7 @@ class AtlasBusinessScreen(
 
     init {
         model.listener = listener
+        presence?.listener = presenceListener
         search.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextChange(value: String?) = true
@@ -168,6 +178,19 @@ class AtlasBusinessScreen(
         pendingLogos.clear()
         if (content.viewTreeObserver.isAlive) content.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
         if (model.listener === listener) model.listener = null
+        if (presence?.listener === presenceListener) presence.listener = null
+    }
+
+    private fun renderPresence() {
+        if (closed) return
+        val names =
+            presence
+                ?.people
+                ?.filter { it.here }
+                ?.joinToString(", ") { it.name }
+                .orEmpty()
+        alsoHere.text = if (names.isEmpty()) "" else "Also here: $names"
+        alsoHere.visibility = if (names.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun render() {
@@ -176,6 +199,8 @@ class AtlasBusinessScreen(
         renderGeneration += 1
         val draft = model.draft
         val selected = model.selected
+        presence?.show(model.resource, selected?.id ?: draft?.id)
+        renderPresence()
         val changedDestination = previousDraft !== draft || previousSelection != selected?.id
         restoreScrollY =
             if (draft == null && selected == null) {
@@ -315,7 +340,7 @@ class AtlasBusinessScreen(
                 val sorted = months.sortedBy { it.month }
                 content.addView(
                     HorizontalScrollView(activity).apply {
-                        addView(InvoiceChart(activity, sorted), ViewGroup.LayoutParams(-2, dp(208)))
+                        addView(AtlasInvoiceChart(activity, sorted), ViewGroup.LayoutParams(-2, dp(208)))
                     },
                     ViewGroup.LayoutParams(-1, -2),
                 )
@@ -732,6 +757,7 @@ class AtlasBusinessScreen(
         content.addView(
             Button(activity).apply {
                 text = label
+                setTag(R.id.atlas_primary_action, !row)
                 isAllCaps = false
                 textSize = 16f
                 minHeight = dp(if (row) 72 else 48)
@@ -844,20 +870,29 @@ private object AccountLogos {
     }
 }
 
-private class InvoiceChart(
+class AtlasInvoiceChart(
     context: Context,
     private val months: List<AtlasBusinessModel.Month>,
 ) : View(context) {
     private val density = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val colors = context.obtainStyledAttributes(intArrayOf(android.R.attr.textColorPrimary, android.R.attr.colorAccent))
-    private val foreground = colors.getColor(0, 0xff303030.toInt())
-    private val accent = colors.getColor(1, 0xff087caa.toInt())
+    private var foreground = colors.getColor(0, 0xff303030.toInt())
+    private var accent = colors.getColor(1, 0xff087caa.toInt())
 
     init {
         colors.recycle()
         minimumWidth = (maxOf(3, months.size) * 96 * density * maxOf(1f, resources.configuration.fontScale)).toInt()
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+
+    fun setTheme(
+        foreground: Int,
+        accent: Int,
+    ) {
+        this.foreground = foreground
+        this.accent = accent
+        invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {

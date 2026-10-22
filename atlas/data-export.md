@@ -2,6 +2,14 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Live availability and viewing presence
+
+`presence_connections` stores a user foreign key, random connection ID, current allowlisted resource (and optional record UUID), and database-clock expiry. These are short-lived availability hints, not edit locks or a navigation log. The directory reuses `users` names and emails and exposes online/offline only. A same-page viewer receives only matching users' `here` flags, never another person's location, raw path, record name, draft, or device details. Rust's native connection handles, latest snapshots and reconnect state remain in memory; no mobile presence database is created.
+
+Active server connections renew a 20-second lease. Hidden browser tabs and background native apps leave; crashed connections expire and are removed by a five-second cleanup sweep. Old locations are overwritten rather than appended. Heartbeats and location changes are not audit events. User deletion cascades leases. Availability changes use payload-free PostgreSQL notifications, not retained events. Outages can delay physical cleanup, but reads ignore expired rows. Database backups may retain historical copies until the deployment's existing backup retention ends.
+
+For a verified export, select all `presence_connections` by `user_id`, including any expired but not yet swept rows, alongside the user's name/email. There is no browsing-history export because Atlas does not maintain one. Neither the People directory nor its matching-page flags are a complete personal-data export.
+
 ## Storage and ownership
 
 `user_llm_connections` contains one row per Atlas user and provider (`claude` or `chatgpt`). `user_id` references `users.id`; deleting the user cascades to these rows.

@@ -55,7 +55,13 @@ config :tuist, Tuist.IngestRepo,
   sync_writes: true,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
+  # View engines reject transactions at their own boundary, but their source
+  # MergeTree reads still use the sandbox transaction (including rollback).
+  settings: [
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC",
+    throw_on_unsupported_query_inside_transaction: 0
+  ]
 
 # Same for the Kura cache-demand buffer, which is otherwise process-wide and
 # would let one async test's demand be flushed inside another's transaction.

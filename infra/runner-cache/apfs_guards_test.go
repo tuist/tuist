@@ -78,3 +78,35 @@ func TestAPFSSealWithholdsABranchIdenticalToItsBase(t *testing.T) {
 		t.Fatal("a changed branch was not published")
 	}
 }
+
+func TestAPFSSealPoisonsABranchWhoseImageHoldsLessThanTheGuestWrote(t *testing.T) {
+	// Measured on a fresh 20 GB image: empty, and after a guest wrote 100 MB.
+	const guest, empty = 149_708_800, 49_688_576
+	for _, tc := range []struct {
+		name string
+		held int64
+		want string
+	}{
+		{name: "intact", held: guest, want: "success"},
+		{name: "within the slack", held: guest - 30<<20, want: "success"},
+		{name: "mounts as the formatted volume", held: empty, want: "incomplete"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, remote := newAPFS(t)
+			b.Verify = func(string) (int64, error) { return tc.held, nil }
+			slot := Slot{Identity: identity(first), PodUID: "pod"}
+			path := apfsPath(t, b, slot)
+			if err := b.Attach(context.Background(), slot, path); err != nil {
+				t.Fatal(err)
+			}
+			detachWithUsage(t, slot, path, map[string]any{"used_bytes": guest, "capacity_bytes": 19_790_245_888, "changed": true})
+			err := b.Seal(slot, path)
+			if Result(err) != tc.want {
+				t.Fatal(err)
+			}
+			if published := remote.uploads == 1; published != (tc.want == "success") {
+				t.Fatal("uploads", remote.uploads)
+			}
+		})
+	}
+}

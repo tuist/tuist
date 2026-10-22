@@ -19,6 +19,8 @@ Related: `server/lib/tuist/gradle/AGENTS.md`.
 
 - Build reports include `started_at` using the same origin as `duration_ms`, including configuration-cache reuse, so the server can align operations with machine samples.
 
+- Keep requested work separate from executed work, as a build-system-independent concept. `requested_tasks` preserves the original invocation in order through configuration-cache-compatible service parameters. Never replace it with resolved task-graph paths: selectors expand across projects and included builds contribute their own internal requests. Executed work belongs in `tasks`, including included-build tasks. With no explicit task request, report an empty requested list rather than inferring intent from execution.
+
 - Machine monitoring takes initial and final samples, including builds shorter than the periodic interval. Network and disk counters are normalized by actual elapsed sampling time. Never backdate samples to cover operations before monitoring began.
 
 - `TuistMachineMetricsService` is eagerly started when the settings plugin is applied and passed as a managed service provider to build insights. Keep collector state out of configuration-cache parameters; every restored build needs fresh samples. Preserve the report service’s operation-only subscription.

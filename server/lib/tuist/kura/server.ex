@@ -41,8 +41,11 @@ defmodule Tuist.Kura.Server do
   `:drain_pending` and `:archived` are the demand-driven lifecycle
   (`Tuist.Kura.Lifecycle`) and are outside the observation projection:
   neither has an endpoint to probe, and an archived row has no backing
-  workload at all. They are driven only by the archival sweep, which owns
-  its own clocks on `kura_account_region_lifecycles`.
+  workload at all. In the public regions they are driven only by the archival
+  sweep, which owns its own clocks on `kura_account_region_lifecycles`. A
+  private runner-cache node has no lifecycle row: `Tuist.Kura.RunnerCache`
+  drains it when its region stops serving the account and holds teardown on
+  `drain_started_at`.
 
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
@@ -185,6 +188,11 @@ defmodule Tuist.Kura.Server do
     # ahead of its DNS record.
     field :public_host_drift_observed_at, :utc_datetime
 
+    # When the server last entered `:drain_pending`, cleared when the drain is
+    # cancelled or the server is archived. Runner-cache nodes have no lifecycle
+    # row, so this is the clock `Tuist.Kura.RunnerCache` holds teardown on.
+    field :drain_started_at, :utc_datetime
+
     belongs_to :account, Account
 
     has_many :deployments, Deployment, foreign_key: :kura_server_id
@@ -285,7 +293,8 @@ defmodule Tuist.Kura.Server do
       :observed_image_tag,
       :last_observed_at,
       :last_ready_at,
-      :storage_claim_size
+      :storage_claim_size,
+      :drain_started_at
     ])
     |> validate_storage_claim()
     |> validate_status_and_image()

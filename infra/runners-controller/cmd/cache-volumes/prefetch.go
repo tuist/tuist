@@ -29,7 +29,7 @@ func (p *prefetcher) start(identity cachevolumes.Identity) bool {
 		defer func() { <-p.slots }()
 		ctx, cancel := context.WithTimeout(context.Background(), p.budget)
 		defer cancel()
-		done := p.observe.Start("prefetch", "remote")
+		done := p.observe.For(cachevolumes.Slot{Identity: identity}).Start("prefetch", "remote")
 		done(p.restore(ctx, cachevolumes.Slot{Identity: identity}))
 	}()
 	return true

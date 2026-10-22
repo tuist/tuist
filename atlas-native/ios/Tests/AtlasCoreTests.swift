@@ -20,8 +20,8 @@ struct AtlasCoreTests {
         #expect(catalog.children(of: "commercial").map(\.id) == ["sales", "finance"])
         #expect(catalog.children(of: "operations").isEmpty)
         #expect(catalog.shortcuts.map(\.id) == ["tasks", "time-off"])
-        #expect(catalog.entries(in: "people").map(\.id) == ["time-off"])
-        #expect(catalog.workspaceSections.map(\.id) == ["accounts", "tasks", "time-off", "finance"])
+        #expect(catalog.entries(in: "people").map(\.id) == ["time-off", "people-directory"])
+        #expect(catalog.workspaceSections.map(\.id) == ["accounts", "tasks", "time-off", "finance", "people-directory"])
         #expect(!catalog.workspaceSections.contains { $0.screen == "browser" })
     }
 

@@ -1,12 +1,16 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -15,13 +19,13 @@ func TestColdFallbackPreservesExistingContent(t *testing.T) {
 	t.Setenv("TUIST_CACHE_VOLUME_URL", "")
 	root := t.TempDir()
 	path := filepath.Join(root, ".gradle/caches/modules-2")
-	if err := attach("gradle", []string{path}); err != nil {
+	if err := attach("gradle", []string{path}, 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(path, "dependency"), []byte("keep"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := attach("gradle", []string{path}); err == nil {
+	if err := attach("gradle", []string{path}, 0); err == nil {
 		t.Fatal("replaced nonempty directory")
 	}
 	if b, err := os.ReadFile(filepath.Join(path, "dependency")); err != nil || string(b) != "keep" {
@@ -100,7 +104,7 @@ func TestAttachInContainerNamespaceWithoutWorkflowCredentials(t *testing.T) {
 	}))
 	defer broker.Close()
 	t.Setenv("TUIST_CACHE_VOLUME_URL", broker.URL)
-	if err := attachWithMounter("gradle", []string{".gradle/caches/modules-2", ".gradle/wrapper"}, cache, broker.Client(), func(socket, source, target string) error {
+	if err := attachWithMounter("gradle", []string{".gradle/caches/modules-2", ".gradle/wrapper"}, cache, 0, broker.Client(), func(socket, source, target string) error {
 		return os.Symlink(filepath.Join(cache, source), target+"/mounted")
 	}); err != nil {
 		t.Fatal(err)
@@ -165,10 +169,10 @@ func TestRejectOverlappingTargetsBeforeAttaching(t *testing.T) {
 	root := t.TempDir()
 	cache := filepath.Join(root, "cache")
 	a := filepath.Join(root, "workspace/a")
-	if err := attachWithClient("key", []string{a, filepath.Join(a, "child")}, cache, nil); err == nil {
+	if err := attachWithClient("key", []string{a, filepath.Join(a, "child")}, cache, 0, nil); err == nil {
 		t.Fatal("accepted overlapping paths")
 	}
-	if err := attachWithClient("key", []string{cache}, cache, nil); err == nil {
+	if err := attachWithClient("key", []string{cache}, cache, 0, nil); err == nil {
 		t.Fatal("accepted cache mount as target")
 	}
 }
@@ -189,7 +193,7 @@ func TestMissingMountProofFallsBackWithoutLinkingHostDirectory(t *testing.T) {
 	os.WriteFile(output, nil, 0600)
 	t.Setenv("GITHUB_OUTPUT", output)
 	target := filepath.Join(root, "target")
-	if err := attachWithClient("key", []string{target}, cache, broker.Client()); err != nil {
+	if err := attachWithClient("key", []string{target}, cache, 0, broker.Client()); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Lstat(target)
@@ -205,7 +209,7 @@ func TestMissingMountProofFallsBackWithoutLinkingHostDirectory(t *testing.T) {
 func TestRejectInvalidPathsBeforeAcquiringStorage(t *testing.T) {
 	for _, path := range []string{"", "cache\n", "cache\r", "cache\t", "cache\x00", "cache\x1f", "cache\x7f"} {
 		t.Run(path, func(t *testing.T) {
-			err := attachWithClient("key", []string{filepath.Join(t.TempDir(), "valid"), path}, t.TempDir(), nil)
+			err := attachWithClient("key", []string{filepath.Join(t.TempDir(), "valid"), path}, t.TempDir(), 0, nil)
 			if !errors.Is(err, errInvalidPath) {
 				t.Fatalf("expected invalid path before HTTP request, got %v", err)
 			}
@@ -235,7 +239,7 @@ func TestMountFailureNeverReportsCacheHit(t *testing.T) {
 	t.Setenv("GITHUB_OUTPUT", output)
 	mountError := errors.New("mount helper stopped")
 	called := false
-	err := attachWithMounter("npm", []string{filepath.Join(root, "node_modules")}, cache, broker.Client(), func(socket, source, target string) error {
+	err := attachWithMounter("npm", []string{filepath.Join(root, "node_modules")}, cache, 0, broker.Client(), func(socket, source, target string) error {
 		called = true
 		if source != scope+"/data" {
 			t.Errorf("unexpected source %q", source)
@@ -268,7 +272,7 @@ func TestAcquireDeadlineContinuesWithWritableColdDirectory(t *testing.T) {
 	t.Setenv("GITHUB_OUTPUT", output)
 	client := broker.Client()
 	client.Timeout = 20 * time.Millisecond
-	if err := attachWithMounter("key", []string{target}, filepath.Join(root, "cache"), client, func(string, string, string) error { t.Fatal("mounted after timeout"); return nil }); err != nil {
+	if err := attachWithMounter("key", []string{target}, filepath.Join(root, "cache"), 0, client, func(string, string, string) error { t.Fatal("mounted after timeout"); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -302,6 +306,73 @@ func TestContentHashedKeyFlagsLockfileAndCommitHashes(t *testing.T) {
 	} {
 		if got := contentHashedKey(key); got != want {
 			t.Errorf("contentHashedKey(%q) = %t, want %t", key, got, want)
+		}
+	}
+}
+
+func TestParseArgumentsRequiresAKeyAndValidatesSizeAndPaths(t *testing.T) {
+	parse := func(args ...string) (options, error) { return parseArguments(args, io.Discard) }
+	if _, err := parse("--path", ".npm"); err == nil {
+		t.Fatal("accepted a volume without a key")
+	}
+	got, err := parse("--key", "deps", "--path", ".npm")
+	if err != nil || got.key != "deps" || got.size != 0 || len(got.targets) != 1 {
+		t.Fatal(got, err)
+	}
+	for size, want := range map[string]int64{"1gb": 1_000_000_000, "50GB": 50_000_000_000, "100Gb": 100_000_000_000} {
+		got, err := parse("--key", "deps", "--path", ".npm", "--size", size)
+		if err != nil || got.size != want || got.key != "deps" {
+			t.Fatal(size, got, err)
+		}
+	}
+	for _, size := range []string{"0gb", "101gb", "50", "50gib", "2.5gb", "", "-5gb", "1000gb", " 5gb"} {
+		_, err := parse("--key", "deps", "--path", ".npm", "--size", size)
+		if err == nil || !strings.Contains(err.Error(), "use a whole number of GB from 1gb to 100gb, such as 50gb") {
+			t.Fatalf("accepted size %q: %v", size, err)
+		}
+	}
+	paths := []string{"--key", "deps"}
+	for i := range maxPaths + 1 {
+		paths = append(paths, "--path", fmt.Sprintf("p%d", i))
+	}
+	if _, err := parse(paths[:2+2*maxPaths]...); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := parse(paths...); err == nil || !strings.Contains(err.Error(), "at most 16 paths") {
+		t.Fatal(err)
+	}
+	if _, err := parse("--key", "tuist-gradle", "--path", ".gradle"); err != nil {
+		t.Fatal("rejected a Tuist-managed key:", err)
+	}
+	if _, err := parse("--key", "-bad", "--path", ".npm"); err == nil {
+		t.Fatal("accepted an invalid key")
+	}
+	if _, err := parse("--key", "deps"); err == nil {
+		t.Fatal("accepted no path")
+	}
+	var usage strings.Builder
+	if _, err := parseArguments([]string{"-h"}, &usage); !errors.Is(err, flag.ErrHelp) || !strings.Contains(usage.String(), "-size") {
+		t.Fatalf("help does not list --size: %v %s", err, usage.String())
+	}
+}
+
+func TestAcquireSendsTheRequestedSizeOnlyWhenGiven(t *testing.T) {
+	for size, want := range map[int64]any{0: nil, 50_000_000_000: float64(50_000_000_000)} {
+		var body map[string]any
+		agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			w.Write([]byte(`{"directory":"` + digest("scope") + `","id":"lease","warm":true}`))
+		}))
+		t.Setenv("TUIST_CACHE_VOLUME_URL", agent.URL)
+		if _, _, _, err := acquire(agent.Client(), "deps", size); err != nil {
+			t.Fatal(err)
+		}
+		agent.Close()
+		if body["key"] != "deps" || body["requested_volume_bytes"] != want {
+			t.Fatalf("size %d sent %v", size, body)
+		}
+		if _, sent := body["requested_volume_bytes"]; size == 0 && sent {
+			t.Fatal("sent a size that was not requested")
 		}
 	}
 }

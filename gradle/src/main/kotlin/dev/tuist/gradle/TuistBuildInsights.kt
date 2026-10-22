@@ -350,7 +350,7 @@ abstract class TuistBuildInsightsService :
             startedAt = formatTimestamp(reportStartedAt),
             gradleVersion = parameters.gradleVersion.orNull,
             rootProjectName = parameters.rootProjectName.orNull,
-            requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
+            requestedTasks = parameters.requestedTasks.getOrElse(emptyList()),
             ciDetector = ciDetector,
             gitInfoProvider = reportGitInfoProvider(),
             customMetadata = executionTelemetry.cacheSavings.metadata(executionTelemetry.failures.metadata(buildCustomMetadata(

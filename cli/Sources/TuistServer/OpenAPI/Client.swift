@@ -22015,7 +22015,7 @@ public struct Client: APIProtocol {
     }
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.

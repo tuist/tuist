@@ -18,6 +18,7 @@ defmodule Tuist.Runners.CacheVolumes.Volume do
     field(:uid, :integer)
     field(:generation, :integer, default: 1)
     field(:head_id, :binary_id)
+    field(:requested_volume_bytes, :integer)
     field(:last_used_at, :utc_datetime_usec)
     field(:deleted_at, :utc_datetime_usec)
     timestamps(type: :utc_datetime)
