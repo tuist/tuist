@@ -51,20 +51,30 @@ script uses a metadata file and raw instrumentation output; its complete run
 passes. Only the owned emulator was used and stopped; no device remains attached.
 No certificate store, signed target resource or production identity was changed.
 
-The CAS full run remains **243 passed, one failed, three ignored**, with later
-integration targets not reached after the library failure. The unchanged test
-`proxy::tests::a_store_past_its_limit_that_a_prune_would_not_change_is_left_alone`
-also fails in isolation and from a clean `git archive` of the committed baseline,
-compiled with the same Rust 1.94.1 SDK (`cas-prune-head-baseline.log`). This proves
-the failure predates this diff in this environment, not its root cause or
-flakiness. Do not call the full suite green or change cache/pruning behavior as a
-TLS workaround. A subsequent run excluding that pruning test reached 242 passed,
-one failed and three ignored, failing instead at the unchanged
-`a_failed_publication_already_in_flight_ends_the_wait_as_a_failure` five-second
-wait assertion (`cas-tests-known-baseline-prune-excluded.log`). That publication
-test passes in isolation in both current and baseline trees; its suite failure's
-cause is unestablished. Integration targets still were not reached. Both failures
-remain visible rather than being called a complete suite pass.
+The earlier CAS full run stopped at a pruning fixture failure (243 passed, one
+failed, three ignored), also reproduced from an archived baseline. Its measured
+cause is now established: the opened empty primary occupies zero allocated
+blocks. `sizes={1:17911808,2:0}` and `limit=17911807` put the upstream itself over
+its allowance, so the production planner correctly demotes it. The test now adds
+allocated non-generation metadata to represent an over-limit store with nothing
+prunable. It asserts the empty plan, over-limit footprint, empty spool and first
+measurement before checking the original unchanged-counter/generation guarantees
+and a readable native object. **No production pruning logic changed.**
+
+With Rust 1.94.1, both full `cargo test --offline --locked --manifest-path
+cas-plugin/Cargo.toml` and its `-- --test-threads=1` variant now complete all
+normal targets: **318 passed, 10 ignored** in each run, including 244 library tests
+and the previously unreached integration targets. The proxy-only serial suite
+also passes (168 passed, two ignored). Public TLS probes were not enabled in
+these suite reruns; the focused opt-in policy receipt above remains separate.
+Logs: `cas-prune-fixture-diagnostic.log`, `cas-prune-fixture-fixed.log`,
+`cas-proxy-suite-current.log`, `cas-all-targets-current.log` and
+`cas-all-targets-default-parallel.log` under `/tmp/tuist-emudhra-audit/`.
+
+The earlier publication-wait suite failure is not reproduced by either completed
+run. Its cause remains unestablished; these passes do not prove that timing
+instability is fixed. Ignored compiler/benchmark checks, release qualification
+and installed-proxy replacement remain separate gates.
 
 ### Recorded local candidates
 

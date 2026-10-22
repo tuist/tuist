@@ -194,10 +194,14 @@ leaf/root differentials and twelve certificate-specific public negatives; two
 native Apple host tests pass. Final simulator/preview builds pass. No signed
 client release, iOS runtime or fleet replacement is claimed.
 
-CAS full-suite attempts fail on pruning and a publication-wait assertion.
-Pruning reproduces from the committed baseline under the same SDK; publication
-passes isolated in both trees, with the suite failure's cause unestablished. Only the proxy performs remote TLS; installing a
-new plugin does not patch an old process. Read-only review identified indefinite
+The CAS pruning failure was an invalid fixture: a zero-block primary made the
+upstream itself exceed `total - 1`, so pruning was correct. Allocated
+non-generation metadata and explicit preconditions repair the test without
+changing production pruning. Full default-parallel and serial Rust 1.94.1 test
+commands now complete all normal targets, each with 318 passed and 10 ignored.
+The earlier publication-wait failure is not reproduced; its cause remains
+unestablished, so timing stability is not proven. Only the proxy performs remote
+TLS; installing a new plugin does not patch an old process. Read-only review identified indefinite
 idle upgrades and old pinned CLIs that can downgrade shared machines. A qualified
 paired release, machine-wide fixed CLI/artifact floor and safe per-process warm
 replacement remain owner gates. The new proxy self-reports policy/PID at startup,
