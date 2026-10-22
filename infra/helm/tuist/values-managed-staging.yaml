@@ -1018,9 +1018,17 @@ rackFleet:
       minWarmPoolFloor: 0
       maxReplicas: 2
     # `tuist-staging-macos` resolves to 26.6, which the staging smoke runs
-    # on, so one guest stays warm for it.
+    # on, so one guest stays warm for it. 27.1 (the `macos-27` profile) keeps the
+    # other, so both slots hold a warm runner as every production image does,
+    # and a job for any third image exercises the allocator giving a warm
+    # runner's slot up.
     xcodeOverrides:
       "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 2
+      "27.1":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1

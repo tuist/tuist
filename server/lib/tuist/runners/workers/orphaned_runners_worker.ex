@@ -49,10 +49,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
        `started_at < now - @stale_after_seconds`.
     2. For each, call `GET /repos/{owner}/{repo}/actions/jobs/{id}`
        on the org's GitHub App installation.
-    3. If GH returns `status: 'queued'` → runner never came up.
-       Recover via `Claims.release/2` (with the original
-       `claimed_at` as the handle), which deletes the claim and
-       re-queues the lifecycle row in one transaction.
+    3. If GH returns `status: 'queued'` with no runner assigned, the
+       runner may never have come up. Schedule a confirmation for the
+       same claim a grace period later (see "Confirming `queued`"), and
+       only if GitHub still says `queued` then, recover via
+       `Claims.release/2` (with the original `claimed_at` as the
+       handle), which deletes the claim and re-queues the lifecycle
+       row in one transaction.
     4. If GH returns `status: 'in_progress'` → runner is actually
        running; leave the row alone.
     5. If GH returns `status: 'completed'` → GH has a terminal
@@ -146,11 +149,32 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   deleted the claim first, which made a correctness path depend on
   one release winning a race it is not guaranteed to win.
 
+  ## Confirming `queued`
+
+  GitHub's job API is eventually consistent. A job can read `queued`
+  for tens of seconds after a runner has picked it up, and even after
+  that runner has finished it and exited. The pod-gone arm and targeted
+  mode ask within a second of the Pod stopping, which is exactly when a
+  short job's read is most likely to lag, and re-queueing on that read
+  sends a second runner after a job that already ran.
+
+  So a `queued` answer is acted on only when it holds across
+  `@queued_confirm_after_seconds`. The first sighting schedules a
+  confirmation bound to the claim's `claimed_at`. That run re-reads
+  the row, does nothing unless it is still `running` under the same
+  claim, and asks GitHub again. A job GitHub has already assigned
+  reports a `runner_name` even while its status still lags, so that
+  alone reads as `in_progress`.
+
+  Only GitHub answers are gated. Buildkite and GitLab report their own
+  job state and keep acting on the first answer.
+
   ## Cost
 
   One GitHub API call per orphaned candidate per tick, plus a second
   one only for candidates GitHub reports as `queued`, which is the
-  branch that resolves the parent run. A real in-flight build reports
+  branch that resolves the parent run. Confirming a `queued` answer
+  repeats both calls once per claim. A real in-flight build reports
   `in_progress` and never pays the second call, so in steady state the
   run lookups are a handful per hour: they track the orphan rate, not
   the build rate.
@@ -189,9 +213,27 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   require Logger
 
   @stale_after_seconds 300
+  @queued_confirm_after_seconds 60
   @runner_label_selector "tuist.dev/runner=true"
+  @evidence_by_arg %{"pod_stopped" => :pod_stopped, "aged_out" => :aged_out}
 
   @impl Oban.Worker
+  def perform(%Oban.Job{
+        args: %{"workflow_job_id" => workflow_job_id, "confirm_claimed_at" => claimed_at, "evidence" => evidence}
+      })
+      when is_integer(workflow_job_id) and is_map_key(@evidence_by_arg, evidence) do
+    # A row that left `running`, most often because the `completed`
+    # webhook GitHub's lagging read was hiding has landed, or that was
+    # re-claimed under a new handle, is not the claim we saw.
+    with {:ok, claimed_at, _offset} <- DateTime.from_iso8601(claimed_at),
+         %{claimed_at: %DateTime{} = current_claimed_at} = orphan <- Jobs.get_orphaned_running(workflow_job_id),
+         :eq <- DateTime.compare(current_claimed_at, claimed_at) do
+      recover_one(orphan, Map.fetch!(@evidence_by_arg, evidence), :confirmation)
+    end
+
+    :ok
+  end
+
   def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id, "pod_name" => pod_name}})
       when is_integer(workflow_job_id) and is_binary(pod_name) and pod_name != "" do
     case Jobs.get_orphaned_running(workflow_job_id) do
@@ -353,19 +395,28 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   # unknown there, and the 404 would read as "pruned" and complete a job
   # that may still be running. Buildkite's own answer arrives folded into
   # the vocabulary the GitHub branch acts on.
-  defp recover_one(%{provider: "gitlab", account_id: account_id} = orphan, evidence) do
+  #
+  # `stage` is `:confirmation` when this run is the scheduled re-check of
+  # a `queued` GitHub answer, and `:first_sighting` otherwise.
+  defp recover_one(orphan, evidence, stage \\ :first_sighting)
+
+  defp recover_one(%{provider: "gitlab", account_id: account_id} = orphan, evidence, _stage) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, {status, conclusion}} <- GitLab.orphan_status(orphan, evidence) do
-      handle_gh_status(status, conclusion, orphan, account, evidence)
+      handle_gh_status(status, conclusion, orphan, account, evidence, :confirmation)
     else
       _ -> false
     end
   end
 
-  defp recover_one(%{provider: "buildkite", workflow_job_id: workflow_job_id, account_id: account_id} = orphan, evidence) do
+  defp recover_one(
+         %{provider: "buildkite", workflow_job_id: workflow_job_id, account_id: account_id} = orphan,
+         evidence,
+         _stage
+       ) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, {status, conclusion}} <- Buildkite.orphan_status(orphan) do
-      handle_gh_status(status, conclusion, orphan, account, evidence)
+      handle_gh_status(status, conclusion, orphan, account, evidence, :confirmation)
     else
       {:error, reason} ->
         Logger.warning("runners: orphan worker buildkite lookup failed; will retry next tick",
@@ -377,19 +428,23 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     end
   end
 
-  defp recover_one(%{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan, evidence) do
+  defp recover_one(
+         %{workflow_job_id: workflow_job_id, account_id: account_id, repository: repository} = orphan,
+         evidence,
+         stage
+       ) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
       case GitHubClient.get_workflow_job(installation, repository, workflow_job_id) do
         {:ok, job} ->
           {gh_status, conclusion} = effective_gh_status(installation, orphan, job)
-          handle_gh_status(gh_status, conclusion, orphan, account, evidence)
+          handle_gh_status(gh_status, conclusion, orphan, account, evidence, stage)
 
         {:error, :not_found} ->
           # GH pruned the workflow_job (90-day retention by default).
           # The job can't be live; treat as completed so the PG cap
           # slot doesn't leak forever.
-          handle_gh_status("completed", "", orphan, account, evidence)
+          handle_gh_status("completed", "", orphan, account, evidence, stage)
 
         {:error, reason} ->
           Logger.warning("runners: orphan worker GH lookup failed; will retry next tick",
@@ -420,6 +475,14 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   # Only the queued branch pays the extra call, and only the run's terminal
   # state can redirect it: a lookup that fails, or a run still live, leaves
   # the existing recovery untouched.
+  #
+  # A `queued` job that already names a runner has been assigned and its
+  # status is lagging, so it is treated as `in_progress`.
+  defp effective_gh_status(_installation, _orphan, %{status: "queued", runner_name: runner_name})
+       when is_binary(runner_name) and runner_name != "" do
+    {"in_progress", nil}
+  end
+
   defp effective_gh_status(installation, orphan, %{status: "queued", conclusion: conclusion}) do
     case run_status(installation, orphan) do
       {:ok, %{status: "completed", conclusion: run_conclusion}} -> {"completed", run_conclusion || ""}
@@ -445,7 +508,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
          _conclusion,
          %{workflow_job_id: workflow_job_id, pod_name: pod_name} = orphan,
          account,
-         evidence
+         evidence,
+         stage
        ) do
     # GitHub still has this job queued, so the runner minted for it never
     # took it. That does NOT mean the Pod holding the claim is idle: GitHub
@@ -474,18 +538,22 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
       false
     else
-      requeue_orphan(orphan, account)
+      case stage do
+        :first_sighting -> schedule_queued_confirmation(orphan, account, evidence)
+        :confirmation -> requeue_orphan(orphan, account)
+      end
     end
   end
 
-  defp handle_gh_status("in_progress", _conclusion, _orphan, _account, _evidence), do: false
+  defp handle_gh_status("in_progress", _conclusion, _orphan, _account, _evidence, _stage), do: false
 
   defp handle_gh_status(
          "completed",
          conclusion,
          %{workflow_job_id: workflow_job_id, pod_name: pod_name, fleet_name: fleet_name},
          account,
-         _evidence
+         _evidence,
+         _stage
        ) do
     # GH has a terminal status but we never saw the corresponding
     # `workflow_job.completed` webhook (or it was retry-exhausted
@@ -517,7 +585,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     true
   end
 
-  defp handle_gh_status(other, _conclusion, %{workflow_job_id: workflow_job_id}, _account, _evidence) do
+  defp handle_gh_status(other, _conclusion, %{workflow_job_id: workflow_job_id}, _account, _evidence, _stage) do
     # Unknown / future GH status. Log and skip; if it's actually
     # terminal we'll catch it on a later tick once GitHub-side
     # state settles or the 404 fallback above handles retention.
@@ -525,6 +593,49 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       workflow_job_id: workflow_job_id,
       status: other
     )
+
+    false
+  end
+
+  # Unique per claim so the sweep, the pod-gone arm and targeted mode
+  # seeing the same `queued` answer schedule one confirmation between
+  # them. A failed insert leaves the row `running`, and the next sweep
+  # schedules it again.
+  defp schedule_queued_confirmation(
+         %{workflow_job_id: workflow_job_id, claimed_at: claimed_at, pod_name: pod_name},
+         account,
+         evidence
+       ) do
+    Logger.info("runners: orphaned running row — GH reports queued; confirming before recovering",
+      workflow_job_id: workflow_job_id,
+      account: account.name,
+      pod: pod_name
+    )
+
+    %{
+      "workflow_job_id" => workflow_job_id,
+      "confirm_claimed_at" => DateTime.to_iso8601(claimed_at),
+      "evidence" => Atom.to_string(evidence)
+    }
+    |> new(
+      schedule_in: @queued_confirm_after_seconds,
+      unique: [
+        period: @queued_confirm_after_seconds * 2,
+        keys: [:workflow_job_id, :confirm_claimed_at],
+        states: [:available, :scheduled, :executing]
+      ]
+    )
+    |> Oban.insert()
+    |> case do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to schedule orphan confirmation; the sweep will retry",
+          workflow_job_id: workflow_job_id,
+          reason: inspect(reason)
+        )
+    end
 
     false
   end

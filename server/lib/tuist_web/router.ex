@@ -1119,8 +1119,6 @@ defmodule TuistWeb.Router do
   scope "/api/internal", TuistWeb.Internal do
     pipe_through [:atlas_internal_api]
 
-    get "/atlas/accounts/:account_handle/usage", AtlasUsageController, :usage
-
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
     get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
