@@ -137,15 +137,6 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's custom cache volumes honor sizes above their key's
-  default (20 GB, 30 GB for `tuist-xcode`). Off, a larger requested size is
-  capped to that default; smaller sizes are always honored.
-  """
-  def runner_custom_volume_sizes_enabled?(account) do
-    FunWithFlags.enabled?(:runner_custom_volume_sizes, for: account)
-  end
-
-  @doc """
   Whether Kura runtime-image rollouts run through the rollout
   orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
   account-grouped waves with the health gate in production, expedited

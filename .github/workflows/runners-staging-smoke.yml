@@ -223,8 +223,7 @@ jobs:
 
   # Sized and multi-path custom cache volumes, with this branch's
   # client (built into the job, ahead of the image's on PATH) and this branch's
-  # action. The server must run the matching branch, and sizes above 20 GB need
-  # the account's `runner_custom_volume_sizes` flag. Run seed, then verify after
+  # action. The server must run the matching branch. Run seed, then verify after
   # the seed's publication; verify again with a larger size to check growth.
   cache-volume-sizes:
     if: github.repository == 'tuist/tuist' && inputs.cache_volume_sizes
@@ -289,7 +288,7 @@ jobs:
             echo "- Small volume: hit $SMALL_HIT, requested 5gb, filesystem $((small / 1000000)) MB"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$sized" -lt $(( requested * 9 / 10 )) ]; then
-            echo "::error::the sized volume holds $sized bytes for a $SIZE request; is runner_custom_volume_sizes on for the account and the server on this branch?"
+            echo "::error::the sized volume holds $sized bytes for a $SIZE request; is the server on this branch?"
             exit 1
           fi
           if [ "$SIZED_HIT" = false ] && [ "$sized" -gt $(( requested * 102 / 100 )) ]; then

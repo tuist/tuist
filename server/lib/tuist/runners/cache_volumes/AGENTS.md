@@ -74,12 +74,10 @@ these schemas persist volume identities and per-job uses.
   The host sends `requested_volume_bytes` (whole GB, 1 to 100; anything else is no
   request) and `max_volume_bytes` (absent: 32 GB). Each key has a default capacity
   (`default_volume_bytes/1`): 30 GB for `tuist-xcode`, 20 GB for every other key.
-  Requests above the key's default are capped to it unless
-  `:runner_custom_volume_sizes` is on for the account. With a saved head the
-  capacity is the larger of the lineage capacity (the head use's `volume_bytes`,
-  else the key default) and the request; without one it is the request or the
-  key default. A capacity above the host maximum rolls back and answers
-  507 `capacity`. Uses that may publish record their request on the volume
+  With a saved head the capacity is the larger of the lineage capacity (the head
+  use's `volume_bytes`, else the key default) and the request; without one it is
+  the request or the key default. A capacity above the host maximum rolls back and
+  answers 507 `capacity`. Uses that may publish record their request on the volume
   (`requested_volume_bytes`); a smaller one is the pending size shown until the
   volume next starts empty. Allocations and prefetch listings send `volume_bytes`
   and the head use's measured `head_size_bytes`.
