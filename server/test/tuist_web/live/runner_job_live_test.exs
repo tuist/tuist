@@ -111,6 +111,34 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Passed"
   end
 
+  test "does not keep counting queue time for a job skipped before a runner claimed it", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_151,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
+        repository: "tuist/cli",
+        workflow_run_id: 311_510,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Test Shard",
+        head_branch: "main",
+        head_sha: "1234567",
+        enqueued_at: DateTime.add(DateTime.utc_now(), -3, :day)
+      })
+
+    {:ok, _completed} = Jobs.complete(31_151, "skipped")
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/311510/jobs/31151")
+
+    assert html =~ ~r|Queue time</div>\s*<span data-part="label">\s*<svg.*?</svg>\s*0ms\s*</span>|s
+  end
+
   test "surfaces linked build and test insights for the runner workflow run", %{
     conn: conn,
     account: account
