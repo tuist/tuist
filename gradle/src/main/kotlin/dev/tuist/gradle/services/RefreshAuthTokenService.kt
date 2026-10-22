@@ -30,10 +30,10 @@ open class RefreshAuthTokenService(
     )
 
     /**
-     * The server rotates the refresh token on every refresh and refuses the old one afterwards, so
-     * a request it may have received is not sent again: only failures before the request reached
-     * it, and 503, are retried. 400, 401 and 403 fail with [RefreshTokenRejectedException]; any
-     * other failure is an [IOException].
+     * The server rotates the refresh token on every refresh, but answers the same refresh token
+     * presented again within 60 seconds with the same tokens, so the request is retried like any
+     * replay-safe one; a server without that grace window refuses the replay. 400, 401 and 403 fail
+     * with [RefreshTokenRejectedException]; any other failure is an [IOException].
      *
      * @param timeoutMs bounds the whole call, including retries; when it runs out the call fails
      * with an [java.io.InterruptedIOException]. `null` keeps the client's own timeouts.
@@ -41,7 +41,7 @@ open class RefreshAuthTokenService(
     open fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long? = null): AuthenticationTokens {
         val api = retrofitProvider(serverURL).create(AuthenticationApi::class.java)
         val deadlineNanos = timeoutMs?.let { System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(it) }
-        return TuistRetry.run("Refreshing the Tuist token", replaySafe = false, retryPolicy, deadlineNanos) {
+        return TuistRetry.run("Refreshing the Tuist token", replaySafe = true, retryPolicy, deadlineNanos) {
             val call = api.refreshToken(RefreshTokenBody(refreshToken))
             if (deadlineNanos != null) {
                 val remainingNanos = deadlineNanos - System.nanoTime()

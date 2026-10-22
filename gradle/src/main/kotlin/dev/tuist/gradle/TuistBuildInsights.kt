@@ -370,8 +370,9 @@ abstract class TuistBuildInsightsService :
                 projectDir = projectDir
             )
             val url = URI(resolvedUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
-            // The server stores every report it receives, so a report it may have received is not sent again.
-            httpClient.retrying("Build insights request", replaySafe = false) {
+            // Every attempt sends the same build id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another build).
+            httpClient.retrying("Build insights request", replaySafe = true) {
                 val connection = httpClient.openConnection(url, config)
                 try {
                     connection.requestMethod = "POST"

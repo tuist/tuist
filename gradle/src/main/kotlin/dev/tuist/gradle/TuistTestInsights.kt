@@ -19,11 +19,13 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.UUID
 import javax.inject.Inject
 
 // --- Data classes ---
 
 data class TestReport(
+    val id: String,
     val duration: Long,
     val status: String,
     @SerializedName("is_ci") val isCi: Boolean,
@@ -184,7 +186,8 @@ internal class TestReportCollector {
         shardPlanId: String? = null,
         shardIndex: Int? = null,
         stressNewTests: StressNewTestsReport? = null,
-        gitHistory: TestRunGitHistory? = null
+        gitHistory: TestRunGitHistory? = null,
+        id: String = UUID.randomUUID().toString()
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
             val testCases = buildTestCases(attempts).map { withStressReruns(it, moduleName, stressNewTests) }
@@ -215,6 +218,7 @@ internal class TestReportCollector {
         val overallStatus = if (hasNonQuarantinedFailure) "failure" else "success"
 
         return TestReport(
+            id = id,
             duration = totalDurationMs,
             status = overallStatus,
             isCi = isCi,
@@ -567,8 +571,9 @@ abstract class TuistTestInsightsService :
         val response = httpClient.execute { config ->
             val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get()).trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
-            // The server creates a new run for every report without an id, so a report it may have received is not sent again.
-            httpClient.retrying("Test insights request", replaySafe = false) {
+            // Every attempt sends the same report id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another run).
+            httpClient.retrying("Test insights request", replaySafe = true) {
                 val connection = httpClient.openConnection(url, config)
                 try {
                     connection.requestMethod = "POST"

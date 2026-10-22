@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 
 import com.google.gson.Gson
 import dev.tuist.gradle.api.model.AuthenticationTokens
@@ -445,16 +446,38 @@ class TokenProviderTest {
     }
 
     @Test
-    fun `refresh does not resend a token the server may have rotated`() {
+    fun `refresh resends the same refresh token after a 502`() {
         MockWebServer().use { server ->
+            val newToken = validJwt()
             server.enqueue(MockResponse().setResponseCode(502))
-            server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
-            val (provider, _) = refreshingProvider(server)
+            server.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setBody(Gson().toJson(mapOf("access_token" to newToken, "refresh_token" to "new-refresh")))
+            )
+            val (provider, store) = refreshingProvider(server)
 
-            val error = assertFailsWith<Exception> { provider.getToken() }
+            assertEquals(newToken, provider.getToken())
+            assertEquals("new-refresh", store.read(server.url("/").toUri())?.refreshToken)
+            assertEquals(2, server.requestCount)
+            repeat(2) { assertTrue(server.takeRequest().body.readUtf8().contains("\"refresh-token\"")) }
+        }
+    }
 
-            assertTrue(error !is TokenProvider.NotAuthenticatedException, "Got $error")
-            assertEquals(1, server.requestCount)
+    @Test
+    fun `refresh resends the same refresh token after a dropped connection`() {
+        MockWebServer().use { server ->
+            val newToken = validJwt()
+            repeat(2) { server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+            server.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setBody(Gson().toJson(mapOf("access_token" to newToken, "refresh_token" to "new-refresh")))
+            )
+            val (provider, store) = refreshingProvider(server)
+
+            assertEquals(newToken, provider.getToken())
+            assertEquals("new-refresh", store.read(server.url("/").toUri())?.refreshToken)
+            assertEquals(3, server.requestCount)
+            repeat(3) { assertTrue(server.takeRequest().body.readUtf8().contains("\"refresh-token\"")) }
         }
     }
 
