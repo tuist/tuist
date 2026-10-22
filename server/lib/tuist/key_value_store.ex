@@ -67,6 +67,10 @@ defmodule Tuist.KeyValueStore do
     cache = cachex_cache(opts)
     Cachex.del(cache, key)
 
+    if use_redis?(opts) do
+      redis_command(Environment.redis_conn_name(), ["DEL", key])
+    end
+
     if cache == :tuist, do: Invalidator.broadcast(key)
     :ok
   end
@@ -200,13 +204,14 @@ defmodule Tuist.KeyValueStore do
       Cachex.fetch(cache, cache_key, fn ->
         case func.() do
           nil -> {:ignore, nil}
+          {:ignore, value} -> {:ignore, value}
           value -> {:commit, value, expire: cachex_cache_ttl(opts)}
         end
       end)
 
     case result do
       {:commit, value} -> value
-      {:ignore, nil} -> nil
+      {:ignore, value} -> value
       {:error, %Cachex.Error{message: message}} -> {:error, message}
       value -> value
     end

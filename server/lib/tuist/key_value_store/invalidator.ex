@@ -36,6 +36,7 @@ defmodule Tuist.KeyValueStore.Invalidator do
 
   def handle_info({event, _node}, cache) when event in [:nodeup, :nodedown] do
     Cachex.clear(cache)
+    FunWithFlags.Store.Cache.flush()
     {:noreply, cache}
   end
 end

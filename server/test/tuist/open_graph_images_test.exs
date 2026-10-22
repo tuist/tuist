@@ -30,6 +30,41 @@ defmodule Tuist.OpenGraphImagesTest do
     end
   end
 
+  test "a transient image is coalesced locally and retried after eviction" do
+    cache = :open_graph_transient_test
+    start_supervised!({Cachex, [cache, []]})
+    parent = self()
+    stub(Storage, :object_exists?, fn _key, :open_graph_images -> false end)
+
+    resolve = fn ->
+      {:ok,
+       %{
+         key: "degraded",
+         render: fn ->
+           send(parent, :degraded_render)
+           {:fallback, "temporary image"}
+         end
+       }}
+    end
+
+    results =
+      1..16
+      |> Task.async_stream(
+        fn _ ->
+          OpenGraphImages.ensure_available("degraded", resolve, cache: cache)
+        end,
+        max_concurrency: 16
+      )
+      |> Enum.to_list()
+
+    assert Enum.all?(results, &(&1 == {:ok, {:transient, "temporary image"}}))
+    assert_received :degraded_render
+    refute_received :degraded_render
+    Cachex.del(cache, {OpenGraphImages, "open-graph-images/degraded.jpg"})
+    assert {:transient, "temporary image"} = OpenGraphImages.ensure_available("degraded", resolve, cache: cache)
+    assert_received :degraded_render
+  end
+
   test "serializes same-image generation and permits unrelated images" do
     {:ok, objects} = Agent.start_link(fn -> MapSet.new() end)
 

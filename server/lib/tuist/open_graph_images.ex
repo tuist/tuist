@@ -57,17 +57,45 @@ defmodule Tuist.OpenGraphImages do
     if Storage.object_exists?(object_key, @actor) do
       :ok
     else
-      with_generation_lock(
-        key,
-        fn ->
-          if Storage.object_exists?(object_key, @actor) do
-            :ok
-          else
-            generate_and_store(key, object_key, resolve)
-          end
-        end,
-        System.monotonic_time(:millisecond) + @lock_wait_timeout
-      )
+      generate = fn ->
+        with_generation_lock(
+          object_key,
+          fn ->
+            if Storage.object_exists?(object_key, @actor) do
+              :ok
+            else
+              generate_and_store(key, object_key, resolve)
+            end
+          end,
+          System.monotonic_time(:millisecond) + @lock_wait_timeout
+        )
+      end
+
+      cache = Keyword.get(opts, :cache, :tuist)
+
+      if Process.whereis(cache) do
+        # Coalesce local waiters before they enter the distributed lock. A
+        # short-lived degraded image prevents an outage from making every
+        # waiter render again; it is never persisted or served as immutable.
+        result =
+          Cachex.fetch(cache, {__MODULE__, object_key}, fn ->
+            case generate.() do
+              {:transient, _image} = transient ->
+                {:commit, transient, expire: Keyword.get(opts, :transient_ttl, 2_000)}
+
+              result ->
+                {:ignore, result}
+            end
+          end)
+
+        case result do
+          {:commit, result} -> result
+          {:ignore, result} -> result
+          result -> result
+        end
+      else
+        generate.()
+      end
     end
   end
 

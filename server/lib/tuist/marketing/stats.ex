@@ -90,7 +90,9 @@ defmodule Tuist.Marketing.Stats do
     leader = :global.whereis_name({__MODULE__, :poller})
 
     stats =
-      if leader == self() or (leader == :undefined and :global.register_name({__MODULE__, :poller}, self()) == :yes) do
+      if leader == self() or
+           (leader == :undefined and
+              :global.register_name({__MODULE__, :poller}, self(), &__MODULE__.resolve_poller_conflict/3) == :yes) do
         stats = %{
           cache_artifacts_last_24h: Tuist.Cache.last_24h_artifacts_count(),
           builds_last_24h: Tuist.Builds.last_24h_build_count(),
@@ -108,6 +110,8 @@ defmodule Tuist.Marketing.Stats do
     Process.send_after(self(), :poll, @poll_interval)
     {:noreply, stats}
   end
+
+  def handle_info({:global_name_conflict, _name}, stats), do: {:noreply, stats}
 
   def handle_info(:poll_globe, stats) do
     # Read-only: the Oban unique worker is the sole ClickHouse refresher.
@@ -131,4 +135,12 @@ defmodule Tuist.Marketing.Stats do
   end
 
   def handle_info({:marketing_stats_updated, stats}, previous_stats), do: {:noreply, Map.merge(previous_stats, stats)}
+
+  @doc false
+  def resolve_poller_conflict(name, first, second) do
+    winner = min(first, second)
+    loser = max(first, second)
+    send(loser, {:global_name_conflict, name})
+    winner
+  end
 end

@@ -109,6 +109,22 @@ defmodule Tuist.Marketing.StatsTest do
     assert Stats.get_stats().cache_artifacts_last_24h == 100
   end
 
+  test "partition conflict resolution never kills either poller", %{stats_pid: pid} do
+    other =
+      spawn(fn ->
+        receive do
+          :stop -> :ok
+        end
+      end)
+
+    on_exit(fn -> send(other, :stop) end)
+    winner = Stats.resolve_poller_conflict({Stats, :poller}, pid, other)
+    assert winner in [pid, other]
+    assert Process.alive?(pid)
+    assert Process.alive?(other)
+    assert Stats.get_stats().builds_last_24h == 200
+  end
+
   test "followers retain broadcast snapshots and resume polling after leader departure", %{stats_pid: pid} do
     leader =
       spawn(fn ->
