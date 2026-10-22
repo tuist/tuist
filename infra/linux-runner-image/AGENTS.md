@@ -224,8 +224,15 @@ chains/anchors and supplied peers for HTTP/WSS. Keep its shared main/policy file
 and fixtures byte-identical to the macOS copy. Reject HTTPS/secure-discovery
 WS downgrades and sanitize URL/body errors. See
 `../certificate-trust/RUNNER-CLIENTS.md`; Darwin host tests are not Linux image
-qualification and do not cover cache-volume/GitLab/vendor transports. Replace
-only through qualified owner releases and safe warm/job-preserving rollout.
+qualification and do not cover GitLab/vendor transports. `tuist-cache-volume`
+also embeds the twelve-key deny for HTTPS acquire, checkout and export, using a
+clone of the default transport to retain environment proxies, native roots and
+HTTP/2. Preserve all-redirect refusal, 30 s/20 s/3 min deadlines, typed private
+diagnostics, cold-directory/grant semantics and the macOS local mailbox path.
+Managed Helm currently configures its in-cluster endpoint as HTTP, so that path
+has no TLS handshake; the callback qualifies HTTPS configurations, not conversion
+of the managed service to TLS. Keep injected-client attach helpers test-only.
+Replace only through qualified owner releases and safe warm/job-preserving rollout.
 `.github/workflows/linux-runners-staging-smoke.yml` with `gradle_cache`
 enabled validates a deployed image with a real Docker job container. Select the runner
 profile, matching server URL, and an existing Gradle project authorized

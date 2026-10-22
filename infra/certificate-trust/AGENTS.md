@@ -19,8 +19,10 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
   `GRAFANA-CLIENT.md` records the independent Go backend's full twelve-key callback,
   native-versus-application attribution and exact artifact/runtime limits.
   `ACTION-CLIENTS.md` traces bounded wrapper ownership, not provider/helper TLS.
-  `RUNNER-CLIENTS.md` limits the new Go callback evidence to shell HTTP/WSS;
-  keep both source/test copies identical and qualify real images separately.
+  `RUNNER-CLIENTS.md` covers shell HTTP/WSS and cache-volume HTTPS configuration;
+  keep shell source/test copies identical, preserve the helpers' different proxy
+  semantics and qualify real images separately. Managed cache-volume endpoints
+  are currently plaintext HTTP: do not describe those routes as TLS handshakes.
   `KURA-CLIENTS.md` records the open reqwest 0.13/native-platform design: retain
   native roots, inspect constructed anchors and do not exempt explicit mTLS CAs.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight

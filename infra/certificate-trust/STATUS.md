@@ -63,6 +63,19 @@ and use the larger runner for Linux image validation after a lost-runner failure
 The PR contains a scoped staging-test admonition. Canary/production and the
 remaining host/guest/vendor paths are not qualified by that note.
 
+## Cache-volume HTTPS follow-up
+
+The independently shipped `tuist-cache-volume` helper now applies the twelve-key
+policy to HTTPS acquire, checkout and export using its original default/proxy
+transport semantics. Real DER, accepted leaf/intermediate/root denies across all
+three request paths, both HTTPS CONNECT legs, configured TLS 1.2/1.3 wire
+resumption, ordinary validation, no redirects and unchanged cold/grant behavior
+pass in host race tests. Shared policy/factory/fixture guards and CI cover it.
+The managed Helm endpoint remains in-cluster plaintext HTTP, so this is HTTPS
+configuration coverage, not a TLS conversion or production handshake receipt.
+macOS's local mailbox path is unchanged. See `RUNNER-CLIENTS.md`; image/runtime,
+publication/replacement and the remaining GitLab/host/Kura clients stay separate.
+
 ## Client-verifier follow-up
 
 The client-by-client scope and remaining gaps are tracked in `CLIENTS.md`.

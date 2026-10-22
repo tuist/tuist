@@ -90,6 +90,7 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		"../../grafana-datasource/pkg/plugin/certificate_trust.go",
 		"../../infra/runner-image/cmd/runner-shell-agent/certificate_trust.go",
 		"../../infra/linux-runner-image/cmd/runner-shell-agent/certificate_trust.go",
+		"../../infra/linux-runner-image/cmd/tuist-cache-volume/certificate_trust.go",
 		"../../gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt",
 		"../../android/app/src/main/java/dev/tuist/app/data/network/CertificateTrust.kt",
 	} {
@@ -306,6 +307,54 @@ func TestRunnerLogArgumentGuard(t *testing.T) {
 		unsafe, err := runnerLogExposesCredentials("package main; func f() {" + test.expression + "}")
 		if err != nil || unsafe != test.unsafe {
 			t.Fatal("runner log argument guard mismatch", test.expression, err)
+		}
+	}
+}
+
+func TestCacheVolumeClientFactoryWiring(t *testing.T) {
+	root := "../../infra/linux-runner-image/cmd/tuist-cache-volume"
+	for path, required := range map[string][]string{
+		"main.go":              {"newCacheHTTPClient(30 * time.Second)", "cacheRequestError{err}", "cacheResponseError{err}"},
+		"linux_checkout.go":    {"newCacheHTTPClient(timeout)", "newLinuxCheckoutClient(20 * time.Second)", "newLinuxCheckoutClient(3 * time.Minute)", "cacheRequestError{err}"},
+		"certificate_trust.go": {"certificateTrustTransport(base, additionalBlocked)", "Transport: transport", "return http.ErrUseLastResponse"},
+	} {
+		for _, text := range required {
+			if !bytes.Contains(read(t, filepath.Join(root, path)), []byte(text)) {
+				t.Fatalf("missing protected cache-volume factory in %s: %s", path, text)
+			}
+		}
+	}
+	paths, err := filepath.Glob(filepath.Join(root, "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients, requests := 0, 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		source := read(t, path)
+		clients += bytes.Count(source, []byte("http.Client{"))
+		requests += bytes.Count(source, []byte(".Do(req)"))
+		for _, bypass := range []string{"http.DefaultClient", "http.Get(", "http.Post(", "http.Transport{", "attachWithClient(", "attachWithMounter("} {
+			if bytes.Contains(source, []byte(bypass)) {
+				t.Fatalf("review new cache-volume transport: %s in %s", bypass, path)
+			}
+		}
+		if filepath.Base(path) != "certificate_trust.go" && bytes.Contains(source, []byte("http.DefaultTransport")) {
+			t.Fatalf("default transport bypass in %s", path)
+		}
+		unsafe, err := runnerLogExposesCredentials(string(source))
+		if err != nil || unsafe {
+			t.Fatalf("cache-volume URL/header/body diagnostic in %s: %v", path, err)
+		}
+	}
+	if clients != 1 || requests != 2 {
+		t.Fatal("review new independent cache-volume factories/requests")
+	}
+	for _, fixture := range []string{"issuer-roots.pem", "distrusted-intermediates.pem"} {
+		if !bytes.Equal(read(t, filepath.Join(root, "testdata/certificate-trust", fixture)), read(t, filepath.Join("controls", fixture))) {
+			t.Fatalf("cache-volume fixture differs: %s", fixture)
 		}
 	}
 }
