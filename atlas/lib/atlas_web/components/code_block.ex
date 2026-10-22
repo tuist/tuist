@@ -25,7 +25,8 @@ defmodule AtlasWeb.CodeBlock do
     """
   end
 
-  defp highlight(source, language) when byte_size(source) <= @max_highlight_bytes do
+  @doc "Returns escaped highlighting markup for read-only views, or nil for a plain-text fallback."
+  def highlight(source, language) when byte_size(source) <= @max_highlight_bytes do
     case Lumis.highlight(source,
            formatter:
              {:html_multi_themes,
@@ -36,5 +37,5 @@ defmodule AtlasWeb.CodeBlock do
     end
   end
 
-  defp highlight(_, _), do: nil
+  def highlight(_, _), do: nil
 end
