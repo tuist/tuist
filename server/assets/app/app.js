@@ -25,6 +25,7 @@ import Noora from "noora";
 import "./app.css";
 import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
+import JSONInput from "./js/JSONInput.mjs";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
 import BundleSizeSunburstChartLegend from "./js/BundleSizeSunburstChartLegend.js";
@@ -59,6 +60,7 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 let Hooks = {};
 Hooks.GoogleOneTap = GoogleOneTap;
 Hooks.ImageFallback = ImageFallback;
+Hooks.JSONInput = JSONInput;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
 Hooks.BundleSizeSunburstChartLegend = BundleSizeSunburstChartLegend;

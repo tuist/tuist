@@ -1,0 +1,214 @@
+#account-workload-identities {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+
+  & > [data-part="oidc-card-section"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="header"],
+    & > [data-part="content"] {
+      flex: 1;
+      min-width: 0;
+    }
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="heading"] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--noora-spacing-5);
+
+        & .noora-toggle [data-part="root"] {
+          gap: var(--noora-spacing-0);
+        }
+
+        & .noora-toggle [data-part="label"] {
+          position: absolute;
+          clip-path: inset(50%);
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+      }
+
+      & [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"],
+    & [data-part="form"],
+    & [data-part="identity-fields"],
+    & [data-part="template-fields"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+    }
+
+    & > [data-part="content"][hidden],
+    & [data-part="form"][hidden] {
+      display: none;
+    }
+
+    & > [data-part="policies"] {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      flex-basis: 100%;
+      gap: var(--noora-spacing-6);
+      min-width: 0;
+      max-width: 100%;
+
+      & > [data-part="policy"] {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+        box-shadow: var(--noora-border-light-default);
+        border-radius: var(--noora-radius-4);
+        background: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-5);
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      & [data-part="policy-header"] {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: var(--noora-spacing-4);
+
+        & > .noora-button {
+          flex-shrink: 0;
+        }
+      }
+
+      & [data-part="policy-title"] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+        min-width: 0;
+
+        & > h3 {
+          min-width: 0;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+        }
+      }
+
+      & [data-part="configuration"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        margin: 0;
+
+        & > div {
+          display: grid;
+          grid-template-columns: 88px minmax(0, 1fr);
+          gap: var(--noora-spacing-5);
+        }
+
+        & dt {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+        }
+
+        & dd {
+          margin: 0;
+          min-width: 0;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+
+        & pre {
+          margin: 0;
+          font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+        }
+      }
+
+      & [data-part="policy-footer"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+        margin-top: auto;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+        & > time {
+          color: var(--noora-surface-label-tertiary);
+        }
+      }
+
+      @media (max-width: 768px) {
+        grid-template-columns: minmax(0, 1fr);
+
+        & [data-part="configuration"] > div {
+          grid-template-columns: minmax(0, 1fr);
+          gap: var(--noora-spacing-2);
+        }
+      }
+    }
+
+    & [data-part="documentation"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & [data-part="template-picker"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+    }
+
+    & [data-part="template-label"],
+    & [data-part="advanced"] > summary {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & [data-part="template-ids"] {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--noora-spacing-5);
+
+      @media (max-width: 768px) {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    & [data-part="advanced"] > summary {
+      cursor: pointer;
+    }
+
+    & [data-part="advanced"] > [data-part="identity-fields"] {
+      padding-top: var(--noora-spacing-5);
+    }
+
+    & [data-part="form"] > .noora-button {
+      align-self: flex-end;
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+}

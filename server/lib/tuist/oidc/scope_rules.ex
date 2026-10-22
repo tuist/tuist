@@ -54,12 +54,30 @@ defmodule Tuist.OIDC.ScopeRules do
   @doc """
   Evaluates the rules for `account` and `projects` against the OIDC `claims`.
 
+  `projects` is either the projects the token is scoped to or `:all_projects`
+  for account-wide tokens, which cover every project of the account. Projects
+  created after the exchange have no rules yet, so evaluating the existing ones
+  is enough.
+
   Returns the scopes to withhold, keyed by scope with the ids of the resources
   they are withheld for, and one entry per failed rule describing why.
   """
-  def evaluate(%Account{id: account_id}, projects, claims) do
+  def evaluate(%Account{id: account_id} = account, :all_projects, claims) do
+    rules =
+      Repo.all(
+        from r in ScopeRule,
+          left_join: p in assoc(r, :project),
+          where: r.account_id == ^account_id or p.account_id == ^account_id,
+          preload: [project: :account]
+      )
+
+    projects_by_id = for %ScopeRule{project: %Project{} = project} <- rules, into: %{}, do: {project.id, project}
+
+    evaluate_rules(rules, account, projects_by_id, claims)
+  end
+
+  def evaluate(%Account{id: account_id} = account, projects, claims) do
     project_ids = Enum.map(projects, & &1.id)
-    projects_by_id = Map.new(projects, &{&1.id, &1})
 
     rules =
       Repo.all(
@@ -67,6 +85,10 @@ defmodule Tuist.OIDC.ScopeRules do
           where: r.project_id in ^project_ids or r.account_id == ^account_id
       )
 
+    evaluate_rules(rules, account, Map.new(projects, &{&1.id, &1}), claims)
+  end
+
+  defp evaluate_rules(rules, %Account{id: account_id}, projects_by_id, claims) do
     {withheld, failures} =
       rules
       |> Enum.sort_by(&{&1.scope, &1.project_id || 0})

@@ -8122,9 +8122,9 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// Exchange a CI provider OIDC token for a Tuist access token.
+    /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    /// Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     /// Projects and accounts can configure OIDC scope rules that require specific GitHub Actions

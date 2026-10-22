@@ -15,7 +15,7 @@ defmodule TuistWeb.API.OIDCControllerLoggingTest do
 
     {:ok, _} = ScopeRules.put_project_rule(project, "project:previews:write", %{refs: ["refs/heads/main"]})
 
-    stub(OIDC, :claims, fn _token ->
+    stub(OIDC, :claims, fn _token, _account ->
       {:ok, %{repository: "tuist/rules-logging", provider: :github_actions, ref: "refs/heads/feature"}}
     end)
 

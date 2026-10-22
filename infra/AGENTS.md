@@ -100,6 +100,8 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - The isolated security-assessment cluster (`tuist-pentest`) is retired: its
   Cluster CR was removed, and **Pentest Cluster Retirement** deletes the live
   cluster. Its pentest workflows and values files remain until that has run.
+  Before running it, delete every DNS record pointing at the cluster's load
+  balancers, since the run frees their IPs.
 - `clusters/README.md` — reconciliation ownership (Flux vs `mgmt-cluster-apply.yml`), ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/external-secrets.yaml` + `mgmt/flux-git-externalsecret.yaml` — ESO on the mgmt cluster (Flux bootstrap prerequisite): the `onepassword` `ClusterSecretStore` for the `tuist-k8s-mgmt` vault, and Flux's git (GitHub App) credential synced from it.
