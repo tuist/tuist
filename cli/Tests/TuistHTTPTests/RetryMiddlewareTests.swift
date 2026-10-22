@@ -471,7 +471,7 @@ struct RetryMiddlewareTests {
     @Test(arguments: [URLError.Code.networkConnectionLost, .timedOut])
     func does_not_replay_a_non_idempotent_operation_after_a_transport_failure(code: URLError.Code) async throws {
         let attempts = try await Self.attempts(
-            method: .post, operationID: "createTest", failures: [.transport(code)]
+            method: .post, operationID: "createProject", failures: [.transport(code)]
         )
 
         #expect(attempts == 1)
@@ -515,27 +515,79 @@ struct RetryMiddlewareTests {
         #expect(attempts == 2)
     }
 
-    @Test(arguments: [nil, "0"])
-    func replays_a_service_unavailable_that_may_follow_a_write_only_with_retry_after(retryAfter: String?) async throws {
-        let subject = RetryMiddleware(
-            maxRetries: 4, baseDelayMilliseconds: 0, operationIDsAnsweringServiceUnavailableAfterWriting: ["createTest"]
-        )
-        var attempts = 0
+    @Test(arguments: [
+        CredentialFailure.transport(.networkConnectionLost),
+        .transport(.cannotConnectToHost),
+        .status(502),
+        .status(401),
+        .other,
+    ])
+    func never_replays_a_request_whose_credentials_could_not_be_obtained(failure: CredentialFailure) async throws {
+        let (attempts, error) = await Self.credentialAttempts(failure: failure)
 
-        _ = try await subject.intercept(
-            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/test"),
-            body: HTTPBody(Data("{}".utf8)),
-            baseURL: URL(string: "https://test.tuist.dev")!,
-            operationID: "createTest"
-        ) { _, _, _ in
-            attempts += 1
-            guard attempts == 1 else { return (HTTPResponse(status: 200), nil) }
-            var response = HTTPResponse(status: .serviceUnavailable)
-            response.headerFields[HTTPField.Name("Retry-After")!] = retryAfter
-            return (response, nil)
+        #expect(attempts == 1)
+        switch failure {
+        case let .transport(code): #expect((error as? URLError)?.code == code)
+        case let .status(code): #expect((error as? CredentialStatusError)?.httpStatusCode == code)
+        case .other: #expect(error is CredentialStatusError.Other)
+        }
+    }
+
+    enum CredentialFailure: Sendable, CustomTestStringConvertible {
+        case transport(URLError.Code)
+        case status(Int)
+        case other
+
+        var error: any Error {
+            switch self {
+            case let .transport(code): URLError(code)
+            case let .status(code): CredentialStatusError(httpStatusCode: code)
+            case .other: CredentialStatusError.Other()
+            }
         }
 
-        #expect(attempts == (retryAfter == nil ? 1 : 2))
+        var testDescription: String {
+            switch self {
+            case let .transport(code): "URLError \(code.rawValue)"
+            case let .status(code): "HTTP \(code)"
+            case .other: "other"
+            }
+        }
+    }
+
+    struct CredentialStatusError: HTTPStatusCodeError, Equatable {
+        struct Other: Error {}
+        let httpStatusCode: Int
+    }
+
+    static func credentialAttempts(failure: CredentialFailure) async -> (attempts: Int, error: (any Error)?) {
+        let subject = RetryMiddleware(maxRetries: 4, baseDelayMilliseconds: 0)
+        var attempts = 0
+        do {
+            _ = try await subject.intercept(
+                HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/test"),
+                body: HTTPBody(Data("{}".utf8)),
+                baseURL: URL(string: "https://test.tuist.dev")!,
+                operationID: "createProject"
+            ) { _, _, _ in
+                attempts += 1
+                guard attempts == 1 else { return (HTTPResponse(status: 200), nil) }
+                throw ClientError(
+                    operationID: "createProject",
+                    operationInput: "",
+                    request: nil,
+                    requestBody: nil,
+                    baseURL: nil,
+                    response: nil,
+                    responseBody: nil,
+                    causeDescription: "Middleware threw an error.",
+                    underlyingError: CredentialAcquisitionError(underlyingError: failure.error)
+                )
+            }
+            return (attempts, nil)
+        } catch {
+            return (attempts, error)
+        }
     }
 
     enum ReplayFailure: Sendable, CustomTestStringConvertible {

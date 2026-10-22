@@ -6,6 +6,9 @@ extension Client {
     @TaskLocal public static var additionalMiddlewares: [any ClientMiddleware] = []
 
     /// Non-GET operations the server treats as idempotent, so a request whose response was lost can be sent again.
+    /// `createTest` and `createCommandEvent` are deduplicated by the client-generated `id` every request carries, and a
+    /// refresh token presented again within 60 seconds of its exchange returns the same tokens. Servers that predate
+    /// those guarantees can record a replayed run twice or refuse a replayed refresh.
     static let idempotentServerOperationIDs: Set<String> = [
         "authenticate",
         "cleanCache",
@@ -14,9 +17,11 @@ extension Client {
         "completeAnalyticsArtifactsUploadsProject",
         "completeCommitCoverage",
         "connectProjectRepository",
+        "createCommandEvent",
         "createCoverageUpload",
         "createRunnerShellSession",
         "createStressPlan",
+        "createTest",
         "exchangeOIDCToken",
         "findMissingCommitListings",
         "findMissingCommits",
@@ -27,6 +32,7 @@ extension Client {
         "generatePreviewsMultipartUploadURL",
         "generateShardUploadURL",
         "getCacheToken",
+        "refreshToken",
         "startAnalyticsArtifactMultipartUpload",
         "startAnalyticsArtifactMultipartUploadProject",
         "startBuildsMultipartUpload",
@@ -43,13 +49,8 @@ extension Client {
         "uploadPreviewIcon",
     ]
 
-    /// `createTest` answers 503 both before writing, when a shard plan is not visible yet (with `Retry-After`), and
-    /// after creating the run, when its processing could not be scheduled.
     private static var serverRetryMiddleware: RetryMiddleware {
-        RetryMiddleware(
-            idempotentOperationIDs: idempotentServerOperationIDs,
-            operationIDsAnsweringServiceUnavailableAfterWriting: ["createTest"]
-        )
+        RetryMiddleware(idempotentOperationIDs: idempotentServerOperationIDs)
     }
 
     /// Tuist client for authenticated sessions
@@ -101,7 +102,7 @@ extension Client {
                 ServerClientFeatureFlagsHeadersMiddleware(),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
-            ]
+            ] + additionalMiddlewares
         )
     }
 }

@@ -40,8 +40,8 @@
         }
     }
 
-    /// Sends the event once through the server client, whose `RetryMiddleware` replays it only when the server never
-    /// received it: replaying an event whose response was lost would record the run twice.
+    /// Sends the event through the server client, whose `RetryMiddleware` replays it after a lost response. The
+    /// server deduplicates the replay by the event's `id`, which is the generation's id or one generated here.
     public struct CreateCommandEventService: CreateCommandEventServicing {
         public init() {}
 
@@ -63,6 +63,7 @@
             serverURL: URL
         ) async throws -> ServerCommandEvent {
             let client = Client.authenticated(serverURL: serverURL)
+            let id = commandEvent.generationId ?? UUIDv7.generate()
             let errorMessage: String?
             let status: Operations.createCommandEvent.Input.Body.jsonPayload.statusPayload?
             switch commandEvent.status {
@@ -91,7 +92,7 @@
                             git_commit_sha: commandEvent.gitCommitSHA,
                             git_ref: commandEvent.gitRef,
                             git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
-                            id: commandEvent.generationId,
+                            id: id,
                             is_ci: commandEvent.isCI,
                             macos_version: commandEvent.macOSVersion,
                             module_cache_outputs: commandEvent.moduleCacheOutputs.map { map(moduleCacheOutput: $0) },

@@ -1,4 +1,5 @@
 import Foundation
+import OpenAPIRuntime
 import TuistEnvironment
 
 public struct HTTPRetryPolicy: Sendable {
@@ -78,5 +79,37 @@ public struct HTTPRetryPolicy: Sendable {
     private static func baseDelayMilliseconds(environment: [String: String]) -> UInt64? {
         guard let value = environment["TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS"] else { return nil }
         return UInt64(value)
+    }
+
+    /// Whether re-sending the request that raised `error` could produce a different outcome. Errors that do not carry
+    /// a status code, such as transport errors, are retryable, except a cancelled transfer.
+    public static func isRetryable(_ error: any Error) -> Bool {
+        switch error {
+        case let error as URLError:
+            return error.code != .cancelled
+        case let error as any HTTPStatusCodeError:
+            return error.isRetryable
+        case let error as ClientError:
+            return isRetryable(error.underlyingError)
+        default:
+            return true
+        }
+    }
+
+    /// Runs `operation`, and runs it again after a failure `isRetryable(_:)` accepts until the retries run out.
+    /// Cancellation is never retried.
+    public func run<T>(_ operation: () async throws -> T) async throws -> T {
+        for retry in 0 ..< maximumRetryCount {
+            try Task<Never, Never>.checkCancellation()
+            do {
+                return try await operation()
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch where Self.isRetryable(error) {
+                try await Task<Never, Never>.sleep(nanoseconds: delay(for: retry))
+            }
+        }
+        try Task<Never, Never>.checkCancellation()
+        return try await operation()
     }
 }
