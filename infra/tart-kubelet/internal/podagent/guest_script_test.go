@@ -754,6 +754,8 @@ func TestGuestStopsTheTuistLaunchAgentsBetweenThePruneAndTheDetaches(t *testing.
 	for _, call := range []string{
 		"if ! drain_cas_publications && [ \"${CACHE_PASSED}\" = \"1\" ]; then",
 		"prune_cas_stores teardown",
+		"if ! drain_cas_publications; then",
+		"prune_cas_stores managed-teardown",
 		"stop_tuist_launch_agents",
 		"if ! detach_cache_image; then",
 		"if ! /usr/local/bin/tuist-cache-volume --detach-all; then",

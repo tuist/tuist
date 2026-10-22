@@ -2461,6 +2461,24 @@ HOOK
         stage_cache_limits teardown
         prune_cas_stores teardown
       fi
+      # A managed compilation cache follows the built-in image's order: its
+      # publications reach the remote before the volume holding their store is
+      # saved, and the store is bounded before the volume is measured. The drain
+      # runs for every job that used the cache, the prune only for one whose
+      # volumes are saved. A drain that cannot finish withholds the job's volumes,
+      # as it withholds the built-in image.
+      custom_volumes_savable="${JOB_PASSED}"
+      if [ "${MANAGED_CACHE_VOLUMES}" = "1" ] && [ -e "${RUNNER_CACHES_DIR}/xcode.used" ]; then
+        CAS_STORE_ROOT="${MANAGED_XCODE_CACHE}"
+        if ! drain_cas_publications; then
+          custom_volumes_savable=0
+          echo "$(date -u +%FT%TZ) dispatch-poll: WARNING compilation cache publications did not drain; this job's cache volumes will not be saved"
+        elif [ "${JOB_PASSED}" = "1" ]; then
+          CAS_LIMIT_BYTES="${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
+          prune_cas_stores managed-teardown
+        fi
+        CAS_STORE_ROOT=""
+      fi
       # After the drain and the prune, which both ask the proxy, and before any
       # detach, which a still-running agent would hold busy.
       stop_tuist_launch_agents
@@ -2495,24 +2513,6 @@ HOOK
       # builds the next cached checkout from it. Never affects the exit code.
       if [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
         /usr/local/bin/tuist-cache-volume --checkout-export || true
-      fi
-      # A managed compilation cache follows the built-in image's order: its
-      # publications reach the remote before the volume holding their store is
-      # saved, and the store is bounded before the volume is measured. The drain
-      # runs for every job that used the cache, the prune only for one whose
-      # volumes are saved. A drain that cannot finish withholds the job's volumes,
-      # as it withholds the built-in image.
-      custom_volumes_savable="${JOB_PASSED}"
-      if [ "${MANAGED_CACHE_VOLUMES}" = "1" ] && [ -e "${RUNNER_CACHES_DIR}/xcode.used" ]; then
-        CAS_STORE_ROOT="${MANAGED_XCODE_CACHE}"
-        if ! drain_cas_publications; then
-          custom_volumes_savable=0
-          echo "$(date -u +%FT%TZ) dispatch-poll: WARNING compilation cache publications did not drain; this job's cache volumes will not be saved"
-        elif [ "${JOB_PASSED}" = "1" ]; then
-          CAS_LIMIT_BYTES="${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
-          prune_cas_stores managed-teardown
-        fi
-        CAS_STORE_ROOT=""
       fi
       if [ "${custom_volumes_savable}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
         if ! /usr/local/bin/tuist-cache-volume --detach-all; then
