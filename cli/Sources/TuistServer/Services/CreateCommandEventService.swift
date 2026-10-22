@@ -40,10 +40,18 @@
         }
     }
 
-    /// Sends the event through the server client, whose `RetryMiddleware` replays it after a lost response. The
-    /// server deduplicates the replay by the event's `id`, which is the generation's id or one generated here.
+    /// Sends the event through the server client, whose `RetryMiddleware` replays it after a lost response, and keeps it
+    /// in the `ReportOutbox` until the server answers it. The server deduplicates both by the event's `id`.
     public struct CreateCommandEventService: CreateCommandEventServicing {
-        public init() {}
+        private let reportOutbox: ReportOutbox
+
+        public init() {
+            self.init(reportOutbox: ReportOutbox())
+        }
+
+        init(reportOutbox: ReportOutbox) {
+            self.reportOutbox = reportOutbox
+        }
 
         public func createCommandEvent(
             commandEvent: CommandEvent,
@@ -63,7 +71,7 @@
             serverURL: URL
         ) async throws -> ServerCommandEvent {
             let client = Client.authenticated(serverURL: serverURL)
-            let id = commandEvent.generationId ?? UUIDv7.generate()
+            let id = commandEvent.id ?? commandEvent.generationId ?? UUIDv7.generate()
             let errorMessage: String?
             let status: Operations.createCommandEvent.Input.Body.jsonPayload.statusPayload?
             switch commandEvent.status {
@@ -75,39 +83,50 @@
                 status = .failure
             }
 
+            let body = Operations.createCommandEvent.Input.Body.jsonPayload(
+                build_run_id: commandEvent.buildRunId,
+                cache_endpoint: commandEvent.cacheEndpoint.isEmpty ? nil : commandEvent.cacheEndpoint,
+                client_id: commandEvent.clientId,
+                command_arguments: commandEvent.commandArguments,
+                duration: commandEvent.durationInMs,
+                error_message: errorMessage,
+                git_branch: commandEvent.gitBranch,
+                git_commit_sha: commandEvent.gitCommitSHA,
+                git_ref: commandEvent.gitRef,
+                git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
+                id: id,
+                is_ci: commandEvent.isCI,
+                macos_version: commandEvent.macOSVersion,
+                module_cache_outputs: commandEvent.moduleCacheOutputs.map { map(moduleCacheOutput: $0) },
+                name: commandEvent.name,
+                preview_id: commandEvent.previewId,
+                ran_at: commandEvent.ranAt.ISO8601Format(),
+                status: status,
+                subcommand: commandEvent.subcommand,
+                swift_version: commandEvent.swiftVersion,
+                test_run_id: commandEvent.testRunId,
+                tuist_version: commandEvent.tuistVersion,
+                xcode_graph: commandEvent.graph.map { map(graph: $0) }
+            )
+            return try await reportOutbox.deliver(
+                .commandEvent,
+                id: id,
+                fullHandle: projectId,
+                serverURL: serverURL,
+                body: body
+            ) {
+                try await send(body, projectId: projectId, client: client)
+            }
+        }
+
+        private func send(
+            _ body: Operations.createCommandEvent.Input.Body.jsonPayload,
+            projectId: String,
+            client: Client
+        ) async throws -> ServerCommandEvent {
             let response = try await client.createCommandEvent(
-                .init(
-                    query: .init(
-                        project_id: projectId
-                    ),
-                    body: .json(
-                        .init(
-                            build_run_id: commandEvent.buildRunId,
-                            cache_endpoint: commandEvent.cacheEndpoint.isEmpty ? nil : commandEvent.cacheEndpoint,
-                            client_id: commandEvent.clientId,
-                            command_arguments: commandEvent.commandArguments,
-                            duration: commandEvent.durationInMs,
-                            error_message: errorMessage,
-                            git_branch: commandEvent.gitBranch,
-                            git_commit_sha: commandEvent.gitCommitSHA,
-                            git_ref: commandEvent.gitRef,
-                            git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
-                            id: id,
-                            is_ci: commandEvent.isCI,
-                            macos_version: commandEvent.macOSVersion,
-                            module_cache_outputs: commandEvent.moduleCacheOutputs.map { map(moduleCacheOutput: $0) },
-                            name: commandEvent.name,
-                            preview_id: commandEvent.previewId,
-                            ran_at: commandEvent.ranAt.ISO8601Format(),
-                            status: status,
-                            subcommand: commandEvent.subcommand,
-                            swift_version: commandEvent.swiftVersion,
-                            test_run_id: commandEvent.testRunId,
-                            tuist_version: commandEvent.tuistVersion,
-                            xcode_graph: commandEvent.graph.map { map(graph: $0) }
-                        )
-                    )
-                )
+                query: .init(project_id: projectId),
+                body: .json(body)
             )
             switch response {
             case let .ok(okResponse):

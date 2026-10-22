@@ -5,6 +5,7 @@ import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistGit
+import TuistServer
 import TuistSupport
 import XcodeGraph
 
@@ -39,6 +40,7 @@ public struct CommandEventFactory {
         }
 
         return CommandEvent(
+            id: info.generationId ?? UUIDv7.generate(),
             runId: info.runId,
             name: info.name,
             subcommand: info.subcommand,

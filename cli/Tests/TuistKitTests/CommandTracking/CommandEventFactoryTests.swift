@@ -110,6 +110,18 @@ struct CommandEventFactoryTests {
         #expect(targets.first?.binaryCacheMetadata?.instrumented == true)
     }
 
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory)
+    func make_gives_the_event_the_id_every_send_of_it_carries() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let event = try await makeTestEvent(from: RunMetadataStorage(), path: path, arguments: [])
+        let decoded = try JSONDecoder().decode(CommandEvent.self, from: JSONEncoder().encode(event))
+
+        let id = try #require(event.id)
+        #expect(UUID(uuidString: id) != nil)
+        #expect(Array(id)[14] == "7")
+        #expect(decoded.id == id)
+    }
+
     private func makeTestEvent(
         from storage: RunMetadataStorage,
         path: AbsolutePath,

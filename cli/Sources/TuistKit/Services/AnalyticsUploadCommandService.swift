@@ -24,18 +24,25 @@ struct AnalyticsUploadCommandService {
     private let fileSystem: FileSysteming
     private let uploadAnalyticsService: UploadAnalyticsServicing
     private let configLoader: ConfigLoading
+    private let reportOutbox: ReportOutboxing
     private let bestEffortUploadTimeout: Duration
 
     init(
         fileSystem: FileSysteming = FileSystem(),
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
         configLoader: ConfigLoading = ConfigLoader(),
+        reportOutbox: ReportOutboxing = ReportOutbox(),
         bestEffortUploadTimeout: Duration = .seconds(15)
     ) {
         self.fileSystem = fileSystem
         self.uploadAnalyticsService = uploadAnalyticsService
         self.configLoader = configLoader
+        self.reportOutbox = reportOutbox
         self.bestEffortUploadTimeout = bestEffortUploadTimeout
+    }
+
+    func flushReportOutbox() async {
+        await reportOutbox.flush()
     }
 
     func run(
@@ -44,6 +51,28 @@ struct AnalyticsUploadCommandService {
         serverURL: String,
         sessionDirectory: String? = nil,
         projectPath: String? = nil
+    ) async throws {
+        do {
+            try await upload(
+                eventFilePath: eventFilePath,
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                sessionDirectory: sessionDirectory,
+                projectPath: projectPath
+            )
+        } catch {
+            await reportOutbox.flush()
+            throw error
+        }
+        await reportOutbox.flush()
+    }
+
+    private func upload(
+        eventFilePath: String,
+        fullHandle: String,
+        serverURL: String,
+        sessionDirectory: String?,
+        projectPath: String?
     ) async throws {
         let eventPath = try AbsolutePath(validating: eventFilePath)
         let sessionDirectory = try sessionDirectory.map { try AbsolutePath(validating: $0) }

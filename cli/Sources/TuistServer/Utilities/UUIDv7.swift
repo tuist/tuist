@@ -1,8 +1,8 @@
 import Foundation
 
 /// Generates time-ordered UUIDs (RFC 9562 version 7), the format the server assigns to the records it creates.
-enum UUIDv7 {
-    static func generate(at date: Date = Date()) -> String {
+public enum UUIDv7 {
+    public static func generate(at date: Date = Date()) -> String {
         var generator = SystemRandomNumberGenerator()
         var bytes = (0 ..< 16).map { _ in UInt8.random(in: .min ... .max, using: &generator) }
         let milliseconds = UInt64(max(0, date.timeIntervalSince1970 * 1000))
