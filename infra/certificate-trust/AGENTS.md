@@ -12,7 +12,10 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
 - Keep independently embedded policies synchronized, including standalone SwifterPM;
   a shared CLI change does not protect separately distributed clients. Check real
   policy DER and otherwise accepted-key differentials, and retain each product's
-  native runtime/artifact/release gates in `CLIENTS.md`.
+  native runtime/artifact/release gates in `CLIENTS.md`. CAS/Atlas evidence and
+  proxy replacement gates are in `RUST-CLIENTS.md`: only the proxy performs CAS
+  remote TLS, and older pinned CLIs can downgrade it. Preserve each transport's
+  original native/bundled roots; do not unify stores merely to share a client.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight
   intermediate-key controls; Go 1.27.1 fails. Qualify replacement SDKs by actual
   behavior and update the explicit CI/test allowlist, not numeric ordering.

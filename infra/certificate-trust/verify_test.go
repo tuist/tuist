@@ -80,6 +80,10 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 	for _, path := range []string{
 		"../../cli/Sources/TuistHTTP/CertificateTrust.swift",
 		"../../swifterpm/Sources/swifterpm/CertificateTrust.swift",
+		"../../cas-plugin/src/certificate_trust.rs",
+		"../../atlas-native/auth/src/certificate_trust.rs",
+		"../../atlas-native/ios/Sources/AtlasCertificateTrust.swift",
+		"../../atlas-native/android/src/dev/tuist/atlas/AtlasCertificateTrust.kt",
 		"../../gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt",
 		"../../android/app/src/main/java/dev/tuist/app/data/network/CertificateTrust.kt",
 	} {
@@ -113,6 +117,73 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		}
 		if !reflect.DeepEqual(expected, actual) {
 			t.Fatalf("OTP deny list differs from policy.json in %s", path)
+		}
+	}
+}
+
+func TestRustClientPolicyAndFactoryWiring(t *testing.T) {
+	var policy struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(policyJSON, &policy); err != nil {
+		t.Fatal(err)
+	}
+	marker := regexp.MustCompile(`(?m)^pub const POLICY_ID: &str = "([^"]+)";`).FindSubmatch(read(t, "../../cas-plugin/src/certificate_trust.rs"))
+	if policy.ID == "" || len(marker) != 2 || string(marker[1]) != policy.ID {
+		t.Fatal("proxy startup policy marker differs from policy.json")
+	}
+	if !bytes.Equal(read(t, "../../cas-plugin/src/certificate_trust.rs"), read(t, "../../atlas-native/auth/src/certificate_trust.rs")) {
+		t.Fatal("independently embedded Rust verifiers must stay synchronized")
+	}
+	paths, err := filepath.Glob("../../atlas-native/auth/src/*.rs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	builders := regexp.MustCompile(`Client::builder\(\)`)
+	protected := regexp.MustCompile(`Client::builder\(\)\s*\.use_preconfigured_tls\(config\)`)
+	count := 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_tests.rs") {
+			continue
+		}
+		production := bytes.SplitN(read(t, path), []byte("#[cfg(test)]"), 2)[0]
+		actual := len(builders.FindAll(production, -1))
+		if actual != len(protected.FindAll(production, -1)) || bytes.Contains(production, []byte("Client::new(")) {
+			t.Fatalf("unprotected Atlas HTTP factory in %s", path)
+		}
+		count += actual
+		for _, forbidden := range []string{"connect_async(", "connect_async_with_config(", "danger_accept_invalid_"} {
+			if bytes.Contains(production, []byte(forbidden)) {
+				t.Fatalf("unprotected Rust TLS path %s in %s", forbidden, path)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatal("review newly added/removed independent Atlas HTTP factories")
+	}
+	presence := read(t, "../../atlas-native/auth/src/presence.rs")
+	if !bytes.Contains(presence, []byte("Some(tls)")) {
+		t.Fatal("presence must supply the protected TLS connector")
+	}
+	for _, root := range []string{"../../atlas-native/ios/Sources", "../../atlas-native/android/src"} {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || (!strings.HasSuffix(path, ".swift") && !strings.HasSuffix(path, ".kt")) {
+				return nil
+			}
+			if entry.Name() == "AtlasCertificateTrust.swift" || entry.Name() == "AtlasCertificateTrust.kt" {
+				return nil
+			}
+			production := bytes.ReplaceAll(read(t, path), []byte("AtlasCertificateTrust.openConnection("), nil)
+			if regexp.MustCompile(`URLSession\.shared|URLSession\s*\(|AsyncImage\s*\(|\.openConnection\s*\(|OkHttpClient|\bSocket\s*\(|\b(?:WK)?WebView\s*\(|\bNWConnection\s*\(|\b(?:Data|String)\s*\(\s*contentsOf\s*:|\.openStream\s*\(|\.readBytes\s*\(`).Match(production) {
+				t.Fatalf("independent unprotected native transport in %s", path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
 }

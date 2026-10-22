@@ -169,6 +169,27 @@ not. Do not treat the unexecuted native checks or lost builds as passed.
 No successful macOS/xcresult candidate was produced. Those images and the
 remaining client/platform rows still require separate qualification and release.
 
+## CAS and Atlas client follow-up, 2026-10-22
+
+CAS and Atlas Rust transports now independently embed the twelve-key policy,
+filter anchors and preserve ordinary verification with the patched WebPKI path
+builder. Four focused CAS tests and 38 Atlas tests pass, including real DER,
+accepted-key production-builder differentials and policy-specific public controls.
+Native Atlas favicon transports retain their original OS trust semantics and add
+constructed-chain/anchor denial. The actual API 35 debug APK passes default-NSC
+leaf/root differentials and twelve certificate-specific public negatives; two
+native Apple host tests pass. Final simulator/preview builds pass. No signed
+client release, iOS runtime or fleet replacement is claimed.
+
+CAS full-suite attempts fail on pruning and a publication-wait assertion.
+Pruning reproduces from the committed baseline under the same SDK; publication
+passes isolated in both trees, with the suite failure's cause unestablished. Only the proxy performs remote TLS; installing a
+new plugin does not patch an old process. Read-only review identified indefinite
+idle upgrades and old pinned CLIs that can downgrade shared machines. A qualified
+paired release, machine-wide fixed CLI/artifact floor and safe per-process warm
+replacement remain owner gates. The new proxy self-reports policy/PID at startup,
+which is observability, not attestation. See [detailed evidence and limits](RUST-CLIENTS.md).
+
 ## Validation and limits
 
 - The standalone Go policy/store/guard suite passes with actual **Go 1.26.10**.

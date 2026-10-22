@@ -37,6 +37,7 @@ grep -q 'certificate DN: .*CN=Android Debug' "$work/target-signer.txt" || { echo
 expected=$(openssl dgst -sha256 "$work/debug.der" | awk '{print tolower($NF)}')
 actual=$(awk '/Signer #1 certificate SHA-256 digest:/ {print tolower($NF)}' "$work/target-signer.txt")
 [[ $actual == "$expected" ]] || { echo "Debug signer does not match target APK" >&2; exit 2; }
+printf 'ATLAS_TARGET_APK_SHA256=%s\n' "$(openssl dgst -sha256 "$apk" | awk '{print $NF}')"
 
 mkdir -p "$work/classes" "$work/dex"
 "$JAVA_HOME/bin/javac" --release 8 -classpath "$sdk" -d "$work/classes" "$source_dir/CertificateTrustInstrumentation.java"
