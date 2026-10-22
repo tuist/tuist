@@ -197,6 +197,34 @@ defmodule TuistEx.Cache.Reapi do
     :exit, _ -> :ok
   end
 
+  # Bound both active RPCs and retained, decoded bundles in a prefetch window.
+  def concurrency, do: 4
+
+  def get_many(nil, _requests), do: %{}
+
+  def get_many(session, requests) when length(requests) <= 4 do
+    case Isolated.run(
+           fn ->
+             requests
+             |> Task.async_stream(
+               fn {key, dependency} = request -> {request, get(session, key, dependency)} end,
+               max_concurrency: concurrency(),
+               ordered: false,
+               timeout: @timeout + 500,
+               on_timeout: :kill_task
+             )
+             |> Enum.reduce(%{}, fn
+               {:ok, {request, result}}, results -> Map.put(results, request, result)
+               _, results -> results
+             end)
+           end,
+           @timeout + 1_000
+         ) do
+      results when is_map(results) -> results
+      _ -> %{}
+    end
+  end
+
   def get(session, key, dependency, timeout \\ @timeout)
   def get(nil, _key, _dependency, _timeout), do: :miss
 

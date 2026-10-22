@@ -1,7 +1,7 @@
 defmodule TuistEx.Cache.Key do
   @moduledoc false
 
-  @version 1
+  @version 2
 
   def build(inputs), do: digest({@version, inputs})
 
@@ -11,10 +11,15 @@ defmodule TuistEx.Cache.Key do
   end
 
   # Enumerating names as well as bytes catches new, removed and missing inputs.
-  # Never follow links: a dependency can otherwise read outside the modeled tree.
-  def tree(path), do: walk(Path.expand(path), "", true)
+  # Source links are rejected. Output resources may retain relative links only
+  # when their resolved targets stay inside the independently hashed tree.
+  def tree(path, generated \\ [], contained_links? \\ false) do
+    root = if contained_links?, do: canonical_path(path), else: Path.expand(path)
+    walk(root, "", true, generated, contained_links?)
+  end
 
-  def paths(path), do: path |> Path.expand() |> walk("", false) |> Enum.map(&elem(&1, 0))
+  def paths(path, generated \\ []),
+    do: path |> Path.expand() |> walk("", false, generated, false) |> Enum.map(&elem(&1, 0))
 
   # Resolve directory aliases only for store containment checks, not input discovery.
   def canonical_path(path), do: resolve(Path.expand(path), 40)
@@ -37,7 +42,15 @@ defmodule TuistEx.Cache.Key do
     end
   end
 
-  defp walk(root, relative, contents?) do
+  defp walk(root, relative, contents?, generated, contained_links?) do
+    if Enum.any?(generated, &(relative == &1 or String.starts_with?(relative, &1 <> "/"))) do
+      []
+    else
+      walk_entry(root, relative, contents?, generated, contained_links?)
+    end
+  end
+
+  defp walk_entry(root, relative, contents?, generated, contained_links?) do
     path = if relative == "", do: root, else: Path.join(root, relative)
 
     case File.lstat(path) do
@@ -47,12 +60,30 @@ defmodule TuistEx.Cache.Key do
           else: [{relative, :regular}]
 
       {:ok, %{type: :directory}} ->
-        [{relative, :directory}] ++
+        marker =
+          if relative != "" and Enum.any?(generated, &String.starts_with?(&1, relative <> "/")),
+            do: [],
+            else: [{relative, :directory}]
+
+        marker ++
           (path
            |> File.ls!()
-           |> Enum.reject(&(relative == "" and &1 in [".git", "_build"]))
+           |> Enum.reject(&(not contained_links? and relative == "" and &1 in [".git", "_build"]))
            |> Enum.sort()
-           |> Enum.flat_map(&walk(root, Path.join(relative, &1), contents?)))
+           |> Enum.flat_map(
+             &walk(root, Path.join(relative, &1), contents?, generated, contained_links?)
+           ))
+
+      {:ok, %{type: :symlink}} when contained_links? and relative != "" ->
+        target = File.read_link!(path)
+        resolved = canonical_path(path)
+        target_path = Path.relative_to(resolved, root)
+
+        if Path.type(target) != :relative or target_path == resolved or
+             not File.exists?(resolved),
+           do: throw(:unmodeled_input)
+
+        [{relative, :symlink, target}]
 
       {:error, :enoent} ->
         [{relative, :missing}]
