@@ -558,7 +558,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
           workflow_job_id: workflow_job_id,
           account: account.name,
           pod: pod_name,
-          signal: signal
+          reason: signal
         )
 
         false
