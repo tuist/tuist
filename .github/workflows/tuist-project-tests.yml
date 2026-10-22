@@ -22,9 +22,9 @@ name: tuist/tuist Tests
 #   to two hours. Acceptance runs alongside the warm, selectively.
 #
 # Nothing in a deploy or release waits on this workflow. The checkout is the
-# default one: on a pull request the CLI reports the pull request's head from the
-# merge ref (HEAD^2), on main the pushed commit, so the runs and the signal name
-# the same commit.
+# default one, so every job resolves the same commit: on main the pushed commit,
+# on a pull request the run's merge commit (GITHUB_SHA), since the depth-1
+# checkout hides its parents and the CLI can't read the head from HEAD^2.
 on:
   push:
     branches:

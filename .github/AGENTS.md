@@ -322,8 +322,10 @@ finished, whatever their result (not on drafts or forks). On a push to main the
 (`--no-selective-testing`, with `TUIST_COVERAGE_EVIDENCE`) and `coverage-complete`
 follows when both passed. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
-signalled. The default checkout is enough: on a pull request the CLI reports the
-head from the merge ref (`HEAD^2`). `tuist-project-coverage-backfill.yml` is a dispatch-only
+signalled. The default checkout is enough: every job of a run reports the same
+commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1
+checkout hides its parents, so the CLI can't resolve the head through `HEAD^2`).
+`tuist-project-coverage-backfill.yml` is a dispatch-only
 full run of an earlier commit on main, tested with main's `mise.toml`. The
 selective runs upload coverage too; the server drops from their skips whatever a
 full run of the scheme at the commit executed. The coverage settings are set once, in the
