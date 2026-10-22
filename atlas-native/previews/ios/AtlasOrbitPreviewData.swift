@@ -1,9 +1,9 @@
 import Foundation
 import SwiftUI
 
-/// Fixture-only snapshots for rendering production conversation views offline.
+/// Fixture-only snapshots for rendering production thread views offline.
 @MainActor
-final class AtlasConversationsPreviewData: ObservableObject {
+final class AtlasOrbitPreviewData: ObservableObject {
     private var sequence = 0
     private var selected: [String: Any]?
     private var draft = ""
@@ -14,9 +14,9 @@ final class AtlasConversationsPreviewData: ObservableObject {
         if action["action"] as? String == "open" { return Data("{\"connection\":\"preview-only\"}".utf8) }
         let command = action["command"] as? [String: Any] ?? [:]
         switch command["action"] as? String {
-        case "private": selected = conversation(id: privateID, title: "Juniper", kind: "private")
-        case "select": selected = conversation(id: sharedID, title: "Build listing latency", kind: "shared")
-        case "create": selected = conversation(id: sharedID, title: command["title"] as? String ?? "A new conversation", kind: "shared")
+        case "private": selected = thread(id: privateID, title: "Juniper", kind: "private")
+        case "select": selected = thread(id: sharedID, title: "Build listing latency", kind: "shared")
+        case "create": selected = thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared")
         case "leave": selected = nil
         case "send": draft = ""
         default: break
@@ -27,7 +27,7 @@ final class AtlasConversationsPreviewData: ObservableObject {
     func local(_ action: [String: Any]) async throws -> Data {
         if action["action"] as? String == "component_action" {
             return try JSONSerialization.data(withJSONObject: [
-                "effect": "show_evidence", "conversation_id": action["id"] as? String ?? "", "message_id": action["message_id"] as? String ?? ""
+                "effect": "show_evidence", "thread_id": action["id"] as? String ?? "", "message_id": action["message_id"] as? String ?? ""
             ])
         }
         if action["action"] as? String == "next" { try await Task.sleep(for: .seconds(30)) }
@@ -43,7 +43,7 @@ final class AtlasConversationsPreviewData: ObservableObject {
                 message(id: "message-1", kind: "agent", body: "The build listing became slower after this morning’s deployment. I’m comparing the query plans."),
                 message(id: "message-2", kind: "tool", body: "Compared query plans", extra: [
                     "tool_name": "Query plans", "tool_status": "succeeded", "tool_output": "The new filter bypasses the existing index.",
-                    "component": ProcessInfo.processInfo.arguments.contains("--legacy-conversation-cards") ? NSNull() : [
+                    "component": ProcessInfo.processInfo.arguments.contains("--legacy-thread-cards") ? NSNull() : [
                         "type": "result_table", "version": 1,
                         "data": ["title": "Query comparison", "columns": ["Finding", "Impact"],
                                  "rows": [["The new filter bypasses the existing index.", "2.4× slower"]]],
@@ -62,9 +62,9 @@ final class AtlasConversationsPreviewData: ObservableObject {
             }
         }
         return try JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "bot": ["name": "Juniper", "configured": true],
-            "conversations": [conversation(id: privateID, title: "Juniper", kind: "private"),
-                              conversation(id: sharedID, title: "Build listing latency", kind: "shared")],
+            "sequence": sequence, "assistant": ["name": "Juniper", "configured": true],
+            "threads": [thread(id: privateID, title: "Juniper", kind: "private"),
+                              thread(id: sharedID, title: "Build listing latency", kind: "shared")],
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
             "draft": draft, "loading": false, "history_loading": false, "saving": false,
@@ -72,7 +72,7 @@ final class AtlasConversationsPreviewData: ObservableObject {
         ])
     }
 
-    private func conversation(id: String, title: String, kind: String) -> [String: Any] {
+    private func thread(id: String, title: String, kind: String) -> [String: Any] {
         ["id": id, "title": title, "kind": kind, "status": "Investigating", "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
          "origin": kind == "private" ? "manual" : "monitor", "participants": [["id": privateID, "name": "Alex"]],
          "updated_at": "2027-06-07T10:42:00Z"]

@@ -5,13 +5,13 @@ import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import dev.tuist.atlas.AtlasConversationCardView
+import dev.tuist.atlas.AtlasThreadCardView
 import org.json.JSONObject
 
-class ConversationCardPreviewActivity : Activity() {
+class ThreadCardPreviewActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        checkConversationsModel()
+        checkOrbitModel()
         val evidence = TextView(this).apply { textSize = 16f }
         val card =
             JSONObject(
@@ -24,12 +24,12 @@ class ConversationCardPreviewActivity : Activity() {
                 setPadding(padding, padding, padding, padding)
                 addView(
                     TextView(context).apply {
-                        text = "Conversation card · offline fixture"
+                        text = "Thread card · offline fixture"
                         textSize = 18f
                     },
                 )
                 addView(
-                    AtlasConversationCardView(context, card, null) { event ->
+                    AtlasThreadCardView(context, card, null) { event ->
                         check(event == "show_evidence")
                         evidence.text = "Original source evidence"
                     },

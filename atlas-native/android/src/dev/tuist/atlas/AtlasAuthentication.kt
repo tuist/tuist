@@ -91,7 +91,7 @@ class AtlasAuthentication(
     private val worker = Executors.newSingleThreadExecutor()
     private val holidayWorker = Executors.newFixedThreadPool(2)
 
-    // Presence and the conversation session each block in a bounded `next` wait, leaving room for local commands.
+    // Presence and the thread session each block in a bounded `next` wait, leaving room for local commands.
     private val presenceWorker = Executors.newFixedThreadPool(4)
 
     @Volatile private var sessionIdentity = 0
@@ -229,12 +229,12 @@ class AtlasAuthentication(
         completion: (Result<JSONObject>) -> Unit,
     ) = live("presence", action, completion)
 
-    // Rust owns conversation state behind one handle. Opening and commands restore credentials first;
+    // Rust owns thread state behind one handle. Opening and commands restore credentials first;
     // draft, active(false), next and close only touch the local handle.
-    fun conversationSession(
+    fun orbitSession(
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
-    ) = live("conversation_session", action, completion)
+    ) = live("orbit_session", action, completion)
 
     // Opening and requests restore the session through the credential queue; everything else only touches
     // local Rust handles and runs on its own workers so blocking waits never hold up sign-out.
@@ -277,7 +277,7 @@ class AtlasAuthentication(
         fun finish(result: Result<JSONObject>) {
             main.post {
                 apiRequests -= 1
-                if (identity != sessionIdentity && (operation == "presence" || operation == "conversation_session")) {
+                if (identity != sessionIdentity && (operation == "presence" || operation == "orbit_session")) {
                     result.getOrNull()?.optString("connection")?.takeIf { it.isNotEmpty() }?.let { id ->
                         live(operation, JSONObject().put("action", "close").put("connection", id)) {}
                     }

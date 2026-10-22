@@ -1,4 +1,4 @@
-use crate::conversations::Message;
+use crate::orbit::Message;
 use serde_json::{Value, json};
 
 fn card() -> Value {

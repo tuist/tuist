@@ -2,12 +2,12 @@ import Foundation
 import Testing
 
 @MainActor
-struct AtlasConversationsTests {
+struct AtlasOrbitTests {
     private let id = "01922cc0-0000-7000-8000-000000000001"
 
     @Test func adapterForwardsCommandsAndRendersRustState() async throws {
         var commands: [String] = []
-        let model = AtlasConversations(request: { action in
+        let model = AtlasOrbit(request: { action in
             if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
             #expect(action["connection"] as? String == "local-handle")
             let command = try #require(action["command"] as? [String: Any])
@@ -16,11 +16,11 @@ struct AtlasConversationsTests {
             return try snapshot(sequence: commands.count, selected: name == "private")
         }, localRequest: { _ in throw CancellationError() })
         await model.load()
-        #expect(model.bot?.name == "Juniper")
+        #expect(model.assistant?.name == "Juniper")
         #expect(model.hasMore)
-        #expect(model.conversations.first?.id == id)
-        let conversation = try #require(await model.privateConversation())
-        await model.open(conversation)
+        #expect(model.threads.first?.id == id)
+        let thread = try #require(await model.privateThread())
+        await model.open(thread)
         #expect(commands == ["load", "private"])
         #expect(model.selected?.id == id)
     }
@@ -28,7 +28,7 @@ struct AtlasConversationsTests {
     @Test func sendWaitsForDraftBridgeAndDoesNotReimplementIdempotency() async throws {
         var commands: [String] = []
         var draftSaved = false
-        let model = AtlasConversations(request: { action in
+        let model = AtlasOrbit(request: { action in
             if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
             let command = try #require(action["command"] as? [String: Any])
             let name = try #require(command["action"] as? String)
@@ -49,7 +49,7 @@ struct AtlasConversationsTests {
             draftSaved = true
             return try snapshot(sequence: 2, selected: true, draft: "A thought")
         })
-        _ = await model.privateConversation()
+        _ = await model.privateThread()
         model.draft = "A thought"
         await model.send(addressAgent: true)
         #expect(commands == ["private", "send"])
@@ -58,7 +58,7 @@ struct AtlasConversationsTests {
 
     @Test func serverFailureKeepsTheFeatureAvailableForRetry() async {
         var fail = true
-        let model = AtlasConversations(request: { action in
+        let model = AtlasOrbit(request: { action in
             if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
             if fail { throw AtlasAuthenticationError(kind: "server", message: "Try again later.") }
             return try snapshot(sequence: 1)
@@ -68,7 +68,7 @@ struct AtlasConversationsTests {
         fail = false
         await model.load()
         #expect(model.errorMessage == nil)
-        #expect(model.bot?.name == "Juniper")
+        #expect(model.assistant?.name == "Juniper")
     }
 
     @Test func cardActionForwardsToRustAndRejectsLateEffectsAfterAccessLoss() async throws {
@@ -82,8 +82,8 @@ struct AtlasConversationsTests {
             "component": ["type": "result_table", "version": 1, "data": ["title": "Accounts", "columns": ["Name"], "rows": [["Northstar"]]],
                           "actions": [["id": "show_evidence", "label": "View source"]], "fallback": "Northstar"]
         ]
-        let effect = Data("{\"effect\":\"show_evidence\",\"conversation_id\":\"\(id)\",\"message_id\":\"evidence\"}".utf8)
-        let model = AtlasConversations(request: { action in
+        let effect = Data("{\"effect\":\"show_evidence\",\"thread_id\":\"\(id)\",\"message_id\":\"evidence\"}".utf8)
+        let model = AtlasOrbit(request: { action in
             if action["action"] as? String == "open" { return Data("{\"connection\":\"handle\"}".utf8) }
             sequence += 1
             return try snapshot(sequence: sequence, selected: !revoked, messages: revoked ? [] : [message])
@@ -111,13 +111,13 @@ struct AtlasConversationsTests {
     }
 
     private func snapshot(sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = []) throws -> Data {
-        let conversation: [String: Any] = [
-            "id": id, "title": "Private conversation", "kind": "private", "status": "idle",
+        let thread: [String: Any] = [
+            "id": id, "title": "Private thread", "kind": "private", "status": "idle",
             "summary": "", "origin": "manual", "participants": [], "updated_at": "2027-06-07T10:00:00Z"
         ]
         return try JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "bot": ["name": "Juniper", "configured": true],
-            "conversations": [conversation], "selected": selected ? conversation as Any : NSNull(),
+            "sequence": sequence, "assistant": ["name": "Juniper", "configured": true],
+            "threads": [thread], "selected": selected ? thread as Any : NSNull(),
             "messages": messages, "people": [], "draft": draft, "loading": false, "history_loading": false, "saving": false,
             "has_more": true, "has_older": false, "needs_session": false
         ])

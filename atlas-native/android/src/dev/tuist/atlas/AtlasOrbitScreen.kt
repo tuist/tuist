@@ -28,10 +28,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-class AtlasConversationsScreen(
+class AtlasOrbitScreen(
     private val activity: Activity,
     private val title: String,
-    private val model: AtlasConversationsModel,
+    private val model: AtlasOrbitModel,
     private val presence: AtlasPresenceModel?,
     private val navigationChanged: () -> Unit,
     private val appearance: AtlasAppearance? = null,
@@ -63,7 +63,7 @@ class AtlasConversationsScreen(
             isSaveEnabled = false
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
         }
-    private val askBot =
+    private val askAssistant =
         CheckBox(activity).apply {
             minHeight = dp(48)
             isSaveEnabled = false
@@ -79,7 +79,7 @@ class AtlasConversationsScreen(
         LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(4), dp(16), dp(8))
-            addView(askBot, LinearLayout.LayoutParams(-2, -2))
+            addView(askAssistant, LinearLayout.LayoutParams(-2, -2))
             addView(
                 LinearLayout(activity).apply {
                     gravity = Gravity.BOTTOM
@@ -139,7 +139,7 @@ class AtlasConversationsScreen(
                 }
             },
         )
-        askBot.setOnCheckedChangeListener { _, checked -> if (!syncing) composerFor?.let { model.setAskBot(it, checked) } }
+        askAssistant.setOnCheckedChangeListener { _, checked -> if (!syncing) composerFor?.let { model.setAskAssistant(it, checked) } }
         sendButton.setOnClickListener { composerFor?.let { model.send(it, composerField.text.toString()) } }
         render()
     }
@@ -162,7 +162,7 @@ class AtlasConversationsScreen(
         ) {
             AlertDialog
                 .Builder(activity)
-                .setTitle("Discard this conversation?")
+                .setTitle("Discard this thread?")
                 .setPositiveButton("Discard") { _, _ -> model.discardCreate() }
                 .setNegativeButton("Keep editing", null)
                 .show()
@@ -194,38 +194,38 @@ class AtlasConversationsScreen(
         toolbar.title = title
         toolbar.subtitle = null
         refreshAction { model.refresh() }
-        val key = listOf("list", snapshot.bot, snapshot.conversations, snapshot.loading, snapshot.hasMore, snapshot.error, model.failure)
+        val key = listOf("list", snapshot.assistant, snapshot.threads, snapshot.loading, snapshot.hasMore, snapshot.error, model.failure)
         if (key == renderedContent) return
         renderedContent = key
         content.removeAllViews()
         errors()
-        val bot = snapshot.bot
-        if (bot != null) {
-            val pinned = snapshot.privateConversation
+        val assistant = snapshot.assistant
+        if (assistant != null) {
+            val pinned = snapshot.privateThread
             val subtitle =
                 buildString {
-                    append("Private conversation")
-                    if (!bot.configured) append("\nNot set up on this server yet")
+                    append("Private thread")
+                    if (!assistant.configured) append("\nNot set up on this server yet")
                     pinned?.summary?.takeIf { it.isNotEmpty() }?.let { append("\n$it") }
                 }
-            row(bot.name, subtitle, !snapshot.loading, "${bot.name}, pinned private conversation") { model.openPrivate() }
+            row(assistant.name, subtitle, !snapshot.loading, "${assistant.name}, pinned private thread") { model.openPrivate() }
         }
-        button("New conversation", bot != null) { model.startCreate() }
+        button("New shared thread", assistant != null) { model.startCreate() }
         heading("Shared")
         val shared = snapshot.shared
-        if (shared.isEmpty() && !snapshot.loading && snapshot.error == null) text("No shared conversations yet.")
-        for (conversation in shared) {
+        if (shared.isEmpty() && !snapshot.loading && snapshot.error == null) text("No shared threads yet.")
+        for (thread in shared) {
             val subtitle =
                 listOf(
-                    conversation.participants.joinToString(", ") { it.name },
-                    conversation.summary,
-                    if (conversation.archived) "Archived" else "",
-                    time(conversation.updatedAt),
+                    thread.participants.joinToString(", ") { it.name },
+                    thread.summary,
+                    if (thread.archived) "Archived" else "",
+                    time(thread.updatedAt),
                 ).filter { it.isNotEmpty() }.joinToString("\n")
-            row(conversation.title, subtitle, !snapshot.loading) { model.select(conversation.id) }
+            row(thread.title, subtitle, !snapshot.loading) { model.select(thread.id) }
         }
-        if (snapshot.loading) text(if (snapshot.conversations.isEmpty()) "Loading conversations…" else "Updating conversations…")
-        if (!snapshot.loading && snapshot.hasMore) button("Load more conversations") { model.loadMore() }
+        if (snapshot.loading) text(if (snapshot.threads.isEmpty()) "Loading threads…" else "Updating threads…")
+        if (!snapshot.loading && snapshot.hasMore) button("Load more threads") { model.loadMore() }
     }
 
     private fun errors() {
@@ -234,13 +234,13 @@ class AtlasConversationsScreen(
 
     private fun renderThread() {
         val snapshot = model.snapshot
-        val conversation = snapshot.selected ?: return
-        val id = conversation.id
-        val bot = snapshot.bot
-        toolbar.title = if (conversation.isPrivate) bot?.name ?: conversation.title else conversation.title
-        toolbar.subtitle = if (conversation.isPrivate) "Private" else conversation.participants.joinToString(", ") { it.name }
+        val thread = snapshot.selected ?: return
+        val id = thread.id
+        val assistant = snapshot.assistant
+        toolbar.title = if (thread.isPrivate) assistant?.name ?: thread.title else thread.title
+        toolbar.subtitle = if (thread.isPrivate) "Private" else thread.participants.joinToString(", ") { it.name }
         refreshAction { model.refresh() }
-        renderComposer(id, conversation)
+        renderComposer(id, thread)
         renderLive()
         // Viewer and typing snapshots arrive often; only rebuild the history when it changed.
         val key =
@@ -253,7 +253,7 @@ class AtlasConversationsScreen(
                 model.failure,
                 model.expandedTools,
                 model.revealedEvidence,
-                conversation.archived,
+                thread.archived,
             )
         if (key == renderedContent) return
         renderedContent = key
@@ -271,7 +271,7 @@ class AtlasConversationsScreen(
         if (snapshot.messages.isEmpty()) text(if (snapshot.historyLoading) "Loading messages…" else "No messages yet.")
         snapshot.messages.forEach(::message)
         errors()
-        if (conversation.archived) text("This conversation is archived. You can read it but not reply.")
+        if (thread.archived) text("This thread is archived. You can read it but not reply.")
         val first = snapshot.messages.firstOrNull()?.id
         val last = snapshot.messages.lastOrNull()?.id
         val prepended = !switched && previousFirst != null && first != previousFirst && last == lastMessage
@@ -289,12 +289,12 @@ class AtlasConversationsScreen(
 
     private fun renderComposer(
         id: String,
-        conversation: AtlasConversationsModel.Conversation,
+        thread: AtlasOrbitModel.Thread,
     ) {
         val snapshot = model.snapshot
-        composer.visibility = if (conversation.archived) View.GONE else View.VISIBLE
-        if (conversation.archived) return
-        val bot = snapshot.bot
+        composer.visibility = if (thread.archived) View.GONE else View.VISIBLE
+        if (thread.archived) return
+        val assistant = snapshot.assistant
         syncing = true
         // Rust owns the draft: entering a thread restores it, and sending clears it. Echoes of writes still
         // in flight are older than what is on screen, so they never replace the person's typing.
@@ -303,10 +303,10 @@ class AtlasConversationsScreen(
             composerField.setText(snapshot.draft)
             composerField.setSelection(composerField.text.length)
         }
-        askBot.visibility = if (!conversation.isPrivate && bot?.configured == true) View.VISIBLE else View.GONE
-        askBot.text = "Ask ${bot?.name.orEmpty()}"
-        askBot.isChecked = model.askBot(id)
-        composerField.hint = if (conversation.isPrivate) "Message ${bot?.name.orEmpty()}" else "Message"
+        askAssistant.visibility = if (!thread.isPrivate && assistant?.configured == true) View.VISIBLE else View.GONE
+        askAssistant.text = "Ask ${assistant?.name.orEmpty()}"
+        askAssistant.isChecked = model.askAssistant(id)
+        composerField.hint = if (thread.isPrivate) "Message ${assistant?.name.orEmpty()}" else "Message"
         syncing = false
         sendButton.text = if (model.sending) "Sending…" else "Send"
         sendButton.isEnabled = !model.sending && composerField.text.isNotBlank()
@@ -344,7 +344,7 @@ class AtlasConversationsScreen(
         composerFor = null
         composer.visibility = View.GONE
         liveStatus.visibility = View.GONE
-        toolbar.title = "New conversation"
+        toolbar.title = "New shared thread"
         toolbar.subtitle = null
         val focused = content.findFocus() as? EditText
         createButton = null
@@ -352,7 +352,7 @@ class AtlasConversationsScreen(
         heading("Title")
         val field =
             EditText(activity).apply {
-                hint = "What is this conversation about?"
+                hint = "What is this thread about?"
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                 minHeight = dp(48)
                 isSaveEnabled = false
@@ -405,14 +405,14 @@ class AtlasConversationsScreen(
         }
         errors()
         createButton =
-            button(if (saving) "Creating…" else "Create conversation", !saving && draft.title.isNotBlank()) {
+            button(if (saving) "Creating…" else "Create thread", !saving && draft.title.isNotBlank()) {
                 hideKeyboard()
                 model.create()
             }
         button("Cancel", !saving) { back() }
     }
 
-    private fun message(value: AtlasConversationsModel.Message) {
+    private fun message(value: AtlasOrbitModel.Message) {
         val self = presence?.selfId
         val author =
             when {
@@ -443,7 +443,7 @@ class AtlasConversationsScreen(
                 if (value.body.isNotEmpty()) card.addView(body(value.body))
                 value.component?.let { component ->
                     card.addView(
-                        AtlasConversationCardView(
+                        AtlasThreadCardView(
                             activity,
                             JSONObject(component),
                             appearance,

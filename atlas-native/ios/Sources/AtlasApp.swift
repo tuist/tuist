@@ -44,8 +44,8 @@ struct AtlasApp: App {
         if let server = authentication.server {
             AtlasWorkspaceView(holidayRequest: authentication.holidayRequest,
                                businessRequest: authentication.businessRequest,
-                               conversationRequest: authentication.conversationRequest,
-                               conversationLocalRequest: authentication.conversationLocalRequest,
+                               orbitRequest: authentication.orbitRequest,
+                               orbitLocalRequest: authentication.orbitLocalRequest,
                                presence: authentication.presence, navigation: navigation) {
                 AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
                                   profileRequest: authentication.businessRequest)

@@ -3,13 +3,13 @@ package dev.tuist.atlas
 import org.json.JSONArray
 import org.json.JSONObject
 
-// Thin adapter over the Rust `conversation_session` handle. Rust owns conversation state, pagination,
+// Thin adapter over the Rust `orbit_session` handle. Rust owns thread state, pagination,
 // stale-request guards, drafts, client IDs and the live connection; this class only forwards commands,
 // applies newer snapshots and keeps view-only state (create form, Ask toggle, expanded tool cards).
-class AtlasConversationsModel(
+class AtlasOrbitModel(
     private val request: (JSONObject, (Result<JSONObject>) -> Unit) -> Unit,
 ) {
-    data class Bot(
+    data class Assistant(
         val name: String,
         val configured: Boolean,
     )
@@ -19,7 +19,7 @@ class AtlasConversationsModel(
         val name: String,
     )
 
-    data class Conversation(
+    data class Thread(
         val id: String,
         val title: String,
         val kind: String,
@@ -56,9 +56,9 @@ class AtlasConversationsModel(
 
     data class Snapshot(
         val sequence: Long = 0,
-        val bot: Bot? = null,
-        val conversations: List<Conversation> = emptyList(),
-        val selected: Conversation? = null,
+        val assistant: Assistant? = null,
+        val threads: List<Thread> = emptyList(),
+        val selected: Thread? = null,
         val messages: List<Message> = emptyList(),
         val people: List<Viewer> = emptyList(),
         val draft: String = "",
@@ -71,8 +71,8 @@ class AtlasConversationsModel(
         val liveMessage: String? = null,
         val needsSession: Boolean = false,
     ) {
-        val privateConversation get() = conversations.firstOrNull { it.isPrivate }
-        val shared get() = conversations.filter { !it.isPrivate }
+        val privateThread get() = threads.firstOrNull { it.isPrivate }
+        val shared get() = threads.filter { !it.isPrivate }
     }
 
     data class CreateDraft(
@@ -97,7 +97,7 @@ class AtlasConversationsModel(
     // Local draft writes still in flight; the view must not overwrite what the person is typing with an older echo.
     var draftsInFlight = 0
         private set
-    private val askBot = mutableMapOf<String, Boolean>()
+    private val askAssistant = mutableMapOf<String, Boolean>()
     private var connection: String? = null
     private var opening = false
     private var closed = false
@@ -125,7 +125,7 @@ class AtlasConversationsModel(
                 return@request
             }
             if (handle == null) {
-                failure = result.exceptionOrNull()?.message ?: "Conversations are unavailable. Try again."
+                failure = result.exceptionOrNull()?.message ?: "Orbit is unavailable. Try again."
                 listener?.invoke()
                 return@request
             }
@@ -194,19 +194,19 @@ class AtlasConversationsModel(
         return true
     }
 
-    // View preference only; Rust decides who a message addresses (private threads always reach the bot).
-    fun askBot(id: String) = askBot[id] == true
+    // View preference only; Rust decides who a message addresses (private threads always reach the assistant).
+    fun askAssistant(id: String) = askAssistant[id] == true
 
-    fun setAskBot(
+    fun setAskAssistant(
         id: String,
         value: Boolean,
     ) {
-        askBot[id] = value
+        askAssistant[id] = value
         listener?.invoke()
     }
 
     // Rust keeps the canonical draft and the client ID it reuses when a failed send is retried.
-    // The conversation ID is captured when the person types, not when the write runs.
+    // The thread ID is captured when the person types, not when the write runs.
     fun setDraft(
         id: String,
         value: String,
@@ -235,7 +235,7 @@ class AtlasConversationsModel(
                 .put("action", "send")
                 .put("id", id)
                 .put("body", body)
-                .put("address_agent", askBot(id)),
+                .put("address_agent", askAssistant(id)),
         )
         listener?.invoke()
     }
@@ -256,7 +256,7 @@ class AtlasConversationsModel(
         ) { result ->
             val effect = result.getOrNull()
             if (!closed && snapshot.selected?.id == id && effect?.optString("effect") == "show_evidence" &&
-                effect.optString("conversation_id") == id && effect.optString("message_id") == messageId &&
+                effect.optString("thread_id") == id && effect.optString("message_id") == messageId &&
                 snapshot.messages.any { it.id == messageId }
             ) {
                 revealedEvidence = revealedEvidence + messageId
@@ -321,7 +321,7 @@ class AtlasConversationsModel(
             result.fold({ value ->
                 apply(value)
                 if (action == "create" && snapshot.error == null && snapshot.selected != null) createDraft = null
-            }, { failure = it.message ?: "Could not update conversations. Try again." })
+            }, { failure = it.message ?: "Could not update threads. Try again." })
             if (action == "active" || action == "refresh") deactivateIfBackground(handle)
             listener?.invoke()
         }
@@ -354,7 +354,7 @@ class AtlasConversationsModel(
             if (value == null) {
                 connection = null
                 snapshot = Snapshot()
-                failure = "Conversations disconnected. Refresh to reconnect."
+                failure = "Orbit disconnected. Refresh to reconnect."
                 listener?.invoke()
                 return@request
             }
@@ -369,7 +369,7 @@ class AtlasConversationsModel(
             try {
                 parse(value)
             } catch (_: Exception) {
-                failure = "Atlas returned an invalid conversation update. Try refreshing."
+                failure = "Atlas returned an invalid thread update. Try refreshing."
                 return true
             }
         if (next.sequence <= snapshot.sequence && snapshot.sequence != 0L) return false
@@ -404,9 +404,9 @@ class AtlasConversationsModel(
     private fun parse(value: JSONObject) =
         Snapshot(
             value.getLong("sequence"),
-            value.optJSONObject("bot")?.let { Bot(it.getString("name"), it.getBoolean("configured")) },
-            value.getJSONArray("conversations").objects().map(::conversation),
-            value.optJSONObject("selected")?.let(::conversation),
+            value.optJSONObject("assistant")?.let { Assistant(it.getString("name"), it.getBoolean("configured")) },
+            value.getJSONArray("threads").objects().map(::thread),
+            value.optJSONObject("selected")?.let(::thread),
             value.getJSONArray("messages").objects().map(::message),
             value.getJSONArray("people").objects().map { Viewer(it.getString("id"), it.getString("name"), it.optBoolean("typing")) },
             value.optString("draft"),
@@ -420,8 +420,8 @@ class AtlasConversationsModel(
             value.optBoolean("needs_session"),
         )
 
-    private fun conversation(value: JSONObject) =
-        Conversation(
+    private fun thread(value: JSONObject) =
+        Thread(
             value.getString("id"),
             value.getString("title"),
             value.getString("kind"),

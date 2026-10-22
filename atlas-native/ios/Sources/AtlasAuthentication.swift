@@ -172,12 +172,12 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         authenticatedRequest(operation: "business")
     }
 
-    var conversationRequest: ([String: Any]) async throws -> Data {
-        authenticatedRequest(operation: "conversation_session")
+    var orbitRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "orbit_session")
     }
 
-    var conversationLocalRequest: ([String: Any]) async throws -> Data {
-        liveRequest(operation: "conversation_session")
+    var orbitLocalRequest: ([String: Any]) async throws -> Data {
+        liveRequest(operation: "orbit_session")
     }
 
     private func liveRequest(operation: String) -> ([String: Any]) async throws -> Data {
@@ -212,7 +212,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             request["session"] = session
             let response = try await self.command(request)
             guard self.sessionIdentity == identity else {
-                if ["presence", "conversation_session"].contains(operation), let connection = response["connection"] as? String {
+                if ["presence", "orbit_session"].contains(operation), let connection = response["connection"] as? String {
                     _ = try? await self.command(["operation": operation, "action": "close", "connection": connection])
                 }
                 throw CancellationError()

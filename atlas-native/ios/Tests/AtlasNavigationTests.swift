@@ -143,7 +143,7 @@ struct AtlasNavigationTests {
         navigation.resolve(server: server)
         #expect(navigation.destination == nil)
         #expect(navigation.pending == nil)
-        #expect(navigation.selection == "conversations")
+        #expect(navigation.selection == "orbit")
     }
 
     @MainActor @Test func hiddenTabProtectionStillRejectsLinksAndCanShowARootNotice() throws {

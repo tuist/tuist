@@ -28,7 +28,7 @@ pub(crate) enum Action {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-pub(super) struct Bot {
+pub(super) struct Assistant {
     pub name: String,
     pub configured: bool,
 }
@@ -40,7 +40,7 @@ pub(super) struct Person {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-pub(super) struct Conversation {
+pub(super) struct Thread {
     pub id: String,
     pub title: String,
     pub kind: String,
@@ -65,8 +65,8 @@ pub(super) struct Page<T> {
 
 #[derive(Deserialize, Serialize)]
 pub(super) struct Overview {
-    pub bot: Bot,
-    pub conversations: Page<Conversation>,
+    pub assistant: Assistant,
+    pub threads: Page<Thread>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -85,22 +85,19 @@ pub(super) struct Message {
     pub tool_input: String,
     #[serde(default)]
     pub tool_output: String,
-    #[serde(
-        default,
-        deserialize_with = "crate::conversation_components::deserialize"
-    )]
-    pub component: Option<crate::conversation_components::Component>,
+    #[serde(default, deserialize_with = "crate::orbit_components::deserialize")]
+    pub component: Option<crate::orbit_components::Component>,
 }
 
 #[derive(Deserialize, Serialize)]
 pub(super) struct History {
-    pub conversation: Conversation,
+    pub thread: Thread,
     pub messages: Page<Message>,
 }
 
 #[derive(Deserialize, Serialize)]
 pub(super) struct Created {
-    pub conversation: Conversation,
+    pub thread: Thread,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -122,7 +119,7 @@ fn request_using<T: DeserializeOwned>(
         return Err(error("sign_in_required", "Sign in to Atlas again."));
     }
     let mut url = server
-        .join("api/native/conversations")
+        .join("api/native/orbit/threads")
         .map_err(|_| invalid())?;
     let (method, payload) = match &action {
         Action::List { page } => {
@@ -209,32 +206,26 @@ fn response_failure(status: u16, _bytes: &[u8]) -> crate::AuthError {
         401 => ("sign_in_required", "Sign in to Atlas again."),
         403 | 404 => (
             "unavailable",
-            "This conversation is unavailable or you no longer have access.",
+            "This thread is unavailable or you no longer have access.",
         ),
-        409 => (
-            "conflict",
-            "This conversation changed. Refresh it and try again.",
-        ),
-        422 => (
-            "invalid_request",
-            "Check the conversation details and try again.",
-        ),
+        409 => ("conflict", "This thread changed. Refresh it and try again."),
+        422 => ("invalid_request", "Check the thread details and try again."),
         429 => (
             "rate_limited",
             "Too many requests. Wait a moment and try again.",
         ),
         501 => (
             "unsupported",
-            "Conversations are not available on this Atlas server yet.",
+            "Orbit is not available on this Atlas server yet.",
         ),
         _ => (
             "server",
-            "Atlas could not load this conversation. Try again later.",
+            "Atlas could not load this thread. Try again later.",
         ),
     };
     error(kind, message)
 }
 
 #[cfg(test)]
-#[path = "conversations_tests.rs"]
+#[path = "orbit_tests.rs"]
 mod tests;

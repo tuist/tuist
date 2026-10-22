@@ -1,6 +1,6 @@
 {
-  "name": "Atlas conversation cards",
-  "id": "dev.tuist.atlas.conversation-cards",
+  "name": "Atlas thread cards",
+  "id": "dev.tuist.atlas.thread-cards",
   "version": "1.0.0",
   "build": 1,
   "capabilities": {}

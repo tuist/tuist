@@ -8,7 +8,7 @@ struct AtlasSettingsPreview: App {
     @State private var backgrounded = false
     @StateObject private var holidays = AtlasTimeOffPreviewData()
     @StateObject private var business = AtlasBusinessPreviewData()
-    @StateObject private var conversations = AtlasConversationsPreviewData()
+    @StateObject private var threads = AtlasOrbitPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
     @StateObject private var navigation = AtlasNavigation()
     @StateObject private var appearance = AtlasAppearance(request: { action in
@@ -54,7 +54,7 @@ struct AtlasSettingsPreview: App {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("--workspace") {
                     AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request,
-                                       conversationRequest: conversations.request, conversationLocalRequest: conversations.local, presence: presence.model,
+                                       orbitRequest: threads.request, orbitLocalRequest: threads.local, presence: presence.model,
                                        navigation: navigation) {
                         AtlasSettingsView(server: previewServer, accounts: accounts,
                                           signOut: {}, profileRequest: business.request)

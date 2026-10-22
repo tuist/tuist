@@ -13,7 +13,7 @@ fn saved() -> Session {
     }
 }
 
-fn conversation(id: &str, kind: &str) -> Conversation {
+fn thread(id: &str, kind: &str) -> Thread {
     serde_json::from_value(json!({"id":id,"title":"A purpose","kind":kind,"status":"active","summary":"","origin":"manual","owner_id":FIRST,"participants":[],"updated_at":"2027-06-07T10:00:00Z"})).unwrap()
 }
 
@@ -23,10 +23,7 @@ fn opened() -> (String, Arc<Model>) {
     let model = get(&id).unwrap();
     {
         let mut state = model.state.lock().unwrap();
-        state.snapshot.conversations = vec![
-            conversation(FIRST, "private"),
-            conversation(SECOND, "shared"),
-        ];
+        state.snapshot.threads = vec![thread(FIRST, "private"), thread(SECOND, "shared")];
     }
     (id, model)
 }
@@ -41,7 +38,7 @@ fn card_events_require_a_current_server_supplied_action_and_live_selection() {
     {
         let mut state = model.state.lock().unwrap();
         state.active = true;
-        state.snapshot.selected = Some(conversation(FIRST, "private"));
+        state.snapshot.selected = Some(thread(FIRST, "private"));
         state.snapshot.messages = vec![message];
     }
     let event = |id: &str, message_id: &str, event: &str| Action::CardEvent {
@@ -90,11 +87,11 @@ fn card_events_require_a_current_server_supplied_action_and_live_selection() {
 }
 
 #[test]
-fn shared_state_preserves_drafts_and_retry_identity_per_conversation() {
+fn shared_state_preserves_drafts_and_retry_identity_per_thread() {
     let (id, model) = opened();
     {
         let mut state = model.state.lock().unwrap();
-        state.snapshot.selected = Some(conversation(FIRST, "private"));
+        state.snapshot.selected = Some(thread(FIRST, "private"));
     }
     draft(&model, FIRST.into(), "Hello".into()).unwrap();
     let first_key = model.state.lock().unwrap().drafts[FIRST].client_id.clone();
@@ -111,12 +108,12 @@ fn shared_state_preserves_drafts_and_retry_identity_per_conversation() {
     );
     {
         let mut state = model.state.lock().unwrap();
-        state.snapshot.selected = Some(conversation(SECOND, "shared"));
+        state.snapshot.selected = Some(thread(SECOND, "shared"));
     }
-    draft(&model, SECOND.into(), "Other conversation".into()).unwrap();
+    draft(&model, SECOND.into(), "Other thread".into()).unwrap();
     {
         let mut state = model.state.lock().unwrap();
-        state.snapshot.selected = Some(conversation(FIRST, "private"));
+        state.snapshot.selected = Some(thread(FIRST, "private"));
         publish(&model, &mut state);
     }
     assert_eq!(snapshot(&model).unwrap()["draft"], "A new thought");
@@ -125,11 +122,11 @@ fn shared_state_preserves_drafts_and_retry_identity_per_conversation() {
 }
 
 #[test]
-fn late_draft_leave_and_send_cannot_target_a_different_conversation() {
+fn late_draft_leave_and_send_cannot_target_a_different_thread() {
     let (id, model) = opened();
     {
         let mut state = model.state.lock().unwrap();
-        state.snapshot.selected = Some(conversation(SECOND, "shared"));
+        state.snapshot.selected = Some(thread(SECOND, "shared"));
     }
     draft(&model, FIRST.into(), "Typed before navigation".into()).unwrap();
     assert_eq!(snapshot(&model).unwrap()["draft"], "");
@@ -186,13 +183,13 @@ fn duplicate_submission_reuses_key_but_retyping_the_same_text_is_a_new_message()
 }
 
 #[test]
-fn reconciliation_deduplicates_and_keeps_private_conversation_first() {
+fn reconciliation_deduplicates_and_keeps_private_thread_first() {
     let mut items = vec![];
-    merge_conversation(&mut items, conversation(SECOND, "shared"));
-    merge_conversation(&mut items, conversation(FIRST, "private"));
-    let mut updated = conversation(SECOND, "shared");
+    merge_thread(&mut items, thread(SECOND, "shared"));
+    merge_thread(&mut items, thread(FIRST, "private"));
+    let mut updated = thread(SECOND, "shared");
     updated.title = "Updated".into();
-    merge_conversation(&mut items, updated);
+    merge_thread(&mut items, updated);
     assert_eq!(items.len(), 2);
     assert_eq!(items[0].id, FIRST);
     assert_eq!(items[1].title, "Updated");
@@ -203,7 +200,7 @@ fn leave_clears_history_and_presence_but_retains_drafts_and_increments_fence() {
     let (id, model) = opened();
     {
         let mut state = model.state.lock().unwrap();
-        state.snapshot.selected = Some(conversation(FIRST, "shared"));
+        state.snapshot.selected = Some(thread(FIRST, "shared"));
         state.snapshot.people.push(Viewer {
             id: SECOND.into(),
             name: "Colleague".into(),
@@ -246,7 +243,7 @@ fn closing_wakes_waiters_and_removes_handle() {
 }
 
 fn history_page(page: u32, messages: Vec<Value>) -> History {
-    serde_json::from_value(json!({"conversation":conversation(FIRST,"private"),"messages":{"items":messages,"page":page,"total_pages":3,"total_count":60}})).unwrap()
+    serde_json::from_value(json!({"thread":thread(FIRST,"private"),"messages":{"items":messages,"page":page,"total_pages":3,"total_count":60}})).unwrap()
 }
 
 fn message(id: &str, seq: u64, output: &str) -> Value {
@@ -257,7 +254,7 @@ fn message(id: &str, seq: u64, output: &str) -> Value {
 fn history_reconciliation_orders_by_server_sequence_and_preserves_older_pages() {
     let (id, model) = opened();
     let mut state = model.state.lock().unwrap();
-    state.snapshot.selected = Some(conversation(FIRST, "private"));
+    state.snapshot.selected = Some(thread(FIRST, "private"));
     assert!(reconcile_history(
         &mut state,
         history_page(1, vec![message(SECOND, 2, "running")]),
@@ -289,7 +286,7 @@ fn history_reconciliation_orders_by_server_sequence_and_preserves_older_pages() 
 fn a_late_history_result_cannot_restore_a_revoked_or_superseded_thread() {
     let (id, model) = opened();
     let mut state = model.state.lock().unwrap();
-    state.snapshot.selected = Some(conversation(FIRST, "private"));
+    state.snapshot.selected = Some(thread(FIRST, "private"));
     state.generation = 1;
     assert!(!reconcile_history(
         &mut state,

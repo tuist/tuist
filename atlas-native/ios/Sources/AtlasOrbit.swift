@@ -1,12 +1,12 @@
 import Foundation
 import SwiftUI
 
-struct AtlasConversationPerson: Decodable, Identifiable {
+struct AtlasThreadPerson: Decodable, Identifiable {
     let id: String
     let name: String
 }
 
-struct AtlasConversation: Decodable, Identifiable, Hashable {
+struct AtlasThread: Decodable, Identifiable, Hashable {
     let id: String
     let title: String
     let kind: String
@@ -14,14 +14,14 @@ struct AtlasConversation: Decodable, Identifiable, Hashable {
     let summary: String
     let origin: String
     let ownerId: String?
-    let participants: [AtlasConversationPerson]
+    let participants: [AtlasThreadPerson]
     let updatedAt: String
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-struct AtlasConversationComponent: Codable {
+struct AtlasThreadComponent: Codable {
     struct Table: Codable {
         let title: String
         let columns: [String]
@@ -38,7 +38,7 @@ struct AtlasConversationComponent: Codable {
     let fallback: String
 }
 
-struct AtlasConversationMessage: Decodable, Identifiable {
+struct AtlasThreadMessage: Decodable, Identifiable {
     let id: String
     let kind: String
     let body: String
@@ -49,18 +49,18 @@ struct AtlasConversationMessage: Decodable, Identifiable {
     let toolStatus: String?
     let toolInput: String
     let toolOutput: String
-    let component: AtlasConversationComponent?
+    let component: AtlasThreadComponent?
 }
 
-struct AtlasConversationBot: Decodable {
+struct AtlasOrbitAssistant: Decodable {
     let name: String
     let configured: Bool
 }
 
 /// UI adapter only. Rust owns the feature state, networking, pagination,
-/// reconciliation, drafts, idempotency keys and live conversation lifecycle.
+/// reconciliation, drafts, idempotency keys and live thread lifecycle.
 @MainActor
-final class AtlasConversations: ObservableObject {
+final class AtlasOrbit: ObservableObject {
     struct Viewer: Decodable, Identifiable {
         let id: String
         let name: String
@@ -68,10 +68,10 @@ final class AtlasConversations: ObservableObject {
     }
     struct Snapshot: Decodable {
         let sequence: UInt64
-        let bot: AtlasConversationBot?
-        let conversations: [AtlasConversation]
-        let selected: AtlasConversation?
-        let messages: [AtlasConversationMessage]
+        let assistant: AtlasOrbitAssistant?
+        let threads: [AtlasThread]
+        let selected: AtlasThread?
+        let messages: [AtlasThreadMessage]
         let people: [Viewer]
         let draft: String
         let loading: Bool
@@ -91,10 +91,10 @@ final class AtlasConversations: ObservableObject {
     @Published var draft = "" {
         didSet { if !applyingDraft { writeDraft() } }
     }
-    var bot: AtlasConversationBot? { state?.bot }
-    var conversations: [AtlasConversation] { state?.conversations ?? [] }
-    var selected: AtlasConversation? { state?.selected }
-    var messages: [AtlasConversationMessage] { state?.messages ?? [] }
+    var assistant: AtlasOrbitAssistant? { state?.assistant }
+    var threads: [AtlasThread] { state?.threads ?? [] }
+    var selected: AtlasThread? { state?.selected }
+    var messages: [AtlasThreadMessage] { state?.messages ?? [] }
     var viewers: [Viewer] { state?.people ?? [] }
     var loading: Bool { state?.loading ?? false }
     var loadingHistory: Bool { state?.historyLoading ?? false }
@@ -132,18 +132,18 @@ final class AtlasConversations: ObservableObject {
 
     func load(more: Bool = false) async { await perform(["action": more ? "load_more" : "load"]) }
 
-    func privateConversation() async -> AtlasConversation? {
+    func privateThread() async -> AtlasThread? {
         guard await perform(["action": "private"]) else { return nil }
         return selected
     }
 
-    func create(title: String, participants: [String]) async -> AtlasConversation? {
+    func create(title: String, participants: [String]) async -> AtlasThread? {
         guard await perform(["action": "create", "title": title, "participant_ids": participants]) else { return nil }
         return state?.error == nil ? selected : nil
     }
 
-    func open(_ conversation: AtlasConversation) async {
-        if selected?.id != conversation.id { await perform(["action": "select", "id": conversation.id]) }
+    func open(_ thread: AtlasThread) async {
+        if selected?.id != thread.id { await perform(["action": "select", "id": thread.id]) }
     }
 
     func leave(id: String) {
@@ -168,14 +168,14 @@ final class AtlasConversations: ObservableObject {
         guard let connection, let id = selected?.id else { return false }
         struct Effect: Decodable {
             let effect: String
-            let conversationId: String
+            let threadId: String
             let messageId: String
         }
         do {
             let effect: Effect = try decode(await localRequest([
                 "action": "component_action", "connection": connection, "id": id, "message_id": messageId, "event": event
             ]))
-            return selected?.id == id && effect.conversationId == id && effect.messageId == messageId
+            return selected?.id == id && effect.threadId == id && effect.messageId == messageId
                 && effect.effect == "show_evidence" && messages.contains { $0.id == messageId }
         } catch { return false }
     }

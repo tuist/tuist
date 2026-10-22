@@ -18,7 +18,7 @@ class AtlasPresenceModel(
     var error: String? = null
         private set
 
-    // Identifies the signed-in person so conversation pickers and viewer lists can exclude them.
+    // Identifies the signed-in person so thread pickers and viewer lists can exclude them.
     var selfId: String? = null
         private set
     var listener: (() -> Unit)? = null

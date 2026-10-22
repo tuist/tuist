@@ -1,15 +1,15 @@
-# Conversation card renderer
+# Thread card renderer
 
-The server is the source of truth. `Atlas.Conversations.Components` chooses the
+The server is the source of truth. `Atlas.Orbit.Components` chooses the
 card type/version, title, columns, rows, actions and fallback from an authorized,
 durable tool message. The client never interprets tool output to invent cards,
-advance a run, or persist its own conversation state.
+advance a run, or persist its own thread state.
 
 `App.tsx` is a bundled, reviewed NSH 0.2.0 rendering implementation, not server
 code. It receives only the Rust-validated `result_table` v1 payload and local
-appearance colors through `atlas.conversation-card`. The bridge's only commands
+appearance colors through `atlas.thread-card`. The bridge's only commands
 are measured height and an action ID. Rust checks action IDs against the current
-message and selected conversation before a native view reveals existing source
+message and selected thread before a native view reveals existing source
 evidence. Future mutations require a server-authorized, persisted action endpoint;
 never implement them as local card behavior.
 
@@ -31,7 +31,7 @@ checksum-pinned SDK integrations live in `../modules/nsh.star`.
 
 ## Host boundaries
 
-- iOS `AtlasConversationCardView.swift` and Android `AtlasConversationCardView.kt`
+- iOS `AtlasThreadCardView.swift` and Android `AtlasThreadCardView.kt`
   embed the release runtime only; no dev-server or package loading API is used.
 - Hosts explicitly grant `{}`, set 16 MB JS heap / 512-node / 250 ms event limits,
   pass no credentials or transport handles, and use disposable private storage.
@@ -47,5 +47,5 @@ checksum-pinned SDK integrations live in `../modules/nsh.star`.
   a JS VM across users, selected servers or access revocation.
 
 Rust contract/action tests, server projection/access tests, Swift adapter tests,
-iOS conversation UI tests and the isolated Android card preview cover separate
+iOS thread UI tests and the isolated Android card preview cover separate
 boundaries. Preview screenshots prove rendering, not live inference or OAuth.

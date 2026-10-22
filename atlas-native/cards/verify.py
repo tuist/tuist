@@ -20,7 +20,7 @@ def verify(record=False):
     if set(path.name for path in (ROOT / "assets/nsh").iterdir()) != {Path(name).name for name in FILES if name.startswith("assets/")}:
         raise ValueError("Only the reviewed source bundle and metadata may ship, not bytecode or downloaded packages")
     if json.loads((ROOT / "nsh.json").read_text())["capabilities"] != {}:
-        raise ValueError("Conversation cards must declare no external capabilities")
+        raise ValueError("Thread cards must declare no external capabilities")
     denied = {"network": {"hosts": [], "http": []}, "process": {"execute": [], "exit": False, "env": []},
               "fs": {"read": [], "write": []}, "statusBar": False, "clipboard": False}
     if json.loads((ROOT / "assets/nsh/capabilities.json").read_text()) != denied:
@@ -36,4 +36,4 @@ if __name__ == "__main__":
     result = verify(args.record)
     if args.output:
         args.output.write_text(json.dumps(result) + "\n")
-    print("NSH conversation card source and bundle verified")
+    print("NSH thread card source and bundle verified")

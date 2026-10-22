@@ -38,9 +38,9 @@ class MainActivity : Activity() {
     private var presence: AtlasPresenceModel? = null
     private var people: AtlasPeopleScreen? = null
     private var restorePeople = false
-    private var conversations: AtlasConversationsModel? = null
-    private var conversationScreen: AtlasConversationsScreen? = null
-    private var tab = "conversations"
+    private var orbit: AtlasOrbitModel? = null
+    private var threadScreen: AtlasOrbitScreen? = null
+    private var tab = "orbit"
 
     // Tasks live under Browse; Browse shows the Tasks screen instead of the directory while this is set.
     private var browseTasks = false
@@ -59,7 +59,7 @@ class MainActivity : Activity() {
         val presence: AtlasPresenceModel?,
         val router: AtlasDestinationRouter,
         val appearance: AtlasAppearance,
-        val conversations: AtlasConversationsModel?,
+        val orbit: AtlasOrbitModel?,
         val browseTasks: Boolean,
     )
 
@@ -83,10 +83,10 @@ class MainActivity : Activity() {
         profile = retained?.profile
         holidays = retained?.holidays
         presence = retained?.presence
-        conversations = retained?.conversations
+        orbit = retained?.orbit
         router = retained?.router ?: AtlasDestinationRouter()
         businesses = retained?.businesses ?: mutableMapOf()
-        tab = retained?.tab ?: savedInstanceState?.getString("tab")?.takeIf { it in tabIds } ?: "conversations"
+        tab = retained?.tab ?: savedInstanceState?.getString("tab")?.takeIf { it in tabIds } ?: "orbit"
         browseTasks = retained?.browseTasks ?: (savedInstanceState?.getBoolean("browse_tasks") == true)
         navigation = retained?.navigation ?: catalogNavigation(savedInstanceState?.getString("workspace_group"))
         restoreTimeOff = savedInstanceState?.getBoolean("time_off") == true
@@ -112,7 +112,7 @@ class MainActivity : Activity() {
             presence,
             router,
             appearance,
-            conversations,
+            orbit,
             browseTasks,
         )
 
@@ -122,12 +122,12 @@ class MainActivity : Activity() {
         appearance.listener = { appearanceChanged() }
         render()
         presence?.setActive(authentication.server != null)
-        conversations?.setActive(authentication.server != null)
+        orbit?.setActive(authentication.server != null)
     }
 
     override fun onStop() {
         presence?.setActive(false)
-        conversations?.setActive(false)
+        orbit?.setActive(false)
         authentication.listener = null
         appearance.listener = null
         super.onStop()
@@ -290,7 +290,7 @@ class MainActivity : Activity() {
             if (!authentication.busy) {
                 restoreTimeOff = false
                 navigation = null
-                tab = "conversations"
+                tab = "orbit"
                 browseTasks = false
             }
             updateBack()
@@ -329,7 +329,7 @@ class MainActivity : Activity() {
         val catalog = navigation ?: catalogNavigation().also { navigation = it }
         val titles =
             linkedMapOf(
-                "conversations" to "Conversations",
+                "orbit" to "Orbit",
                 "accounts" to catalog.sections.first { it.screen == "accounts" }.title,
                 "invoices" to catalog.groups.first { it.id == "finance" }.title,
                 "browse" to "Browse",
@@ -337,16 +337,16 @@ class MainActivity : Activity() {
             )
         val content =
             when (tab) {
-                "conversations" -> {
+                "orbit" -> {
                     presence?.show()
                     val model =
-                        conversations ?: AtlasConversationsModel(authentication::conversationSession).also {
-                            conversations = it
+                        orbit ?: AtlasOrbitModel(authentication::orbitSession).also {
+                            orbit = it
                             it.setActive(true)
                             it.open()
                         }
-                    val screen = AtlasConversationsScreen(this, titles.getValue(tab), model, presence, ::updateBack, appearance)
-                    conversationScreen = screen
+                    val screen = AtlasOrbitScreen(this, titles.getValue(tab), model, presence, ::updateBack, appearance)
+                    threadScreen = screen
                     setActionBar(screen.toolbar)
                     screen.view
                 }
@@ -383,7 +383,7 @@ class MainActivity : Activity() {
                                 closeScreen()
                                 clearModels()
                                 navigation = null
-                                tab = "conversations"
+                                tab = "orbit"
                                 browseTasks = false
                                 router.reset()
                                 authentication.signOut()
@@ -402,7 +402,7 @@ class MainActivity : Activity() {
         updateBack()
         business?.load()
         settings?.load()
-        conversationScreen?.load()
+        threadScreen?.load()
     }
 
     private fun businessScreen(
@@ -455,8 +455,8 @@ class MainActivity : Activity() {
         people = null
         settings?.close(cancelPending)
         settings = null
-        conversationScreen?.close()
-        conversationScreen = null
+        threadScreen?.close()
+        threadScreen = null
         timeOff?.close()
         timeOff = null
         business?.close()
@@ -470,8 +470,8 @@ class MainActivity : Activity() {
         presence?.setActive(false)
         presence?.listener = null
         presence = null
-        conversations?.close()
-        conversations = null
+        orbit?.close()
+        orbit = null
         businesses.values.forEach { it.clear() }
         businesses.clear()
         profile?.clear()
@@ -511,9 +511,9 @@ class MainActivity : Activity() {
                 browseTasks = false
                 showHome()
             }
-            conversationScreen?.back() == true -> Unit
+            threadScreen?.back() == true -> Unit
             workspace?.back() == true -> Unit
-            authentication.server != null && tab != "conversations" -> selectTab("conversations")
+            authentication.server != null && tab != "orbit" -> selectTab("orbit")
             else -> return false
         }
         updateBack()
@@ -556,15 +556,15 @@ class MainActivity : Activity() {
             people != null || timeOff != null || (tab == "profile" && settings?.isDetail == true) ||
                 (business != null && (businessModel?.canBack == true || tab == "browse")) ||
                 (workspace != null && navigation?.canBack == true) ||
-                (conversationScreen != null && conversations?.canBack == true)
+                (threadScreen != null && orbit?.canBack == true)
         actionBar?.setDisplayHomeAsUpEnabled(canUp)
         home?.fullScreen(
             businessModel?.draft != null || (tab == "profile" && settings?.isDetail == true) ||
-                (conversationScreen != null && conversations?.canBack == true),
+                (threadScreen != null && orbit?.canBack == true),
         )
         unregisterBack?.invoke()
         unregisterBack = null
-        if (Build.VERSION.SDK_INT >= 33 && authentication.server != null && (canUp || tab != "conversations")) {
+        if (Build.VERSION.SDK_INT >= 33 && authentication.server != null && (canUp || tab != "orbit")) {
             val callback = OnBackInvokedCallback { back() }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
             unregisterBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
@@ -606,6 +606,6 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private val tabIds = setOf("conversations", "accounts", "invoices", "browse", "profile")
+        private val tabIds = setOf("orbit", "accounts", "invoices", "browse", "profile")
     }
 }

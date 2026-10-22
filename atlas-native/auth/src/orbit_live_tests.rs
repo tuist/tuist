@@ -17,7 +17,7 @@ fn saved() -> Session {
 
 #[test]
 #[allow(clippy::result_large_err)]
-fn live_conversation_joins_fixed_topic_pushes_typing_and_filters_snapshots() {
+fn live_thread_joins_fixed_topic_pushes_typing_and_filters_snapshots() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!(
         "ws://{}/presence/websocket?vsn=2.0.0",
@@ -38,19 +38,19 @@ fn live_conversation_joins_fixed_topic_pushes_typing_and_filters_snapshots() {
         let join: Value = serde_json::from_str(socket.read().unwrap().to_text().unwrap()).unwrap();
         assert_eq!(
             join,
-            json!(["1", "1", format!("conversation:{ID}"), "phx_join", {}])
+            json!(["1", "1", format!("orbit:thread:{ID}"), "phx_join", {}])
         );
         let snapshot = json!({"revision":1,"people":[{"id":ID,"name":"Colleague","typing":false,"draft":"must-not-forward"}],"token":"must-not-forward"});
-        socket.send(Message::Text(json!(["1","1",format!("conversation:{ID}"),"phx_reply",{"status":"ok","response":snapshot}]).to_string().into())).unwrap();
+        socket.send(Message::Text(json!(["1","1",format!("orbit:thread:{ID}"),"phx_reply",{"status":"ok","response":snapshot}]).to_string().into())).unwrap();
         let typing: Value =
             serde_json::from_str(socket.read().unwrap().to_text().unwrap()).unwrap();
         assert_eq!(typing[3], "typing");
         assert_eq!(typing[4], json!({"typing":true}));
-        socket.send(Message::Text(json!(["1",null,format!("conversation:{ID}"),"snapshot",{"revision":2,"people":[]}]).to_string().into())).unwrap();
+        socket.send(Message::Text(json!(["1",null,format!("orbit:thread:{ID}"),"snapshot",{"revision":2,"people":[]}]).to_string().into())).unwrap();
         events.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(matches!(socket.read().unwrap(), Message::Close(_)));
     });
-    let opened = open(&endpoint, saved(), format!("conversation:{ID}")).unwrap();
+    let opened = open(&endpoint, saved(), format!("orbit:thread:{ID}")).unwrap();
     let connection = opened["connection"].as_str().unwrap().to_owned();
     let initial = execute(Action::Next {
         connection: connection.clone(),
@@ -98,14 +98,14 @@ fn inbox_channel_pushes_invalidations_without_exposing_private_thread_data() {
             Ok(response)
         }).unwrap();
         let join: Value = serde_json::from_str(socket.read().unwrap().to_text().unwrap()).unwrap();
-        assert_eq!(join[2], "conversations:me");
-        socket.send(Message::Text(json!(["1","1","conversations:me","phx_reply",{"status":"ok","response":{"revision":10,"people":[]}}]).to_string().into())).unwrap();
+        assert_eq!(join[2], "orbit:me");
+        socket.send(Message::Text(json!(["1","1","orbit:me","phx_reply",{"status":"ok","response":{"revision":10,"people":[]}}]).to_string().into())).unwrap();
         events.recv_timeout(Duration::from_secs(5)).unwrap();
-        socket.send(Message::Text(json!(["1",null,"conversations:me","snapshot",{"revision":11,"people":[],"private_ids":["must-not-forward"]}]).to_string().into())).unwrap();
+        socket.send(Message::Text(json!(["1",null,"orbit:me","snapshot",{"revision":11,"people":[],"private_ids":["must-not-forward"]}]).to_string().into())).unwrap();
         events.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(matches!(socket.read().unwrap(), Message::Close(_)));
     });
-    let opened = open(&endpoint, saved(), "conversations:me".into()).unwrap();
+    let opened = open(&endpoint, saved(), "orbit:me".into()).unwrap();
     let connection = opened["connection"].as_str().unwrap().to_owned();
     let first = execute(Action::Next {
         connection: connection.clone(),

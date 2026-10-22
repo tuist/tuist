@@ -103,7 +103,7 @@ final class AtlasNavigationUITests: XCTestCase {
             "This link belongs to a different Atlas server. Sign in to that server and open the link again."
         ].exists)
         app.alerts.buttons["OK"].tap()
-        XCTAssertTrue(app.navigationBars["Conversations"].exists)
+        XCTAssertTrue(app.navigationBars["Orbit"].exists)
     }
 
     @MainActor func testWarmRecordLinkReplacesAnExistingDetailAndBackReturnsToList() {
@@ -149,7 +149,7 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertTrue(token.waitForExistence(timeout: 5))
         token.tap()
         token.typeText("preview-only")
-        XCTAssertFalse(app.tabBars.buttons["Conversations"].isHittable)
+        XCTAssertFalse(app.tabBars.buttons["Orbit"].isHittable)
         XCUIDevice.shared.press(.home)
         app.activate()
         XCTAssertTrue(app.alerts["Atlas link"].waitForExistence(timeout: 5))

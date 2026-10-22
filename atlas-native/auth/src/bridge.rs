@@ -29,9 +29,9 @@ enum Command {
         #[serde(flatten)]
         action: crate::presence::Action,
     },
-    ConversationSession {
+    OrbitSession {
         #[serde(flatten)]
-        action: crate::conversation_session::Action,
+        action: crate::orbit_session::Action,
     },
     Business {
         session: Session,
@@ -73,8 +73,8 @@ pub fn execute(input: &str) -> String {
             Command::Presence { action } => {
                 return crate::presence::execute(action);
             }
-            Command::ConversationSession { action } => {
-                return crate::conversation_session::execute(action);
+            Command::OrbitSession { action } => {
+                return crate::orbit_session::execute(action);
             }
             Command::Business {
                 session,

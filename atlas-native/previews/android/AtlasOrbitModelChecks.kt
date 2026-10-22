@@ -1,14 +1,14 @@
 package dev.tuist.atlas.preview
 
-import dev.tuist.atlas.AtlasConversationsModel
+import dev.tuist.atlas.AtlasOrbitModel
 import org.json.JSONObject
 
 private const val PRIVATE = "01922cc0-0000-7000-8000-000000000001"
 private const val SHARED = "01922cc0-0000-7000-8000-000000000002"
 
-internal fun checkConversationsModel() {
+internal fun checkOrbitModel() {
     val pending = mutableListOf<Pair<JSONObject, (Result<JSONObject>) -> Unit>>()
-    val model = AtlasConversationsModel { action, done -> pending.add(action to done) }
+    val model = AtlasOrbitModel { action, done -> pending.add(action to done) }
 
     fun take(
         action: String,
@@ -23,7 +23,7 @@ internal fun checkConversationsModel() {
         return pending.removeAt(index)
     }
 
-    fun conversation(
+    fun thread(
         id: String,
         kind: String,
     ) = JSONObject(
@@ -37,14 +37,14 @@ internal fun checkConversationsModel() {
         needsSession: Boolean = false,
     ) = JSONObject()
         .put("sequence", sequence)
-        .put("bot", JSONObject().put("name", "Server bot").put("configured", true))
+        .put("assistant", JSONObject().put("name", "Server assistant").put("configured", true))
         .put(
-            "conversations",
+            "threads",
             org.json
                 .JSONArray()
-                .put(conversation(PRIVATE, "private"))
-                .put(conversation(SHARED, "shared")),
-        ).put("selected", selected?.let { conversation(it, if (it == PRIVATE) "private" else "shared") } ?: JSONObject.NULL)
+                .put(thread(PRIVATE, "private"))
+                .put(thread(SHARED, "shared")),
+        ).put("selected", selected?.let { thread(it, if (it == PRIVATE) "private" else "shared") } ?: JSONObject.NULL)
         .put("messages", org.json.JSONArray())
         .put("people", org.json.JSONArray())
         .put("draft", draft)
@@ -69,7 +69,7 @@ internal fun checkConversationsModel() {
     check(wait.first.getLong("after") == 0L)
     load.second(Result.success(snapshot(2)))
     check(
-        model.snapshot.privateConversation?.id == PRIVATE && model.snapshot.shared
+        model.snapshot.privateThread?.id == PRIVATE && model.snapshot.shared
             .single()
             .id == SHARED,
     )
@@ -82,7 +82,7 @@ internal fun checkConversationsModel() {
     wait.second(Result.success(snapshot(3, SHARED)))
     check(model.snapshot.selected?.id == SHARED && take("next").first.getLong("after") == 3L)
 
-    // Drafts are local Rust writes scoped to the conversation typed in; echoes are tracked so the view keeps typing.
+    // Drafts are local Rust writes scoped to the thread typed in; echoes are tracked so the view keeps typing.
     model.setDraft(SHARED, "Hel")
     model.setDraft(SHARED, "Hello")
     val firstDraft = take("draft")
@@ -105,7 +105,7 @@ internal fun checkConversationsModel() {
     check(!shared.first.getJSONObject("command").getBoolean("address_agent"))
     shared.second(Result.success(snapshot(6, SHARED)))
     check(!model.sending)
-    model.setAskBot(SHARED, true)
+    model.setAskAssistant(SHARED, true)
     model.send(SHARED, "Summarize")
     take("request", "send")
         .also {
@@ -178,14 +178,14 @@ internal fun checkConversationsModel() {
     // Card events go to Rust; only a matching effect can reveal source, never a late effect for a different thread.
     val evidence =
         JSONObject(
-            """{"id":"evidence","kind":"tool","body":"","author_name":"Server bot","inserted_at":"2026-10-22T12:00:00Z","tool_status":"succeeded","component":{"type":"result_table","version":1,"data":{"title":"Accounts","columns":["Name"],"rows":[["Northstar"]]},"actions":[{"id":"show_evidence","label":"View source"}],"fallback":"Northstar"}}""",
+            """{"id":"evidence","kind":"tool","body":"","author_name":"Server assistant","inserted_at":"2026-10-22T12:00:00Z","tool_status":"succeeded","component":{"type":"result_table","version":1,"data":{"title":"Accounts","columns":["Name"],"rows":[["Northstar"]]},"actions":[{"id":"show_evidence","label":"View source"}],"fallback":"Northstar"}}""",
         )
     model.refresh()
     take("request", "refresh").second(Result.success(snapshot(21, SHARED).put("messages", org.json.JSONArray().put(evidence))))
     model.componentAction("evidence", "show_evidence")
     val event = take("component_action")
     check(event.first.getString("id") == SHARED && event.first.getString("message_id") == "evidence")
-    val effect = JSONObject().put("effect", "show_evidence").put("conversation_id", SHARED).put("message_id", "evidence")
+    val effect = JSONObject().put("effect", "show_evidence").put("thread_id", SHARED).put("message_id", "evidence")
     event.second(Result.success(effect))
     check(model.revealedEvidence == setOf("evidence"))
     model.componentAction("evidence", "show_evidence")
@@ -199,10 +199,10 @@ internal fun checkConversationsModel() {
     model.close()
     check(take("close").first.getString("connection") == "handle")
     pending.toList().forEach { it.second(Result.success(snapshot(99, PRIVATE))) }
-    check(model.snapshot.sequence == 0L && model.snapshot.conversations.isEmpty())
+    check(model.snapshot.sequence == 0L && model.snapshot.threads.isEmpty())
 
     // A handle that opens after close is released immediately.
-    val late = AtlasConversationsModel { action, done -> pending.add(action to done) }
+    val late = AtlasOrbitModel { action, done -> pending.add(action to done) }
     late.open()
     late.close()
     take("open").second(Result.success(JSONObject("""{"connection":"late"}""")))

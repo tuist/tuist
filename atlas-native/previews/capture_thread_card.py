@@ -55,17 +55,17 @@ try:
     adb("shell", "cmd", "uimode", "night", "yes" if args.dark else "no")
     time.sleep(1)
     adb("shell", "am", "force-stop", "dev.tuist.atlas.preview")
-    adb("shell", "am", "start", "-W", "-n", "dev.tuist.atlas.preview/.ConversationCardPreviewActivity")
+    adb("shell", "am", "start", "-W", "-n", "dev.tuist.atlas.preview/.ThreadCardPreviewActivity")
     wait_for("Query comparison")
     wait_for("2.4× slower", scroll=True)
     source = wait_for("View source", scroll=True)
-    args.output.joinpath("android-conversation-nsh-card.png").write_bytes(adb("exec-out", "screencap", "-p"))
+    args.output.joinpath("android-thread-nsh-card.png").write_bytes(adb("exec-out", "screencap", "-p"))
     x1, y1, x2, y2 = map(int, re.findall(r"\d+", source.attrib["bounds"]))
     density = int(re.findall(r"\d+", adb("shell", "wm", "density").decode())[-1]) / 160
     assert x2 > x1 and (y2 - y1) / density >= 47, "Source action must have a 48 dp touch target"
     adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
     wait_for("Original source evidence", scroll=True)
-    args.output.joinpath("android-conversation-nsh-source.png").write_bytes(adb("exec-out", "screencap", "-p"))
+    args.output.joinpath("android-thread-nsh-source.png").write_bytes(adb("exec-out", "screencap", "-p"))
     print("NSH table and typed source event passed (offline fixture)")
 finally:
     adb("shell", "settings", "put", "system", "font_scale", scale)

@@ -111,7 +111,7 @@ struct AtlasDestination: Equatable, Hashable {
 
 @MainActor
 final class AtlasNavigation: ObservableObject {
-    @Published var selection = "conversations"
+    @Published var selection = "orbit"
     @Published private(set) var destination: AtlasDestination?
     @Published private(set) var revision = UUID()
     @Published private(set) var destinations: [String: AtlasDestination] = [:]
@@ -166,7 +166,7 @@ final class AtlasNavigation: ObservableObject {
         destinations = [:]
         revisions = [:]
         blockers = [:]
-        selection = "conversations"
+        selection = "orbit"
         message = nil
         revision = UUID()
     }

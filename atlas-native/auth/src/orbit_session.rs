@@ -1,7 +1,7 @@
-//! Shared conversation state. Platform adapters render snapshots and own only
+//! Shared thread state. Platform adapters render snapshots and own only
 //! credential persistence, foreground/background notifications and native views.
-use crate::conversation_live;
-use crate::conversations::{self, Bot, Conversation, Created, History, Message, Overview};
+use crate::orbit::{self, Assistant, Created, History, Message, Overview, Thread};
+use crate::orbit_live;
 use crate::{Result, Session, error, invalid};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -78,9 +78,9 @@ pub(crate) enum Command {
 #[derive(Default, Serialize)]
 struct Snapshot {
     sequence: u64,
-    bot: Option<Bot>,
-    conversations: Vec<Conversation>,
-    selected: Option<Conversation>,
+    assistant: Option<Assistant>,
+    threads: Vec<Thread>,
+    selected: Option<Thread>,
     messages: Vec<Message>,
     people: Vec<Viewer>,
     draft: String,
@@ -160,7 +160,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
             });
             let mut models = models().lock().map_err(|_| invalid())?;
             if models.len() >= 8 {
-                return Err(error("internal", "Too many conversation sessions."));
+                return Err(error("internal", "Too many thread sessions."));
             }
             models.insert(connection.clone(), model);
             Ok(json!({"connection":connection}))
@@ -240,7 +240,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
             if !allowed {
                 return Err(invalid());
             }
-            Ok(json!({"effect":"show_evidence","conversation_id":id,"message_id":message_id}))
+            Ok(json!({"effect":"show_evidence","thread_id":id,"message_id":message_id}))
         }
         Action::Close { connection } => {
             if let Some(model) = models().lock().map_err(|_| invalid())?.remove(&connection) {
@@ -267,7 +267,7 @@ fn get(id: &str) -> Result<Arc<Model>> {
         .map_err(|_| invalid())?
         .get(id)
         .cloned()
-        .ok_or_else(|| error("closed", "Conversations are closed."))
+        .ok_or_else(|| error("closed", "This Orbit session is closed."))
 }
 
 fn snapshot(model: &Model) -> Result<Value> {
@@ -287,8 +287,8 @@ fn publish(model: &Model, state: &mut State) {
     model.changed.notify_all();
 }
 
-fn api<T: DeserializeOwned>(session: Session, action: conversations::Action) -> Result<T> {
-    conversations::request(session, action)
+fn api<T: DeserializeOwned>(session: Session, action: orbit::Action) -> Result<T> {
+    orbit::request(session, action)
 }
 
 fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
@@ -300,7 +300,7 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
                 if state.snapshot.loading {
                     return Err(error(
                         "busy",
-                        "Wait for the current conversation request to finish.",
+                        "Wait for the current thread request to finish.",
                     ));
                 }
                 state.snapshot.loading = true;
@@ -309,11 +309,11 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
                     Command::Create {
                         title,
                         participant_ids,
-                    } => conversations::Action::Create {
+                    } => orbit::Action::Create {
                         title,
                         participant_ids,
                     },
-                    _ => conversations::Action::Private,
+                    _ => orbit::Action::Private,
                 };
                 (state.session.clone(), action)
             };
@@ -326,8 +326,8 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
                 }
                 let selected = match result {
                     Ok(value) => {
-                        let id = value.conversation.id.clone();
-                        merge_conversation(&mut state.snapshot.conversations, value.conversation);
+                        let id = value.thread.id.clone();
+                        merge_thread(&mut state.snapshot.threads, value.thread);
                         state.snapshot.error = None;
                         Some(id)
                     }
@@ -402,7 +402,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
             if more { state.list_page + 1 } else { 1 },
         )
     };
-    let result = api::<Overview>(session, conversations::Action::List { page });
+    let result = api::<Overview>(session, orbit::Action::List { page });
     let mut state = model.state.lock().map_err(|_| invalid())?;
     state.snapshot.loading = false;
     if state.closed {
@@ -410,20 +410,20 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
     }
     match result {
         Ok(value) => {
-            state.snapshot.bot = Some(value.bot);
+            state.snapshot.assistant = Some(value.assistant);
             if !more {
-                state.snapshot.conversations.clear();
+                state.snapshot.threads.clear();
             }
-            for item in value.conversations.items {
-                merge_conversation(&mut state.snapshot.conversations, item);
+            for item in value.threads.items {
+                merge_thread(&mut state.snapshot.threads, item);
             }
-            state.list_page = value.conversations.page;
-            state.snapshot.has_more = state.list_page < value.conversations.total_pages;
+            state.list_page = value.threads.page;
+            state.snapshot.has_more = state.list_page < value.threads.total_pages;
             state.snapshot.error = None;
         }
         Err(failure) => {
             if failure.kind == "unavailable" {
-                state.snapshot.conversations.clear();
+                state.snapshot.threads.clear();
             }
             note_failure(&mut state, failure);
         }
@@ -438,7 +438,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
     Ok(())
 }
 
-fn merge_conversation(items: &mut Vec<Conversation>, incoming: Conversation) {
+fn merge_thread(items: &mut Vec<Thread>, incoming: Thread) {
     items.retain(|item| item.id != incoming.id);
     items.push(incoming);
     items.sort_by(|a, b| {
@@ -467,7 +467,7 @@ fn select(model: &Arc<Model>, id: Option<String>, expected: Option<String>) -> R
             Some(id) => Some(
                 state
                     .snapshot
-                    .conversations
+                    .threads
                     .iter()
                     .find(|item| item.id == id)
                     .cloned()
@@ -517,7 +517,7 @@ fn history(model: &Arc<Model>, older: bool) -> Result<()> {
     };
     let result = api::<History>(
         session,
-        conversations::Action::Messages {
+        orbit::Action::Messages {
             id: id.clone(),
             page,
         },
@@ -532,7 +532,7 @@ fn history(model: &Arc<Model>, older: bool) -> Result<()> {
         match result {
             Ok(value) => {
                 if !reconcile_history(&mut state, value, generation, older) {
-                    state.snapshot.error = Some("Atlas returned a different conversation.".into());
+                    state.snapshot.error = Some("Atlas returned a different thread.".into());
                 }
             }
             Err(failure) => {
@@ -562,15 +562,12 @@ fn reconcile_history(state: &mut State, value: History, generation: u64, older: 
             .snapshot
             .selected
             .as_ref()
-            .is_none_or(|item| item.id != value.conversation.id)
+            .is_none_or(|item| item.id != value.thread.id)
     {
         return false;
     }
-    merge_conversation(
-        &mut state.snapshot.conversations,
-        value.conversation.clone(),
-    );
-    state.snapshot.selected = Some(value.conversation);
+    merge_thread(&mut state.snapshot.threads, value.thread.clone());
+    state.snapshot.selected = Some(value.thread);
     let disconnected_page = !older
         && !state.snapshot.messages.is_empty()
         && !value.messages.items.is_empty()
@@ -634,9 +631,9 @@ fn send(model: &Arc<Model>, expected_id: String, body: String, address_agent: bo
         publish(model, &mut state);
         result
     };
-    let result = conversations::request::<conversations::Sent>(
+    let result = orbit::request::<orbit::Sent>(
         session,
-        conversations::Action::Send {
+        orbit::Action::Send {
             id: id.clone(),
             body,
             client_id: client_id.clone(),
@@ -679,7 +676,7 @@ fn send(model: &Arc<Model>, expected_id: String, body: String, address_agent: bo
         (success && current, typing)
     };
     if let Some(connection) = typing {
-        let _ = conversation_live::execute(conversation_live::Action::Typing {
+        let _ = orbit_live::execute(orbit_live::Action::Typing {
             connection,
             typing: false,
         });
@@ -700,7 +697,7 @@ fn note_failure(state: &mut State, failure: crate::AuthError) {
 fn revoke(state: &mut State, id: &str) {
     state.snapshot.messages.clear();
     state.snapshot.people.clear();
-    state.snapshot.conversations.retain(|item| item.id != id);
+    state.snapshot.threads.retain(|item| item.id != id);
     state.snapshot.selected = None;
     state.snapshot.history_loading = false;
     state.history_pending = false;
@@ -742,14 +739,7 @@ fn draft(model: &Model, id: String, body: String) -> Result<()> {
             .selected
             .as_ref()
             .is_some_and(|item| item.id == id);
-        if state.closed
-            || (!selected
-                && !state
-                    .snapshot
-                    .conversations
-                    .iter()
-                    .any(|item| item.id == id))
-        {
+        if state.closed || (!selected && !state.snapshot.threads.iter().any(|item| item.id == id)) {
             return Ok(());
         }
         if state.drafts.get(&id).is_none_or(|draft| draft.body != body) {
@@ -779,8 +769,7 @@ fn draft(model: &Model, id: String, body: String) -> Result<()> {
         typing
     };
     if let Some((connection, typing)) = typing {
-        let _ =
-            conversation_live::execute(conversation_live::Action::Typing { connection, typing });
+        let _ = orbit_live::execute(orbit_live::Action::Typing { connection, typing });
     }
     Ok(())
 }
@@ -808,15 +797,15 @@ fn start_live(model: &Arc<Model>) -> Result<()> {
     }
     let is_list = state.snapshot.selected.is_none();
     let action = match &state.snapshot.selected {
-        Some(item) => conversation_live::Action::Open {
+        Some(item) => orbit_live::Action::Open {
             session: state.session.clone(),
             id: item.id.clone(),
         },
-        None => conversation_live::Action::OpenList {
+        None => orbit_live::Action::OpenList {
             session: state.session.clone(),
         },
     };
-    let opened = match conversation_live::execute(action) {
+    let opened = match orbit_live::execute(action) {
         Ok(opened) => opened,
         Err(failure) if failure.kind == "sign_in_required" => {
             state.snapshot.needs_session = true;
@@ -840,7 +829,7 @@ fn live_loop(model: Arc<Model>, connection: String, generation: u64, is_list: bo
     let mut sequence = 0;
     let mut revision = None;
     loop {
-        let result = conversation_live::execute(conversation_live::Action::Next {
+        let result = orbit_live::execute(orbit_live::Action::Next {
             connection: connection.clone(),
             after: sequence,
         });
@@ -869,7 +858,7 @@ fn live_loop(model: Arc<Model>, connection: String, generation: u64, is_list: bo
                 state.snapshot.people.clear();
                 state.snapshot.live_message = Some(
                     if failure == "unavailable" {
-                        "This conversation is no longer available."
+                        "This thread is no longer available."
                     } else {
                         "Reconnecting…"
                     }
@@ -879,7 +868,7 @@ fn live_loop(model: Arc<Model>, connection: String, generation: u64, is_list: bo
                     if let Some(id) = state.snapshot.selected.as_ref().map(|item| item.id.clone()) {
                         revoke(&mut state, &id);
                     }
-                    state.snapshot.error = Some("This conversation is no longer available.".into());
+                    state.snapshot.error = Some("This thread is no longer available.".into());
                 }
                 false
             } else {
@@ -916,7 +905,7 @@ fn live_loop(model: Arc<Model>, connection: String, generation: u64, is_list: bo
 
 fn close_live(connection: Option<String>) {
     if let Some(connection) = connection {
-        let _ = conversation_live::execute(conversation_live::Action::Close { connection });
+        let _ = orbit_live::execute(orbit_live::Action::Close { connection });
     }
 }
 
@@ -939,5 +928,5 @@ fn random_uuid() -> Result<String> {
 }
 
 #[cfg(test)]
-#[path = "conversation_session_tests.rs"]
+#[path = "orbit_session_tests.rs"]
 mod tests;

@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 nsh="${NSH_BIN:-nsh}"
 case "$("$nsh" --version)" in
   'nsh 0.2.0 '*) ;;
-  *) echo 'Conversation cards require NSH 0.2.0.' >&2; exit 1 ;;
+  *) echo 'Thread cards require NSH 0.2.0.' >&2; exit 1 ;;
 esac
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT

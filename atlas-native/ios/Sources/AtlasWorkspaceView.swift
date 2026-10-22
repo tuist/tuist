@@ -3,8 +3,8 @@ import SwiftUI
 struct AtlasWorkspaceView<Profile: View>: View {
     let holidayRequest: ([String: Any]) async throws -> Data
     let businessRequest: ([String: Any]) async throws -> Data
-    let conversationRequest: ([String: Any]) async throws -> Data
-    let conversationLocalRequest: ([String: Any]) async throws -> Data
+    let orbitRequest: ([String: Any]) async throws -> Data
+    let orbitLocalRequest: ([String: Any]) async throws -> Data
     var presence: AtlasPresence?
     @ObservedObject var navigation: AtlasNavigation
     @ViewBuilder var settings: () -> Profile
@@ -30,8 +30,8 @@ struct AtlasWorkspaceView<Profile: View>: View {
 
     private var tabs: some View {
         TabView(selection: $navigation.selection) {
-            AtlasConversationsView(request: conversationRequest, localRequest: conversationLocalRequest)
-                .tabItem { Label("Conversations", systemImage: "bubble.left.and.bubble.right") }.tag("conversations")
+            AtlasOrbitView(request: orbitRequest, localRequest: orbitLocalRequest)
+                .tabItem { Label("Orbit", systemImage: "bubble.left.and.bubble.right") }.tag("orbit")
             ForEach(AtlasBusinessResource.allCases.filter { $0 != .tasks }) { resource in
                 AtlasBusinessStack(resource: resource, recordID: navigation.destinations[resource.rawValue]?.recordID,
                                    revision: navigation.revisions[resource.rawValue], request: businessRequest)

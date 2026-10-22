@@ -66,5 +66,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "conversation_components_tests.rs"]
+#[path = "orbit_components_tests.rs"]
 mod tests;

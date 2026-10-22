@@ -56,9 +56,9 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
     match action {
         Action::Open { session, id } => {
             crate::time_off::validate_id(&id)?;
-            open_session(session, format!("conversation:{id}"))
+            open_session(session, format!("orbit:thread:{id}"))
         }
-        Action::OpenList { session } => open_session(session, "conversations:me".into()),
+        Action::OpenList { session } => open_session(session, "orbit:me".into()),
         Action::Next { connection, after } => {
             let state = get(&connection)?;
             let latest = state.latest.lock().map_err(|_| invalid())?;
@@ -98,7 +98,7 @@ fn get(id: &str) -> Result<Arc<Connection>> {
         .map_err(|_| invalid())?
         .get(id)
         .cloned()
-        .ok_or_else(|| error("closed", "This conversation is disconnected."))
+        .ok_or_else(|| error("closed", "This thread is disconnected."))
 }
 
 fn open_session(session: Session, topic: String) -> Result<Value> {
@@ -134,10 +134,10 @@ fn open(url: &str, session: Session, topic: String) -> Result<Value> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .map_err(|_| error("internal", "Could not open this conversation."))?;
+        .map_err(|_| error("internal", "Could not open this thread."))?;
     let mut registry = connections().lock().map_err(|_| invalid())?;
     if registry.len() >= 16 {
-        return Err(error("internal", "Too many open conversations."));
+        return Err(error("internal", "Too many open threads."));
     }
     registry.insert(handle.clone(), state.clone());
     std::thread::spawn(move || {
@@ -274,5 +274,5 @@ fn sanitize(value: Value) -> Result<Value> {
 }
 
 #[cfg(test)]
-#[path = "conversation_live_tests.rs"]
+#[path = "orbit_live_tests.rs"]
 mod tests;

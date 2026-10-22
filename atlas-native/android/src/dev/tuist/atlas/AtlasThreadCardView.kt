@@ -17,7 +17,7 @@ import java.util.UUID
 import kotlin.math.ceil
 
 // Presentation only: card content and actions arrive from the server through Rust.
-class AtlasConversationCardView(
+class AtlasThreadCardView(
     context: Context,
     private val card: JSONObject,
     private val appearance: AtlasAppearance?,
@@ -94,7 +94,7 @@ class AtlasConversationCardView(
             runtime.setStorageDirectory(File(storage, "storage"))
             runtime.setErrorListener { post { if (engine === runtime) fallback() } }
             val payload = mapOf("card" to jsonValue(card), "colors" to colors())
-            runtime.registerComponent("atlas.conversation-card") { bridge ->
+            runtime.registerComponent("atlas.thread-card") { bridge ->
                 object : NshComponent {
                     private val empty = View(context)
 

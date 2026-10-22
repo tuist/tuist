@@ -11,7 +11,7 @@ type Payload = {
 
 // The host supplies only Rust-validated data, never credentials, URLs or code.
 // All events cross the native adapter and are checked against the current Rust session.
-const Host = nativeComponent<{ ready: boolean }, { data: Payload }>("atlas.conversation-card", {
+const Host = nativeComponent<{ ready: boolean }, { data: Payload }>("atlas.thread-card", {
   props: ["ready"],
   events: ["data"],
 });
@@ -24,7 +24,7 @@ function Card() {
       <Host ref={(node) => (host = node)} ready={true} onData={(value) => payload.set(value)} style={{ width: 0, height: 0 }} />
       {payload() && (
         <View
-          testID="conversation-result-table"
+          testID="thread-result-table"
           style={{ padding: 12, gap: 12, backgroundColor: payload()!.colors.surface, borderRadius: 12 }}
           onLayout={({ size }) => host?.command("height", size.height)}
         >
@@ -44,7 +44,7 @@ function Card() {
           ))}
           {payload()!.card.actions.map((action) => (
             <View
-              testID="conversation-card-source"
+              testID="thread-card-source"
               accessibilityLabel={action.label}
               onPress={() => host?.command("action", action.id)}
               style={{ minHeight: 64, justifyContent: "center", padding: 8 }}

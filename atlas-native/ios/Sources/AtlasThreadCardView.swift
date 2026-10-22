@@ -1,8 +1,8 @@
 import NativeShell
 import SwiftUI
 
-struct AtlasConversationCardView: View {
-    let card: AtlasConversationComponent
+struct AtlasThreadCardView: View {
+    let card: AtlasThreadComponent
     let action: (String) -> Void
     @State private var height: CGFloat = 180
     @State private var ready = false
@@ -21,9 +21,9 @@ struct AtlasConversationCardView: View {
                         Button(item.label) { action(item.id) }.frame(minHeight: 44)
                     }
                 }
-                .accessibilityIdentifier("conversation-card-fallback")
+                .accessibilityIdentifier("thread-card-fallback")
             } else {
-                AtlasConversationCardSurface(card: card, colors: colors, fontScale: fontScale, action: action) { value in
+                AtlasThreadCardSurface(card: card, colors: colors, fontScale: fontScale, action: action) { value in
                     ready = true
                     if abs(height - value) > 1 { height = value }
                 } failure: { failed = true }
@@ -54,8 +54,8 @@ struct AtlasConversationCardView: View {
     }
 }
 
-private struct AtlasConversationCardSurface: UIViewRepresentable {
-    let card: AtlasConversationComponent
+private struct AtlasThreadCardSurface: UIViewRepresentable {
+    let card: AtlasThreadComponent
     let colors: [String: String]
     let fontScale: CGFloat
     let action: (String) -> Void
@@ -66,11 +66,11 @@ private struct AtlasConversationCardSurface: UIViewRepresentable {
 
     func makeUIView(context: Context) -> NshAppView {
         let view = NshAppView()
-        view.accessibilityIdentifier = "conversation-card-runtime"
+        view.accessibilityIdentifier = "thread-card-runtime"
         view.limits = NshLimits(memoryMB: 16, loadBudget: 1, callBudget: 0.25, maxNodes: 512)
         view.storageDirectory = context.coordinator.storage
         view.onError = { _ in context.coordinator.failure?() }
-        view.register(component: "atlas.conversation-card") { [weak coordinator = context.coordinator] value in
+        view.register(component: "atlas.thread-card") { [weak coordinator = context.coordinator] value in
             let bridge = Bridge(value, coordinator: coordinator)
             coordinator?.bridge = bridge
             return bridge

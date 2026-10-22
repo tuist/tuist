@@ -31,7 +31,7 @@ fn saved() -> Session {
 
 const ID: &str = "01922cc0-0000-7000-8000-000000000001";
 
-fn conversation() -> Value {
+fn thread() -> Value {
     json!({"id":ID,"title":"Investigate latency","kind":"shared","status":"active","summary":"Comparing plans","origin":"manual","owner_id":ID,"participants":[{"id":ID,"name":"A colleague","email":"must-not-forward"}],"updated_at":"2027-06-07T10:00:00Z","credentials":"must-not-forward"})
 }
 
@@ -47,14 +47,14 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             "GET",
             "?page=2".to_owned(),
             Value::Null,
-            json!({"bot":{"name":"Juniper","configured":true,"token":"must-not-forward"},"conversations":{"items":[conversation()],"page":2,"total_pages":2,"total_count":26}}),
+            json!({"assistant":{"name":"Juniper","configured":true,"token":"must-not-forward"},"threads":{"items":[thread()],"page":2,"total_pages":2,"total_count":26}}),
         ),
         (
             Action::Private,
             "POST",
             "/private".into(),
             json!({}),
-            json!({"conversation":conversation()}),
+            json!({"thread":thread()}),
         ),
         (
             Action::Create {
@@ -64,7 +64,7 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             "POST",
             "".into(),
             json!({"title":"Investigate latency","participant_ids":[ID]}),
-            json!({"conversation":conversation()}),
+            json!({"thread":thread()}),
         ),
         (
             Action::Messages {
@@ -74,7 +74,7 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             "GET",
             format!("/{ID}/messages?page=1"),
             Value::Null,
-            json!({"conversation":conversation(),"messages":{"items":[message()],"page":1,"total_pages":1,"total_count":1}}),
+            json!({"thread":thread(),"messages":{"items":[message()],"page":1,"total_pages":1,"total_count":1}}),
         ),
         (
             Action::Send {
@@ -96,7 +96,7 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
         let requests = network.requests.borrow();
         assert_eq!(
             requests[0].0,
-            format!("https://atlas.example/api/native/conversations{suffix}")
+            format!("https://atlas.example/api/native/orbit/threads{suffix}")
         );
         assert_eq!(requests[0].1["method"], method);
         assert_eq!(requests[0].1["payload"], payload);
@@ -165,7 +165,7 @@ fn expired_session_and_cross_origin_registration_never_send_credentials() {
 }
 
 #[test]
-fn errors_do_not_echo_provider_or_conversation_bodies() {
+fn errors_do_not_echo_provider_or_thread_bodies() {
     for status in [401, 403, 404, 409, 422, 429, 500, 501] {
         assert!(
             !serde_json::to_string(&response_failure(status, b"confidential-body"))

@@ -1,10 +1,10 @@
 mod accounts;
 mod bridge;
 mod business;
-mod conversation_components;
-mod conversation_live;
-mod conversation_session;
-mod conversations;
+mod orbit;
+mod orbit_components;
+mod orbit_live;
+mod orbit_session;
 mod presence;
 mod themes;
 mod time_off;
