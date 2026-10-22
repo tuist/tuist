@@ -282,6 +282,13 @@ fn main() {
         proxy.refresh_endpoint();
     });
 
+    let policy = format!(
+        "proxy certificate_policy={} pid={}",
+        tuist_cas_plugin::certificate_trust::POLICY_ID,
+        std::process::id()
+    );
+    eprintln!("{policy}");
+    tuist_cas_plugin::log_line(&policy);
     eprintln!("tuist-cas-proxy listening on {socket_path}");
     proxy.serve(listener);
     // KeepAlive.SuccessfulExit=false restarts only an unsuccessful exit. No
