@@ -152,10 +152,21 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   bytes, else twice the capacity.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
-  abandoned after two minutes without bytes, `DownloadClient` without a whole-
-  transfer timeout. A context that ends while bytes arrive returns
-  `ErrDownloadIncomplete` and keeps the partial; a complete archive that does not
-  restore is deleted. Callers resume only by passing the same path again.
+  abandoned after two minutes without bytes, `ObjectClient` (else `Client` with
+  its timeout cleared) without a whole-transfer timeout. A context that ends while
+  bytes arrive returns `ErrDownloadIncomplete` and keeps the partial; a complete
+  archive that does not restore is deleted. Callers resume only by passing the
+  same path again.
+- `HTTPTransfer.Publish` retries inside the call, so a retry never recompresses:
+  at most four attempts, each asking `upload` for a fresh link (which also
+  returns `ErrConflict` once the lineage advanced) and PUTting the whole archive,
+  abandoned after two minutes without sending bytes, backing off 10 s times the
+  attempt. It retries transport errors, stalls and 5xx/429/408 only; once a PUT
+  succeeded it retries `publish` alone. Each retry logs `cache upload retry` with
+  `attempt`, `sent_bytes`, `elapsed_ms` and `error`. Transport errors keep the
+  network's own text (`transport error: <cause>`) with URLs replaced, and a
+  `RemoteError` carries the object store's `<Code>` when it sent one.
+  Uploads are one presigned PUT; the server signs the whole archive's SHA-256.
 - `prefetch` and refreshes download into
   `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
   to install (`fetchMaster`), one download per staging name at a time;
