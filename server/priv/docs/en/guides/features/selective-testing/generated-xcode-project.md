@@ -78,10 +78,10 @@ Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, 
 > Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of selective testing is at the target level. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
 
 
-> [!WARNING]
+> [!NOTE]
 > **Test Coverage**
 >
-> Test coverage tools assume that the whole test suite runs at once, which makes them incompatible with selective test runs—this means the coverage data might not reflect reality when using test selection. That’s a known limitation, and it doesn’t mean you’re doing anything wrong. We encourage teams to reflect on whether coverage is still bringing meaningful insights in this context, and if it is, rest assured that we’re already thinking about how to make coverage work properly with selective runs in the future.
+> Coverage tools that read a single run's report, Xcode's included, assume the whole test suite ran, so a selective run's report leaves out the tests it skipped. Tuist's <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project">code coverage</.localized_link> can carry the coverage of skipped test targets forward from an earlier run instead, when you record <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project#test-level-coverage">test-level coverage</.localized_link>.
 
 
 ## Pull/merge request comments {#pullmerge-request-comments}
