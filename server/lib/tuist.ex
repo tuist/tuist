@@ -59,7 +59,6 @@ defmodule Tuist do
       Cache,
       Cache.Analytics,
       CacheEndpoints,
-      Atlas,
       Atlas.Email,
       AtlasWorkloadIdentity,
       Kubernetes.Client,
