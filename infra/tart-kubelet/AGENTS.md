@@ -92,12 +92,11 @@ workflow code runs in the guest. Never expose host credentials or masters.
   and their first VM per image sat in `CreatingVM` for 5+ minutes downloading;
   on 2026-10-21 ber1-runner-b05 came back from `tuist.dev/os-reinstall`
   untainted with no goldens and took runner Pods that waited on downloads.
-- Every host then stages, once a minute and in the background, the goldens it
-  is about to need (`podagent.Prewarmer.stage`, `internal/podagent/stage.go`):
-  for each pool of its fleet it served in the last 24 hours (it held the
-  golden of the image the pool ran then), the pool's current image and the
-  one it moves to next, when the host lacks them. The next image comes from
-  ConfigMaps labelled
+- A release is also staged before pools move to it. Once a minute every host
+  pulls in the background the image each pool of its fleet moves to next,
+  when it holds the golden of the pool's current image and not the next one
+  (`podagent.Prewarmer.stage`, `internal/podagent/stage.go`). The next image
+  comes from ConfigMaps labelled
   `tuist.dev/upcoming-runner-images=true`, keyed `<xcode>.<variant>`, which
   the `announce` job of `runner-image-release.yml` writes into canary and
   production. A deploy holds each pool on its current image until every
@@ -115,16 +114,19 @@ workflow code runs in the guest. Never expose host credentials or masters.
   pull. It starts no pull while a Pod waits on one, or below 30% free disk,
   and skips an image the rack's image cache is still fetching until the next
   pass. A Pod of another image that arrives during a staged pull waits for it,
-  since a host pulls one golden at a time. Following a pool to its new image
-  also covers a pool moved before its hosts staged it (the timeout or a
-  skip). A host that never served a pool still pulls on its first Pod.
+  since a host pulls one golden at a time. A pool moved before its hosts
+  staged it (the timeout or a skip) is followed as above; a host that held
+  neither image pulls on its first Pod.
   `tart_kubelet_golden_staged_total{result}` counts what staging did; the
   pools' materialized and reused counts show whether Pods still pull.
-  Evidence: in the week to 2026-10-22 ber1-runner-b03 to b09 each pulled 24
-  to 42 goldens from ghcr.io, 6 to 7 minutes each on average, over 19 runner
-  image releases, and a release reaches production about 20 minutes after
-  its deploy is dispatched. The rack's image cache only moves those pulls onto
-  the rack network; it does not take them off a job's path.
+  Following alone still leaves the first Pod after a move waiting on the pull
+  (the overlay on a stacked host, the whole image when the base changed or
+  on a standalone host). Evidence: in the week to 2026-10-22
+  ber1-runner-b03 to b09 each pulled 24 to 42 goldens from ghcr.io, 6 to 7
+  minutes each on average, over 19 runner image releases, and a release
+  reaches production about 20 minutes after its deploy is dispatched. The
+  rack's image cache only moves those pulls onto the rack network; it does
+  not take them off a job's path.
 - Custom cache volumes are the only runner cache on macOS hosts. The volume
   they share is `CacheSpace` (`internal/podagent/volume*.go`): the APFS volume
   at `--runner-cache-root`, which holds `custom/`. Every five minutes it
