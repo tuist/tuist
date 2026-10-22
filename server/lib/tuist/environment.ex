@@ -418,21 +418,29 @@ defmodule Tuist.Environment do
     window_commits: "TUIST_GIT_HISTORY_WINDOW_COMMITS",
     deepen_budget_seconds: "TUIST_GIT_HISTORY_DEEPEN_BUDGET_SECONDS",
     upload_batch_size: "TUIST_GIT_HISTORY_UPLOAD_BATCH_SIZE",
+    provider_page_budget: "TUIST_GIT_HISTORY_PROVIDER_PAGE_BUDGET",
     commit_file_limit: "TUIST_GIT_HISTORY_COMMIT_FILE_LIMIT"
   }
 
   @doc """
   The server-wide Git history settings set through the environment, as a map
   of the keys `Tuist.GitHistory.settings/1` merges over its defaults. Only the
-  variables that are set appear, each a positive integer.
+  variables that are set appear. `TUIST_GIT_HISTORY_PROVIDER_FALLBACK` is a
+  boolean; the others are positive integers.
   """
   def git_history_defaults(environment \\ System.get_env()) when is_map(environment) do
-    Enum.reduce(@git_history_environment_variables, %{}, fn {key, variable}, acc ->
-      case parse_artifact_retention_days(Map.get(environment, variable), variable) do
-        nil -> acc
-        value -> Map.put(acc, key, value)
-      end
-    end)
+    integers =
+      Enum.reduce(@git_history_environment_variables, %{}, fn {key, variable}, acc ->
+        case parse_artifact_retention_days(Map.get(environment, variable), variable) do
+          nil -> acc
+          value -> Map.put(acc, key, value)
+        end
+      end)
+
+    case Map.get(environment, "TUIST_GIT_HISTORY_PROVIDER_FALLBACK") do
+      nil -> integers
+      value -> Map.put(integers, :provider_fallback, truthy?(value))
+    end
   end
 
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do

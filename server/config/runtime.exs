@@ -675,7 +675,8 @@ base_queues = [
   mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10,
-  coverage_deltas: 2
+  coverage_deltas: 2,
+  git_history: 2
 ]
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}

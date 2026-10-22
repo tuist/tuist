@@ -630,4 +630,34 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.ancestors(repository, "new") == [{"new", 0}]
     end
   end
+
+  describe "gaps/3" do
+    test "are the parents a walk from the commit needs but the graph lacks, nearest first", %{repository: repository} do
+      # A depth-1 merge checkout: m names c and p, and nothing behind them is
+      # stored; b is stored but names a parent that is not.
+      GitHistory.record_commits(repository, "sha1", [
+        commit("m", ["c", "p"], 10),
+        commit("c", ["b"], 9),
+        commit("b", ["a"], 8)
+      ])
+
+      assert GitHistory.gaps(repository, "m") == ["p", "a"]
+    end
+
+    test "are the commit itself when it is not stored", %{repository: repository} do
+      assert GitHistory.gaps(repository, "unknown") == ["unknown"]
+    end
+
+    test "take a stored commit without parents for a root", %{repository: repository} do
+      seed(repository)
+      assert GitHistory.gaps(repository, "m") == []
+    end
+
+    test "leave out edges from commits older than the window", %{repository: repository} do
+      GitHistory.record_commits(repository, "sha1", [commit("new", ["old"], 10), commit("old", ["older"], 0)])
+
+      assert GitHistory.gaps(repository, "new") == ["older"]
+      assert GitHistory.gaps(repository, "new", since: ~U[2026-09-01 00:05:00Z]) == []
+    end
+  end
 end
