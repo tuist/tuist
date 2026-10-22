@@ -337,3 +337,5 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - Shared runner-cache lifecycle: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).
+
+- Linux runner pools with `nestedVirtualization` give the runner container `/dev/kvm` for Android emulators: a KVM-enabled Kata guest kernel ([`kata-kvm-kernel/AGENTS.md`](kata-kvm-kernel/AGENTS.md)), installed and proven per boot by the CAPI provider, plus a CDI-backed device plugin. Off unless a pool opts in; see "Nested virtualization" in [`runners-controller/AGENTS.md`](runners-controller/AGENTS.md).

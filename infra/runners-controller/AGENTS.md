@@ -1245,6 +1245,72 @@ catalog from two sides.
 Follow-up: bake `e2fsprogs` into a custom `tuist-dind` image so
 the `apk add` on every Pod startup goes away.
 
+## Nested virtualization (Android emulators)
+
+A Linux pool with `spec.nestedVirtualization: true` gives its runner
+container a usable `/dev/kvm`, so jobs can run hardware-accelerated
+x86_64 Android emulators (Gradle Managed Devices, Macrobenchmark).
+The Kata microVM stays the isolation boundary; the emulator is a guest
+of the job's microVM, not of the host.
+
+Kata's stock guest kernels have no `CONFIG_KVM` and no module support,
+so a stock guest never has `/dev/kvm` even though it already sees the
+host's `svm`/`vmx` flags (QEMU runs `-cpu host`, and both OVH CPUs run
+KVM with nesting on). Three pieces close that:
+
+- **Kernel**: `infra/kata-kvm-kernel/` builds Kata's own x86_64 guest
+  kernel with a KVM fragment and publishes it as the
+  `kata-kvm-kernel@<kata>-<revision>` release. The CAPI provider installs
+  it on every Kata host beside the stock kernels, adds `kernel` to the
+  hypervisor's `enable_annotations` through a Kata `config.d` drop-in,
+  verifies the host allows nesting on the current boot, and only then
+  labels the node `tuist.dev/kata-kvm=true` (`reconcileLinuxKataKVM`).
+- **Pod**: `podtemplate.Build` stamps
+  `io.katacontainers.config.hypervisor.kernel` with the stable kernel
+  path, requests one `devices.tuist.dev/kvm` on the runner container
+  only, and adds the KVM label to the nodeSelector. `fleetNodeSelector`
+  adds the same label, so reservations and placement caps reason about
+  the KVM hosts only. Build refuses the flag outside `os: linux` +
+  `kata-qemu`: under runc, `/dev/kvm` would be the host's device.
+- **Device**: `cmd/kvm-device-plugin` (shipped in the controller image,
+  DaemonSet `kvm-device-plugin.yaml`, on `tuist.dev/kata-kvm=true` hosts
+  only) advertises the resource and answers allocations with the CDI
+  device `tuist.dev/kvm=kvm`, which containerd resolves from the spec the
+  plugin writes to `/var/run/cdi`. The Kata shim passes the resulting
+  `linux.devices` entry to the agent unchanged; the agent creates
+  10:232 in the guest, which is the guest kernel's KVM. CDI rather than
+  a plain device spec because of the mode: from a device spec, containerd
+  copies the host node's 0660 and host kvm gid, which the runner user
+  cannot open; the CDI spec sets 0666 on the container's node and leaves
+  the host's `/dev/kvm` untouched.
+
+Opting in is per pool, with `runnersFleetLinux.nestedVirtualization.enabled`
+deploying the plugin. Pools do not share a dispatch path with profiles
+yet: workflows target an operator pool by its `dispatchLabel`
+(staging: `tuist-staging-linux-kvm`). What a pool gives up: tenant code
+can drive the host's nested-virtualization emulation (VMRUN/VMLAUNCH
+handling in the host's KVM) from its guest kernel, which without the
+flag takes a guest-kernel exploit to reach. Keep host kernels current,
+and keep the flag off pools that do not need it.
+
+Verified (2026-10-16): with the stock guest kernel, the injected node
+exists and `open` fails `ENODEV` (the guest device cgroup does not
+block it); with the KVM kernel, a non-root user opens it and creates a
+VM, and the emulator's `-accel-check` passes. Nesting depth matters for
+benchmarks: on our bare metal an emulator in Kata is two levels deep, the
+same as an emulator on a hosted CI VM.
+
+Measured on the staging OVH host (Ryzen 7 9700X), 4 vCPU, API 34 x86_64
+Pixel 6, emulator directly on the host vs in an unprivileged Kata Pod on the
+KVM kernel with `/dev/kvm` from the plugin: cold boot 15.1 s vs 28.7 s;
+Macrobenchmark `timeToInitialDisplayMs` (15 cold starts, first excluded)
+median 504 ms vs 733 ms with CV 4.1% vs 5.0%. Nesting costs roughly 1.5 to
+2x in absolute time but barely widens the spread, so baseline comparisons
+stay meaningful as long as baseline and candidate run on the same pool. A
+runc Pod running the same workload needs more memory than the Kata one,
+because the emulator's host-side QEMU memory and page cache count against
+the container there.
+
 ## Linux cache volumes
 
 Local reflink image clones are implemented in

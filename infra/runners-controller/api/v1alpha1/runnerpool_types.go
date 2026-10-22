@@ -107,6 +107,21 @@ type RunnerPoolSpec struct {
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
+	// NestedVirtualization gives the runner container a usable /dev/kvm,
+	// so a job can run hardware-accelerated guests of its own, such as
+	// x86_64 Android emulators. Linux `kata-qemu` pools only. The Pod
+	// boots the KVM-enabled guest kernel the CAPI provider installs on
+	// every Kata host, lands only on hosts labelled
+	// `tuist.dev/kata-kvm=true` (the provider's proof that the kernel is
+	// installed and the host runs KVM with nesting on), and requests one
+	// `devices.tuist.dev/kvm` from the kvm-device-plugin DaemonSet, which
+	// is what injects the device node into the unprivileged runner
+	// container. The microVM stays the isolation boundary; what the pool
+	// adds is the host's nested-virtualization code path, reachable from
+	// the guest kernel.
+	// +optional
+	NestedVirtualization bool `json:"nestedVirtualization,omitempty"`
+
 	// Provisioning bounds how many Linux Kata sandboxes may be starting at
 	// once across pools that share this pool's FleetSelector, and how long a
 	// bound Pod may take to start its dispatch poller. The bound is
