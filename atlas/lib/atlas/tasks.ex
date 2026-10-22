@@ -83,16 +83,12 @@ defmodule Atlas.Tasks do
         updated = changeset |> Repo.update() |> unwrap!()
         if changed_reminder? and updated.status == "open", do: schedule_reminder!(updated)
         if changed_due_date? and updated.status == "open", do: schedule_due_date!(updated)
-        updated
+        Repo.preload(updated, [:assignee, :account], force: true)
       end)
 
     result
     |> normalize_result()
     |> audit_result("task.updated", actor, opts)
-  end
-
-  def delete_task(%Task{} = task, %User{} = actor, opts \\ []) do
-    task |> Repo.delete() |> audit_result("task.deleted", actor, opts)
   end
 
   def complete_task(task, actor, opts \\ [])
@@ -107,6 +103,12 @@ defmodule Atlas.Tasks do
   end
 
   def complete_task(%Task{}, %User{}, _opts), do: {:error, :already_completed}
+
+  def delete_task(%Task{} = task, %User{} = actor, opts \\ []) do
+    task
+    |> Repo.delete()
+    |> audit_result("task.deleted", actor, opts)
+  end
 
   def snooze_reminder(task, snooze, actor, opts \\ [])
 

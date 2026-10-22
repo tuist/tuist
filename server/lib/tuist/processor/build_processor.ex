@@ -89,6 +89,7 @@ defmodule Tuist.Processor.BuildProcessor do
         :telemetry.span([:tuist, :processor, :build, :ingest], %{}, fn ->
           result =
             parsed_data
+            |> Map.put("started_at", build_started_at(parsed_data["time_started_recording"]))
             |> Map.drop(["time_started_recording", "time_stopped_recording"])
             |> Map.put("machine_metrics", machine_metrics)
             |> consume.()
@@ -98,6 +99,17 @@ defmodule Tuist.Processor.BuildProcessor do
         end)
       end
     )
+  end
+
+  defp build_started_at(nil), do: nil
+
+  defp build_started_at(apple_timestamp) do
+    apple_timestamp
+    |> Kernel.*(1_000_000)
+    |> round()
+    |> Kernel.+(@apple_reference_date_offset * 1_000_000)
+    |> DateTime.from_unix!(:microsecond)
+    |> DateTime.to_naive()
   end
 
   defp make_temp_dir do

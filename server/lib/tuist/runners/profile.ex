@@ -19,8 +19,12 @@ defmodule Tuist.Runners.Profile do
       `:macos-<dashes>-<semver>` tag.
 
   The cache writer policy decides which GitHub jobs running on the
-  profile can save custom cache volumes besides the default branch. See
+  profile save custom cache volumes: jobs on the repository's default
+  branch, unless turned off, and jobs on additional branches. See
   `Tuist.Runners.CacheVolumes`.
+
+  Cached checkouts, on by default, let macOS and Linux jobs start with
+  their repository already checked out.
 
   Backed by [priv/repo/migrations/20260527130000_create_runner_profiles.exs](priv/repo/migrations/20260527130000_create_runner_profiles.exs)
   and [priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs](priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs).
@@ -53,8 +57,14 @@ defmodule Tuist.Runners.Profile do
     field :memory_gb, :integer
     field :xcode_version, :string
     field :protected, :boolean, default: false
-    # nil follows each repository's default branch.
+    # Every branch of the repository saves. Forks and pull_request_target never
+    # have a writer branch, so they never do. When false, only the default
+    # branch, if enabled, and the branches below save.
+    field :cache_writer_all_branches, :boolean, default: true
+    field :cache_writer_default_branch, :boolean, default: true
+    # Branches that save besides the default branch. nil when there are none.
     field :cache_writer_branches, {:array, :string}
+    field :cached_checkouts, :boolean, default: true
 
     belongs_to :account, Account
 
@@ -95,9 +105,20 @@ defmodule Tuist.Runners.Profile do
         :memory_gb,
         :xcode_version,
         :protected,
-        :cache_writer_branches
+        :cache_writer_all_branches,
+        :cache_writer_default_branch,
+        :cache_writer_branches,
+        :cached_checkouts
       ])
-      |> validate_required([:account_id, :name, :platform, :vcpus, :memory_gb])
+      |> validate_required([
+        :account_id,
+        :name,
+        :platform,
+        :vcpus,
+        :memory_gb,
+        :cache_writer_all_branches,
+        :cache_writer_default_branch
+      ])
       |> update_change(:name, &normalize_name/1)
       |> validate_format(:name, @name_format,
         message: "must start with a letter and contain only lowercase letters, digits, and hyphens"
@@ -128,12 +149,14 @@ defmodule Tuist.Runners.Profile do
   end
 
   @doc """
-  Changeset for the cache writer branches alone. Unlike `changeset/3` it does
-  not validate the profile's shape against the current catalog.
+  Changeset for the cache settings alone: the writer policy and cached
+  checkouts. Unlike `changeset/3` it does not validate the profile's shape
+  against the current catalog.
   """
-  def cache_writer_changeset(profile, attrs) do
+  def cache_settings_changeset(profile, attrs) do
     profile
-    |> cast(attrs, [:cache_writer_branches])
+    |> cast(attrs, [:cache_writer_all_branches, :cache_writer_default_branch, :cache_writer_branches, :cached_checkouts])
+    |> validate_required([:cache_writer_all_branches, :cache_writer_default_branch, :cached_checkouts])
     |> validate_cache_writer_branches()
   end
 
@@ -149,7 +172,6 @@ defmodule Tuist.Runners.Profile do
 
   defp normalize_cache_writer_branches(nil), do: nil
 
-  # An empty list follows each repository's default branch, like nil.
   defp normalize_cache_writer_branches(branches) do
     case branches |> Enum.map(&String.trim/1) |> Enum.uniq() do
       [] -> nil
@@ -198,7 +220,7 @@ defmodule Tuist.Runners.Profile do
         changeset
 
       true ->
-        add_error(changeset, :vcpus, "must match one of the available resource configurations")
+        add_error(changeset, :vcpus, "must match one of the available resource configurations", validation: :shape)
     end
   end
 
@@ -213,7 +235,7 @@ defmodule Tuist.Runners.Profile do
         changeset
 
       true ->
-        add_error(changeset, :xcode_version, "must match one of the available Xcode versions")
+        add_error(changeset, :xcode_version, "must match one of the available Xcode versions", validation: :xcode_version)
     end
   end
 

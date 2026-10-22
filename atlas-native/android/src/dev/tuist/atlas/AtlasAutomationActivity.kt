@@ -275,7 +275,7 @@ class AtlasAutomationActivity : Activity() {
         if (form?.optBoolean("supported") != true) {
             text("This contract needs controls that are not supported on mobile yet. Open Atlas on the web to run it.")
             button("Open workflow on web") {
-                val base = AtlasCore().sections().first { it.kind == "automation" }.url
+                val base = AtlasCore().sections().first { it.screen == "automation" }.url
                 val origin = android.net.Uri.parse(authentication.server ?: return@button)
                 val uri =
                     android.net.Uri

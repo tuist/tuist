@@ -25,7 +25,8 @@ defmodule Tuist.Runners.WorkflowJobs do
       insert) → `transition_claimed/3`
     * `Tuist.Runners.Claims.mark_running/3` → `transition_running/3`
     * `Tuist.Runners.Claims.record_execution/3` (webhook `in_progress`,
-      same transaction as the claim detach) → `transition_executing/3`
+      same transaction as the claim detach) → `transition_executing/3`,
+      `take_over_executing/4` and `hand_over/3`
     * `Tuist.Runners.Claims.release/2` and `release_pod_missing/2`
       (same transaction as the claim delete) → `requeue_by_handle/2`
     * `Tuist.Runners.Workers.UnstartedExecutionsWorker` (backstop sweep)
@@ -259,6 +260,72 @@ defmodule Tuist.Runners.WorkflowJobs do
   defp finish_executing(:noop), do: :noop
 
   @doc """
+  `transition_executing/3` for a row a stale claim holds: CAS
+  `claimed | running → running` onto the executing Pod, guarded on the
+  stale claim's `claimed_at`.
+
+  Dispatch can hand out a job GitHub already started elsewhere until the
+  `in_progress` webhook proving it arrives. Moving the row off the stale
+  claim's handle keeps that claim's later detach from re-queueing a job
+  that is running, and the handle guard confines the takeover to the
+  claim the caller found naming the job.
+  """
+  def take_over_executing(workflow_job_id, runner_name, pod_name, %DateTime{} = stale_claimed_at)
+      when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
+             pod_name != "" do
+    now = DateTime.utc_now()
+
+    workflow_job_id
+    |> transition(
+      ["claimed", "running"],
+      "running",
+      [
+        runner_name: runner_name,
+        pod_name: pod_name,
+        claimed_at: now,
+        started_at: now,
+        executed_workflow_job_id: workflow_job_id
+      ],
+      claimed_at: stale_claimed_at
+    )
+    |> finish_executing()
+  end
+
+  @doc """
+  Moves a displaced job's row from the claim it was minted under to
+  `claim`, whose minted runner is idle and now reserved for it. CAS
+  `claimed | running → running` guarded on the minting claim's
+  `claimed_at`, stamping `claim`'s Pod, runner and handle so the next
+  `in_progress` webhook resolves the row to the runner that runs it.
+  `started_at` restarts too: the orphan sweep reads it as the moment the
+  row's runner was promised the job, and asks GitHub after five minutes.
+  Returns `:ok` when applied, `:noop` when the row moved on.
+  """
+  def hand_over(workflow_job_id, %DateTime{} = from_claimed_at, %Claim{
+        pod_name: pod_name,
+        runner_name: runner_name,
+        claimed_at: claimed_at
+      })
+      when is_integer(workflow_job_id) do
+    case transition(
+           workflow_job_id,
+           ["claimed", "running"],
+           "running",
+           [
+             pod_name: pod_name,
+             runner_name: runner_name,
+             claimed_at: claimed_at,
+             started_at: DateTime.utc_now(),
+             executed_workflow_job_id: nil
+           ],
+           claimed_at: from_claimed_at
+         ) do
+      {:applied, _row} -> :ok
+      :noop -> :noop
+    end
+  end
+
+  @doc """
   Batch `queued → running` for every row a live claim already records as
   the job its runner is executing, up to `limit`, oldest arrival first.
   Returns the rows it started.
@@ -423,18 +490,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   """
   def exists?(workflow_job_id) when is_integer(workflow_job_id) do
     Repo.exists?(from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id))
-  end
-
-  @doc """
-  The subset of `workflow_job_ids` that have a lifecycle row, whatever
-  its status, as a `MapSet`.
-  """
-  def existing_ids([]), do: MapSet.new()
-
-  def existing_ids(workflow_job_ids) when is_list(workflow_job_ids) do
-    from(j in WorkflowJob, where: j.workflow_job_id in ^workflow_job_ids, select: j.workflow_job_id)
-    |> Repo.all()
-    |> MapSet.new()
   end
 
   @doc """
@@ -843,47 +898,6 @@ defmodule Tuist.Runners.WorkflowJobs do
       end)
 
     outcome
-  end
-
-  @doc """
-  Re-emits the transition event of every terminal row in
-  `replica_rows`, so the flusher writes the row's terminal state to
-  ClickHouse again under a newer version. Returns the number of rows
-  re-emitted.
-
-  `replica_rows` are the diverged ClickHouse rows, as maps carrying
-  `workflow_job_id` and `log_archived_at`. A ClickHouse archive marker
-  is kept when the lifecycle row has none: archives made before the
-  Postgres column existed are recorded only there, and re-emitting the
-  row without it would hide the download.
-
-  Rows that are not terminal, or that no longer exist, are skipped. A
-  terminal row never leaves that state, so the re-emitted event cannot
-  be overtaken by an earlier lifecycle state.
-  """
-  def republish_terminal([]), do: 0
-
-  def republish_terminal(replica_rows) when is_list(replica_rows) do
-    replica_archived_at = Map.new(replica_rows, &{&1.workflow_job_id, &1.log_archived_at})
-
-    {:ok, count} =
-      Repo.transaction(fn ->
-        rows =
-          from(j in WorkflowJob,
-            where: j.workflow_job_id in ^Map.keys(replica_archived_at) and j.status in ^@terminal_statuses,
-            order_by: [asc: j.workflow_job_id],
-            lock: "FOR UPDATE"
-          )
-          |> Repo.all()
-          |> Enum.map(fn row ->
-            %{row | log_archived_at: row.log_archived_at || Map.get(replica_archived_at, row.workflow_job_id)}
-          end)
-
-        :ok = emit_transition_events(rows)
-        length(rows)
-      end)
-
-    count
   end
 
   @doc """

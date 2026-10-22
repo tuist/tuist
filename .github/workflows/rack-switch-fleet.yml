@@ -32,6 +32,7 @@ on:
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_racksites.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
       - infra/helm/tuist/rack-sites/**
@@ -49,6 +50,7 @@ on:
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
       - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_racksites.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
       - infra/helm/tuist/rack-sites/**
@@ -104,6 +106,22 @@ jobs:
 
       - name: Test the fleet configuration
         run: mise run rack:fleet-test
+
+      # A BIRD configuration that does not parse would leave the edges'
+      # BGP container restarting, with the site's prefixes unannounced. Parsed
+      # by the BIRD the edge image installs, on the image's Alpine, pulled from
+      # the ECR copy of Docker's official images: anonymous Docker Hub pulls
+      # from shared runners are intermittently refused.
+      - name: The edges' BIRD configurations parse
+        run: |
+          set -euo pipefail
+          alpine="$(sed -n 's/^ARG ALPINE_VERSION=//p' infra/rack-switch-fleet/edge/Dockerfile)"
+          for conf in infra/helm/rack-edge/sites/*/bird.conf; do
+            [ -e "$conf" ] || continue
+            docker run --rm -v "$PWD/$conf:/bird.conf:ro" "public.ecr.aws/docker/library/alpine:$alpine" \
+              sh -ec 'apk add --no-cache -q bird2 && bird -p -c /bird.conf'
+            echo "parses: $conf"
+          done
 
       # The console bring-up had no tests at all, and it is the one that runs
       # first at a new site, on a machine that is not the one it was written on.
@@ -201,7 +219,8 @@ jobs:
           kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
           kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackpdus.yaml
           kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_rackatses.yaml
-          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev crd/rackpdus.infrastructure.cluster.x-k8s.io crd/rackatses.infrastructure.cluster.x-k8s.io
+          kubectl apply -f infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_racksites.yaml
+          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev crd/rackpdus.infrastructure.cluster.x-k8s.io crd/rackatses.infrastructure.cluster.x-k8s.io crd/racksites.infrastructure.cluster.x-k8s.io
           for site in infra/rack-switch-fleet/sites/*.json; do
             name="$(basename "$site" .json)"
             namespace="$(jq -r '.kubernetes.namespace // empty' "$site")"

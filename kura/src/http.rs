@@ -9,8 +9,8 @@ use std::{
 use axum::{
     Json, Router,
     body::{Body, to_bytes},
-    extract::{MatchedPath, Path as AxumPath, Query, Request, State},
-    http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, Version},
+    extract::{FromRequestParts, MatchedPath, Path as AxumPath, Query, Request, State},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, Version, request::Parts},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
@@ -380,10 +380,11 @@ impl NamespaceQuery {
         }
     }
 
-    fn usage_context(&self) -> UsageContext {
+    fn usage_context(&self, origin: RequestOrigin) -> UsageContext {
         UsageContext {
             tenant_id: self.tenant_id.clone(),
             namespace_id: self.namespace_id.clone(),
+            origin: origin.0,
         }
     }
 }
@@ -500,6 +501,21 @@ struct ProjectAnalyticsContext<'a> {
 struct UsageContext {
     tenant_id: String,
     namespace_id: String,
+    origin: Option<Arc<str>>,
+}
+
+/// Where the credential that authorized the request was issued, when it carried
+/// a signed origin. Set by `authorize_request`; absent on routes it skips and on
+/// nodes without authorization.
+#[derive(Clone, Debug, Default)]
+struct RequestOrigin(Option<Arc<str>>);
+
+impl<S: Send + Sync> FromRequestParts<S> for RequestOrigin {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(parts.extensions.get::<Self>().cloned().unwrap_or_default())
+    }
 }
 
 #[derive(Clone)]
@@ -1420,7 +1436,11 @@ fn retry_after(response: &mut Response, seconds: u64) {
     }
 }
 
-async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
+async fn authorize_request(
+    State(state): State<SharedState>,
+    mut req: Request,
+    next: Next,
+) -> Response {
     let Some(auth) = state.auth.as_ref() else {
         return serve_endpoint_alias(&state, req, next).await;
     };
@@ -1465,6 +1485,13 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
     match access {
         AccessDecision::Allow => {
             access_span.record("kura.auth.result", "allow");
+            if let Some(origin) = context
+                .authorization
+                .as_deref()
+                .and_then(|authorization| auth.origin(authorization))
+            {
+                req.extensions_mut().insert(RequestOrigin(Some(origin)));
+            }
         }
         AccessDecision::Deny(deny) => {
             access_span.record("kura.auth.result", "deny");
@@ -1905,6 +1932,7 @@ async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse 
 }
 
 async fn get_keyvalue(
+    origin: RequestOrigin,
     AxumPath(cas_id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -1913,7 +1941,7 @@ async fn get_keyvalue(
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     let key = action_cache_key(&cas_id);
     match state.store.fetch_inline_artifact_bytes(
@@ -1976,6 +2004,7 @@ async fn get_keyvalue(
 }
 
 async fn get_nx(
+    origin: RequestOrigin,
     AxumPath(hash): AxumPath<String>,
     State(state): State<SharedState>,
     method: Method,
@@ -1984,6 +2013,7 @@ async fn get_nx(
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: NX_NAMESPACE_ID.to_owned(),
+        origin: origin.0,
     };
 
     get_artifact(
@@ -2001,6 +2031,7 @@ async fn get_nx(
 }
 
 async fn put_nx(
+    origin: RequestOrigin,
     AxumPath(hash): AxumPath<String>,
     State(state): State<SharedState>,
     request: Request,
@@ -2008,6 +2039,7 @@ async fn put_nx(
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: NX_NAMESPACE_ID.to_owned(),
+        origin: origin.0,
     };
 
     put_blob_artifact(
@@ -2029,6 +2061,7 @@ async fn put_nx(
 }
 
 async fn get_metro(
+    origin: RequestOrigin,
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
     method: Method,
@@ -2037,6 +2070,7 @@ async fn get_metro(
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: METRO_NAMESPACE_ID.to_owned(),
+        origin: origin.0,
     };
 
     get_artifact(
@@ -2054,6 +2088,7 @@ async fn get_metro(
 }
 
 async fn put_metro(
+    origin: RequestOrigin,
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
     request: Request,
@@ -2061,6 +2096,7 @@ async fn put_metro(
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: METRO_NAMESPACE_ID.to_owned(),
+        origin: origin.0,
     };
 
     put_blob_artifact(
@@ -2082,6 +2118,7 @@ async fn put_metro(
 }
 
 async fn put_keyvalue(
+    origin: RequestOrigin,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
     request: Request,
@@ -2090,7 +2127,7 @@ async fn put_keyvalue(
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     let body = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
         Ok(body) => body,
@@ -2177,6 +2214,7 @@ async fn put_keyvalue(
 }
 
 async fn get_xcode(
+    origin: RequestOrigin,
     AxumPath(id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2189,7 +2227,7 @@ async fn get_xcode(
     };
 
     let analytics = namespace.project_analytics_context();
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     get_artifact(
         state,
@@ -2206,6 +2244,7 @@ async fn get_xcode(
 }
 
 async fn put_xcode(
+    origin: RequestOrigin,
     AxumPath(id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2217,7 +2256,7 @@ async fn put_xcode(
     };
 
     let analytics = namespace.project_analytics_context();
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     put_blob_artifact(
         state,
@@ -2238,6 +2277,7 @@ async fn put_xcode(
 }
 
 async fn get_gradle(
+    origin: RequestOrigin,
     AxumPath(cache_key): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2250,7 +2290,7 @@ async fn get_gradle(
     };
 
     let analytics = namespace.project_analytics_context();
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     get_artifact(
         state,
@@ -2267,6 +2307,7 @@ async fn get_gradle(
 }
 
 async fn put_gradle(
+    origin: RequestOrigin,
     AxumPath(cache_key): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2278,7 +2319,7 @@ async fn put_gradle(
     };
 
     let analytics = namespace.project_analytics_context();
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     put_blob_artifact(
         state,
@@ -2333,6 +2374,7 @@ async fn head_module(
 }
 
 async fn get_module(
+    origin: RequestOrigin,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
     method: Method,
@@ -2342,7 +2384,7 @@ async fn get_module(
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
-    let usage = query.namespace.usage_context();
+    let usage = query.namespace.usage_context(origin);
 
     get_artifact(
         state,
@@ -2532,6 +2574,7 @@ async fn upload_module_part(
 }
 
 async fn complete_module_upload(
+    origin: RequestOrigin,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
     Json(body): Json<CompleteMultipartRequest>,
@@ -2561,6 +2604,7 @@ async fn complete_module_upload(
         .map(|upload| UsageContext {
             tenant_id: upload.tenant_id,
             namespace_id: upload.namespace_id,
+            origin: origin.0,
         });
 
     match state
@@ -4288,12 +4332,14 @@ fn record_usage_event(
         "download" => usage.record_public_download(
             &context.tenant_id,
             &context.namespace_id,
+            context.origin.as_ref(),
             artifact_kind,
             size,
         ),
         "upload" => usage.record_public_upload(
             &context.tenant_id,
             &context.namespace_id,
+            context.origin.as_ref(),
             artifact_kind,
             size,
         ),
@@ -7573,6 +7619,95 @@ mod tests {
             .await;
     }
 
+    // Requests authorized by a cache token carrying a signed origin book their
+    // usage under it, uploads and downloads alike; the middleware hands it to
+    // the handler, which never reads it off the request itself.
+    #[tokio::test]
+    async fn keyvalue_usage_carries_the_origin_of_the_authorizing_credential() {
+        const SECRET: &str = "origin-usage-secret";
+        let auth = Arc::new(
+            crate::auth::AuthEngine::new(
+                crate::auth::config::AuthConfig {
+                    base_url: "http://127.0.0.1:1".into(),
+                    connect_timeout: Duration::from_millis(50),
+                    request_timeout: Duration::from_millis(50),
+                    verifier: Some(crate::auth::tuist::JwtVerifier {
+                        algorithm: jsonwebtoken::Algorithm::HS256,
+                        keys: crate::auth::tuist::JwtVerifier::secret_keys(SECRET),
+                        issuer: None,
+                        audiences: Vec::new(),
+                    }),
+                    introspection: None,
+                    cache_max_entries: 128,
+                },
+                crate::metrics::Metrics::new("test".into(), "tenant".into()),
+            )
+            .expect("build the policy engine"),
+        );
+        let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &serde_json::json!({
+                "sub": "test",
+                "type": "subject",
+                "scopes": ["project_cache_write"],
+                "cache_grants": { "project": { "write": ["test-tenant/ios"] } },
+                "cache_origin": "NL",
+                "exp": 4_102_444_800_u64,
+            }),
+            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .expect("mint a policy token");
+        let context = crate::test_support::test_context_with_auth(
+            |config| config.usage = Some(test_usage_config()),
+            Some(auth),
+        )
+        .await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=test-tenant&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-1","entries":[{"value":"x"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/cas-1?tenant_id=test-tenant&namespace_id=ios")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+        assert_eq!(rollups.len(), 2, "{rollups:?}");
+        assert!(
+            rollups
+                .iter()
+                .all(|rollup| rollup.origin.as_deref() == Some("NL")),
+            "{rollups:?}"
+        );
+    }
+
     #[tokio::test]
     async fn keyvalue_routes_emit_usage_events() {
         let context = test_context(|config| {
@@ -9664,6 +9799,7 @@ mod tests {
             usage: Some(UsageContext {
                 tenant_id: context.state.config.tenant_id.clone(),
                 namespace_id: "ios".to_owned(),
+                origin: None,
             }),
             analytics: None,
             analytics_key: "builds/hash/Module.framework".to_owned(),

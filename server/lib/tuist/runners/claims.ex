@@ -992,10 +992,13 @@ defmodule Tuist.Runners.Claims do
       runner than the one claimed (the claim↔execution mismatch we're
       measuring). `displaced` names the detached job and whether its
       lifecycle row was `requeued` (false when a completion or a newer
-      claim already moved it past the handle guard). `nil` when there is
-      nothing to hand back: a redelivery that finds the job already
-      detached, or a claim whose generation moved on between the read and
-      the write.
+      claim already moved it past the handle guard). When another
+      minted claim of the same fleet still names the executed job, that
+      runner is idle, so the detached job moves onto that claim instead
+      of the queue and `displaced` carries `handed_to`, its Pod. `nil`
+      when there is nothing to hand back: a redelivery that finds the
+      job already detached, or a claim whose generation moved on between
+      the read and the write.
     * `:unknown_runner` — no live claim carries this `runner_name`
       (a dropped/late webhook, or the claim already completed). The
       durable session binding is the backstop for this case.
@@ -1003,57 +1006,138 @@ defmodule Tuist.Runners.Claims do
   def record_execution(runner_name, executed_workflow_job_id, account_id)
       when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
              is_integer(account_id) do
-    claim =
-      Claim
-      |> where([c], c.runner_name == ^runner_name and c.account_id == ^account_id)
-      |> limit(1)
-      |> Repo.one()
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["runner_executions:#{account_id}"])
 
-    case claim do
-      nil ->
-        :unknown_runner
+        case lock_execution_claims(runner_name, executed_workflow_job_id, account_id) do
+          {nil, _stale_claim} ->
+            :unknown_runner
 
-      %Claim{workflow_job_id: ^executed_workflow_job_id} = claim ->
-        bind_execution(claim, executed_workflow_job_id: executed_workflow_job_id)
-        :matched
+          {%Claim{workflow_job_id: ^executed_workflow_job_id} = claim, _stale_claim} ->
+            bind_execution(claim, executed_workflow_job_id: executed_workflow_job_id)
+            :matched
 
-      %Claim{} = claim ->
-        {:mismatch, detach_displaced_job(claim, executed_workflow_job_id)}
-    end
+          {%Claim{} = claim, stale_claim} ->
+            {:mismatch, detach_displaced_job(claim, executed_workflow_job_id, stale_claim)}
+        end
+      end)
+
+    outcome
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
 
-  defp detach_displaced_job(
-         %Claim{workflow_job_id: claimed_job_id, claimed_at: claimed_at} = claim,
-         executed_workflow_job_id
-       ) do
-    {:ok, displaced} =
-      Repo.transaction(fn ->
-        case bind_execution(claim,
-               executed_workflow_job_id: executed_workflow_job_id,
-               workflow_job_id: nil
-             ) do
-          1 ->
-            adopt_executed_job(claim, executed_workflow_job_id)
-            requeue_displaced_job(claimed_job_id, claimed_at)
+  # The runner's claim together with any stale claim naming the executed
+  # job: dispatch can hand out a job GitHub has already started elsewhere,
+  # because the `in_progress` webhook that proves it lands seconds later,
+  # and that claim then names a job its runner will never run. The
+  # caller's per-account advisory lock runs these webhooks one at a time,
+  # so this statement sees every claim the previous one rebound; a row
+  # lock alone does not, because a claim that started naming the executed
+  # job after this statement's snapshot is never returned to it. The rows
+  # are still locked, ordered by Pod, against the other claim writers.
+  defp lock_execution_claims(runner_name, executed_workflow_job_id, account_id) do
+    claims =
+      Claim
+      |> where(
+        [c],
+        c.account_id == ^account_id and
+          (c.runner_name == ^runner_name or c.workflow_job_id == ^executed_workflow_job_id)
+      )
+      |> order_by([c], c.pod_name)
+      |> lock("FOR UPDATE")
+      |> Repo.all()
 
-          0 ->
-            nil
-        end
-      end)
+    case Enum.find(claims, &(&1.runner_name == runner_name)) do
+      nil ->
+        {nil, nil}
 
-    displaced
+      %Claim{pod_name: pod_name} = claim ->
+        stale_claim =
+          Enum.find(claims, fn candidate ->
+            candidate.pod_name != pod_name and candidate.workflow_job_id == executed_workflow_job_id and
+              is_nil(candidate.executed_workflow_job_id)
+          end)
+
+        {claim, stale_claim}
+    end
+  end
+
+  defp detach_displaced_job(%Claim{workflow_job_id: claimed_job_id} = claim, executed_workflow_job_id, stale_claim) do
+    case bind_execution(claim,
+           executed_workflow_job_id: executed_workflow_job_id,
+           workflow_job_id: nil
+         ) do
+      1 ->
+        adopt_executed_job(claim, executed_workflow_job_id, stale_claim)
+        hand_over_or_requeue_displaced_job(claimed_job_id, claim, stale_claim)
+
+      0 ->
+        nil
+    end
   end
 
   # The slot moves from the claimed job to the executed one, so both
   # lifecycle rows move with it, in the transaction that moves the claim.
   # Nothing else will start the executed job: it was never claimed by this
   # Pod, so `mark_running/3` runs for a different row, and GitHub sends no
-  # further webhook until the job is over. Guarded on `queued`, so a row
-  # another Pod holds under its own claim generation is left to it.
-  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name}, executed_workflow_job_id) do
+  # further webhook until the job is over.
+  #
+  # When a stale claim holds the row, the row moves off its handle, so
+  # that claim's later detach cannot re-queue a job that is running.
+  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name}, executed_workflow_job_id, nil) do
     WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name)
+  end
+
+  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name}, executed_workflow_job_id, %Claim{
+         claimed_at: stale_claimed_at
+       }) do
+    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at) do
+      :ok -> :ok
+      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name)
+    end
+  end
+
+  # The stale claim's runner is idle and carries the same labels, so it is
+  # the runner GitHub will place the displaced job on. Re-queueing it
+  # instead reserves another Pod for it, one runner more than there are
+  # jobs, and the spare idles until its timeout holding the account's
+  # capacity. A claim that has not minted yet is left alone: its promotion
+  # in `mark_running/3` is keyed on the job it names.
+  defp hand_over_or_requeue_displaced_job(
+         claimed_job_id,
+         %Claim{fleet_name: fleet_name, claimed_at: claimed_at},
+         %Claim{fleet_name: fleet_name, lifecycle_state: "running"} = stale_claim
+       )
+       when is_integer(claimed_job_id) do
+    case WorkflowJobs.hand_over(claimed_job_id, claimed_at, stale_claim) do
+      :ok ->
+        1 = rebind_claim(stale_claim, claimed_job_id)
+        %{workflow_job_id: claimed_job_id, requeued: false, handed_to: stale_claim.pod_name}
+
+      :noop ->
+        requeue_displaced_job(claimed_job_id, claimed_at)
+    end
+  end
+
+  defp hand_over_or_requeue_displaced_job(claimed_job_id, %Claim{claimed_at: claimed_at}, _stale_claim) do
+    requeue_displaced_job(claimed_job_id, claimed_at)
+  end
+
+  defp rebind_claim(
+         %Claim{pod_name: pod_name, claimed_at: claimed_at, workflow_job_id: workflow_job_id},
+         new_workflow_job_id
+       ) do
+    {count, _} =
+      Repo.update_all(
+        from(c in Claim,
+          where: c.pod_name == ^pod_name and c.claimed_at == ^claimed_at and c.workflow_job_id == ^workflow_job_id
+        ),
+        set: [workflow_job_id: new_workflow_job_id]
+      )
+
+    count
   end
 
   # Writes the claim that was read, by its primary key, rather than every

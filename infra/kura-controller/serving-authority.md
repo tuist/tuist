@@ -21,7 +21,10 @@ Measure clock agreement before granting authority. A host outside the bounded
 clock allowance must remain fenced; do not extend the grant lifetime to hide an
 NTP failure. Inspect `kura.serving_authority.unavailable` for lifetime rejection.
 
-A separate reconciliation queue renews 15-second grants. The runtime polls with
+A separate reconciliation queue on every controller replica renews 15-second
+grants, independently of leader election. Resource-version compare-and-swap
+serializes renewals and transitions, so an old replica cannot overwrite a newer
+fencing or promotion decision. The runtime polls with
 a one-second request timeout on a dedicated OS thread. It checks wall-clock and
 monotonic deadlines with a two-second safety allowance. Admission and metadata
 publication are checked separately, including detached blocking commits and
@@ -71,10 +74,29 @@ the exact replacement pod and incarnation on another host. Crash promotion may
 lose acknowledged writes that had not yet replicated; clients must rebuild a
 cache miss rather than treating the asynchronous cache as durable storage.
 
+A **kubelet-verified container exit** is positive fencing for that process. At
+start the runtime writes `kura-incarnation=<incarnation>` to
+`/dev/termination-log`, so the terminated container's message names the exact
+process. When the holder pod's status reports that message, the controller
+moves to `Fencing` without waiting for grant expiry and records the evidence as
+`holder_exit` on the grant. A restarted container in the same pod (same pod
+UID and host) reports the inherited holder as `exit_resume`; the controller
+grants it the next epoch with an `exit_resume` binding to the exited holder,
+and the runtime reopens its own marked volume only for that grant. If no such
+restart is ready 60 seconds after the exit was recorded, the controller
+promotes a ready standby on another host whose initial backfill completed. A
+process holding an inherited volume reports not ready until its exit resume
+installs, so after a promotion the old ordinal stays unready and marked and
+needs the replica recovery below.
+A current operator `primaryPromotion` request takes precedence. Host loss,
+partitions and interrupted handovers report no exit and keep the manual path.
+
 An active primary fsyncs `.kura.primary-unclean` on its data volume. Only a
 successful planned revocation removes it. A crashed/expired primary's volume
 cannot restart into the peer plane, including after the feature flag is removed.
-Quarantine and rebuild it; do not manually erase the marker.
+The only reopening is an exit resume in the same pod, which rewrites the marker
+for the new holder. Otherwise quarantine and rebuild it; do not manually erase
+the marker.
 Every activated volume also fsyncs `.kura.serving-floor` with its instance UID.
 Compatible runtimes reject disabling authority or reusing that volume for another
 instance, including on a clean standby. Older binaries do not understand this
@@ -85,7 +107,31 @@ floor and remain prohibited after activation.
 `plannedHandover` names one destination pod UID and runtime incarnation. The
 controller waits for the source to report the current valid Serving grant before
 starting preparation, including after a live-writer resumption.
-The source rejects new mutations, drains admitted work, and freezes metadata
+
+When the destination advertises `preparation_supported`, the controller first
+publishes the named intent while leaving the source in `Serving`. The source
+continues accepting reads and writes with normal 15-second lease renewal. The
+destination performs bounded retained-index catch-up with normal background
+bandwidth admission and no corpus hold. It completes one retained walk; live
+eviction does not restart preparation. Requiring an eviction-free pass here can
+keep chasing concurrent writes until the preparation deadline. Final Quiescing
+repair still repeats on eviction before atomically taking its retained-corpus hold.
+The source remains mutable: writes and existing peer-read promotions can cause
+normal cache eviction during preparation. The retained-data guarantee covers the
+corpus frozen in Quiescing, not every entry present when preparation began.
+This phase has its own fixed 20-minute deadline, preserved across reconciliation
+and controller restart. Failure, cancellation, changed destination identity or
+timeout clears the pending intent without pausing the primary; a new request ID is
+required to retry. Source expiry still requires positive fencing.
+
+Only a fresh completion report matching the exact intent, source epoch and both
+identities starts `Quiescing` with its original 300-second deadline. Preparation
+is not a retained-data receipt: live writes and eviction can change either corpus,
+so every existing barrier and revocation check still runs. Older destinations
+retain the direct-quiescence path. Upgrade all controller replicas and the clean
+standby before requesting this flow; the source may remain on the earlier runtime.
+
+The source then rejects new mutations, drains admitted work, and freezes metadata
 publication and eviction. The destination must have durably reached the source's
 final feed incarnation/head, then reconcile the source's complete retained index
 before freezing its retained corpus. This bounded replication pass fetches missing
@@ -95,16 +141,20 @@ an incompatible or undersized destination can still fail the final barrier.
 Named repair bypasses the recency cutoff at listing and dispatch: an older
 missing record still belongs to the source's retained corpus. Ordinary catch-up
 keeps its recency policy. Repair does not increase ring capacity or bypass disk
-admission; normal rotation can still evict other required records, in which case
-the final full-corpus check refuses promotion. Equal-sized fragmented replicas
-are not guaranteed to hold the same corpus.
+admission. If rotation evicts records during a repair pass, the destination walks
+the retained index again before taking its hold; this also repairs action-cache
+entries cascaded away by blob eviction after an earlier presence check. A pass
+without eviction acquires the hold atomically with its eviction-generation check.
+All Quiescing repair passes share its original 300-second deadline. Equal-sized fragmented
+replicas are not guaranteed to converge; the final full-corpus check still
+refuses promotion when required data remains missing.
 Only one repair runs per destination, and an abort, changed intent or deadline
 cancels it. A retry after the destination is frozen does not repair or release
 that hold. Older destinations keep their verify-only behavior. Verification
 walks the complete retained index in bounded pages, hashes metadata and bodies
 with a 64 KiB buffer, and verifies namespace tombstones against that destination.
 A bootstrapped state, cursor or consumer count alone cannot satisfy the barrier.
-Missing, capacity-skipped, changed or unreadable data fails preparation.
+Missing, capacity-skipped, changed or unreadable data fails retained-corpus verification.
 Compatible destinations advertise bounded batch verification on the initial
 response. The source sends at most 32 record descriptors, 64 KiB of descriptor
 JSON and 8 MiB of referenced bodies per batch (a single larger record travels
@@ -112,15 +162,15 @@ alone). Both peers still hash every byte sequentially with the same buffer and
 ordered receipt digest. This removes per-record network round trips without
 adding parallel readers. Older destinations use the individual-record path;
 older sources remain supported. Rejections name the failing record within a
-batch, and a partial batch acknowledgment cannot complete preparation.
+batch, and a partial batch acknowledgment cannot complete verification.
 
 Both nodes fsync the same named receipt. The source then positively acknowledges
 revocation while holding the same publication mutex used by public writes.
 Only that acknowledgment allows the next epoch. A restarted destination cannot
 reuse an old receipt: receipt ownership and the retained-corpus hold are specific
 to the live runtime incarnation. An authoritative abort or completed transfer
-releases the holds. Preparation has a 300-second deadline; a healthy source is
-restored on preparation timeout. A source lost during preparation requires
+releases the holds. Quiescing has a 300-second deadline; a healthy source is
+restored on verification timeout. A source lost during Quiescing requires
 external fencing. Large corpora may exceed the deadline because this initial
 implementation verifies every retained byte; do not increase it casually.
 
@@ -155,8 +205,13 @@ One non-expiring namespace-wide Lease serializes all rebuilds, deliberately
 stricter than separate source/destination host limits. Controller restart retains
 ownership; a failed rebuild does not release its slot or escalate to another
 ordinal. Successful verification releases the slot. Investigate interrupted
-journals before any manual release. Resize, evacuation and automatic image
-replacement are excluded for activated instances.
+journals before any manual release. Evacuation and automatic image
+replacement are excluded for activated instances. A grown claim is applied
+standby-first: only a Ready, settled Serving grant with no handover or
+unfinished recovery lets the controller re-template the StatefulSet and rebuild
+a standby's volume. It never touches the holder's claim; that one waits until a
+planned handover revokes it. A destination larger than its source also gives the
+final retained repair room to converge on a full ring.
 Placement changes are reconciled during rebuilding. Only a replacement that is
 still unscheduled and has an obsolete node selector is recreated; its new claim
 is retained and the serving sibling is untouched.
@@ -193,6 +248,16 @@ source still uses individual-record verification; batching applies after the
 source supports negotiation too. Keep `OnDelete` and the explicit image pin
 through this procedure.
 
+While the requested image waits on this procedure, `status.imageHold` reads
+`FencedImagePin` (the pin differs from the requested image) or
+`FencedReplacement` (the template carries the qualified image and old-revision
+pods remain). The control plane's progressive rollout leaves a held server out
+of wave convergence instead of pausing the fleet at the wave deadline, so a
+fenced instance never blocks other accounts. It does not soak the target on
+the held instance: the operator procedure is that instance's qualification,
+and once both pods run the requested image the server rejoins convergence and
+the health gate. A canary wave made only of held servers still pauses.
+
 `/status/rollout.serving_authority` exposes identity, observed grant, deadline,
 in-flight mutations, receipt and revocation acknowledgment. The ConfigMap keeps
 the epoch, phase, reason and fence evidence. Recovery phases/IDs are in the CR's
@@ -203,10 +268,14 @@ Controller metrics expose phase gauges and the latest valid-holder observation.
 `serving-authority-alerts.yaml` supplies example rules for fencing, an
 unacknowledged holder and a stalled rebuild; install them in the environment's
 alerting system before activation. They are not installed by the staging fixture.
-The authority-enabled controller uses 5/3/1-second leader lease/renew/retry
-timings and releases leadership on graceful cancellation. A longer interruption
-still expires authority and requires positive fencing. Upgrade runtime and
-controller in either order: old runtimes cannot acknowledge live-writer fencing,
+The workload controller uses 5/3/1-second leader lease/renew/retry timings and
+releases leadership after graceful shutdown. Authority reconciliation runs on
+all replicas because unrelated workers can keep that lease while draining after
+grant renewal has stopped. A surviving replica can continue renewing during
+that interval. Loss of all authority reconcilers still expires grants and
+requires positive fencing. Run at least two controller replicas for rollout
+continuity; a single replica cannot renew grants while its only process restarts.
+Upgrade runtime and controller in either order: old runtimes cannot acknowledge live-writer fencing,
 and old controllers ignore that additive report. Recovery becomes automatic only
 when both support it; rollback to either old component leaves an expired writer
 closed and needing the original external recovery procedure.

@@ -184,4 +184,3 @@ STUB
     run env PATH="$stub:$PATH" bash -c 'ipconfig getifaddr lo0'
     [ "$output" = "127.0.0.1" ]
 }
-

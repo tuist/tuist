@@ -599,6 +599,20 @@ in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)
 That observation replaces an SNMP exporter: nothing polls these switches over
 SNMP.
 
+### RackSite object
+
+Each site is rendered as a `RackSite` into `k8s/<site>/<site>.yaml` by
+`fleet_render_site`, named after the site and applied with the rest of the
+directory. Its `spec.contractedPower` comes from the site definition's
+`contracted_power`: the power the colocation contract allows, as
+`{"from": "YYYY-MM-DD", "watts": N}` steps, each in effect from that day (UTC)
+until the next one's. When the contract changes, add a step here. Don't edit the
+alert. `fleet_check_contracted_power` refuses a `from` that is not a real day, a
+`watts` that is not a whole number above 0, and two steps on one day. A site
+without `contracted_power` still gets its object, with no steps. What the
+controller does with it is "RackSite" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+
 ### The seam between two inventories, and how it is joined
 
 This file's site definition and `rackFleet.hosts` describe overlapping things.
@@ -911,7 +925,9 @@ files no longer match it:
   every upgrade. Only the edges are on the VRRP VLAN, so a device that can send
   to an edge cannot read it. Delete the Secret and upgrade to rotate it: until
   both edges restart, each ignores the other and both hold the addresses.
-- `mgmt-path.sh`, what each edge needs whether it is master or not: the VRRP
+- `mgmt-path.sh`, what each edge needs whether it is master or not: the
+  uplinks' rings at 4096 RX and TX descriptors (i40e's 512 overflowed on the
+  WAN's bursts, counted as `rx_missed_errors` in `ethtool -S`), the VRRP
   VLAN as an active-backup bond (`vrrp0`) over one VLAN interface per uplink,
   so VRRP survives losing either ToR, with this edge's own VRRP address, the
   machines VLAN as a second bond (`machines0`) with this edge's own address on
@@ -1072,7 +1088,8 @@ installer's software reproduces that.
 
 The rack's only way to the internet is its upstream's handoff, a static
 address with no DHCP: Cogent's `149.6.170.31/31` behind `149.6.170.30`, and
-`2001:978:2:b::4:11/127` behind `::4:10`, one public IPv4 address in all.
+`2001:978:2:b::4:11/127` behind `::4:10`, the upstream's addresses, over which
+the site announces prefixes of its own (below).
 `management.edge.wan` names the VLAN it rides (4001, `carried_by: edges`), the
 addresses and the gateways.
 
@@ -1123,9 +1140,44 @@ addresses and the gateways.
 - **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
   started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
   41641 for direct tailnet paths, and drops everything else arriving on
-  `wan0`, forwarded or not. The edges' SSH, kubelets and boot server are
-  reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
+  `wan0`, except what the edge translated itself (`ct status dnat`): the
+  cluster ports of the site's cluster-network storage host, from the
+  cluster's nodes only, in the `tuist_cluster_forwards` table the CAPI operator
+  renders into the edge's node configuration (see "A storage node on the
+  cluster network" in `infra/rack-nodes/AGENTS.md`). The edges' SSH, kubelets
+  and boot server are reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
   no room for the machines.
+- **The site's own prefixes.** `management.edge.wan.bgp` names the site's AS
+  (`asn`, AS218377), the upstream's (`peer_asn`, Cogent's AS174) and the
+  prefixes it announces (`95.130.119.0/24` and `2a11:83c0::/29`, registered to
+  Tuist GmbH with RIPE route objects and ROAs for AS218377). `render` writes
+  `bird.conf` (`fleet_edge_bgp`), and the static pod runs BIRD on both edges
+  with it: one session per family to the WAN gateways, bound to the WAN
+  addresses and `direct`, so only the master has sessions and they move with
+  keepalived. A failover drops the sessions; the new master's connect within
+  seconds, and graceful restart asks the upstream to keep the routes
+  meanwhile. Each prefix is a blackhole in BIRD's own table and nothing BIRD
+  learns goes into the node's routes, so the default through the WAN stays
+  keepalived's and announcing changes nothing the rack sends on its own: what
+  moves machines onto the prefix is the egress below. Of what the upstream sends, only
+  a default route is kept. `birdc -s /run/bird/bird.ctl show protocols` in
+  the pod's `bgp` container shows the sessions. CI parses every site's
+  `bird.conf` with the BIRD the edge image installs.
+- **Egress from the site's own prefix.** `management.edge.wan.egress.prefix`
+  is an IPv4 block inside a prefix `bgp` announces (`95.130.119.16/28`), and
+  the Mac minis on the machines segment go out to the WAN translated into it
+  instead of onto the WAN address: one `snat ... persistent` rule in
+  `mgmt-path.sh`, ahead of the segment's masquerade, so a mini keeps the same
+  address of the block across its connections. The upstream routes the
+  announced prefix to the WAN address, and the replies are untranslated by
+  conntrack before routing, so the edges hold no address of the block.
+  `egress.nodes` limits it to the named minis, for moving them over one env
+  at a time: `ber1-runner-b01` (staging's lent mini) first, then
+  `ber1-runner-b02` (canary's), then the key dropped so every mini moves.
+  The storage nodes never move: their cluster addresses are the WAN address,
+  forwarded to them by the edges, and their egress has to match. `render`
+  refuses a block outside the announced prefixes and a node that is not a
+  Mac mini on the segment (`fleet_edge_check_egress`).
 
 ### Cold boot
 
@@ -1253,6 +1305,13 @@ service range (`10.128.0.0/12`) and the VRRP link.
   rather than the prefix, for the reason the ACL file gives: under its
   catch-all grant, whatever is advertised is reachable from every device on
   the tailnet.
+- **The rack's caches** are on the segment too, on its storage nodes: the
+  Kura gateway the VMs reach (`rackFleet.vmCacheGatewayCIDRs`) and the VM
+  image cache the hosts pull golden bases from (`rackFleet.imageCache.nodes`,
+  see "The rack's VM image cache" in `infra/rack-nodes/AGENTS.md`). The render
+  refuses either unless it names a storage node of the site that is in the
+  rack, at its RackLinuxHost's address, so moving a storage node moves its
+  caches in the same change.
 
 Moving a host that is already on another network onto the segment: its SSH
 guard admits only the sources its RackHost lists, and the RackHost changes

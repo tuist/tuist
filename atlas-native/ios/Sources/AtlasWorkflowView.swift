@@ -39,7 +39,7 @@ struct AtlasWorkflowView: View {
                     } else { Text("You have read-only access to workflows.") }
                 } else {
                     Text("This contract needs controls that are not supported on mobile yet. Open Atlas on the web to run it.")
-                    if let base = AtlasCore.sections().first(where: { $0.kind == "automation" })?.url {
+                    if let base = AtlasCore.sections().first(where: { $0.screen == "automation" })?.url {
                         Link("Open workflow on web", destination: authentication.destination(base.appendingPathComponent(id)))
                     }
                 }

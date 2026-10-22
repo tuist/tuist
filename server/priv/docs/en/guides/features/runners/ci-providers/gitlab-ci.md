@@ -15,7 +15,7 @@
 Your pipelines stay in GitLab. Tuist provides an isolated Linux or macOS machine for each job and reports its logs and outcome to GitLab and the Tuist dashboard. GitLab 19.3 or newer is required. GitLab.com and self-managed instances reachable over public HTTPS are supported.
 
 1. **Create a GitLab runner.** In your project's **Settings → CI/CD → Runners**, create a project runner. You can also use a group runner. Add all the Tuist profile labels you want to use as runner tags, for example `tuist-linux` and `tuist-macos`, and disable **Run untagged jobs**. Keep the authentication token GitLab shows, which starts with `glrt-`. You do not need to install a runner on your own machine.
-2. **Connect once in Tuist.** In **Settings → Integrations**, choose **Connect** on the GitLab CI card. Enter only your GitLab URL and runner authentication token. The connection can serve jobs using different profiles. Tokens are stored encrypted and are never displayed again.
+2. **Connect once in Tuist.** In **Settings → Integrations**, choose **Connect** on the GitLab CI card. Enter your GitLab URL and runner authentication token. The connection can serve jobs using different profiles. Tokens are stored encrypted and are never displayed again. Optionally, add an API access token so that merge request pipelines can save cache volumes; see [Merge request pipelines](#merge-request-pipelines).
 3. **Choose the machine in each job.** Set exactly one <.localized_link href="/guides/features/runners/profiles">Tuist profile label</.localized_link> in the job's `tags`. Other tags are allowed, provided the registered GitLab runner also has them:
 
    ```yaml
@@ -48,10 +48,19 @@ GitLab marks a job as running, and starts its timeout, as soon as Tuist acquires
 
 ## Rotating tokens and disconnecting {#rotating-tokens-and-disconnecting}
 
-Update the connection's token and choose **Save changes** to rotate it. Leaving the token blank preserves the existing credential.
+Update the connection's tokens and choose **Save changes** to rotate them. Leaving a token blank preserves the existing credential.
 
 **Disconnect** stops acquisition and fails waiting assignments. Running jobs continue with their own credentials. If GitLab cannot be reached, Tuist retains the disabled connection while retrying the cancellation of waiting assignments. The connection is removed once those assignments have settled.
 
 ## Cache volumes {#cache-volumes}
 
-Persist dependency directories between Linux jobs with <.localized_link href="/guides/features/runners/cache-volumes#gitlab-ci">cache volumes</.localized_link>. Attach the volume before installing dependencies.
+Keep the Xcode, module and Gradle caches and other directories between jobs with <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link>. Add them after checkout and before the commands that use them.
+
+### Merge request pipelines {#merge-request-pipelines}
+
+Push, schedule and web pipelines of the project save their changes to cache volumes. Merge request pipelines use the cache, and save their changes only when the connection has an API access token:
+
+1. In GitLab, create a project or group access token with the **Reporter** role and the `read_api` scope. A group token covers every project in the group that runs on Tuist runners.
+2. In **Settings → Integrations**, paste it into **API access token** on the GitLab CI card and choose **Save changes**.
+
+Tuist then reads each merge request pipeline's merge request. Pipelines of merge requests opened from a branch of the project itself save their changes under the merge request's source branch, so the runner profile's <.localized_link href="/guides/features/runners/cache-volumes#choose-which-branches-save">branch settings</.localized_link> apply to that branch. Merge requests from forks never save. If Tuist can't read the merge request, the job still runs and uses the cache, but its changes are discarded.

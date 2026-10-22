@@ -11,12 +11,10 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
   alias Tuist.FeatureFlags
-  alias Tuist.Kura.Usage
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Prepaid
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.CldrHelpers
-  alias TuistWeb.Utilities.Query
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
@@ -44,82 +42,31 @@ defmodule TuistWeb.UsageLive do
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
-     |> assign(:usage_based_pricing, FeatureFlags.usage_based_pricing_enabled?(account))
      |> assign(:cache_view, "charge")
      |> assign(:prepaid_balance, prepaid_balance)}
   end
 
-  @widgets ["egress", "ingress", "requests"]
   @cache_views ["charge", "egress", "requests"]
 
   @impl true
   def handle_params(
         params,
         uri,
-        %{
-          assigns: %{
-            selected_account: account,
-            periods: periods,
-            prepaid_balance: prepaid_balance,
-            usage_based_pricing: usage_based_pricing
-          }
-        } = socket
+        %{assigns: %{selected_account: account, periods: periods, prepaid_balance: prepaid_balance}} = socket
       ) do
     period = selected_period(periods, params["period"])
-    selected_widget = widget_param(params["widget"])
 
     runner_breakdown = Allowance.period_breakdown(account, period)
 
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
-     |> assign(:analytics_period, period)
      |> assign(:selected_period, period)
-     |> assign(:bucket, :day)
-     |> assign(:analytics_selected_widget, selected_widget)
-     |> assign(:analytics_trend_label, dgettext("dashboard_usage", "since the previous period"))
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:prepaid_coverage, period_coverage(prepaid_balance, runner_breakdown, period == hd(periods)))
-     |> assign_usage_pricing(usage_based_pricing, account, period)
-     |> assign_cache_traffic(usage_based_pricing, account, period)}
-  end
-
-  defp assign_cache_traffic(socket, true, _account, _period), do: socket
-
-  defp assign_cache_traffic(socket, false, account, {start_dt, end_dt}) do
-    # The page reports one billing period, so the cache traffic beside
-    # the runner usage is scoped to the same window rather than to a
-    # range of its own. Daily buckets: a period is a month, and an hourly
-    # bucket over a month is unreadable.
-    base_opts = [bucket: :day]
-    egress_opts = Keyword.merge(base_opts, direction: "egress", metric: :bytes)
-    ingress_opts = Keyword.merge(base_opts, direction: "ingress", metric: :bytes)
-    requests_opts = Keyword.put(base_opts, :metric, :requests)
-
-    usage_end = if DateTime.before?(DateTime.utc_now(), end_dt), do: DateTime.utc_now(), else: end_dt
-
-    assign_async(
-      socket,
-      [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
-      fn ->
-        {:ok,
-         %{
-           totals: Usage.totals(account.id, start_dt, usage_end, base_opts),
-           egress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, egress_opts),
-           ingress_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, ingress_opts),
-           requests_series: Usage.traffic_time_series_by_region(account.id, start_dt, usage_end, requests_opts),
-           per_region: Usage.per_region(account.id, start_dt, usage_end, base_opts)
-         }}
-      end
-    )
-  end
-
-  defp assign_usage_pricing(socket, false, _account, _period), do: assign(socket, :usage_pricing, nil)
-
-  defp assign_usage_pricing(socket, true, account, period) do
-    assign_async(socket, :usage_pricing, fn ->
-      {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
-    end)
+     |> assign_async(:usage_pricing, fn ->
+       {:ok, %{usage_pricing: UsagePricing.period_breakdown(account, period)}}
+     end)}
   end
 
   # A prepaid balance is what the account holds today, so it describes
@@ -163,127 +110,8 @@ defmodule TuistWeb.UsageLive do
     {:noreply, assign(socket, :cache_view, cache_view_param(view))}
   end
 
-  def handle_event("select_widget", %{"widget" => widget}, socket) do
-    {:noreply, push_patch_with_param(socket, "widget", widget)}
-  end
-
-  def handle_event(
-        "analytics_period_changed",
-        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
-        socket
-      ) do
-    query_params =
-      if preset == "custom" do
-        socket.assigns.uri.query
-        |> Query.put("usage-date-range", "custom")
-        |> Query.put("usage-start-date", start_date)
-        |> Query.put("usage-end-date", end_date)
-      else
-        Query.put(socket.assigns.uri.query, "usage-date-range", preset)
-      end
-
-    {:noreply, push_patch(socket, to: "/#{socket.assigns.selected_account.name}/usage?#{query_params}")}
-  end
-
-  defp push_patch_with_param(socket, key, value) do
-    query = Query.put(socket.assigns.uri.query || "", key, value)
-    push_patch(socket, to: "/#{socket.assigns.selected_account.name}/usage?#{query}")
-  end
-
   defp cache_view_param(view) when view in @cache_views, do: view
   defp cache_view_param(_view), do: "charge"
-
-  defp widget_param(widget) when widget in @widgets, do: widget
-  defp widget_param(_), do: "egress"
-
-  @doc """
-  echarts `extra_options` for the traffic chart. The y-axis + tooltip
-  formatter depend on which widget is selected: bytes for egress/ingress,
-  raw count for requests.
-  """
-  def traffic_chart_options(dates, selected_widget) do
-    {axis_formatter, tooltip_format} = formatters_for(selected_widget)
-
-    %{
-      legend: chart_legend(),
-      grid: %{width: "97%", left: "0.4%", height: "78%", top: "8%"},
-      xAxis: %{
-        boundaryGap: false,
-        type: "category",
-        axisLabel: %{
-          color: "var:noora-surface-label-secondary",
-          formatter: "fn:toLocaleDate",
-          customValues: [List.first(dates), List.last(dates)],
-          padding: [10, 0, 0, 0]
-        }
-      },
-      yAxis: %{
-        splitNumber: 4,
-        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-        axisLabel: %{
-          color: "var:noora-surface-label-secondary",
-          formatter: axis_formatter
-        }
-      },
-      # Always daily now: the window is a billing period, so there is no
-      # hourly preset left to format for.
-      tooltip: tooltip_format
-    }
-  end
-
-  defp chart_legend do
-    %{
-      left: "left",
-      top: "bottom",
-      orient: "horizontal",
-      textStyle: %{
-        color: "var:noora-surface-label-secondary",
-        fontFamily: "monospace",
-        fontWeight: 400,
-        fontSize: 10,
-        lineHeight: 12
-      },
-      icon:
-        "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-      itemWidth: 8,
-      itemHeight: 4
-    }
-  end
-
-  defp formatters_for("requests"), do: {nil, %{}}
-  defp formatters_for(_), do: {"fn:formatBytes", %{valueFormat: "fn:formatBytes"}}
-
-  @doc """
-  Picks the right series for the currently selected widget so the template
-  doesn't have to branch on three different async assigns.
-  """
-  def series_for(socket_assigns, "egress"), do: socket_assigns.egress_series
-  def series_for(socket_assigns, "ingress"), do: socket_assigns.ingress_series
-  def series_for(socket_assigns, "requests"), do: socket_assigns.requests_series
-
-  @region_colors ["primary", "secondary", "tertiary", "p50", "p90", "p99", "warning", "destructive"]
-
-  @doc """
-  Builds one echarts series per region. Stable-orders regions by total bytes
-  so the colour assignment stays consistent across patches that don't change
-  the data, but freshest legend chips first when traffic shifts.
-  """
-  def traffic_chart_series(time_series) do
-    time_series
-    |> Enum.with_index()
-    |> Enum.map(fn {%{region: region, dates: dates, values: values}, idx} ->
-      color_key = Enum.at(@region_colors, rem(idx, length(@region_colors)))
-
-      %{
-        color: "var:noora-chart-#{color_key}",
-        data: dates |> Enum.zip(values) |> Enum.map(&Tuple.to_list/1),
-        name: region_label(region),
-        type: "line",
-        smooth: 0.1,
-        symbol: "none"
-      }
-    end)
-  end
 
   @doc """
   Every date the runner chart draws, spend and projection alike.
@@ -539,6 +367,25 @@ defmodule TuistWeb.UsageLive do
     |> put_in([:yAxis, :axisLabel, :formatter], formatter)
   end
 
+  defp chart_legend do
+    %{
+      left: "left",
+      top: "bottom",
+      orient: "horizontal",
+      textStyle: %{
+        color: "var:noora-surface-label-secondary",
+        fontFamily: "monospace",
+        fontWeight: 400,
+        fontSize: 10,
+        lineHeight: 12
+      },
+      icon:
+        "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+      itemWidth: 8,
+      itemHeight: 4
+    }
+  end
+
   def cache_chart_unit("charge"), do: :currency
   def cache_chart_unit("egress"), do: :bytes
   def cache_chart_unit("requests"), do: :count
@@ -717,13 +564,5 @@ defmodule TuistWeb.UsageLive do
         count: CldrHelpers.format_number(projected)
       )
 
-  def region_label(""), do: dgettext("dashboard_usage", "Unknown")
-  def region_label(nil), do: dgettext("dashboard_usage", "Unknown")
-  def region_label(region) when is_binary(region), do: region
-
   def format_bytes(value), do: ByteFormatter.format_bytes(value || 0)
-  def format_count(value) when is_integer(value), do: CldrHelpers.format_number(value)
-  def format_count(_), do: CldrHelpers.format_number(0)
-
-  def empty_label, do: dgettext("dashboard_usage", "No cache traffic in this window yet")
 end

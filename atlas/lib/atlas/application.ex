@@ -8,7 +8,7 @@ defmodule Atlas.Application do
   alias Atlas.Accounts.HandleRegistry
   alias Atlas.Agents.Sessions.TelemetryHandler
   alias Atlas.Automations.JavaScript
-  alias Atlas.Automations.Notifier
+  alias Atlas.Automations.Notifier, as: AutomationNotifier
   alias Atlas.Demo
   alias Atlas.Engineering.Errors.DropAlerter
   alias Atlas.Engineering.Errors.Event.Buffer
@@ -18,6 +18,7 @@ defmodule Atlas.Application do
   alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
+  alias Atlas.Presence.Notifier
   alias Guardian.DB.Sweeper
 
   @impl true
@@ -65,6 +66,7 @@ defmodule Atlas.Application do
       automation_children() ++
       [
         {Oban, Application.fetch_env!(:atlas, Oban)},
+        AutomationNotifier,
         Notifier,
         {Task.Supervisor, name: Atlas.TaskSupervisor},
         Sweeper

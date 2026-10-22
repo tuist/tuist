@@ -127,12 +127,14 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
-    crate::serving_authority::AuthorityConfig::validate_volume(
+    let inherited = crate::serving_authority::AuthorityConfig::validate_volume(
         &config.data_dir,
         config.serving_authority.as_ref(),
     )?;
     let runtime = match &config.serving_authority {
-        Some(authority) => RuntimeState::with_authority(authority.start(&config.data_dir)?),
+        Some(authority) => {
+            RuntimeState::with_authority(authority.start(&config.data_dir, inherited)?)
+        }
         None => RuntimeState::new(),
     };
     let mut bootstrap = Bootstrap::start(
@@ -449,24 +451,8 @@ async fn initialize_and_serve(
             .internal_tls
             .clone()
             .expect("internal_tls is present whenever peer_tls is configured");
-        let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
-        let shutdown_handle = handle.clone();
-        tokio::spawn(
-            async move {
-                if let Some(budget) = *internal_shutdown_rx.borrow() {
-                    shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                    return;
-                }
-                while internal_shutdown_rx.changed().await.is_ok() {
-                    if let Some(budget) = *internal_shutdown_rx.borrow() {
-                        shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                        return;
-                    }
-                }
-            }
-            .in_current_span(),
-        );
+        spawn_internal_shutdown(handle.clone(), shutdown_rx.clone());
         Some(tokio::spawn(
             async move {
                 // The identity acceptor wraps the plain rustls acceptor to
@@ -487,24 +473,8 @@ async fn initialize_and_serve(
             .in_current_span(),
         ))
     } else {
-        let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
-        let shutdown_handle = handle.clone();
-        tokio::spawn(
-            async move {
-                if let Some(budget) = *internal_shutdown_rx.borrow() {
-                    shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                    return;
-                }
-                while internal_shutdown_rx.changed().await.is_ok() {
-                    if let Some(budget) = *internal_shutdown_rx.borrow() {
-                        shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                        return;
-                    }
-                }
-            }
-            .in_current_span(),
-        );
+        spawn_internal_shutdown(handle.clone(), shutdown_rx.clone());
         Some(tokio::spawn(
             async move {
                 if let Err(error) = axum_server::bind(internal_address)
@@ -1531,6 +1501,50 @@ async fn wait_for_inflight_drain(state: Arc<AppState>, budget: ShutdownBudget) -
     }
 }
 
+fn spawn_internal_shutdown(
+    handle: Handle<SocketAddr>,
+    shutdown_rx: watch::Receiver<Option<ShutdownBudget>>,
+) {
+    spawn_internal_shutdown_within(
+        handle,
+        shutdown_rx,
+        Duration::from_secs(crate::constants::INTERNAL_SHUTDOWN_GRACE_SECS),
+    );
+}
+
+// Stops the internal listener when shutdown starts and gives its open
+// connections `grace`, never more than what is left of the budget.
+fn spawn_internal_shutdown_within(
+    handle: Handle<SocketAddr>,
+    mut shutdown_rx: watch::Receiver<Option<ShutdownBudget>>,
+    grace: Duration,
+) {
+    tokio::spawn(
+        async move {
+            let budget = loop {
+                if let Some(budget) = *shutdown_rx.borrow_and_update() {
+                    break budget;
+                }
+                if shutdown_rx.changed().await.is_err() {
+                    return;
+                }
+            };
+            let grace = grace.min(budget.remaining());
+            handle.graceful_shutdown(Some(grace));
+            sleep(grace).await;
+            let open = handle.connection_count();
+            if open > 0 {
+                warn!(
+                    connections = open,
+                    grace_ms = grace.as_millis(),
+                    "closing internal connections still open after the shutdown grace"
+                );
+            }
+        }
+        .in_current_span(),
+    );
+}
+
 async fn wait_for_task_shutdown<T>(
     mut handle: JoinHandle<T>,
     server: &str,
@@ -1562,6 +1576,54 @@ mod tests {
         constants::{RESPONSE_STREAM_MIN_CHUNK_BYTES, RESPONSE_STREAM_SEND_BUFFER_BYTES},
         test_support::test_context,
     };
+
+    #[tokio::test]
+    async fn internal_shutdown_closes_a_stream_no_peer_reads_after_the_grace() {
+        let router = axum::Router::new().route(
+            "/stream",
+            axum::routing::get(|| async {
+                axum::body::Body::from_stream(futures_util::stream::repeat_with(|| {
+                    Ok::<_, std::convert::Infallible>(bytes::Bytes::from(vec![0u8; 64 * 1024]))
+                }))
+            }),
+        );
+        let handle = Handle::new();
+        let (shutdown_tx, shutdown_rx) = watch::channel(None::<ShutdownBudget>);
+        let grace = Duration::from_millis(200);
+        spawn_internal_shutdown_within(handle.clone(), shutdown_rx, grace);
+        let server_handle = handle.clone();
+        let server = tokio::spawn(async move {
+            axum_server::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+                .handle(server_handle)
+                .serve(router.into_make_service())
+                .await
+        });
+        let address = handle.listening().await.expect("internal listener bound");
+        let client = reqwest::Client::builder()
+            .http2_prior_knowledge()
+            .build()
+            .unwrap();
+        let unread = client
+            .get(format!("http://{address}/stream"))
+            .send()
+            .await
+            .unwrap();
+
+        let started = Instant::now();
+        shutdown_tx
+            .send(Some(ShutdownBudget::new(Duration::from_secs(240))))
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), server)
+            .await
+            .expect("the unread stream held the internal listener past its grace")
+            .unwrap()
+            .unwrap();
+        assert!(
+            started.elapsed() >= grace,
+            "the unread stream should hold the listener until the grace runs out"
+        );
+        drop(unread);
+    }
 
     #[tokio::test]
     async fn startup_cleanup_failure_does_not_activate_the_service() {

@@ -32,7 +32,7 @@ defmodule TuistWeb.TestCaseRunLive do
              ]
            ) do
         {:ok, run} ->
-          Tuist.Repo.preload(run, :ran_by_account)
+          Tuist.Repo.preload(run, [:ran_by_account, :actor_account])
 
         {:error, :not_found} ->
           raise NotFoundError, dgettext("dashboard_tests", "Test case run not found.")

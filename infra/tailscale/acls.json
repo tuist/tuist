@@ -283,15 +283,33 @@
 			"ip":  ["tcp:5432", "tcp:8123", "tcp:4317", "tcp:3100"],
 		},
 		{
-			// The in-cluster ClickHouse as a Tailscale Service, for when it is
-			// served by the `tailnet-ingress` ProxyGroup rather than a
-			// standalone proxy (clickhouse.managed.tailscale.proxyGroup, empty
-			// in every env today, so this grant is currently unused). A
-			// Service is addressed by its own VIP, which the tag grant above
-			// does not cover.
+			// The in-cluster ClickHouse as a Tailscale Service, served by the
+			// `tailnet-ingress` ProxyGroup rather than a standalone proxy
+			// (clickhouse.managed.tailscale.proxyGroup). A Service is
+			// addressed by its own VIP, which the tag grant above does not
+			// cover.
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["svc:tuist-clickhouse-production"],
 			"ip":  ["tcp:8123"],
+		},
+		{
+			// The same for staging's and canary's in-cluster ClickHouse.
+			"src": ["tag:tuist-macmini-staging"],
+			"dst": ["svc:tuist-clickhouse-staging"],
+			"ip":  ["tcp:8123"],
+		},
+		{
+			"src": ["tag:tuist-macmini-canary"],
+			"dst": ["svc:tuist-clickhouse-canary"],
+			"ip":  ["tcp:8123"],
+		},
+		{
+			// The CNPG pooler, for when it is served the same way
+			// (postgresql.cnpg.pooler.tailscale.proxyGroup, empty in every env
+			// today, so this grant is currently unused).
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["svc:tuist-pg-pooler-production"],
+			"ip":  ["tcp:5432"],
 		},
 
 		// Runner hosts -> the same-env Alloy receiver, for host logs only.
@@ -408,6 +426,33 @@
 		// to its RackHost's `spec.address`.
 		{
 			"src": ["tag:tuist-k8s-production"],
+			"dst": [
+				"10.10.0.101/32",
+				"10.10.0.102/32",
+				"10.10.0.103/32",
+				"10.10.0.104/32",
+				"10.10.0.105/32",
+				"10.10.0.106/32",
+				"10.10.0.107/32",
+				"10.10.0.108/32",
+				"10.10.0.109/32",
+			],
+			"ip":  ["tcp:22"],
+		},
+
+		// Staging and canary clusters -> the same minis, on SSH only: the
+		// first-dial path of a host production lends one of them
+		// (RackHost `lendTo`). The borrowing env's operator runs a lent host's
+		// runtime and dials it through its own `rack-<host>` egress Service,
+		// before the host is its tailnet device and whenever that device does
+		// not answer. Every mini, so lending one is a field in production's
+		// values and not an ACL change as well. Reaching :22 is not reaching
+		// the host: only the lent host authorizes the borrower's key, which
+		// production's operator installs for the lease and removes on return
+		// (infra/cluster-api-provider-tuist/AGENTS.md, "A host lent to another
+		// env").
+		{
+			"src": ["tag:tuist-k8s-staging", "tag:tuist-k8s-canary"],
 			"dst": [
 				"10.10.0.101/32",
 				"10.10.0.102/32",
@@ -683,6 +728,9 @@
 		// take it offline on each rollout.
 		"services": {
 			"svc:tuist-clickhouse-production": ["tag:tuist-k8s-production"],
+			"svc:tuist-clickhouse-staging":    ["tag:tuist-k8s-staging"],
+			"svc:tuist-clickhouse-canary":     ["tag:tuist-k8s-canary"],
+			"svc:tuist-pg-pooler-production": ["tag:tuist-k8s-production"],
 		},
 	},
 
@@ -789,7 +837,8 @@
 	// assertions are meaningful: they pin the boundaries this file exists
 	// to draw (cross-env, Mac minis away from other envs' databases, runner
 	// hosts away from every database, nothing but the production cluster
-	// into the rack).
+	// into the rack except SSH to the minis, which a lent host's borrower
+	// dials).
 	//
 	// Note: no test entries with autogroup-based src. Tailscale's test
 	// engine doesn't resolve `autogroup:*` as a concrete identity, so the
@@ -809,6 +858,8 @@
 				"tag:tuist-macmini-staging:5901",
 				"tag:tuist-runner-host-staging:22",
 				"tag:tuist-runner-host-staging:5901",
+				// A lent rack mini's first dial.
+				"10.10.0.101:22",
 			],
 			"deny": [
 				"tag:tuist-macmini-production:22",
@@ -819,7 +870,9 @@
 				"tag:tuist-k8s-production:8123",
 				"tag:tuist-k8s-production:9000",
 				"tag:tuist-mgmt:50000",
-				"10.10.0.101:22",
+				"10.10.0.101:5900",
+				"10.10.0.2:22",
+				"10.10.0.11:22",
 				"192.168.0.16:443",
 				"tag:tuist-rack-edge:22",
 			],
@@ -834,12 +887,15 @@
 				"tag:tuist-macmini-canary:5900",
 				"tag:tuist-macmini-canary:5901",
 				"tag:tuist-runner-host-canary:22",
+				// A lent rack mini's first dial.
+				"10.10.0.102:22",
 			],
 			"deny": [
 				"tag:tuist-macmini-production:22",
 				"tag:tuist-macmini-staging:22",
 				"tag:tuist-k8s-production:5432",
-				"10.10.0.101:22",
+				"10.10.0.102:5900",
+				"10.10.0.3:22",
 			],
 		},
 		{

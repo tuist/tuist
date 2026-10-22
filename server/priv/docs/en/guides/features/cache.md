@@ -2,7 +2,7 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, Bazel cache, and Elixir dependency cache."
+  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, Gradle cache, Bazel cache, Elixir dependency cache, and experimental Rust compilation caching."
 }
 ---
 # Cache {#cache}
@@ -36,6 +36,12 @@ Learn the cache workflow that matches your project or deployment model:
     title="Elixir cache"
     details="Enable caching for supported Elixir dependencies and keep using Mix. Inspect cache hits and transfers in the dashboard."
     link="/guides/features/cache/elixir"
+/>
+  <.home_card
+    title="Rust cache (experimental)"
+    details="Reuse supported registry leaf-library outputs locally and through Kura. Learn how to enable caching and inspect cache activity."
+    supported_for="rust"
+    link="/guides/features/cache/rust"
 />
   <.home_card
     title="Self-hosting"

@@ -11,13 +11,16 @@ defmodule Tuist.Shards do
   alias Tuist.Accounts.Account
   alias Tuist.Builds
   alias Tuist.ClickHouseRepo
+  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
+  alias Tuist.Repo
   alias Tuist.Shards.BinPacker
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.Storage
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
 
@@ -83,19 +86,32 @@ defmodule Tuist.Shards do
       granularity: granularity,
       build_run_id: Map.get(params, :build_run_id),
       gradle_build_id: Map.get(params, :gradle_build_id),
-      inserted_at: now
+      inserted_at: now,
+      reporting_version:
+        if(FeatureFlags.immutable_shard_reports_enabled?(Repo.preload(project, :account).account), do: 1, else: 0)
     }
 
-    {:ok, plan} = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert()
+    plan = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> Ecto.Changeset.apply_action!(:insert)
 
-    insert_shard_targets(
-      plan,
-      project.id,
-      assignment_shards,
-      granularity,
-      now,
-      module_inventory(params, units, granularity)
-    )
+    {modules, suites} =
+      shard_targets(plan, project.id, assignment_shards, granularity, now, module_inventory(params, units, granularity))
+
+    plan =
+      if plan.reporting_version == 1 do
+        assignments =
+          JSON.encode!(%{
+            modules: Enum.map(modules, &Map.delete(&1, :inserted_at)),
+            test_suites: Enum.map(suites, &Map.delete(&1, :inserted_at))
+          })
+
+        %{plan | assignments: assignments}
+      else
+        plan
+      end
+
+    {:ok, plan} = IngestRepo.insert(plan)
+    if modules != [], do: IngestRepo.insert_all(ShardPlanModule, modules)
+    if suites != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suites)
 
     %{
       plan: plan,
@@ -105,7 +121,7 @@ defmodule Tuist.Shards do
   end
 
   def get_shard_plan(id) do
-    case ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) do
+    case read_plan(fn -> IngestRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) end) do
       nil -> {:error, :not_found}
       plan -> {:ok, plan}
     end
@@ -237,7 +253,7 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "module", now, _module_inventory) do
+  defp shard_targets(plan, project_id, shards, "module", now, _module_inventory) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -252,10 +268,10 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
+    {rows, []}
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "suite", now, module_inventory) do
+  defp shard_targets(plan, project_id, shards, "suite", now, module_inventory) do
     suite_rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -277,15 +293,13 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if suite_rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suite_rows)
-
     # Record the products each shard must download. Regular shards need only their assigned suites'
     # modules; the catch-all shard runs everything not skipped, so it downloads the full built-module
     # inventory (which includes targets that have no suite history and therefore no planned suites).
-    insert_suite_download_modules(plan, project_id, shards, module_inventory, now)
+    {suite_download_modules(plan, project_id, shards, module_inventory, now), suite_rows}
   end
 
-  defp insert_suite_download_modules(plan, project_id, shards, module_inventory, now) do
+  defp suite_download_modules(plan, project_id, shards, module_inventory, now) do
     catch_all_index = plan.shard_count - 1
 
     rows =
@@ -309,11 +323,11 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
+    rows
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index, _opts) do
-    plan = ClickHouseRepo.preload(plan, :modules)
+    plan = preload_assignments(plan, :modules)
 
     modules =
       plan.modules
@@ -324,7 +338,7 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index, opts) do
-    plan = ClickHouseRepo.preload(plan, [:test_suites, :modules])
+    plan = preload_assignments(plan, [:test_suites, :modules])
     suite_catch_all? = Keyword.get(opts, :suite_catch_all?, false)
 
     results =
@@ -383,25 +397,47 @@ defmodule Tuist.Shards do
   defp all_suite_modules(plan), do: plan.test_suites |> Enum.map(& &1.module_name) |> Enum.uniq()
 
   defp get_plan(project_id, reference) do
-    ClickHouseRepo.one(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.reference == ^reference,
-        order_by: [desc: s.inserted_at],
-        limit: 1
+    read_plan(fn ->
+      IngestRepo.one(
+        from(s in ShardPlan,
+          where: s.project_id == ^project_id,
+          where: s.reference == ^reference,
+          order_by: [desc: s.inserted_at],
+          limit: 1
+        )
       )
-    )
+    end)
   end
 
   defp get_plan_by_id(project_id, plan_id) do
-    ClickHouseRepo.one(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.id == ^plan_id,
-        limit: 1
+    read_plan(fn ->
+      IngestRepo.one(
+        from(s in ShardPlan,
+          where: s.project_id == ^project_id,
+          where: s.id == ^plan_id,
+          limit: 1
+        )
       )
-    )
+    end)
   end
+
+  defp preload_assignments(%ShardPlan{reporting_version: 1, assignments: assignments} = plan, _preloads) do
+    data = JSON.decode!(assignments)
+    modules = Enum.map(data["modules"], &assignment_struct(ShardPlanModule, &1))
+    suites = Enum.map(data["test_suites"], &assignment_struct(ShardPlanTestSuite, &1))
+    %{plan | modules: modules, test_suites: suites}
+  end
+
+  defp preload_assignments(plan, preloads), do: read_plan(fn -> IngestRepo.preload(plan, preloads) end)
+
+  defp assignment_struct(schema, attrs) do
+    fields = Map.new(schema.__schema__(:fields), fn field -> {field, Map.get(attrs, Atom.to_string(field))} end)
+    struct(schema, fields)
+  end
+
+  # The CLI uploads a plan's build seconds after creating it, so plans are read from the repository
+  # that took the write.
+  defp read_plan(fun), do: IngestRepo.with_retry(fun)
 
   defp get_shard_for_plan(project, account, plan, shard_index, opts) do
     case fetch_shard_data(plan, shard_index, opts) do
@@ -634,6 +670,7 @@ defmodule Tuist.Shards do
     #{unrestricted_runs_join(restricted_runs)}
     WHERE module_runs.project_id = {project_id:Int64}
       AND module_runs.is_ci = true
+      AND module_runs.test_run_id NOT IN (#{network_test_run_ids_sql()})
       AND module_runs.ran_at >= {cutoff:DateTime64(6)}
       AND module_runs.name IN {modules:Array(String)}
       AND module_runs.test_suite_count > 0
@@ -650,7 +687,7 @@ defmodule Tuist.Shards do
   # evidence: the union across runs covers what it skipped.
   defp unrestricted_runs_join(:excluded) do
     """
-    INNER JOIN test_runs AS runs
+    INNER JOIN test_run_summaries AS runs
       ON runs.id = module_runs.test_run_id
       AND runs.project_id = {project_id:Int64}
       AND empty(runs.only_test_identifiers)
@@ -681,6 +718,16 @@ defmodule Tuist.Shards do
     end
   end
 
+  # Retain orphaned historical child rows, but never use an unsigned parent's
+  # client-supplied inventory, timing or parallelism to shape authenticated CI.
+  defp network_test_run_ids_sql do
+    "SELECT id FROM test_runs WHERE project_id = {project_id:Int64} AND submission_auth = 'network_trusted'"
+  end
+
+  defp network_test_run_ids(project_id) do
+    from(t in Test, where: t.project_id == ^project_id and t.submission_auth == "network_trusted", select: t.id)
+  end
+
   defp fetch_timing_data(_project, _granularity, [], _estimate), do: %{}
 
   defp fetch_timing_data(project, "module", modules, estimate) do
@@ -689,6 +736,7 @@ defmodule Tuist.Shards do
     from(mr in TestModuleRun,
       where: mr.project_id == ^project.id,
       where: mr.is_ci == true,
+      where: mr.test_run_id not in subquery(network_test_run_ids(project.id)),
       where: mr.ran_at >= ^cutoff,
       where: mr.name in ^modules,
       group_by: mr.name
@@ -713,6 +761,7 @@ defmodule Tuist.Shards do
       AND sr.ran_at >= {cutoff:DateTime64(6)}
       AND mr.project_id = {project_id:Int64}
       AND mr.is_ci = true
+      AND mr.test_run_id NOT IN (#{network_test_run_ids_sql()})
       AND mr.ran_at >= {cutoff:DateTime64(6)}
       AND mr.name IN {modules:Array(String)}
       AND concat(mr.name, '/', sr.name) IN {units:Array(String)}
@@ -848,6 +897,7 @@ defmodule Tuist.Shards do
         where: sr.ran_at >= ^cutoff,
         where: mr.project_id == ^project.id,
         where: mr.is_ci == true,
+        where: mr.test_run_id not in subquery(network_test_run_ids(project.id)),
         where: mr.ran_at >= ^cutoff,
         where: mr.name in ^modules,
         group_by: [mr.name, mr.id, sr.id],
@@ -943,7 +993,7 @@ defmodule Tuist.Shards do
         toUUIDOrZero(test_run_id) AS test_run_id,
         toInt32(shard_index) AS shard_index,
         argMax(duration, inserted_at) AS duration
-      FROM shard_runs
+      FROM shard_run_summaries
       WHERE project_id = {project_id:Int64}
         AND ran_at >= {cutoff:DateTime64(6)}
       GROUP BY shard_plan_id, test_run_id, shard_index

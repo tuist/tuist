@@ -201,4 +201,3 @@ run_recover() {
     [ "$output" = "0" ]
     [[ "$recovered" == *"mise run rack:fleet sessions ber1-tor-b <tid>"* ]]
 }
-

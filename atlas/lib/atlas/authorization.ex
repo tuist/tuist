@@ -27,6 +27,7 @@ defmodule Atlas.Authorization do
     "licenses" => "Self-hosted license issuance and checkout",
     "notes" => "Shared Markdown notes",
     "support" => "Customer support threads and messages",
+    "time_off_approvals" => "Approve or reject employee holiday requests",
     "admin" => "Admin section access (users, roles, identities, sessions, MCP)"
   }
 

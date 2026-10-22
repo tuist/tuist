@@ -61,6 +61,7 @@ fleet_edge_check() {
   fi
   fleet_edge_check_vrrp "$site_file" || return 1
   fleet_edge_check_machines "$site_file" || return 1
+  fleet_edge_check_rack_caches "$site_file" || return 1
   fleet_edge_check_wan "$site_file" || return 1
   fleet_edge_check_power "$site_file"
 }
@@ -87,10 +88,172 @@ fleet_edge_check_wan() {
       bad="management.edge.wan.address6 and gateway6 are an IPv6 address with its prefix length and an IPv6 address, in lower case"
     fi
   fi
+  [ -z "$bad" ] && bad="$(fleet_edge_check_bgp "$site_file" "$address" "$address6")"
+  [ -z "$bad" ] && bad="$(fleet_edge_check_egress "$site_file")"
   if [ -n "$bad" ]; then
     echo "error: $bad" >&2
     return 1
   fi
+}
+
+# The site's own prefixes and the AS that announces them over the WAN, when it
+# has them: the site's ASN and the upstream's, and each prefix as a network
+# with no host bits. An IPv4 prefix needs the WAN's IPv4 address and an IPv6
+# one its IPv6 address, which the sessions run from. Prints what is wrong.
+fleet_edge_check_bgp() {
+  local site_file="$1" address="$2" address6="$3" asn peer_asn prefix
+  local -a prefixes
+  jq -e '.management.edge.wan.bgp' "$site_file" >/dev/null 2>&1 || return 0
+  IFS=$'\x1f' read -r asn peer_asn < <(jq -r '.management.edge.wan.bgp as $b | [($b.asn // ""), ($b.peer_asn // "")] | map(tostring) | join("\u001f")' "$site_file")
+  mapfile -t prefixes < <(jq -r '.management.edge.wan.bgp.prefixes // [] | .[] | tostring' "$site_file")
+  if [ -z "$address" ]; then
+    echo "management.edge.wan.bgp needs the WAN's address, which its sessions run from"
+    return 0
+  fi
+  for prefix in "$asn" "$peer_asn"; do
+    if ! [[ "$prefix" =~ ^[1-9][0-9]{0,9}$ ]] || (( prefix > 4294967295 )); then
+      echo "management.edge.wan.bgp.asn and peer_asn are AS numbers, not '$asn' and '$peer_asn'"
+      return 0
+    fi
+  done
+  if [ "${#prefixes[@]}" -eq 0 ]; then
+    echo "management.edge.wan.bgp announces no prefixes"
+    return 0
+  fi
+  for prefix in "${prefixes[@]}"; do
+    if [[ "$prefix" == *:* ]]; then
+      if ! [[ "$prefix" =~ ^[0-9a-f:]+::/([0-9]|[1-9][0-9]|1[01][0-9]|12[0-8])$ ]]; then
+        echo "management.edge.wan.bgp.prefixes '$prefix' is not an IPv6 network ending in :: with its prefix length, in lower case"
+        return 0
+      elif [ -z "$address6" ]; then
+        echo "management.edge.wan.bgp.prefixes '$prefix' is IPv6, and the WAN has no IPv6 address to announce it from"
+        return 0
+      fi
+    elif ! [[ "$prefix" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${prefix%/*}" || [ "$(fleet_network "$prefix")" != "$prefix" ]; then
+      echo "management.edge.wan.bgp.prefixes '$prefix' is not an IPv4 network with its prefix length"
+      return 0
+    fi
+  done
+}
+
+# Where the site's Mac minis go out from, when not the WAN address: a block of
+# an IPv4 prefix the site announces, and, while they move onto it one at a
+# time, the minis that do. Without nodes, every Mac mini does. Prints what is
+# wrong.
+fleet_edge_check_egress() {
+  local site_file="$1" prefix announced node found
+  local -a nodes minis
+  jq -e '.management.edge.wan.egress' "$site_file" >/dev/null 2>&1 || return 0
+  prefix="$(jq -r '.management.edge.wan.egress.prefix // ""' "$site_file")"
+  if ! [[ "$prefix" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${prefix%/*}" || [ "$(fleet_network "$prefix")" != "$prefix" ]; then
+    echo "management.edge.wan.egress.prefix '$prefix' is not an IPv4 network with its prefix length"
+    return 0
+  fi
+  found=""
+  while read -r announced; do
+    [ -n "$announced" ] || continue
+    if (( $(fleet_prefix_length "$prefix") >= $(fleet_prefix_length "$announced") )) &&
+      [ "$(fleet_network "${prefix%/*}/${announced#*/}")" = "$announced" ]; then
+      found=1
+    fi
+  done < <(jq -r '.management.edge.wan.bgp.prefixes // [] | .[] | select(contains(":") | not)' "$site_file")
+  if [ -z "$found" ]; then
+    echo "management.edge.wan.egress.prefix '$prefix' is not inside an IPv4 prefix management.edge.wan.bgp announces"
+    return 0
+  fi
+  mapfile -t nodes < <(jq -r '.management.edge.wan.egress.nodes // [] | .[] | tostring' "$site_file")
+  [ "${#nodes[@]}" -gt 0 ] || return 0
+  mapfile -t minis < <(fleet_edge_machines "$site_file" | awk -F'\037' '$4 == "RackHost" {print $1}')
+  for node in "${nodes[@]}"; do
+    if [[ " ${minis[*]} " != *" $node "* ]]; then
+      echo "management.edge.wan.egress.nodes '$node' is not a Mac mini on the machines segment"
+      return 0
+    fi
+  done
+}
+
+# The first and last address of an IPv4 network, as nft's range: 95.130.119.16/28
+# is 95.130.119.16-95.130.119.31.
+fleet_prefix_range() {
+  local prefix="$1" bits octets value i first last
+  bits="$(fleet_prefix_length "$prefix")"
+  IFS=. read -r -a octets <<<"${prefix%/*}"
+  value=0
+  for i in 0 1 2 3; do value=$(( (value << 8) | octets[i] )); done
+  first="$value" last=$(( value | ((1 << (32 - bits)) - 1) ))
+  printf '%d.%d.%d.%d-%d.%d.%d.%d\n' \
+    $(( first >> 24 & 255 )) $(( first >> 16 & 255 )) $(( first >> 8 & 255 )) $(( first & 255 )) \
+    $(( last >> 24 & 255 )) $(( last >> 16 & 255 )) $(( last >> 8 & 255 )) $(( last & 255 ))
+}
+
+# The site's BIRD configuration, when it announces prefixes of its own: one
+# session per address family to the WAN's upstream, from the WAN address. Both
+# edges run it, and only the master holds that address, so only the master's
+# session comes up: a session is direct, which it is only on an edge with an
+# address in the upstream's network, and it binds to the WAN address, so the
+# standby cannot open one through the master's translation either. When the
+# master changes, the upstream's session to the old one is reset by the new
+# master, which holds the address but not the session, and the new master's
+# BIRD connects within seconds. Graceful restart asks the upstream to keep the
+# routes meanwhile.
+# Each prefix is a blackhole route in BIRD's own table, announced and installed
+# nowhere else: what the rack sends out from the prefix is translated by the
+# edge, so the replies come back as the translation's, and anything else the
+# upstream delivers to it is dropped by tuist_rack_wan. Of what the upstream
+# sends, the default route is kept and nothing goes into the node's routes:
+# the node's default through the WAN is keepalived's.
+fleet_edge_bgp() {
+  local site_file="$1" address gateway address6 gateway6 asn peer_asn prefix family
+  local -a prefixes
+  fleet_edge_check "$site_file" || return 1
+  IFS=$'\x1f' read -r address gateway address6 gateway6 asn peer_asn < <(jq -r '.management.edge.wan as $w | [
+      $w.address, $w.gateway, ($w.address6 // ""), ($w.gateway6 // ""), $w.bgp.asn, $w.bgp.peer_asn
+    ] | map(tostring) | join("\u001f")' "$site_file")
+  mapfile -t prefixes < <(jq -r '.management.edge.wan.bgp.prefixes[]' "$site_file")
+  cat <<CONF
+# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
+log stderr all;
+router id ${address%/*};
+
+protocol device {
+}
+CONF
+  for family in 4 6; do
+    local routes="" peer local_address
+    for prefix in "${prefixes[@]}"; do
+      if { [ "$family" = 6 ] && [[ "$prefix" == *:* ]]; } || { [ "$family" = 4 ] && [[ "$prefix" != *:* ]]; }; then
+        routes+="  route $prefix blackhole;"$'\n'
+      fi
+    done
+    [ -n "$routes" ] || continue
+    if [ "$family" = 4 ]; then
+      peer="$gateway" local_address="${address%/*}"
+    else
+      peer="$gateway6" local_address="${address6%/*}"
+    fi
+    cat <<CONF
+
+protocol static originate$family {
+  ipv$family;
+${routes}}
+
+protocol bgp upstream$family {
+  local $local_address as $asn;
+  neighbor $peer as $peer_asn;
+  direct;
+  connect retry time 5;
+  graceful restart on;
+  ipv$family {
+    import filter {
+      if net.len = 0 then accept;
+      reject;
+    };
+    import limit 10 action block;
+    export where proto = "originate$family";
+  };
+}
+CONF
+  done
 }
 
 # The power devices the tailnet reaches through the edge, one management
@@ -225,6 +388,39 @@ fleet_edge_check_machines() {
   fi
 }
 
+# What the minis reach on their own segment, beside the edges: the rack's
+# cache gateways (rackFleet.vmCacheGatewayCIDRs, which their VMs may reach)
+# and its VM image caches (rackFleet.imageCache.nodes, which their hosts pull
+# from). Each has to be a storage node of this site that is in the rack, at
+# the address its RackLinuxHost reserves, or the minis would be pointed at an
+# address nothing answers on.
+fleet_edge_check_rack_caches() {
+  local site_file="$1" values="${2:-}" storage linux bad="" node address cidr
+  [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
+  [ -f "$values" ] || return 0
+  storage="$(jq -c '[.nodes[]? | select(.role == "storage" and .status != "planned") | .name]' "$site_file")"
+  linux="$(yq -o=json '[.rackLinuxFleet.hosts[]? | {"key": .hostname, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || linux=''
+  [ -n "$linux" ] || linux='{}'
+  while IFS=$'\t' read -r node address; do
+    [ -n "$node" ] || continue
+    if [ "$(jq -r --arg n "$node" 'index($n) != null' <<<"$storage")" != true ]; then
+      bad="${bad:+$bad$'\n'}the image cache on $node is not on a storage node of this site that is in the rack"
+    elif [ "$(jq -r --arg n "$node" '.[$n] // ""' <<<"$linux")" != "$address" ]; then
+      bad="${bad:+$bad$'\n'}the image cache on $node is at $address, but its RackLinuxHost is at $(jq -r --arg n "$node" '.[$n] // "no address"' <<<"$linux")"
+    fi
+  done < <(yq -r '.rackFleet.imageCache.nodes[]? | [.name, (.address // "")] | @tsv' "$values" 2>/dev/null)
+  for cidr in $(yq -r '.rackFleet.vmCacheGatewayCIDRs[]?' "$values" 2>/dev/null); do
+    if [ "${cidr#*/}" != 32 ] || [ -z "$(jq -r --argjson storage "$storage" --arg a "${cidr%/*}" 'to_entries[] | select(.value == $a and (.key as $k | $storage | index($k) != null)) | .key' <<<"$linux")" ]; then
+      bad="${bad:+$bad$'\n'}cache gateway $cidr is not the address of a storage node of this site that is in the rack"
+    fi
+  done
+  if [ -n "$bad" ]; then
+    echo "error: the rack's caches are wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
+}
+
 # The edges share the site's floating addresses through keepalived, which
 # talks to its peers on a VLAN of its own. Every edge node is a member, each
 # with an address in the VRRP prefix and at least one data link to carry it; a
@@ -333,6 +529,9 @@ SCRIPT
   # This node's own end of VRRP. Each edge VLAN rides an active-backup bond
   # over one VLAN interface per uplink, so it survives losing either ToR, and
   # the edges never both believe the other is gone while both are up.
+  # The uplinks' rings are 4096 descriptors rather than i40e's 512, which
+  # overflow on the WAN's line-rate bursts and drop packets the NIC counts as
+  # rx_missed_errors. Setting the counts a ring already has changes nothing.
   local node address uplink_names vrrp_length machines peer member
   vrrp_length="$(fleet_prefix_length "$vrrp_prefix")"
   mapfile -t members < <(fleet_edge_members "$site_file")
@@ -354,6 +553,9 @@ SCRIPT
   cat <<'SCRIPT'
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
+for uplink in $uplinks; do
+  ethtool -G "$uplink" rx 4096 tx 4096
+done
 edge_vlan_bond() {
   bond=$1 vlan=$2 i=0
   ip link show "$bond" >/dev/null 2>&1 || ip link add "$bond" type bond mode active-backup miimon 100
@@ -422,9 +624,25 @@ SCRIPT
     uplinks="    oifname != { \"tailscale0\", \"$interface\" } ip saddr $(fleet_network "$provisioning") masquerade"
   fi
   # The machines reach the internet through their gateway, translated onto the
-  # uplinks the same way.
+  # uplinks the same way. The Mac minis the site's egress names go out from
+  # its block of the site's own prefix instead, each mini keeping one address
+  # of it, which BGP routes back to the WAN address. Everything else keeps the
+  # WAN address: the edges, the switches, and the storage node, which is in
+  # the cluster under it.
   if [ -n "$machines_vlan" ]; then
+    local egress_prefix egress_sources=""
+    local -a egress_nodes
+    egress_prefix="$(jq -r '.management.edge.wan.egress.prefix // ""' "$site_file")"
+    if [ -n "$egress_prefix" ]; then
+      mapfile -t egress_nodes < <(jq -r '.management.edge.wan.egress.nodes // [] | .[]' "$site_file")
+      egress_sources="$(fleet_edge_machines "$site_file" |
+        awk -F'\037' -v want=" ${egress_nodes[*]} " '$4 == "RackHost" && $3 != "" && (want == "  " || index(want, " " $1 " ")) {print $3}' |
+        paste -sd, - | sed 's/,/, /g')"
+    fi
     [ -n "$uplinks" ] && uplinks+=$'\n'
+    if [ -n "$egress_sources" ]; then
+      uplinks+="    oifname \"wan0\" ip saddr { $egress_sources } snat ip to $(fleet_prefix_range "$egress_prefix") persistent"$'\n'
+    fi
     uplinks+="    oifname != { \"tailscale0\", \"machines0\", \"$interface\" } ip saddr $(fleet_network "$machines_gateway") masquerade"
   fi
   # The standby edge goes out through the master from its address on the
@@ -518,7 +736,10 @@ SCRIPT
 # What the internet may reach through the WAN: replies to what the rack
 # started, ping and neighbour discovery, and tailscaled's port for direct
 # tailnet paths. The edge's SSH, kubelet and boot server are reached over the
-# tailnet, never on the public address, and nothing new is forwarded inwards.
+# tailnet, never on the public address. The only connections forwarded inwards
+# are the ones the edge translated itself: the cluster ports of the site's
+# cluster-network hosts, from the cluster's nodes only, which the CAPI
+# operator renders into the edge's node configuration (tuist_cluster_forwards).
 fleet_edge_wan_filter() {
   cat <<'SCRIPT'
 table inet tuist_rack_wan
@@ -534,6 +755,7 @@ table inet tuist_rack_wan {
   chain forward {
     type filter hook forward priority filter;
     iifname "wan0" ct state established,related accept
+    iifname "wan0" ct status dnat accept
     iifname "wan0" drop
   }
 }

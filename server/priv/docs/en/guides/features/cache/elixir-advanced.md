@@ -92,9 +92,17 @@ closure from the same cache rather than recompiling it independently.
 | `endpoint` | Discovered automatically | Override the account's HTTPS REAPI endpoint. |
 
 `upload: false` controls client behavior, not authorization. Project cache
-permissions are enforced by the server. HTTP is only allowed on loopback
-(`localhost`, `127.0.0.1`, `::1`) for development and sends credentials/artifacts
-unencrypted. Local snapshots and remote bundles are limited to 64 MiB; larger
+permissions are enforced by the server. Project `endpoint:` options and discovered
+endpoints require HTTPS, except for loopback (`localhost`, `127.0.0.1`, `::1`)
+development endpoints.
+
+A nonempty `TUIST_CACHE_ENDPOINT` overrides both `endpoint:` and discovery. Hosted
+runners use it to reach their private in-cluster cache. This operator-controlled
+environment override also permits HTTP on non-loopback hosts. HTTP sends the
+project-scoped cache token and artifacts unencrypted, so only use it on a trusted
+network. An invalid override falls back to local snapshots without trying discovery.
+
+Local snapshots and remote bundles are limited to 64 MiB; larger
 artifacts compile without being cached. The local store has no automatic eviction;
 remove its contents when needed. Remote artifacts use Kura's existing retention,
 eviction and project-cleanup rules.
@@ -113,17 +121,30 @@ eviction and project-cleanup rules.
   customized compile actions rather than silently removing them.
 - Keep the generated compile alias. Direct `mix tuist.compile` task
   discovery can compile dependencies before caching can inspect them.
-- Already-current outputs aren't cache hits and aren't published retrospectively.
-  Clean just a supported dependency's build with `mix deps.clean NAME --build`
-  after it has populated the cache, then compile again.
+- Already-current, valid outputs for selected, supported dependencies count as
+  local hits with reason `up_to_date`. They aren't published retrospectively and
+  carry no artifact key, transfer bytes, restore latency or estimated time saved. To test a
+  snapshot restore, clean just a supported dependency's build with
+  `mix deps.clean NAME --build` after it has populated the cache, then compile again.
 - Match `MIX_ENV`, `MIX_TARGET`, compiler settings and declared inputs. Path changes
   also change keys unless portable reuse is enabled.
 - Unsupported dependencies appear as **Not cached**, not misses. They are excluded
-  from hit rate. A build with no lookups has an unavailable rate, not 0%.
+  from hit rate. A build with neither lookups nor up-to-date local hits has an
+  unavailable rate, not 0%.
 - Missing credentials, unavailable endpoints and corrupt snapshots fall back to
   compilation. Compiler failures still fail the build.
 - CAS records can arrive after the build report. Refresh to see newly ingested
   transfers. Local hits and legacy builds have no remote CAS outputs.
+
+Servers need support for compile-report contract `0.2` to record `up_to_date`
+local hits. If an older server explicitly rejects the cache data or a schema
+enumeration value, the package retries the report once without these new reuse
+observations. Compilation details and other cache results are preserved; the
+new local reuse remains unavailable until the server is upgraded. Deploying the
+server first avoids this extra request. The contract version does not negotiate
+support, and authentication failures, transport failures and other validation
+messages are not retried. Enumeration errors do not identify their field on older
+servers; a retained invalid field still fails on the single retry.
 
 ## Manual compile integration
 
@@ -142,6 +163,30 @@ These steps compile and load Tuist before other dependencies, including on cold
 parallel builds. The wrapper restores normal dependency checks afterward. The
 same alias works with Hex, Git and path installations; no script path is needed.
 
+For jobs that prepare an uploaded build and then run with `--no-compile`, guard
+all bootstrap work too. Mix forwards arguments only to the final task of a list
+alias, so its earlier `deps.compile` otherwise runs unconditionally. Use a local
+function in your Mix project module instead:
+
+```elixir
+# In aliases/0:
+compile: &compile/1
+
+# In the same Mix project module:
+defp compile(args) do
+  if "--no-compile" not in args do
+    Mix.Task.run("deps.compile", ["tuist_ex", "--include-children"])
+  end
+
+  Mix.Task.run("deps.loadpaths", ["--no-compile", "--no-deps-check"])
+  Mix.Task.run("tuist.compile", args)
+end
+```
+
+This is a project-local function, not a capture of an SDK function that is not
+loaded yet. Treat it as a custom integration: `tuist.setup` refuses customized
+compile aliases rather than replacing them.
+
 ## How it works
 
 Elixir caching uses the shared REAPI ActionCache/CAS pipeline, authentication and
@@ -151,8 +196,15 @@ complete compilation bundle. Tuist verifies its files, application metadata,
 declared BEAMs and SCM manifest before staged installation. Corrupt entries are
 repaired after successful compilation.
 
+On OTP 28 and later, remote sessions negotiate zstd compression for ByteStream
+transfers of at least 1 KiB. Incompressible uploads, older OTP runtimes and servers
+without compression use identity transport. Digests, artifact limits and reported
+bytes refer to uncompressed content. Decoded bytes are bounded and verified before
+installation. Each dependency remains a single CAS bundle, avoiding per-file or
+chunk requests for small artifacts.
+
 Remote credentials/connections are resolved lazily; idle builds and local hits
-don't contact remote endpoints. One session is closed on every exit, including
+(including already-current outputs) don't contact remote endpoints. One session is closed on every exit, including
 compiler failure. Client RPCs have a 30-second deadline. Mix remains responsible
 for lock checks, local dependency compilation and unsupported work.
 

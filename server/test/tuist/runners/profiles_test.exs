@@ -109,10 +109,12 @@ defmodule Tuist.Runners.ProfilesTest do
       assert updated.memory_gb == 2
     end
 
-    test "stores an ordered, deduplicated cache writer list and can follow the default branch again", %{
+    test "stores the default branch toggle and an ordered, deduplicated list of additional branches", %{
       account: account
     } do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cache_writer_default_branch
+      assert profile.cache_writer_all_branches
       assert is_nil(profile.cache_writer_branches)
 
       assert {:ok, updated} =
@@ -121,6 +123,20 @@ defmodule Tuist.Runners.ProfilesTest do
       assert updated.cache_writer_branches == ["release/*", "main", "*"]
       assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => nil})
       assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => []})
+
+      assert {:ok, %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update(updated, %{cache_writer_default_branch: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update(updated, %{cache_writer_default_branch: nil})
+
+      assert errors[:cache_writer_default_branch]
+
+      assert {:ok, %{cache_writer_all_branches: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update(updated, %{cache_writer_all_branches: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} = Profiles.update(updated, %{cache_writer_all_branches: nil})
+      assert errors[:cache_writer_all_branches]
     end
 
     test "rejects invalid refs and more than the branch limit", %{account: account} do
@@ -144,6 +160,45 @@ defmodule Tuist.Runners.ProfilesTest do
     end
   end
 
+  describe "update/2 against a changed catalog" do
+    test "validates the shape only when the update changes it", %{account: account} do
+      profile =
+        Tuist.Repo.insert!(%Profile{account_id: account.id, name: "retired", platform: :linux, vcpus: 7, memory_gb: 13})
+
+      assert {:ok, %Profile{cache_writer_branches: ["develop"], vcpus: 7}} =
+               Profiles.update(profile, %{"cache_writer_branches" => ["develop"]})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update(profile, %{"vcpus" => 7, "cache_writer_branches" => ["main"]})
+
+      assert errors[:vcpus]
+
+      assert {:ok, %Profile{vcpus: 8, memory_gb: 32}} = Profiles.update(profile, %{"vcpus" => 8, "memory_gb" => 32})
+    end
+  end
+
+  describe "error_message/1" do
+    test "lists the catalog's shapes for an unavailable shape", %{account: account} do
+      {:error, changeset} = Profiles.create(account, %{"name" => "weird", "vcpus" => 7, "memory_gb" => 13})
+
+      assert Profiles.error_message(changeset) ==
+               "vcpus and memory_gb must match an available linux shape: 1 vCPU / 2 GB, 4 vCPU / 16 GB, 8 vCPU / 32 GB."
+    end
+
+    test "describes other validation errors by field", %{account: account} do
+      {:error, changeset} = Profiles.create(account, %{"name" => "tuist", "vcpus" => 4})
+
+      message = Profiles.error_message(changeset)
+      assert message =~ "memory_gb can't be blank."
+      assert message =~ "name is reserved."
+    end
+
+    test "describes the profile limit and protected profiles" do
+      assert Profiles.error_message(:max_profiles_reached) =~ "maximum of 10 runner profiles"
+      assert Profiles.error_message(:protected) == "This profile is a default and can't be deleted."
+    end
+  end
+
   describe "Profile.cache_writer_branch?/2" do
     test "matches exact names and * across path segments" do
       assert Profile.cache_writer_branch?(["main"], "main")
@@ -156,6 +211,18 @@ defmodule Tuist.Runners.ProfilesTest do
       refute Profile.cache_writer_branch?(["v1.0"], "v1x0")
       refute Profile.cache_writer_branch?([], "main")
       refute Profile.cache_writer_branch?(["*"], nil)
+    end
+  end
+
+  describe "cached checkouts" do
+    test "are on by default and turned off without validating the shape again", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cached_checkouts
+
+      stub(Catalog, :shapes, fn _ -> [] end)
+      assert {:ok, %{cached_checkouts: false}} = Profiles.update(profile, %{"cached_checkouts" => false})
+      assert Profiles.get_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+      assert is_nil(Profiles.get_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
     end
   end
 
@@ -234,6 +301,7 @@ defmodule Tuist.Runners.ProfilesTest do
       assert profile.protected
       assert profile.vcpus == 4
       assert profile.memory_gb == 16
+      assert profile.cache_writer_all_branches
     end
 
     test "is idempotent — second call is a no-op on `(account_id, name)` conflict",

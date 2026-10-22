@@ -13,7 +13,9 @@ Installing the app does not run builds or tests. Your existing workflows continu
 
 ## Setup {#setup}
 
-An administrator of the Tuist account should open **Settings → Integrations**, choose **Connect** in the Origin card, and approve access in Cursor. Choose the Origin account or namespace and repositories that Tuist should access, then return to Tuist. The connection belongs to the Tuist account, not an individual project.
+An administrator of the Tuist account should open **Settings → Integrations**, choose **Install Origin App** in the Origin card, and approve access in Cursor. Choose the Origin account or namespace and repositories that Tuist should access, then return to Tuist. The connection belongs to the Tuist account, not an individual project.
+
+You can also install the app directly from Origin. After approving access, log in to Tuist if needed and choose the organization to connect. Only organizations you administer and your personal account are available. If only one account is available, Tuist connects it automatically without showing the chooser. If you start from Tuist, the organization is already selected and this step is skipped.
 
 Choose **Add new project connection** to open the repository selection modal. Select an unconnected Tuist project and one of the repositories discovered from the connected Origin account, then choose **Create Connection**. If multiple Origin accounts are connected, choose the account first. Only native Origin repositories are available for connection. Tuist verifies pull-request access again before connecting the project and adopts the repository's default branch.
 
@@ -35,7 +37,7 @@ Tuist does not need access to your source code or permission to merge pull reque
 
 To associate results with a pull request, uploads must include the repository's Origin clone URL, Git ref, and full commit SHA. Tuist posts the report only when those identify a single open pull request at its current head commit. Results for superseded commits do not overwrite the current report.
 
-Removing a project connection stops its reporting. **Disconnect** removes the installation's Tuist-side association and its project connections; it does not uninstall the app in Cursor. Uninstall the app in Cursor to revoke its access there.
+The Origin card lists project-to-repository connections. Choose **Manage → Remove connection** on a project connection to stop its reporting without uninstalling the app. Uninstall the app in Cursor to revoke its access; Tuist removes the installation and its project connections when it processes the installation notification.
 
 ## Self-hosted servers {#server-configuration}
 

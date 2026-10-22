@@ -310,6 +310,7 @@ func (r *RackATSReconciler) observe(ctx context.Context, ats *infrav1.RackATS, c
 	ats.Status.DeviceModel, ats.Status.DeviceSerialNumber, ats.Status.DeviceFirmwareVersion = obs.DeviceModel, obs.DeviceSerial, obs.DeviceFirmware
 	ats.Status.PreferredSource = obs.Preferred
 	ats.Status.Inputs = obs.Inputs
+	ats.Status.Outputs, ats.Status.OutputsMessage = obs.Outputs, obs.OutputsUnread
 	ats.Status.LastObserved = &now
 	if obs.ActiveUnrecognised == "" {
 		ats.Status.ActiveSource = obs.Active

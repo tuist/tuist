@@ -15,6 +15,9 @@ case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
   ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 peer_address=10.255.255.1 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
+for uplink in $uplinks; do
+  ethtool -G "$uplink" rx 4096 tx 4096
+done
 edge_vlan_bond() {
   bond=$1 vlan=$2 i=0
   ip link show "$bond" >/dev/null 2>&1 || ip link add "$bond" type bond mode active-backup miimon 100
@@ -50,6 +53,7 @@ table ip tuist_mgmt_path {
     oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
     iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.15,192.168.0.16 } masquerade
     oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade
+    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent
     oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
     oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade
   }
@@ -97,6 +101,7 @@ table inet tuist_rack_wan {
   chain forward {
     type filter hook forward priority filter;
     iifname "wan0" ct state established,related accept
+    iifname "wan0" ct status dnat accept
     iifname "wan0" drop
   }
 }

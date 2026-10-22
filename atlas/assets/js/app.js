@@ -1,7 +1,9 @@
 import "../css/fonts.css"
 import "noora/noora.css"
 import "../css/routes/auth.css"
+import "../css/routes/native_links.css"
 import "../css/layouts/dashboard.css"
+import "../css/layouts/account.css"
 import "../css/routes/demo.css"
 import "../css/components/account_dropdown.css"
 import "../css/components/pagination.css"
@@ -39,6 +41,9 @@ import "../css/routes/insurance.css"
 import "../css/routes/notes.css"
 import "../css/routes/tasks.css"
 import "../css/routes/automation.css"
+import "../css/routes/llm_providers.css"
+import "../css/routes/time_off.css"
+import "../css/routes/people.css"
 import "../css/routes/projects.css"
 import "../css/routes/domains.css"
 import "../css/routes/errors.css"
@@ -61,6 +66,8 @@ import SearchPalette from "./hooks/search_palette"
 import Clipboard from "./hooks/clipboard"
 import MermaidDiagram from "./hooks/mermaid_diagram"
 import CodeEditor from "./hooks/code_editor"
+import dateOnlyDatePicker from "./hooks/date_only_date_picker"
+import Presence from "./hooks/presence"
 
 window.nooraChartFormatters = {
   ...window.nooraChartFormatters,
@@ -71,8 +78,8 @@ window.nooraChartFormatters = {
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
-  params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ...Noora.Hooks, IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard, MermaidDiagram, CodeEditor},
+  params: () => ({_csrf_token: csrfToken, presence_visible: document.visibilityState === "visible"}),
+  hooks: {...colocatedHooks, ...Noora.Hooks, NooraDatePicker: dateOnlyDatePicker(Noora.Hooks.NooraDatePicker), IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard, MermaidDiagram, CodeEditor, Presence},
 })
 
 // Show progress bar on live navigation and form submits. Skipped when the page

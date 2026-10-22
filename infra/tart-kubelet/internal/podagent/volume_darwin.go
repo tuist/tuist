@@ -81,13 +81,9 @@ func (darwinVolumeBackend) growImage(path string, sizeGiB int) error {
 	if err != nil {
 		return err
 	}
-	fields := strings.Fields(out)
-	if len(fields) != 3 {
-		return fmt.Errorf("hdiutil resize -limits %s: want minimum, current and maximum, got %q", path, strings.TrimSpace(out))
-	}
-	currentSectors, err := strconv.ParseUint(fields[1], 10, 64)
+	currentSectors, err := parseImageCurrentSectors(out)
 	if err != nil {
-		return fmt.Errorf("hdiutil resize -limits %s: current size %q: %w", path, fields[1], err)
+		return fmt.Errorf("hdiutil resize -limits %s: %w", path, err)
 	}
 	const mib = uint64(1 << 20)
 	if currentSectors*512+mib >= uint64(sizeGiB)<<30 {
@@ -171,6 +167,13 @@ func (darwinVolumeBackend) capacityBytes(root string) (uint64, error) {
 	return dfKilobytes(root, 1, "size")
 }
 
+// usedBytes reports the space the filesystem holding root uses via `df`. For an
+// APFS volume that is the volume's own usage, not its container's.
+func (darwinVolumeBackend) usedBytes(root string) (uint64, error) {
+	// Column 3 is used 1K blocks.
+	return dfKilobytes(root, 2, "used")
+}
+
 func dfKilobytes(root string, column int, name string) (uint64, error) {
 	out, err := runCmd(30*time.Second, "df", "-P", "-k", root)
 	if err != nil {
@@ -216,7 +219,7 @@ func PhysicalMemoryBytes() (uint64, error) {
 // allocatedBytes reports the blocks a sparse image actually occupies, not its
 // nominal size.
 func (darwinVolumeBackend) allocatedBytes(path string) (uint64, error) {
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return 0, err
 	}

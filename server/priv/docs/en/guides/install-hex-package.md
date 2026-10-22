@@ -76,6 +76,8 @@ jobs:
       - run: mix test
 ```
 
+With any other OpenID Connect identity provider, such as Fly.io Machines, configure a workload identity trust policy in the **Workload identities** section of your account's **Settings → Authentication** page, which grants CI access to all current and future projects owned by that account. Set `TUIST_OIDC_ACCOUNT` to the Tuist account that owns the project, and supply a freshly minted identity token with the policy's audience through `TUIST_OIDC_TOKEN`. The integration exchanges it automatically when no account token or valid stored login is available; `mix tuist.login` also accepts it outside CI. Automatic exchanges reuse an unexpired session only for the same server, account, and supplied identity token. Changing that identity triggers a new exchange, and a blank supplied identity fails instead of reusing an earlier session. Tuist sessions last one hour without refresh tokens, so for longer-running workloads, mint a new identity token and run `mix tuist.login` again before the session expires. Follow the <.localized_link href="/guides/server/authentication#workload-identity-trust-policies">workload identity setup</.localized_link> and the <.localized_link href="/guides/server/authentication#flyio-machines">Fly.io example</.localized_link>.
+
 Pull requests from forks don't get an OpenID Connect token, so their runs aren't reported and still pass or fail as usual. On other providers, set the `TUIST_TOKEN` environment variable to an account token. Follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> to create one.
 
 ## 4. Keep using `mix test` and `mix compile` {#aliases}
@@ -110,6 +112,8 @@ Environment variables take precedence over `mix.exs`:
 | `TUIST_PROJECT` | The project identifier in `account/project` format. |
 | `TUIST_URL` | The base URL of the Tuist server. |
 | `TUIST_TOKEN` | The token to authenticate with, instead of the stored login. |
+| `TUIST_OIDC_TOKEN` | A freshly minted OpenID Connect identity token, exchanged for a Tuist token. Its audience must be `tuist` for GitHub Actions and Bitrise, or match the project's trust policy for other providers. Used by `mix tuist.login` or as a fallback when no account token or valid stored login is available. |
+| `TUIST_OIDC_ACCOUNT` | The Tuist account handle that owns the project. Required when exchanging a token through a project trust policy. It selects among existing trust policies and does not grant access on its own. |
 | `TUIST_TEST_RETRIES` | How many times to retry the tests that failed. |
 | `TUIST_TAGS` | Comma-separated tags to attach to the build. |
 | `TUIST_VALUES` | Comma-separated `key=value` pairs to attach to the build. |

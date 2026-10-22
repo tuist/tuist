@@ -1,0 +1,41 @@
+# Include this file at an immutable commit, then reference the snippet before
+# the build commands. GitLab runs before_script and script in one shell, so what
+# it exports reaches the build. A cache problem never fails the job.
+# TUIST_MODULE_CACHE_SIZE optionally sets the volume capacity, such as 50gb.
+.tuist-module-cache:
+  before_script:
+    - |
+      if command -v tuist-runner-cache >/dev/null 2>&1; then
+        tuist_runner_cache_size=${TUIST_MODULE_CACHE_SIZE:-}
+        if [ -n "$tuist_runner_cache_size" ]; then
+          case "$(tuist-runner-cache -h 2>&1 || true)" in
+            *--size*) ;;
+            *)
+              echo "Warning: this runner image does not support TUIST_MODULE_CACHE_SIZE yet; the cache keeps its current size." >&2
+              tuist_runner_cache_size=
+              ;;
+          esac
+        fi
+        tuist_runner_cache_status=0
+        if [ -n "$tuist_runner_cache_size" ]; then
+          tuist_runner_cache_env=$(tuist-runner-cache activate module --size "$tuist_runner_cache_size") || tuist_runner_cache_status=$?
+        else
+          tuist_runner_cache_env=$(tuist-runner-cache activate module) || tuist_runner_cache_status=$?
+        fi
+        case "$tuist_runner_cache_status" in
+          0)
+            while IFS= read -r tuist_runner_cache_line; do
+              case "$tuist_runner_cache_line" in
+                [A-Z_]*=*) export "$tuist_runner_cache_line" ;;
+              esac
+            done <<TUIST_RUNNER_CACHE_ENV
+      $tuist_runner_cache_env
+      TUIST_RUNNER_CACHE_ENV
+            ;;
+          3) echo "Warning: the Tuist runner could not mount this cache; the job runs with an empty one." >&2 ;;
+          *) echo "Warning: could not set up the Tuist runner cache (tuist-runner-cache exited $tuist_runner_cache_status)." >&2 ;;
+        esac
+        unset tuist_runner_cache_size tuist_runner_cache_status tuist_runner_cache_env tuist_runner_cache_line
+      else
+        echo "This runner does not provide Tuist runner caches; nothing to set up."
+      fi

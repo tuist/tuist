@@ -32,6 +32,8 @@ type fakeHost struct {
 	answers  map[string]string
 	failures map[string]int
 	ran      []string
+	// stdin is what each command that read standard input was given.
+	stdin []string
 	// onRun lets a test change the host when a command runs.
 	onRun func(command string)
 }
@@ -92,9 +94,12 @@ func (h *fakeHost) RemoveAll(p string) error {
 	return nil
 }
 
-func (h *fakeHost) Run(_ context.Context, _ []byte, name string, args ...string) ([]byte, error) {
+func (h *fakeHost) Run(_ context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
 	command := strings.Join(append([]string{name}, args...), " ")
 	h.ran = append(h.ran, command)
+	if stdin != nil {
+		h.stdin = append(h.stdin, string(stdin))
+	}
 	if h.onRun != nil {
 		h.onRun(command)
 	}
@@ -464,6 +469,34 @@ func TestApplyRestartsNetworkdWhenItsConfigurationIsRemoved(t *testing.T) {
 	}
 	if _, ok := h.files["/etc/systemd/networkd.conf.d/10-tuist-edge.conf"]; ok {
 		t.Fatal("networkd's configuration is still there")
+	}
+}
+
+// A unit drop-in takes a daemon-reload, which the apply makes once its files
+// are in place, also on a host whose kubelet waits for a bootstrap token. The
+// operator runs the apply over SSH, so nothing restarts the unit itself.
+func TestApplyReloadsSystemdForAUnitDropIn(t *testing.T) {
+	const dropIn = "/etc/systemd/system/ssh.socket.d/10-tuist-no-start-limit.conf"
+	h := newFakeHost()
+	h.onRun = func(command string) {
+		if command == "systemctl daemon-reload" {
+			if _, ok := h.files[dropIn]; !ok {
+				t.Errorf("reloaded systemd before %s was written", dropIn)
+			}
+		}
+	}
+	cfg := testConfig()
+	cfg.Files = append(cfg.Files, infrav1.RackNodeFile{Path: dropIn, Mode: "0644", Group: "units", Content: "[Unit]\nStartLimitIntervalSec=0\n"})
+
+	res := apply(t, h, Request{Config: cfg})
+
+	if !res.NeedsBootstrap || !h.ranAny("systemctl daemon-reload") {
+		t.Fatalf("result %+v; did not reload systemd for the drop-in; ran %v", res, h.ran)
+	}
+	for _, c := range h.ran {
+		if strings.Contains(c, "ssh") || c == "systemctl daemon-reexec" {
+			t.Errorf("ran %q for a unit drop-in", c)
+		}
 	}
 }
 

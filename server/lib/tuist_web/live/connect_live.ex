@@ -53,8 +53,14 @@ defmodule TuistWeb.ConnectLive do
             :if={Project.mix_project?(@selected_project)}
             handle={"#{@selected_account.name}/#{@selected_project.name}"}
           />
+          <.cargo_steps
+            :if={Project.cargo_project?(@selected_project)}
+            handle={"#{@selected_account.name}/#{@selected_project.name}"}
+          />
           <.cli_steps
-            :if={!Project.mix_project?(@selected_project)}
+            :if={
+              !Project.mix_project?(@selected_project) and !Project.cargo_project?(@selected_project)
+            }
             selected_account={@selected_account}
             selected_project={@selected_project}
           />
@@ -85,6 +91,7 @@ defmodule TuistWeb.ConnectLive do
     """
   end
 
+  defp connection_method(%Project{build_system: :cargo}), do: dgettext("dashboard_auth", "using Cargo")
   defp connection_method(%Project{build_system: :mix}), do: dgettext("dashboard_auth", "using Mix")
   defp connection_method(_project), do: dgettext("dashboard_auth", "using CLI")
 
@@ -147,6 +154,43 @@ defmodule TuistWeb.ConnectLive do
           <.chevron_right />
         </:icon_right>
       </.button>
+    </div>
+    """
+  end
+
+  attr :handle, :string, required: true
+
+  defp cargo_steps(assigns) do
+    ~H"""
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Install Tuist CLI")}</span>
+      <.terminal id="cargo-install">
+        <:tab id="cargo-install-mise" label="mise" command="mise install tuist" />
+      </.terminal>
+    </div>
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Point it at this project")}</span>
+      <span data-part="description">{dgettext(
+        "dashboard_auth",
+        "Add a tuist.toml file at your repository root."
+      )}</span>
+      <.terminal id="cargo-project">
+        <:tab id="cargo-project-snippet" label="tuist.toml" command={~s(project = "#{@handle}")} />
+      </.terminal>
+    </div>
+    <div data-part="step">
+      <span data-part="title">{dgettext("dashboard_auth", "Log in and run your tests")}</span>
+      <.terminal id="cargo-run">
+        <:tab id="cargo-login" label="tuist auth login" command="tuist auth login" />
+        <:tab id="cargo-build" label="tuist cargo build" command="tuist cargo build" />
+        <:tab id="cargo-test" label="tuist cargo nextest run" command="tuist cargo nextest run" />
+      </.terminal>
+      <.button
+        variant="primary"
+        label={dgettext("dashboard_auth", "Tuist documentation")}
+        href="https://tuist.dev/en/docs/guides/get-started/rust-project"
+        target="_blank"
+      />
     </div>
     """
   end

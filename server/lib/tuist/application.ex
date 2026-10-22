@@ -95,8 +95,6 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ops_click_house_repo]] ++ ecto_skip_metrics)
-      OpentelemetryEcto.setup([event_prefix: [:tuist, :shadow_click_house_repo]] ++ ecto_skip_metrics)
-      OpentelemetryEcto.setup([event_prefix: [:tuist, :shadow_ingest_repo]] ++ ecto_skip_metrics)
 
       kick_opentelemetry_exporter_after_boot()
     end
@@ -305,23 +303,14 @@ defmodule Tuist.Application do
   defp get_children do
     # Workers need endpoint configuration during startup and shutdown. prep_stop/1
     # drains incoming traffic before Oban stops, without removing that configuration.
-    # Before the buffers, because children stop in reverse. Each buffer's
-    # final flush on shutdown writes to Cloud and mirrors the same rows,
-    # so the mirror's repository, task supervisor and drainer have to
-    # outlive every buffer. Started after them, they stopped first, and
-    # each deploy lost the flushes of the pods it replaced:
-    #
-    #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
-    #   Tuist.ShadowIngestRepo because it was not started or it does not exist
+    # Last, so it starts once Oban is up and stops first on shutdown.
     children =
-      [
-        {DBConnection.TelemetryListener, name: TelemetryListener},
-        {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
-        {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
-        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}}
-      ] ++
-        shadow_ingest_children() ++
+      RuntimeChildren.cluster(Application.get_env(:libcluster, :topologies, [])) ++
         [
+          {DBConnection.TelemetryListener, name: TelemetryListener},
+          {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
+          {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
+          {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
           Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
           Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
           Supervisor.child_spec(Tuist.Bazel.Action.Buffer, id: Tuist.Bazel.Action.Buffer),
@@ -338,6 +327,8 @@ defmodule Tuist.Application do
           Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
           Supervisor.child_spec(Buffer, id: Buffer),
           Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+          Supervisor.child_spec(Tuist.Cargo.Build.Buffer, id: Tuist.Cargo.Build.Buffer),
+          Supervisor.child_spec(Tuist.Cargo.Compilation.Buffer, id: Tuist.Cargo.Compilation.Buffer),
           Supervisor.child_spec(Tuist.Mix.Build.Buffer, id: Tuist.Mix.Build.Buffer),
           Supervisor.child_spec(Tuist.Mix.Diagnostic.Buffer, id: Tuist.Mix.Diagnostic.Buffer),
           Supervisor.child_spec(Tuist.Mix.CompiledFile.Buffer, id: Tuist.Mix.CompiledFile.Buffer),
@@ -365,12 +356,16 @@ defmodule Tuist.Application do
           {Task.Supervisor, name: Tuist.MCP.Events.DeliverySupervisor, max_children: 20},
           {Finch, name: Tuist.Finch, pools: finch_pools()},
           {Cachex, [:tuist, []]},
+          Supervisor.child_spec({Cachex, [:license, []]}, id: :license),
+          Supervisor.child_spec({Cachex, [:display, []]}, id: :display),
+          Tuist.OIDC.JWKSCache,
           Tuist.Authentication.TokenVerificationCache,
           Tuist.Authentication.SubjectCache,
           Tuist.OpenGraphImages,
           TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
+          Tuist.KeyValueStore.Invalidator,
           {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},
           Tuist.Kura.Demand,
@@ -382,8 +377,10 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
+        redis_children() ++
         [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
-        once_events_grpc_children()
+        once_events_grpc_children() ++
+        RuntimeChildren.readiness_server(Environment.mode())
 
     children
     |> Kernel.++(
@@ -412,23 +409,6 @@ defmodule Tuist.Application do
         ]
       end
     )
-    |> Kernel.++(
-      if Environment.tuist_hosted?() do
-        topologies = Application.get_env(:libcluster, :topologies) || []
-        [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
-      else
-        []
-      end
-    )
-    |> Kernel.++(
-      if Environment.redis_url(),
-        do: [
-          {Redix, redis_opts()},
-          {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
-          {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
-        ],
-        else: []
-    )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
@@ -440,25 +420,12 @@ defmodule Tuist.Application do
     )
   end
 
-  # Only in the tree while a destination is configured, which is only during
-  # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
-  # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
-  defp shadow_ingest_children do
-    if Environment.clickhouse_bare_metal_url() do
+  defp redis_children do
+    if Environment.redis_url() do
       [
-        {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
-        # Where mirrored inserts run, so they are off the request path. The
-        # bound is a memory one rather than a throughput one: the destination's
-        # pool is small, so tasks queue on it, and this caps how much is held
-        # waiting if it stops draining. Past it the mirror is dropped and
-        # counted, which is the same outcome as a failed write.
-        {Task.Supervisor, name: Tuist.IngestRepo.ShadowWrite.TaskSupervisor, max_children: 100},
-        # After the task supervisor, so it stops first and holds that
-        # supervisor's shutdown until the mirrors in it have finished.
-        Tuist.IngestRepo.ShadowWrite.Drainer,
-        # The read side of the same server. Reads move onto it a flag at a
-        # time, so both have to be connected at once.
-        {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}
+        {Redix, redis_opts()},
+        {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
+        {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
       ]
     else
       []

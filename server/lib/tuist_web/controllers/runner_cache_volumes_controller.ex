@@ -17,8 +17,32 @@ defmodule TuistWeb.RunnerCacheVolumesController do
         |> put_status(425)
         |> json(%{error: "job execution pending"})
 
+      # The capacity chosen for the job's copy exceeds what the host holds.
+      {:error, :capacity} ->
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> put_status(507)
+        |> json(%{error: "capacity"})
+
       _ ->
         conn |> put_status(:forbidden) |> json(%{error: "cache volume unavailable"})
+    end
+  end
+
+  def checkout(conn, params) do
+    with :ok <- authenticate(conn),
+         {:ok, checkout} <- CacheVolumes.allocate_checkout(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(checkout)
+    else
+      {:error, :pending} ->
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> put_resp_header("retry-after", "1")
+        |> put_status(425)
+        |> json(%{error: "job execution pending"})
+
+      _ ->
+        conn |> put_status(:forbidden) |> json(%{error: "checkout unavailable"})
     end
   end
 

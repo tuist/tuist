@@ -305,8 +305,13 @@ export const CacheGlobe = {
           return column;
         }),
       );
-      // Let the zeros paint before rolling to the real digits.
-      el.getBoundingClientRect();
+      // A freshly built figure (first render, or a new digit count) shows
+      // its value at once; only later changes roll. Rolling every digit up
+      // from zero made the figure count up from 0 on load.
+      const fresh = chars.filter((char) => /\d/.test(char));
+      el.querySelectorAll('[data-part="reel"]').forEach((reel, index) => this.snapReel(reel, Number(fresh[index])));
+      el.dataset.figure = fresh.join("");
+      return;
     }
     const reels = el.querySelectorAll('[data-part="reel"]');
     const digits = chars.filter((char) => /\d/.test(char));

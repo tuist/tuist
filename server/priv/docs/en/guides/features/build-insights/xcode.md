@@ -86,6 +86,21 @@ For Xcodebuild-driven CI you need to:
 
 Without `-resultBundlePath`, required activity logs and result bundles are not generated and `tuist inspect build` cannot analyze the build.
 
+## Credential-free reporting on a private network {#network-trusted-publishing}
+
+A self-hosted deployment can allow developers to publish completed reports without signing in. An operator must configure `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restart it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">self-hosting guide</.localized_link>. This applies to every supported project; there is no dashboard setting. Configure the self-hosted URL and project in the environment used by your scheme post-action or terminal. The CLI automatically discovers the instance policy when credentials are absent:
+
+```sh
+export TUIST_URL="https://tuist.internal.example"
+tuist inspect build
+# To publish local test results:
+tuist inspect test
+```
+
+With genuinely absent credentials, activity logs and XCResult bundles are parsed locally and sent as structured reports. No raw archive, attachment, coverage/history upload, remote processor, shard reference, or selective-execution evidence is submitted. Reports remain visible but cannot update authenticated testcase state or drive quarantine/failure automations. Dashboards, cache, and other authenticated commands still require sign-in. Keep any cache integration disabled if credentials are not provisioned.
+
+Present credentials remain authenticated. Invalid, corrupt, blank, or rejected-refresh credentials fail closed and remain on disk, so later commands do not silently become unsigned. Sign in again or explicitly sign out as a deliberate recovery action. Upgrade every server replica to a discovery-capable version before upgrading credential-free clients, and configure the final server URL without redirects. Older servers without discovery, disabled instances, and discovery failures still require authentication. No client-side opt-in is needed. Set `TUIST_ACTOR_ID=""` independently to omit the configured actor claim; verified credential identity is unaffected.
+
 ## Machine metrics {#machine-metrics}
 
 Build insights can include machine-level performance metrics (CPU, memory, network, and disk usage) captured during the build. To enable this, set up a lightweight background daemon that continuously samples system metrics:
@@ -112,11 +127,9 @@ This unloads the daemon's LaunchAgent, removes its plist, and deletes the sample
 
 ## Report actor claim {#report-actor-claim}
 
-Report-creation requests include the optional `x-tuist-actor-id` header only when you explicitly set `TUIST_ACTOR_ID` to an organization-scoped label. No label is sent by default, and Tuist does not detect operating-system usernames.
+Report-creation requests include the optional `x-tuist-actor-id` header only when you explicitly set `TUIST_ACTOR_ID` to an organization-scoped label, for example `TUIST_ACTOR_ID=employee-123 tuist inspect build`. No label is sent by default, and Tuist does not detect operating-system usernames. An empty `TUIST_ACTOR_ID` omits the reported identifier but does not remove credential-based verified identity. Identifiers must be 1–128 bytes of non-space printable ASCII; invalid overrides are omitted without falling back. If a custom proxy rejects unfamiliar headers, opt out with the empty environment override.
 
-Labels must be 1–128 bytes of printable ASCII without spaces. An empty or invalid override omits the claim; set `TUIST_ACTOR_ID=""` to suppress a configured value. The label may contain personal information. Do not use credentials or other sensitive values.
-
-The claim is unverified metadata, not authentication. Existing credentials, permissions, endpoints, and report bodies are unchanged. Servers without actor support ignore the header and keep their existing attribution; this client change alone does not add dashboard actor labels. If a custom proxy rejects unfamiliar headers, opt out using the empty environment override.
+Verified individual credentials take precedence; client-reported identifiers are otherwise shown as **Unverified** and never grant permissions or link automatically to users. Identifiers are visible to anyone who can view the project's reports, including public viewers when the project is public, and included in data exports, so do not include secrets. This applies to build, test, and command-event reports. Old servers ignore the optional header, and new servers accept old clients without it. New shared-token reports with no identifier show **Unknown**, rather than the publishing organization; historical reports retain their prior attribution. Build and test listings distinguish verified users from unverified reported identifiers. Authentication remains required unless the self-hosted instance explicitly enables credential-free reporting and the client discovers that policy.
 
 ## Custom metadata {#custom-metadata}
 

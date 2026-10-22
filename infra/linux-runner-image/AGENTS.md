@@ -265,6 +265,23 @@ job-local directories and reports `cache-hit=false`; it must never schedule a
 late bind mount after returning cold. The host has a shorter, cancellable restore
 budget. Mount errors after acquisition still fail visibly.
 
+`--key` is required; the client accepts `tuist-` keys because Tuist's own steps
+use them, and only the wrappers reject them. `--size NGB` (1 to 100,
+decimal GB) and at most 16 `--path` values are validated before acquiring; the
+size travels as `requested_volume_bytes` in the Linux `/acquire` body and the
+macOS mailbox request, and only when given. `.tuist-paths` at the volume root
+maps each path spelling to its subdirectory (`manifest.go`): a mapped spelling
+keeps its subdirectory, others get `data` (single path) or the spelling's
+digest, and `data` never goes to a spelling other than the one the manifest
+records for it. Write it only when it changes, so unchanged jobs stay
+unchanged; the macOS change check counts it. On macOS the client attaches the
+image with
+`-nomount`, grows the APFS container with `diskutil apfs resizeContainer
+<container> 0` when the host enlarged the image, then mounts the volume with
+`diskutil mount nobrowse -mountPoint`. None of this needs root; a failed
+growth warns and mounts at the old size. Growing a mounted container makes
+Disk Arbitration remount it under `/Volumes`, so never grow after mounting.
+
 The static client is on PATH and copied to `externals/tuist-cache-volume` so
 container jobs can use `/__e/tuist-cache-volume`. The job-start hook passes the
 endpoint and pod identity through GITHUB_ENV. Runner and DinD share only their
@@ -290,8 +307,49 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
 
 - The shared cache client also supports macOS: use unique mailbox requests per
   attempt, remove completed request/response files, and retry busy clean detaches
-  five times. Sample filesystem usage before detach, bind it to the lease, and
+  five times. After a busy attempt, log the user's processes holding the mount
+  (`lsof` on the mount point) and SIGTERM them, then SIGKILL after the next busy
+  attempt; never force-detach. Sample filesystem usage before detach, bind it to the lease, and
   write the detach proof only after both clean detach and the usage report succeed.
   Launch hdiutil without RUNNER_TRACKING_ID so GitHub's orphan cleanup cannot
   kill the image helper before dispatch detaches it. Keep job process tracking
   intact for all other commands and preserve the clean-detach publication gate.
+- Attach shared images without `-quiet` so a failure carries hdiutil's reason,
+  and retry a failed attach (three attempts, freeing the mountpoint between
+  them): it fails transiently with the image intact. A final failure is left in
+  the share's `.attach-error` for the host to log. After a clean detach, flush
+  the shared image through a read-only descriptor (the guest may not be allowed to
+  write a cloned image) before writing `.usage` and `.detached`. Use `F_FULLFSYNC`
+  and fall back to `fsync(2)`: the guest's virtio-fs share answers `F_FULLFSYNC`
+  with `ENOTTY`, and `os.File.Sync` issues the same fcntl on Darwin. A failed
+  flush withholds publication, since the host would otherwise seal an image still
+  missing the job's writes.
+
+## Cached checkouts
+
+- The job-start hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
+  when cache volumes are routed (15 s on the host, 20 s in the client). When the
+  agent answers with a mounted clone, the client checks its `.tuist-volume`
+  proof and asks the broker to bind `<scope>/checkout` at the workspace, in the
+  runner's namespace and the DinD sidecar's (dockerd resolves `/__w` there for
+  container jobs). The broker accepts a workspace only as a clean path relative
+  to the work directory whose inode is the client's target, and refuses
+  non-empty targets in either namespace. Any miss leaves the workspace empty, so
+  actions/checkout clones as before; it never fails the job.
+- With a checkout mounted, `tuist-cache-volume --key` leaves out a path in the
+  checkout's `.git` that already holds data (such as `.git/lfs`) with a notice
+  instead of refusing it as non-empty; with no path left it attaches nothing and
+  reports `cache-hit=false`.
+- When the host granted a checkout (mounted, `cold`, `capacity`, `timeout`) the
+  hook records `/home/runner/.tuist-checkout.json`. After the runner exits,
+  outside GitHub's job time, `run-job.sh` runs `--checkout-export`: it packs what
+  the job's checkout added in `/home/runner/work/_tuist_checkout_export`
+  (hard-linking LFS objects where it can) and streams it as a tar to the agent's
+  `/checkout-export` (3 minutes; a cold export carries the whole repository).
+  The runner never gets a writable host directory.
+- The export (shared with macOS, `checkout_export.go`) packs the job commit and
+  the trees and blobs of its tree that the mounted master's tip tree lacks, and
+  names the job commit as its only shallow boundary. It never asks git to walk
+  history: a job that fetched full history (`fetch-depth: 0`) would otherwise
+  leave out objects only the tip's ancestors had, which the shallow master on
+  the host does not hold, and the host's `index-pack --strict` refuses the pack.

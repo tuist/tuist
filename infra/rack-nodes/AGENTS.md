@@ -373,6 +373,11 @@ carries the same guard.
   also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
   kernel, and the node's `panic_on_oops` turns that into a reboot every 70
   seconds;
+- `10-tuist-no-start-limit.conf` drop-ins for `ssh.service` and `ssh.socket`,
+  which the converge also keeps: five sshd starts within 10s otherwise leave
+  nothing listening on `:22`, and the operator reaches the host over SSH alone.
+  See "sshd stays reachable on Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md);
 - nothing for the management port (the i226-LM, the host's boot MAC). The
   converge keeps it up with no address, no IPv6 link-local and no ARP
   (`/etc/systemd/network/10-tuist-management.network`), because AMT shares the
@@ -434,14 +439,57 @@ onto `/opt/local-path-provisioner`, so images and volumes land on `/data` from
 the node's first boot. `/` stays ext4 because a stick finds the install it made
 by mounting the ext4 partitions. Changing the layout is a reinstall.
 
-Every rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
-because the rack's networks at home sit inside the cluster's pod CIDR (192.168.0.0/16 in staging and production alike). A storage node
-that serves pods through Services needs the cluster's CNI, which is a
-`RackLinuxMachine` change to make once the rack's networks no longer overlap.
+A rack Linux node runs the local CNI and carries `cilium.io/no-schedule=true`,
+unless its host sets `publicAddress` (below). The edges hold addresses in the
+rack's management VLAN, 192.168.0.0/24, which sits inside the cluster's pod
+CIDR (192.168.0.0/16 in staging and production alike), so they stay off
+Cilium for good. A storage node holds no address in that range.
 
-### Pods on a rack node
+### A storage node on the cluster network
 
-A pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
+A host with `publicAddress` in `rackLinuxFleet.hosts` (`spec.clusterNetwork`)
+is an ordinary Cilium node. ber1-store-a is one, so the `ber1-runners` Kura
+region runs on the cluster network and replicates pod to pod with each
+account's other regions. Every Cilium node tunnels to every other at its
+InternalIP (VXLAN on 8472/udp), probes their health on 4240/tcp, and the API
+server reaches its kubelet on 10250/tcp. So:
+
+- **Its InternalIP is the site's WAN address**, 149.6.170.31 at BER1, which
+  the operator publishes as the node's address. There is no kubelet proxy and no
+  ExternalIP. The host holds the address on a dummy interface (`tuist-cluster`)
+  so the kubelet takes it as `--node-ip` and Cilium can bind its health
+  responder to it. An nft rule (`tuist_cluster_health`) hands health probes,
+  which the edge delivers to the host's machines address, to it.
+- **The edges forward those three ports** on the WAN address to the host's
+  machines address, from the cluster's Cilium nodes only. The forwards are the
+  edge's `tuist_cluster_forwards` table, in its node configuration. The node
+  agent on each edge keeps the table's `nodes` set equal to the Linux nodes'
+  addresses without the Cilium exclusion, ExternalIPs included: Hetzner
+  Cloud nodes and the control plane have no InternalIP. The set is not in the
+  configuration, so a node joining the cluster restarts nothing on the edge.
+  The WAN filter lets through what the edge translated (`ct status dnat`).
+  Cilium decapsulates VXLAN from any source, so this allowlist is what keeps
+  the overlay off the internet.
+- **Cilium attaches to the `en*` uplinks only** (the `CiliumNodeConfig` in
+  `rack-linux-fleet.yaml`): it would take the dummy for a device otherwise.
+- The site's one public IPv4 address fits one such host. A second waits for
+  the site's own range.
+
+Switching a host is a deploy. The operator rewrites the host's
+configuration: dummy, health rule, no bridge CNI, kubelet at the public
+address. It repoints the Node's addresses, and once the host has applied that
+configuration it removes the Node's Cilium exclusion, and Cilium's DaemonSet
+schedules there. Cilium binds its health responder to the public address once,
+at start: a Cilium that starts before the dummy exists (as on ber1-store-a on
+2026-10-16, before the operator waited) answers no node probe on 4240 until
+its pod is deleted. Pods that started on the bridge keep
+their bridge addresses until they are recreated. Delete them (`kubectl delete
+pod --field-selector spec.nodeName=ber1-store-a`, skipping host-network pods)
+once Cilium is Ready on the node. The bridge interface goes at the next reboot.
+
+### Pods on a rack node off the cluster network
+
+On a node without `publicAddress`, a pod off the host network sits on the node's bridge (`10.254.254.0/24`), which
 is its default gateway and masquerades it behind the node, so it reaches what
 the node reaches: the internet, the rack's segments and the tailnet. It reaches
 no cluster Service, no cluster DNS and no pod on another node, and nothing in
@@ -451,13 +499,13 @@ the cluster reaches it.
   to the API server it joined through (`/etc/tuist/kubernetes-service.nft`,
   which the node agent loads on every apply), so an in-cluster client on the
   node, host network or not, reaches the API at the address it is given.
-- **Names.** A pod that needs them sets its own nameservers. Kura's
-  `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
-  answers tailnet names and fails others over, then public resolvers.
+- **Names.** A pod that needs them sets its own nameservers, such as
+  Tailscale's `100.100.100.100`, which answers tailnet names and fails others
+  over, then public resolvers.
 - **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
-  ships its pods' logs, scrapes its node-local Kura pods and exports the
-  host's own metrics, and pushes them to the Alloy receiver at its tailnet
-  name. Kura exports its traces there too.
+  ships its pods' logs, scrapes any node-local Kura pods (none since the
+  storage node joined the cluster network) and exports the host's own
+  metrics, and pushes them to the Alloy receiver at its tailnet name.
 - **Being reached.** A pod the cluster has to read from is reached through the
   API server: the Kura controller samples node-local pods through a
   port-forward, which goes through the kubelet.
@@ -474,9 +522,10 @@ Ready, the pods on dark nodes included, and a Deployment only when all its
 replicas are available. So nothing in those releases runs a pod on a rack
 node:
 
-- The rack node agent and the boot server are the rack-nodes chart's
-  (`infra/helm/rack-nodes`), installed by `server-deployment.yml` after the
-  tuist release, from the tuist chart's values and the operator's image.
+- The rack node agent, the boot server and the VM image cache are the
+  rack-nodes chart's (`infra/helm/rack-nodes`), installed by
+  `server-deployment.yml` after the tuist release, from the tuist chart's
+  values and the operator's image.
 - The Kura gateways on storage nodes are the rack-cache-gateways chart's
   (`infra/helm/rack-cache-gateways`), installed by `k8s:install-platform` after
   the platform release, from the platform chart's values.
@@ -513,6 +562,111 @@ remediates a mini whose Node has been NotReady for 30 minutes, but only while
 at most one is (`unhealthyRange: "[0-1]"`): a rack-wide outage remediates no
 mini, and once the rack is back, a mini that stayed down is remediated on its
 own.
+
+## The rack's VM image cache
+
+A mini starts a runner by cloning a golden base it materialized once per
+image, with `tart pull` and `tart clone` (see "macOS runner runtime" in
+`infra/tart-kubelet/AGENTS.md`). Without a cache every mini pulls every image
+it runs from ghcr.io. When b04-b09 joined on 2026-10-14 each pulled 33 to 62
+GB in its first hour and a half, peaking at 0.3 to 0.5 Gbit/s per mini, so
+one 60 GB image took 16 to 27 minutes against the pull's 20 minute timeout,
+while edge-a's WAN took 5.8 Gbit/s
+and half the rack's guest slots sat in `CreatingVM`. Every runner image release
+repeats that on every mini. The cache makes an image cross the WAN once per
+rack.
+
+`rackFleet.imageCache` in the tuist chart values declares it, and
+`templates/image-cache.yaml` in the rack-nodes chart runs it: a zot registry
+(the full image; the minimal one has no sync), one Deployment per entry of
+`nodes`, pinned to that storage node, on the host network at the node's
+machines address and `port` (`10.10.0.11:5000` on ber1-store-a), in plain
+HTTP. Its storage is a `scw-local-nvme` volume of `sizeGi` on the node's XFS
+`/data`, under a project quota, and the pod requests the same as
+`ephemeral-storage`, so the ber1-runners Kura region's placement, which reads
+every pod's request on the node, places its instances around it. A cache
+that fills fails its next sync and those hosts pull from ghcr.io; it never
+takes the Kura region with it.
+
+- **What it holds.** zot syncs an image of `repositories` from `upstream` on
+  its first manifest request and answers only once all of it is local, with
+  the upstream's manifest bytes, so the digest is ghcr.io's. Requests for an
+  image that is already being fetched share that one fetch, and the fetch
+  carries on when a requester gives up. A `prewarm` container asks for each
+  `prewarm` Xcode's image every `syncInterval`, one at a time, so a release's
+  images are fetched as soon as a deploy names them. zot's own periodic sync
+  cannot be used: it starts from the registry's repository listing, which
+  ghcr.io refuses. The tags come from the same catalog values as the pools'
+  images; the deploy passes `runnersFleet.runnerImageSemver` to this release
+  too. Pools name each image by the digest of that tag, so a host's probe
+  asks the cache for the digest and gets the manifest the prewarm synced. An
+  Xcode outside `prewarm` is synced on demand by digest, which zot stores
+  untagged, so retention frees it at the next garbage collection: list every
+  Xcode the rack keeps warm in `prewarm`.
+- **Eviction.** A retention policy keeps the `prewarm` tags and any tag pulled
+  within `keepPulledWithin`, and deletes the rest; garbage collection then
+  frees their blobs. A release's previous images go a day after the rack has
+  rolled off them.
+- **How the minis use it.** Tart has no mirror configuration, only `--insecure`
+  for plain HTTP, so tart-kubelet chooses the reference. Each host named in
+  `routeHosts` (`["*"]` for all of them) gets, through the operator's
+  `--rackhost-image-mirrors` and `--rackhost-image-mirror-hosts`, a tart-kubelet
+  with `--image-mirror=ghcr.io=http://10.10.0.11:5000`. When it materializes a
+  golden base it asks the cache for the image's manifest. If the cache holds
+  it, tart-kubelet pulls `10.10.0.11:5000/tuist/tuist-runner@<that digest>`
+  with `--insecure`. If the cache is still fetching it, the Pod is requeued
+  (`ImageCacheSyncing`) for up to 30 minutes rather than pulling the same
+  image from ghcr.io beside it. If the cache is down, does not hold the image,
+  or the pull fails, tart-kubelet pulls from ghcr.io as before. The golden
+  keeps the name the Pod's image gives it, so Pods, golden Node labels, the
+  runners-controller's affinity and the GC key on nothing new.
+- **Pre-pull.** A joining host's prewarm (`podagent.Prewarmer`) materializes
+  through the same `ensureGolden`, so it goes through the cache too, and it
+  asks again every 30 seconds for an image the cache is still fetching rather
+  than letting Pods onto the host to wait on that fetch.
+- **Integrity.** Tart does not check a blob against its digest. The cache's
+  bytes are what zot fetched over TLS and wrote under its digest, and the hop
+  to the mini is the machines segment, which carries only our hosts; guests
+  are behind the hosts' NAT. Pulling by digest pins the manifest the probe
+  saw.
+- **Private images.** Everything mirrored today is public, so the cache syncs
+  anonymously. A private repository needs zot's `credentialsFile` for the
+  upstream, from a 1Password item through ESO, mounted into the cache pod. The
+  credential stays on the storage node; the minis keep pulling unauthenticated
+  from the segment.
+
+Sizing, as of the 0.32.0 runner images: each is 55 to 62 GB compressed (263
+layers of up to 512 MiB). All nine catalog images are 537 GB, 404 GB of
+distinct blobs; a release shares about 57% of its blobs with the one before,
+so a release beside its predecessor is 578 GB. ber1-store-a's `/data` is
+928 GB, also home to the Kura region, which takes precedence on it. So
+production's cache is 64 GiB, one image: the latest Xcode minor, 27.1,
+which moves to the next minor when one ships. The other versions come from
+ghcr.io, and so does 27.1 for about a day after a new image, until the old
+tag ages out (`keepPulledWithin`) and frees the room. Prewarming a second
+version beside it needs about 160 GiB through a release change, and every
+image the rack runs about 578 GB. Raise it once a drive in store-a's spare M.2 slots, or store-b,
+gives the site more disk.
+
+The claim is named after its size, because a claim cannot shrink: a new
+`sizeGi` makes a new volume, which the cache fills again from the upstream,
+and Helm deletes the old claim once the Deployment's Recreate has released
+it. The pod's `ephemeral-storage` request follows `sizeGi`, and that request
+is what the Kura region's placement counts.
+
+Turning it on is a deploy per step, and `routeHosts` is the feature flag: set
+`enabled`; once
+`kubectl -n tuist logs deploy/tuist-tuist-rack-image-cache-ber1-store-a -c prewarm`
+shows the prewarm set fetched, add `ber1-runner-b01` to `routeHosts` (real rack
+hardware, running staging's jobs); then the other hosts, or `"*"`. Routing
+needs an operator image with `--rackhost-image-mirror-hosts`, and re-pushes the
+launchd config of the hosts added, and only theirs, through the drift loop.
+`tart_kubelet_image_mirror_probe_total{result}` and
+`tart_kubelet_image_pull_seconds{source}` show what the hosts did; the
+`upstream` and `mirror` pull times on the same hosts are the before and after.
+Taking a host out of `routeHosts` is its rollback. `mise run rack:fleet-test` checks
+that every cache and cache gateway is a storage node of the site at its
+RackLinuxHost's address.
 
 ## Production
 
@@ -828,6 +982,24 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+Staging and canary rent no macOS runner hosts: their only macOS runners are
+the rack hosts production lends them (b01 and b02, "Lending a host to
+another env" below), and `runner_site` is on for every account there
+(`Tuist.FeatureFlags.runner_site_enabled?/1`). Their `runnersFleet.hostCount`
+is 0, so the chart renders no rented macOS pools and sets
+`TUIST_RUNNERS_RENTED_MACOS_FLEET=false`: dispatch sends every macOS profile
+to the rack's pool, and nothing spills over. A job waits while its env's host
+is down, cordoned or busy. Their Scaleway minis only run the xcresult
+processor (`macosFleet`).
+
+A catalog shape can run a bigger guest on the rack than on the rented fleet
+(`rackFleet.runners.guestShapes`): in production the 6 vCPU / 14 GB shape runs
+8 vCPU / 24 GB guests and the 12 vCPU / 28 GB shape 16 vCPU / 48 GB, which the
+hosts' 16 CPU / 48 GB sizing fits two and one of. The pool keeps the shape's
+name, so a job is still recorded, billed and counted against the account's
+concurrency limit at the shape its profile names, and one that spills over to
+the rented fleet runs at that shape.
+
 The rack's pools (one per Xcode and shape, plus the `ber1` smoke pool) share
 its guest slots through the runners-controller's fleet allocator. When one of
 them has queued jobs whose Pods the scheduler refuses for lack of resources,
@@ -846,7 +1018,8 @@ The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
 
 While a pool is down, dispatch routes new jobs to the rented pool for the same
 Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
-minute. A cluster the server cannot read leaves the rack up.
+minute. A cluster the server cannot read leaves the rack up. An env that
+rents no macOS fleet (staging, canary) has no backup, so neither happens there.
 
 The flag also gives the account a node in `ber1-runners`, as
 `runner_site_cache` does. With the
@@ -866,58 +1039,129 @@ entry on a newer guest needs the hosts updated first.
 
 ### Lending a host to another env
 
-A rack host can run another env's runners while it stays in the rack's env:
-its Machine, power, OS updates and bootstrap stay there, and its tart-kubelet
-registers its Node in the other env's cluster, whose runner pools and server
-then drive its guests. Staging borrows production's this way, so staging jobs
-run on rack hardware. The borrowing env's chart issues the host a node
-identity (`rackFleet.joiningNodes`), and the lending env's RackHost points the
-host at it (`nodeCluster`, `nodeFleet`). The operator waits for that
-kubeconfig, then revokes the host's identity in its own cluster, deletes its
-Node there, and pushes the other cluster's kubeconfig through the drift loop.
-The Machine carries `cluster.x-k8s.io/skip-remediation` while lent, since its
-cluster never sees the Node.
+A rack host can run another env's runners while it stays production's.
+Production keeps the site: the host's Machine, power, MDM, OS updates and
+bootstrap from a reinstall. The borrowing env's operator runs the host's runner
+runtime (tart-kubelet and its config, the VM egress firewall, cache volumes,
+Tailscale, the Node) from its own fleet config and rolls it with its own
+deploys, as it does its rented minis, so a rack runtime change reaches a rack
+host in staging first. The two operators hand the host over through a
+RackHostLease in the borrowing cluster, and never push to it at the same time.
+How it works is "A host lent to another env" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
 
-1. **Issue the identity** (remote). In the borrowing env's values, add the
-   host's Machine name (`<fleet>-<host>`) to `rackFleet.joiningNodes`, set
-   `rackFleet.name` to the fleet its pools select and `rackFleet.site`, enable
-   `rackFleet.runners`, and deploy.
-2. **Store it in the lending env's vault** (remote, by a person: it writes a
-   credential into 1Password). With `S` the borrowing cluster's context and
-   `M` the Machine name:
+**Once per borrowing env** (remote, by a person: it writes a credential into
+1Password). The borrowing env's values set `rackFleet.borrow.enabled` (staging
+and canary do), which renders the `rack-lender` identity production's operator
+writes that env's leases with. With `C` the borrowing cluster's context, `N`
+its namespace and `E` its name. Every variable is quoted, since zsh does not
+word-split an unquoted one, and each step runs only if the one before it
+succeeded:
 
-   ```
-   M=tuist-tuist-rack-fleet-ber1-runner-b01; S="--context kube-staging.tuist.dev"
-   umask 077; d="$(mktemp -d)"
-   kubectl $S -n tuist-staging get secret "tart-kubelet-$M-token" -o json >"$d/s.json"
-   server="$(kubectl $S -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')"
-   printf 'apiVersion: v1\nkind: Config\ncurrent-context: tart-kubelet\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: tart-kubelet\n    context:\n      cluster: cluster\n      user: tart-kubelet-%s\nusers:\n  - name: tart-kubelet-%s\n    user:\n      token: %s\n' \
-     "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$M" "$M" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig"
-   jq -n --rawfile k "$d/kubeconfig" '{title: "BER1_RUNNER_B01_STAGING_KUBECONFIG", category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json"
-   op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
-   ```
+```
+C=kube-staging.tuist.dev; N=tuist-staging; E=STAGING
+umask 077; d="$(mktemp -d)"
+kubectl --context "$C" -n "$N" get secret tuist-tuist-rack-lender-token -o json >"$d/s.json" && server="$(kubectl --context "$C" -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')" && test -n "$server" && test -n "$(jq -r .data.token "$d/s.json")" && printf 'apiVersion: v1\nkind: Config\ncurrent-context: rack-lender\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: rack-lender\n    context:\n      cluster: cluster\n      user: rack-lender\n      namespace: %s\nusers:\n  - name: rack-lender\n    user:\n      token: %s\n' "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$N" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig" && KUBECONFIG="$d/kubeconfig" kubectl auth whoami && jq -n --rawfile k "$d/kubeconfig" --arg t "RACK_BORROWER_${E}_KUBECONFIG" '{title: $t, category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json" && op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
+```
 
-3. **Lend it** (remote). Cordon the host's Node in the lending env and let
-   its jobs finish, then set the host's `nodeFleet` (the borrowing env's
-   `rackFleet.name`) and `nodeCluster.kubeconfigItem` (the item above) in the
-   lending env's `rackFleet.hosts`, and deploy. A host that cannot read its
-   kubeconfig keeps serving its own env and records `Not lending ... yet`
-   events on its RackAppleSiliconMachine.
-4. **Check it** (remote): `kubectl $S get node $M -L tuist.dev/fleet` is
-   Ready in the borrowing cluster, and the lending cluster has no Node `$M`.
+`kubectl auth whoami` must print
+`system:serviceaccount:<N>:tuist-tuist-rack-lender` before anything is stored.
+To replace an item that exists already, run the same with `op item edit <item>
+--vault tuist-k8s-production --template "$d/item.json"` in place of `op item
+create`.
 
-Returning the host is the reverse: drop `nodeCluster` and `nodeFleet` in the
-lending env and deploy (the operator mints its identity there again and pushes
-it), then drop it from `joiningNodes` in the borrowing env, deploy, and delete
-the Node there. Rotating the kubeconfig takes a new item name: the Secret is
-named after the item, and the drift loop keys on the Secret's name, not its
-contents.
+Staging's and canary's entries in `rackFleet.borrowers` in
+values-managed-production.yaml name their items already; a new borrowing env
+needs an entry with its `kubeconfigItem`, and a production deploy. Rotating it
+is deleting the token Secret in the borrowing env (its next deploy makes a new
+one), storing the new kubeconfig under the same item, and waiting for ESO's
+five-minute refresh.
 
-Before enabling the flag for any account other than Tuist's own, the rack's
-runner VMs have to be isolated from the rack's private networks and the
-tailnet (the VM egress firewall in `infra/macos-host-bootstrap`, the ACL
-catch-all in `infra/tailscale/acls.json`), and the isolation probed from a
-runner VM.
+**Lend a host** (remote). Only a host production has bootstrapped: production
+does not bootstrap a host while it lends it, so a new one joins production
+first.
+
+1. In the borrowing env's values, add the host to `rackFleet.borrow.hosts` and
+   deploy. A host not on that list is refused.
+2. In production's `rackFleet.hosts`, set the host's `lendTo` to the borrowing
+   env and deploy.
+3. Watch it: `kubectl get rh` in production shows the lease's state (Offered,
+   Draining while production's jobs on the host finish, then Lent), and
+   `kubectl $S get rhl` in the borrowing env shows the borrower's (Accepted,
+   then Active once its runtime is on the host, with the Node it registers as
+   `<rackFleet.name>-<host>`).
+
+**Return it**: drop `lendTo` in production and deploy. The borrower drains its
+Node, so its running jobs finish, and releases the host; production then takes
+the runtime back and bootstraps its own (Returning, then Reclaimed). It also
+deletes the tailnet devices the host ran as; if its tailnet API cannot, a
+`TailnetCleanupFailed` event names them for the Tailscale admin console.
+Remove the host from `rackFleet.borrow.hosts` afterwards. A borrower that is
+gone cannot release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
+in production takes it back without it (whatever the borrower ran there is
+lost), and remove the annotation once the host is back.
+
+**Rotate the borrower's key**: delete `rack-lease-<host>-ssh` in the borrowing
+env. Its operator mints a new key and waits for production to authorize it,
+which takes a minute; the host keeps running meanwhile.
+
+**Power-cycle or update a lent host** from the borrowing env, which holds no
+credential for either: annotate its lease, and production does it.
+
+```
+kubectl $S annotate rhl ber1-runner-b01 tuist.dev/power-cycle=wedged
+kubectl $S annotate rhl ber1-runner-b01 tuist.dev/os-update=26.7
+```
+
+An update drains the borrower's Node first, so its jobs finish, and the
+borrower pushes its runtime again afterwards. Follow it in the lease's
+`SiteRequest` condition, `status.siteRequest` and `spec.siteRequestResult`. A
+reinstall is not a site request: return the host, reinstall it in production,
+and lend it again.
+
+#### Moving ber1-runner-b01 and b02 off the manual lend
+
+b01 (staging) and b02 (canary) were lent the earlier way: production pushed its
+own runtime with a kubeconfig the borrowing env issued (`nodeCluster`,
+`nodeFleet`, `rackFleet.joiningNodes`). The change that brought `lendTo` also
+switches them, and each env takes its host over as soon as it can:
+
+- **canary** on the merge's own cascade. Canary deploys first, with its lease
+  controller and `rack-lender` identity, and its runners acceptance gate still
+  runs on b02's old Node. Production then deploys with `lendTo: canary`, and
+  the lend starts once `RACK_BORROWER_CANARY_KUBECONFIG` exists (above), which a
+  person stores after that canary deploy; ESO picks it up within five minutes.
+- **staging** once it has run the change: a staging deploy of the branch before
+  the merge (with the operator image built from it, `capi_image_tag`) lets
+  `RACK_BORROWER_STAGING_KUBECONFIG` be stored ahead, and production lends b01
+  as soon as it deploys.
+
+Until its item exists and its env runs the change, a host stays exactly as it
+is: production pushes nothing to it, and its old Node keeps running jobs. The
+borrower drains that Node (`tuist-tuist-rack-fleet-<host>`) only once it has
+reached the host with its own key, which needs the staging and canary grants in
+`infra/tailscale/acls.json` pasted, then takes the host over and deletes it.
+Each env's rack jobs wait out that drain and the push, a few minutes.
+
+Afterwards, in a later change: drop canary's `joiningNodes`, staging's leftover
+`tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01` identity, the
+`BER1_RUNNER_B0{1,2}_*_KUBECONFIG` items, and the leftover staging
+RackAppleSiliconMachines and Machines for b01..b03 (step 17 of "Into
+production"); then `nodeCluster`, `nodeFleet` and `rackFleet.joiningNodes` go
+from the chart and the operator.
+
+Any account's jobs can run on a rack host, since staging and canary route all
+of theirs there. A runner VM is isolated from the rack's private networks, the
+host's own listeners, its sibling guests and the tailnet: the VM egress
+firewall in `infra/macos-host-bootstrap` filters guest traffic before the host
+translates it, and `infra/tailscale/acls.json` has no catch-all grant. The
+`vm_isolation` job in `.github/workflows/runners-staging-smoke.yml` probes it
+from a VM on the host it lands on (`environment` picks staging's or canary's
+runners); run it on a host before lending it to an env, and after a change to
+either. The one rack target a guest reaches on purpose is the site's Kura
+gateway (`rackFleet.vmCacheGatewayCIDRs`). The probe's cluster DNS check fails
+on a host lent by hand, which has no route to the borrowing cluster's Service
+CIDR.
 
 ## Tests
 

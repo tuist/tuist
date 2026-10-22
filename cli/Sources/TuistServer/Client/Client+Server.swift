@@ -6,7 +6,10 @@ extension Client {
     @TaskLocal public static var additionalMiddlewares: [any ClientMiddleware] = []
 
     /// Tuist client for authenticated sessions
-    public static func authenticated(serverURL: URL, authenticationURL: URL? = nil) -> Client {
+    public static func authenticated(
+        serverURL: URL, authenticationURL: URL? = nil, networkTrustedReports: Bool = false,
+        networkTrustedPublishing: Bool = false
+    ) -> Client {
         .init(
             serverURL: serverURL,
             transport: TuistURLSessionTransport(),
@@ -16,11 +19,19 @@ extension Client {
                 ServerClientFeatureFlagsHeadersMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientActorHeadersMiddleware(),
-                ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
+                ServerClientAuthenticationMiddleware(
+                    authenticationURL: authenticationURL,
+                    networkTrustedReports: networkTrustedReports,
+                    networkTrustedPublishing: networkTrustedPublishing
+                ),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
             ] + requestCompressionMiddlewares + additionalMiddlewares
         )
+    }
+
+    public static func reporting(serverURL: URL, networkTrusted: Bool) -> Client {
+        authenticated(serverURL: serverURL, networkTrustedReports: true, networkTrustedPublishing: networkTrusted)
     }
 
     /// Innermost, so verbose logging still shows the uncompressed body.

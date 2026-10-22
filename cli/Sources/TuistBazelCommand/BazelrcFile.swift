@@ -48,7 +48,8 @@ enum BazelrcFile {
         credentialHelperPath: AbsolutePath,
         buildInsights: Bool = true,
         remoteDownloader: Bool = true,
-        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
+        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount,
+        actorOverride: String? = nil
     ) -> String {
         let buildEventServiceConfiguration = buildInsights ? """
         \(buildEventServiceFlag)\(endpoint.url)
@@ -73,9 +74,35 @@ enum BazelrcFile {
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
         \(remoteCacheCompressionFlag)
-        \(buildEventServiceConfiguration)
+        \(buildEventServiceConfiguration)\(buildInsights ? actorMetadata(actorOverride) : "")
 
         """
+    }
+
+    static func renderNetworkTrustedReports(
+        endpoint: GRPCEndpoint, accountHandle: String, projectHandle: String, actorOverride: String? = nil
+    ) -> String {
+        """
+        # Reporting only: no remote cache, downloader, credential helper, or artifact uploader.
+        \(buildEventServiceFlag)\(endpoint.url)
+        build --bes_header=x-tuist-account-handle=\(accountHandle)
+        build --bes_header=x-tuist-project-handle=\(projectHandle)
+        build --bes_header=x-tuist-network-trusted-publishing=true
+        build --nobes_lifecycle_events
+        \(buildEventServiceTimeoutFlag)
+        build --bes_upload_mode=fully_async
+        \(outputChunkFlag)
+        \(namedSetEntriesFlag)
+        \(actorMetadata(actorOverride))
+        """
+    }
+
+    private static func actorMetadata(_ override: String?) -> String {
+        guard let override else { return "" }
+        let valid = !override.isEmpty && override.utf8.count <= 128 && override.utf8.allSatisfy { (33 ... 126).contains($0) }
+        let value = valid ? override : ""
+        let escaped = value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        return "build --build_metadata=\"TUIST_ACTOR_ID=\(escaped)\"\n"
     }
 
     /// The file while the account has no cache endpoint serving. It configures nothing, because Bazel

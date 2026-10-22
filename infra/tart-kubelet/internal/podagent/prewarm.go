@@ -3,6 +3,7 @@ package podagent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -56,7 +57,14 @@ type Prewarmer struct {
 	DiskFree func() (float64, error)
 	// Timeout overrides defaultPrewarmTimeout.
 	Timeout time.Duration
+	// SyncRetry is how often an image the rack's image cache is still
+	// fetching is asked for again. Zero means defaultPrewarmSyncRetry.
+	SyncRetry time.Duration
 }
+
+// defaultPrewarmSyncRetry matches the requeue a Pod gets while the image
+// cache fetches its image (errMirrorSyncing).
+const defaultPrewarmSyncRetry = 30 * time.Second
 
 // Start conforms to manager.Runnable. It never returns an error: a failed
 // prewarm only costs the first Pod of each image its pull.
@@ -91,7 +99,7 @@ func (p *Prewarmer) Start(ctx context.Context) error {
 			break
 		}
 		started := time.Now()
-		name, materialized, err := p.Goldens.ensureGolden(ctx, image)
+		name, materialized, err := p.ensureGolden(ctx, image)
 		if err != nil {
 			logger.Error(err, "prewarm runner image", "image", image)
 			if ctx.Err() != nil {
@@ -105,28 +113,37 @@ func (p *Prewarmer) Start(ctx context.Context) error {
 }
 
 func (p *Prewarmer) images(ctx context.Context) ([]string, error) {
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(runnerPoolListGVK)
-	if err := p.K8s.List(ctx, list); err != nil {
+	pools, err := listRunnerPools(ctx, p.K8s)
+	if err != nil {
 		return nil, err
 	}
-	pools := make([]prewarmPool, 0, len(list.Items))
+	return prewarmImages(pools, p.Fleet), nil
+}
+
+// listRunnerPools reads every RunnerPool as the slice tart-kubelet needs.
+func listRunnerPools(ctx context.Context, k8s client.Reader) ([]runnerPoolSpec, error) {
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(runnerPoolListGVK)
+	if err := k8s.List(ctx, list); err != nil {
+		return nil, err
+	}
+	pools := make([]runnerPoolSpec, 0, len(list.Items))
 	for _, item := range list.Items {
 		raw, err := json.Marshal(item.Object)
 		if err != nil {
 			return nil, fmt.Errorf("encode runner pool %s: %w", item.GetName(), err)
 		}
-		var pool prewarmPool
+		var pool runnerPoolSpec
 		if err := json.Unmarshal(raw, &pool); err != nil {
 			return nil, fmt.Errorf("decode runner pool %s: %w", item.GetName(), err)
 		}
 		pools = append(pools, pool)
 	}
-	return prewarmImages(pools, p.Fleet), nil
+	return pools, nil
 }
 
-// prewarmPool is the slice of a RunnerPool the prewarmer reads.
-type prewarmPool struct {
+// runnerPoolSpec is the slice of a RunnerPool the prewarmer and the GC read.
+type runnerPoolSpec struct {
 	Spec struct {
 		Image         string `json:"image"`
 		OS            string `json:"os"`
@@ -139,7 +156,15 @@ type prewarmPool struct {
 	} `json:"spec"`
 }
 
-func (p prewarmPool) warmFloor() int32 {
+// runsOn reports whether the pool runs macOS VMs on fleet's hosts.
+func (p runnerPoolSpec) runsOn(fleet string) bool {
+	if p.Spec.OS != "" && p.Spec.OS != "darwin" {
+		return false
+	}
+	return p.Spec.FleetSelector == fleet && p.Spec.Image != ""
+}
+
+func (p runnerPoolSpec) warmFloor() int32 {
 	a := p.Spec.Autoscaling
 	if a == nil || !a.Enabled || a.MinWarmPoolFloor == nil {
 		return 0
@@ -151,7 +176,7 @@ func (p prewarmPool) warmFloor() int32 {
 // floor or want runners right now (spec.replicas, which the autoscaler sets),
 // warm floors first, then by demand. A pool that wants nothing is skipped: its
 // image may never run here, and a golden is tens of GB.
-func prewarmImages(pools []prewarmPool, fleet string) []string {
+func prewarmImages(pools []runnerPoolSpec, fleet string) []string {
 	type candidate struct {
 		image    string
 		floor    int32
@@ -159,10 +184,7 @@ func prewarmImages(pools []prewarmPool, fleet string) []string {
 	}
 	best := map[string]candidate{}
 	for _, pool := range pools {
-		if pool.Spec.OS != "" && pool.Spec.OS != "darwin" {
-			continue
-		}
-		if pool.Spec.FleetSelector != fleet || pool.Spec.Image == "" {
+		if !pool.runsOn(fleet) {
 			continue
 		}
 		c := candidate{image: pool.Spec.Image, floor: pool.warmFloor(), replicas: pool.Spec.Replicas}
@@ -198,4 +220,26 @@ func prewarmImages(pools []prewarmPool, fleet string) []string {
 		images[i] = c.image
 	}
 	return images
+}
+
+// ensureGolden materialises image, asking again while the rack's image cache
+// is still fetching it rather than moving on: the host would otherwise take
+// Pods without the image, and those Pods would wait on the same fetch. The
+// cache's own sync timeout and the prewarm timeout bound the wait.
+func (p *Prewarmer) ensureGolden(ctx context.Context, image string) (string, bool, error) {
+	retry := p.SyncRetry
+	if retry <= 0 {
+		retry = defaultPrewarmSyncRetry
+	}
+	for {
+		name, materialized, err := p.Goldens.ensureGolden(ctx, image)
+		if !errors.Is(err, errMirrorSyncing) {
+			return name, materialized, err
+		}
+		select {
+		case <-ctx.Done():
+			return "", false, err
+		case <-time.After(retry):
+		}
+	}
 }

@@ -3,6 +3,9 @@ import SwiftUI
 @main
 struct AtlasApp: App {
     @StateObject private var authentication = AtlasAuthentication()
+    @StateObject private var navigation = AtlasNavigation()
+    @StateObject private var appearance = AtlasAppearance()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -13,52 +16,44 @@ struct AtlasApp: App {
                     AtlasLoginView(authentication: authentication)
                 }
             }
-            .tint(AtlasBrand.accent)
-            .task { await authentication.restore() }
+            .modifier(AtlasThemeScope(appearance: appearance, server: authentication.server))
+            .task(id: authentication.server) { await appearance.configure(server: authentication.server) }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await appearance.refresh() } }
+            }
+            .environment(\.atlasNavigation, navigation)
+            .task { await authentication.restore(); navigation.resolve(server: authentication.server) }
+            .onOpenURL { navigation.receive($0, server: authentication.server) }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { navigation.receive(url, server: authentication.server) }
+            }
+            .onChange(of: authentication.server) { previous, server in
+                if previous != nil, server == nil { navigation.reset() }
+                navigation.resolve(server: server)
+            }
+            .alert("Atlas link", isPresented: Binding(
+                get: { navigation.message != nil && !navigation.hasVisibleProtectedWork },
+                set: { if !$0 { navigation.message = nil } }
+            )) {
+                Button("OK") { navigation.message = nil }
+            } message: { Text(navigation.message ?? "") }
         }
     }
 
-    private var workspace: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text("Your workspace, on the go")
-                        .font(.title2.bold())
-                    if let server = authentication.server {
-                        Text(server.host() ?? "Atlas")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Section("Workspace") {
-                    ForEach(AtlasCore.sections()) { section in
-                        if section.kind == "automation" {
-                            NavigationLink {
-                                AtlasAutomationView(authentication: authentication)
-                            } label: {
-                                Label(section.title, systemImage: "bolt.horizontal.circle")
-                            }
-                        } else {
-                            Link(destination: authentication.destination(section.url)) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(section.title).font(.headline)
-                                    Text(section.description).font(.subheadline).foregroundStyle(.secondary)
-                                }
-                                .padding(.vertical, 8)
-                            }
-                        }
-                    }
-                }
-                Section {
-                    Text("Automation runs natively. Other sections open in your browser and may require a separate sign-in.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Button("Sign out", role: .destructive) { authentication.signOut() }
-                }
+    @ViewBuilder private var workspace: some View {
+        if let server = authentication.server {
+            AtlasWorkspaceView(holidayRequest: authentication.holidayRequest,
+                               businessRequest: authentication.businessRequest, presence: authentication.presence, navigation: navigation,
+                               automation: authentication) {
+                AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
+                                  profileRequest: authentication.businessRequest)
+            }
+            .safeAreaInset(edge: .bottom) {
                 if let message = authentication.errorMessage {
-                    Text(message).foregroundStyle(.red)
+                    Text(message).foregroundStyle(.red).padding()
                 }
             }
-            .navigationTitle("Atlas")
+            .environment(\.atlasServer, server)
         }
     }
 }

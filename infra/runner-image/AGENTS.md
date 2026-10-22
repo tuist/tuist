@@ -255,8 +255,50 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
   still gets an *empty* image — the guest can only attach what is there, and no
   image would kill the job rather than cost it warmth.
-  Only a job that **succeeded** promotes. The gate is `JOB_PASSED` (zero exit AND
-  a job result of `succeeded`), not the runner's exit status. `run.sh` folds
+  **Opt-in caches.** When the dispatch response carries `"automatic_caches":
+  false` (every macOS dispatch since the server stopped sending automatic
+  caches), everything above still runs, but `stage_runner_caches` moves the
+  module cache's (`TUIST_XDG_CACHE_HOME`, `TUIST_CACHE_MAX_BYTES`) and the
+  Xcode cache's (`XCODE_XCCONFIG_FILE`, `TUIST_COMPILATION_CACHE_CAS_PATH`,
+  `TUIST_CAS_DRAINED_STORE`) environment out of the runner's into
+  `/Users/runner/.tuist-runner-caches/{module,xcode}.env` and drops the
+  attach-time `cache-usage.json`. The `tuist/module-cache` and
+  `tuist/xcode-cache` actions, Buildkite plugins and GitLab snippets
+  (`ci/runner-caches/`) run `/usr/local/bin/tuist-runner-cache activate
+  <cache>`, which prints that file for the action to export, chains a
+  workflow-set `XCODE_XCCONFIG_FILE` last, and leaves `<cache>.used`. A job
+  with neither marker reports no usage and cannot promote (`CACHE_PASSED=0`).
+  `mode` (`automatic` or `opt-in`) tells the helper which case it is in; an
+  absent `mode` means a runner that never staged caches. If the directory
+  cannot be created, the job keeps automatic caches. A workflow's relative
+  `XCODE_XCCONFIG_FILE` is resolved against the step's working directory. Keep the helper's env
+  contract in step with these exports. Run `runner-caches_test.sh`.
+  **Managed cache volumes.** When the response also carries
+  `"managed_cache_volumes": true`, the job never attaches the built-in image.
+  `stage_managed_cache_volumes` writes `<cache>.volume` (key and path:
+  `tuist-xcode` at `MANAGED_XCODE_CACHE`, `tuist-module` at
+  `MANAGED_MODULE_CACHE`), the environment pointing each cache there, and its own
+  xcconfig bounding the compilation cache to `MANAGED_XCODE_CACHE_LIMIT_BYTES`.
+  `tuist-runner-cache activate <cache> [--size NGB]` attaches the volume with
+  `tuist-cache-volume`, passing the size, once per job (`<cache>.attached`)
+  before printing the environment, and exits 3 without exporting anything when
+  the attach fails. After the attach it reads the volume's capacity (`df` on the
+  path, which links into the mounted image) and rewrites `TUIST_CACHE_MAX_BYTES`
+  in `module.env` or `COMPILATION_CACHE_LIMIT_SIZE` in the xcconfig to the
+  capacity less max(2 GB, 20%), at most half of it: 24 GB at the default 30 GB,
+  16 GB at 20 GB. A path left as a local directory (the volume was unavailable)
+  keeps the staged limits of a default-sized volume. At teardown, a job that used
+  the compilation cache drains its publications from that store (every job) and
+  prunes it (successful jobs) through `CAS_STORE_ROOT` before
+  `tuist-cache-volume --detach-all`; an undrained store withholds the job's
+  volumes. The teardown prune bounds the store at the limit the xcconfig gave the
+  compiler (`managed_xcode_cache_limit`), so both follow the capacity the job
+  set with `size` (the server's defaults: 30 GB `tuist-xcode`, 20 GB
+  `tuist-module`). Keep the limits under the 99% fill at which a volume is no
+  longer saved.
+  Only a job that **succeeded** promotes. The gate is `CACHE_PASSED`, which is
+  `JOB_PASSED` (zero exit AND a job result of `succeeded`) for any job that
+  reached the caches, not the runner's exit status. `run.sh` folds
   every Listener code except a restart into 0, and the GitLab executor exits 0
   for job outcomes by design. Gating on the exit status promoted failed and
   cancelled jobs, about one in ten of one account's HEAD publishes in a week.
@@ -286,7 +328,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Teardown order is load-bearing: **wait for the compilation cache's
   publications to reach the remote** (`drain_cas_publications`, below), sample
   the signals that need a live mount (fill
-  %), then **detach**, then measure the SETTLED image for the digest this job
+  %, which also withholds an image at 98% full or holding more than the staged
+  cache budget, since a master over the budget leaves the next job less than the
+  reserve to build in), then **detach**, then measure the SETTLED image for the digest this job
   publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
   the same view the verifying host uses), then write `cache-dirty` (only after both
   a clean detach and a successful measurement — its absence is what tells the host
@@ -356,6 +400,15 @@ added to catch that failed on `admin`'s unwritable cache instead.
   so a mount torn down by the VM halting would poison the account's master; if the
   detach fails even with `-force`, the guest withdraws the image from both
   promotion and publication.
+  Before any detach, after the drain and the teardown prune (both ask the
+  proxy), `stop_tuist_launch_agents` boots out every `tuist.*` launch agent the
+  CLI installed during the job (the image's own agents are `dev.tuist.*`) and
+  waits up to 10 s for each process to exit, since `launchctl bootout` returns
+  first. These agents outlive the runner's process cleanup and restart on an
+  unsuccessful exit, so they are booted out, not killed. The proxy holds the
+  compilation-cache store open, and a Tuist installed onto a custom volume (for
+  example mise's install directory) runs from it; either keeps a volume busy, so its clean detach fails with
+  EBUSY.
   The server also delivers a `cache_signing_grant` in
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what
@@ -416,6 +469,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   a bounded tail of it, so a verbose job's attach lines never reach the log
   store. Staged at attach AFTER `limit_binary_cache`, so what is recorded is the
   limit that was applied.
+  `cas_proxy_client` resolves an explicit proxy override, the installed agent's
+  configured override or CLI bundle, PATH, then the image fallback. For stable
+  `/bin/sh` agents it reads the JSON launch target from ProgramArguments[2];
+  for explicit custom/source-built agents it reads the CLI from
+  ProgramArguments[4]. Legacy agents still name the CLI in Program. Run
+  `bash infra/runner-image/tests/cas-proxy-client-test.sh` on macOS to cover
+  all discovery modes without starting the dispatch loop.
   The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
   job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
   llcas rotates (new primary, old one demoted) when the chain is over the limit
@@ -614,7 +674,11 @@ CI:
      `runner-image@<semver>` tag and GitHub Release with
      `build-manifest.json` attached. The chart's
      `runnersFleet.runnerImageSemver` resolves to that tag at deploy
-     time.
+     time, and `server-deployment.yml` resolves each profile that
+     release lists in `profiles.json` to the digest its tag serves
+     (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
+     carried profile's pools, warm Pods and host goldens stay as they
+     were. A profile tag that cannot be resolved fails the deploy.
   5. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
@@ -649,6 +713,49 @@ agent + dispatch loop + runner user / launchd wiring on top. A
 Layer 2 rebuild on every runner-image commit costs ~2 min instead
 of the ~30 min an all-in-one rebuild used to cost.
 
+### Stacked images
+
+Every release also publishes each profile as a Tart stacked image,
+`:macos-<dashes>-<semver>-stacked` (and the rolling
+`:macos-<dashes>-stacked`): Layer 1's disk stays a read-only base, and
+the runner layer is an ASIF overlay. Clone and run need macOS 27 and
+Tart 2.36 or newer, so only rack hosts run it. Older hosts can pull one
+but not boot it.
+
+- **Release.** The plan builds a profile's stacked image whenever it
+  rebuilds the standalone one, and when the previous release published
+  none for it (its `build-manifest.json` entry lacks `stacked: true`).
+  Otherwise `carry` re-tags it like the standalone tag. The
+  `build-stacked` job runs on the macOS 27 builder (`macos-27` label),
+  and the release gate requires both tags of every profile.
+- **Where it runs.** `server-deployment.yml` resolves each published
+  stacked tag's digest into `runnersFleet.runnerImageStackedDigests`.
+  Rack pools run it when `rackFleet.runners.stackedImages` is on, which
+  requires every host of that rack, including borrowed ones, to run
+  macOS 27 and Tart 2.36 or newer. Rented pools, explicit pools and any
+  Xcode pinned by `imageTag` keep the standalone image.
+- **One-off builds.** `runner-image.yml` with `stacked: true` builds the
+  same image from a branch and pushes `:macos-<dashes>-<git-sha>-stacked`.
+
+- **What it saves.** The base's chunks are the same blobs Layer 1
+  publishes, and Tart keeps immutable disk files in a content store
+  keyed by their digest. A host that holds the base pulls only the
+  overlay: 1.6 GB for 26.6, against 23 GB of changed chunks for the
+  standalone image.
+- **Build mechanics.** The Packer plugin has no `--stacked`, so the
+  job puts `stacked-tart/` first on `PATH`, which rewrites the plugin's
+  `tart clone` to `tart clone --stacked`. A stacked VM has no
+  `disk.img`, so `stacked = true` also keeps the recovery partition
+  instead of deleting it. `clone --stacked` of a standalone base
+  hashes the whole base disk (about a minute for 140 GB) on every
+  build.
+- **First push per base.** Tart checks the target repository for the
+  base's blobs and does not mount them from `macos-tahoe-xcode`, so
+  the first stacked push on a new Layer 1 uploads the base once.
+- **Lineage.** Always stack on Layer 1, never on a previous runner
+  image: every extra overlay is one more file to validate and open at
+  boot, and DiskImageKit cannot merge layers.
+
 ## Active profiles + the default
 
 Active profiles are the single source of truth in
@@ -656,7 +763,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.1-rc", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the
@@ -668,6 +775,15 @@ resolves to a runner pool sized by
 channel a later `Release Candidate 2` moves. The longer
 `release-candidate` would push the 12 vCPU shape pool's
 `tuist.dev/runner-pool` label past Kubernetes' 63-character limit.
+
+Xcode 27.1 RC retirement removes RC builds and pools and the temporary
+stable bootstrap pin only after the additive chart is deployed and a
+versioned release includes stable. Keep the bootstrap image for rollback.
+The default stays 26.6. Follow the [retirement runbook](xcode-27.1-retirement.md)
+for merge prerequisites and required post-rollout reconciliation, including
+profiles saved by old replicas and jobs requeued after their claims release.
+Use the documented release `eval` with `Ecto.Migrator.with_repo/2` for this
+reconciliation; `rpc` is unavailable when release distribution is disabled.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;
@@ -691,7 +807,7 @@ removing one drops it from the next release.
   That dispatch path doesn't move the chart pin.
 
 Active rebuilds always produce both an immutable tag
-(`:macos-<dashes>-<semver>`, the one the chart pins) and a rolling
+(`:macos-<dashes>-<semver>`, the one deploys resolve to a digest) and a rolling
 tag (`:macos-<dashes>`, convenient for humans pulling "latest in
 this profile").
 
@@ -752,27 +868,19 @@ in that profile) plus `:macos-26-4-1-<semver>` (immutable, for
 rollbacks and traceability). The tag form is the Xcode version
 with dots → dashes, matching Layer 1's tag scheme: a 26.4.1 Layer
 1 produces a `:macos-26-4-1` runner image, a 26.5 Layer 1
-produces `:macos-26-5`. The chart pins the immutable per-release
-tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
+produces `:macos-26-5`. Pools run the digest of the immutable
+per-release tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
 coexist in GHCR — the runner-fleet config currently selects one as
 the default but the structure is ready for the future
 customer-facing profile selection.
 
 ## How it ends up serving traffic
 
-1. Each `runnersFleet.pools[].runnerImage` (helm value) is pinned to
-   a profile's immutable per-release tag
-   (`ghcr.io/tuist/tuist-runner:macos-<profile>-<semver>`). The
-   chart's `required` directive only enforces non-empty; the
-   release flow writes the immutable tag (not a digest) because
-   the semver is monotonic, so the ref is reproducible without a
-   registry lookup.
-
-   > **Transitional:** today there's a single pool (`name: default`)
-   > and the release pins it to the first matrix profile (the
-   > "default profile"). The chart is built for one pool per profile
-   > — once #10970 lands the pool-per-profile values, each pool pins
-   > its own profile tag and the "default" goes away.
+1. Each catalog RunnerPool's `spec.image` (`tuist.macosRunnerImage`)
+   is `ghcr.io/tuist/tuist-runner@<digest>`, the digest the deploy
+   resolved for the profile's immutable per-release tag
+   (`:macos-<profile>-<semver>`) from GHCR the way hosts pull it. An
+   `xcodeOverrides[].imageTag` pin renders as that tag instead.
 2. `Tuist.Runners.Reconciler` creates a Pod with this image as
    `spec.containers[0].image`; tart-kubelet on the target Mac
    mini calls `tart pull`/`tart clone`/`tart run`.
@@ -854,9 +962,28 @@ semantics; this doc is just about the VM image.
 
 - GitLab parsing uses `/opt/homebrew/bin/jq`, checked before acquisition independently of launchd PATH. Stage assignments in a private `mktemp` file and atomically rename only after successful parsing; failures remove temporary credentials and terminate the claimed runner.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+- The job-started hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
+  before the first step. It mounts the job's cached checkout only when the host
+  serves one, the workspace is empty and its parent holds nothing else, and
+  otherwise leaves it untouched, so actions/checkout clones as before. It never
+  fails the job. The image mounts at the workspace's parent and the guest moves
+  the tree into the workspace: the workspace must not be a volume root, because
+  Foundation stages safe saves in `<volume root>/.TemporaryItems` and Xcode's
+  task sandbox refuses writes there inside the project (CoreML compilation into
+  a DerivedData under the workspace fails with "compile failed to write partial
+  plist"). `tuist-cache-volume --key` leaves out a path in the mounted
+  checkout's `.git` that already holds data (such as `.git/lfs`) with a notice,
+  instead of refusing it as non-empty.
+  When the host granted a checkout (mounted, or `cold`, `capacity`, `timeout`)
+  it records the workspace and the mounted master's commit and LFS objects in
+  `/Users/runner/.tuist-checkout.json`. The teardown then runs
+  `tuist-cache-volume --checkout-export`, which packs what the job's checkout added
+  (the job commit and the objects of its tree the master's tip tree lacks; see
+  `infra/linux-runner-image/AGENTS.md`) and copies its new LFS objects into the share's `checkout-export/` (45 s budget)
+  for the host to verify and build from. Neither step fails the job.
 
 - `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
   size, mount time/duration and host-staged warm/cold source. Stage once at attach

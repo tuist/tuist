@@ -4,6 +4,8 @@
 <dict>
     <key>application-identifier</key>
     <string>dev.tuist.atlas</string>
+    <key>com.apple.developer.associated-domains</key>
+    <array><string>applinks:atlas.tuist.dev</string></array>
     <key>keychain-access-groups</key>
     <array><string>dev.tuist.atlas</string></array>
 </dict>

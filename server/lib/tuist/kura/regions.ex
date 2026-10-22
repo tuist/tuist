@@ -473,8 +473,9 @@ defmodule Tuist.Kura.Regions do
   # continuous account mesh replication. Their regional gateway admits the
   # runner network and publishes a stable per-account private hostname.
   # The control plane provisions exactly one of
-  # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
-  # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+  # these per account whose runner jobs run beside the region (see
+  # `Tuist.Kura.RunnerCache`) and the runner dispatch hands the URL back as
+  # `cache_endpoint_url`.
   #
   # `runner_platforms` declares which runner fleets a region's nodes are
   # provisioned for and routed to — the cluster-locality boundary from
@@ -542,17 +543,16 @@ defmodule Tuist.Kura.Regions do
     # and only accounts on the `runner_site` or `runner_site_cache` flag get a
     # node.
     #
-    # A rack node runs a pod network of its own, which the cluster does not
-    # route to and which routes to no Service, so the pods resolve names
-    # through public resolvers and call the server through its public URL,
-    # and the controller samples them through the API server
-    # (`nodeLocalNetwork`). That also rules out the peer mesh: one replica,
-    # no mesh, until the site has a second storage node to pair with.
+    # The storage node is an ordinary cluster node: it runs Cilium, and the
+    # rack edge forwards the cluster's tunnel, health and kubelet ports to it
+    # on the rack's public address (`rackLinuxFleet` in the tuist chart). So
+    # the cache joins the account mesh pod to pod like any other region's and
+    # reaches the server and the trace collector through their Services. One
+    # replica until the site has a second storage node to pair with.
     %{
       id: "ber1-runners",
       site: "ber1",
       replicas: 1,
-      mesh: false,
       ingress_class_name: "kura-ber1-runners",
       display_name: "BER1 rack (runner cache)",
       cluster_id: "ber1",
@@ -560,14 +560,15 @@ defmodule Tuist.Kura.Regions do
       # The node's XFS /data, through the same local-path class as the other
       # bare-metal pools.
       storage_class: "scw-local-nvme",
+      # Sized by the account's claim like scw-fr-par-runners. With one replica
+      # a raised claim rebuilds the volume, which refills from the account's
+      # other regions.
       storage_size: "50Gi",
+      storage_governed: true,
       runner_platforms: [:macos],
       data_plane: :private_gateway,
       # The rack's machines segment, where the minis sit.
       client_cidrs: ["10.10.0.0/24"],
-      # Tailscale's resolver answers the tailnet, where the trace collector
-      # is, and fails other names over to the public resolvers.
-      node_local_network: %{nameservers: ["100.100.100.100", "1.1.1.1", "8.8.8.8"]},
       tolerations: [
         %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
       ],
@@ -634,6 +635,23 @@ defmodule Tuist.Kura.Regions do
   """
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
+
+  @doc """
+  True iff `endpoint` is a private region's hostname, which is the cache
+  endpoint a runner build reports when its cache traffic went to the site's
+  runner cache rather than to a public region.
+  """
+  def private_endpoint?(endpoint) when is_binary(endpoint) do
+    with %URI{host: host} when is_binary(host) <- URI.parse(endpoint),
+         [label | _] <- String.split(host, ".") do
+      suffix = managed_region_host_suffix()
+      Enum.any?(all(), &(private?(&1) and String.ends_with?(label, "-" <> &1.id <> suffix)))
+    else
+      _ -> false
+    end
+  end
+
+  def private_endpoint?(_endpoint), do: false
 
   @doc """
   True iff the region's instances join the controller-managed per-account peer
@@ -1084,8 +1102,6 @@ defmodule Tuist.Kura.Regions do
   end
 
   defp private_region(spec) do
-    node_local_network = Map.get(spec, :node_local_network)
-
     %__MODULE__{
       id: spec.id,
       display_name: spec.display_name,
@@ -1119,19 +1135,10 @@ defmodule Tuist.Kura.Regions do
         memory_governed: Map.get(spec, :memory_governed, false),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
         replicas: Map.get(spec, :replicas, 1),
-        # A node-local pod reaches no Service, so it calls the server through
-        # its public URL.
-        tuist_base_url:
-          if(node_local_network,
-            do: Tuist.Environment.app_url(),
-            else: Tuist.Environment.kura_tuist_base_url()
-          ),
-        node_local_network: node_local_network,
-        otlp_traces_endpoint: if(node_local_network, do: Tuist.Environment.kura_node_local_otlp_traces_endpoint()),
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         # The runner-cache node replicates with the account's other nodes
         # over the in-cluster peer mesh (cache content stays coherent; the
-        # runner hot path remains node-local over the Private Network). A
-        # node-local region reaches no peer, so it opts out.
+        # runner hot path stays on the site's own network).
         mesh: Map.get(spec, :mesh, true)
       }
     }

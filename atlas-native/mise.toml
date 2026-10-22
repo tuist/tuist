@@ -10,7 +10,7 @@ postinstall = "true"
 
 [tasks."prepare:rust"]
 description = "Materialize locked Rust sources for Once's per-crate build graph"
-run = "cargo vendor --quiet --locked .once/vendor > /dev/null"
+run = "CARGO_HTTP_MULTIPLEXING=false cargo vendor --quiet --locked .once/vendor > /dev/null"
 
 [tasks.check]
 depends = ["prepare:rust"]
@@ -46,6 +46,15 @@ once build AtlasAndroid
 depends = ["prepare:rust"]
 description = "Build the arm64 iOS simulator app"
 run = "once build AtlasIOS"
+
+[tasks."build:ios-device"]
+depends = ["prepare:rust"]
+description = "Build the arm64 iOS device app without distribution credentials"
+run = "once build AtlasIOSDevice"
+
+[tasks."bundle:ios"]
+description = "Sign the device app with the Atlas ad-hoc profile and package an IPA"
+run = "bash ios/distribution/bundle.sh"
 
 [tasks."test:core"]
 depends = ["prepare:rust"]

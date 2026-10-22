@@ -113,6 +113,18 @@ If you previously relied on automatic provider-token discovery, configure Git au
 
 By default, `swifterpm` copies cached directories into the project scratch directory during [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) (CI) and symlinks them elsewhere. Pass `--cached-directory-materialization=symlink` to preserve global-cache symlinks during continuous integration. The accepted values are `automatic`, `copy`, and `symlink`.
 
+The cache path (by default `~/.cache/swifterpm`) also applies to native manifest compilation, including SwifterPM's internal `swift package dump-package` calls, so manifest dumps and lockfile validation share one compiled-manifest cache across checkouts and worktrees. For generated projects using `tuist install`, this allows dependency sources and native manifest caches to live beside workspace state in one retained `.build` directory:
+
+```bash
+tuist install --force-resolved-versions \
+  --cache-path "$PWD/.build/dependency-cache" \
+  --cached-directory-materialization=symlink
+```
+
+This example assumes `Package.swift` is at the repository root. For `Tuist/Package.swift`, use `$PWD/Tuist/.build/dependency-cache` and retain `Tuist/.build`. Always run installation on a cache hit to validate the lockfile. Cleaning `.build` also removes these caches; keeping them within a job's workspace trades sharing across jobs or worktrees for a single retained directory. Omitting `--cache-path` keeps sources and compiled manifests in the shared `~/.cache/swifterpm`. SwiftPM configuration and authentication remain outside this cache.
+
+Alternatively, retain only an external cache such as `--cache-path "$HOME/.cache/swifterpm"` and recreate `.build` on each job. Sources and native compiled manifests remain reusable, but workspace state and SwifterPM's cached manifest JSON must be regenerated. Measure installation time for your dependency graph before choosing which layout to retain.
+
 > [!NOTE]
 > `swifterpm resolve` writes `Package.resolved` with an `originHash` derived from `Package.swift`, while SwiftPM derives its hash from the dependency graph. Running `swift package resolve` after `swifterpm resolve` in the same checkout may treat the lockfile as stale and resolve again.
 
@@ -134,6 +146,11 @@ These protections do not certify already-corrupted Git-free cache entries whose 
 
 ## Continuous integration
 
+Manifest dumps and package-info JSON use content fingerprints and stay under the root
+scratch directory, so identical fresh checkouts can reuse retained caches. Older entries
+refresh once on upgrade. Manifests that read arbitrary external files still require
+explicit cache invalidation; SwifterPM does not trace those reads.
+
 > [!IMPORTANT]
 > Cache `~/.cache/swifterpm` (or `$XDG_CACHE_HOME/swifterpm`). Without it, every continuous-integration run is a cold run.
 
@@ -153,7 +170,7 @@ The cache is content-addressed by package identity, version, and revision, so a 
 
 For a persistent runner that keeps the SwifterPM cache on disk between jobs, configure symlink materialization. It avoids copying every cached checkout into a new scratch directory, leaving the warm path as inexpensive links back to the persistent cache.
 
-Package manifests can read process environment variables while declaring dependencies, so the package-manager cache keys include the environment they observe. Tuist automatically hides volatile run metadata when it recognizes [GitLab](https://docs.gitlab.com/ci/variables/predefined_variables/), [GitHub Actions](https://docs.github.com/actions/reference/workflows-and-actions/variables), [Bitrise](https://docs.bitrise.io/en/bitrise-ci/references/available-environment-variables/), or [Codemagic](https://docs.codemagic.io/yaml-basic-configuration/environment-variables/). This keeps job or run identifiers, retry counts, and per-step temporary paths from needlessly making a warm manifest cache cold. Branch, reference, commit, workflow, and other configuration values remain visible.
+Package manifests can read process environment variables while declaring dependencies, so the package-manager cache keys include the environment they observe. Tuist automatically hides volatile run metadata when it recognizes [GitLab](https://docs.gitlab.com/ci/variables/predefined_variables/), [GitHub Actions](https://docs.github.com/actions/reference/workflows-and-actions/variables), [Bitrise](https://docs.bitrise.io/en/bitrise-ci/references/available-environment-variables/), or [Codemagic](https://docs.codemagic.io/yaml-basic-configuration/environment-variables/). This keeps job or run identifiers, retry counts, and per-step temporary paths from needlessly making a warm manifest cache cold. On every machine, it also hides shell bookkeeping (`SHLVL`, `_`, `PWD`, `OLDPWD`), terminal and agent session identifiers (such as `TERM_SESSION_ID`, `XPC_SERVICE_NAME`, `__MISE_*` and `CLAUDE_*`), and Tuist runner and cache settings, so new shells, terminals, agent sessions and worktrees reuse the same manifest caches. Branch, reference, commit, workflow, and other configuration values remain visible.
 
 Restore an automatically excluded variable only when a package manifest intentionally uses it to declare dependencies:
 

@@ -322,4 +322,3 @@ Tq3!nW8e#Yb5Lc2V'
     [ "$status" -eq 2 ]
     [[ "$output" == *"management.controller.address"* ]]
 }
-

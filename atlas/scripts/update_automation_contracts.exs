@@ -264,6 +264,13 @@ excluded =
         Map.has_key?(rejected, name) ->
           rejected[name]
 
+        String.contains?(name, "holiday") or String.contains?(name, "time_off") ->
+          "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes."
+
+        String.contains?(name, "llm_provider") or String.contains?(name, "chatgpt_provider") or
+            name == "connect_claude_provider" ->
+          "Personal provider credentials and device-login lifecycle are not workflow capabilities."
+
         String.contains?(name, "automation") ->
           "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior."
 
@@ -292,6 +299,12 @@ excluded =
   |> Map.reject(fn {name, _} -> MapSet.member?(allowed, name) end)
 
 policies = [
+  %{
+    domain: "time_off_approvals",
+    execution_mode: "excluded",
+    policy:
+      "Employee leave and manager-review ownership remain outside workflow behaviors until explicit scoped adapters and approval conformance are available."
+  },
   %{
     domain: "accounts",
     policy:

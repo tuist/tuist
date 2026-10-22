@@ -221,6 +221,10 @@ pub struct AuthEngine {
     /// Presence holds the next attempt off, so an outage costs one probe per
     /// credential per backoff window rather than one per cold target.
     unreachable: Cache<CredentialKey, ()>,
+    /// Where each confirmed credential was issued, for usage attribution. Held
+    /// as long as an access level can be, and only written for a credential an
+    /// evaluation confirmed.
+    origins: Cache<CredentialKey, Arc<str>>,
     metrics: Metrics,
 }
 
@@ -271,8 +275,36 @@ impl AuthEngine {
                 .eviction_policy(EvictionPolicy::lru())
                 .time_to_live(UNAVAILABLE_BACKOFF)
                 .build(),
+            origins: Cache::builder()
+                .max_capacity(config.cache_max_entries as u64)
+                .eviction_policy(EvictionPolicy::lru())
+                .time_to_live(CONFIRMED_TTL)
+                .build(),
             metrics,
         })
+    }
+
+    /// A report-only decision, deliberately not stored as cache access or reused
+    /// across streams: project revocation and shared quotas live on the server.
+    pub async fn network_build_event_access(&self, account: &str, project: &str) -> AccessDecision {
+        match self
+            .backend
+            .network_build_event_access(account, project)
+            .await
+        {
+            Ok(response) if response.status == 200 && response.body["network_trusted"] == true => {
+                AccessDecision::Allow
+            }
+            Ok(response) => AccessDecision::Deny(DenyDecision {
+                status: if response.status == 429 || response.status == 503 {
+                    response.status
+                } else {
+                    403
+                },
+                message: "Network-trusted build-event publishing is unavailable".into(),
+            }),
+            Err(_) => AccessDecision::Deny(unreachable_deny()),
+        }
     }
 
     pub async fn evaluate_access(&self, ctx: &RequestContext) -> AccessDecision {
@@ -373,6 +405,7 @@ impl AuthEngine {
                     self.revocations.insert(credential_key, Instant::now());
                 }
                 self.remember(entry_key, access, ctx);
+                self.remember_origin(credential_key, access, ctx);
                 respond(access, required, request)
             }
             // Cheap to re-derive — no round trip reached the backend — so
@@ -416,6 +449,24 @@ impl AuthEngine {
                 lifetime,
             },
         );
+    }
+
+    fn remember_origin(&self, credential_key: CredentialKey, access: Access, ctx: &RequestContext) {
+        if access < Access::Read {
+            return;
+        }
+        if let Some(origin) = policy::credential_origin(ctx) {
+            self.origins.insert(credential_key, origin);
+        }
+    }
+
+    /// Where the credential that authorized a request was issued, when it
+    /// carried a signed origin. For usage attribution only.
+    pub fn origin(&self, authorization: &str) -> Option<Arc<str>> {
+        if authorization.is_empty() {
+            return None;
+        }
+        self.origins.get(&fingerprint(authorization))
     }
 
     /// The entry for this key, unless the credential has been reported invalid
@@ -470,6 +521,7 @@ impl AuthEngine {
         self.consultations.invalidate_all();
         self.revocations.invalidate_all();
         self.unreachable.invalidate_all();
+        self.origins.invalidate_all();
         held as usize
     }
 
@@ -743,6 +795,70 @@ mod tests {
 
     // It grants nothing, so a write must not slip through on the ordering that
     // places it above `Refused`.
+    #[tokio::test]
+    async fn network_publishing_is_uncached_and_never_grants_cache_access() {
+        use axum::{Json, Router, routing::post};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let enabled = Arc::new(AtomicBool::new(true));
+        let router = Router::new().route(
+            "/api/projects/acme/ios/bazel/publishing",
+            post({
+                let enabled = enabled.clone();
+                move |headers: axum::http::HeaderMap| {
+                    let enabled = enabled.clone();
+                    async move {
+                        assert!(!headers.contains_key("authorization"));
+                        Json(serde_json::json!({"network_trusted": enabled.load(Ordering::SeqCst)}))
+                    }
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        let engine = AuthEngine::new(
+            AuthConfig {
+                base_url: format!("http://{address}"),
+                connect_timeout: Duration::from_secs(1),
+                request_timeout: Duration::from_secs(1),
+                verifier: None,
+                introspection: None,
+                cache_max_entries: 100,
+            },
+            Metrics::new("test".into(), "test".into()),
+        )
+        .unwrap();
+        assert!(matches!(
+            engine.network_build_event_access("acme", "ios").await,
+            AccessDecision::Allow
+        ));
+        assert_eq!(engine.entries.entry_count(), 0);
+        let cache = RequestContext {
+            transport: "grpc".into(),
+            method: "RPC".into(),
+            operation: "artifact.read".into(),
+            server_tenant_id: "acme".into(),
+            tenant_id: Some("acme".into()),
+            namespace_id: Some("ios".into()),
+            authorization: None,
+            headers: Default::default(),
+        };
+        assert!(matches!(
+            engine.evaluate_access(&cache).await,
+            AccessDecision::Deny(_)
+        ));
+        let entries_before = engine.entries.entry_count();
+        enabled.store(false, Ordering::SeqCst);
+        assert!(matches!(
+            engine.network_build_event_access("acme", "ios").await,
+            AccessDecision::Deny(_)
+        ));
+        assert_eq!(engine.entries.entry_count(), entries_before);
+        server.abort();
+    }
+
     #[test]
     fn an_exhausted_plan_grants_no_action() {
         for level in [Access::PaymentRequired, Access::PaymentFailed] {

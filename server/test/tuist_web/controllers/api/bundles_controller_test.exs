@@ -313,7 +313,9 @@ defmodule TuistWeb.API.BundlesControllerTest do
           git_commit_sha: "abc123",
           bundle_name: "Test Bundle",
           git_ref: "refs/pull/1/merge",
-          install_size: 1024
+          install_size: 1024,
+          type: "app",
+          supported_platforms: ["ios"]
         }
       )
     end

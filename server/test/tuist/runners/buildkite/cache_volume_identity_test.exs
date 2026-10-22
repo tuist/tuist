@@ -60,7 +60,8 @@ defmodule Tuist.Runners.Buildkite.CacheVolumeIdentityTest do
     identity = Repo.reload!(job).cache_volume_identity
     assert identity["trusted"]
     assert identity["provider_instance"] == env["BUILDKITE_ORGANIZATION_ID"]
-    assert Enum.sort(Map.keys(identity)) == ~w(provider provider_instance repository_id scope_id trusted)
+    assert identity["writer_branch"] == "main"
+    assert Enum.sort(Map.keys(identity)) == ~w(provider provider_instance repository_id scope_id trusted writer_branch)
     refute JSON.encode!(identity) =~ "never store this"
   end
 

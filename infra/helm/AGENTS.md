@@ -16,6 +16,12 @@ runs the mixed-version latency expression through promtool.
 
 ## Conventions
 
+- Xcode 27.1 RC retirement requires the additive stable chart already deployed
+  and a published versioned runner image containing stable. Keep 26.6 as the
+  default and warm floor. Follow the prerequisites, rollback floor and required
+  post-rollout reconciliation in
+  [the retirement runbook](../runner-image/xcode-27.1-retirement.md).
+
 - `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.
 
 - Production enables the Kura authority controller independently of instance
@@ -71,6 +77,12 @@ runs the mixed-version latency expression through promtool.
   `mise -C infra run helm:rack-independence` after adding a DaemonSet or
   tolerations; the Helm workflow runs it too. See "Deploys and the rack's
   health" in `../rack-nodes/AGENTS.md`.
+- The xcresult processor is not in the waited tuist release either. Managed
+  values set `xcresultProcessor.ownRelease`, and `xcresult-processor/` renders
+  the tuist chart's processor templates (symlinked, with `tuistRelease` naming
+  the tuist release) as the `tuist-xcresult-processor` release, installed with
+  `--wait=hookOnly` and reported by a non-gating `kubectl rollout status`.
+  A new template the processor needs has to be symlinked into that chart too.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.
@@ -91,7 +103,17 @@ runs the mixed-version latency expression through promtool.
 - `k8s-monitoring/kura-availability-alert-rules.json` reflects the enabled rule,
   provisioned separately from Helm. Its zero-ready-replica expression and routing
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
-  Keep unavailable service separate from the 30-minute redundancy warning.
+  Keep unavailable service separate from the 30-minute redundancy warning, and keep
+  the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
+- `k8s-monitoring/runner-cache-volume-alert-rules.json` records the live
+  **Runner cache volumes** group (four Loki rules and one Postgres rule,
+  five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
+  the backtests. The warm-rate rule reads the production database as
+  `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
+  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` is aggregated
+  to a plain sum by Adaptive Metrics and cannot be rated. Keep the macOS
+  queries line-filtered and the windows short: that stream carries the runner
+  logs and each evaluation scans the whole window.
 - Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
 - The managed production overlay enables the browser RUM gateway; the chart default remains disabled. Roll back by disabling that production override, restoring the direct Alloy backend and `/collect` rewrite.
 - When filtering metrics, preserve every side of absence-based alerts. The
@@ -103,6 +125,7 @@ runs the mixed-version latency expression through promtool.
 - Kura metrics use `instance=<namespace>/<pod>` at the metrics destination so
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
+- Preserve the dotted REAPI binary metadata header through Kura ingress: the shared regional/runner config and dedicated gRPC activation controller require `ignore-invalid-headers: "false"`. Leave the main web ingress unchanged. `infra/kura-controller/controllers/reapi_metadata_ingress_test.go` checks environment overlays and, with `TUIST_TEST_NGINX`, real HTTP/2 `grpc_pass` forwarding. Successful artifact transfers without attribution do not establish analytics delivery; verify fresh signed events by project/invocation after the normal platform rollout. Previously skipped events cannot be reconstructed from client observations.
 - Managed Kura analytics are enabled by `kuraController.analytics.enabled`.
   `tuist/templates/kura-analytics-external-secret.yaml` sends the server's
   internal address and existing webhook signing key to the shared runtime
@@ -150,9 +173,8 @@ runs the mixed-version latency expression through promtool.
   Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
   production rendering exercises the cache-volume agent's shared-tag fallback.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
   Canary and production enable them fleet-wide after the platform-index
   enablement migration. Self-hosting and staging stay off by default; staging's
   40 GiB cache quota cannot fit the built-in reservation and custom admission floor.
@@ -163,4 +185,8 @@ runs the mixed-version latency expression through promtool.
   9091. Allow scraping only from `observability`, retain the series in staging,
   and keep runner acquisition on 8090 under its existing pod selector.
 
-- `tuist.kuraActivation` is a disabled-by-default, stateless wildcard fallback. Enable exactly one global owner; the matching platform `cacheDNS.activationIngressClass` opt-in reads `nginx-grpc` ingress status for Route53 wildcard DNS. Both activation protocols must use the same dedicated ingress/load balancer; main nginx sends an HTTP/2-forbidden Connection header. Both remain off in every checked-in environment. Regional latency records and their withdrawal barriers stay controller-owned. See `../kura-controller/activation.md` before rollout.
+- `tuist.kuraActivation` is a disabled-by-default, stateless wildcard fallback. Enable exactly one global owner; the matching platform `cacheDNS.activationIngressClass` opt-in reads `nginx-grpc` ingress status for Route53 wildcard DNS. Both activation protocols must use the same dedicated ingress/load balancer; main nginx sends an HTTP/2-forbidden Connection header. The production overlay enables the gateway on the general worker pool; other environments keep it off. Production alone enables wildcard DNS sourcing after pinned production transport validation; other environments remain off. Regional latency records and their withdrawal barriers stay controller-owned. See `../kura-controller/activation.md` before rollout.
+
+## Replica-safety rollout
+
+Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled. The stable private cookie connects different image versions during rolling upgrades; the first migration from image-baked cookies still creates old/new islands. Qualify PubSub, Oban PG notifications and peer replacement across the actual versions. Offline/GitOps renderers without live Secret lookup must use a separately managed `cookieExistingSecret`; a missing key in an existing generated Secret fails rather than silently rotating it. Managed staging/canary/production configure `server.cluster.externalSecret` with `cookieExistingSecret: tuist-server-cluster-cookie`: the dedicated ESO resource reads `SERVER_CLUSTER_COOKIE/password` from each environment's own 1Password vault, never the shared server-config Secret. It renders only when clustering is enabled, uses `refreshPolicy: OnChange` so source edits alone do not propagate on a timer, and requires an explicit sync during coordinated rotation; self-host defaults require no ESO. Missing/empty source data must not trigger cookie generation. `test-cluster-cookie.py` checks ownership, all three environment overlays, web-only references and invalid configurations in Helm CI. Bootstrap, rebuild and coordinated rotation are documented in [onboarding](../k8s/onboarding.md#5e-durable-server-distribution-cookies). Cookie rotation requires coordinated process replacement. The chart guard rejects previously accepted unclustered multi-web configurations because live PubSub/PG notifications must cross replicas; it is not a runtime replica-count detector. See the [self-host clustering upgrade guidance](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).

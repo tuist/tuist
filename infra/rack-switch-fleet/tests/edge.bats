@@ -396,11 +396,15 @@ STUB
 echo "nft $*" >> "$FAKE_LOG"
 cat >> "$FAKE_LOG"
 STUB
+    cat > "$dir/ethtool" <<'STUB'
+#!/bin/sh
+echo "ethtool $*" >> "$FAKE_LOG"
+STUB
     cat > "$dir/cat" <<'STUB'
 #!/bin/sh
 if [ "$1" = /proc/sys/net/ipv4/ip_forward ]; then echo "${FAKE_FORWARD:-1}"; else exec /bin/cat "$@"; fi
 STUB
-    chmod +x "$dir/ip" "$dir/nft" "$dir/cat"
+    chmod +x "$dir/ip" "$dir/nft" "$dir/ethtool" "$dir/cat"
     : > "$dir/log"
 }
 
@@ -530,7 +534,8 @@ STUB
     # the master translates the standby and the management segment onto the WAN
     [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
     # and the WAN lets in replies, ping, neighbour discovery and the tailnet's
-    # direct path, and nothing else
+    # direct path, what the edge forwards itself (the cluster-network hosts' ports,
+    # tuist_cluster_forwards), and nothing else
     [[ "$output" == *'table inet tuist_rack_wan {
   chain input {
     type filter hook input priority filter;
@@ -542,6 +547,7 @@ STUB
   chain forward {
     type filter hook forward priority filter;
     iifname "wan0" ct state established,related accept
+    iifname "wan0" ct status dnat accept
     iifname "wan0" drop
   }
 }'* ]]
@@ -580,6 +586,147 @@ STUB
     [[ "$output" == *"management.edge.wan has a gateway or an IPv6 address but no address"* ]]
     run fleet_edge_check "$SITE_FILE"
     [ "$status" -eq 0 ]
+}
+
+@test "a site with prefixes of its own announces them to the WAN's upstream from the WAN address, and takes only a default route back" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_bgp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"router id 149.6.170.31;"* ]]
+    # one session per family, bound to the floating WAN address, so only the
+    # master has one
+    [[ "$output" == *"protocol bgp upstream4 {
+  local 149.6.170.31 as 218377;
+  neighbor 149.6.170.30 as 174;
+  direct;"* ]]
+    [[ "$output" == *"protocol bgp upstream6 {
+  local 2001:978:2:b::4:11 as 218377;
+  neighbor 2001:978:2:b::4:10 as 174;
+  direct;"* ]]
+    # each prefix is originated as a blackhole in BIRD's own table and is the
+    # only thing announced
+    [[ "$output" == *"protocol static originate4 {
+  ipv4;
+  route 95.130.119.0/24 blackhole;
+}"* ]]
+    [[ "$output" == *"protocol static originate6 {
+  ipv6;
+  route 2a11:83c0::/29 blackhole;
+}"* ]]
+    [[ "$output" == *'export where proto = "originate4";'* ]]
+    [[ "$output" == *'export where proto = "originate6";'* ]]
+    [[ "$output" == *"if net.len = 0 then accept;"* ]]
+    # nothing goes into the node's routes: the default is keepalived's
+    [[ "$output" != *"protocol kernel"* ]]
+    # an IPv4-only announcement has no IPv6 session
+    jq '.management.edge.wan.bgp.prefixes = ["95.130.119.0/24"]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/v4only.json"
+    run fleet_edge_bgp "$BATS_TEST_TMPDIR/v4only.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"protocol bgp upstream4"* ]]
+    [[ "$output" != *"upstream6"* ]]
+    [[ "$output" != *"2001:978:"* ]]
+}
+
+@test "a WAN announcement with a bad AS number or prefix, or no address to announce from, is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/badbgp.json"
+    jq '.management.edge.wan.bgp.asn = "AS218377"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.wan.bgp.asn and peer_asn are AS numbers"* ]]
+    jq '.management.edge.wan.bgp.peer_asn = 4294967296' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan.bgp.prefixes = []' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"announces no prefixes"* ]]
+    jq '.management.edge.wan.bgp.prefixes = ["95.130.119.1/24"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'95.130.119.1/24' is not an IPv4 network with its prefix length"* ]]
+    jq '.management.edge.wan.bgp.prefixes = ["2A11:83C0::/29"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an IPv6 network ending in ::"* ]]
+    jq '.management.edge.wan |= del(.address6, .gateway6)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'2a11:83c0::/29' is IPv6, and the WAN has no IPv6 address to announce it from"* ]]
+    jq '.management.edge.wan |= {vlan, bgp}' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.wan.bgp needs the WAN's address"* ]]
+}
+
+@test "render --check notices a WAN announcement the site has and the chart does not" {
+    chart="$BATS_TEST_TMPDIR/chart"
+    mkdir -p "$chart/sites"
+    cp -R "$FLEET_ROOT/../helm/rack-edge/sites/ber1" "$chart/sites/"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -eq 0 ]
+    rm "$chart/sites/ber1/bird.conf"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: "*"/sites/ber1/bird.conf"* ]]
+}
+
+@test "the Mac minis the site's egress names go out from its block of the site's own prefix, and everything else from the WAN address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'
+    machines='    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade'
+    # the named minis first, so their translation wins over the segment's
+    [[ "$output" == *"$snat"$'\n'"$machines"* ]]
+    # the management segment and the standby keep the WAN address
+    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
+    # without nodes every Mac mini moves, and the storage node, in the
+    # cluster under the WAN address, does not
+    jq '.management.edge.wan.egress |= del(.nodes)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/allminis.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/allminis.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109 } snat ip to 95.130.119.16-95.130.119.31 persistent'* ]]
+    [[ "$output" != *"10.10.0.11 "* ]]
+    [[ "$output" != *"10.10.0.11,"* ]]
+    # without an egress the machines all go out from the WAN address
+    jq '.management.edge.wan |= del(.egress)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/noegress.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/noegress.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"snat"* ]]
+    [[ "$output" == *"$machines"* ]]
+}
+
+@test "an egress outside the site's announced prefixes, or naming something that is not a Mac mini, is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/badegress.json"
+    jq '.management.edge.wan.egress.prefix = "95.130.118.16/28"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'95.130.118.16/28' is not inside an IPv4 prefix management.edge.wan.bgp announces"* ]]
+    jq '.management.edge.wan.egress.prefix = "95.130.119.17/28"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an IPv4 network with its prefix length"* ]]
+    jq '.management.edge.wan.egress.prefix = "95.130.118.0/23"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan |= del(.bgp)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan.egress.nodes = ["ber1-store-a"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'ber1-store-a' is not a Mac mini on the machines segment"* ]]
+    run fleet_edge_check "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "a prefix's range runs from its network address to its last address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    [ "$(fleet_prefix_range 95.130.119.16/28)" = "95.130.119.16-95.130.119.31" ]
+    [ "$(fleet_prefix_range 95.130.119.0/24)" = "95.130.119.0-95.130.119.255" ]
+    [ "$(fleet_prefix_range 95.130.119.7/32)" = "95.130.119.7-95.130.119.7" ]
 }
 
 @test "the edges' VLANs are tagged only on the ports facing an edge's data links and on the ISL" {
@@ -751,6 +898,18 @@ STUB
     [[ "$output" == *"ber1-store-a is not one of the site's edges"* ]]
     run cat "$bin/log"
     [[ "$output" != *"vrrp0"* ]]
+}
+
+@test "the rendered edge path gives both uplinks 4096-descriptor rings before a bond takes them" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-rings"
+    edge_run_stub "$bin"
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^ethtool ' "$bin/log")" -eq 2 ]
+    [ "$(grep -n '^ethtool -G enp2s0f1np1 rx 4096 tx 4096$' "$bin/log" | cut -d: -f1)" -lt "$(grep -n ' master ' "$bin/log" | head -1 | cut -d: -f1)" ]
+    [ "$(grep -n '^ethtool -G enp2s0f0np0 rx 4096 tx 4096$' "$bin/log" | cut -d: -f1)" -lt "$(grep -n ' master ' "$bin/log" | head -1 | cut -d: -f1)" ]
 }
 
 @test "the rendered edge path refuses a port that carries the node's default route" {
@@ -932,7 +1091,8 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 peer_address=10.255.255.2 uplinks="* ]]
     [[ "$output" == *"ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 peer_address=10.255.255.1 uplinks="* ]]
-    [[ "$output" != *"10.10.0.1"* ]]
+    # the gateway itself, not a machine address it is a prefix of
+    [[ ! "$output" =~ 10\.10\.0\.1([^0-9]|$) ]]
     for edge in ber1-edge-a ber1-edge-b; do
         run fleet_edge_keepalived "$SITE_FILE" "$edge"
         [ "$status" -eq 0 ]
@@ -1024,7 +1184,8 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-host=38:05:25:3a:de:65,10.10.0.11,ber1-store-a,infinite"* ]]
     values="$BATS_TEST_TMPDIR/values.yaml"
-    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a")).address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
+    # its caches move with it
+    yq '(.rackLinuxFleet.hosts[] | select(.hostname == "ber1-store-a")).address = "10.10.0.12" | .rackFleet.vmCacheGatewayCIDRs = ["10.10.0.12/32"] | .rackFleet.imageCache.nodes[0].address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
     FLEET_RACK_VALUES="$values" run fleet_edge_machines_dhcp "$SITE_FILE"
     [[ "$output" == *"dhcp-host=38:05:25:3a:de:65,10.10.0.12,ber1-store-a,infinite"* ]]
     # a Linux node on the segment needs a declared host with an address
@@ -1036,6 +1197,30 @@ STUB
     FLEET_RACK_VALUES="$values" run fleet_edge_check_machines "$SITE_FILE"
     [ "$status" -ne 0 ]
     [[ "$output" == *"ber1-store-a is on the machines segment and is neither a RackHost nor a RackLinuxHost"* ]]
+}
+
+@test "the rack's cache gateways and image caches are its storage nodes, at their RackLinuxHosts' addresses" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    values="$BATS_TEST_TMPDIR/values.yaml"
+    # an image cache at an address its node does not hold
+    yq '.rackFleet.imageCache.nodes[0].address = "10.10.0.12"' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"the image cache on ber1-store-a is at 10.10.0.12, but its RackLinuxHost is at 10.10.0.11"* ]]
+    # an image cache on something that is not a storage node in the rack
+    yq '.rackFleet.imageCache.nodes = [{"name": "ber1-store-b", "address": "10.10.0.12"}, {"name": "ber1-edge-a", "address": "10.10.0.2"}]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"the image cache on ber1-store-b is not on a storage node of this site that is in the rack"* ]]
+    [[ "$output" == *"the image cache on ber1-edge-a is not on a storage node of this site that is in the rack"* ]]
+    # a cache gateway that is not a storage node's address
+    yq '.rackFleet.vmCacheGatewayCIDRs = ["10.10.0.2/32", "10.10.0.0/24"]' "$FLEET_RACK_VALUES" > "$values"
+    FLEET_RACK_VALUES="$values" run fleet_edge_check_rack_caches "$SITE_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cache gateway 10.10.0.2/32 is not the address of a storage node"* ]]
+    [[ "$output" == *"cache gateway 10.10.0.0/24 is not the address of a storage node"* ]]
 }
 
 # Runs a rendered tailnet-routes.sh with the node's tailscale and ip stubbed:
@@ -1138,4 +1323,3 @@ STUB
     [ "$status" -ne 0 ]
     [[ "$output" == *"ber1-pdu-b's mac '00:20:85:D7:00:CA' is not a MAC in lower case"* ]]
 }
-

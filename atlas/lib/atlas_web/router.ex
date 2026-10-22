@@ -81,6 +81,14 @@ defmodule AtlasWeb.Router do
     plug MCPAuth
   end
 
+  pipeline :native do
+    plug :native_no_store
+    plug :accepts, ["json"]
+    plug MCPAuth
+  end
+
+  defp native_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
+
   pipeline :inference do
     plug :accepts, ["json", "event-stream"]
     plug InferenceAuthentication
@@ -88,6 +96,30 @@ defmodule AtlasWeb.Router do
 
   scope "/", AtlasWeb do
     get "/ready", HealthController, :ready
+  end
+
+  # Native app association files and the /open landing are public. They use no
+  # Accept negotiation, session, CSRF, or user lookup: Apple's CDN and Android's
+  # verifier fetch the association files without them, and the files are 404 until
+  # the deployment configures verified app identities.
+  pipeline :native_links do
+    plug :put_secure_browser_headers
+  end
+
+  scope "/.well-known", AtlasWeb do
+    pipe_through :native_links
+
+    get "/apple-app-site-association", NativeLinksController, :apple_app_site_association
+    get "/assetlinks.json", NativeLinksController, :asset_links
+  end
+
+  # Public, credential-free landing for native links. It reads no session, user,
+  # or record, and never redirects to the custom scheme automatically.
+  scope "/open", AtlasWeb do
+    pipe_through :native_links
+
+    get "/:screen", NativeLinksController, :open
+    get "/:screen/:id", NativeLinksController, :open
   end
 
   scope "/.well-known", AtlasWeb do
@@ -159,6 +191,24 @@ defmodule AtlasWeb.Router do
     post "/:project_id/envelope/", EnvelopeController, :create
   end
 
+  scope "/api/native", AtlasWeb do
+    pipe_through :api
+
+    get "/themes", NativeThemesController, :index
+  end
+
+  scope "/api/native", AtlasWeb do
+    pipe_through :native
+
+    get "/profile", NativeController, :profile
+    get "/:resource", NativeController, :index
+    post "/:resource", NativeController, :create
+    get "/:resource/:id", NativeController, :show
+    patch "/:resource/:id", NativeController, :update
+    delete "/:resource/:id", NativeController, :delete
+    post "/:resource/:id/complete", NativeController, :complete
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
 
@@ -179,6 +229,18 @@ defmodule AtlasWeb.Router do
     get "/native/automation/approvals", NativeAutomationController, :approvals
     get "/native/automation/approvals/:id", NativeAutomationController, :approval
     post "/native/automation/approvals/:id/decision", NativeAutomationController, :decide
+
+    get "/me/time-off", TimeOffController, :index
+    post "/me/time-off", TimeOffController, :create
+    patch "/me/time-off/:id", TimeOffController, :update
+    delete "/me/time-off/:id", TimeOffController, :delete
+
+    get "/me/llm-providers", LLMConnectionsController, :index
+    put "/me/llm-providers/claude", LLMConnectionsController, :connect_claude
+    post "/me/llm-providers/chatgpt/login", LLMConnectionsController, :start_chatgpt
+    post "/me/llm-providers/chatgpt/login/poll", LLMConnectionsController, :poll_chatgpt
+    delete "/me/llm-providers/chatgpt/login", LLMConnectionsController, :cancel_chatgpt
+    delete "/me/llm-providers/:provider", LLMConnectionsController, :delete
 
     get "/notes", NotesController, :index
     post "/notes", NotesController, :create
@@ -259,12 +321,24 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
 
+    post "/settings/llm-providers/claude", LLMConnectionsController, :save_claude_browser
+
+    live_session :authenticated_account,
+      on_mount: [{AtlasWeb.LayoutLive, :default}],
+      layout: {AtlasWeb.Layouts, :account} do
+      live "/settings", AccountSettingsLive, :index
+      live "/settings/llm-providers", LLMProviderSettingsLive, :index
+    end
+
     live_session :authenticated_dashboard,
       on_mount: [{AtlasWeb.LayoutLive, :default}],
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/", OverviewLive, :index
       live "/demo", DemoLive, :index
       live "/tasks", TasksLive, :index
+      live "/people", PeopleLive, :index
+      live "/people/time-off", TimeOffLive, :index
+      live "/people/time-off/settings", TimeOffLive, :settings
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show

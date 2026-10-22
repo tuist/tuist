@@ -1,6 +1,20 @@
 {
   "site": "ber1",
   "location": "Berlin, rack 1",
+  "contracted_power": [
+    {
+      "from": "2026-10-05",
+      "watts": 3000
+    },
+    {
+      "from": "2027-02-05",
+      "watts": 5000
+    },
+    {
+      "from": "2027-06-05",
+      "watts": 8000
+    }
+  ],
   "credentials": {
     "vault": "pqwnigzdk46jpjvofoqpeuhmgq",
     "username": "tuist",
@@ -56,7 +70,22 @@
         "address": "149.6.170.31/31",
         "gateway": "149.6.170.30",
         "address6": "2001:978:2:b::4:11/127",
-        "gateway6": "2001:978:2:b::4:10"
+        "gateway6": "2001:978:2:b::4:10",
+        "bgp": {
+          "asn": 218377,
+          "peer_asn": 174,
+          "prefixes": [
+            "95.130.119.0/24",
+            "2a11:83c0::/29"
+          ]
+        },
+        "egress": {
+          "prefix": "95.130.119.16/28",
+          "nodes": [
+            "ber1-runner-b01",
+            "ber1-runner-b02"
+          ]
+        }
       }
     },
     "controller": {

@@ -19,6 +19,37 @@ defmodule TuistWeb.DocsLiveTest do
     :ok
   end
 
+  describe "Rust documentation" do
+    test "feature overviews link to Rust guides", %{conn: conn} do
+      for path <- [
+            "/guides/features/build-insights",
+            "/guides/features/test-insights",
+            "/guides/features/test-insights/flaky-tests",
+            "/guides/features/test-sharding"
+          ] do
+        {:ok, view, _html} = live(conn, "/en/docs" <> path)
+        assert has_element?(view, ~s(a[data-part="feature-card"][href="/en/docs#{path}/rust"]), "Rust")
+      end
+    end
+
+    test "Rust feature pages render with a Rust sidebar logo", %{conn: conn} do
+      for {path, heading} <- [
+            {"build-insights/rust", "Rust build insights"},
+            {"test-insights/rust", "Rust test insights"},
+            {"test-insights/flaky-tests/rust", "Rust flaky tests"},
+            {"test-sharding/rust", "Rust test sharding"}
+          ] do
+        {:ok, view, _html} = live(conn, "/en/docs/guides/features/" <> path)
+        assert has_element?(view, "h1", heading)
+
+        assert has_element?(
+                 view,
+                 ~s(a[href="/en/docs/guides/get-started/rust-project"] svg[fill="currentColor"])
+               )
+      end
+    end
+  end
+
   describe "docs overview" do
     test "renders the Install Tuist and Get started calls to action", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/en/docs")
@@ -60,7 +91,7 @@ defmodule TuistWeb.DocsLiveTest do
     end
 
     test "shows the supported build systems on every feature card", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, lv, html} = live(conn, ~p"/en/docs")
       {:ok, document} = Floki.parse_document(html)
 
       supported_systems =
@@ -72,17 +103,21 @@ defmodule TuistWeb.DocsLiveTest do
         end)
 
       assert supported_systems == %{
-               "/en/docs/guides/features/cache" => ~w(apple gradle bazel elixir),
-               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/cache" => ~w(apple gradle bazel elixir rust),
+               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir rust),
                "/en/docs/guides/features/selective-testing" => ~w(apple),
-               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir),
-               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir),
+               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir rust),
+               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir rust),
                "/en/docs/guides/features/previews" => ~w(apple android),
-               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir)
+               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir rust)
              }
 
       assert length(Floki.find(document, ~s([data-part="supported-icon"][title="elixir"] svg))) ==
                5
+
+      assert length(Floki.find(document, ~s([data-part="supported-icon"][title="rust"] svg))) == 5
+      assert has_element?(lv, "#docs-cache-card", "Rust caching is experimental.")
+      assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Rust caching is experimental."
     end
 
     test "introduces compute with runners and colocated cache infrastructure", %{conn: conn} do
@@ -105,11 +140,14 @@ defmodule TuistWeb.DocsLiveTest do
       assert markdown =~ "cache infrastructure colocated next to compute for the best results"
     end
 
-    test "positions Tuist as build infrastructure for Xcode, Gradle, and Bazel", %{conn: conn} do
+    test "positions Tuist as build infrastructure including Elixir and Rust", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
       assert has_element?(lv, "h1", "One platform for faster build toolchains")
       assert has_element?(lv, "#learn-more", "Explore Tuist's capabilities")
+      assert render(lv) =~ "Xcode, Gradle, Bazel, Elixir, and Rust projects"
+      {:ok, document} = Floki.parse_document(render(lv))
+      assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Elixir, and Rust projects"
     end
 
     test "shows a Log in button with return_to when the user is not authenticated", %{
@@ -188,6 +226,25 @@ defmodule TuistWeb.DocsLiveTest do
     test "links the cache overview to the Elixir guide", %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/en/docs/guides/features/cache")
       assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir"]), "Elixir cache")
+    end
+
+    test "links and serves the experimental Rust cache guide", %{conn: conn} do
+      {:ok, overview, _} = live(conn, ~p"/en/docs/guides/features/cache")
+      assert has_element?(overview, ~s(a[href="/en/docs/guides/features/cache/rust"]), "Rust cache")
+
+      {:ok, view, html} = live(conn, ~p"/en/docs/guides/features/cache/rust")
+      markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "tuist cargo build --release"
+      assert markdown =~ "cargo clean"
+      assert markdown =~ "registry leaf libraries"
+      assert markdown =~ "Kura through the Remote Execution API (REAPI)"
+      assert markdown =~ "server-issued cache credentials"
+      assert markdown =~ "absolute paths"
+      refute markdown =~ "Mr. Boxington"
+      refute markdown =~ "protected GitHub"
+      assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/rust-project"]))
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache#restrict-uploads-to-ci"]))
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/build-insights/rust#cache-measurements"]))
     end
 
     test "owns the shared Elixir setup in Get started", %{conn: conn} do

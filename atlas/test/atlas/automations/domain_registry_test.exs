@@ -16,7 +16,12 @@ defmodule Atlas.Automations.DomainRegistryTest do
     assert length(entries) == length(Enum.uniq_by(entries, &{&1["name"], &1["version"]}))
     policies = Enum.map(DomainRegistry.domain_policies(), & &1["domain"])
     assert Authorization.area_slugs() -- policies == []
-    assert Authorization.area_slugs() -- Enum.map(Catalog.types(), & &1.domain) == []
+
+    excluded_domains =
+      DomainRegistry.domain_policies() |> Enum.filter(&(&1["execution_mode"] == "excluded")) |> Enum.map(& &1["domain"])
+
+    assert Authorization.area_slugs() -- (Enum.map(Catalog.types(), & &1.domain) ++ excluded_domains) == []
+    assert "time_off_approvals" in excluded_domains
     supported = entries |> Enum.map(& &1["source_tool"]) |> Enum.reject(&is_nil/1)
     classified = Enum.sort(supported ++ Map.keys(DomainRegistry.exclusions()))
     assert classified == Enum.sort(Enum.map(Server.static_tools(), & &1.name()))

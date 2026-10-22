@@ -692,7 +692,7 @@ func runtimeClassName(pool *tuistv1.RunnerPool) *string {
 // goldenNodeLabelPrefix namespaces the per-digest Node labels tart-kubelet
 // publishes to advertise which golden base VMs a host already holds.
 //
-// CONTRACT: this prefix and goldenNodeAffinityKey's hashing MUST stay in
+// CONTRACT: this prefix and GoldenNodeAffinityKey's hashing MUST stay in
 // lockstep with tart-kubelet's `podagent.goldenNodeLabelPrefix` /
 // `goldenVMName` — the two live in separate Go modules, so they're coupled
 // by this convention, not shared code. A mismatch silently disables the
@@ -701,11 +701,11 @@ func runtimeClassName(pool *tuistv1.RunnerPool) *string {
 // scheduling, so it's failure-safe but worth a test on both sides.
 const goldenNodeLabelPrefix = "tuist.dev/golden-"
 
-// goldenNodeAffinityKey is the Node-label key advertising that a host holds
+// GoldenNodeAffinityKey is the Node-label key advertising that a host holds
 // the golden base for `image`. The suffix is the same 8-byte SHA-256 prefix
 // of the image ref that tart-kubelet embeds in the golden VM name, so both
 // sides derive an identical key from the same digest-pinned ref.
-func goldenNodeAffinityKey(image string) string {
+func GoldenNodeAffinityKey(image string) string {
 	sum := sha256.Sum256([]byte(image))
 	return goldenNodeLabelPrefix + hex.EncodeToString(sum[:8])
 }
@@ -738,13 +738,41 @@ func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 				Weight: 100,
 				Preference: corev1.NodeSelectorTerm{
 					MatchExpressions: []corev1.NodeSelectorRequirement{{
-						Key:      goldenNodeAffinityKey(pool.Spec.Image),
+						Key:      GoldenNodeAffinityKey(pool.Spec.Image),
 						Operator: corev1.NodeSelectorOpExists,
 					}},
 				},
 			}},
 		},
 	}
+}
+
+// cacheVolumePreferenceWeight keeps the volume preference below the golden
+// one: a host without the image pulls it for minutes, while a host without a
+// volume only starts that volume cold.
+const cacheVolumePreferenceWeight = 20
+
+// PreferCacheVolumeNode adds a soft preference for `nodeName`, a host the
+// server picked because it holds the custom cache volumes of the queued job
+// this Pod is created for and has cache disk room for them. An empty name
+// leaves the Pod alone.
+func PreferCacheVolumeNode(pod *corev1.Pod, nodeName string) {
+	if nodeName == "" {
+		return
+	}
+	if pod.Spec.Affinity == nil {
+		pod.Spec.Affinity = &corev1.Affinity{}
+	}
+	if pod.Spec.Affinity.NodeAffinity == nil {
+		pod.Spec.Affinity.NodeAffinity = &corev1.NodeAffinity{}
+	}
+	node := pod.Spec.Affinity.NodeAffinity
+	node.PreferredDuringSchedulingIgnoredDuringExecution = append(node.PreferredDuringSchedulingIgnoredDuringExecution, corev1.PreferredSchedulingTerm{
+		Weight: cacheVolumePreferenceWeight,
+		Preference: corev1.NodeSelectorTerm{MatchFields: []corev1.NodeSelectorRequirement{{
+			Key: "metadata.name", Operator: corev1.NodeSelectorOpIn, Values: []string{nodeName},
+		}}},
+	})
 }
 
 // schedulingFor returns the nodeSelector + tolerations for a pool's

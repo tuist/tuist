@@ -153,4 +153,3 @@ load helpers
     [ "$status" -eq 0 ]
     [[ "$output" == *"status in namespace tuist:"* ]]
 }
-

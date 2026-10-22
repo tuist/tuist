@@ -10,10 +10,16 @@ for activation, named handover, asynchronous crash-loss semantics and the
 controller/runtime rollback floor. Lease expiry alone never promotes a writer.
 After an API interruption, the same live writer can resume in a new epoch only
 after explicitly fencing publication and draining admitted work; a restarted
-primary still requires quarantine and recovery. Planned handover reconciles
+primary still requires quarantine and recovery. A preparation-capable standby first
+catches up while the primary continues accepting reads and writes. This bounded
+preparation performs one complete retained walk, without waiting for live eviction
+to stop. It grants no serving rights and holds no corpus; the subsequent five-minute
+quiescing phase still repairs and verifies the complete retained set. Planned handover reconciles
 missing retained records on the named standby before freezing it, then verifies
 the complete corpus. Named repair copies old missing records even when ordinary
-replication's recency cutoff would skip them. Ring capacity and disk admission
+replication's recency cutoff would skip them. If repair evicts records already
+checked, it repeats the retained walk before freezing, within the original
+handover deadline. Ring capacity and disk admission
 remain unchanged; missing or mismatched retained data still prevents promotion.
 
 `Kura` is a Rust server for building low-latency cache meshes for tenants, handling distributed cache traffic for binary artifacts and metadata.

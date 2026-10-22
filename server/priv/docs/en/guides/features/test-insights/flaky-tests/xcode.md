@@ -103,7 +103,7 @@ This is the safe default outside `tuist xcodebuild test`: failure masking for mu
 
 The stress gate reruns the test cases your branch adds, several times each in a fresh process, and reports the ones that turn out flaky. You see a new flaky test on the pull request that introduced it, not weeks later.
 
-A test case counts as new when it hasn't run in CI on the project's default branch in the last 90 days.
+A test case counts as new when it hasn't run in CI in the last 90 days on the project's default branch, or on a commit that has since landed on it. With a merge queue, a test case the queue ran is known once the queue's commit lands, and stays new if the queue drops it. Commits are matched through the <.localized_link href="/guides/features/test-insights/xcode#git-history">Git history</.localized_link> Tuist collects on CI.
 
 ### Enabling it
 
@@ -163,4 +163,4 @@ All of these accept `--json` for scripting.
 
 ### REST API
 
-The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. State changes (mark/unmark flaky, mute, skip) currently happen from the dashboard UI, not via the public REST API.
+The same data is available over HTTP — see the [Test Cases endpoints](https://tuist.dev/api/docs#tag/test-cases) in the API reference for the full list of routes, filters, and response fields. To change a test case's state (mark or unmark flaky, mute, skip), send `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}` with `is_flaky` or `state`. The same change is available as `tuist test case update` and as the `update_test_case` Model Context Protocol tool.

@@ -77,7 +77,7 @@ class AtlasSecureStorage(
     }
 }
 
-internal class AuthFailure(
+class AuthFailure(
     val kind: String,
     message: String,
 ) : Exception(message)
@@ -91,19 +91,28 @@ class AtlasAuthentication(
     private val worker = Executors.newSingleThreadExecutor()
     private val requests = Executors.newFixedThreadPool(4)
     private val watches = Executors.newFixedThreadPool(2)
+    private val holidayWorker = Executors.newFixedThreadPool(2)
+    private val presenceWorker = Executors.newFixedThreadPool(2)
 
-    @Volatile private var generation = 0
-    val sessionGeneration: Int get() = generation
+    @Volatile private var sessionIdentity = 0
+    val sessionGeneration: Int get() = sessionIdentity
     private val main = Handler(Looper.getMainLooper())
     private val preferences = context.getSharedPreferences("atlas.settings", Context.MODE_PRIVATE)
     var listener: (() -> Unit)? = null
     var authorizationURL: String? = null
     private var deferredCallback: String? = null
+    private var apiRequests = 0
+    private var closing = false
 
     fun close() {
-        worker.shutdown()
+        closing = true
         requests.shutdown()
         watches.shutdown()
+        if (apiRequests == 0) {
+            worker.shutdown()
+            holidayWorker.shutdown()
+            presenceWorker.shutdown()
+        }
         listener = null
     }
 
@@ -119,12 +128,7 @@ class AtlasAuthentication(
     fun restore() {
         work {
             val saved = storage.load("session") ?: return@work
-            try {
-                accept(command(JSONObject().put("operation", "restore").put("session", saved)))
-            } catch (failure: AuthFailure) {
-                if (failure.kind == "rejected") storage.delete("session")
-                throw failure
-            }
+            accept(command(JSONObject().put("operation", "restore").put("session", saved)))
         }
     }
 
@@ -163,18 +167,165 @@ class AtlasAuthentication(
     }
 
     fun signOut() {
-        if (busy) return
-        generation += 1
-        work {
-            storage.delete("automation.admission")
-            storage.delete("session")
-            storage.delete("pending")
-            main.post { server = null }
+        work { discardSession() }
+    }
+
+    private fun discardSession(removeRegistration: Boolean = false) {
+        storage.delete("automation.admission")
+        storage.delete("session")
+        sessionIdentity += 1
+        main.post { server = null }
+        storage.delete("pending")
+        if (removeRegistration) storage.delete("registration")
+    }
+
+    fun aiAccounts(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        apiRequests += 1
+        worker.execute {
+            val result =
+                try {
+                    val saved = storage.load("session") ?: throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                    val restored = command(JSONObject().put("operation", "restore").put("session", saved))
+                    // Commit rotated credentials even when the following API request fails.
+                    storage.save("session", restored)
+                    val request = JSONObject(action.toString()).put("operation", "ai_accounts").put("session", restored)
+                    Result.success(command(request))
+                } catch (error: AuthFailure) {
+                    if (error.kind == "rejected") {
+                        try {
+                            discardSession(removeRegistration = true)
+                            main.post { errorMessage = error.message }
+                        } catch (_: Exception) {
+                            main.post { errorMessage = "Could not delete rejected Atlas credentials. Try again." }
+                        }
+                    }
+                    Result.failure(error)
+                } catch (_: Exception) {
+                    Result.failure(IllegalStateException("Could not access secure Atlas credentials. Try again."))
+                }
+            main.post {
+                apiRequests -= 1
+                completion(result)
+                if ((result.exceptionOrNull() as? AuthFailure)?.kind == "rejected") listener?.invoke()
+                if (closing && apiRequests == 0) {
+                    worker.shutdown()
+                    holidayWorker.shutdown()
+                    presenceWorker.shutdown()
+                }
+            }
+        }
+    }
+
+    fun timeOff(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) = operation("time_off", action, completion)
+
+    fun business(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) = operation("business", action, completion)
+
+    fun presence(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        if (action.optString("action") == "open") {
+            operation("presence", action, completion)
+            return
+        }
+        apiRequests += 1
+        presenceWorker.execute {
+            val result = runCatching { command(JSONObject(action.toString()).put("operation", "presence")) }
+            main.post {
+                apiRequests -= 1
+                completion(result)
+                if (closing && apiRequests == 0) {
+                    worker.shutdown()
+                    holidayWorker.shutdown()
+                    presenceWorker.shutdown()
+                }
+            }
+        }
+    }
+
+    private fun operation(
+        operation: String,
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        val identity = sessionIdentity
+        if (closing) {
+            completion(Result.failure(AuthFailure("sign_in_required", "Sign in to Atlas again.")))
+            return
+        }
+        apiRequests += 1
+
+        fun finish(result: Result<JSONObject>) {
+            main.post {
+                apiRequests -= 1
+                if (identity != sessionIdentity && operation == "presence") {
+                    result.getOrNull()?.optString("connection")?.takeIf { it.isNotEmpty() }?.let { id ->
+                        presence(JSONObject().put("action", "close").put("connection", id)) {}
+                    }
+                }
+                completion(
+                    if (identity ==
+                        sessionIdentity
+                    ) {
+                        result
+                    } else {
+                        Result.failure(AuthFailure("sign_in_required", "Sign in to Atlas again."))
+                    },
+                )
+                if ((result.exceptionOrNull() as? AuthFailure)?.kind == "rejected") listener?.invoke()
+                if (closing && apiRequests == 0) {
+                    worker.shutdown()
+                    holidayWorker.shutdown()
+                    presenceWorker.shutdown()
+                }
+            }
+        }
+        worker.execute {
+            try {
+                if (identity != sessionIdentity) throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                val saved = storage.load("session") ?: throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                val restored = command(JSONObject().put("operation", "restore").put("session", saved))
+                storage.save("session", restored)
+                // Only refresh/persistence is serialized. Networking must not hold up sign-out.
+                holidayWorker.execute {
+                    val result =
+                        runCatching {
+                            if (identity != sessionIdentity) throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                            command(JSONObject(action.toString()).put("operation", operation).put("session", restored))
+                        }
+                    finish(
+                        result.fold({ Result.success(it) }, {
+                            Result.failure(
+                                if (it is AuthFailure) it else IllegalStateException("Could not complete the request. Try again."),
+                            )
+                        }),
+                    )
+                }
+            } catch (failure: AuthFailure) {
+                if (failure.kind == "rejected") {
+                    try {
+                        discardSession(removeRegistration = true)
+                    } catch (_: Exception) {
+                    }
+                }
+                finish(Result.failure(failure))
+            } catch (_: Exception) {
+                finish(Result.failure(IllegalStateException("Could not access secure Atlas credentials. Try again.")))
+            }
         }
     }
 
     fun pendingLaunch(callback: (JSONObject?) -> Unit) {
-        val epoch = generation
+        val epoch = sessionIdentity
         worker.execute {
             val pending =
                 try {
@@ -182,7 +333,7 @@ class AtlasAuthentication(
                 } catch (_: Exception) {
                     null
                 }
-            main.post { if (epoch == generation) callback(pending) }
+            main.post { if (epoch == sessionIdentity) callback(pending) }
         }
     }
 
@@ -191,14 +342,30 @@ class AtlasAuthentication(
         current: () -> Boolean = { true },
         callback: (Result<JSONObject>) -> Unit,
     ) {
-        val epoch = generation
+        val epoch = sessionIdentity
+        if (closing) return
+        apiRequests += 1
+
+        fun finish(result: Result<JSONObject>) {
+            main.post {
+                apiRequests -= 1
+                if (epoch == sessionIdentity && current()) callback(result)
+                if (closing && apiRequests == 0) {
+                    worker.shutdown()
+                    holidayWorker.shutdown()
+                    presenceWorker.shutdown()
+                }
+            }
+        }
         worker.execute prepare@{
-            if (!current()) return@prepare
+            if (!current() || epoch != sessionIdentity) {
+                finish(Result.failure(AuthFailure("sign_in_required", "Sign in to Atlas again.")))
+                return@prepare
+            }
             try {
-                check(epoch == generation)
                 val saved = storage.load("session") ?: throw AuthFailure("unauthorized", "Sign in to Atlas first.")
                 val restored = command(JSONObject().put("operation", "restore").put("session", saved))
-                check(epoch == generation)
+                check(epoch == sessionIdentity)
                 storage.save("session", restored)
                 if (request.optString("action") == "run") {
                     val pending = storage.load("automation.admission")
@@ -208,28 +375,34 @@ class AtlasAuthentication(
                     storage.save("automation.admission", request)
                 }
                 val executor = if (request.optString("action") == "watch") watches else requests
-                executor.execute api@{
-                    if (epoch != generation || !current()) return@api
+                executor.execute {
                     val result =
                         runCatching {
+                            check(epoch == sessionIdentity && current())
                             command(JSONObject().put("operation", "native").put("session", restored).put("request", request))
                         }
-                    worker.execute completion@{
-                        if (epoch != generation) return@completion
+                    worker.execute {
                         val definitive = (result.exceptionOrNull() as? AuthFailure)?.kind in setOf("invalid_input", "revision_changed")
-                        if ((result.isSuccess || definitive) && request.optString("action") == "run") {
+                        if (epoch == sessionIdentity && (result.isSuccess || definitive) && request.optString("action") == "run") {
                             try {
                                 storage.delete("automation.admission")
                             } catch (_: Exception) {
                                 // Retain for safe replay.
                             }
                         }
-                        main.post { if (epoch == generation) callback(result) }
+                        finish(result)
                     }
                 }
             } catch (failure: Exception) {
+                if (failure is AuthFailure && failure.kind == "rejected") {
+                    try {
+                        discardSession(removeRegistration = true)
+                    } catch (_: Exception) {
+                    }
+                    main.post { listener?.invoke() }
+                }
                 val error = if (failure is AuthFailure) failure else AuthFailure("storage", "Could not access secure Atlas credentials.")
-                main.post { if (epoch == generation) callback(Result.failure(error)) }
+                finish(Result.failure(error))
             }
         }
     }
@@ -272,7 +445,7 @@ class AtlasAuthentication(
             } catch (error: AuthFailure) {
                 if (error.kind == "rejected") {
                     try {
-                        storage.delete("registration")
+                        discardSession(removeRegistration = true)
                     } catch (_: Exception) {
                         // Preserve the credential failure without exposing storage details.
                     }

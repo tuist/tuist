@@ -127,6 +127,7 @@ defmodule Tuist.Kura.RegionsTest do
       end
 
       assert Regions.storage_governed?(Regions.get("scw-fr-par-runners"))
+      assert Regions.storage_governed?(Regions.get("ber1-runners"))
       refute Regions.storage_governed?(Regions.get("hetzner-staging-runners"))
       refute Regions.storage_governed?(Regions.get("local-controller"))
     end
@@ -626,6 +627,17 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.private?(Regions.get("eu-west"))
       refute Regions.private?(Regions.get("local-controller"))
       refute Regions.private?(nil)
+    end
+  end
+
+  describe "private_endpoint?/1" do
+    test "is true only for a private region's hostname" do
+      assert Regions.private_endpoint?("https://acme-scw-fr-par-runners.kura.tuist.dev")
+      assert Regions.private_endpoint?("https://acme-ber1-runners.kura.tuist.dev/")
+      refute Regions.private_endpoint?("https://acme-eu-west-1.kura.tuist.dev")
+      refute Regions.private_endpoint?("https://acme.cache.tuist.dev")
+      refute Regions.private_endpoint?("")
+      refute Regions.private_endpoint?(nil)
     end
   end
 

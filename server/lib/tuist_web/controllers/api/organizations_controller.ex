@@ -324,7 +324,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
   operation(:usage,
     summary: "Shows the usage of an organization",
-    description: "Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)",
+    description: "Returns the usage of the organization with the given identifier.",
     operation_id: "showOrganizationUsage",
     parameters: [
       organization_name: [
@@ -360,9 +360,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       true ->
-        json(conn, %{
-          current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
-        })
+        json(conn, %{current_month_remote_cache_hits: 0})
     end
   end
 

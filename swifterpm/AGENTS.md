@@ -17,7 +17,7 @@
 
 - Prefer provider archives, then shallow Git fetches. If Git reports that the server does not support shallow clients, retry the same location and pinned revision without `--depth`; do not retry unrelated fetch failures or switch transports.
 - `RestoreTests` exercises this fallback offline using a loopback smart-HTTP Git fixture without the `shallow` capability.
-- Unit tests calling `restorePackage` to evaluate fixture manifests must pass `disableSandbox: true`: Bazel's macOS test sandbox cannot launch a nested `sandbox-exec`. Keep the production sandbox default unchanged.
+- Unit tests evaluating fixture manifests through the loader, package-info writer, or restorer must pass `disableSandbox: true`: Bazel's macOS test sandbox cannot launch a nested `sandbox-exec`. Keep the production sandbox default unchanged.
 
 ## End-to-end tests
 
@@ -31,14 +31,28 @@
 
 - Shared sources are pinned snapshots, not native working trees. `PinnedSourceSnapshot` exports through a private index and empty staging tree; never stamp and cache mutable checkout bytes. Empty/comment-only `.gitmodules` and files with no submodule path entries are valid; listing and filtering their configuration must not confuse Git's no-match status with a failed export. Malformed configuration still fails closed.
 - Every native entry point must prepare a private workspace through `NativeWorkspace`, including force-resolved checks and Tuist's native fallback. Detach Git-bearing checkout links rather than copying potentially damaged working trees. Prefer APFS COW clones for Git-free links/artifacts, with independent-copy fallback; never use hard links. Account for per-file materialization and subsequent tree cleanup costs on large graphs; a matching revision marker alone cannot justify skipping isolation or certifying a mutated private copy.
-- Recognize only explicit SwiftPM marker/manifest-cache paths as generated checkout metadata, including SwiftPM 6.4's `.build/CACHEDIR.TAG` and `.build/.buildSystem_debug`. Arbitrary files under `.build` remain user data.
+- Recognize only explicit SwiftPM marker/manifest-cache paths as generated checkout metadata, including SwiftPM 6.4's `.build/CACHEDIR.TAG` and `.build/.buildSystem_debug`. The manifest cache output and its `.envhash` / `.inputs.json` sidecars are generated metadata too. Arbitrary files under `.build` remain user data.
 - Preserve unmanaged/modified real checkouts and SwiftPM edit state. Legacy cached Git checkouts are rebuilt privately without modifying their shared directory; local source-control legacy entries retain private Git metadata/tags for manifest context. Cache publication failure must leave the usable native checkout intact.
 - Keep source-cache paths and the raw revision marker compatible. Do not add warm source hashing or Git subprocesses for ordinary Git-free cache hits.
 - `NativeWorkspaceTests`, `RestoreTests`, `ResolveTests`, and `FileSystemSupportTests` are also included in the generated `SwifterPMCoreTests` target for focused Xcode validation.
 
 ## Resolution
 
+- Embedded requests may provide a separate `resolutionEnvironment` for native fetching. Warm no-fetch lockfile validation, manifest dumping, and manifest fingerprints must use `manifestEnvironment`, so rotating fetch credentials do not invalidate native manifest caches or change the validated graph. Never restore credentials only in the fingerprint or silently mix the two. An omitted resolver environment preserves the existing manifest-environment contract. Native fetching evaluates manifests with its resolver environment too, so embedders must document credential-dependent manifests and provide an opt-in to consistent inputs. Keep regression coverage for cache reuse across credential rotation, authenticated fetching, and stale-lockfile rejection.
+
+
 - Stale-pin pruning must only inspect version-specific cached sources or registry downloads. If a reachable manifest is missing or cannot be evaluated, retain the seed and defer to normal resolution. Never infer reachability from an unverified scratch checkout or a local repository working tree.
+- The restoration path never fetches prebuilts; it carries over the ones native SwiftPM recorded in `workspace-state.json`. Carry over only entries whose version matches the resolved pin, whose extracted directory exists, and whose directory name is exactly `<name>-<library>` for the name SwiftPM would give the current toolchain's prebuilts (`WorkspacePrebuilts.probeName`: the compiler tag plus the SDK on macOS or the distribution elsewhere). Binary modules from another compiler or SDK cannot be imported. Decide against the pins being written, not the seed lockfile, so `update` and `restore` follow the same rule. Drop entries missing any of identity, version, library or path. Rebase kept entries onto the current scratch directory (`path`, and `checkoutPath` as `checkouts/<identity>`), since SwiftPM records absolute paths and a scratch directory can be restored elsewhere. When the name cannot be probed, keep the entries and warn. Probe only when prebuilts are recorded, running the compiler the way native resolution finds it, and let cancellation through. A dropped entry is not replaced, so the package builds from source until a native resolution records it again; warn when dropping so that is visible.
+
+## Manifest caches
+
+- An explicit cache directory must reach every internal `swift package dump-package` invocation as `--cache-path`, for embedded resolve/update/restore and standalone commands. Resolve relative CLI paths once against the invocation directory, including `--chdir` and command-level `--cache-dir` precedence. Without an explicit directory, pass SwifterPM's default cache root, so dumps and native resolution share one compiled-manifest cache. Never redirect configuration or credentials into the cache.
+- Validate dumps and package-info JSON by manifest contents (including version-specific candidates), the actual manifest environment and mirrors, toolchain identity, declared and resolved package paths, and sandbox mode. Checkout mtimes are not cache identities. Legacy or incomplete records must miss; never certify a legacy dump with current inputs.
+- Bind cached output bytes to the input record, and capture inputs before evaluation. If inputs change during evaluation, do not publish a cache entry for that evaluation.
+- All manifest dumps belong under the root scratch directory, outside materialized package roots. Local checkouts and registry roots can be replaced even when their sources are unchanged. Normalize declared paths for cache keys, keep them for evaluation, and use canonical paths for cycle detection and invalidation. Workspace-state writes prune obsolete per-package entries while retaining current pins, local dependencies and source-control cache paths.
+- Probe the toolchain lazily, at most once per invocation, including failures. Unavailable identities make caching unavailable without blocking manifest evaluation.
+- Preserve the native forced-lockfile check.
+- The generated `SwifterPMCoreTests` target adds focused manifest/cache coverage; broader CLI runner tests remain in the SwifterPM pipeline. Generate `SwifterPMCore SwifterPMCoreTests` and run the relevant suites through Xcode for focused validation.
 
 ## CI
 
