@@ -27,12 +27,7 @@ import org.gradle.operations.configuration.ConfigurationCacheCheckFingerprintBui
 import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStepBuildOperationType
 import org.gradle.internal.time.Time
 import org.gradle.internal.cc.impl.InputTrackingState
-import java.io.BufferedReader
-import java.io.IOException
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
-import java.net.URI
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -156,6 +151,7 @@ abstract class TuistBuildInsightsService :
         val requestedTasks: ListProperty<String>
         val backgroundUpload: Property<Boolean>
         val actorId: Property<String>
+        val reportOutboxDirectory: DirectoryProperty
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -364,51 +360,24 @@ abstract class TuistBuildInsightsService :
             artifactTransforms = transforms,
         )
 
+        val createdAtMs = System.currentTimeMillis()
         val response = httpClient.execute { config ->
             val resolvedUrl = ServerUrlResolver.resolve(
                 extensionUrl = parameters.url.get(),
                 projectDir = projectDir
             )
-            val url = URI(resolvedUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
-            // Every attempt sends the same build id, and the server stores a replayed id only once
-            // (a server that does not deduplicate by id stores the replay as another build).
-            httpClient.retrying("Build insights request", replaySafe = true) {
-                val connection = httpClient.openConnection(url, config)
-                try {
-                    connection.requestMethod = "POST"
-                    connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json")
-                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
-                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
-                    }
-
-                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                        val body = if (config.token.isEmpty()) report.copy(gitRemoteUrlOrigin = null) else report
-                        Gson().toJson(body, writer)
-                    }
-
-                    when (val status = connection.responseCode) {
-                        HttpURLConnection.HTTP_CREATED -> {
-                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, BuildReportResponse::class.java)
-                            }
-                        }
-                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                        else -> {
-                            val errorBody = try {
-                                connection.errorStream?.bufferedReader()?.use { it.readText() }
-                            } catch (_: Exception) { null }
-                            val message = "Build insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
-                            if (status in TuistRetry.RETRYABLE_STATUSES) {
-                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
-                            }
-                            logger.warn("Tuist: $message")
-                            null
-                        }
-                    }
-                } finally {
-                    connection.disconnect()
-                }
+            val body = Gson().toJson(if (config.token.isEmpty()) report.copy(gitRemoteUrlOrigin = null) else report)
+            val result = publishReport(
+                outbox = reportOutbox(), httpClient = httpClient, config = config, baseUrl = resolvedUrl,
+                kind = ReportKind.BUILD, id = report.id, createdAtMs = createdAtMs, body = body,
+                actorId = ActorIdentifier.resolve(override = parameters.actorId.orNull),
+                description = "Build insights request"
+            )
+            if (result.status == HttpURLConnection.HTTP_CREATED) {
+                Gson().fromJson(result.body, BuildReportResponse::class.java)
+            } else {
+                logger.warn("Tuist: Build insights request failed with HTTP ${result.status}: ${result.body ?: "(no response body)"}")
+                null
             }
         }
 
@@ -418,6 +387,8 @@ abstract class TuistBuildInsightsService :
             logger.warn("Tuist: Failed to report build insights.")
         }
     }
+
+    private fun reportOutbox(): ReportOutbox? = parameters.reportOutboxDirectory.orNull?.let { ReportOutbox(it.asFile) }
 
     private fun reportGitInfoProvider(): GitInfoProvider =
         gitInfoProvider ?: GitInfo(
@@ -535,6 +506,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
             parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
             config.actorId?.let { parameters.actorId.set(it) }
+            parameters.reportOutboxDirectory.set(ReportOutbox.directory(project.gradle.gradleUserHomeDir))
         }
 
         // A provider can have only one subscription. An operation-only service also
