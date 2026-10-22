@@ -271,6 +271,9 @@ excluded =
             name == "connect_claude_provider" ->
           "Personal provider credentials and device-login lifecycle are not workflow capabilities."
 
+        name == "send_test_push_notification" ->
+          "Personal device consent and push-test delivery are not workflow capabilities; notification delivery requires an explicit durable adapter."
+
         String.contains?(name, "automation") ->
           "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior."
 
