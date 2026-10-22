@@ -99,8 +99,6 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
 
       on_exit(fn ->
         Sandbox.unboxed_run(Repo, fn ->
-          account_sub = Integer.to_string(user.account.id)
-          Repo.delete_all(from(t in "guardian_tokens", where: field(t, :sub) == ^account_sub))
           Repo.delete_all(from(a in Account, where: a.id == ^user.account.id))
           Repo.delete_all(from(u in User, where: u.id == ^user.id))
         end)
@@ -120,6 +118,14 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
 
       on_exit(fn ->
         Sandbox.unboxed_run(Repo, fn ->
+          account_sub = Integer.to_string(user.account.id)
+
+          Repo.delete_all(
+            from(t in "guardian_tokens",
+              where: field(t, :sub) == ^account_sub and fragment("?->>'client_id' = ?", field(t, :claims), ^client.id)
+            )
+          )
+
           Repo.delete_all(from(t in Token, where: t.client_id == ^client.id))
           Repo.delete_all(from(c in Client, where: c.id == ^client.id))
         end)

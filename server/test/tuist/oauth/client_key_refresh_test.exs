@@ -26,27 +26,32 @@ defmodule Tuist.OAuth.ClientKeyRefreshTest do
     assert_receive {:refresh_transaction, false}
   end
 
-  test "a rotated client key is fetched once before the grant transaction and remains stored" do
-    {client, _old_key} = client_fixture()
-    new_key = JOSE.JWK.generate_key({:rsa, 1024})
-    parent = self()
+  for grant <- ["authorization_code", "refresh_token"] do
+    @tag rotation_grant: grant
+    test "a rotated client key for #{grant} is fetched once before the transaction and remains stored", %{
+      rotation_grant: grant
+    } do
+      {client, _old_key} = client_fixture()
+      new_key = JOSE.JWK.generate_key({:rsa, 1024})
+      parent = self()
 
-    expect(Finch, :request, fn _, OpenIDHttpClient ->
-      refute Repo.in_transaction?()
-      send(parent, :key_fetched)
-      {:ok, %Finch.Response{status: 200, headers: [], body: JSON.encode!(%{"keys" => [public_jwk(new_key)]})}}
-    end)
+      expect(Finch, :request, fn _, OpenIDHttpClient ->
+        refute Repo.in_transaction?()
+        send(parent, :key_fetched)
+        {:ok, %Finch.Response{status: 200, headers: [], body: JSON.encode!(%{"keys" => [public_jwk(new_key)]})}}
+      end)
 
-    expect(Repo, :query!, fn "SET LOCAL lock_timeout = '5s'" = sql ->
-      assert_receive :key_fetched
-      assert Repo.in_transaction?()
-      Mimic.call_original(Repo, :query!, [sql])
-    end)
+      expect(Repo, :query!, fn "SET LOCAL lock_timeout = '5s'" = sql ->
+        assert_receive :key_fetched
+        assert Repo.in_transaction?()
+        Mimic.call_original(Repo, :query!, [sql])
+      end)
 
-    conn = Exchange.token(connection(client, assertion(client, new_key)), TokenController)
-    assert conn.status == 400
-    assert JSON.decode!(conn.resp_body)["error"] == "invalid_grant"
-    assert Repo.get!(Client, client.id).jwt_public_key == public_pem(new_key)
+      conn = Exchange.token(connection(client, assertion(client, new_key), grant), TokenController)
+      assert conn.status == 400
+      assert JSON.decode!(conn.resp_body)["error"] == "invalid_grant"
+      assert Repo.get!(Client, client.id).jwt_public_key == public_pem(new_key)
+    end
   end
 
   test "the adapter refuses remote key refresh inside any transaction" do

@@ -27,6 +27,35 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
     {:ok, user: user, project: project, client: client}
   end
 
+  test "grant transactions mint bounded fresh project hints without analytics", %{user: user, project: existing} do
+    projects =
+      for index <- 1..6 do
+        project = ProjectsFixtures.project_fixture(account: user.account)
+
+        updated_at =
+          case existing.updated_at do
+            %DateTime{} = value -> DateTime.add(value, index, :second)
+            %NaiveDateTime{} = value -> NaiveDateTime.add(value, index, :second)
+          end
+
+        project |> Ecto.Changeset.change(updated_at: updated_at) |> Tuist.Repo.update!()
+      end
+
+    expected = projects |> Enum.reverse() |> Enum.take(5) |> MapSet.new(&"#{user.account.name}/#{&1.name}")
+    reject(&Tuist.CommandEvents.get_project_last_interaction_data/1)
+    reject(&Tuist.ClickHouseRepo.all/1)
+    token = %Token{sub: Integer.to_string(user.id), client_id: "test-client-id"}
+
+    for kind <- [:access_token, :refresh_token] do
+      assert {:ok, jwt} = Tuist.Repo.transaction(fn -> TokenGenerator.generate(kind, token) end)
+      assert {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt)
+      assert MapSet.new(claims["projects"]) == expected
+      assert length(claims["cache_grants"]["project"]["read"]) <= 5
+      assert length(claims["cache_grants"]["project"]["write"]) <= 5
+      assert byte_size(jwt) < 5_000
+    end
+  end
+
   describe "generate/2" do
     test "generates an account token with type claim", %{user: user} do
       token = %Token{
