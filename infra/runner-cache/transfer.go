@@ -31,8 +31,10 @@ type HTTPTransfer struct {
 	Log *slog.Logger
 
 	// Zero values use the package defaults; injectable so tests don't wait real minutes.
-	stallTimeout time.Duration
-	retryBackoff time.Duration
+	stallTimeout      time.Duration
+	retryBackoff      time.Duration
+	partBytes         int64
+	uploadParallelism int
 }
 
 const (
@@ -59,17 +61,26 @@ var ErrDownloadIncomplete = errors.New("image download incomplete")
 var errArchiveTooLarge = errors.New("cache image archive exceeds the image size limit")
 
 type transferResponse struct {
-	DownloadURL   string `json:"download_url"`
-	UploadURL     string `json:"upload_url"`
-	Checksum      string `json:"checksum_sha256"`
-	Generation    int64  `json:"generation"`
-	ImageDigest   string `json:"image_digest"`
-	ContentDigest string `json:"content_digest"`
-	Conflict      bool   `json:"conflict"`
+	DownloadURL   string     `json:"download_url"`
+	UploadURL     string     `json:"upload_url"`
+	Checksum      string     `json:"checksum_sha256"`
+	Generation    int64      `json:"generation"`
+	ImageDigest   string     `json:"image_digest"`
+	ContentDigest string     `json:"content_digest"`
+	Conflict      bool       `json:"conflict"`
+	UploadID      string     `json:"upload_id"`
+	Parts         []partLink `json:"parts"`
 }
 
 func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest, content string) (transferResponse, error) {
+	return t.requestWith(ctx, slot, operation, digest, content, nil)
+}
+
+func (t *HTTPTransfer) requestWith(ctx context.Context, slot Slot, operation, digest, content string, extra map[string]any) (transferResponse, error) {
 	fields := map[string]any{"id": slot.ID, "node_name": t.Node, "operation": operation, "image_digest": digest, "content_digest": content}
+	for key, value := range extra {
+		fields[key] = value
+	}
 	// A download names its generation: a host may refresh a stale master to the
 	// current HEAD of the lineage it already holds.
 	if operation == "download" {
@@ -100,7 +111,7 @@ func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest
 		return transferResponse{}, &RemoteError{Operation: "metadata", StatusCode: response.StatusCode}
 	}
 	var result transferResponse
-	if err = json.NewDecoder(io.LimitReader(response.Body, 16384)).Decode(&result); err != nil {
+	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&result); err != nil {
 		return result, err
 	}
 	if result.Conflict {
@@ -264,96 +275,6 @@ func parseContentRange(value string) (start, size int64, ok bool) {
 		return 0, size, size >= 0
 	}
 	return 0, 0, false
-}
-
-// Publish uploads the archive at path and fast-forwards the slot's lineage to
-// it. An attempt that fails in transit, stalls or meets a server error is
-// retried with a fresh upload link, and asking for it again tells this host
-// when the lineage advanced meanwhile (ErrConflict). Once the object store
-// accepted the archive, only the fast-forward is retried.
-func (t *HTTPTransfer) Publish(slot Slot, path, digest, content string) (int64, error) {
-	uploaded := false
-	for attempt := 1; ; attempt++ {
-		started := time.Now()
-		generation, sent, err := t.publish(slot, path, digest, content, &uploaded)
-		if err == nil || attempt >= uploadAttempts || !retryableUpload(err) {
-			return generation, err
-		}
-		logger(t.Log).Warn("cache upload retry", "scope", slot.Scope, "use", slot.ID, "attempt", attempt,
-			"uploaded", uploaded, "sent_bytes", sent, "elapsed_ms", time.Since(started).Milliseconds(), "error", err.Error())
-		time.Sleep(t.backoff() * time.Duration(attempt))
-	}
-}
-
-func (t *HTTPTransfer) publish(slot Slot, path, digest, content string, uploaded *bool) (int64, int64, error) {
-	var sent int64
-	if !*uploaded {
-		result, err := t.request(context.Background(), slot, "upload", digest, content)
-		if err != nil {
-			return 0, 0, err
-		}
-		if result.Generation > 0 {
-			return result.Generation, 0, nil
-		}
-		if sent, err = t.upload(result, path); err != nil {
-			return 0, sent, err
-		}
-		*uploaded = true
-	}
-	result, err := t.request(context.Background(), slot, "publish", digest, content)
-	if err == nil && result.Generation <= slot.BaseGeneration {
-		return 0, sent, errors.New("invalid published generation")
-	}
-	return result.Generation, sent, err
-}
-
-// upload PUTs the whole archive and returns how many bytes the request read.
-func (t *HTTPTransfer) upload(result transferResponse, path string) (int64, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
-	stat, err := file.Stat()
-	if err != nil {
-		return 0, err
-	}
-	ctx, cancel := context.WithCancelCause(context.Background())
-	defer cancel(nil)
-	stall := t.stall()
-	watchdog := time.AfterFunc(stall, func() { cancel(errUploadStalled) })
-	defer watchdog.Stop()
-	body := &progressReader{r: file, progress: func() { watchdog.Reset(stall) }}
-	req, err := http.NewRequestWithContext(ctx, "PUT", result.UploadURL, body)
-	if err != nil {
-		return 0, errors.New("invalid upload URL")
-	}
-	req.ContentLength = stat.Size()
-	if result.Checksum != "" {
-		req.Header.Set("x-amz-checksum-sha256", result.Checksum)
-	}
-	response, err := t.objectClient().Do(req)
-	if err != nil {
-		if cause := context.Cause(ctx); errors.Is(cause, errUploadStalled) {
-			return body.n.Load(), cause
-		}
-		return body.n.Load(), fmt.Errorf("image upload failed: %w", transferError(err))
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return body.n.Load(), remoteError("upload", response)
-	}
-	return body.n.Load(), nil
-}
-
-// retryableUpload reports a publication failure another attempt may not meet:
-// a request that failed or stalled in transit, or a server error.
-func retryableUpload(err error) bool {
-	var remote *RemoteError
-	if errors.As(err, &remote) {
-		return remote.StatusCode >= 500 || remote.StatusCode == http.StatusTooManyRequests || remote.StatusCode == http.StatusRequestTimeout
-	}
-	return errors.Is(err, errTransport) || errors.Is(err, errUploadStalled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // remoteError names an object store's error code (S3's <Code>) when its

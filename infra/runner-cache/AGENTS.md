@@ -157,16 +157,30 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   bytes arrive returns `ErrDownloadIncomplete` and keeps the partial; a complete
   archive that does not restore is deleted. Callers resume only by passing the
   same path again.
-- `HTTPTransfer.Publish` retries inside the call, so a retry never recompresses:
-  at most four attempts, each asking `upload` for a fresh link (which also
-  returns `ErrConflict` once the lineage advanced) and PUTting the whole archive,
-  abandoned after two minutes without sending bytes, backing off 10 s times the
-  attempt. It retries transport errors, stalls and 5xx/429/408 only; once a PUT
-  succeeded it retries `publish` alone. Each retry logs `cache upload retry` with
-  `attempt`, `sent_bytes`, `elapsed_ms` and `error`. Transport errors keep the
-  network's own text (`transport error: <cause>`) with URLs replaced, and a
-  `RemoteError` carries the object store's `<Code>` when it sent one.
-  Uploads are one presigned PUT; the server signs the whole archive's SHA-256.
+- `HTTPTransfer.Publish` (`upload.go`) retries inside the call, so a retry never
+  recompresses. An archive of at least two 128 MiB parts asks `upload` with
+  `multipart`; the server starts a multipart upload (S3-compatible storage only)
+  or answers with a single PUT link. Parts go eight at a time, links signed 16 at
+  a time by `upload_parts` for each part's `Content-MD5` (hashed before the links
+  are asked for); `complete` assembles them and answers once the object is
+  readable, and `publish` fast-forwards. One connection to Tigris carries about
+  55 to 110 MB/s from a rack host; 4, 8 and 16 parts carried 260, 417 and
+  582 MB/s (4 GiB, b07, 2026-10-22). Tigris answers a completion before the
+  object is readable (2 to over 30 s), so the server waits up to 20 s and
+  otherwise answers 503. A smaller archive, or an older server, is one
+  PUT carrying the server-signed SHA-256. A retried attempt resumes with the parts
+  storage does not hold; asking for links again returns `ErrConflict` once the
+  lineage advanced. Attempts that store nothing are bounded by four (one that
+  stores parts restarts the count), back off 10 s times the count, and a request
+  that sends nothing for two minutes is abandoned. Only transport errors, stalls
+  and 5xx/429/408 are retried; once storage holds the archive only `publish` is.
+  A call that gives up sends `abort`; the server also aborts every multipart
+  upload once its links expired (`AbortVolumeMasterUploadWorker`). Each retry
+  logs `cache upload retry` with `attempt`, `parts_stored`, `sent_bytes`,
+  `elapsed_ms` and `error`. Transport errors keep the network's own text
+  (`transport error: <cause>`) with URLs replaced, and a `RemoteError` carries
+  the object store's `<Code>` when it sent one. A restore verifies the whole
+  archive's SHA-256.
 - `prefetch` and refreshes download into
   `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
   to install (`fetchMaster`), one download per staging name at a time;
