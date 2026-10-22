@@ -111,6 +111,8 @@ struct AtlasClaudeAccountView: View {
                 }
             }
         }
+        .protectsAtlasNavigation()
+        .toolbar(.hidden, for: .tabBar)
         .navigationTitle("Claude")
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
@@ -224,6 +226,8 @@ struct AtlasChatGPTAccountView: View {
                 }
             }
         }
+        .protectsAtlasNavigation()
+        .toolbar(.hidden, for: .tabBar)
         .navigationTitle("ChatGPT")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { actions }

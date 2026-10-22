@@ -53,7 +53,7 @@ same environment. When the base cannot be resolved, the push deploys.
 `workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
 using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
 and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
-when authentication succeeds, except for device builds, which use local caching
+when authentication succeeds, except for Android and iOS device builds, which use local caching
 only so signed releases do not consume shared outputs written by PRs. Main builds publish the tested artifacts to the
 private Tuist project's `nightly` preview track after distinct build, test and
 language-specific lint jobs pass; pull requests never publish. The single
@@ -63,15 +63,22 @@ Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
 The separate native iOS UI job builds the isolated Once fixture runner, exercises
-CRUD/navigation with `xcodebuild test-without-building`, and exports xcresult
+CRUD/navigation, including `AtlasNavigationUITests` object links, with `xcodebuild test-without-building`, and exports xcresult
 screenshots plus a simulator recording as `atlas-native-ui-evidence`. Fixtures
 make no live account-management requests and never enter production source globs.
 Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
 ad-hoc profile from 1Password, then publishes its IPA alongside the APK and
-simulator app in a separate step without the 1Password token. Signing runs before
-any uploads to avoid publishing a simulator-only nightly when it fails. Credential-free
+simulator app in separate steps without the 1Password token. Android distribution
+is re-signed with a stable key only when the protected environment configures
+`ATLAS_ANDROID_KEYSTORE_REF`, its password reference, alias, and the same
+`ATLAS_ANDROID_APP_LINK_SHA256` allowlist used by the server. Without a key reference,
+Android nightly publication is skipped rather than distributing ephemeral debug
+identities; debug CI artifacts remain. Android and simulator publication precede
+iOS device signing so a profile capability update cannot block them. iOS signing
+requires an Associated Domains-enabled profile and requests only the hosted app
+link domain. Credential-free Android signing, associated-domain capability,
 keychain-lifecycle and launcher-packaging tests also gate publication.
 PR/fork builds never receive distribution secrets. These are not
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a

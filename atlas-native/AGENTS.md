@@ -31,6 +31,8 @@ selected server. OAuth tokens are not browser cookies.
 - `cli/`: host Rust executable sharing the catalog; see `cli/AGENTS.md`.
 - `core/include/`: authored C header and Clang module map imported by Swift.
 - `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
+- `android/distribution/`: stable-key Android signing and publication guard; see
+  `android/distribution/AGENTS.md`. PR/debug builds must never supply verified-link identities.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions.
@@ -88,6 +90,15 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - The shared catalog/CLI retain web routes, but mobile never displays browser-only entries. Scope metadata is descriptive, never a local authorization grant; Atlas enforces actual access. Implement future native adapters under the same stable destination IDs without changing the information architecture.
 - Coverage includes the Rust graph/ABI tests, `ios/Tests/AtlasCoreTests.swift`, and fixture-backed `AtlasWorkspaceUITests` / Android workspace model checks and `capture_android.py --workspace`. Keep fixtures outside production source globs; see `previews/AGENTS.md`.
 
+## Object navigation and deep links
+
+- See [Object navigation](README.md#object-navigation) for the link contract, notification payload and agent automation commands. `core/src/destinations.rs` owns the linkable screen allowlist and record capabilities, exposed through a separate immutable C/primitive JNI descriptor table. Keep existing section/group fields unchanged. Screen keys are public, frozen route identifiers; titles and catalog placement can evolve independently.
+- `dev.tuist.atlas://navigate/<screen>[/<uuid>]?server=<encoded-https-origin>` is an untrusted, read-only intent, never an API path or server switch. Native adapters validate the exact grammar and compare the authenticated HTTPS origin (host case/default 443/root slash normalized, nondefault ports distinct). OAuth callbacks remain separate. The server still authorizes every direct record read.
+- HTTPS Universal/App Links for the hosted domain enter the same destination contract. C/JNI destination fields 2–3 expose existing browser pages and accepted record prefixes. Canonical share URLs use `/open/<screen>[/<uuid>]`; registrations claim only the exact equivalent web pages and these landing paths, never entire web hierarchies. The broader finance dashboard is explicit-open only. Keep the Android manifest in sync with `AtlasWeb.NativeLinks.claimed_paths/0`; only the native parser validates lowercase UUIDs. Do not forward query/fragment data, trust Host headers, or infer server changes from links. See `atlas/deploy/AGENTS.md#native-app-links` for trusted identities and rollout.
+- Native browser escape uses embedded Safari on iOS and explicit browser components on Android to avoid immediately handing a verified URL back to Atlas. Keep browser auth separate from native OAuth; browser presentation must not erase native drafts. Dismiss embedded Safari on a new handled link or link error.
+- The shell owns only a latest-wins, memory-only pending destination and native parent stack. Retain Android pending state across rotation, never replay Recents intents, and discard on session end. Do not persist destinations across users or put credentials in URLs. Reject links during drafts/saves/AI setup with an explanation rather than discarding work or silently navigating after save. Features still own state and fetch records by UUID, not by searching loaded pages; loading/failure states must never expose mutation controls. A forbidden direct-record read must revoke cached rows/options and invalidate older list/detail reads so late responses cannot restore them, while cancelled requests must not revoke newer results. Keep Back and explicit Retry available.
+- `AtlasNavigationTests`, `AtlasBusinessTests`, Rust capability/ABI tests and Android preview startup checks cover grammar/lifecycle/direct lookup, including revoked-access cache invalidation and late/cancelled reads. `AtlasNavigationUITests` exercises the production iOS destination views using isolated fixture data. Keep all fixture URL launch arguments outside production source globs.
+
 ## Native business records and Profile
 
 - People is a native Browse destination. The shared Rust auth crate owns the persistent Phoenix WSS connection, location validation, heartbeats/reconnect and latest-only event delivery; Swift/Kotlin models only bridge events and app lifecycle. Foreground clients report the current allowlisted page/record, clear stale same-page hints on navigation, and close on background/sign-out. Refresh/persist OAuth credentials through the existing coordinator before opening, never serialize blocking event waits with credential or business work. Presence describes viewing, not editing, and grants no write permissions. Server coordination and privacy rules live in [Atlas presence](../atlas/lib/atlas/presence/AGENTS.md).
@@ -102,7 +113,7 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 
 - `auth/src/themes.rs` owns optional credential-free catalog fetch/validation under `/api/native/themes`, plus bundled Atlas defaults. Unsupported/invalid/unreachable catalogs must never affect OAuth state or block the workspace. Newer clients work with older servers, including their authenticated dynamic route returning 401. See [the versioned server contract](../atlas/lib/atlas_web/controllers/AGENTS.md). Keep all three production Rust Once source lists aligned.
 - Swift `AtlasAppearance` and Kotlin `AtlasAppearance` cache only validated catalogs and theme/appearance preferences per canonical selected server origin, using a worker independent of the credential coordinator. Refresh on foreground with a five-minute minimum interval; reject late results after server changes. Retain an unavailable theme ID but render the current server default, then bundled Atlas. Sign-out restores unthemed login. Profile → Appearance selects Server default or a published theme and System/Light/Dark locally, never a server-side user setting.
-- Appearance is local-only: clear Profile's viewing location on entry, just as AI-account child screens do. Location-free presence must not report a same-page hint or place a banner over native navigation.
+- Appearance is local-only: clear Profile's viewing location on entry, just as AI-account child screens do. Location-free presence must not report a same-page hint or place a banner over native navigation. A Profile link returns from Appearance to the Profile root without resetting the selected theme or appearance preferences.
 - Preserve platform controls, hierarchy, semantic status colors, Dynamic Type/font scaling, 44pt/48dp targets and native navigation. iOS keeps system row surfaces/labels/chrome; custom canvas/tint and app-owned preview/action styling follow HIG color and accessibility guidance. Increased contrast drops custom iOS styling. Server tokens cannot download fonts, inject CSS, resize native controls or replace navigation. Avoid a universal screen/state framework for theming.
 
 ## AI account settings
@@ -164,7 +175,7 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
   with the manifest, and smoke-test simulator installation after changes.
 - Mobile builds are arm64 Android debug APKs, arm64 iOS simulator apps and arm64
   iOS device apps. `AtlasIOSDevice` uses separate device Rust targets and shared
-  production Swift sources; do not ship screenshot fixtures. CI device builds use
+  production Swift sources; do not ship screenshot fixtures. CI Android and iOS device builds use
   only the local cache, not the shared cache accessible to PRs. Main-branch delivery
   provisions/re-signs a copy as an ad-hoc IPA outside Once's cache. Store delivery
   still requires store setup.
@@ -182,9 +193,9 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - Main-branch delivery uses the `nightly` Tuist preview track for APK, simulator
   app and signed device IPA, gated by all build, test and lint jobs. Only the
   protected publication job's signing step receives 1Password access; upload
-  steps do not. Sign the device IPA before uploading any platform, so a signing
-  failure cannot publish a simulator-only nightly. Simulator uploads set
-  `TUIST_PREVIEW_BUILD_VERSION` to a fresh Unix timestamp, avoiding duplicate
+  steps do not. Publish Android (when configured) and the simulator before device
+  signing, so a missing Associated Domains profile does not block those builds.
+  Simulator uploads set `TUIST_PREVIEW_BUILD_VERSION` to a fresh Unix timestamp, avoiding duplicate
   previews without modifying the bundle or Once's cache. Device packaging already
   stamps its temporary copy before distribution signing. Credential-free packaging
   tests gate publication alongside the build, test and lint jobs. Forks use local caching

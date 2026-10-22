@@ -3,6 +3,7 @@ import Config
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
 alias Atlas.LLMs.ChatGPT
+alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
@@ -165,6 +166,10 @@ config :atlas, :gtm_email,
 # Bank-transfer footer printed at the bottom of every Stripe invoice. Kept
 # out of source so real IBAN/BIC/beneficiary details are never checked in.
 config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
+
+# Verified native app identities for universal and app links. Unset means the
+# association files are not served.
+config :atlas, :native_links, NativeLinksConfig.parse!(System.get_env())
 
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),

@@ -28,6 +28,11 @@ directly in that same workflow. Keep permission decisions in the workflow:
 - Upload only platform artifacts and test reports, never the whole Once state
   directory, credential directories, or debug keystore. Archive the CLI with tar
   so GitHub artifact extraction does not remove its executable permission.
+- Android distribution also signs a stable private identity. The workflow disables
+  shared-cache authentication for Android builds, including on main, for the same
+  untrusted-output boundary as iOS device distribution; debug compilation does
+  not receive the key. Protected publication signs a separate copy and verifies
+  its SHA-256 certificate against server App Links trust.
 - `ios-device` builds `AtlasIOSDevice` with `aarch64-apple-ios` dependencies and
   uploads a device ZIP without distribution credentials. The workflow disables
   shared-cache authentication for this platform, including on main, so signing
