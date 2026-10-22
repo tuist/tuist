@@ -5,6 +5,7 @@ import Testing
 struct CargoBuildReportingTests {
     private let started = Date(timeIntervalSince1970: 1000)
     private let marker = "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s\n"
+    private let running = "     Running unittests src/lib.rs (target/debug/deps/store-0123456789abcdef)\n"
 
     private func compilation(failed: Bool) -> CargoCompilation {
         CargoCompilation(
@@ -17,6 +18,8 @@ struct CargoBuildReportingTests {
         var progress = CargoTestBuildProgress()
         let compiled = started.addingTimeInterval(2)
         progress.receive(Array(marker.utf8), at: compiled)
+        #expect(progress.finished == nil)
+        progress.receive(Array(running.utf8), at: compiled.addingTimeInterval(0.25))
         let result = CargoTestResult(
             report: nil, buildFinished: progress.finished, finished: started.addingTimeInterval(30), canReportBuildFailure: false
         )
@@ -60,12 +63,59 @@ struct CargoBuildReportingTests {
         #expect(CargoBuildOutcome.test(result, compilations: [compilation(failed: true)]) == nil)
     }
 
+    @Test func excludesCompilerRowsThatExtendBeyondTheBuildPhase() {
+        let outcome = CargoBuildOutcome(finished: started.addingTimeInterval(1), failed: false)
+        var built = compilation(failed: false)
+        built.startOffsetMs = 900
+        var rounded = built
+        rounded.durationMs = 101
+        var overlapping = built
+        overlapping.durationMs = 102
+        var nested = compilation(failed: true)
+        nested.startOffsetMs = 1500
+        var invalidOffset = built
+        invalidOffset.startOffsetMs = Int.min
+        var invalidDuration = built
+        invalidDuration.durationMs = Int.max
+        var negativeDuration = built
+        negativeDuration.durationMs = -1
+        #expect(outcome.compilations(
+            [built, rounded, overlapping, nested, invalidOffset, invalidDuration, negativeDuration], started: started
+        ) == [built, rounded])
+    }
+
+    @Test func requiresExecutionEvidenceAndUsesTheLastCompilationSummary() {
+        var progress = CargoTestBuildProgress()
+        progress.receive(Array(marker.utf8), at: started)
+        #expect(progress.finished == nil)
+        let outerFinished = started.addingTimeInterval(2)
+        progress.receive(Array(marker.utf8), at: outerFinished)
+        progress.receive(Array(running.utf8), at: outerFinished.addingTimeInterval(0.1))
+        #expect(progress.finished == outerFinished)
+    }
+
+    @Test func retainsSuccessfulCompilationWhenThereAreNoRunnableTests() {
+        var progress = CargoTestBuildProgress()
+        progress.receive(Array(marker.utf8), at: started)
+        #expect(progress.finished == nil)
+        #expect(progress.completion(succeeded: true) == started)
+        #expect(progress.completion(succeeded: false) == nil)
+    }
+
+    @Test func rejectsUnconfirmedCompletionOnCompilationFailure() {
+        var progress = CargoTestBuildProgress()
+        progress.receive(Array((marker + "error: could not compile store\n").utf8), at: started)
+        #expect(progress.finished == nil)
+        #expect(progress.canReportFailure)
+    }
+
     @Test func recognizesChunkedColoredBuildCompletionAndRetainsTheFirstBoundary() {
         var progress = CargoTestBuildProgress()
         let colored = marker.replacingOccurrences(of: "Finished", with: "\u{1B}[1m\u{1B}[32mFinished\u{1B}[0m")
         for byte in colored.utf8 {
             progress.receive([byte], at: started)
         }
+        progress.receive(Array(running.utf8), at: started.addingTimeInterval(0.1))
         progress.receive(Array(marker.utf8), at: started.addingTimeInterval(30))
         #expect(progress.finished == started)
     }
@@ -78,20 +128,23 @@ struct CargoBuildReportingTests {
     ])
     func supportsProfilesAndLongBuilds(line: String) {
         var progress = CargoTestBuildProgress()
-        progress.receive(Array(line.utf8), at: started)
+        progress.receive(Array((line + running).utf8), at: started)
         #expect(progress.finished == started)
     }
 
     @Test(arguments: [
         "     Running unittests src/lib.rs (target/debug/deps/store-0123456789abcdef)\n",
         "   Doc-tests store\n",
+        "  --- stdout\n",
+        "  --- stderr\n",
         String(repeating: "x", count: 4097) + "\n",
     ])
     func doesNotInterpretTestOutputOrOversizedLinesAsBuildCompletion(prefix: String) {
         var progress = CargoTestBuildProgress()
-        progress.receive(Array((prefix + marker).utf8), at: started)
+        progress.receive(Array((prefix + marker + running).utf8), at: started)
         #expect(progress.finished == nil)
         #expect(!progress.canReportFailure)
+        #expect(progress.completion(succeeded: true) == nil)
     }
 
     @Test(arguments: [
@@ -101,7 +154,7 @@ struct CargoBuildReportingTests {
     ])
     func requiresACargoBuildSummary(line: String) {
         var progress = CargoTestBuildProgress()
-        progress.receive(Array(line.utf8), at: started)
+        progress.receive(Array((line + running).utf8), at: started)
         #expect(progress.finished == nil)
     }
 

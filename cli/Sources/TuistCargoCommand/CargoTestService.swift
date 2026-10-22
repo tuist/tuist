@@ -5,8 +5,14 @@ import TuistProcess
 struct CargoTestBuildProgress {
     private var pending = Data()
     private var stopped = false
+    private var candidate: Date?
     private(set) var finished: Date?
     var canReportFailure: Bool { !stopped }
+
+    func completion(succeeded: Bool) -> Date? {
+        if let finished { return finished }
+        return succeeded && !stopped ? candidate : nil
+    }
 
     mutating func receive(_ bytes: [UInt8], at date: Date) {
         guard !stopped else { return }
@@ -17,7 +23,12 @@ struct CargoTestBuildProgress {
                     .replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 pending.removeAll(keepingCapacity: true)
+                if line == "--- stdout" || line == "--- stderr" {
+                    stopped = true
+                    return
+                }
                 if line.hasPrefix("Running ") || line.hasPrefix("Doc-tests ") {
+                    finished = candidate
                     stopped = true
                     return
                 }
@@ -25,9 +36,7 @@ struct CargoTestBuildProgress {
                     of: #"^Finished (?:`[^`]+` profile|[a-zA-Z0-9_-]+) \[[^\]]+\] target\(s\) in (?:[0-9]+h )?(?:[0-9]+m )?[0-9]+(?:\.[0-9]+)?s$"#,
                     options: .regularExpression
                 ) != nil {
-                    finished = date
-                    stopped = true
-                    return
+                    candidate = date
                 }
             } else {
                 guard pending.count < 4096 else { stopped = true; return }
@@ -144,10 +153,13 @@ struct CargoTestService {
                 directory: context.directory.pathString
             )
         }
+        let buildFinished = captured.build.completion(
+            succeeded: executionError == nil && captured.bounded && captured.stdout.isEmpty
+        )
         completed(CargoTestResult(
-            report: report, buildFinished: captured.build.finished, finished: finished,
-            canReportBuildFailure: executionError != nil && captured.bounded && captured.stdout.isEmpty && captured.build
-                .canReportFailure
+            report: report, buildFinished: buildFinished, finished: finished,
+            canReportBuildFailure: executionError != nil && !Task.isCancelled && captured.bounded && captured.stdout.isEmpty
+                && captured.build.canReportFailure
         ))
         if report == nil, context.environment["TUIST_DEBUG"] == "1" {
             FileHandle.standardError

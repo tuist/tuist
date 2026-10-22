@@ -15,6 +15,15 @@ struct CargoBuildOutcome {
         }
         return Self(finished: result.finished, failed: true)
     }
+
+    func compilations(_ rows: [CargoCompilation], started: Date) -> [CargoCompilation] {
+        let duration = CargoCommandService.milliseconds(finished.timeIntervalSince(started))
+        // Compiler start offsets and durations are rounded independently to milliseconds.
+        return rows.filter {
+            (0 ... duration).contains($0.startOffsetMs)
+                && (0 ... duration - $0.startOffsetMs + 1).contains($0.durationMs)
+        }
+    }
 }
 
 struct CargoReporting {
@@ -69,12 +78,20 @@ struct CargoReporting {
         }
         let outcome: CargoBuildOutcome
         if let testResult {
-            guard let measured = CargoBuildOutcome.test(testResult, compilations: compilations) else { return }
+            guard let measured = CargoBuildOutcome.test(testResult, compilations: compilations) else {
+                if environment["TUIST_DEBUG"] == "1" {
+                    FileHandle.standardError
+                        .write(Data("Tuist Cargo reporting: build phase was not measured; skipping build report.\n".utf8))
+                }
+                return
+            }
             outcome = measured
         } else {
             outcome = CargoBuildOutcome(finished: finished, failed: failed)
         }
-        guard let compilationData = try? JSONEncoder().encode(compilations),
+        let reportedCompilations = testResult?.buildFinished == nil
+            ? compilations : outcome.compilations(compilations, started: started)
+        guard let compilationData = try? JSONEncoder().encode(reportedCompilations),
               let rows = try? JSONSerialization.jsonObject(with: compilationData) else { return }
         var payload = metadata
         payload.merge(

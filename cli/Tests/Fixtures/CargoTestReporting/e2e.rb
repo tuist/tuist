@@ -191,6 +191,11 @@ begin
       check(builds.empty?, "#{name}: expected no unmeasured build report")
     else
       check(builds.length == 1 && builds[0]["status"] == build, "#{name}: wrong build report")
+      check(builds[0].fetch("compilations").all? { |row| row.fetch("start_offset_ms") + row.fetch("duration_ms") <= builds[0].fetch("duration_ms") + 1 },
+            "#{name}: compiler rows extend beyond build duration")
+      if name == "nested-compile-failure-test"
+        check(builds[0].fetch("compilations").none? { |row| row["name"] == "nested_failure" }, "Nested compiler leaked into outer build")
+      end
     end
     if name == "slow-test-failure"
       check(builds[0].fetch("duration_ms") + 2000 < elapsed_ms, "Build duration includes test execution")
@@ -251,6 +256,11 @@ begin
   run.call("environment-quiet", ["test", "--offline"], 0, nil, env: { "CARGO_TERM_QUIET" => "true" }, build: nil)
   run.call("colored", ["test", "--offline", "--color=always"], 0, 10)
   run.call("plain-build", ["build", "--offline"], 0, nil)
+  no_tests = File.join(root, "no-tests")
+  FileUtils.mkdir_p(File.join(no_tests, "src"))
+  File.write(File.join(no_tests, "Cargo.toml"), "[package]\nname = \"no-tests\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[lib]\ntest = false\ndoctest = false\n")
+  File.write(File.join(no_tests, "src", "lib.rs"), "pub fn value() {}\n")
+  run.call("no-runnable-tests", ["test", "--offline", "--manifest-path", "../no-tests/Cargo.toml"], 0, nil)
   source = File.join(checkout, "src", "lib.rs")
   original_source = File.read(source)
   begin
@@ -261,15 +271,53 @@ begin
   ensure
     File.write(source, original_source)
   end
+  build_script = File.join(checkout, "build.rs")
+  build_nested = File.join(root, "build-script-nested")
+  FileUtils.mkdir_p(File.join(build_nested, "src"))
+  File.write(File.join(build_nested, "Cargo.toml"), "[package]\nname = \"build-script-nested\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")
+  File.write(File.join(build_nested, "src", "lib.rs"), "#[test]\nfn passes() {}\n")
+  begin
+    ["build", "test"].each do |command|
+      File.write(build_script, <<~RUST)
+        fn main() {
+            let status = std::process::Command::new(std::env::var("CARGO").unwrap())
+                .args(["#{command}", "--offline", "--manifest-path", "../build-script-nested/Cargo.toml"])
+                .status().unwrap();
+            assert!(status.success());
+            panic!("outer build script failed after nested Cargo succeeded");
+        }
+      RUST
+      dumped = run.call("build-script-nested-#{command}-failure", ["test", "--offline"], 101, nil, build: nil)
+      check(dumped[2].include?("Finished") && dumped[2].include?("--- stderr"), "Nested Cargo completion was not dumped")
+    end
+  ensure
+    FileUtils.rm_f(build_script)
+  end
+  nested = File.join(root, "nested")
+  FileUtils.mkdir_p(File.join(nested, "src"))
+  File.write(File.join(nested, "Cargo.toml"), "[package]\nname = \"nested-failure\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")
+  File.write(File.join(nested, "src", "lib.rs"), "compile_error!(\"nested compilation failure\");\n")
+  begin
+    File.write(source, original_source + <<~RUST)
+      #[test]
+      fn nested_compile_failure_test() {
+          let status = std::process::Command::new("cargo")
+              .args(["check", "--offline", "--manifest-path", "../nested/Cargo.toml"])
+              .status().unwrap();
+          assert!(!status.success());
+      }
+    RUST
+    run.call("nested-compile-failure-test", ["test", "--offline", "--lib", "nested_compile_failure_test"], 0, 1)
+  ensure
+    File.write(source, original_source)
+  end
   cargo_config = File.join(checkout, ".cargo", "config.toml")
   FileUtils.mkdir_p(File.dirname(cargo_config))
   begin
     File.write(cargo_config, "[term]\nquiet = true\n")
+    quiet = run.call("configured-quiet-success", ["test", "--offline"], 0, nil, build: nil)
+    check(quiet[2].include?("build phase was not measured"), "Unmeasured build omission was not diagnosed")
     run.call("configured-quiet-failure", ["test", "--offline"], 101, nil, fail: true, build: nil)
-    nested = File.join(root, "nested")
-    FileUtils.mkdir_p(File.join(nested, "src"))
-    File.write(File.join(nested, "Cargo.toml"), "[package]\nname = \"nested-failure\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")
-    File.write(File.join(nested, "src", "lib.rs"), "compile_error!(\"nested compilation failure\");\n")
     File.write(source, original_source + <<~RUST)
       #[test]
       fn nested_build_failure() {
