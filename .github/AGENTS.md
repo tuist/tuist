@@ -499,9 +499,7 @@ covered only by the production schedule.
   a runner runs later than the host's 25-second authorization budget.
   `volume-wait` then waits on a GitHub-hosted runner for the host to publish,
   and `macos-volume` attaches it and requires that run id or a later one,
-  since overlapping probe runs share the volume. Its failures are reported, never
-  blocking: both volume steps run with `continue-on-error`, and `gate.sh`
-  re-raises their `Cache volumes` annotations as warnings. Canary has one rack host, so
+  since overlapping probe runs share the volume. Canary has one rack host, so
   verify lands where seed published; production's multi-host fleets would make
   it depend on convergence. Both jobs require a real APFS mount, because an
   unavailable volume falls back to a job-local directory and still succeeds.
