@@ -381,7 +381,7 @@ impl TuistBackend {
                     // One retry, and only for the errors where the request
                     // provably never reached the server.
                     if attempt < 2
-                        && !crate::certificate_trust::tls_failure(&error)
+                        && !crate::certificate_trust::terminal_transport_failure(&error)
                         && retryable_reqwest_error(error_kind)
                     {
                         tokio::time::sleep(Duration::from_millis(100)).await;

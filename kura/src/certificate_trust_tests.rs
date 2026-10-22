@@ -337,7 +337,7 @@ fn typed_failure_categories_follow_io_causes_without_rendering_them() {
     ] {
         let error = std::io::Error::other(error);
         assert_eq!(failure_category(&error), Some(category));
-        assert!(tls_failure(&error));
+        assert!(terminal_transport_failure(&error));
     }
     assert_eq!(
         failure_category(&std::io::Error::from(std::io::ErrorKind::NotFound)),
@@ -356,7 +356,7 @@ fn typed_failure_categories_follow_io_causes_without_rendering_them() {
         }
     }
     assert_eq!(failure_category(&Cycle), Some("error_chain_limit"));
-    assert!(tls_failure(&Cycle));
+    assert!(terminal_transport_failure(&Cycle));
 }
 
 #[test]
@@ -602,7 +602,7 @@ async fn https_connect_protects_both_pkis_and_keeps_credentials_on_their_leg() {
         if deny.is_none() {
             assert_eq!(result.unwrap().text().await.unwrap(), "ok");
         } else {
-            assert!(tls_failure(&result.unwrap_err()));
+            assert!(terminal_transport_failure(&result.unwrap_err()));
         }
         assert_eq!(
             reached_proxy.load(std::sync::atomic::Ordering::SeqCst),
@@ -738,7 +738,7 @@ async fn actual_https_preserves_private_trust_and_denies_before_request_delivery
                 );
             } else {
                 let error = result.unwrap_err();
-                assert!(tls_failure(&error));
+                assert!(terminal_transport_failure(&error));
                 assert_eq!(delivered.load(std::sync::atomic::Ordering::SeqCst), before);
             }
         }

@@ -509,7 +509,7 @@ mod tests {
             .send()
             .await
             .unwrap_err();
-        assert!(crate::certificate_trust::tls_failure(&error));
+        assert!(crate::certificate_trust::terminal_transport_failure(&error));
         assert_eq!(
             tokio::time::timeout(Duration::from_secs(3), task)
                 .await

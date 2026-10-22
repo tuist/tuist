@@ -273,7 +273,8 @@ impl ServerCertVerifier for PolicyVerifier {
     }
 }
 
-pub fn tls_failure(error: &(dyn std::error::Error + 'static)) -> bool {
+// Unknown overdeep chains stop retries conservatively, without being labelled TLS.
+pub fn terminal_transport_failure(error: &(dyn std::error::Error + 'static)) -> bool {
     failure_category(error).is_some()
 }
 
