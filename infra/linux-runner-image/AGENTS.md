@@ -219,6 +219,13 @@ The Android SDK builder also sanitizes Java's `cacerts` before sdkmanager runs;
 OS bundle changes alone do not protect Java. Builds require the named
 `certificate-trust` context pointing at `infra/certificate-trust`; keep release,
 ad-hoc and local callers aligned. Shared policy changes must trigger releases.
+The shell agent also embeds the twelve-key deny over normal native verified
+chains/anchors and supplied peers for HTTP/WSS. Keep its shared main/policy files, trust tests
+and fixtures byte-identical to the macOS copy. Reject HTTPS/secure-discovery
+WS downgrades and sanitize URL/body errors. See
+`../certificate-trust/RUNNER-CLIENTS.md`; Darwin host tests are not Linux image
+qualification and do not cover cache-volume/GitLab/vendor transports. Replace
+only through qualified owner releases and safe warm/job-preserving rollout.
 `.github/workflows/linux-runners-staging-smoke.yml` with `gradle_cache`
 enabled validates a deployed image with a real Docker job container. Select the runner
 profile, matching server URL, and an existing Gradle project authorized

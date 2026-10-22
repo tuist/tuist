@@ -8,6 +8,9 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,6 +88,8 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		"../../atlas-native/ios/Sources/AtlasCertificateTrust.swift",
 		"../../atlas-native/android/src/dev/tuist/atlas/AtlasCertificateTrust.kt",
 		"../../grafana-datasource/pkg/plugin/certificate_trust.go",
+		"../../infra/runner-image/cmd/runner-shell-agent/certificate_trust.go",
+		"../../infra/linux-runner-image/cmd/runner-shell-agent/certificate_trust.go",
 		"../../gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt",
 		"../../android/app/src/main/java/dev/tuist/app/data/network/CertificateTrust.kt",
 	} {
@@ -185,6 +190,122 @@ func TestRustClientPolicyAndFactoryWiring(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+func TestRunnerShellFactoryWiring(t *testing.T) {
+	mac := "../../infra/runner-image/cmd/runner-shell-agent/"
+	linux := "../../infra/linux-runner-image/cmd/runner-shell-agent/"
+	for _, name := range []string{"main.go", "certificate_trust.go", "certificate_trust_test.go", "certificate_trust_diagnostics_test.go"} {
+		if !bytes.Equal(read(t, mac+name), read(t, linux+name)) {
+			t.Fatalf("runner shell transport copies differ: %s", name)
+		}
+	}
+	for _, name := range []string{"issuer-roots.pem", "distrusted-intermediates.pem"} {
+		for _, directory := range []string{mac, linux} {
+			if !bytes.Equal(read(t, directory+"testdata/certificate-trust/"+name), read(t, "controls/"+name)) {
+				t.Fatalf("runner policy fixture differs: %s", directory+name)
+			}
+		}
+	}
+	source := string(read(t, mac+"main.go"))
+	unsafe, err := runnerLogExposesCredentials(source)
+	if err != nil || unsafe {
+		t.Fatal("runner logging contains credential-bearing URL/body/header arguments", err)
+	}
+	for _, required := range []string{
+		"TLSClientConfig: runnerTLSConfig()", "CheckRedirect: secureRedirect",
+		"return connectWebSocketWithTLS(rawURL, token, runnerTLSConfig())",
+		"config, err := certificateTrustConfig(config, nil)", "TLSClientConfig:  config",
+		"refusing secure session downgrade",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("missing runner protected factory: %s", required)
+		}
+	}
+	for _, forbidden := range []string{"websocket.DefaultDialer", "http.DefaultClient", "DialTLS:", "DialTLSContext:", "NetDialTLSContext:", "InsecureSkipVerify", "TLSClientConfig: &tls.Config", "polling shell sessions at %s", "connecting shell tunnel for session %d -> %s"} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("review unprotected runner transport: %s", forbidden)
+		}
+	}
+	for _, factory := range []string{"&http.Client{", "&http.Transport{", "&websocket.Dialer{"} {
+		if strings.Count(source, factory) != 1 {
+			t.Fatalf("review new independent runner factory: %s", factory)
+		}
+	}
+}
+
+func runnerLogExposesCredentials(source string) (bool, error) {
+	file, err := parser.ParseFile(token.NewFileSet(), "runner.go", source, 0)
+	if err != nil {
+		return false, err
+	}
+	unsafe := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		logging := false
+		switch function := call.Fun.(type) {
+		case *ast.Ident:
+			logging = function.Name == "logf" || function.Name == "print" || function.Name == "println"
+		case *ast.SelectorExpr:
+			switch function.Sel.Name {
+			case "Print", "Printf", "Println", "Fprint", "Fprintf", "Fprintln", "Errorf", "Sprintf":
+				logging = true
+			case "New":
+				if packageName, ok := function.X.(*ast.Ident); ok && packageName.Name == "errors" {
+					logging = true
+				}
+			}
+		}
+		if !logging {
+			return true
+		}
+		for _, argument := range call.Args {
+			ast.Inspect(argument, func(value ast.Node) bool {
+				switch expression := value.(type) {
+				case *ast.Ident:
+					if expression.Name == "discovery" || strings.Contains(strings.ToLower(expression.Name), "url") {
+						unsafe = true
+					}
+				case *ast.SelectorExpr:
+					if strings.Contains(strings.ToLower(expression.Sel.Name), "url") || expression.Sel.Name == "Header" || expression.Sel.Name == "Body" {
+						unsafe = true
+					}
+				}
+				return true
+			})
+		}
+		return true
+	})
+	return unsafe, nil
+}
+
+func TestRunnerLogArgumentGuard(t *testing.T) {
+	for _, test := range []struct {
+		expression string
+		unsafe     bool
+	}{
+		{`logf("reworded %s", discovery)`, true},
+		{`logf("reworded %s", webSocketURL)`, true},
+		{`fmt.Printf("reworded %s", rawURL)`, true},
+		{`logf("response %v", response.Body)`, true},
+		{`logf("headers %v", request.Header)`, true},
+		{`logf("URL %v", request.URL.Redacted())`, true},
+		{`logf("session %v", session.WebSocketURL)`, true},
+		{`fmt.Errorf("failed %s", rawURL)`, true},
+		{`fmt.Sprintf("failed %s", session.WebSocketURL)`, true},
+		{`errors.New(rawURL)`, true},
+		{`logf("status %d", response.StatusCode)`, false},
+		{`logf("session %d", session.SessionID)`, false},
+		{`logf("failed: %v", err)`, false},
+	} {
+		unsafe, err := runnerLogExposesCredentials("package main; func f() {" + test.expression + "}")
+		if err != nil || unsafe != test.unsafe {
+			t.Fatal("runner log argument guard mismatch", test.expression, err)
 		}
 	}
 }

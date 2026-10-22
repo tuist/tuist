@@ -183,6 +183,13 @@ added to catch that failed on `admin`'s unwritable cache instead.
   during rollout; see `../certificate-trust/README.md`. Dispatch and the Buildkite
   environment hook force Node/Python onto the patched PEM store; the GitLab
   executor explicitly forwards those settings to its sanitized job environment.
+- The Go shell agent embeds the twelve-key deny for discovery HTTP and WSS,
+  after ordinary native verification, retaining direct/no-proxy dialers and
+  TLS defaults. Keep its shared main/policy files, trust tests and fixtures byte-identical to
+  the Linux copy. Refuse HTTPS/secure-discovery downgrades, including raw-origin
+  opt-out, and never print credential-bearing URLs or server response bodies.
+  See `../certificate-trust/RUNNER-CLIENTS.md`: host tests do not qualify a
+  Packer image or already-running process. Preserve active jobs/warm floors.
 - `/opt/tuist/buildkite-hooks/` — global agent hooks (`--hooks-path`),
   so they run for every job regardless of what the customer's
   repository defines. `environment` re-exports the cache settings the
