@@ -12,9 +12,10 @@ name: tuist/tuist Tests
 #
 # - Pull requests: unit and app tests run selectively, acceptance as before,
 #   and once the unit and app tests have finished, whatever their result,
-#   `tuist coverage complete` marks the pull request's head complete. The
-#   server carries what selective testing skipped from main's full runs. A new
-#   push cancels the run in progress, so a superseded commit is never signalled.
+#   `tuist coverage complete` marks the run's commit complete. The server
+#   carries what selective testing skipped from main's full runs and the pull
+#   request's earlier runs (both record coverage evidence). A new push cancels
+#   the run in progress, so a superseded commit is never signalled.
 # - Pushes to main: `tuist cache` warms the coverage variant first, then the unit
 #   and app tests run in full (`--no-selective-testing`) against that warm, and
 #   `tuist coverage complete` follows when both passed. Every merge runs on its
@@ -152,9 +153,13 @@ jobs:
       (github.event_name == 'push' || github.event.pull_request.draft == false)
     env:
       TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
-      # Per-test evidence from the linked TestCoverageAttribution package, for
-      # the full runs later commits carry skipped tests from.
-      TUIST_COVERAGE_EVIDENCE: ${{ github.event_name == 'push' && '1' || '' }}
+      # Which files each test, suite and target executed, from the linked
+      # TestCoverageAttribution package: the server carries a later run's
+      # skipped tests only from a run that recorded it. Main's full runs are the
+      # sources for every selective run, and a pull request's own runs for its
+      # later pushes, which skip what an earlier push already executed. Forks
+      # upload nothing, so they skip it.
+      TUIST_COVERAGE_EVIDENCE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
       SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -217,7 +222,7 @@ jobs:
       (github.event_name == 'push' || github.event.pull_request.draft == false)
     env:
       MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
-      TUIST_COVERAGE_EVIDENCE: ${{ github.event_name == 'push' && '1' || '' }}
+      TUIST_COVERAGE_EVIDENCE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
       SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
     steps:
       - uses: actions/checkout@v4
