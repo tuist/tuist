@@ -4227,16 +4227,18 @@ in the fleet came close.
 
 ```promql
 max by (cluster, region, pod, kind) (
-  increase(kura_capacity_sheds_total_total{kind!~"response_stream|reapi_materialization|reapi_request_budget"}[15m])
+  increase(kura_capacity_sheds_total_total{kind!~"response_stream|reapi_materialization|reapi_request_budget|reapi_write_decode"}[15m])
   * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
 - Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
   value is the number of writes refused in the last 15 minutes
-- Excludes the two remote-execution read kinds: `reapi_materialization` has
-  its own rule (**Kura shedding remote-execution reads**), and
-  `reapi_request_budget` is not a capacity signal (see that section)
+- Excludes every remote-execution kind: `reapi_materialization` and
+  `reapi_write_decode` have their own rules (**Kura shedding remote-execution
+  reads** and **Kura shedding remote-execution writes**), and
+  `reapi_request_budget` is not a capacity signal (see the reads section).
+  What is left is the HTTP upload path, where a shed is a lost artifact.
 - Pending period: none (group `Cache` evaluates every 5 minutes)
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
@@ -4247,19 +4249,19 @@ max by (cluster, region, pod, kind) (
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused at
   least {{ $values.A.Value | printf "%.0f" }} cache writes at the
   {{ $labels.kind }} limit in the last 15 minutes ({{ $labels.cluster }})`
-- Description: `The pod refused uploads at the named limit. On the HTTP path
-  every one is an artifact lost, not a slowdown: the cache client only retries
-  GET, so a refused upload becomes a future cache miss and no build fails. On
-  the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
-  which clients retry, so read a REAPI-heavy pod as sustained backpressure.
-  upload_memory, memory_pressure_write, reapi_write_decode: the transient
-  memory budget derived from the pod's ceiling is exhausted, the lever is the
-  account's memory profile.
+- Description: `The pod refused uploads at the named limit. Every one is an
+  artifact lost, not a slowdown: the cache client only retries GET, so a
+  refused upload becomes a future cache miss and no build fails.
+  upload_memory, memory_pressure_write: the transient memory budget derived
+  from the pod's ceiling is exhausted, the lever is the account's memory
+  profile.
   tmp_staging, multipart_storage, multipart_uploads: staging disk or the
   multipart session cap (compare kura_multipart_uploads with
   kura_multipart_upload_capacity on current versions; older versions default to
   128). Orphaned sessions survive restarts until the 24-hour TTL and janitor
-  sweep reclaim them.`
+  sweep reclaim them. Remote-execution write sheds (reapi_write_decode) are
+  retried by the client and alert separately in Kura - shedding
+  remote-execution writes.`
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
@@ -4317,35 +4319,9 @@ limit in the summary, which is what the on-call needs to pick the lever:
     and that headroom both spent, or with pressure above normal closing the
     borrow. Read `kura_memory_elastic_transient_reserved_bytes` against
     `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
-    below. Older versions queued on the floor alone, so a shed there can come
-    with pressure normal and the headroom unused.
-- `reapi_write_decode`: the same budget on the remote-execution surface:
-  decoding a write's messages, decoding a compressed `BatchUpdateBlobs` item,
-  or a write whose reply the floor cannot cover, refused before it stores
-  anything. It
-  answers gRPC `RESOURCE_EXHAUSTED`, which Bazel retries, so this counter is
-  the only place it shows, and a REAPI-heavy pod firing on it continuously is
-  backpressure from a small floor rather than loss. If that proves to be steady
-  state on an instance, raise the floor or move the kind to a rate-based tier;
-  do not raise the bar for the HTTP kinds, which are loss.
-  - `reapi_write_decode` now sheds only after the elastic pool is also spent.
-    Write decoding, including a compressed `BatchUpdateBlobs` item, borrows
-    the ceiling headroom above the floor-derived budget while pressure is
-    normal, so a shed means the pod exhausted its floor *and* that headroom,
-    or it was above normal pressure and the borrow was closed. The one
-    exception is a write's reply, which never borrows: it is refused when the
-    floor cannot cover it, which happens only after that write's own decode
-    borrowed, so `transient_ceiling_headroom_borrowed` in
-    `kura_memory_actions_total_total` rises in the same window. A shed burst
-    with no borrows at normal pressure is a pod predating compressed items
-    borrowing, which refused them on a full floor with the headroom idle.
-    Read `kura_memory_elastic_transient_reserved_bytes` against
-    `kura_memory_elastic_transient_capacity_bytes` before reaching for the
-    profile: a pod resting at its elastic capacity has a floor genuinely too
-    small for its workload, while one at zero during the shed was shedding on
-    pressure, and **Kura pod under memory pressure** is the rule to read. The
-    pool is empty by construction on an instance with no published floor,
-    where the budget is already the whole headroom.
+    (see **Kura shedding remote-execution writes**). Older versions queued on
+    the floor alone, so a shed there can come with pressure normal and the
+    headroom unused.
 - `tmp_staging`: the per-upload staging reserve on disk.
 - `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
   memory-derived session cap (or an explicit fixed override). Compare occupied
@@ -4452,6 +4428,96 @@ instance's floor is too small for its read concurrency. Sheds without a
 matching rise in that counter come from the other read sites, which stay
 try-only: they are reached holding admission from another path, so waiting
 there would be hold-and-wait on the pool they are waiting for.
+
+### Kura shedding remote-execution writes
+
+Live as [rule `cg1z5gl5b2tc0e`](https://tuist.grafana.net/alerting/grafana/cg1z5gl5b2tc0e/view) since 2026-10-22.
+
+```promql
+max by (cluster, region, pod) (
+  increase(kura_capacity_sheds_total_total{kind="reapi_write_decode"}[15m])
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
+)
+```
+
+- Threshold: `> 10`, as a separate threshold expression on `A`
+- Pending period: none (group `Cache` evaluates every 5 minutes)
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, the same routing as
+  **Kura shedding cache writes by kind**; **No Data: Normal**,
+  **Error: Alerting**.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused
+  {{ $values.A.Value | printf "%.0f" }} remote-execution writes at the write
+  decoding limit in the last 15 minutes ({{ $labels.cluster }})`
+- Description: `The pod answered gRPC RESOURCE_EXHAUSTED with a RetryInfo
+  delay to remote-execution writes (ByteStream Write, BatchUpdateBlobs
+  including compressed items, UpdateActionResult, SpliceBlob) because the
+  transient memory budget for decoding and staging them was spent: the
+  floor-derived pool and the ceiling headroom it may borrow, or pressure above
+  normal closed the borrow. Nothing was stored for the refused write and
+  clients retry, so this is write backpressure rather than loss. Compare
+  kura_memory_elastic_transient_reserved_bytes with
+  kura_memory_elastic_transient_capacity_bytes and kura_memory_pressure_state:
+  a pool resting at capacity at normal pressure means the instance's floor is
+  too small for its upload concurrency, and the lever is the account's memory
+  profile. A burst shorter than one scrape leaves the gauges at zero, so also
+  check the grpc_write_decode_admission_rejected and
+  transient_ceiling_headroom_borrowed memory actions in the same window.`
+
+`reapi_write_decode` used to ride along in **Kura shedding cache writes by
+kind** at that rule's `> 0` bar, which is right for HTTP uploads (a shed there
+is a lost artifact) and wrong here. A refused remote-execution write stores
+nothing and answers `RESOURCE_EXHAUSTED` with a 1 to 10 second `RetryInfo`,
+which the client retries, so one shed is backpressure. It moved to its own
+rule for the same reason `reapi_materialization` did.
+
+#### What the kind covers
+
+The transient budget on the remote-execution surface: decoding a write's
+messages, staging a ByteStream upload, decoding a compressed `BatchUpdateBlobs`
+item, or a write whose reply the floor cannot cover, each refused before it
+stores anything. The counter is the only place it shows. ByteStream staging
+refusals (`bytestream_staging_admission_rejected`) and decode refusals
+(`grpc_write_decode_admission_rejected`) both file under this kind; the memory
+action separates them.
+
+Write decoding and staging borrow the ceiling headroom above the
+floor-derived budget while pressure is normal, so a shed means the pod spent
+its floor *and* that headroom, or it was above normal pressure and the borrow
+was closed. The one exception is a write's reply, which never borrows: it is
+refused when the floor cannot cover it, which happens only after that write's
+own decode borrowed, so `transient_ceiling_headroom_borrowed` in
+`kura_memory_actions_total_total` rises in the same window. A shed burst with
+no borrows at normal pressure is a pod predating compressed items borrowing,
+which refused them on a full floor with the headroom idle. Read
+`kura_memory_elastic_transient_reserved_bytes` against
+`kura_memory_elastic_transient_capacity_bytes` before reaching for the
+profile: a pod resting at its elastic capacity has a floor genuinely too small
+for its workload, while one at zero during the shed was shedding on pressure,
+and **Kura pod under memory pressure** is the rule to read. The pool is empty
+by construction on an instance with no published floor, where the budget is
+already the whole headroom.
+
+On the smallest profiles a single build's upload burst reaches the limit with
+the pod otherwise idle. Each ByteStream write of a blob of 16 MiB or more
+reserves a 32 MiB staging window plus its decode buffers, and each growth is
+drawn from either the floor pool or the borrowed headroom, never split across
+both. A pod with a 64 MiB floor and 128 MiB of headroom therefore refuses the
+next stream after about six concurrent large uploads, well before the two
+pools together are full.
+
+#### Threshold
+
+The threshold comes from the 30 days to 2026-10-22, the same bar as the reads
+rule. Nine 15-minute windows in production had any shed of this kind: 1, 1,
+1, 1, 2, 6, 6, 10 and 44. In every window up to 10 the transient pools peaked
+at 0 or 1% reserved across their scrapes, except the 6 on the pod that went on
+to shed 44 forty-five minutes later (23%). On 2026-10-22 one shed on a 652 MiB pod fired the old rule
+during a burst of about 490 writes (104 MiB) in one scrape, with pressure
+normal and the container at 70 MB. Only the 44-shed window, on 2026-10-18,
+had the transient pools visibly held (52% reserved at a scrape) and would fire
+here. If this rule fires repeatedly on one instance, the floor is the lever.
+Do not lower the bar for the HTTP kinds, which are loss.
 
 ### Kura replication outbox approaching its cap (retired)
 
