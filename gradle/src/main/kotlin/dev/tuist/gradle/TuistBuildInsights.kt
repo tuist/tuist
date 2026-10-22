@@ -155,6 +155,7 @@ abstract class TuistBuildInsightsService :
         val requestedTasks: ListProperty<String>
         val backgroundUpload: Property<Boolean>
         val actorId: Property<String>
+        val networkTrustedPublishing: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -314,11 +315,12 @@ abstract class TuistBuildInsightsService :
         val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
         val projectDir = parameters.projectDir.asFile.get()
 
-        val configProvider = DefaultConfigurationProvider(
+        val configProvider = ReportConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = projectDir,
-            httpClients = httpClients
+            httpClients = httpClients,
+            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
         )
 
         val httpClient = TuistHttpClient(
@@ -350,7 +352,7 @@ abstract class TuistBuildInsightsService :
             startedAt = formatTimestamp(reportStartedAt),
             gradleVersion = parameters.gradleVersion.orNull,
             rootProjectName = parameters.rootProjectName.orNull,
-            requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
+            requestedTasks = parameters.requestedTasks.getOrElse(emptyList()),
             ciDetector = ciDetector,
             gitInfoProvider = reportGitInfoProvider(),
             customMetadata = executionTelemetry.cacheSavings.metadata(executionTelemetry.failures.metadata(buildCustomMetadata(
@@ -379,7 +381,8 @@ abstract class TuistBuildInsightsService :
                 }
 
                 OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
+                    val body = if (config.token.isEmpty()) report.copy(gitRemoteUrlOrigin = null) else report
+                    Gson().toJson(body, writer)
                 }
 
                 when (connection.responseCode) {
@@ -403,7 +406,7 @@ abstract class TuistBuildInsightsService :
         }
 
         if (response != null) {
-            logger.lifecycle("Tuist: Build insights reported successfully (build $buildId)")
+            logger.lifecycle("Tuist: Build insights reported successfully (build ${response.id})")
         } else {
             logger.warn("Tuist: Failed to report build insights.")
         }
@@ -525,6 +528,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
             parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
             config.actorId?.let { parameters.actorId.set(it) }
+            parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
         }
 
         // A provider can have only one subscription. An operation-only service also

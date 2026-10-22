@@ -36,8 +36,10 @@ var (
 	errArchive     = errors.New("invalid cache image archive")
 )
 
-// The shared object protocol verifies the archive bytes, not the image bytes.
-func compressImage(src, dst string) (string, string, error) {
+// CompressImage writes an image's publishable archive and returns its inventory
+// and archive digests. The shared object protocol verifies the archive bytes, not
+// the image bytes.
+func CompressImage(src, dst string) (string, string, error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return "", "", err

@@ -69,6 +69,11 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+	// teardownTerminationGraceSeconds stops the pods of a deleted instance.
+	// Every path that deletes a KuraInstance has already moved its traffic
+	// away and deletes its data with it, so there is nothing to drain, and an
+	// instance recreated under the same name waits for the old claims.
+	teardownTerminationGraceSeconds int64 = 5
 	// A liveness failure means the serving process is already unable to make
 	// progress. It must not inherit the rollout drain budget: Kubernetes runs
 	// preStop for liveness restarts too, so this gives the hook time to remove
@@ -428,7 +433,9 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete;patch
+// +kubebuilder:rbac:groups="",resources=pods/resize,verbs=patch
+// +kubebuilder:rbac:groups=apps,resources=controllerrevisions,verbs=get
 // +kubebuilder:rbac:groups="",resources=pods/portforward,verbs=create
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
@@ -474,6 +481,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// instead of stranding it. Must run before the finalizer is removed, while
 		// the PVCs still exist to resolve their PVs.
 		if err := r.reclaimDataVolumes(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+		if err := r.releaseWorkload(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
 		r.forgetPodSamples(instance)
@@ -640,6 +650,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileCPUResizeHold(ctx, instance, time.Now()); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -671,8 +684,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	instance.Status.ImageHold = rollout.imageHold
 	if image, held := heldRuntimeImage(instance); held {
 		instance.Status.Phase = "Pending"
+		instance.Status.ImageHold = imageHoldFencedPin
 		instance.Status.Message = fmt.Sprintf("Requested runtime image %s is held at qualified image %s; qualify the new image before updating the fenced runtime pin", instance.Spec.Image, image)
 	}
 	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
@@ -3420,7 +3435,9 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 		if fencedServing(instance) || instance.Spec.ReplicaRecovery != nil || instance.Status.ReplicaRecovery != nil {
 			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
 			sts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted = appsv1.RetainPersistentVolumeClaimRetentionPolicyType
+			delete(sts.Annotations, cpuResizeHoldAnnotation)
 		}
+		holdCPURequestChange(sts, previousTemplate, time.Now())
 		return nil
 	})
 	return err
@@ -3534,7 +3551,7 @@ func podKuraImage(pod *corev1.Pod) string {
 // is told to budget and evicts down into it, so it is left alone.
 func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	if fencedServing(instance) {
-		return false, nil
+		return r.reconcileFencedDataStorageResize(ctx, instance)
 	}
 	desired := storageQuantity(instance)
 	if desired.IsZero() {
@@ -3766,6 +3783,26 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 	return nil
 }
 
+// releaseWorkload stops a deleted instance's pods on the teardown grace rather
+// than the rollout drain budget garbage collection would give them. The
+// StatefulSet goes first so it cannot replace them.
+func (r *KuraInstanceReconciler) releaseWorkload(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+	for i := range pods.Items {
+		if err := r.Delete(ctx, &pods.Items[i], client.GracePeriodSeconds(teardownTerminationGraceSeconds)); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 // Activated instances require explicit fenced recovery. Legacy instances retain
 // their automatic stale-storage recreation until they opt into serving authority.
 func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
@@ -3968,6 +4005,7 @@ type rolloutState struct {
 	observedImage string
 	readyReplicas int32
 	message       string
+	imageHold     string
 }
 
 func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance) (rolloutState, error) {
@@ -4023,6 +4061,7 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 		phase:         "Pending",
 		observedImage: observedImage,
 		readyReplicas: readyReplicas,
+		imageHold:     operatorImageHold(instance, sts, replicas),
 		message: fmt.Sprintf(
 			"%d/%d replicas ready, %d/%d updated, observedGeneration=%t, revisionsMatch=%t",
 			readyReplicas,

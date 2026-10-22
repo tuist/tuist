@@ -48,7 +48,7 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
     }
 
     @Test(.inTemporaryDirectory, arguments: [false, true])
-    func coverageCannotAdmitOrdinaryPrecomputedHashes(coverage: Bool) async throws {
+    func coverageCollectionDoesNotOverridePrecomputedVariant(coverage: Bool) async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let fixture = fixture(at: path, coverage: coverage)
         let storage = MockCacheStoring()
@@ -60,13 +60,13 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
         _ = try await subject(fixture: fixture, path: path, storage: storage, mutator: mutator, reader: reader)
             .map(graph: fixture.graph, environment: MapperEnvironment())
         verify(storage).fetch(
-            .value(coverage ? [] : [CacheStorableItem(name: "Feature", hash: "feature")]),
+            .value([CacheStorableItem(name: "Feature", hash: "feature")]),
             cacheCategory: .value(.binaries)
         ).called(1)
     }
 
-    @Test(.inTemporaryDirectory, arguments: [BinaryCacheCoverage.on, .scheme("Covered")], [false, true])
-    func instrumentedVariantsRemainEligibleForLookup(variant: BinaryCacheCoverage, precomputed: Bool) async throws {
+    @Test(.inTemporaryDirectory, arguments: [BinaryCacheCoverage.on, .off], [false, true])
+    func resolvedVariantsRemainEligibleForVerifiedLookup(variant: BinaryCacheCoverage, precomputed: Bool) async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let fixture = fixture(at: path, coverage: true)
         let artifact = path.appending(component: "Feature.xcframework")
@@ -95,8 +95,7 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
             coverage: variant,
             precomputedTargetHashes: precomputed ? [TargetReference(projectPath: path, name: "Feature"): .test(hash: "feature")] :
                 [:],
-            debuggingMetadataReader: reader,
-            coverageSchemeName: "Covered"
+            debuggingMetadataReader: reader
         )
         _ = try await subject.map(graph: fixture.graph, environment: MapperEnvironment())
         verify(storage).fetch(
@@ -118,8 +117,7 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
             .willReturn(fixture.graph)
         let reader = MockCachedModuleDebuggingMetadataReading()
         _ = try await subject(
-            fixture: fixture, path: path, storage: storage, mutator: mutator, reader: reader,
-            preserveCoverageSources: false
+            fixture: fixture, path: path, storage: storage, mutator: mutator, reader: reader
         ).map(graph: fixture.graph, environment: MapperEnvironment())
         verify(storage).fetch(
             .value([CacheStorableItem(name: "Feature", hash: "feature")]), cacheCategory: .value(.binaries)
@@ -131,8 +129,7 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
         path: AbsolutePath,
         storage: MockCacheStoring,
         mutator: MockCacheGraphMutating,
-        reader: MockCachedModuleDebuggingMetadataReading,
-        preserveCoverageSources: Bool = true
+        reader: MockCachedModuleDebuggingMetadataReading
     ) -> TargetsToCacheBinariesGraphMapper {
         TargetsToCacheBinariesGraphMapper(
             config: .test(),
@@ -142,8 +139,7 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
             cacheGraphMutator: mutator,
             cacheStorage: storage,
             precomputedTargetHashes: [TargetReference(projectPath: path, name: "Feature"): .test(hash: "feature")],
-            debuggingMetadataReader: reader,
-            preserveCoverageSources: preserveCoverageSources
+            debuggingMetadataReader: reader
         )
     }
 

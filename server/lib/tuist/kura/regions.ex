@@ -473,8 +473,9 @@ defmodule Tuist.Kura.Regions do
   # continuous account mesh replication. Their regional gateway admits the
   # runner network and publishes a stable per-account private hostname.
   # The control plane provisions exactly one of
-  # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
-  # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+  # these per account whose runner jobs run beside the region (see
+  # `Tuist.Kura.RunnerCache`) and the runner dispatch hands the URL back as
+  # `cache_endpoint_url`.
   #
   # `runner_platforms` declares which runner fleets a region's nodes are
   # provisioned for and routed to — the cluster-locality boundary from
@@ -634,6 +635,23 @@ defmodule Tuist.Kura.Regions do
   """
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
+
+  @doc """
+  True iff `endpoint` is a private region's hostname, which is the cache
+  endpoint a runner build reports when its cache traffic went to the site's
+  runner cache rather than to a public region.
+  """
+  def private_endpoint?(endpoint) when is_binary(endpoint) do
+    with %URI{host: host} when is_binary(host) <- URI.parse(endpoint),
+         [label | _] <- String.split(host, ".") do
+      suffix = managed_region_host_suffix()
+      Enum.any?(all(), &(private?(&1) and String.ends_with?(label, "-" <> &1.id <> suffix)))
+    else
+      _ -> false
+    end
+  end
+
+  def private_endpoint?(_endpoint), do: false
 
   @doc """
   True iff the region's instances join the controller-managed per-account peer

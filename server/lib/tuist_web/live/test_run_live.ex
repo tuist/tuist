@@ -82,8 +82,8 @@ defmodule TuistWeb.TestRunLive do
             end
           end
         end,
-        fn -> Tests.Analytics.get_test_run_metrics(run.id) end,
-        fn -> Tests.get_test_run_failures_count(run.id) end
+        fn -> Tests.Analytics.get_test_run_metrics(run) end,
+        fn -> Tests.get_test_run_failures_count(run) end
       ])
 
     binary_cache_event = binary_cache_command_event(run, command_event)
@@ -209,14 +209,12 @@ defmodule TuistWeb.TestRunLive do
   def stress_badge_color(%{outcome: "passed"}), do: "neutral"
   def stress_badge_color(_), do: "neutral"
 
-  # The `Download result` button and its route are keyed on the id under which
-  # the bundle was stored: the command_event id for CLI `tuist test` runs, and
-  # the test run id for remote `tuist inspect test` runs (no command_event).
-  # Returns that id, or nil when there is no downloadable bundle.
+  # Immutable runs keep their canonical route; the download controller resolves
+  # the first available shard bundle using its original, case-sensitive upload ID.
   defp resolve_result_bundle_run_id(command_event, run, project) do
     cond do
       command_event && CommandEvents.has_result_bundle?(command_event) -> command_event.id
-      CommandEvents.has_result_bundle?(run.id, project) -> run.id
+      Enum.any?(Tests.result_bundle_run_ids(run), &CommandEvents.has_result_bundle?(&1, project)) -> run.id
       true -> nil
     end
   end
@@ -884,7 +882,7 @@ defmodule TuistWeb.TestRunLive do
     }
 
     cached_run_query(run.id, :test_cases, flop_params, fn ->
-      Tests.list_test_case_runs(flop_params)
+      Tests.list_test_case_runs(flop_params, test_run: run)
     end)
   end
 
@@ -994,6 +992,7 @@ defmodule TuistWeb.TestRunLive do
     }
 
     Tests.list_test_case_runs(attrs,
+      test_run: run,
       preload: [
         :failures,
         :repetitions,

@@ -62,10 +62,19 @@ type Collector struct {
 	// an OCI entry pulled through one counts as its upstream repository.
 	Images *ImageSources
 
+	// Fleet is this Node's `tuist.dev/fleet` label. When the fleet has macOS
+	// RunnerPools, a golden or OCI cache entry for an image none of them runs
+	// any more and no Pod here references is reaped on the next pass instead
+	// of after GoldenRetention: runner images are released several times a
+	// day, and a host that kept every superseded image for a day held 19 of
+	// them (~1.1 TiB) beside the 2 it could still use. A fleet without pools,
+	// or a failed RunnerPool List, keeps the retention behaviour.
+	Fleet string
+
 	// HostDiskFreeFloor is the root-volume free-space percentage below
 	// which the collector reclaims golden bases even when a Pod still
-	// references their digest. This is the only bound on golden
-	// accumulation: keepGolden always keeps a referenced golden, and the
+	// references their digest. This is the only bound on goldens of images
+	// a pool still runs: keepGolden always keeps a referenced golden, and the
 	// runners-controller pins a warm Pod per Xcode-version pool to a host
 	// (golden node-affinity), so every golden stays permanently referenced
 	// and the retention pass never reaps it — the disk fills to 100% (~6
@@ -179,9 +188,12 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 	// frees only metadata — the ~68 GiB of backing blocks stay alive as long
 	// as the OCI entry references them. Aggressive mode also evicts the OCI
 	// cache (reconstructible by re-pull), so the golden and its source both
-	// go and the blocks are actually released. The referenced-golden reclaim
-	// below then handles the bases keepGolden pins. A probe error just skips
-	// the escalation this pass (the periodic retention behaviour still runs).
+	// go and the blocks are actually released. A stacked golden holds only a
+	// manifest and an overlay; its base lives in Tart's content store, which
+	// collectContent releases once neither a golden nor a cached image
+	// references it. The referenced-golden reclaim below then handles the
+	// bases keepGolden pins. A probe error just skips the escalation this pass
+	// (the periodic retention behaviour still runs).
 	floor := c.goldenReclaimFreeFloor()
 	free, freeErr := c.hostDiskFree()
 	underPressure := freeErr == nil && free < floor
@@ -227,15 +239,11 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 			_ = c.Tart.CleanupVMUserData(vm.Name)
 			droppedClones++
 		case "OCI":
-			// Keep a cached image whose repository a Pod still references.
-			// Pods name images by tag and Tart lists them by digest, so the
-			// match is on the repository the two share — without it the GC
-			// reaped the live runner image every pass. Under aggressive
-			// (disk-pressure) reclaim, reap it anyway: the OCI cache is
-			// reconstructible by re-pull, so an actual out-of-disk provision
-			// must win over keeping it warm (mirrors the golden policy, and
-			// bounds the superseded-digest tail a referenced repo accrues).
-			if _, want := expected.imageRepos[ociRepository(vm.Name)]; want && !aggressive {
+			// Under aggressive (disk-pressure) reclaim, reap it anyway: the
+			// OCI cache is reconstructible by re-pull, so an actual
+			// out-of-disk provision must win over keeping it warm (mirrors
+			// the golden policy).
+			if expected.keepsImage(vm.Name) && !aggressive {
 				continue
 			}
 			if err := c.Tart.Delete(ctx, vm.Name); err != nil {
@@ -244,6 +252,9 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 			}
 			droppedImages++
 		}
+	}
+	if droppedGoldens > 0 {
+		c.collectContent(ctx)
 	}
 	if droppedClones > 0 || droppedImages > 0 || droppedGoldens > 0 {
 		logger.Info("reclaimed disk",
@@ -339,6 +350,7 @@ func (c *Collector) reclaimGoldensUnderDiskPressure(ctx context.Context, expecte
 		}
 		c.forgetGolden(name)
 		reaped++
+		c.collectContent(ctx)
 		if f, ferr := c.hostDiskFree(); ferr == nil {
 			free = f
 		}
@@ -403,8 +415,9 @@ func (c *Collector) liveBackedGoldens(ctx context.Context) map[string]struct{} {
 // keepGolden decides whether to retain a golden base VM this pass and
 // stamps its last-seen time. A golden whose digest a current Pod still
 // references is always kept (and its retention clock reset). An
-// unreferenced golden is kept until GoldenRetention elapses since it was
-// last seen — except under `aggressive` reclaim, where unreferenced
+// unreferenced golden of an image no pool of the fleet runs is reaped. Any
+// other unreferenced golden is kept until GoldenRetention elapses since it
+// was last seen — except under `aggressive` reclaim, where unreferenced
 // always means reap. First unreferenced sighting starts the clock now
 // (covers a just-materialized golden the Pod List hasn't caught up to,
 // and pre-restart goldens), so it's never reaped on the very pass that
@@ -420,7 +433,7 @@ func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time
 		c.goldenSeen[name] = now
 		return true
 	}
-	if aggressive {
+	if aggressive || expected.superseded(name) {
 		return false
 	}
 	last, ok := c.goldenSeen[name]
@@ -484,15 +497,64 @@ func IsNoSpaceError(err error) bool {
 type expectedSet struct {
 	vms map[string]struct{}
 	// imageRepos holds the repository (registry/name with the tag and
-	// digest stripped) of every referenced Pod image. The OCI branch
-	// matches against this rather than the full ref: a Pod may request its
-	// image by tag (`…/tuist-runner:macos-26-5-0.7.0`), but Tart caches
+	// digest stripped) of every referenced Pod image. Without pools, the
+	// OCI branch matches against this rather than the full ref: a Pod may
+	// request its image by tag (`…/tuist-runner:macos-26-5-0.7.0`), but Tart caches
 	// it under — and `tart list` reports it by — the resolved digest
 	// (`…/tuist-runner@sha256:…`). The old full-ref comparison never
 	// matched, so the GC marked the live runner image stale and deleted
 	// it on every pass, forcing the next golden materialization into a
 	// full multi-GB re-pull instead of a clonefile from the warm cache.
 	imageRepos map[string]struct{}
+
+	// poolGoldens holds the golden of every image a macOS RunnerPool of the
+	// Node's fleet runs. Nil when the fleet has no pools or they could not
+	// be listed, which disables the superseded-image rules.
+	poolGoldens map[string]struct{}
+	// imageRefs holds the full ref of every Pod and pool image, as pulled
+	// from its registry and from each mirror. tagRepos holds the repository
+	// of every one named by tag, whose digest Tart lists but the ref does
+	// not carry.
+	imageRefs map[string]struct{}
+	tagRepos  map[string]struct{}
+}
+
+// superseded reports whether golden is for an image no pool of the fleet
+// runs any more.
+func (e *expectedSet) superseded(golden string) bool {
+	if e.poolGoldens == nil {
+		return false
+	}
+	_, current := e.poolGoldens[golden]
+	return !current
+}
+
+// keepsImage reports whether the OCI cache entry name is an image a Pod or
+// a pool still runs. Without pools to compare against, any image of a
+// repository a Pod references is kept, superseded digests included.
+func (e *expectedSet) keepsImage(name string) bool {
+	repository := ociRepository(name)
+	if e.poolGoldens == nil {
+		_, want := e.imageRepos[repository]
+		return want
+	}
+	if _, want := e.imageRefs[name]; want {
+		return true
+	}
+	_, want := e.tagRepos[repository]
+	return want
+}
+
+func (e *expectedSet) addImage(image string, images *ImageSources) {
+	repository := ociRepository(image)
+	reference := strings.TrimPrefix(image, repository)
+	byTag := !strings.HasPrefix(reference, "@")
+	for _, repo := range append([]string{repository}, images.mirroredRepositories(repository)...) {
+		e.imageRefs[repo+reference] = struct{}{}
+		if byTag {
+			e.tagRepos[repo] = struct{}{}
+		}
+	}
 }
 
 func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
@@ -503,6 +565,24 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 	out := &expectedSet{
 		vms:        map[string]struct{}{},
 		imageRepos: map[string]struct{}{},
+		imageRefs:  map[string]struct{}{},
+		tagRepos:   map[string]struct{}{},
+	}
+	if c.Fleet != "" {
+		pools, err := listRunnerPools(ctx, c.K8s)
+		if err != nil {
+			log.FromContext(ctx).WithName("gc").Error(err, "list runner pools; keeping superseded images for the retention window")
+		}
+		for _, pool := range pools {
+			if !pool.runsOn(c.Fleet) {
+				continue
+			}
+			if out.poolGoldens == nil {
+				out.poolGoldens = map[string]struct{}{}
+			}
+			out.poolGoldens[goldenVMName(pool.Spec.Image)] = struct{}{}
+			out.addImage(pool.Spec.Image, c.Images)
+		}
 	}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
@@ -520,6 +600,7 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 		for _, mirrored := range c.Images.mirroredRepositories(repository) {
 			out.imageRepos[mirrored] = struct{}{}
 		}
+		out.addImage(pod.Spec.Containers[0].Image, c.Images)
 		// Keep the golden base this image clones from. Without this the
 		// "local" GC branch would see the golden VM, find no Pod named
 		// after it, and reap it as an orphan clone — forcing the next
@@ -553,4 +634,15 @@ func ociRepository(ref string) string {
 		ref = ref[:i]
 	}
 	return ref
+}
+
+// collectContent releases what reaped goldens leave in Tart's content store.
+// A stacked golden is a manifest and a small overlay over a read-only base the
+// store holds once for every VM and cached image built on it, and deleting the
+// golden does not collect the base, so without this a reaped stacked golden
+// frees almost nothing. Tart releases that predate the store collect nothing.
+func (c *Collector) collectContent(ctx context.Context) {
+	if err := c.Tart.CollectContent(ctx); err != nil {
+		log.FromContext(ctx).WithName("gc").Error(err, "collect tart content store")
+	}
 }

@@ -16,6 +16,13 @@ and `repo-*` HEADs, objects, local masters, capacities and retention remain in
 place. No migration deletes or renames them. Custom-volume clear affects only
 that custom identity; it does not clear the built-in Tuist or Xcode cache.
 
+The automatic wiring is retired. The server now puts every macOS job on the
+`tuist-xcode` and `tuist-module` custom volumes, which a job reaches only through
+`tuist/xcode-cache` and `tuist/module-cache`. Dispatch stamps the untrusted label,
+so the host gives the job an empty built-in image and never promotes it. See the
+"Opt-in caches" and "Managed cache volumes" paragraphs in
+`infra/runner-image/AGENTS.md`.
+
 New identities include platform, preventing APFS and ext4 image reuse even when
 repository, key, architecture and UID happen to match. Existing Linux UUIDs and
 scope hashes remain unchanged. Public HTTP/MCP/CLI responses already have a
@@ -28,8 +35,9 @@ checksums, HTTP transfers, HEAD publication, and idle master reclamation. Linux
 continues using its ext4 backend. macOS adds APFS images to that same lifecycle,
 with a 20 decimal GB capacity and the existing server's seven-day idle expiry.
 
-The host creates a private branch inode and exposes a hard link through a
-per-VM virtio-fs share. The guest mounts that image as APFS, preserving symlinks
+The host creates a private branch image and, while the VM runs, moves its only
+name into a per-VM virtio-fs share; it takes the name back once the VM has
+stopped. The guest mounts that image as APFS, preserving symlinks
 and xattrs, and the common client symlinks the requested directories into it.
 Each job has a distinct branch. Host masters and infrastructure credentials
 never enter the share. The mailbox carries key and execution UID only; the host
@@ -41,7 +49,11 @@ forced detach and abrupt shutdown produce no eligible marker. The host waits
 for API Pod absence **and** a stopped Tart process before inspecting the image.
 It attaches the disk device with `hdiutil -readonly -nomount -noautofsck`, checks
 the raw APFS partition with `fsck_apfs -n` without mounting its filesystem in the
-host kernel, persists a verification guard, uploads the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
+host kernel, and reads the container's `Capacity In Use By Volumes` from
+`diskutil apfs list` on that unmounted container. An image holding clearly less
+than the guest measured before detaching is poisoned (result `incomplete`): it
+passes fsck but mounts as an older state of the volume, empty for a new one.
+It then persists a verification guard, uploads the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
 Only an accepted image becomes a local master. A failed upload retries without
 reformatting or consuming another verification; a crash during verification
 poisons the branch. Expired or cleared generations cannot publish later.
@@ -53,19 +65,57 @@ before the successful detach. These measurements do not authorize disk admission
 They are logical filesystem bytes, not unique physical allocation or billing
 measurements. APFS shares
 extents. Both backends use real free space and local master eviction. Admission
-reserves only the remaining growth (capacity minus allocated blocks) of running
+reserves only the remaining growth (expected size minus allocated blocks) of running
 custom guests alongside built-in reservations on the same bounded filesystem.
 Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
 it. Live reservations are recovered from the durable journal after restart.
 
-Cold creation reserves one 20 GB image. Restoration and prefetch retain the
-40 GB budget for the archive and expanded image. Applying that restore budget
-to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
-with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
-even though a 20 GB image fits. Both the backend's eviction/admission check and
-the host's in-flight reservation use the cold budget. Genuine capacity pressure
-still falls back, and warm restoration still requires its larger budget.
+Each volume is created at the capacity the server chooses for the use
+(`volume_bytes`, 1 to 100 GB; 20 GB when it sends none). The host sends its
+maximum (`--custom-cache-max-volume-gb`, 100 GB by default) with every
+authorization, together with the guest's requested size when valid; a larger
+volume is refused with 507 and the job continues cold with reason `capacity`.
+Guest usage reports and downloads are bounded by that maximum. A warm copy
+smaller than its capacity is extended with `hdiutil resize -imageonly` before the
+guest sees it, never shrunk, and the guest grows the APFS container after
+attaching; a copy that cannot grow attaches warm at its saved size.
+
+A job never downloads, so its attach reserves what it is expected to write
+(`Identity.ExpectedBytes`), not its capacity: the head's measured used bytes
+(`head_size_bytes`) plus half again, at least 2 GB, or 5 GB when no head size
+is known, never more than the capacity. The image stays sparse at its full
+capacity. Restoration and prefetch reserve twice the head's used bytes for the
+archive and expanded image, or twice the capacity without a known head size.
+The backend's eviction/admission check and the host's in-flight reservation use
+the same number. Genuine capacity pressure still falls back to a cold job.
+
+Admission overcommits: a job can write past its reservation, up to its
+capacity, and nothing stops it. The safeguard is the gap between the admission
+budget (`--runner-cache-budget-gib`) and the cache volume's APFS quota, which is
+where writes actually fail. Admission and the 15% host floor only bound what is
+admitted; the quota bounds what is written. Keep the budget well below the quota
+on every host that runs custom volumes.
+
+- Past the budget but below the quota, writes succeed. Later jobs on the host
+  are refused (`capacity`) and run cold, and each reconcile evicts idle custom
+  masters, least recently used first and never one a job holds, until the
+  reservations fit again (`LocalImages.Relieve`). The built-in evictor does the
+  same for built-in masters on its own tick.
+- With under 2 GB left below the quota, or on the host's disk, tart-kubelet
+  marks every running custom branch `.pressure` (checked every second), and
+  `Seal` withholds it (`ErrPressure`, result `pressure`). A write that failed on
+  the host may not reach the guest, and fsck does not check file contents, so
+  such a branch is never published.
+- At the quota, writes to the guests' images fail. Jobs on the host see I/O or
+  out-of-space errors on their cache paths while the guest still reports free
+  space, and can fail, including a neighbour that stayed within its
+  reservation. The quota keeps the cache off the system and VM disks.
+
+A host whose quota equals its budget (disks under 1 TiB, and hosts whose volume
+predates the half-disk quota) has no gap, so only the pressure guard and
+eviction stand between an overshooting job and failed writes. A job never waits
+for room.
 
 GitHub Actions, Buildkite and GitLab use the same installed client. macOS
 supports native commands and GitLab's shell executor. GitHub container jobs and
@@ -74,13 +124,11 @@ the APFS mount; no macOS container-volume support is implied.
 
 ## Rollout and rollback
 
-Managed canary and production enable custom volumes fleet-wide through
-`runnersFleet.customCacheVolumes.enabled`. Workflows opt in per directory with
-`tuist/cache-volume@v1`; no project or account allowlist is required. The chart's
-self-hosted default remains disabled. Staging also stays disabled: its 40 GiB
-cache quota cannot fit the built-in reservation plus the custom admission floor.
-Enabling staging requires a separately planned capacity change; setting the flag
-alone does not make that fleet capable of retaining custom volumes.
+Managed staging, canary and production enable custom volumes fleet-wide through
+`runnersFleet.customCacheVolumes.enabled`; staging and canary run them on the
+BER1 rack hosts production lends them (240 GiB cache filesystems). Workflows opt
+in per directory with `tuist/cache-volume@v1`; no project or account allowlist is
+required. The chart's self-hosted default remains disabled.
 
 1. Deploy the platform migration and matching server code while macOS custom
    volumes remain disabled. Linux rows retain `platform=linux` and their existing
@@ -134,8 +182,9 @@ volume capacity remains 20 decimal GB. No M5 rack capacity is enabled here.
 
 Cache admission, built-in convergence and built-in master eviction use the lesser
 of quota free space and physical host free space above the 15% golden-image
-reclamation floor. Raw quota free-space telemetry is unchanged. Probe errors
-decline new allocations. Existing jobs and non-cache host writes can still reduce
+reclamation floor. Free-space telemetry reports the volume within its budget,
+without the host floor. Probe errors decline new allocations. Existing jobs and
+non-cache host writes can still reduce
 physical free space; this admission guard complements the existing golden-image
 reclaimer and Node DiskPressure reporting rather than enforcing a disk partition.
 Custom requests first evict their own reusable masters, then may reclaim built-in
@@ -171,6 +220,29 @@ Rollback of the chart affects replacement hosts only. Return to a smaller quota
 through the same drained replacement process; never shrink a live filesystem.
 Keep the host free-space guard in place on hosts already provisioned at 512 GiB.
 
+### Budget below the quota
+
+`runnerCacheVolumeGiB` is passed to tart-kubelet as `--runner-cache-budget-gib`:
+the space every cache on the volume may take together. Admission, convergence,
+eviction and `tart_kubelet_cache_volume_root_free_bytes` measure the volume's
+free space as the lesser of its quota headroom and the budget less what the
+volume uses (`df` reports an APFS volume's own usage). APFS fixes a quota when
+the volume is created, so on a disk of 1 TiB or more bootstrap creates it at
+half the disk, or the budget when that is larger. A budget change up to that
+quota applies with the next host-config push and needs no new volume. Above it,
+the quota still bounds the caches until the host is replaced or reinstalled. On
+a smaller disk (the M2-L's 460 GiB) the other half does not hold the goldens and
+job VMs, so the quota is the budget, as before.
+
+BER1 rack hosts created before the budget have a 240 GiB quota. Reinstall one
+at a time (`kubectl annotate rasm <machine> tuist.dev/os-reinstall=<version it
+runs>`, see "Reinstalling a rack host" in
+[cluster-api-provider-tuist](../cluster-api-provider-tuist/AGENTS.md)); each
+comes back with a 929 GiB quota and the configured budget. A lent host refuses
+the reinstall until it is returned. Confirm the new quota with
+`node_filesystem_size_bytes{mountpoint="/Volumes/tuist-runner-cache"}` before
+the next host.
+
 For deployed GitHub smoke validation, dispatch `macos-cache-volumes-smoke.yml`
 on `main` with a fresh key prefix and phase `seed`. The volume retains `.build`
 from the repository's real `tuist install --force-resolved-versions`. Its full key
@@ -197,21 +269,69 @@ An unavailable agent retries initialization. Pods receive their mailbox whenever
 the cache filesystem is mounted, including before the agent becomes ready. Each
 attach attempt has a unique request name and cleans up its response. Clean detach
 retries five times for transient busy files; force-detach never permits publication.
-A failed detach logs a warning explaining that affected volumes will not publish.
+Before it, the guest teardown boots out the Tuist CLI's launch agents, which can run
+from a custom volume. After a busy attempt, the client logs the processes of its user
+holding the volume (`lsof` on the mount point) and terminates them, then kills them
+after the next busy attempt. Ending them only lets a later plain detach succeed; that
+clean detach is still what permits publication. A failed detach logs a warning
+explaining that affected volumes will not publish.
 
 The host scans requests once per second with independent per-pod workers (at most
 eight, without a queue), and publishes/reclaims on a separate worker every
-30 seconds. Slow verification, uploads and another guest's restore cannot block
+30 seconds, and every 5 seconds for two minutes after a runner Pod stops
+running, so a finished job's branch is published soon after its VM stops
+rather than on the next tick. When the guest could not mount a volume, it
+leaves the reason in the share's `.attach-error`, which the host logs when it
+deletes that never-mounted branch. Slow verification, uploads and another guest's restore cannot block
 an unrelated mailbox. Shutdown joins all workers before closing the store. It
 reuses its short-lived token in memory until refresh is due. Tokens are never
 written to the mailbox or journal.
 
-Acquisition follows Linux's 25-second host budget and 30-second client budget.
-Cancellation reaches APFS creation/cloning, remote restore and admission waits;
-an expired response cannot trigger a guest mount. Like Linux, macOS can prefetch
-one immutable master after a restore timeout, with a two-minute budget, no queue,
-and a separate disk reservation for the archive and expanded image. Agent shutdown
-cancels and joins that worker. macOS custom volumes emit the shared
+Acquisition follows Linux's 25-second host budget and 30-second client budget,
+but a macOS job never waits for a download. It clones its base master, or the
+newest older master of its lineage, and otherwise starts from an empty image
+marked `.cold`. That branch reports a miss, its master is queued for background
+download ahead of any speculative prefetch, and sealing withholds it
+(`ErrWithheld`) unless the server allows it to replace the saved version: the
+report response then carries `cold_publish: true` beside `seal`, which only
+happens when the branch used at least twice the saved head's bytes and at
+least 1 GB more. Admission
+therefore needs one image of free space for every attach. Cancellation reaches
+APFS creation/cloning and admission waits; an expired response cannot trigger a
+guest mount. The unavailable response carries a bounded
+reason (`timeout`, `capacity`, `denied`, ...) that the client turns into its warning.
+
+A job whose base master is not on the host mounts the newest older master of the
+same lineage, if any, instead of an empty directory, and its base is queued. The
+job's tools update the contents and it may still publish (last publication wins).
+The guest records the volume's top-level entries when it mounts it. At detach,
+a volume changed if those entries differ or any entry's ctime is newer than
+`.tuist-volume`, written at mount; the walk stops at the first such entry and
+nothing is walked at mount. The guest reports `changed` in `.usage`. Sealing withholds a branch the job left unchanged, or one
+at least 99% full that may hold partial writes. Both are still measured, so the
+server's out-of-space reset sees a clone that filled its volume.
+The host reports the generation it mounted; the dashboard shows "Older copy".
+When the HEAD advances, a superseded master used in the last day is kept until
+its successor has been downloaded through the queue, so such a master usually
+exists while the new one arrives.
+
+One worker downloads masters in the background, each turn within five minutes and with a separate disk
+reservation for the archive and expanded image. A download resumes from the
+bytes already received: after a dropped connection or a two-minute stall within
+its turn, and, when its turn ends while bytes are still arriving, on its next
+turn behind the masters queued meanwhile. Downloads land in `staging/` and
+only take the lineage's lock to install the finished master, and maintenance asks
+the server for a lineage's HEAD before taking that lock, so neither ever delays a
+job cloning the same lineage. Requests for the same master join.
+Each heartbeat also advertises one `tuist.dev/cache-volume-<scope prefix>` Node
+label per lineage with an installed master, read from the `masters/` directory,
+so the server can tell which custom volumes this host holds.
+The converge worker also hands it the saved custom-volume HEADs the server lists
+for the host class: dispatch cannot know which custom volumes a job attaches, so
+every host of the class warms them. These speculative downloads use free space
+only and never evict a master. Read-only `retain` and `download` image requests
+may name a use allocated on another node, since such a master is held under the
+use that published it. Agent shutdown cancels and joins the worker. macOS custom volumes emit the shared
 operation/source/result metrics through tart-kubelet's existing metrics endpoint.
 Custom admission counts outstanding built-in convergence downloads, and built-in
 convergence reserves space for live custom images before starting a download.

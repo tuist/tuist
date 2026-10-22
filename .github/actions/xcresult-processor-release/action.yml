@@ -1,0 +1,172 @@
+name: Build xcresult processor release
+description: |
+  Builds the macOS server release the xcresult processor boots and pushes it to
+  GHCR as an OCI artifact with a single `release.tar.gz` layer, tagged
+  `sha-<12>` like the server image. The processor's Tart image downloads that
+  layer by digest at boot (infra/xcresult-processor-image/fetch-release.sh).
+
+  Runs on a Tuist macOS runner, from a checkout of the revision to build.
+
+inputs:
+  revision:
+    description: Commit the release is built from; names the artifact tag
+    required: true
+  registry-username:
+    description: GHCR user to push as
+    required: true
+  registry-token:
+    description: Token with packages:write on the artifact repository
+    required: true
+  github-token:
+    description: Token for authenticated github.com dependency fetches
+    required: false
+    default: ""
+
+outputs:
+  release-ref:
+    description: Artifact reference, `<repository>:sha-<12>`
+    value: ${{ steps.push.outputs.release_ref }}
+  release-digest:
+    description: Manifest digest of the artifact
+    value: ${{ steps.push.outputs.release_digest }}
+  tarball-digest:
+    description: Digest of the `release.tar.gz` layer, which the processor pins
+    value: ${{ steps.push.outputs.tarball_digest }}
+
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/mise-install
+      with:
+        install: "oras jq"
+    - uses: ./.github/actions/mise-install
+      with:
+        install: "erlang elixir"
+        working-directory: server
+    # Mix links each `_build/<env>/lib/<dep>` directory to `deps/<dep>`
+    # through relative symlinks, computed from the dependency's resolved
+    # path, and macOS attaches a cache volume as a symlink. The deps and
+    # build directories therefore share one volume and are addressed by
+    # its resolved path.
+    - uses: tuist/cache-volume@v1
+      with:
+        key: xcresult-processor-release-mix
+        path: ~/.cache/tuist-ci/xcresult-processor-release/mix
+    - uses: tuist/cache-volume@v1
+      with:
+        key: xcresult-processor-release-nif
+        path: ~/.cache/tuist-ci/xcresult-processor-release/nif
+    # The deployment target keeps the C and Swift native code loadable on a
+    # guest older than the runner. It matches the NIF packages' minimum.
+    - name: Point build caches at the volumes
+      shell: bash
+      run: |
+        set -euo pipefail
+        cache_root="${HOME}/.cache/tuist-ci/xcresult-processor-release"
+        mix_root="$(cd "${cache_root}/mix" && pwd -P)"
+        {
+          echo "MIX_ENV=prod"
+          echo "MIX_BUILD_ROOT=${mix_root}/build"
+          echo "MIX_DEPS_PATH=${mix_root}/deps"
+          echo "TUIST_NIF_BUILD_ROOT=${cache_root}/nif"
+          echo "MACOSX_DEPLOYMENT_TARGET=14.0"
+        } >> "$GITHUB_ENV"
+    - name: Install Hex and Rebar
+      shell: bash
+      working-directory: server
+      run: |
+        mix local.hex --force --if-missing
+        mix local.rebar --force --if-missing
+    - uses: ./.github/actions/mix-deps-get
+      with:
+        working-directory: server
+        github-token: ${{ inputs.github-token }}
+    - name: Build server release for macOS
+      id: release
+      shell: bash
+      working-directory: server
+      run: |
+        set -euo pipefail
+        release_dir="${MIX_BUILD_ROOT}/prod/rel/tuist"
+        ./native/xcresult_nif/build.sh
+        ./native/xcactivitylog_nif/build.sh
+        mix compile --force --warnings-as-errors
+        # The release directory sits in the cached build root, and
+        # `mix release --overwrite` does not empty it first.
+        rm -rf "$release_dir"
+        mix release tuist --overwrite
+        echo "dir=${release_dir}" >> "$GITHUB_OUTPUT"
+    # The guest has macOS and Xcode and nothing else, so a library loaded
+    # from anywhere but the release or the OS would fail at boot. `otool -L`
+    # lists a dylib's own install name first, so that one is skipped.
+    - name: Check native linkage
+      shell: bash
+      env:
+        RELEASE_DIR: ${{ steps.release.outputs.dir }}
+      run: |
+        set -euo pipefail
+        minimums="$(mktemp)"
+        foreign="$(mktemp)"
+        while IFS= read -r -d '' binary; do
+          [[ "$(file -b "$binary")" == *Mach-O* ]] || continue
+          vtool -show-build "$binary" 2>/dev/null | awk '$1 == "minos" { print $2 }' >> "$minimums"
+          install_name="$(otool -D "$binary" | tail -n +2)"
+          otool -L "$binary" | awk 'NR > 1 && $1 !~ /:$/ { print $1 }' \
+            | { grep -vxF "${install_name:-/}" || true; } \
+            | { grep -vE '^(/usr/lib/|/System/|@rpath/|@loader_path/|@executable_path/)' || true; } \
+            | while IFS= read -r dependency; do
+                echo "| \`${binary#"$RELEASE_DIR"/}\` | \`$dependency\` |" >> "$foreign"
+              done
+        done < <(find "$RELEASE_DIR" -type f \( -name '*.so' -o -name '*.dylib' -o -perm -u+x \) -print0)
+        {
+          echo "### xcresult processor release: native linkage"
+          echo
+          echo "Highest minimum macOS of its Mach-O files: $(sort -uV "$minimums" | tail -n1)"
+          echo
+          if [ -s "$foreign" ]; then
+            echo "Libraries loaded from outside the release and the OS:"
+            echo
+            echo "| Binary | Library |"
+            echo "|---|---|"
+            sort -u "$foreign"
+          else
+            echo "Every library comes from the release or the OS."
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+        if [ -s "$foreign" ]; then
+          echo "::error title=xcresult processor release::The release loads libraries from outside itself and the OS; see the job summary."
+          exit 1
+        fi
+    - name: Push release to GHCR
+      id: push
+      shell: bash
+      env:
+        RELEASE_DIR: ${{ steps.release.outputs.dir }}
+        RELEASE_REPOSITORY: ghcr.io/tuist/tuist-xcresult-processor-release
+        REGISTRY_USERNAME: ${{ inputs.registry-username }}
+        REGISTRY_TOKEN: ${{ inputs.registry-token }}
+        REVISION: ${{ inputs.revision }}
+      run: |
+        set -euo pipefail
+        workdir="$(mktemp -d)"
+        tar -czf "$workdir/release.tar.gz" -C "$RELEASE_DIR" .
+        tarball_digest="sha256:$(shasum -a 256 "$workdir/release.tar.gz" | awk '{ print $1 }')"
+        release_ref="${RELEASE_REPOSITORY}:sha-${REVISION:0:12}"
+        echo "$REGISTRY_TOKEN" | oras login ghcr.io --username "$REGISTRY_USERNAME" --password-stdin
+        cd "$workdir"
+        release_digest="$(oras push "$release_ref" \
+          --artifact-type application/vnd.tuist.xcresult-processor-release.v1 \
+          --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+          --annotation "org.opencontainers.image.revision=${REVISION}" \
+          --format json \
+          release.tar.gz:application/vnd.tuist.xcresult-processor-release.v1.tar+gzip \
+          | jq -r '.digest')"
+        {
+          echo "release_ref=$release_ref"
+          echo "release_digest=$release_digest"
+          echo "tarball_digest=$tarball_digest"
+        } >> "$GITHUB_OUTPUT"
+        {
+          echo
+          echo "Pushed \`${release_ref}@${release_digest}\` ($(du -h release.tar.gz | awk '{ print $1 }'), tarball \`${tarball_digest}\`)."
+        } >> "$GITHUB_STEP_SUMMARY"

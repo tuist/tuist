@@ -40,7 +40,8 @@ jobs:
 
 The standalone action release is part of the launch, with immutable version
 tags and an advancing `v1` tag. Pin its release commit for production. Use one
-key/path pair per action, before any tool populates that directory. Absolute,
+key per action, with one or more paths (one per line), before any tool
+populates those directories. Absolute,
 relative and `~/` paths work. Existing nonempty directories cause an error.
 `cache-hit` is `true` when attached from a published snapshot, otherwise `false`.
 Do not restore an archive into the same path. A missing agent or failed attachment
@@ -124,7 +125,9 @@ tools already installed by fleet bootstrap, checks free space, and installs the
 persistent systemd mount without restarting kubelet or repartitioning disks.
 Retries retain existing contents and reject size mismatches, foreign mounts,
 symlinks, and nonempty unprovisioned paths. Failure leaves the agent unready;
-the host cannot advertise volume readiness. Disabling provisioning never deletes
+the host cannot advertise volume readiness. Each reconcile also labels the Node
+`tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
+master and removes the labels of evicted ones. Disabling provisioning never deletes
 the backing file or unmounts existing storage. Runner scheduling prefers ready
 hosts but does not require them; jobs on other hosts fall back to ordinary
 directories. If unprovisioned hosts have accumulated pod directories, drain those
@@ -385,9 +388,16 @@ remains bounded to 25 seconds on the host and 30 seconds on the client. A newer
 HEAD or a clear can make the prefetched generation obsolete; normal generation
 selection and maintenance prevent it from being served as the new HEAD.
 
-This favors warming hosts after an observed miss over predicting cache keys in the
-scheduler. It preserves ordinary placement and does not replicate every volume to
-every host. The `prefetch` results and subsequent `attach{source="local"}` observations
+This warms hosts after an observed miss and does not replicate every volume to
+every host. Dispatch separately prefers handing a polling host a queued job whose
+predicted custom volumes the host's Node labels advertise (see
+`Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
+the built-in volume. Both that preference and the macOS Pod placement preference
+apply only while the job's volumes fit the host's cache room: tart-kubelet
+labels each macOS Node `tuist.dev/cache-volume-capacity-gib`, and the server
+subtracts the allocated and predicted volumes of every job whose runner session
+is still open there. A job that does not fit loses the preference and is still
+dispatched as usual. The `prefetch` results and subsequent `attach{source="local"}` observations
 should determine whether its bounded extra bandwidth earns enough later hits.
 
 Publishing a generation supersedes every other host's replica of that volume.
@@ -397,7 +407,8 @@ before removing the old replica, so the next job on that host attaches locally
 instead of downloading.
 The HEAD check returns the new image and content digests, and the host downloads
 that generation through the use that installed its replica. The server accepts
-this only for the current HEAD of the same, uncleared lineage on the same node.
+this only for the current HEAD of the same, uncleared lineage; like `retain`, it
+is read-only and does not require the use to have been allocated on that node.
 One refresh runs at a time per host, through the same admission as a prefetch,
 with a five-minute deadline and a bounded queue. While it downloads, maintenance
 and admission skip that volume instead of waiting for it. A failed, rejected or
@@ -405,3 +416,48 @@ queued-out refresh, or a HEAD that is already local, falls back to removing the
 replica. A refreshed replica keeps its previous last-use time so unused volumes
 stop being refreshed after a day. Watch `operation="refresh"` results against
 `attach{source="local"}`.
+
+## Cached checkouts
+
+Linux jobs get a per-repository `checkout` volume, as macOS jobs do, unless their
+runner profile turns cached checkouts off. It is built by the same shared
+populator as on macOS
+(`../runner-cache/checkout.go`, `Ext4CheckoutImages`). The agent:
+
+- answers `POST /checkout` (15 s) for the live runner pod at the caller's
+  address: it allocates through the server's `/checkout`, then, when it holds a
+  master for the volume's clear generation, admits and mounts a reflink clone at
+  `pods/<uid>/<scope>` like a custom volume, with the tree in `checkout/` owned
+  by the job's UID. Without a master it answers `cold`, ends the use, and
+  restores the volume's HEAD in the background when there is one. It has four
+  request slots of its own and answers `busy` past them.
+- takes `POST /checkout-export` once per granted pod: a tar the runner streams
+  after its job, unpacked by `cachevolumes.ReceiveCheckoutExport` into
+  `checkouts/.incoming/<uid>` and verified again by the build (`git index-pack
+  --strict`, LFS SHA-256, the host writes the tree and index). A master only
+  starts from, and only advances to, a default-branch commit with all its LFS
+  objects; other exports only add objects. A master that advanced is published
+  as the volume's HEAD.
+- bounds what exports hold: each entry is admitted above the job reserve,
+  exports waiting for a build hold at most one maximal export (30 GB) per host,
+  a newer export displaces builds still waiting for room, sparse entries are
+  refused, and nothing is written that the stream did not
+  carry. It checks the pod before taking one of two intake slots, so a busy
+  host keeps the pod's grant.
+- keeps masters under `<root>/checkouts`, on the dedicated filesystem. Builds
+  reserve room above the job reserve and that room is held back from what job
+  admission sees as free. Jobs that need room evict custom-volume masters, then
+  checkout masters, before they are refused. Masters are evicted after seven
+  days without a clone, on clear, or under pressure; pressure never takes a
+  master a job holds or is cloning (`Store.InUse`), since its blocks are shared.
+- needs git and the git-lfs the agent image pins (v3.8.0, checksum-verified at
+  build, version-checked at start, run from `/usr/local/bin`). Without them it logs
+  "cached checkouts unavailable on this host" every 10 minutes, reports
+  `tuist_runner_cached_checkouts_ready 0`, and answers `denied`, so runners
+  export nothing.
+
+Everything a job writes under its workspace lands in its clone, on the cache
+filesystem rather than the pod's work volume. A clone is therefore admitted only
+while free space covers the whole checkout image (60 GB), as the reserve covers
+one custom volume. It never evicts anything for that room: without it the job
+checks out as usual.

@@ -93,7 +93,10 @@ When the destination advertises `preparation_supported`, the controller first
 publishes the named intent while leaving the source in `Serving`. The source
 continues accepting reads and writes with normal 15-second lease renewal. The
 destination performs bounded retained-index catch-up with normal background
-bandwidth admission and no corpus hold. It repeats passes if eviction occurred.
+bandwidth admission and no corpus hold. It completes one retained walk; live
+eviction does not restart preparation. Requiring an eviction-free pass here can
+keep chasing concurrent writes until the preparation deadline. Final Quiescing
+repair still repeats on eviction before atomically taking its retained-corpus hold.
 The source remains mutable: writes and existing peer-read promotions can cause
 normal cache eviction during preparation. The retained-data guarantee covers the
 corpus frozen in Quiescing, not every entry present when preparation began.
@@ -183,8 +186,13 @@ One non-expiring namespace-wide Lease serializes all rebuilds, deliberately
 stricter than separate source/destination host limits. Controller restart retains
 ownership; a failed rebuild does not release its slot or escalate to another
 ordinal. Successful verification releases the slot. Investigate interrupted
-journals before any manual release. Resize, evacuation and automatic image
-replacement are excluded for activated instances.
+journals before any manual release. Evacuation and automatic image
+replacement are excluded for activated instances. A grown claim is applied
+standby-first: only a Ready, settled Serving grant with no handover or
+unfinished recovery lets the controller re-template the StatefulSet and rebuild
+a standby's volume. It never touches the holder's claim; that one waits until a
+planned handover revokes it. A destination larger than its source also gives the
+final retained repair room to converge on a full ring.
 Placement changes are reconciled during rebuilding. Only a replacement that is
 still unscheduled and has an obsolete node selector is recreated; its new claim
 is retained and the serving sibling is untouched.
@@ -220,6 +228,16 @@ restart an active primary onto its marked volume. The first handover from an old
 source still uses individual-record verification; batching applies after the
 source supports negotiation too. Keep `OnDelete` and the explicit image pin
 through this procedure.
+
+While the requested image waits on this procedure, `status.imageHold` reads
+`FencedImagePin` (the pin differs from the requested image) or
+`FencedReplacement` (the template carries the qualified image and old-revision
+pods remain). The control plane's progressive rollout leaves a held server out
+of wave convergence instead of pausing the fleet at the wave deadline, so a
+fenced instance never blocks other accounts. It does not soak the target on
+the held instance: the operator procedure is that instance's qualification,
+and once both pods run the requested image the server rejoins convergence and
+the health gate. A canary wave made only of held servers still pauses.
 
 `/status/rollout.serving_authority` exposes identity, observed grant, deadline,
 in-flight mutations, receipt and revocation acknowledgment. The ConfigMap keeps

@@ -237,6 +237,18 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert Enum.map(back.commits, & &1.git_commit_sha) == ["c5", "c2"]
       assert {back.has_previous_page?, back.has_next_page?} == {false, true}
 
+      first = History.commit_cursor_page(project, "main", page_size: 2, status: "measured")
+      assert Enum.map(first.commits, & &1.git_commit_sha) == ["c6", "c4"]
+      assert {first.has_previous_page?, first.has_next_page?} == {false, true}
+
+      second = History.commit_cursor_page(project, "main", page_size: 2, status: "measured", after: first.end_cursor)
+      assert Enum.map(second.commits, & &1.git_commit_sha) == ["c3", "c1"]
+      assert {second.has_previous_page?, second.has_next_page?} == {true, false}
+
+      back = History.commit_cursor_page(project, "main", page_size: 2, status: "measured", before: second.start_cursor)
+      assert Enum.map(back.commits, & &1.git_commit_sha) == ["c6", "c4"]
+      assert {back.has_previous_page?, back.has_next_page?} == {false, true}
+
       assert Enum.map(History.commit_cursor_page(project, "main", status: "complete").commits, & &1.git_commit_sha) ==
                ["c4"]
 
@@ -273,6 +285,9 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
 
       # Labelled commits are all measured.
       assert History.commit_cursor_page(project, "main", status: "not-measured").commits == []
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "measured").commits, & &1.git_commit_sha) ==
+               ["c", "b", "a"]
 
       assert Enum.map(History.commit_cursor_page(project, "main", status: "in-progress").commits, & &1.git_commit_sha) ==
                [
@@ -467,6 +482,36 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       publish(project, Enum.map(0..2, &DateTime.add(@epoch, &1, :day)))
 
       assert shas(History.trend_points(project, "main", since: DateTime.add(@epoch, 1, :day))) == ["c1", "c2"]
+    end
+  end
+
+  describe "latest_complete_commit/2" do
+    test "is the newest commit on the branch's graph that chains into its trend", %{
+      project: project,
+      account: account
+    } do
+      commits =
+        for index <- 0..3,
+            do: CoverageFixtures.commit("c#{index}", if(index == 0, do: [], else: ["c#{index - 1}"]), index)
+
+      CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c3"}])
+
+      run(project, account, %{git_commit_sha: "c0"}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "c1"}, [1, 1, 0, 0])
+      run(project, account, %{git_commit_sha: "c2", partial: true}, [0, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "c3"}, [1, 1, 1, 0])
+      for sha <- ~w(c0 c1 c2), do: Commits.signal_complete(project, sha)
+
+      assert History.latest_complete_commit(project, "main") == "c1"
+      assert History.latest_complete_commit(project, "main") == List.last(shas(History.trend_points(project, "main")))
+      assert History.head_commit(project, "main").git_commit_sha == "c3"
+      assert History.latest_complete_commit(project, "other") == nil
+    end
+
+    test "is the newest complete commit labelled with the branch when its ref owns none", %{project: project} do
+      publish(project, Enum.map(0..3, &DateTime.add(@epoch, &1, :hour)), ["c3"])
+
+      assert History.latest_complete_commit(project, "main") == "c2"
     end
   end
 

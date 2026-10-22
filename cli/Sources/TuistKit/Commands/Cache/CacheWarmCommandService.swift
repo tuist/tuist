@@ -28,18 +28,12 @@ import XcodeGraph
         case diskExhausted(scratchDirectory: AbsolutePath, space: VolumeSpace, underlyingError: Error)
         case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
         case sourcesChangedDuringBuild(target: String)
-        case coverageOnReleaseConfiguration(String)
         case coverageWithoutProject(AbsolutePath)
 
         var errorDescription: String? {
             switch self {
             case let .sourcesChangedDuringBuild(target):
                 return "Sources for \(target) changed while warming the cache. Run the warm again with stable inputs."
-            case let .coverageOnReleaseConfiguration(configuration):
-                return """
-                The configuration \(configuration) is a release one, and release binaries are never built with coverage. \
-                Warm a debug configuration with --coverage, or drop the flag.
-                """
             case let .coverageWithoutProject(path):
                 return """
                 Warming with coverage needs the checkout the coverage's files are relative to, and \(path.pathString) is \
@@ -173,8 +167,7 @@ import XcodeGraph
             generateOnly: Bool,
             noUpload: Bool,
             cacheProfile: String?,
-            scratchDirectory: String?,
-            coverage: Bool
+            scratchDirectory: String?
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let scratchDirectoryPath: AbsolutePath?
@@ -187,9 +180,11 @@ import XcodeGraph
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
+            let resolvedCoverage = BinaryCacheCoverage.resolved(config: config)
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
-                targetsToBinaryCache: requestedTargetsToBinaryCache
+                targetsToBinaryCache: requestedTargetsToBinaryCache,
+                coverage: resolvedCoverage
             )
 
             // The loading of the graph triggers the fetching of remote binaries into the local cache to speed up warming.
@@ -204,13 +199,13 @@ import XcodeGraph
             )
             let isReleaseConfiguration = graph.projects.values.flatMap(\.settings.configurations.keys)
                 .first(where: { $0.name == configuration })?.variant == .release
-            if coverage, isReleaseConfiguration {
-                throw CacheWarmCommandServiceError.coverageOnReleaseConfiguration(configuration)
-            }
+            // Release binaries are never instrumented: a release warm fills the plain variant every command reads
+            // for release.
+            let coverage: BinaryCacheCoverage = isReleaseConfiguration ? .off : resolvedCoverage
             // The settings that build the repository's own targets with coverage counters, under the key a
             // run collecting coverage reads. Resolved before anything is built, so a checkout the coverage
             // couldn't be tied to fails the warm before it spends a build on it.
-            let instrumentationSettings = try await instrumentationSettings(coverage: coverage, path: path)
+            let instrumentationSettings = try await instrumentationSettings(coverage: coverage == .on, path: path)
 
             // Lint
             try cacheWarmGraphLinter.lint(graph: graph)
@@ -246,7 +241,7 @@ import XcodeGraph
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
                 cacheStorage: cacheStorage,
-                coverage: coverage ? .on : .off
+                coverage: coverage
             )
             let cacheableTargets = hashedGraph.targetsToBuild
 
@@ -282,7 +277,7 @@ import XcodeGraph
                     configuration: configuration,
                     cacheStorage: cacheStorage,
                     targetHashes: hashedGraph.targetHashes,
-                    coverage: coverage ? .on : .off
+                    coverage: coverage
                 )
                 .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
 

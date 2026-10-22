@@ -2197,3 +2197,40 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Choose holiday dates"
 msgstr ""
+
+#: lib/atlas_web/components/layouts/account.html.heex:33
+#: lib/atlas_web/components/layouts/dashboard.html.heex:303
+#, elixir-autogen, elixir-format
+msgid "Also here"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:175
+#, elixir-autogen, elixir-format
+msgid "Directory"
+msgstr ""
+
+#: lib/atlas_web/live/people_live.ex:27
+#, elixir-autogen, elixir-format
+msgid "Offline"
+msgstr ""
+
+#: lib/atlas_web/live/people_live.ex:27
+#, elixir-autogen, elixir-format
+msgid "Online"
+msgstr ""
+
+#: lib/atlas_web/live/people_live.ex:7
+#: lib/atlas_web/live/people_live.ex:13
+#, elixir-autogen, elixir-format
+msgid "People"
+msgstr ""
+
+#: lib/atlas_web/live/people_live.ex:16
+#, elixir-autogen, elixir-format
+msgid "Team"
+msgstr ""
+
+#: lib/atlas_web/live/people_live.ex:14
+#, elixir-autogen, elixir-format
+msgid "Your team, here in Atlas. Availability updates while the app is active."
+msgstr ""

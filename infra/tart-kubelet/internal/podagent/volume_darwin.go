@@ -167,6 +167,13 @@ func (darwinVolumeBackend) capacityBytes(root string) (uint64, error) {
 	return dfKilobytes(root, 1, "size")
 }
 
+// usedBytes reports the space the filesystem holding root uses via `df`. For an
+// APFS volume that is the volume's own usage, not its container's.
+func (darwinVolumeBackend) usedBytes(root string) (uint64, error) {
+	// Column 3 is used 1K blocks.
+	return dfKilobytes(root, 2, "used")
+}
+
 func dfKilobytes(root string, column int, name string) (uint64, error) {
 	out, err := runCmd(30*time.Second, "df", "-P", "-k", root)
 	if err != nil {
@@ -212,7 +219,7 @@ func PhysicalMemoryBytes() (uint64, error) {
 // allocatedBytes reports the blocks a sparse image actually occupies, not its
 // nominal size.
 func (darwinVolumeBackend) allocatedBytes(path string) (uint64, error) {
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return 0, err
 	}

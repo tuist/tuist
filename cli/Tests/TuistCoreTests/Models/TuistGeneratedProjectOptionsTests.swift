@@ -117,8 +117,7 @@ struct TuistGeneratedProjectOptionsTests {
                 disableSandbox: true,
                 includeGenerateScheme: true,
                 enableCaching: true,
-                enableCachingPrefixMapping: false,
-                enableCoveragePrefixMapping: true
+                coverage: .init(enabled: true, prefixMapping: true)
             )
 
             // When
@@ -136,8 +135,7 @@ struct TuistGeneratedProjectOptionsTests {
             #expect(result.disableSandbox == true)
             #expect(result.includeGenerateScheme == true)
             #expect(result.enableCaching == true)
-            #expect(result.enableCachingPrefixMapping == false)
-            #expect(result.enableCoveragePrefixMapping == true)
+            #expect(result.coverage == .init(enabled: true, prefixMapping: true))
 
             // Original arguments should be preserved plus new ones
             #expect(result.additionalPackageResolutionArguments.contains("-verbose"))

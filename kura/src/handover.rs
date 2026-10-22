@@ -436,27 +436,12 @@ async fn prepare_live_destination(
         receipt: None,
     };
     let _preparation = state.runtime.authority.handover_preparation.lock().await;
-    loop {
-        require_current_preparation(state, &request, preparation.epoch)?;
-        let before = state
-            .store
-            .handover_eviction_generation
-            .load(Ordering::Acquire);
-        reconcile_retained_corpus(state, &request, Some(preparation.epoch)).await?;
-        require_current_preparation(state, &request, preparation.epoch)?;
-        if before
-            == state
-                .store
-                .handover_eviction_generation
-                .load(Ordering::Acquire)
-        {
-            // Writes and eviction remain possible. Quiescing must still repair,
-            // take both holds, verify every retained record and revoke the source.
-            return Ok(());
-        }
-        tracing::info!(event.name="kura.handover.preparation_revisit", id=%preparation.intent.id,
-            "Revisiting live standby preparation after retained-record eviction");
-    }
+    require_current_preparation(state, &request, preparation.epoch)?;
+    reconcile_retained_corpus(state, &request, Some(preparation.epoch)).await?;
+    // A live cache may evict on every walk. Waiting for an eviction-free pass
+    // can starve until the deadline while the source keeps accepting writes.
+    // Quiescing still repairs, atomically freezes and verifies the full corpus.
+    require_current_preparation(state, &request, preparation.epoch)
 }
 
 async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), String> {
@@ -574,7 +559,10 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
         }
         *hold = Some(intent.id.clone());
     }
-    let (head, frontier_ms) = feed.head_and_frontier();
+    // A writer can commit rows it staged before the hold; every row staged
+    // after it is refused at its write, releasing its seq without a row.
+    feed.settle().await;
+    let (head, frontier_ms, commits) = feed.barrier_position();
     let floor = feed.floor();
     let mut receipt = Receipt {
         id: intent.id.clone(),
@@ -662,8 +650,13 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             break;
         }
     }
-    if feed.head() != head || feed.floor() != floor || authority.mutations() != 0 {
-        return Err("source changed or feed trimmed during barrier".into());
+    let (final_commits, final_floor, mutations) =
+        (feed.commits(), feed.floor(), authority.mutations());
+    if final_commits != commits || final_floor != floor || mutations != 0 {
+        return Err(format!(
+            "source changed or feed trimmed during barrier: commits={commits}->{final_commits} floor={floor}->{final_floor} mutations={mutations} head={head}->{}",
+            feed.head()
+        ));
     }
     receipt.digest = format!("{:x}", digest.finalize());
     let answer = send(
@@ -1555,18 +1548,57 @@ mod tests {
             &target.state,
             format!("http://{}", listener.local_addr().unwrap()),
         );
-        request.intent.deadline_ms = crate::utils::now_ms() + 2_000;
         let mut grant = target.state.runtime.authority.intent().unwrap();
+        grant.phase = "Serving".into();
+        target
+            .state
+            .runtime
+            .authority
+            .install(grant.clone())
+            .unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        // Live preparation is a scheduling hint. Real concurrent evictions must
+        // not make it wait for a quiet window while the source keeps writing.
+        let preparation = Preparation {
+            intent: request.intent.clone(),
+            source: request.source.clone(),
+            epoch: grant.epoch,
+            complete: false,
+            error: None,
+        };
+        tokio::time::timeout(
+            Duration::from_secs(3),
+            prepare_live_destination(&target.state, &preparation),
+        )
+        .await
+        .expect("live preparation must finish despite concurrent eviction")
+        .unwrap();
+        assert!(walks.load(Ordering::SeqCst) > 0);
+        assert!(target.state.store.handover_hold.lock().unwrap().is_none());
+        assert!(
+            target
+                .state
+                .runtime
+                .authority
+                .barrier
+                .lock()
+                .unwrap()
+                .is_none()
+        );
+
+        // The exact same churn must still prevent the final frozen-corpus hold.
+        let preparation_walks = walks.load(Ordering::SeqCst);
+        request.intent.deadline_ms = crate::utils::now_ms() + 2_000;
+        grant.phase = "Quiescing".into();
         grant.handover = Some(request.intent.clone());
         target.state.runtime.authority.install(grant).unwrap();
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let error =
             tokio::time::timeout(Duration::from_secs(5), verify_inner(&target.state, request))
                 .await
                 .unwrap()
                 .unwrap_err();
         assert!(
-            walks.load(Ordering::SeqCst) > 1,
+            walks.load(Ordering::SeqCst) > preparation_walks + 1,
             "must exercise repeat walks"
         );
         assert!(error.contains("deadline mismatch"), "{error}");
@@ -2223,5 +2255,185 @@ mod tests {
             server.abort();
             assert_eq!(result.is_ok(), complete, "{result:?}");
         }
+    }
+
+    use std::sync::Arc;
+
+    async fn authority_context() -> crate::test_support::TestContext {
+        test_context(|config| {
+            config.serving_authority = Some(crate::serving_authority::AuthorityConfig {
+                instance: "test".into(),
+                namespace: "test".into(),
+                instance_uid: "test".into(),
+                pod_uid: "test".into(),
+                host: "test".into(),
+            });
+        })
+        .await
+    }
+
+    /// Serves `state` as its own named destination and runs `hook` once, when
+    /// the first retained-record batch of the source's walk arrives: after the
+    /// source took its hold and captured the barrier position, before it
+    /// rechecks that position.
+    async fn quiesce_with_walk_hook<F, Fut>(state: &SharedState, hook: F) -> Intent
+    where
+        F: Fn() -> Fut + Clone + Send + Sync + 'static,
+        Fut: std::future::Future<Output = ()> + Send,
+    {
+        state.store.run_backfill_index_build().unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let verifications = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let app = crate::http::router(state.clone()).layer(axum::middleware::from_fn(
+            move |request: axum::extract::Request, next: axum::middleware::Next| {
+                let verifications = verifications.clone();
+                let hook = hook.clone();
+                async move {
+                    if request.uri().path() == "/_internal/handover/verify"
+                        && verifications.fetch_add(1, Ordering::SeqCst) == 1
+                    {
+                        hook().await;
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let identity = state.runtime.authority.identity().clone();
+        let intent = Intent {
+            id: "barrier".into(),
+            destination: identity.clone(),
+            source_url: url.clone(),
+            destination_url: url,
+            deadline_ms: crate::utils::now_ms() + 300_000,
+        };
+        state
+            .runtime
+            .authority
+            .install(Grant {
+                epoch: 1,
+                holder: identity,
+                phase: "Quiescing".into(),
+                expires_ms: crate::utils::now_ms() + 15_000,
+                handover: Some(intent.clone()),
+                barrier: None,
+                resume_epoch: None,
+            })
+            .unwrap();
+        intent
+    }
+
+    async fn retained_source(state: &SharedState) {
+        state.store.sync_feed_activate().await.unwrap();
+        state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "test/project",
+                "retained",
+                "text/plain",
+                b"retained",
+            )
+            .await
+            .unwrap();
+    }
+
+    fn applied_through(state: &SharedState, intent: &Intent, seq: u64) {
+        state
+            .store
+            .write_sync_cursor(
+                &intent.source_url,
+                SyncPosition {
+                    incarnation: state.store.sync_feed().incarnation(),
+                    seq,
+                },
+            )
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn writes_refused_by_the_hold_do_not_break_the_source_barrier() {
+        let ctx = authority_context().await;
+        let state = ctx.state.clone();
+        retained_source(&state).await;
+        let refused = Arc::new(std::sync::Mutex::new(None));
+        let intent = quiesce_with_walk_hook(&state, {
+            let state = state.clone();
+            let refused = refused.clone();
+            move || {
+                let state = state.clone();
+                let refused = refused.clone();
+                async move {
+                    let head = state.store.sync_feed().head();
+                    let error = state
+                        .store
+                        .persist_inline_artifact_from_bytes(
+                            ArtifactProducer::Xcode,
+                            "test/project",
+                            "late",
+                            "text/plain",
+                            b"late",
+                        )
+                        .await
+                        .unwrap_err();
+                    *refused.lock().unwrap() = Some((error, head, state.store.sync_feed().head()));
+                }
+            }
+        })
+        .await;
+        applied_through(&state, &intent, state.store.sync_feed().head());
+
+        let receipt = prepare(&state, &intent).await;
+
+        let (error, before, after) = refused.lock().unwrap().clone().unwrap();
+        assert!(error.contains("retained corpus frozen"), "{error}");
+        assert!(after > before, "the refused write released a feed seq");
+        let receipt = receipt.unwrap();
+        assert_eq!(receipt.head, before);
+        assert_eq!(receipt.records, 1);
+    }
+
+    #[tokio::test]
+    async fn a_feed_row_committed_after_the_barrier_position_breaks_the_barrier() {
+        let ctx = authority_context().await;
+        let state = ctx.state.clone();
+        retained_source(&state).await;
+        let intent = quiesce_with_walk_hook(&state, {
+            let state = state.clone();
+            move || {
+                let state = state.clone();
+                async move { state.store.sync_feed().allocate().commit() }
+            }
+        })
+        .await;
+        applied_through(&state, &intent, state.store.sync_feed().head());
+
+        let error = prepare(&state, &intent).await.unwrap_err();
+
+        assert!(
+            error.starts_with("source changed or feed trimmed during barrier"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_barrier_position_covers_rows_staged_before_the_hold() {
+        let ctx = authority_context().await;
+        let state = ctx.state.clone();
+        retained_source(&state).await;
+        let intent = quiesce_with_walk_hook(&state, || async {}).await;
+        let staged = state.store.sync_feed().allocate();
+        let seq = staged.seq();
+        applied_through(&state, &intent, seq);
+        let commit = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            staged.commit();
+        });
+
+        let receipt = prepare(&state, &intent).await;
+        commit.await.unwrap();
+
+        assert_eq!(receipt.unwrap().head, seq);
     }
 }

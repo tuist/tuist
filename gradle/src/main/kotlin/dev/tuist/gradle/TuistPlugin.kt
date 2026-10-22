@@ -48,7 +48,8 @@ data class TuistGradleConfig(
     val stressNewTestsMode: String? = null,
     val stressRepetition: StressRepetitionContext? = null,
     val customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
-    val actorId: String? = null
+    val actorId: String? = null,
+    val networkTrustedBuildPublishing: Boolean = false
 ) {
     data class Network(val proxy: Boolean)
 
@@ -73,6 +74,8 @@ data class TuistGradleConfig(
                 ),
                 uploadInBackground = extension.uploadInBackground,
                 actorId = extension.buildInsights.actorId,
+                networkTrustedBuildPublishing = settings.providers.environmentVariable("TUIST_NETWORK_TRUSTED_PUBLISHING")
+                    .orNull?.let { it == "true" } ?: extension.buildInsights.networkTrustedPublishing,
                 testQuarantineEnabled = extension.testQuarantine.enabled,
                 stressNewTestsMode = StressNewTestsMode.resolve(
                     environmentValue = System.getenv(STRESS_MODE_ENV),
@@ -337,6 +340,7 @@ open class StressNewTestsExtension {
  */
 open class BuildInsightsExtension {
     var actorId: String? = null
+    var networkTrustedPublishing: Boolean = false
 
     private val configuredTags = mutableListOf<String>()
     private val configuredValues = mutableMapOf<String, String>()

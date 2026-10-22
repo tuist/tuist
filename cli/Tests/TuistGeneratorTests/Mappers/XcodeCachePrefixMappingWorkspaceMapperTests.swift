@@ -29,7 +29,6 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
     /// `rootDirectory` is what the root directory locator finds from the workspace path.
     private func makeSubject(
         enableCaching: Bool = true,
-        enableCachingPrefixMapping: Bool = true,
         rootDirectory: AbsolutePath?
     ) -> XcodeCachePrefixMappingWorkspaceMapper {
         let rootDirectoryLocator = MockRootDirectoryLocating()
@@ -38,10 +37,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
             .willReturn(rootDirectory)
         return XcodeCachePrefixMappingWorkspaceMapper(
             tuist: Tuist(
-                project: .generated(.test(generationOptions: .test(
-                    enableCaching: enableCaching,
-                    enableCachingPrefixMapping: enableCachingPrefixMapping
-                ))),
+                project: .generated(.test(generationOptions: .test(enableCaching: enableCaching))),
                 fullHandle: nil,
                 inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
                 url: Constants.URLs.production
@@ -95,24 +91,6 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
             #""$(SYMROOT)=/^products""#,
             #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
         ])
-    }
-
-    @Test(.withMockedXcodeController)
-    func map_whenCachingPrefixMappingDisabled_preservesWorkspaceAndUserMappings() async throws {
-        try stubXcodeVersion(Version(27, 0, 0))
-        let subject = makeSubject(enableCachingPrefixMapping: false, rootDirectory: repository)
-        var project = appProject
-        project.settings = project.settings.with(base: [
-            "TUIST_PREFIX_MAPPING_ROOT_DIR": "/custom",
-            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["/custom=/^custom"]),
-            "CLANG_OTHER_PREFIX_MAPPINGS": .array(["/custom=/^custom"]),
-        ])
-        let original = WorkspaceWithProjects(workspace: workspace, projects: [project, externalProject])
-
-        let (mapped, sideEffects) = try await subject.map(workspace: original)
-
-        #expect(mapped == original)
-        #expect(sideEffects.isEmpty)
     }
 
     @Test(.withMockedXcodeController)

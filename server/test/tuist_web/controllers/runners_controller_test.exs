@@ -329,6 +329,59 @@ defmodule TuistWeb.RunnersControllerTest do
 
       assert response["cache_endpoint_url"] == "https://acme-ber1-runners.kura.tuist.dev"
     end
+
+    test "puts every macOS job on managed cache volumes", %{conn: conn} do
+      account = account_fixture()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      github = %{kind: :github, jit: "JITCONFIG"}
+
+      buildkite = %{
+        kind: :buildkite,
+        token: "bkjat_opaque",
+        job_uuid: "0189abcd-0000-4000-8000-000000000000",
+        organization_slug: "acme",
+        report_token: "report-token"
+      }
+
+      gitlab = %{
+        kind: :gitlab,
+        url: "https://gitlab.example.com",
+        payload: %{},
+        report_token: "report-token",
+        waiting_trace: nil
+      }
+
+      dispatch = fn account, platform, credential ->
+        stub(Runners, :dispatch_for_sa, fn _, _ ->
+          {:ok,
+           %{
+             credential: credential,
+             account: account,
+             runner_name: "pod-1",
+             workflow_job_id: 4242,
+             fleet_on_cluster_network: false,
+             fleet_platform: platform
+           }}
+        end)
+
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+        |> json_response(200)
+      end
+
+      for credential <- [github, buildkite, gitlab] do
+        assert %{"automatic_caches" => false, "managed_cache_volumes" => true} = dispatch.(account, :macos, credential)
+      end
+
+      linux = dispatch.(account, :linux, github)
+      refute Map.has_key?(linux, "automatic_caches")
+      refute Map.has_key?(linux, "managed_cache_volumes")
+    end
   end
 
   describe "POST /api/internal/runners/volume-head/upload-url" do

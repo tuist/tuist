@@ -995,3 +995,35 @@ func TestCacheReadinessIsPreferredRatherThanRequired(t *testing.T) {
 		t.Fatal("changed scheduling for disabled cache fleet")
 	}
 }
+
+func TestPreferCacheVolumeNode(t *testing.T) {
+	p := basePool("")
+	pod := build(t, p)
+
+	PreferCacheVolumeNode(pod, "b03")
+
+	terms := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if len(terms) != 2 {
+		t.Fatalf("terms = %+v, want the golden and one volume preference", terms)
+	}
+	if terms[0].Preference.MatchExpressions[0].Key != GoldenNodeAffinityKey(p.Spec.Image) {
+		t.Fatal("the golden preference must stay first")
+	}
+	field := terms[1].Preference.MatchFields[0]
+	if field.Key != "metadata.name" || field.Operator != corev1.NodeSelectorOpIn || strings.Join(field.Values, ",") != "b03" {
+		t.Fatalf("volume preference = %+v, want metadata.name In [b03]", field)
+	}
+	// A host without the golden pulls the image for minutes; one without a
+	// volume only starts that volume cold.
+	if terms[1].Weight >= terms[0].Weight {
+		t.Fatalf("volume preference weighs %d, want less than the golden %d", terms[1].Weight, terms[0].Weight)
+	}
+}
+
+func TestPreferCacheVolumeNodeLeavesThePodAloneWithoutANode(t *testing.T) {
+	pod := build(t, basePool("linux"))
+	PreferCacheVolumeNode(pod, "")
+	if pod.Spec.Affinity != nil {
+		t.Fatalf("affinity = %+v, want none", pod.Spec.Affinity)
+	}
+}

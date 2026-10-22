@@ -90,6 +90,7 @@ class AtlasAuthentication(
     private val storage = AtlasSecureStorage(context.applicationContext)
     private val worker = Executors.newSingleThreadExecutor()
     private val holidayWorker = Executors.newFixedThreadPool(2)
+    private val presenceWorker = Executors.newFixedThreadPool(2)
 
     @Volatile private var sessionIdentity = 0
     private val main = Handler(Looper.getMainLooper())
@@ -105,6 +106,7 @@ class AtlasAuthentication(
         if (apiRequests == 0) {
             worker.shutdown()
             holidayWorker.shutdown()
+            presenceWorker.shutdown()
         }
         listener = null
     }
@@ -204,12 +206,47 @@ class AtlasAuthentication(
                 if (closing && apiRequests == 0) {
                     worker.shutdown()
                     holidayWorker.shutdown()
+                    presenceWorker.shutdown()
                 }
             }
         }
     }
 
     fun timeOff(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) = operation("time_off", action, completion)
+
+    fun business(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) = operation("business", action, completion)
+
+    fun presence(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        if (action.optString("action") == "open") {
+            operation("presence", action, completion)
+            return
+        }
+        apiRequests += 1
+        presenceWorker.execute {
+            val result = runCatching { command(JSONObject(action.toString()).put("operation", "presence")) }
+            main.post {
+                apiRequests -= 1
+                completion(result)
+                if (closing && apiRequests == 0) {
+                    worker.shutdown()
+                    holidayWorker.shutdown()
+                    presenceWorker.shutdown()
+                }
+            }
+        }
+    }
+
+    private fun operation(
+        operation: String,
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
     ) {
@@ -223,6 +260,11 @@ class AtlasAuthentication(
         fun finish(result: Result<JSONObject>) {
             main.post {
                 apiRequests -= 1
+                if (identity != sessionIdentity && operation == "presence") {
+                    result.getOrNull()?.optString("connection")?.takeIf { it.isNotEmpty() }?.let { id ->
+                        presence(JSONObject().put("action", "close").put("connection", id)) {}
+                    }
+                }
                 completion(
                     if (identity ==
                         sessionIdentity
@@ -236,6 +278,7 @@ class AtlasAuthentication(
                 if (closing && apiRequests == 0) {
                     worker.shutdown()
                     holidayWorker.shutdown()
+                    presenceWorker.shutdown()
                 }
             }
         }
@@ -245,16 +288,18 @@ class AtlasAuthentication(
                 val saved = storage.load("session") ?: throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
                 val restored = command(JSONObject().put("operation", "restore").put("session", saved))
                 storage.save("session", restored)
-                // Only refresh/persistence is serialized. Holiday networking must not hold up sign-out.
+                // Only refresh/persistence is serialized. Networking must not hold up sign-out.
                 holidayWorker.execute {
                     val result =
                         runCatching {
                             if (identity != sessionIdentity) throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
-                            command(JSONObject(action.toString()).put("operation", "time_off").put("session", restored))
+                            command(JSONObject(action.toString()).put("operation", operation).put("session", restored))
                         }
                     finish(
                         result.fold({ Result.success(it) }, {
-                            Result.failure(if (it is AuthFailure) it else IllegalStateException("Could not update holidays. Try again."))
+                            Result.failure(
+                                if (it is AuthFailure) it else IllegalStateException("Could not complete the request. Try again."),
+                            )
                         }),
                     )
                 }

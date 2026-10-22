@@ -13,6 +13,9 @@ const DocsContentHook = {
   updated() {
     initializeCodeBlocks(this.el);
   },
+  reconnected() {
+    initializeCodeBlocks(this.el);
+  },
 };
 
 export default DocsContentHook;

@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@style/AtlasTheme"
         android:allowBackup="false"
         android:enableOnBackInvokedCallback="true"

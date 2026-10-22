@@ -98,20 +98,30 @@ struct CargoProcess {
         directory: AbsolutePath,
         environment: [String: String]
     ) async -> (root: URL, target: URL) {
+        let fallback = URL(fileURLWithPath: directory.pathString)
+        guard let object = await packageMetadata(
+            executable: executable, arguments: arguments, directory: directory, environment: environment
+        ), let root = object["workspace_root"] as? String, let target = object["target_directory"] as? String else {
+            return (fallback, fallback.appendingPathComponent("target"))
+        }
+        return (URL(fileURLWithPath: root), URL(fileURLWithPath: target))
+    }
+
+    func packageMetadata(
+        executable: String,
+        arguments: [String],
+        directory: AbsolutePath,
+        environment: [String: String]
+    ) async -> [String: Any]? {
         var options = ["metadata", "--no-deps", "--offline", "--locked", "--format-version", "1"]
-        for (index, value) in arguments.enumerated() {
+        for (index, value) in arguments.prefix(while: { $0 != "--" }).enumerated() {
             if ["--manifest-path", "--config"].contains(value), index + 1 < arguments.count { options += [
                 value,
                 arguments[index + 1],
             ] } else if value.hasPrefix("--manifest-path=") || value.hasPrefix("--config=") { options.append(value) }
         }
-        let fallback = URL(fileURLWithPath: directory.pathString)
-        guard let output = try? await capture(executable, arguments: options, environment: environment, directory: directory),
-              let object = try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
-              let root = object["workspace_root"] as? String, let target = object["target_directory"] as? String
-        else {
-            return (fallback, fallback.appendingPathComponent("target"))
-        }
-        return (URL(fileURLWithPath: root), URL(fileURLWithPath: target))
+        guard let output = try? await capture(executable, arguments: options, environment: environment, directory: directory)
+        else { return nil }
+        return try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
     }
 }

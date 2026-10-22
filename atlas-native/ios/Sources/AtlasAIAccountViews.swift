@@ -1,18 +1,7 @@
 import SwiftUI
 import UIKit
 
-enum AtlasSettingsStyle {
-    static let tint = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 102 / 255, green: 199 / 255, blue: 232 / 255, alpha: 1)
-            : UIColor(red: 8 / 255, green: 124 / 255, blue: 170 / 255, alpha: 1)
-    })
-    static let onTint = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? .black : .white
-    })
-}
-
-private enum AtlasAIService: String {
+enum AtlasAIService: String {
     case claude, chatgpt
 
     var title: String { self == .claude ? "Claude" : "ChatGPT" }
@@ -22,7 +11,7 @@ private enum AtlasAIService: String {
     }
 }
 
-private struct AtlasServiceIcon: View {
+struct AtlasServiceIcon: View {
     let service: AtlasAIService
     var size: CGFloat = 36
 
@@ -52,87 +41,6 @@ private struct AtlasServiceHeader: View {
         .padding(.vertical, 16)
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets())
-    }
-}
-
-struct AtlasSettingsView: View {
-    let server: URL
-    @ObservedObject var accounts: AtlasAIAccounts
-    var signOut: () -> Void
-
-    var body: some View {
-        Form {
-            Section("Account") {
-                HStack(spacing: 12) {
-                    Image(systemName: "globe")
-                        .foregroundStyle(.tint)
-                        .frame(width: 36, height: 36)
-                        .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Atlas server")
-                        Text(server.host() ?? server.absoluteString)
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 4)
-                .accessibilityElement(children: .combine)
-            }
-            Section {
-                accountLink(.claude) { AtlasClaudeAccountView(accounts: accounts) }
-                accountLink(.chatgpt) { AtlasChatGPTAccountView(accounts: accounts) }
-            } header: {
-                Text("AI accounts")
-            } footer: {
-                Text("These accounts will power sessions you start. Sessions aren’t available yet.")
-            }
-            if let message = accounts.errorMessage {
-                Section {
-                    Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.red)
-                    Button("Try again") { Task { await accounts.retry() } }.disabled(accounts.busy)
-                }
-            }
-            Section {
-                Button(role: .destructive, action: signOut) {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-                .tint(.red)
-                .disabled(accounts.busy)
-            }
-        }
-        .navigationTitle("Settings")
-        .tint(AtlasSettingsStyle.tint)
-        .task { await accounts.load() }
-        .refreshable { await accounts.load() }
-    }
-
-    private func accountLink<Destination: View>(
-        _ service: AtlasAIService, @ViewBuilder destination: () -> Destination
-    ) -> some View {
-        NavigationLink(destination: destination) {
-            HStack(spacing: 12) {
-                AtlasServiceIcon(service: service)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(service.title).font(.body.weight(.medium))
-                    HStack(spacing: 4) {
-                        if accounts.account(service.rawValue)?.credentialConfigured == true {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).accessibilityHidden(true)
-                        }
-                        Text(status(service.rawValue)).foregroundStyle(.secondary)
-                    }
-                    .font(.subheadline)
-                }
-                Spacer()
-                if accounts.busy && accounts.accounts.isEmpty { ProgressView() }
-            }
-            .padding(.vertical, 5)
-            .accessibilityElement(children: .combine)
-        }
-    }
-
-    private func status(_ provider: String) -> String {
-        guard let account = accounts.account(provider) else { return "Not loaded" }
-        return account.credentialConfigured ? "Credentials saved" : "Not connected"
     }
 }
 
@@ -213,9 +121,9 @@ struct AtlasClaudeAccountView: View {
                     Text(saving ? "Saving…" : "Save connection")
                 }
                 .frame(maxWidth: .infinity, minHeight: 24)
-                .foregroundStyle(canSave ? AtlasSettingsStyle.onTint : Color.secondary)
             }
             .buttonStyle(.borderedProminent)
+            .modifier(AtlasPrimaryAction())
             .controlSize(.large)
             .disabled(!canSave)
             .frame(maxWidth: 560)
@@ -224,7 +132,7 @@ struct AtlasClaudeAccountView: View {
             .frame(maxWidth: .infinity)
             .background(.bar)
         }
-        .tint(AtlasSettingsStyle.tint)
+        .modifier(AtlasThemedContent())
         .onAppear { visible = true; accounts.clearError() }
         .onDisappear { visible = false; token = ""; accounts.clearError() }
         .confirmationDialog("Disconnect Claude?", isPresented: $confirmingDisconnect, titleVisibility: .visible) {
@@ -319,7 +227,7 @@ struct AtlasChatGPTAccountView: View {
         .navigationTitle("ChatGPT")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { actions }
-        .tint(AtlasSettingsStyle.tint)
+        .modifier(AtlasThemedContent())
         .task(id: accounts.login?.id) { if accounts.login != nil { await accounts.poll() } }
         .onAppear { accounts.clearError() }
         .onDisappear {
@@ -360,9 +268,9 @@ struct AtlasChatGPTAccountView: View {
                             Text(startLabel)
                         }
                         .frame(maxWidth: .infinity, minHeight: 24)
-                        .foregroundStyle(accounts.busy ? Color.secondary : AtlasSettingsStyle.onTint)
                     }
                     .buttonStyle(.borderedProminent)
+                    .modifier(AtlasPrimaryAction())
                     .controlSize(.large)
                     .disabled(accounts.busy)
                 }

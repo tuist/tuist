@@ -43,6 +43,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
      %{
        tests: [],
        aborted?: false,
+       failures: nil,
        monotonic_start_ns: System.monotonic_time(),
        ran_at: DateTime.utc_now(),
        opts: merged,
@@ -73,7 +74,12 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     do: {:noreply, state}
 
   def handle_cast({:test_finished, test}, state) do
-    {:noreply, %{state | tests: [record(test) | state.tests]}}
+    {:noreply,
+     %{
+       state
+       | tests: [record(test) | state.tests],
+         failures: merge_failures(state.failures, failure_kind(test.state))
+     }}
   end
 
   # ExUnit stopped early because of `--max-failures`: tests it never reached
@@ -98,6 +104,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
             |> build_payload(duration_ms, state.ran_at, state.opts)
             |> put_coverage_snapshot(state.opts)
             |> put_coverage_lines(state.opts)
+            |> put_timed_out(state.failures)
 
           send(owner, {@deferred, {payload, state.opts, state.aborted?}})
 
@@ -153,6 +160,25 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
       payload
   end
+
+  # Whether every test that failed did so by running out of time, which the
+  # owner reads before deciding to retry. Not part of the payload it sends.
+  defp put_timed_out(payload, :timeout), do: Map.put(payload, :timed_out, true)
+  defp put_timed_out(payload, _failures), do: payload
+
+  defp failure_kind({:failed, entries}) do
+    if Enum.all?(entries, &match?({_kind, %ExUnit.TimeoutError{}, _stacktrace}, &1)),
+      do: :timeout,
+      else: :other
+  end
+
+  defp failure_kind({:invalid, _module}), do: :other
+  defp failure_kind(_state), do: nil
+
+  defp merge_failures(failures, nil), do: failures
+  defp merge_failures(nil, kind), do: kind
+  defp merge_failures(:timeout, :timeout), do: :timeout
+  defp merge_failures(_failures, _kind), do: :other
 
   @doc """
   Sends a test run. A failure is reported through the shell and never raised.

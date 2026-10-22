@@ -48,6 +48,37 @@ extension Tuist {
             case xcproj
         }
 
+        /// Code coverage of the project's own targets with the binary cache.
+        ///
+        /// Both values feed the build settings and binary-cache keys of the project's own targets, so they must be the
+        /// same on every machine that shares a cache: a value that differs between CI and local machines gives them
+        /// different keys. Don't derive them from the environment, for example from `Environment.isCI`.
+        public struct Coverage: Codable, Equatable, Sendable {
+            /// Whether coverage is on for the project. The project's own targets are read from and warmed into the
+            /// binary cache with coverage counters in configurations Xcode treats as Debug, so a test run that collects
+            /// coverage measures the cached code too; external packages and Release configurations stay plain.
+            /// Tuist's automatic schemes, and schemes you define that leave `TestActionOptions.coverage` unset, collect
+            /// coverage in their test action, and Debug configurations link the profile runtime
+            /// (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`). A scheme that sets `coverage` keeps its value, and test plans
+            /// decide coverage themselves. The `TUIST_COVERAGE_ENABLED` environment variable takes precedence over this
+            /// value.
+            public var enabled: Bool
+
+            /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.
+            /// Defaults to `false` because Xcode's coverage report and `xccov` can omit sources with mapped paths.
+            /// The coverage `tuist test` uploads reads them with `llvm-cov`. Requires `enableCaching`.
+            /// The `TUIST_COVERAGE_PREFIX_MAPPING` environment variable takes precedence over this value.
+            public var prefixMapping: Bool
+
+            /// Creates coverage options.
+            /// - Parameters:
+            ///   - enabled: Whether coverage is on for the project. Defaults to `false`.
+            ///   - prefixMapping: Whether coverage builds keep compilation-cache prefix mapping. Defaults to `false`.
+            public static func coverage(enabled: Bool = false, prefixMapping: Bool = false) -> Self {
+                Coverage(enabled: enabled, prefixMapping: prefixMapping)
+            }
+        }
+
         /// This is now deprecated.
         ///
         /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
@@ -125,18 +156,8 @@ extension Tuist {
         /// that names a different directory in every project.
         public var enableCaching: Bool
 
-        /// Controls whether Tuist adds compilation-cache prefix mappings on Xcode 27 and later.
-        /// Defaults to `true` and requires `enableCaching`. Set to `false` to keep unmapped source paths
-        /// when CI uses compilation caching but local builds do not. Compilation-cache keys then depend
-        /// on checkout and build-directory paths. Explicit mappings in project settings are preserved.
-        public var enableCachingPrefixMapping: Bool
-
-        /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.
-        /// Defaults to `false` because `xccov` cannot resolve the mapped source paths.
-        /// Enable only when reading coverage with a tool such as `llvm-cov` and remapping paths using
-        /// each binary's target-specific `compilation-prefix-map.json`.
-        /// Requires both `enableCaching` and `enableCachingPrefixMapping`.
-        public var enableCoveragePrefixMapping: Bool
+        /// Code coverage of the project's own targets with the binary cache. Off by default.
+        public var coverage: Coverage
 
         /// When enabled, generates the Swift Package Registry configuration file during project generation.
         /// This eliminates the need to run `tuist registry setup` separately.
@@ -179,7 +200,6 @@ extension Tuist {
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
-            enableCoveragePrefixMapping: Bool = false,
             registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
@@ -198,8 +218,7 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
-                enableCachingPrefixMapping: true,
-                enableCoveragePrefixMapping: enableCoveragePrefixMapping,
+                coverage: .coverage(),
                 registryEnabled: registryEnabled,
                 additionalPackageResolutionArguments: additionalPackageResolutionArguments,
                 warningsAsErrors: warningsAsErrors,
@@ -210,7 +229,7 @@ extension Tuist {
             )
         }
 
-        /// Creates generation options with an explicit compilation-cache prefix-mapping policy.
+        /// Creates generation options with code coverage options for the binary cache.
         @_disfavoredOverload
         public static func options(
             disablePackageVersionLocking: Bool = false,
@@ -222,8 +241,7 @@ extension Tuist {
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
-            enableCachingPrefixMapping: Bool,
-            enableCoveragePrefixMapping: Bool = false,
+            coverage: Coverage,
             registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
@@ -246,8 +264,7 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
-                enableCachingPrefixMapping: enableCachingPrefixMapping,
-                enableCoveragePrefixMapping: enableCoveragePrefixMapping,
+                coverage: coverage,
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
                 defaultSwiftVersion: defaultSwiftVersion,
@@ -290,8 +307,7 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
-                enableCachingPrefixMapping: true,
-                enableCoveragePrefixMapping: false,
+                coverage: .coverage(),
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
@@ -329,8 +345,7 @@ extension Tuist {
                 disableSandbox: true,
                 includeGenerateScheme: false,
                 enableCaching: false,
-                enableCachingPrefixMapping: true,
-                enableCoveragePrefixMapping: false,
+                coverage: .coverage(),
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
@@ -343,6 +358,7 @@ extension Tuist {
 }
 
 extension Tuist.GenerationOptions {
+    /// A manifest encoded before `coverage` existed decodes with coverage off.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
@@ -365,8 +381,7 @@ extension Tuist.GenerationOptions {
             disableSandbox: try container.decode(Bool.self, forKey: .disableSandbox),
             includeGenerateScheme: try container.decode(Bool.self, forKey: .includeGenerateScheme),
             enableCaching: try container.decode(Bool.self, forKey: .enableCaching),
-            enableCachingPrefixMapping: try container.decodeIfPresent(Bool.self, forKey: .enableCachingPrefixMapping) ?? true,
-            enableCoveragePrefixMapping: try container.decode(Bool.self, forKey: .enableCoveragePrefixMapping),
+            coverage: try container.decodeIfPresent(Coverage.self, forKey: .coverage) ?? .coverage(),
             registryEnabled: try container.decode(Bool.self, forKey: .registryEnabled),
             warningsAsErrors: try container.decode(WarningsAsErrors.self, forKey: .warningsAsErrors),
             defaultSwiftVersion: try container.decode(String.self, forKey: .defaultSwiftVersion),

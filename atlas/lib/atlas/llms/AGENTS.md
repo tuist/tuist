@@ -1,4 +1,6 @@
-# Personal LLM connections
+# LLM connections and transport
+
+- `Runner.with_reply_stream/5` owns transient reply sessions. Local mode must use the buffered Condukt run path: ReqLLM's direct Finch streaming transport bypasses Req's Plug adapter. Buffer only the model delivery, not tool execution or session auditing; preserve provider errors, no-reply decisions, and supersession checks in the Slack consumer. External-provider replies retain incremental streaming. Do not make the sentinel `atlas-local` hostname network-reachable as a workaround.
 
 - `Connections` owns per-user Claude setup tokens and ChatGPT device authorization. This is independent of `Atlas.LLMs`'s server-wide inference configuration and does not yet launch user agent sessions.
 - Credential-bearing `Connection` structs and `credentials/2` results are server-only. Dashboard, API, and MCP return explicit metadata maps, never tokens, pending device IDs, authorization codes, or PKCE verifiers. Cloak encrypts all credential fields and redacts inspection. Failed provider responses must remain sanitized; never log Req requests or responses.

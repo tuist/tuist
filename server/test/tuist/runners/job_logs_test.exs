@@ -325,15 +325,17 @@ defmodule Tuist.Runners.JobLogsTest do
                15 => {45, 45}
              }
 
-      assert Enum.map(lines_for_step(ranges, job_id, 5), & &1.message) == [
-               "Prepare all required actions",
-               "##[group]Run ./.github/actions/simulator-workaround",
-               "##[endgroup]",
-               "##[start-action display=Apply Simulator Workaround;id=__self_2.__run]",
-               "##[group]Run echo workaround",
-               "##[endgroup]",
-               "##[error]Process completed with exit code 26.",
-               "##[end-action id=__self_2.__run;outcome=failure;conclusion=failure;duration_ms=204]"
+      # Numbered like GitHub's step view: the hidden `##[endgroup]` and
+      # `##[end-action]` delimiters don't take a line number.
+      assert Enum.map(lines_for_step(ranges, job_id, 5), &{&1.line_number, &1.message}) == [
+               {1, "Prepare all required actions"},
+               {2, "##[group]Run ./.github/actions/simulator-workaround"},
+               {nil, "##[endgroup]"},
+               {3, "##[start-action display=Apply Simulator Workaround;id=__self_2.__run]"},
+               {4, "##[group]Run echo workaround"},
+               {nil, "##[endgroup]"},
+               {5, "##[error]Process completed with exit code 26."},
+               {nil, "##[end-action id=__self_2.__run;outcome=failure;conclusion=failure;duration_ms=204]"}
              ]
     end
 
@@ -410,6 +412,31 @@ defmodule Tuist.Runners.JobLogsTest do
     test "empty log -> every step is unmapped" do
       steps = [%{number: 1, name: "Set up job", started_at: ~U[2026-05-28 12:00:00.000000Z]}]
       assert JobLogs.step_line_ranges(90_006, steps) == %{1 => nil}
+    end
+
+    test "list_step_lines/4 returns the lines from `:from`, numbered from the step's first line" do
+      job_id = 90_011
+
+      append_messages(job_id, [
+        "##[group]Run build.sh",
+        "##[endgroup]",
+        "one",
+        "two",
+        "##[group]Compile",
+        "three",
+        "##[endgroup]",
+        "four"
+      ])
+
+      lines = JobLogs.list_step_lines(job_id, 1, 8, from: 4)
+
+      assert Enum.map(lines, &{&1.line_number, &1.message}) == [
+               {3, "two"},
+               {4, "##[group]Compile"},
+               {5, "three"},
+               {nil, "##[endgroup]"},
+               {6, "four"}
+             ]
     end
   end
 

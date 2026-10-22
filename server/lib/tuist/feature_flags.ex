@@ -4,9 +4,22 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
   alias Tuist.Projects.Project
 
+  @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
+  def immutable_shard_reports_enabled?(account) do
+    FunWithFlags.enabled?(:immutable_shard_reports, for: account) and not xcode_coverage_enabled?(account)
+  end
+
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account) do
     FunWithFlags.enabled?(:kura_positive_fence, for: account)
+  end
+
+  @doc """
+  Default-off account opt-in to placement reading what each region served, not
+  only where runs report from. Off, placement decides exactly as it did before.
+  """
+  def kura_placement_served_signal_enabled?(account) do
+    FunWithFlags.enabled?(:kura_placement_served_signal, for: account)
   end
 
   @doc """
@@ -57,9 +70,11 @@ defmodule Tuist.FeatureFlags do
   job queued while the site is down moves to the rented fleet
   (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
   node in the site's runner-cache region, as `:runner_site_cache` gives one.
+  Staging and canary run their macOS jobs at a site, so it is on for every
+  account there.
   """
   def runner_site_enabled?(account) do
-    FunWithFlags.enabled?(:runner_site, for: account)
+    Environment.env() in [:stag, :can] or FunWithFlags.enabled?(:runner_site, for: account)
   end
 
   @doc """

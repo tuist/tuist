@@ -87,6 +87,49 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
              }
     end
 
+    test "names a custom volume's HEAD by the use that published it", %{conn: conn} do
+      stub(K8sClient, :create_runner_host_token_review, fn "host-token" ->
+        {:ok, %{namespace: "tuist", name: "tart-kubelet-mac-01", uid: "uid"}}
+      end)
+
+      expect(VolumePrefetch, :for_node, fn "mac-01" ->
+        [
+          %{
+            kind: "custom",
+            id: "use",
+            account_id: 42,
+            scope: "scope",
+            generation: 2,
+            image_digest: "d",
+            content_digest: "c",
+            volume_bytes: 30_000_000_000,
+            head_size_bytes: 12_000_000_000
+          }
+        ]
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer host-token")
+        |> get("/api/internal/runners/cache-masters")
+
+      assert json_response(conn, 200) == %{
+               "masters" => [
+                 %{
+                   "kind" => "custom",
+                   "id" => "use",
+                   "account_id" => 42,
+                   "scope" => "scope",
+                   "generation" => 2,
+                   "image_digest" => "d",
+                   "content_digest" => "c",
+                   "volume_bytes" => 30_000_000_000,
+                   "head_size_bytes" => 12_000_000_000
+                 }
+               ]
+             }
+    end
+
     test "refuses a token without the host audience", %{conn: conn} do
       stub(K8sClient, :create_runner_host_token_review, fn "runner-token" -> {:error, :unauthenticated} end)
       reject(&VolumePrefetch.for_node/1)

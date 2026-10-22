@@ -67,6 +67,19 @@ defmodule Tuist.Runners.GitLabTest do
     refute inspect(updated) =~ "glrt-secret"
   end
 
+  test "encrypts the optional API token and preserves it on blank rotation", %{account: account, connection: connection} do
+    assert is_nil(connection.api_token)
+    assert {:ok, updated} = GitLab.save_connection(account.id, %{id: connection.id, api_token: "glpat-secret"})
+    assert updated.api_token == "glpat-secret"
+    %{rows: [[stored]]} = Repo.query!("SELECT api_token FROM runner_gitlab_connections WHERE id = $1", [connection.id])
+    refute stored =~ "glpat-secret"
+    refute inspect(updated) =~ "glpat-secret"
+
+    assert {:ok, kept} = GitLab.save_connection(account.id, %{id: connection.id, runner_token: "", api_token: ""})
+    assert kept.api_token == "glpat-secret"
+    assert kept.runner_token == "glrt-secret"
+  end
+
   test "maps and encrypts exactly the acquired job in one transaction", %{connection: connection, account: account} do
     payload = payload()
     expect(Client, :request_job, fn ^connection -> {:ok, payload} end)

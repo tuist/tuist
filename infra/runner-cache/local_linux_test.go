@@ -74,6 +74,7 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	if err := firstHost.Attach(context.Background(), slot, mount); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, mount)
 	if err := os.WriteFile(filepath.Join(mount, "payload"), []byte("successful job"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -108,8 +109,13 @@ func TestLinuxLocalImagesE2E(t *testing.T) {
 	if err := otherHost.Attach(context.Background(), other, otherMount); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, otherMount)
 	if data, err := os.ReadFile(filepath.Join(otherMount, "payload")); err != nil || string(data) != "successful job" {
 		t.Fatal("cross-host master changed", string(data), err)
+	}
+	// A job that only read the volume leaves nothing to save.
+	if err := otherHost.Seal(other, otherMount); !errors.Is(err, ErrUnchanged) {
+		t.Fatal("a job that only read the volume would save it:", err)
 	}
 	// Discarding a private branch must leave the saved master usable.
 	if err := firstHost.Delete(warm, warmMount); err != nil {
@@ -147,6 +153,7 @@ func TestLinuxLocalImagesRejectsExhaustedBackingFilesystem(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, mount); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, mount)
 	if err := os.WriteFile(filepath.Join(mount, "payload"), []byte("saved contents"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -250,6 +257,7 @@ func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T)
 	if err := b.Attach(context.Background(), seed, path); err != nil {
 		t.Fatal(err)
 	}
+	afterMarker(t, path)
 	if err := os.WriteFile(filepath.Join(path, "sentinel"), []byte("published"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -344,5 +352,63 @@ func TestLinuxLocalImagesTimeoutPrefetchRestartAndConcurrentClones(t *testing.T)
 		if slot.State != "deleted" {
 			t.Fatal("failed to reclaim", slot)
 		}
+	}
+}
+
+func TestLinuxLocalImagesGrowsAWarmCopyOnline(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated reflink filesystem and loop/mount privileges")
+	}
+	root, err := os.MkdirTemp(cache, "growth-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	remote := &diskTransfer{archive: filepath.Join(t.TempDir(), "remote.image")}
+	b := &LocalImages{Root: root, SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}
+	if err := b.Probe(); err != nil {
+		t.Fatal(err)
+	}
+	seed := Slot{Identity: identity(first), PodUID: "seed"}
+	path := filepath.Join(root, "seed")
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(seed, path)
+	if err := b.Attach(context.Background(), seed, path); err != nil {
+		t.Fatal(err)
+	}
+	afterMarker(t, path)
+	if err := os.WriteFile(filepath.Join(path, "payload"), []byte("saved contents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(seed, path); err != nil {
+		t.Fatal(err)
+	}
+	grown := seed
+	grown.ID = second
+	grown.PodUID = "grown"
+	grown.BaseGeneration = remote.generation
+	grown.ContentDigest = remote.content
+	grown.VolumeBytes = 2_000_000_000
+	grownPath := filepath.Join(root, "grown")
+	if err := os.Mkdir(grownPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(grown, grownPath)
+
+	if err := b.Attach(context.Background(), grown, grownPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if data, err := os.ReadFile(filepath.Join(grownPath, "payload")); err != nil || string(data) != "saved contents" {
+		t.Fatal("growth lost the saved contents", string(data), err)
+	}
+	if _, capacity, err := b.Measure(grown, grownPath); err != nil || capacity < 1_800_000_000 {
+		t.Fatal("filesystem was not grown online", capacity, err)
+	}
+	if info, err := os.Stat(b.master(grown)); err != nil || info.Size() != 1_000_000_000 {
+		t.Fatal("growth changed the master", info, err)
 	}
 }

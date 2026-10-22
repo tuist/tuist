@@ -1,0 +1,238 @@
+name: tuist/tuist Coverage Backfill
+
+# Collects Xcode code coverage for an earlier commit on main that has none:
+# full runs of TuistUnitTests and TuistApp at that commit, then
+# `tuist coverage complete`. Every merge is measured by tuist-project-tests.yml as it
+# lands; this is only for commits that missed it. Dispatch one at a time: each
+# holds two macOS runners for up to two hours.
+#
+# The runs read the binary cache's coverage variant (TUIST_COVERAGE_ENABLED in
+# mise.toml); a cached target is measured like one built from source, and what
+# the commit changed beyond the newest warm is built from source. The commit's
+# sources are tested with this workflow's tools (main's mise.toml), because an
+# older pin of the CLI may not upload coverage at all, but its .xcode-version is
+# its own, so commits before the move to Xcode 27 (f834b57656) cannot run on
+# this image.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: A commit on main to collect coverage for
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: true
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_GITHUB_SLSA: 0
+  # Collects per-test evidence from the linked TestCoverageAttribution package.
+  TUIST_COVERAGE_EVIDENCE: "1"
+
+# A group per commit, so dispatching the same commit twice runs it once.
+concurrency:
+  group: tuist-project-coverage-backfill-${{ inputs.sha }}
+  cancel-in-progress: false
+
+jobs:
+  # The commit to collect. It must be on main: the CLI labels the run with the
+  # branch it was dispatched from, so a commit from anywhere else would be
+  # reported as main's.
+  commit:
+    name: Resolve Commit
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    if: github.repository == 'tuist/tuist'
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Dispatch a backfill from main, so its runs are labelled with main."
+            exit 1
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA" --jq .sha)
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...$GITHUB_SHA" --jq .status)
+          if [ "$status" != "ahead" ] && [ "$status" != "identical" ]; then
+            echo "::error::$sha is not on main."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  cli-unit-tests:
+    name: CLI Unit Tests
+    needs: commit
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 120
+    if: github.repository == 'tuist/tuist'
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
+      TUIST_EE: "1"
+      MISE_LOCKED: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.commit.outputs.sha }}
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Use this workflow's tools
+        if: needs.commit.outputs.sha != github.sha
+        # main's mise.toml and mise.lock, and the scripts mise.toml sources, over
+        # the older commit's, hidden from git: a run on a dirty checkout keeps
+        # its coverage off the commit. The scripts matter: an older
+        # cache_ee_env.sh turns the compilation cache back on.
+        run: |
+          git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
+      - name: Initialize TuistCacheEE submodule
+        run: bash mise/tasks/cli/ee.sh
+      - uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: coverage-macos-workspace-${{ github.job }}
+      - name: Install stable Rust for Cargo reporting fixtures
+        uses: ./.github/actions/mise
+        env:
+          MISE_LOCKED: 0
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
+      # Every test runs: selective testing would skip tests. The scheme leaves
+      # its test action's coverage unset and follows TUIST_COVERAGE_ENABLED; the
+      # CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`),
+      # and TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix mapping in coverage
+      # builds, which the CLI maps back.
+      - name: Run tests with coverage
+        run: tuist test TuistUnitTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 4
+
+  app-tests:
+    name: App Tests
+    needs: commit
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    if: github.repository == 'tuist/tuist'
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+      MISE_LOCKED: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.commit.outputs.sha }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Use this workflow's tools
+        if: needs.commit.outputs.sha != github.sha
+        run: |
+          git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
+      # Only the CLI, locked, as the other jobs install it. A full install on a
+      # cold cache writes checksums into mise.lock for tools locked without
+      # them (erlang, elixir), so the CLI reports the run from a dirty
+      # checkout, whose coverage the server leaves out of the commit.
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: coverage-macos-workspace-${{ github.job }}
+      - name: Run tests with coverage
+        run: tuist test TuistApp --no-selective-testing -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+  # Only a complete commit joins the coverage trend. A CLI release older than
+  # `tuist coverage complete` skips the signal, and the commit stays in progress.
+  complete:
+    name: Complete Coverage
+    needs: [commit, cli-unit-tests, app-tests]
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist'
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.commit.outputs.sha }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Use this workflow's tools
+        if: needs.commit.outputs.sha != github.sha
+        run: |
+          git fetch --no-tags --depth 1 origin "$GITHUB_SHA"
+          files="mise.toml mise.lock mise/utilities/cache_ee_env.sh mise/utilities/dev_instance_env.sh"
+          for file in $files; do git show "$GITHUB_SHA:$file" > "$file"; done
+          # shellcheck disable=SC2086
+          git update-index --skip-worktree $files
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Signal that the commit's coverage is complete
+        # A release without the command still exits 0 for `--help`, printing
+        # the root help instead. The command's usage line comes from its path,
+        # not its wording, and never wraps at the command's name.
+        run: |
+          help=$(tuist coverage complete --help 2>/dev/null || true)
+          if grep -qE "^USAGE: tuist coverage complete( |$)" <<< "$help"; then
+            tuist coverage complete
+          else
+            echo "::notice::$(tuist version) has no 'tuist coverage complete'; the commit stays in progress until a release with it is pinned."
+          fi

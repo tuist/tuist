@@ -1174,6 +1174,9 @@ public enum Module: String, CaseIterable {
                 ]
             case .cas:
                 [
+                    .external(name: "FileSystem"),
+                    .external(name: "Path"),
+                    .external(name: "SwiftToolsSupport"),
                     .target(name: Module.server.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.environment.targetName),
@@ -1789,6 +1792,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.process.targetName),
                     .target(name: Module.reapi.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.testSupport.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "ArgumentParser"),
@@ -1980,7 +1984,6 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
-                    .target(name: Module.hasher.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loader.targetName),
@@ -2188,6 +2191,9 @@ public enum Module: String, CaseIterable {
                 ]
             case .cas:
                 [
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .target(name: Module.process.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.environment.targetName),

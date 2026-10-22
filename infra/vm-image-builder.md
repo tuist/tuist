@@ -289,6 +289,45 @@ entirely.
 The same fragility hits the cluster's runners-fleet hosts; look
 there for any process improvements that land later.
 
+## Moving the fleet to a new macOS release
+
+A builder's macOS is the `os` family its Machine was created with, and
+its runner labels are the `ghRunnerLabels` it registered with at
+bootstrap. Neither changes on a running builder: the MachineDeployment
+rolls `OnDelete`, and the bootstrap passes the labels to the runner's
+`config.sh` once. So the fleet moves by adding builders on the new
+release and retiring the old ones, and a bake in progress is never cut
+short.
+
+1. **Put a host on the new release in the pool.** Adoption only claims
+   a `tuist-pool-` host that already runs the pinned family, and every
+   other macOS fleet pins its own, so a host on the new release is only
+   adoptable by this fleet. Reinstall it from the Scaleway console and
+   rename it to `tuist-pool-<anything>` once the reinstall finishes.
+2. **Add a builder.** Set `buildersFleet.machine.os` to the new family
+   exactly as Scaleway reports it in `os.family` (`scw apple-silicon
+   server get`): macOS 27 is `Golden Gates`. Set `ghRunnerLabels` to a
+   set without `vm-image-builder` (for example
+   `self-hosted,macos,bare-metal,macos-27`),
+   and raise `replicas` by one. Only the new Machine picks either up. No
+   workflow matches a runner without `vm-image-builder`, so it takes no
+   jobs yet. A deploy can scale the MachineSet before it updates the
+   template, and the new Machine then clones the old template. Check
+   the new ScalewayAppleSiliconMachine's `spec.os` and
+   `spec.ghActionsRunner.ghRunnerLabels` right after the deploy; if they
+   are the old ones, delete that Machine while it is still `Pending`,
+   and the MachineSet recreates it from the updated template. Changing
+   the template in one deploy and `replicas` in the next avoids it.
+3. **Grant Local Network access** on the new host (see above) and run
+   one bake against its own label to check it.
+4. **Promote it.** Add the `vm-image-builder` label to its runner in the
+   org's Settings → Actions → Runners.
+5. **Retire an old builder.** Remove `vm-image-builder` from its runner
+   so it takes no new job, wait until GitHub shows it idle, then delete
+   its Machine. With `replicas` raised, the MachineDeployment replaces
+   it with a builder on the new release, which needs steps 1, 3 and 4
+   again. Lower `replicas` instead to shrink back.
+
 ## Keychain access for `tart login`
 
 For the same family of reasons, `tart login ghcr.io` fails on

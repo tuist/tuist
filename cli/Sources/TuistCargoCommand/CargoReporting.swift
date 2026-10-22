@@ -75,13 +75,30 @@ struct CargoReporting {
                 "duration": report.duration,
                 "status": failed ? "failure" : "success",
                 "test_modules": report.modules,
-                "scheme": environment["TUIST_SCHEME"] ?? "nextest",
+                "scheme": CargoNextestRun.scheme(label: environment["TUIST_SCHEME"]),
                 "execution_mode": "parallel",
             ],
             uniquingKeysWith: { _, new in new }
         )
         if let inventory = run.inventory { payload["enumerated_tests"] = inventory.enumeration }
         if let shardID = run.shardID { payload["shard_plan_id"] = shardID; payload["shard_index"] = run.shardIndex }
+        await submit(payload, kind: "tests")
+    }
+
+    func tests(report: CargoTestReport, metadata: [String: Any], failed: Bool) async {
+        var payload = metadata
+        let label = environment["TUIST_SCHEME"].flatMap { $0.isEmpty ? nil : $0 }
+        payload.merge(
+            [
+                "id": UUID().uuidString,
+                "build_system": "cargo",
+                "duration": report.duration,
+                "status": failed ? "failure" : "success",
+                "test_modules": report.modules,
+                "scheme": label.map { "cargo test · \($0)" } ?? "cargo test",
+            ],
+            uniquingKeysWith: { _, new in new }
+        )
         await submit(payload, kind: "tests")
     }
 
@@ -101,6 +118,11 @@ struct CargoReporting {
 }
 
 struct CargoNextestRun {
+    static func scheme(label: String?) -> String {
+        let label = label ?? "nextest"
+        return label == "cargo test" || label.hasPrefix("cargo test · ") ? "cargo nextest run · \(label)" : label
+    }
+
     let arguments: [String]
     let junitURL: URL
     let inventory: NextestInventory?

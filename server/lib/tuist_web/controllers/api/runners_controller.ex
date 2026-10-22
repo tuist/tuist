@@ -129,14 +129,19 @@ defmodule TuistWeb.API.RunnersController do
         type: :string,
         description: "The label workflows reference in runs-on to run jobs on this profile."
       },
+      cache_writer_all_branches: %Schema{
+        type: :boolean,
+        description:
+          "Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save."
+      },
       cache_writer_default_branch: %Schema{
         type: :boolean,
-        description: "Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes."
+        description: "Whether jobs on each repository's default branch save custom cache volume changes."
       },
       cache_writer_branches: %Schema{
         type: :array,
         items: %Schema{type: :string},
-        description: "Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes."
+        description: "Additional branch names or * patterns whose jobs save custom cache volume changes."
       },
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
@@ -149,6 +154,7 @@ defmodule TuistWeb.API.RunnersController do
       :memory_gb,
       :protected,
       :runs_on_label,
+      :cache_writer_all_branches,
       :cache_writer_default_branch,
       :cache_writer_branches,
       :inserted_at,
@@ -230,6 +236,7 @@ defmodule TuistWeb.API.RunnersController do
     :vcpus,
     :memory_gb,
     :xcode_version,
+    :cache_writer_all_branches,
     :cache_writer_default_branch,
     :cache_writer_branches
   ]
@@ -240,6 +247,11 @@ defmodule TuistWeb.API.RunnersController do
     xcode_version: %Schema{
       type: :string,
       description: "An available Xcode version, for example 26.5. Required for macOS profiles."
+    },
+    cache_writer_all_branches: %Schema{
+      type: :boolean,
+      description:
+        "Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save."
     },
     cache_writer_default_branch: %Schema{
       type: :boolean,
@@ -636,7 +648,7 @@ defmodule TuistWeb.API.RunnersController do
   operation(:update_profile,
     summary: "Update a runner profile.",
     description:
-      "Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.",
+      "Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.",
     operation_id: "updateRunnerProfile",
     parameters: @account_parameters ++ @profile_name_parameters,
     request_body: {"Profile changes", "application/json", %Schema{type: :object, properties: @profile_change_properties}},
@@ -792,6 +804,7 @@ defmodule TuistWeb.API.RunnersController do
       :memory_gb,
       :xcode_version,
       :protected,
+      :cache_writer_all_branches,
       :cache_writer_default_branch,
       :inserted_at,
       :updated_at

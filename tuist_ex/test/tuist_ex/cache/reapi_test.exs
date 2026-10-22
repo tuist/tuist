@@ -678,6 +678,121 @@ defmodule TuistEx.Cache.ReapiTest do
     assert String.downcase(request) =~ "authorization: bearer api-token"
   end
 
+  @tag timeout: 120_000
+  test "the ordinary cold compile alias publishes and restores dependency bundles remotely", %{
+    port: port,
+    store: store
+  } do
+    root =
+      Path.join(
+        System.tmp_dir!(),
+        "tuist-cold-remote-#{System.pid()}-#{System.unique_integer([:positive])}"
+      )
+
+    dependency = Path.join(root, "dependency")
+    project_dir = Path.join(root, "project")
+    File.mkdir_p!(Path.join(dependency, "lib"))
+    File.mkdir_p!(project_dir)
+    on_exit(fn -> File.rm_rf!(root) end)
+
+    File.write!(Path.join(dependency, "mix.exs"), """
+    defmodule ColdDependency.MixProject do
+      use Mix.Project
+      def project, do: [app: :cold_dependency, version: "0.1.0"]
+    end
+    """)
+
+    File.write!(
+      Path.join(dependency, "lib/probe.ex"),
+      "defmodule ColdDependency, do: def(value, do: 1)"
+    )
+
+    for args <- [
+          ["init", "--quiet"],
+          ["add", "."],
+          [
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.com",
+            "commit",
+            "-qm",
+            "fixture"
+          ]
+        ] do
+      {output, status} = System.cmd("git", args, cd: dependency, stderr_to_stdout: true)
+      assert status == 0, output
+    end
+
+    package = Path.dirname(Mix.Project.project_file()) |> Path.expand()
+
+    File.write!(Path.join(project_dir, "mix.exs"), """
+    defmodule ColdProject.MixProject do
+      use Mix.Project
+      def project do
+        [app: :cold_project, version: "0.1.0",
+         deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:cold_dependency, git: #{inspect(dependency)}}],
+         aliases: [compile: ["deps.compile tuist_ex --include-children", "deps.loadpaths --no-compile --no-deps-check", "tuist.compile"]],
+         tuist: [cache: [dependencies: [:cold_dependency], path: #{inspect(Path.join(root, "cache"))}]]]
+      end
+    end
+    """)
+
+    project = store |> :erlang.pid_to_list() |> to_string()
+
+    {server_url, requests} =
+      serve_responses([%{token: "scoped-cache-token"}, %{token: "scoped-cache-token"}], 90_000)
+
+    env = [
+      {"MIX_ENV", "test"},
+      {"MIX_BUILD_PATH", nil},
+      {"MIX_DEPS_PATH", nil},
+      {"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "2"},
+      {"TUIST_TOKEN", "fixture-token"},
+      {"TUIST_URL", server_url},
+      {"TUIST_PROJECT", "acme/" <> project},
+      {"TUIST_CACHE_ENDPOINT", "http://127.0.0.1:#{port}"}
+    ]
+
+    {output, status} =
+      System.cmd(System.find_executable("mix"), ["deps.get"],
+        cd: project_dir,
+        env: env,
+        stderr_to_stdout: true
+      )
+
+    assert status == 0, output
+
+    {output, status} =
+      System.cmd(System.find_executable("mix"), ["compile"],
+        cd: project_dir,
+        env: env,
+        stderr_to_stdout: true
+      )
+
+    assert status == 0, output
+    assert Agent.get(store, &map_size(&1.actions)) == 1, output
+    File.rm_rf!(Path.join(root, "cache"))
+    build_path = Path.join(project_dir, "_build/test/lib/cold_dependency")
+    File.rm_rf!(build_path)
+    Agent.update(store, &%{&1 | metadata: []})
+
+    {output, status} =
+      System.cmd(System.find_executable("mix"), ["compile"],
+        cd: project_dir,
+        env: env,
+        stderr_to_stdout: true
+      )
+
+    assert status == 0, output
+    refute output =~ "Generated cold_dependency app"
+    assert File.regular?(Path.join(build_path, "ebin/Elixir.ColdDependency.beam"))
+    assert Agent.get(store, & &1.metadata) != []
+    token_requests = Task.await(requests)
+    assert length(token_requests) == 2
+    assert Enum.all?(token_requests, &String.contains?(&1, "POST /api/cache/token?"))
+  end
+
   test "the runner endpoint override skips discovery and supports remote writes and hits", %{
     port: port,
     store: store
@@ -832,7 +947,7 @@ defmodule TuistEx.Cache.ReapiTest do
     ]
   end
 
-  defp serve_responses(responses) do
+  defp serve_responses(responses, timeout \\ 5_000) do
     {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
     {:ok, port} = :inet.port(listener)
     on_exit(fn -> :gen_tcp.close(listener) end)
@@ -840,7 +955,7 @@ defmodule TuistEx.Cache.ReapiTest do
     requests =
       Task.async(fn ->
         for response <- responses do
-          {:ok, socket} = :gen_tcp.accept(listener, 5_000)
+          {:ok, socket} = :gen_tcp.accept(listener, timeout)
           {:ok, request} = :gen_tcp.recv(socket, 0, 5_000)
           body = JSON.encode!(response)
 

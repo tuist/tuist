@@ -1,0 +1,241 @@
+package dev.tuist.atlas.preview
+
+import android.app.Activity
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.MenuItem
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import dev.tuist.atlas.AtlasAIAccountsModel
+import dev.tuist.atlas.AtlasAIAccountsScreen
+import dev.tuist.atlas.AtlasBusinessModel
+import dev.tuist.atlas.AtlasBusinessScreen
+import dev.tuist.atlas.AtlasCore
+import dev.tuist.atlas.AtlasHomeScreen
+import dev.tuist.atlas.AtlasPeopleScreen
+import dev.tuist.atlas.AtlasPresenceModel
+import dev.tuist.atlas.AtlasProfileModel
+import dev.tuist.atlas.AtlasWorkspaceModel
+import dev.tuist.atlas.AtlasWorkspaceScreen
+import org.json.JSONObject
+
+class BusinessPreviewActivity : Activity() {
+    private class State(
+        val failSave: Boolean,
+        val permissionDenied: Boolean,
+    ) {
+        val fixtures = AtlasBusinessFixtures()
+        val models = mutableMapOf<String, AtlasBusinessModel>()
+        var tab = "tasks"
+        var navigation: AtlasWorkspaceModel? = null
+        var profile: AtlasProfileModel? = null
+        var accounts: AtlasAIAccountsModel? = null
+        private var sequence = 1L
+        private var waiting: ((Result<JSONObject>) -> Unit)? = null
+        val presence =
+            AtlasPresenceModel { action, done ->
+                when (action.getString("action")) {
+                    "open" -> done(Result.success(JSONObject().put("connection", "preview-only")))
+                    "next" -> {
+                        if (action.getLong("after") < sequence) {
+                            done(Result.success(snapshot()))
+                        } else {
+                            waiting = done
+                        }
+                    }
+                    "update" -> {
+                        sequence += 1
+                        val completion = waiting
+                        waiting = null
+                        completion?.invoke(Result.success(snapshot()))
+                        done(Result.success(JSONObject().put("updated", true)))
+                    }
+                    else -> {
+                        val completion = waiting
+                        waiting = null
+                        completion?.invoke(Result.success(snapshot()))
+                        done(Result.success(JSONObject().put("closed", true)))
+                    }
+                }
+            }
+
+        private fun snapshot() =
+            JSONObject(
+                """{"location":{"resource":"people"},"people":[
+                {"id":"online","name":"Alex Morgan","email":"alex@example.org","online":true,"here":true},
+                {"id":"offline","name":"Sam Rivera","email":"sam@example.org","online":false,"here":false}]}""",
+            ).put("sequence", sequence)
+
+        fun request(
+            action: JSONObject,
+            done: (Result<JSONObject>) -> Unit,
+        ) {
+            val mutation = action.optString("action") !in listOf("list", "show")
+            Handler(Looper.getMainLooper()).postDelayed({
+                when {
+                    permissionDenied && action.getString("resource") == "invoices" ->
+                        done(Result.failure(IllegalStateException("You do not have permission to view Finance.")))
+                    mutation && failSave ->
+                        done(Result.failure(IllegalStateException("Preview save failed. Your draft is still here.")))
+                    else -> done(runCatching { fixtures.execute(action) })
+                }
+            }, if (mutation) 1000 else 100)
+        }
+    }
+
+    private lateinit var state: State
+    private var business: AtlasBusinessScreen? = null
+    private var workspace: AtlasWorkspaceScreen? = null
+    private var profile: AtlasAIAccountsScreen? = null
+    private var home: AtlasHomeScreen? = null
+    private var people: AtlasPeopleScreen? = null
+    private var unregisterBack: (() -> Unit)? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        checkBusinessModels()
+        checkPresenceModel()
+        state = lastNonConfigurationInstance as? State ?: State(
+            intent.getBooleanExtra("fail-save", false),
+            intent.getBooleanExtra("permission-denied", false),
+        ).apply {
+            tab = intent.getStringExtra("tab")?.takeIf { it in listOf("tasks", "accounts", "invoices", "browse", "profile") } ?: "tasks"
+        }
+        render()
+    }
+
+    override fun onRetainNonConfigurationInstance(): Any = state
+
+    override fun onDestroy() {
+        close()
+        if (!isChangingConfigurations) state.presence.setActive(false)
+        unregisterBack?.invoke()
+        super.onDestroy()
+    }
+
+    private fun close() {
+        people?.close()
+        people = null
+        business?.close()
+        business = null
+        workspace?.close()
+        workspace = null
+        profile?.close(cancelPending = false)
+        profile = null
+    }
+
+    private fun render() {
+        val core = AtlasCore()
+        val catalog = state.navigation ?: AtlasWorkspaceModel(core.groups(), core.sections()).also { state.navigation = it }
+        val titles =
+            linkedMapOf(
+                "tasks" to core.sections().first { it.id == "tasks" }.title,
+                "accounts" to core.sections().first { it.id == "accounts" }.title,
+                "invoices" to core.groups().first { it.id == "finance" }.title,
+                "browse" to "Browse",
+                "profile" to "Profile",
+            )
+        val content =
+            when (state.tab) {
+                "browse" -> {
+                    val screen =
+                        AtlasWorkspaceScreen(this, catalog, "atlas.example.org", { section ->
+                            when (section.screen) {
+                                "time-off" -> startActivity(android.content.Intent(this, TimeOffPreviewActivity::class.java))
+                                "people" -> {
+                                    close()
+                                    val screen = AtlasPeopleScreen(this, state.presence)
+                                    people = screen
+                                    setActionBar(screen.toolbar)
+                                    setContentView(screen.view)
+                                    state.presence.setActive(true)
+                                    updateNavigation()
+                                }
+                                else -> choose(section.screen)
+                            }
+                        }, ::updateNavigation)
+                    workspace = screen
+                    setActionBar(screen.toolbar)
+                    screen.view
+                }
+                "profile" -> {
+                    val identity = state.profile ?: AtlasProfileModel(state::request).also { state.profile = it }
+                    val accounts =
+                        state.accounts ?: AtlasAIAccountsModel { _, done ->
+                            done(
+                                Result.success(
+                                    JSONObject(
+                                        """{"providers":[{"provider":"claude","credential_configured":false},{"provider":"chatgpt","credential_configured":false,"login_available":false}]}""",
+                                    ),
+                                ),
+                            )
+                        }.also { state.accounts = it }
+                    val screen = AtlasAIAccountsScreen(this, "https://atlas.example.org", accounts, {}, { back() }, { finish() })
+                    profile = screen
+                    screen.profile(identity, ::updateNavigation)
+                    screen.view
+                }
+                else -> {
+                    val model = state.models.getOrPut(state.tab) { AtlasBusinessModel(state.tab, state::request) }
+                    val screen = AtlasBusinessScreen(this, titles.getValue(state.tab), model, ::updateNavigation, logoLoader = state.fixtures::logo)
+                    business = screen
+                    setActionBar(screen.toolbar)
+                    screen.view
+                }
+            }
+        home = AtlasHomeScreen(this, content, titles, state.tab, ::choose)
+        setContentView(home!!.view)
+        updateNavigation()
+        business?.load()
+        profile?.load()
+    }
+
+    private fun choose(tab: String) {
+        if (tab == state.tab || state.models[state.tab]?.saving == true) return
+        close()
+        state.tab = tab
+        render()
+    }
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onBackPressed() {
+        if (!back()) super.onBackPressed()
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId != android.R.id.home) return super.onOptionsItemSelected(item)
+        back()
+        return true
+    }
+
+    private fun back(): Boolean {
+        if (people != null) {
+            close()
+            render()
+            return true
+        }
+        if (business?.back() == true || workspace?.back() == true || profile?.back() == true) return true
+        if (state.tab != "tasks") {
+            choose("tasks")
+            return true
+        }
+        return false
+    }
+
+    private fun updateNavigation() {
+        val child =
+            people != null || state.models[state.tab]?.canBack == true || state.navigation?.canBack == true && state.tab == "browse" ||
+                state.tab == "profile" && state.accounts?.page != "settings"
+        actionBar?.setDisplayHomeAsUpEnabled(child)
+        home?.fullScreen(state.models[state.tab]?.draft != null || state.tab == "profile" && state.accounts?.page != "settings")
+        unregisterBack?.invoke()
+        unregisterBack = null
+        if (Build.VERSION.SDK_INT >= 33 && (child || state.tab != "tasks")) {
+            val callback = OnBackInvokedCallback { back() }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+            unregisterBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
+        }
+    }
+}

@@ -33,8 +33,6 @@ defmodule Tuist.Repo.PromExPluginTest do
           {:repo, "postgres"},
           {:click_house_repo, "clickhouse_read"},
           {:ingest_repo, "clickhouse_write"},
-          {:shadow_click_house_repo, "clickhouse_shadow_read"},
-          {:shadow_ingest_repo, "clickhouse_shadow_write"},
           {:ops_click_house_repo, "ops_clickhouse_read"}
         ] do
       PromExPlugin.handle_query(
@@ -73,8 +71,6 @@ defmodule Tuist.Repo.PromExPluginTest do
 
     for {prefix, repo} <- [
           {:repo, "postgres"},
-          {:shadow_click_house_repo, "clickhouse_shadow_read"},
-          {:shadow_ingest_repo, "clickhouse_shadow_write"},
           {:ops_click_house_repo, "ops_clickhouse_read"}
         ] do
       :telemetry.execute([:tuist, prefix, :query], native_times(total_time: 25, query_time: 25), %{result: {:ok, %{}}})
@@ -123,8 +119,7 @@ defmodule Tuist.Repo.PromExPluginTest do
 
     running = [
       {Tuist.Repo, "postgres"},
-      {Tuist.ShadowClickHouseRepo, "clickhouse_shadow_read"},
-      {Tuist.ShadowIngestRepo, "clickhouse_shadow_write"},
+      {Tuist.ClickHouseRepo, "clickhouse_read"},
       {Tuist.OpsClickHouseRepo, "ops_clickhouse_read"}
     ]
 
