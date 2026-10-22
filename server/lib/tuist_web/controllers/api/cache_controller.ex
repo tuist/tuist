@@ -12,7 +12,6 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.CacheActionItems
   alias Tuist.Kura
   alias Tuist.Kura.Identity
-  alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Storage
   alias TuistWeb.API.Authorization.BillingPlug
   alias TuistWeb.API.Responses
@@ -978,7 +977,7 @@ defmodule TuistWeb.API.CacheController do
     %{
       project_id: project_id
     }
-    |> CleanProjectWorker.new()
+    |> Tuist.Projects.Workers.CleanProjectWorker.new()
     |> Oban.insert!()
 
     send_resp(conn, :no_content, "")

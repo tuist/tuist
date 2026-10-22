@@ -10,7 +10,7 @@ defmodule Tuist.Application.TaskDrainer do
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
-    {:ok, {Keyword.fetch!(opts, :supervisor), Keyword.get(opts, :timeout, 30_000)}}
+    {:ok, {Keyword.fetch!(opts, :supervisor), Keyword.get(opts, :timeout, 10_000)}}
   end
 
   @impl true

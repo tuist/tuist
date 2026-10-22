@@ -11,7 +11,8 @@ defmodule TuistWeb.RateLimit.MCP do
 
   def hit(conn) do
     {key, bucket_size} = key_and_bucket_size(conn)
-    RateLimit.hit(key, limit: bucket_size, window: to_timeout(minute: 1))
+    failure_policy = if Authentication.authenticated_subject(conn), do: :local, else: :deny
+    RateLimit.hit(key, limit: bucket_size, window: to_timeout(minute: 1), failure_policy: failure_policy)
   end
 
   defp key_and_bucket_size(conn) do

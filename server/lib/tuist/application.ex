@@ -24,7 +24,6 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
-  alias Tuist.Repo.PromExPlugin
   alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -82,7 +81,7 @@ defmodule Tuist.Application do
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
     QueryErrorContext.attach()
-    PromExPlugin.attach()
+    Tuist.Repo.PromExPlugin.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -364,6 +363,8 @@ defmodule Tuist.Application do
           {Finch, name: Tuist.Finch, pools: finch_pools()},
           {Cachex, [:tuist, []]},
           Tuist.Authentication.TokenVerificationCache,
+          Tuist.Authentication.SubjectCache,
+          Supervisor.child_spec({Cachex, [:license, []]}, id: :license),
           TuistWeb.PublicOverviewCache,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
@@ -379,10 +380,11 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
+        redis_children() ++
         [
-          TuistWeb.Endpoint,
           {Task.Supervisor, name: Tuist.TaskSupervisor},
-          Supervisor.child_spec({Tuist.Application.TaskDrainer, supervisor: Tuist.TaskSupervisor}, shutdown: 35_000),
+          TuistWeb.Endpoint,
+          Supervisor.child_spec({Tuist.Application.TaskDrainer, supervisor: Tuist.TaskSupervisor}, shutdown: 12_000),
           {Oban, Application.fetch_env!(:tuist, Oban)}
         ] ++ once_events_grpc_children()
 
@@ -413,15 +415,6 @@ defmodule Tuist.Application do
         ]
       end
     )
-    |> Kernel.++(
-      if Environment.redis_url(),
-        do: [
-          {Redix, redis_opts()},
-          {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
-          {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
-        ],
-        else: []
-    )
     |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s), and outside web
@@ -436,6 +429,18 @@ defmodule Tuist.Application do
   # Only in the tree while a destination is configured, which is only during
   # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
   # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
+  defp redis_children do
+    if Environment.redis_url() do
+      [
+        {Redix, redis_opts()},
+        {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
+        {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
+      ]
+    else
+      []
+    end
+  end
+
   defp shadow_ingest_children do
     if Environment.clickhouse_bare_metal_url() do
       [
@@ -531,7 +536,7 @@ defmodule Tuist.Application do
     if Environment.web?() and Environment.env() in [:prod, :stag, :can] and Environment.tuist_hosted?() do
       [
         Supervisor.child_spec(
-          {Task, &Kura.reconcile_orphaned_deployments/0},
+          {Task, &Kura.enqueue_reconcile_orphaned_deployments/0},
           id: Kura.Reconciler
         )
       ]

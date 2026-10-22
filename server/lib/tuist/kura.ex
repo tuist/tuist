@@ -85,6 +85,8 @@ defmodule Tuist.Kura do
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
 
+  def enqueue_reconcile_orphaned_deployments, do: %{} |> Reconciler.new() |> Oban.insert!()
+
   # How long a server that has stopped receiving new traffic keeps serving
   # before its resources are torn down, so persistent gRPC channels and
   # in-flight builds finish. Shared by the warm-handoff move (where the
