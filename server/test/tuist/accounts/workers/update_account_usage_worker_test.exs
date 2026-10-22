@@ -24,11 +24,12 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
 
       expect(Accounts, :account_month_usage, fn id, ^now ->
         assert id == account.id
-        %{remote_cache_hits_count: 160}
+        %{remote_cache_hits_count: 160, cache_egress_megabytes: 0, cache_requests: 800_000}
       end)
 
       assert :ok = perform_job(UpdateAccountUsageWorker, %{account_id: account.id, updated_at: now})
       assert Repo.reload!(account).current_month_remote_cache_hits_count == 160
+      assert Repo.reload!(account).current_month_cache_requests == 800_000
       assert_enqueued(worker: AirUsageNotificationWorker)
     end
 
@@ -40,7 +41,7 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
 
       expect(Accounts, :account_month_usage, fn id, ^executed_at ->
         assert id == account.id
-        %{remote_cache_hits_count: 160}
+        %{remote_cache_hits_count: 160, cache_egress_megabytes: 0, cache_requests: 800_000}
       end)
 
       assert :ok = perform_job(UpdateAccountUsageWorker, %{account_id: account.id, updated_at: scheduled_at})

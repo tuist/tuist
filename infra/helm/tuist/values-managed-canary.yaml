@@ -138,11 +138,10 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
-      # Usage-based pricing meters, reported only for accounts with the
-      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Usage-based pricing meters: the Prices cache and test insights usage
+      # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
-      # `Tuist.Billing.UsageMeterProvisioning`. A subscription only carries
-      # them once its account is switched, which the flag still gates.
+      # `Tuist.Billing.UsageMeterProvisioning`.
       usage_meters:
         cache_egress_megabytes: "price_1UITAiQ9gGM5W1agQo117CYC"
         cache_requests: "price_1UITAkQ9gGM5W1ag7kkpTbOX"

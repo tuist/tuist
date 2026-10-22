@@ -1120,8 +1120,8 @@ defmodule Tuist.Accounts do
 
   @doc """
   The account's usage since its free tier last started counting: remote cache
-  hits, which gate an Air account on the old pricing, and metered cache egress
-  and requests, which gate one on usage-based pricing.
+  hits, which the organizations API and Atlas report, and metered cache egress
+  and requests, which gate an Air account.
   """
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
     counted_from = Account |> Repo.get!(account_id) |> CommandEvents.usage_counted_from(date)
