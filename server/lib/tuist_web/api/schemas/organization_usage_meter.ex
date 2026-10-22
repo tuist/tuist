@@ -26,7 +26,8 @@ defmodule TuistWeb.API.Schemas.OrganizationUsageMeter do
       },
       charge_cents: %Schema{
         type: :integer,
-        description: "What the billable amount is charged so far, in US cents. Only Pro accounts are charged for it; other plans report 0."
+        description:
+          "What the billable amount is charged so far, in US cents. Only Pro accounts are charged for it; other plans report 0."
       }
     },
     required: [:used, :included, :billable, :charge_cents]
