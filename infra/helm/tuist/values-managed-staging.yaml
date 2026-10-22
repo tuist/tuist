@@ -758,31 +758,12 @@ macosFleet:
   # costs the public dial path, the only one that can update Tailscale itself.
   sshIngressAllowCIDRs:
     - 78.47.186.71/32
-  # Per-account cache volumes, validated on staging first. The quota is an
-  # APFS ceiling (shares the container's free space, not a reservation)
-  # fenced by admission + watermark eviction. A real Tuist cache master is
-  # ~2.4 GB (the 20 GiB masterCapGib is a sparse per-master ceiling), so
-  # 40 GiB holds ~16 masters — ample for the 1-2 accounts staging runs.
-  # Operator-wide, so it also provisions a (harmless, unused) volume on the
-  # xcresult host.
-  # Staging is the proving ground for the cache volume: it carries the
-  # fail-safe guest (a share it cannot write is abandoned for a local cold
-  # cache instead of failing the job) plus cache_diag, so a bad share costs
-  # warmth and names itself in the runner log — the guard that was missing
-  # when host-side checks alone (volume provisioned, config converged) let a
-  # broken share reach prod and break every macOS job on 2026-07-16.
+  # Runner cache volumes, validated on staging first. The quota is an APFS
+  # ceiling (shares the container's free space, not a reservation) fenced by
+  # admission and eviction. Operator-wide, so it also provisions a (harmless,
+  # unused) volume on the xcresult host.
   runnerCacheVolume:
     gib: 40
-    # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib 28 is the sparse per-master ceiling. The two caches share
-    # 22.4 GiB of it (the cap less a 20% reserve), divided by use in the
-    # guest. casGib turns the CAS on and sets the fixed split older runner
-    # images apply: 16 GiB for the CAS, 6.4 GiB for the binary cache. The
-    # guest is fail-safe (an unusable store falls back to a VM-local cold
-    # compilation cache, never fails the job), so a bad budget costs warmth,
-    # not the build.
-    masterCapGib: 28
-    casGib: 16
   # Same pre-ordered pool as runnersFleet, which rents no hosts in
   # staging. The pool keeps no spare, so replacing this host means
   # ordering a `tuist-pool-` Mac mini in the staging project first.

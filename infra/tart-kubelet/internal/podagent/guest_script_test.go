@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const casStoreDir = "CompilationCache.noindex"
+
 // guestShellFunction returns a function's definition from the runner's
 // dispatch-poll.sh, so a test drives the script the guest actually runs rather
 // than a copy of it.
@@ -567,19 +569,6 @@ func TestGuestStagesWhatItDivided(t *testing.T) {
 	for key, sample := range got {
 		if sample[1] <= 0 {
 			t.Fatalf("%s carries no limit: %v", key, sample)
-		}
-	}
-
-	// The two halves of the contract meet here: what the script writes is what
-	// the host's reader turns into metrics.
-	samples := readCacheLimits(statusDir)
-	if len(samples) != len(got) {
-		t.Fatalf("the host read %d of the %d lines the guest staged", len(samples), len(got))
-	}
-	for _, sample := range samples {
-		key := sample.when + "/" + sample.cache
-		if read := [2]int64{int64(sample.heldBytes), int64(sample.limitBytes)}; read != got[key] {
-			t.Fatalf("the host read %v for %s; the guest staged %v", read, key, got[key])
 		}
 	}
 }

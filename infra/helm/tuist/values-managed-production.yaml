@@ -1590,70 +1590,19 @@ macosFleet:
   # costs the public dial path, the only one that can update Tailscale itself.
   sshIngressAllowCIDRs:
     - 116.202.0.10/32
-  # Per-account cache volumes. The quota is an APFS ceiling (shares the
-  # container's free space, not a reservation) fenced by admission +
-  # watermark eviction, so space pressure degrades a job to the cold
-  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
-  # (the 20 GiB masterCapGib is a sparse per-master ceiling, not the
-  # typical size), so 80 GiB holds ~30 masters — well beyond the accounts
-  # a single host keeps hot once affinity spreads them across the fleet.
-  # Kept well under the 512 GB disk, which is dominated by the ~85 GB
-  # golden VM image(s) (two during a digest roll) + per-job DerivedData.
-  # Enabled after the disk-image redesign (#11908): the cache is now a
-  # sparse APFS disk image on the share, not files on it, because virtio-fs
-  # cannot carry a macOS cache faithfully (no xattrs on the symlinks in
-  # versioned framework bundles → the ELOOP that broke every macOS job on
-  # 2026-07-16). Validated end-to-end on a real staging runner (gib: 40):
-  # the framework-with-xattr copy that failed on the old share succeeds
-  # inside the image, and a promoted master clones back warm with symlinks
-  # and xattrs intact.
+  # Runner cache volumes. The quota is an APFS ceiling (shares the
+  # container's free space, not a reservation) fenced by admission and
+  # eviction, so space pressure degrades a job to the cold path rather than
+  # risking ENOSPC. Kept well under the 512 GB disk, which is dominated by the
+  # ~85 GB golden VM image(s) (two during a digest roll) + per-job DerivedData.
+  #
+  # Raising gib is not free. The volume shares the Mac's 460 GiB disk with the
+  # goldens and the job VMs, and a job VM's own writes take the disk's free
+  # space down to 40-57 GiB (7 days to 2026-09-18). A bigger volume, once full,
+  # lowers that floor by the same amount. gib also needs a host replacement,
+  # because the provisioning script never resizes.
   runnerCacheVolume:
     gib: 80
-    # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib is the capacity of every cache image: the room a job has.
-    # The image is sparse, so capacity costs nothing on the host until written,
-    # and teardown compacts the image it promotes, so a master takes on the host
-    # what it holds. A master created at a smaller cap is grown to this one when
-    # the host next installs it, at its account's next promote or convergence.
-    #
-    # Inside the image the two caches share one budget, the cap less a
-    # reserve of max(2 GiB, 20% of the cap): 24 GiB at 30, and 6 GiB of room a
-    # job always starts with before anything prunes. The guest divides the
-    # budget by what each cache holds, at attach and again at teardown, so an
-    # account that barely uses one cache leaves its share to the other, and a
-    # cache that holds nothing yet keeps 2 GiB to grow from. The compiler is
-    # given the compilation cache's limit whole as COMPILATION_CACHE_LIMIT_SIZE:
-    # llcas and the teardown prune rotate a store once its primary passes half
-    # of it, so it already covers both generations. The guest is fail-safe: a
-    # store it cannot write falls back to a VM-local cold compilation cache, so
-    # a bad budget costs warmth, not the job.
-    #
-    # casGib turns the compilation cache on. It also sets the fixed split that
-    # runner images older than the division by use still apply, 14 GiB for the
-    # compilation cache and 10 GiB for the binary cache, because tart-kubelet
-    # and the runner image roll out separately.
-    #
-    # The cap is bounded by admission and the evictor, not by taste. Admission
-    # reserves the cap for every branch running a job, and a branch is reserved
-    # when it is materialized for one, not at VM boot. The evictor keeps
-    # 1.2 x cap free. Masters count at what they hold, so on this 80 GiB volume
-    # a cap of 30 leaves 44 GiB for masters: one account near its 24 GiB of
-    # limits beside several small ones, or around 14 accounts of 3 GiB. One job
-    # growing to the cap still leaves 50 GiB, and two overlapping ones 20.
-    #
-    # Raising gib is NOT the alternative. The volume shares the Mac's 460 GiB
-    # disk with the goldens and the job VMs, and a job VM's own writes take the
-    # disk's free space down to 40-57 GiB (7 days to 2026-09-18). A bigger
-    # volume, once full, lowers that floor by the same amount. gib also needs a
-    # host replacement, because the provisioning script never resizes.
-    #
-    # Retuning either value changes how many accounts a host keeps hot, and
-    # therefore how often dispatch can place a job warm. Nothing needs to be
-    # kept in sync for that: the host advertises the masters it actually holds
-    # as Node labels and the server reads them, so this arithmetic bounds the
-    # fleet's behaviour without also being a number the server has to be told.
-    masterCapGib: 30
-    casGib: 14
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.

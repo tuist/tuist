@@ -35,7 +35,7 @@ type CustomVolumes struct {
 	Root, URL, Node, Namespace, ServiceAccount string
 	Kube                                       kubernetes.Interface
 	Tart                                       *tart.Client
-	Builtins                                   *VolumeManager
+	Space                                      *CacheSpace
 	Checkouts                                  *cachevolumes.Checkouts
 	Store                                      *cachevolumes.Store
 	HTTP                                       *http.Client
@@ -52,9 +52,9 @@ type CustomVolumes struct {
 	checkoutReserved uint64
 	checkoutMu       sync.Mutex
 	checkoutJobs     map[string]cachevolumes.CheckoutTask
-	// spare cancels the running background prefetch; guarded by Builtins.mu.
+	// spare cancels the running background prefetch; guarded by Space.mu.
 	spare context.CancelCauseFunc
-	// spareScope is the scope that prefetch restores; guarded by Builtins.mu.
+	// spareScope is the scope that prefetch restores; guarded by Space.mu.
 	spareScope string
 	// images is the backend run() serves; nil until then.
 	images *cachevolumes.APFSImages
@@ -63,7 +63,7 @@ type CustomVolumes struct {
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
 	c.shareMu.Lock()
 	defer c.shareMu.Unlock()
-	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	mounted, err := c.Space.backend.isMounted(c.Space.Root)
 	if err != nil || !mounted {
 		return "", errors.New("cache filesystem unavailable")
 	}
@@ -148,7 +148,7 @@ func (c *CustomVolumes) Start(ctx context.Context) error {
 }
 
 func (c *CustomVolumes) run(ctx context.Context) error {
-	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	mounted, err := c.Space.backend.isMounted(c.Space.Root)
 	if err != nil || !mounted {
 		return errors.New("cache filesystem unavailable")
 	}
@@ -171,10 +171,6 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	// A superseded master stays mountable until its successor is downloaded here.
 	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
-	c.Builtins.mu.Lock()
-	c.Builtins.CustomReserved = c.reservedBytes
-	c.Builtins.DisplaceCustom = c.displaceSpareLocked
-	c.Builtins.mu.Unlock()
 	if err := os.MkdirAll(c.Root, 0700); err != nil {
 		return err
 	}
@@ -335,19 +331,15 @@ func (c *CustomVolumes) freeBytesContext(ctx context.Context, _ string) (uint64,
 }
 
 func (c *CustomVolumes) freeBytesLocked() (uint64, error) {
-	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	mounted, err := c.Space.backend.isMounted(c.Space.Root)
 	if err != nil || !mounted {
 		return 0, errors.New("cache filesystem unavailable")
 	}
-	free, err := c.Builtins.availableBytes()
+	free, err := c.Space.availableBytes()
 	if err != nil {
 		return 0, err
 	}
-	reserved := uint64(len(c.Builtins.reserved)) * c.Builtins.capBytes()
-	reserved += c.reservedBytes() + c.checkoutReserved
-	if c.Builtins.converging != nil {
-		reserved += c.Builtins.converging.remaining()
-	}
+	reserved := c.reservedBytes() + c.checkoutReserved
 	if free <= reserved {
 		return 0, nil
 	}
@@ -607,8 +599,8 @@ func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if c.Builtins.mu.TryLock() {
-			return c.Builtins.mu.Unlock, nil
+		if c.Space.mu.TryLock() {
+			return c.Space.mu.Unlock, nil
 		}
 		select {
 		case <-ctx.Done():

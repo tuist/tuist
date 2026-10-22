@@ -64,8 +64,14 @@ workflow code runs in the guest. Never expose host credentials or masters.
   and their first VM per image sat in `CreatingVM` for 5+ minutes downloading;
   on 2026-10-21 ber1-runner-b05 came back from `tuist.dev/os-reinstall`
   untainted with no goldens and took runner Pods that waited on downloads.
-- Built-in cache behavior remains in `internal/podagent/volume*.go` and the
-  runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
+- Custom cache volumes are the only runner cache on macOS hosts. The volume
+  they share is `CacheSpace` (`internal/podagent/volume*.go`): the APFS volume
+  at `--runner-cache-root`, holding `custom/` and nothing else. Every five
+  minutes it removes any other top-level entry (hidden filesystem entries
+  stay), and keeps `branches/<vm>` while that VM runs or `tart` cannot say.
+  Runner Pods (`tuist.dev/runner=true`) always get the guest-writable `status`
+  share (`StatusDirForPod`), which carries `runner-rc`, `runner.log` and
+  `runner-heartbeat`; they never get a `cache` share.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared
   [`runner-cache`](../runner-cache/AGENTS.md) journal, archive and publication code.
   Enable through `runnersFleet.customCacheVolumes.enabled` after validation.
@@ -90,18 +96,17 @@ workflow code runs in the guest. Never expose host credentials or masters.
   The guest side of the clean detach (`tuist-cache-volume --detach-all`, and
   `dispatch-poll.sh` stopping the Tuist CLI's launch agents first) ships in the
   runner image, not with tart-kubelet, so it rolls out with an image release.
-- Built-in and custom admission share the existing quota-bounded APFS filesystem
-  and account for each other's private-image capacity. Storage failure goes cold.
-  `--runner-cache-budget-gib` caps the free space and capacity they see below
-  the quota (`volume_space.go`), so the budget can change without a new
-  volume; APFS cannot change a quota after the volume is created.
-  Admission, convergence and cache eviction also preserve the host's 15% physical
-  free-space floor. Custom admission reclaims its own masters first, then built-in
-  masters/convergence staging under the shared lock; remeasure actual space after
-  deletion because running CoW clones can pin blocks. Never reclaim live branches.
-  A background prefetch the server listed for the host gives way first: built-in
-  and custom job admission cancel it and drop its reservation (twice its volume
-  size) before evicting any master (`displaceSpareLocked`).
+- Custom and checkout admission share the quota-bounded APFS filesystem.
+  Storage failure goes cold. `--runner-cache-budget-gib` caps the free space
+  and capacity they see below the quota (`volume_space.go`), so the budget can
+  change without a new volume; APFS cannot change a quota after the volume is
+  created. Admission and cache eviction also preserve the host's 15% physical
+  free-space floor. Custom admission evicts its own masters first, then idle
+  checkout copies (`reclaim`); remeasure actual space after deletion because
+  running CoW clones can pin blocks. Never reclaim live branches.
+  A background prefetch the server listed for the host gives way first: job
+  admission cancels it and drops its reservation (twice its volume size)
+  before evicting any master (`displaceSpareLocked`).
   Among custom masters, eviction takes superseded generations and unused spare
   prefetches first and the lineages a running or attaching job holds last
   (`LocalImages.InUse`); see `runner-cache/AGENTS.md`.
@@ -117,8 +122,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Logs: `logger=custom-cache-volumes` carries `cache phase` (one per
   `Observation`, with the volume's subject fields), `cache master evicted`, and
   `admission cancelled a background prefetch` (the cancelled prefetch's `scope`
-  plus the `for_*` subject it made room for; `for_kind=builtin` for built-in
-  admission). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
+  plus the `for_*` subject it made room for), and `removed leftovers from the
+  runner-cache root` (`removed`, `freed_bytes`). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
   The `tuist_runner_cache_volume_*` metrics keep only operation/source/result.
   Everything that happened to one volume on a host:
 
@@ -131,12 +136,6 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Searching for the 48-hex prefix from a `tuist.dev/cache-volume-<prefix>` node
   label matches the same lines. The Linux agent logs the same fields as JSON
   under `cache volume operation` and `cache master evicted`.
-
-- Built-in volume telemetry is sampled in the guest at attach and before detach,
-  then attributed and queued by the host after finalization. Reports use the
-  existing per-machine host token and a private fsynced queue under the cache root.
-  Preserve execution binding, bounded guest-file reads, retry idempotency, and the
-  separation between a superseded canonical measurement and physical deletion.
 
 - Custom admission locks cover reservation only, never remote downloads or image
   creation. Count remaining growth for running VMs and recover it from journals.
