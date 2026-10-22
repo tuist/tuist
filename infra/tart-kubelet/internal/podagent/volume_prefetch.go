@@ -57,6 +57,9 @@ type PrefetchMaster struct {
 	DownloadURL   string `json:"download_url"`
 	VolumeBytes   int64  `json:"volume_bytes"`
 	HeadSizeBytes int64  `json:"head_size_bytes"`
+	// Reason is why the server lists a custom HEAD: "prewarm" (an idle volume its
+	// account uses day after day) or "recent" (used in the last day).
+	Reason string `json:"reason"`
 }
 
 // PrefetchSource lists the masters the server wants this host to hold, most
