@@ -140,11 +140,124 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
 
     test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
-      assert_error_sent 406, fn ->
+      assert_error_sent(406, fn ->
         conn
         |> put_req_header("accept", "application/json")
         |> get("/")
+      end)
+    end
+  end
+
+  describe "GET /substrate" do
+    test "leads with investment and adoption decisions in four concise sections", %{conn: conn} do
+      document = conn |> get("/substrate") |> html_response(200) |> Floki.parse_document!()
+      main = Floki.find(document, "#marketing-substrate")
+
+      assert Floki.text(Floki.find(document, "title")) =~ "The Velocity Substrate"
+      assert Floki.text(Floki.find(main, "h1")) =~ "Developer velocity,"
+      refute Floki.text(main) =~ "productivity"
+      assert length(Floki.find(main, "h1")) == 1
+
+      assert Floki.attribute(document, "#marketing-substrate > section", "data-part") ==
+               ["thesis", "breadth", "principles", "closing"]
+
+      assert Floki.text(main) =~ "We also offer compute."
+      assert Floki.text(main) =~ "Moving compute is a separate choice, not a prerequisite."
+      assert Floki.text(main) =~ "Start with one team. Expand with evidence."
+      assert Floki.text(main) =~ "Measure feedback time, reliability, and resource use"
+      assert length(Floki.find(main, ~s([data-part="stack-layers"] > li))) == 4
+
+      assert document
+             |> Floki.attribute(~s(link[rel="alternate"][type="text/markdown"]), "href")
+             |> Enum.any?(&String.ends_with?(&1, "/marketing-markdown/substrate"))
+    end
+
+    test "shows the docs' toolchain logos, Rust, and environment independence", %{conn: conn} do
+      document = conn |> get("/substrate") |> html_response(200) |> Floki.parse_document!()
+      toolchains = Floki.find(document, ~s(#marketing-substrate [data-part="toolchains"]))
+      portability = Floki.find(document, ~s(#marketing-substrate [data-part="environment-portability"]))
+
+      assert length(Floki.find(toolchains, ~s([data-part="toolchain"]))) == 5
+      assert length(Floki.find(toolchains, ~s([data-part="toolchain-icon"] svg))) == 5
+      for name <- ["Xcode", "Gradle", "Bazel", "Elixir", "Rust"], do: assert(Floki.text(toolchains) =~ name)
+      assert Floki.text(portability) =~ "a sandbox provided by an agent platform"
+      assert Floki.text(portability) =~ "Caching and insights should follow the project"
+      assert Floki.text(portability) =~ "not an add-on reserved for our runners"
+      assert Floki.text(portability) =~ "across supported environments"
+      assert Floki.text(portability) =~ "infrastructure you run yourself or buy elsewhere"
+    end
+
+    test "makes the platform choice explicit across tools and environments", %{conn: conn} do
+      document = conn |> get("/substrate") |> html_response(200) |> Floki.parse_document!()
+      main = Floki.find(document, "#marketing-substrate")
+      lead = Floki.find(main, ~s([data-part="lead"]))
+      platform = Floki.find(main, ~s([data-part="shared-foundation"]))
+
+      assert Floki.text(lead) =~ "in one platform"
+      assert Floki.text(lead) =~ "without replacing the tools they build with"
+      assert Floki.text(main) =~ "One platform, instead of piecing it together."
+      assert Floki.text(main) =~ "Choose the build system that fits your team, your project, and how you want to work"
+      assert Floki.text(main) =~ "without forcing every team to build the same way"
+      assert Floki.text(Floki.find(platform, "strong")) == "Tuist"
+
+      assert platform
+             |> Floki.find(~s([data-part="platform-capabilities"] > li))
+             |> Enum.map(&(&1 |> Floki.text() |> String.trim())) ==
+               ["Build and test insights", "Test optimization", "Shared caching", "Compute"]
+
+      assert main
+             |> Floki.find(~s([data-part="environments"] > span))
+             |> Enum.map(&(&1 |> Floki.text() |> String.trim())) ==
+               ["Local environments", "CI environments", "Agentic coding environments"]
+    end
+
+    test "keeps the narrative free of technical disclosures and small-print footers", %{conn: conn} do
+      document = conn |> get("/substrate") |> html_response(200) |> Floki.parse_document!()
+      main = Floki.find(document, "#marketing-substrate")
+
+      assert Floki.find(main, "details") == []
+      assert Floki.find(main, ~s([data-part="support-note"])) == []
+      assert length(Floki.find(main, ~s([data-part="stack-layers"] > li))) == 4
+    end
+
+    test "connects each stage to documented features and states requirements", %{conn: conn} do
+      document = conn |> get("/substrate") |> html_response(200) |> Floki.parse_document!()
+      stages = Floki.find(document, ~s(#marketing-substrate [data-part="principle-steps"] > li))
+
+      feature_paths = [
+        ["build-insights", "test-insights"],
+        ["test-insights/flaky-tests"],
+        ["cache", "selective-testing"],
+        ["test-sharding", "runners"]
+      ]
+
+      assert length(stages) == length(feature_paths)
+
+      for {stage, paths} <- Enum.zip(stages, feature_paths) do
+        assert stage
+               |> Floki.attribute(~s([data-part="feature-links"] a), "href")
+               |> Enum.map(&URI.parse(&1).path) == Enum.map(paths, &("/en/docs/guides/features/" <> &1))
       end
+
+      feature_links = Floki.find(document, ~s(#marketing-substrate [data-part="feature-links"]))
+      refute Floki.text(feature_links) =~ "Generated Xcode projects"
+      refute Floki.text(feature_links) =~ "Tuist Runners"
+      refute Floki.text(document) =~ "Requires generated Xcode projects"
+      assert Floki.text(feature_links) =~ "Runners"
+      assert Floki.text(document) =~ "Invite-only"
+    end
+
+    test "serves the aligned Markdown guide when requested", %{conn: conn} do
+      conn = conn |> put_req_header("accept", "text/markdown") |> get("/substrate")
+
+      assert response(conn, 200) =~ "# Tuist: the developer velocity substrate"
+      assert get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
+    end
+
+    test "is discoverable in navigation and has marketing route metadata", %{conn: conn} do
+      document = conn |> get("/") |> html_response(200) |> Floki.parse_document!()
+      assert "/substrate" in Floki.attribute(document, "#marketing-navbar a", "href")
+      assert %{type: :marketing} = Phoenix.Router.route_info(TuistWeb.Router, "GET", "/substrate", "")
     end
   end
 
@@ -191,11 +304,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
       post = List.first(Blog.get_posts())
 
-      assert_error_sent 406, fn ->
+      assert_error_sent(406, fn ->
         conn
         |> put_req_header("accept", "application/json")
         |> get(post.slug)
-      end
+      end)
     end
   end
 
@@ -211,7 +324,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "includes the product pages", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 
-      for path <- ["/cache", "/tests", "/compute", "/previews", "/download"] do
+      for path <- ["/cache", "/tests", "/compute", "/previews", "/download", "/substrate"] do
         assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
 
@@ -739,11 +852,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
       reject(&Email.add_to_newsletter_list/1)
 
-      assert_error_sent 406, fn ->
+      assert_error_sent(406, fn ->
         conn
         |> put_req_header("accept", "application/json")
         |> post(~p"/newsletter/verify", %{"token" => signed_newsletter_token("test@example.com")})
-      end
+      end)
     end
 
     test "subscribes email with a valid token", %{conn: conn} do

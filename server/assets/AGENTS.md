@@ -3,6 +3,7 @@
 This directory contains frontend assets for the Phoenix app (LiveView, marketing, apidocs).
 
 ## Responsibilities
+- `marketing/css/routes/substrate.css` scopes the velocity-substrate page's four-layer hero, five-toolchain Noora logo row, four-capability Tuist platform block, environment-independence callout, and feature links. Keep diagrams usable without JavaScript, responsive on narrow screens, and compatible with both color schemes. Platform capabilities use two columns on narrow screens and the three environment categories stack vertically. Detailed technical content and support qualifications belong in the guide and linked docs, not in a disclosure or small-print footer.
 
 - `app/css/pages/auth.css` includes the shared integration organization chooser, reusing login's logo, dots, gradients and frame. Organization rows use Noora avatars, keyboard focus states, wrapping labels and a bounded scrolling list with inset padding to preserve row borders and shadows, with a Cancel action below. Keep both provider flows visually identical and support light/dark themes and narrow viewports.
 

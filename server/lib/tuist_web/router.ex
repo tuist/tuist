@@ -513,6 +513,10 @@ defmodule TuistWeb.Router do
             private: private
       end
 
+      get Path.join(locale_path_prefix, "/substrate"), MarketingController, :substrate,
+        metadata: @marketing_route_metadata,
+        private: private
+
       get Path.join(locale_path_prefix, "/about"), MarketingController, :about,
         metadata: @marketing_route_metadata,
         private: private
