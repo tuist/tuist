@@ -490,6 +490,7 @@ func main() {
 		Goldens:       reconciler,
 		Gate:          prewarmGate,
 		Fleet:         nodeLabels["tuist.dev/fleet"],
+		NodeName:      nodeName,
 		StageInterval: time.Minute,
 		DiskFree: func() (float64, error) {
 			st, err := hostdisk.Root("/")

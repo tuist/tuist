@@ -68,6 +68,14 @@ type Prewarmer struct {
 	// StageInterval is how often the host looks for images to stage once
 	// the gate is released. Zero disables staging.
 	StageInterval time.Duration
+	// NodeName is this host's Node, whose runner Pods staging waits for.
+	NodeName string
+	// Now is the staging clock. Nil uses time.Now.
+	Now func() time.Time
+
+	// jobsDeferredSince is when staging started waiting for this host's
+	// jobs, zero while it is not waiting.
+	jobsDeferredSince time.Time
 }
 
 // defaultPrewarmSyncRetry matches the requeue a Pod gets while the image

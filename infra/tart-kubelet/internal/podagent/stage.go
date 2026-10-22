@@ -9,6 +9,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
 // upcomingImagesLabel marks the ConfigMap a runner image release writes into
@@ -25,6 +27,15 @@ const (
 	xcodeVersionLabel       = "tuist.dev/xcode-version"
 	runnerImageVariantLabel = "tuist.dev/runner-image-variant"
 )
+
+// runnerPoolOwnerLabel is the account the Tuist server stamps on a runner Pod
+// when the Pod claims a job.
+const runnerPoolOwnerLabel = "tuist.dev/runner-pool-owner"
+
+// stageJobWaitCap bounds how long staging waits for the host's jobs to
+// finish before it pulls beside them, so a host that is never without a job
+// does not hold a release until the staging gate gives up on it.
+const stageJobWaitCap = 20 * time.Minute
 
 // upcomingImages maps `<xcode>.<variant>` to the image the next release gives
 // pools of that Xcode and variant.
@@ -78,8 +89,10 @@ func (p *Prewarmer) stageEvery(ctx context.Context, interval time.Duration) {
 // of a new image otherwise pays the pull on each host its pool lands on.
 // After a pool moves, the GC follows it (follow.go).
 //
-// Staging yields to Pods: it starts no pull while a Pod waits on one, since
-// the host runs one golden pull at a time. It stops below
+// Staging stays out of the jobs' way. It starts no pull while a Pod waits on
+// one, since the host runs one golden pull at a time, nor while a runner on
+// the host is running a job, for up to stageJobWaitCap. Its pulls run at
+// background priority (tart.InBackground). It stops below
 // prewarmMinFreePercent, and an image the rack's image cache is still
 // fetching is asked for again on the next pass.
 func (p *Prewarmer) stage(ctx context.Context) {
@@ -101,7 +114,12 @@ func (p *Prewarmer) stage(ctx context.Context) {
 		return
 	}
 
-	for _, image := range p.stageImages(pools, upcoming, held) {
+	images := p.stageImages(pools, upcoming, held)
+	if len(images) == 0 {
+		p.jobsDeferredSince = time.Time{}
+		return
+	}
+	for _, image := range images {
 		if ctx.Err() != nil {
 			return
 		}
@@ -109,12 +127,16 @@ func (p *Prewarmer) stage(ctx context.Context) {
 			logger.Info("deferring runner image staging to a Pod's golden pull", "image", image)
 			return
 		}
+		if p.deferForJobs(ctx) {
+			logger.Info("deferring runner image staging until this host's jobs finish", "image", image, "since", p.jobsDeferredSince, "capSeconds", stageJobWaitCap.Seconds())
+			return
+		}
 		if free, err := p.DiskFree(); err != nil || free < prewarmMinFreePercent {
 			logger.Info("not staging runner images on disk space", "freePercent", free, "floorPercent", prewarmMinFreePercent, "error", err, "image", image)
 			return
 		}
 		started := time.Now()
-		name, materialized, err := p.Goldens.ensureGolden(ctx, image)
+		name, materialized, err := p.Goldens.ensureGolden(tart.InBackground(ctx), image)
 		switch {
 		case errors.Is(err, errMirrorSyncing):
 			recordGoldenStaged("syncing")
@@ -131,6 +153,53 @@ func (p *Prewarmer) stage(ctx context.Context) {
 			logger.Info("staged runner image", "image", image, "golden", name, "pulled", materialized, "duration", time.Since(started).String())
 		}
 	}
+}
+
+// deferForJobs reports whether staging waits for the host's jobs: true while
+// a runner on the host runs a job, until stageJobWaitCap after staging first
+// waited for them. A Pod list that fails counts as a running job.
+func (p *Prewarmer) deferForJobs(ctx context.Context) bool {
+	busy, err := p.runsJob(ctx)
+	if err != nil {
+		log.FromContext(ctx).WithName("stage").Error(err, "list this host's runner Pods; treating a job as running")
+		busy = true
+	}
+	if !busy {
+		p.jobsDeferredSince = time.Time{}
+		return false
+	}
+	now := p.clock()
+	if p.jobsDeferredSince.IsZero() {
+		p.jobsDeferredSince = now
+	}
+	return now.Sub(p.jobsDeferredSince) < stageJobWaitCap
+}
+
+// runsJob reports whether a runner Pod on this host has claimed a job: the
+// server stamped its owner, or its guest reports `claimed`. An idle warm
+// runner has neither.
+func (p *Prewarmer) runsJob(ctx context.Context) (bool, error) {
+	pods := &corev1.PodList{}
+	if err := p.K8s.List(ctx, pods, client.MatchingFields{"spec.nodeName": p.NodeName}); err != nil {
+		return false, err
+	}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		if pod.Labels[runnerPoolOwnerLabel] != "" || pod.Annotations[runnerHeartbeatStateAnnotation] == heartbeatStateClaimed {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (p *Prewarmer) clock() time.Time {
+	if p.Now != nil {
+		return p.Now()
+	}
+	return time.Now()
 }
 
 // stageImages returns the images to stage, given the goldens the host holds:

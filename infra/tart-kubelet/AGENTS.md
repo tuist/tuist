@@ -111,10 +111,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
   (`standalone` or `stacked`) labels, which the chart renders only on catalog
   pools that follow releases; an entry outside the pool's repository is
   ignored. Staging uses `ensureGolden`, so a Pod of the same image joins the
-  pull. It starts no pull while a Pod waits on one, or below 30% free disk,
-  and skips an image the rack's image cache is still fetching until the next
-  pass. A Pod of another image that arrives during a staged pull waits for it,
-  since a host pulls one golden at a time. A pool moved before its hosts
+  pull. It stays out of the jobs' way: it starts no pull while a Pod waits on
+  one, nor while a runner Pod on the host has claimed a job (the server's
+  `tuist.dev/runner-pool-owner` label, or a `claimed` runner heartbeat; an
+  idle warm runner does not count), for up to `stageJobWaitCap` (20 minutes)
+  after it first waited, so a host that always runs a job still stages before
+  the gate gives up. Its pulls run under `taskpolicy -b` (macOS background
+  QoS, so running VMs get the CPU and disk first) with `--concurrency 2`
+  instead of Tart's 4 (`tart.InBackground`, `Client.BackgroundPull`). It
+  stops below 30% free disk, and skips an image the rack's image cache is
+  still fetching until the next pass. A Pod of another image that arrives
+  during a staged pull waits for it, since a host pulls one golden at a time,
+  and a Pod of the same image waits on it at background priority. A pool moved before its hosts
   staged it (the timeout or a skip) is followed as above; a host that held
   neither image pulls on its first Pod.
   `tart_kubelet_golden_staged_total{result}` counts what staging did; the

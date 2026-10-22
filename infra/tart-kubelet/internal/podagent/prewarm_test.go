@@ -10,6 +10,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
 const (
@@ -43,6 +45,8 @@ type poolLister struct {
 	// upcoming is the data of the upcoming runner images ConfigMap.
 	upcoming    map[string]string
 	upcomingErr error
+	// pods are the Pods on this host.
+	pods []corev1.Pod
 }
 
 func (l *poolLister) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
@@ -55,6 +59,10 @@ func (l *poolLister) List(_ context.Context, list client.ObjectList, _ ...client
 	}
 	if cms, ok := list.(*corev1.ConfigMapList); ok {
 		return l.listUpcoming(cms)
+	}
+	if pods, ok := list.(*corev1.PodList); ok {
+		pods.Items = append(pods.Items, l.pods...)
+		return nil
 	}
 	ul, ok := list.(*unstructured.UnstructuredList)
 	if !ok {
@@ -74,12 +82,15 @@ type recordingGoldens struct {
 	// a pull.
 	held     map[string]struct{}
 	awaiting bool
+	// background records, per pull, whether it ran at background priority.
+	background []bool
 	// onPull runs after each pull, standing in for the disk it consumes.
 	onPull func()
 }
 
-func (g *recordingGoldens) ensureGolden(_ context.Context, image string) (string, bool, error) {
+func (g *recordingGoldens) ensureGolden(ctx context.Context, image string) (string, bool, error) {
 	g.pulled = append(g.pulled, image)
+	g.background = append(g.background, tart.IsInBackground(ctx))
 	if g.onPull != nil {
 		g.onPull()
 	}

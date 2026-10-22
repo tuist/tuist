@@ -4,6 +4,9 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -137,5 +140,80 @@ func TestUpcomingImagesApplyOnlyToCatalogPoolsInTheirRepository(t *testing.T) {
 	want := map[string]string{"follows": stackedNext, "pinned": "", "elsewhere": "", "current": ""}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("next images = %v, want %v", got, want)
+	}
+}
+
+func runnerPodOnHost(name string, labels, annotations map[string]string) corev1.Pod {
+	pod := corev1.Pod{}
+	pod.Name = name
+	pod.Namespace = "tuist-runners"
+	pod.Labels = labels
+	pod.Annotations = annotations
+	pod.Spec.NodeName = "ber1-runner-b01"
+	return pod
+}
+
+// Staging pulls beside an idle warm runner, at background priority, but not
+// beside a job: a pull competes with the job for the host's network, disk and
+// CPU.
+func TestStageWaitsForTheHostsJobs(t *testing.T) {
+	now := time.Date(2026, 10, 22, 19, 0, 0, 0, time.UTC)
+	idle := runnerPodOnHost("warm", nil, map[string]string{runnerHeartbeatStateAnnotation: heartbeatStatePolling})
+	pools := &poolLister{
+		pools:    []unstructured.Unstructured{catalogPool("macos-ber1-26-6-6vcpu", img266, "26.6", "stacked", 0, 0)},
+		upcoming: map[string]string{"26.6.stacked": stackedNext},
+		pods:     []corev1.Pod{idle},
+	}
+	goldens := &recordingGoldens{held: heldGoldensOf(img266)}
+	p := stagingPrewarmer(pools, goldens)
+	p.Now = func() time.Time { return now }
+
+	p.stage(context.Background())
+	if want := []string{stackedNext}; !reflect.DeepEqual(goldens.pulled, want) {
+		t.Fatalf("staged %v beside an idle warm runner, want %v", goldens.pulled, want)
+	}
+	if !reflect.DeepEqual(goldens.background, []bool{true}) {
+		t.Fatalf("background = %v, want the staged pull at background priority", goldens.background)
+	}
+
+	for _, busy := range []corev1.Pod{
+		runnerPodOnHost("claimed", map[string]string{runnerPoolOwnerLabel: "tuist"}, nil),
+		runnerPodOnHost("heartbeat", nil, map[string]string{runnerHeartbeatStateAnnotation: heartbeatStateClaimed}),
+	} {
+		goldens := &recordingGoldens{held: heldGoldensOf(img266)}
+		pools.pods = []corev1.Pod{idle, busy}
+		p := stagingPrewarmer(pools, goldens)
+		p.Now = func() time.Time { return now }
+		p.stage(context.Background())
+		if len(goldens.pulled) != 0 {
+			t.Fatalf("staged %v beside %s's job", goldens.pulled, busy.Name)
+		}
+	}
+}
+
+// A host that is never without a job still stages, once staging has waited
+// stageJobWaitCap for its jobs.
+func TestStagePullsBesideJobsAfterTheWaitCap(t *testing.T) {
+	now := time.Date(2026, 10, 22, 19, 0, 0, 0, time.UTC)
+	pools := &poolLister{
+		pools:    []unstructured.Unstructured{catalogPool("macos-ber1-26-6-6vcpu", img266, "26.6", "stacked", 0, 0)},
+		upcoming: map[string]string{"26.6.stacked": stackedNext},
+		pods:     []corev1.Pod{runnerPodOnHost("claimed", map[string]string{runnerPoolOwnerLabel: "tuist"}, nil)},
+	}
+	goldens := &recordingGoldens{held: heldGoldensOf(img266)}
+	p := stagingPrewarmer(pools, goldens)
+	p.Now = func() time.Time { return now }
+
+	p.stage(context.Background())
+	now = now.Add(stageJobWaitCap - time.Minute)
+	p.stage(context.Background())
+	if len(goldens.pulled) != 0 {
+		t.Fatalf("staged %v before the wait cap", goldens.pulled)
+	}
+
+	now = now.Add(time.Minute)
+	p.stage(context.Background())
+	if want := []string{stackedNext}; !reflect.DeepEqual(goldens.pulled, want) {
+		t.Fatalf("staged %v after the wait cap, want %v", goldens.pulled, want)
 	}
 }
