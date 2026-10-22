@@ -493,16 +493,37 @@ covered only by the production schedule.
   cas-proxy's `remote_hits` for the rebuild's store to be above zero. The
   project lives in `project/`, not `fixture/`: the root `.gitignore` ignores
   `Fixture`, which matches case-insensitively on macOS.
-- On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
-  custom cache volume: the probe job seeds it with its run id through
-  `tuist/cache-volume` after the Xcode build, since GitHub can report which job
-  a runner runs later than the host's 25-second authorization budget.
-  `volume-wait` then waits on a GitHub-hosted runner for the host to publish,
-  and `macos-volume` attaches it and requires that run id or a later one,
-  since overlapping probe runs share the volume. Canary has one rack host, so
-  verify lands where seed published; production's multi-host fleets would make
-  it depend on convergence. Both jobs require a real APFS mount, because an
-  unavailable volume falls back to a job-local directory and still succeeds.
+- On canary only, the macOS probe also round-trips cache volumes, and a failure
+  blocks production like any other layer. `scripts/runners-acceptance/volume.sh`
+  attaches four volumes after the Xcode build, since GitHub can report which job
+  a runner runs later than the host's 25-second authorization budget: custom
+  volumes `runners-acceptance-probe` (emptied and reseeded with the run id each
+  run) and `runners-acceptance-static` (written once, then never changed, which
+  covers an unchanged volume losing its saved copy), and the managed Xcode and
+  module cache volumes through the in-repo `actions/xcode-cache` and
+  `actions/module-cache`, each with a run-id marker at its root. The job's last
+  step writes a 256 MB payload into the probe volume, so the host's
+  incomplete-image check and the guest's detach flush handle a large final
+  write. `volume-wait` then waits on a GitHub-hosted runner for the host to
+  publish, and `macos-volume` attaches them all and requires `cache-hit=true`,
+  a real APFS mount, the run id or a later one (overlapping probe runs share
+  the volumes), the payload's checksum and exactly the seeded entries.
+  Canary has one rack host, so verify lands where seed published; production's
+  multi-host fleets would make it depend on convergence.
+- The script attaches through the in-repo action sources rather than the
+  released actions because it reads the client's output: an unavailable volume
+  falls back to a job-local directory and the job still succeeds, so any
+  fallback fails as `Cache volumes`, except one refused because GitHub had not
+  yet reported the runner's job (the client's "GitHub had not yet reported which
+  job this runner is running", the server's 425 `execution_pending`). That is a
+  webhook delay, not a regression: the volume is skipped with a
+  `Cache volumes inconclusive` warning, the seed job hands its skipped volumes
+  to verify, and `gate.sh` re-raises the warning without failing. The round trip
+  is not retried: the regressions it guards against were deterministic or
+  intermittent save losses, which a retry would hide or merely repeat.
+  The pattern must match `errExecutionPending` in
+  `infra/linux-runner-image/cmd/tuist-cache-volume/main.go`.
+  `macos-cache-volumes-smoke.yml` covers the released `tuist/cache-volume`.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.
