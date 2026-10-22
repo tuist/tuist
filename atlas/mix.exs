@@ -61,6 +61,10 @@ defmodule Atlas.MixProject do
       {:toml, "~> 0.7"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
+      {:opentelemetry_api, "~> 1.5"},
+      {:opentelemetry, "~> 1.7"},
+      {:opentelemetry_exporter, "~> 1.10"},
+      {:grpcbox, "~> 0.18"},
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
@@ -96,6 +100,7 @@ defmodule Atlas.MixProject do
       # Revert to a Hex version once the fix is released.
       {:emcp, github: "addstar34/emcp", ref: "c687e279cf4f550f69934549a1303312ed3a23b5", override: true},
       {:ex_json_schema, "~> 0.11"},
+      {:javex, "~> 0.1.5"},
       {:browse, "~> 0.5"},
       {:browse_chrome, "~> 0.4"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}

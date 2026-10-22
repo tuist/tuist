@@ -7,6 +7,8 @@ alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
 
+config :atlas, :automation_trace_url_template, System.get_env("ATLAS_AUTOMATION_TRACE_URL_TEMPLATE")
+
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
 # release tarball), so guard the require to keep prod boots clean.
 if config_env() != :prod do

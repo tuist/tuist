@@ -14,6 +14,7 @@ defmodule Atlas.Authorization do
     "accounts" => "Commercial accounts, contacts, and feature interests",
     "assets" => "Hardware assets, data centers, and financings",
     "audit" => "Audit trail for changes across Atlas",
+    "automation" => "Workflows, behaviors, executions, schedules, webhooks, and approvals",
     "briefs" => "Leadership briefs and brief-driven action items",
     "contracts" => "Enterprise contract templates and generation",
     "documents" => "The document library and document downloads",

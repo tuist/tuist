@@ -21,6 +21,7 @@ msgstr ""
 msgid "Delivered"
 msgstr ""
 
+#: lib/atlas_web/live/automation_live.ex:418
 #: lib/atlas_web/live/postal_live.ex:601
 #, elixir-autogen, elixir-format
 msgid "Failed"
@@ -31,6 +32,7 @@ msgstr ""
 msgid "Preparing delivery"
 msgstr ""
 
+#: lib/atlas_web/live/automation_live.ex:414
 #: lib/atlas_web/live/postal_live.ex:596
 #, elixir-autogen, elixir-format
 msgid "Queued"
@@ -52,6 +54,10 @@ msgid "Unknown"
 msgstr ""
 
 #: lib/atlas_web/components/core_components.ex:369
+#: lib/atlas_web/live/automation_live.ex:383
+#: lib/atlas_web/live/automation_live.ex:387
+#: lib/atlas_web/live/automation_live.ex:390
+#: lib/atlas_web/live/automation_live.html.heex:561
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr ""
@@ -107,13 +113,15 @@ msgstr ""
 msgid "Bot Token"
 msgstr ""
 
-#: lib/atlas_web/live/account_live.ex:617
-#: lib/atlas_web/live/account_live.ex:764
 #: lib/atlas_web/live/account_live.ex:1005
 #: lib/atlas_web/live/account_live.ex:1252
+#: lib/atlas_web/live/account_live.ex:617
+#: lib/atlas_web/live/account_live.ex:764
+#: lib/atlas_web/live/automation_live.html.heex:170
+#: lib/atlas_web/live/automation_live.html.heex:241
 #: lib/atlas_web/live/settings_github_app_live.ex:130
-#: lib/atlas_web/live/settings_integrations_live.ex:84
 #: lib/atlas_web/live/settings_integrations_live.ex:164
+#: lib/atlas_web/live/settings_integrations_live.ex:84
 #: lib/atlas_web/live/settings_slack_bot_live.ex:102
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -253,12 +261,19 @@ msgstr ""
 
 #: lib/atlas_web/live/account_live.ex:462
 #: lib/atlas_web/live/account_live.ex:984
-#: lib/atlas_web/live/settings_github_app_live.ex:44
+#: lib/atlas_web/live/automation_live.ex:372
+#: lib/atlas_web/live/automation_live.ex:373
+#: lib/atlas_web/live/automation_live.ex:378
+#: lib/atlas_web/live/automation_live.ex:387
+#: lib/atlas_web/live/automation_live.ex:390
+#: lib/atlas_web/live/automation_live.html.heex:481
+#: lib/atlas_web/live/automation_live.html.heex:75
 #: lib/atlas_web/live/settings_github_app_live.ex:100
-#: lib/atlas_web/live/settings_integrations_live.ex:66
-#: lib/atlas_web/live/settings_integrations_live.ex:99
+#: lib/atlas_web/live/settings_github_app_live.ex:44
 #: lib/atlas_web/live/settings_integrations_live.ex:134
 #: lib/atlas_web/live/settings_integrations_live.ex:179
+#: lib/atlas_web/live/settings_integrations_live.ex:66
+#: lib/atlas_web/live/settings_integrations_live.ex:99
 #: lib/atlas_web/live/settings_slack_bot_live.ex:44
 #: lib/atlas_web/live/settings_slack_bot_live.ex:84
 #, elixir-autogen, elixir-format
@@ -726,6 +741,7 @@ msgid "Deployment"
 msgstr ""
 
 #: lib/atlas_web/live/account_live.ex:479
+#: lib/atlas_web/live/automation_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Description"
 msgstr ""
@@ -1145,6 +1161,15 @@ msgid "Start date"
 msgstr ""
 
 #: lib/atlas_web/live/account_live.ex:1359
+#: lib/atlas_web/live/automation_live.ex:372
+#: lib/atlas_web/live/automation_live.ex:374
+#: lib/atlas_web/live/automation_live.ex:380
+#: lib/atlas_web/live/automation_live.ex:387
+#: lib/atlas_web/live/automation_live.ex:390
+#: lib/atlas_web/live/automation_live.html.heex:408
+#: lib/atlas_web/live/automation_live.html.heex:488
+#: lib/atlas_web/live/automation_live.html.heex:508
+#: lib/atlas_web/live/automation_live.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
@@ -1571,4 +1596,1053 @@ msgstr ""
 #: lib/atlas_web/components/layouts/demo_dashboard.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Vendor costs"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:289
+#: lib/atlas_web/live/automation_live.ex:365
+#, elixir-autogen, elixir-format
+msgid "Approvals"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:720
+#, elixir-autogen, elixir-format
+msgid "Approve exact payload"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "Automation"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:170
+#: lib/atlas_web/live/automation_live.ex:55
+#, elixir-autogen, elixir-format
+msgid "Automation record not found."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:131
+#, elixir-autogen, elixir-format
+msgid "Behavior created."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:373
+#: lib/atlas_web/live/automation_live.html.heex:111
+#: lib/atlas_web/live/automation_live.html.heex:115
+#: lib/atlas_web/live/automation_live.html.heex:502
+#, elixir-autogen, elixir-format
+msgid "Behavior type"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:265
+#: lib/atlas_web/live/automation_live.ex:361
+#, elixir-autogen, elixir-format
+msgid "Behaviors"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:274
+#, elixir-autogen, elixir-format
+msgid "Cancel execution"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:445
+#, elixir-autogen, elixir-format
+msgid "Check the required fields and their values."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:123
+#, elixir-autogen, elixir-format
+msgid "Configuration (JSON object)"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:455
+#, elixir-autogen, elixir-format
+msgid "Could not complete the automation action."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:141
+#, elixir-autogen, elixir-format
+msgid "Cron expression (UTC)"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:194
+#, elixir-autogen, elixir-format
+msgid "Decision recorded."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:318
+#: lib/atlas_web/live/automation_live.html.heex:88
+#: lib/atlas_web/live/automation_live.html.heex:92
+#, elixir-autogen, elixir-format
+msgid "Definition language"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:436
+#, elixir-autogen, elixir-format
+msgid "Discover contracted types and save reusable configurations."
+msgstr ""
+
+#: lib/atlas_web/live/gtm_live.ex:1123
+#, elixir-autogen, elixir-format
+msgid "Draft"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:579
+#, elixir-autogen, elixir-format
+msgid "Enable"
+msgstr ""
+
+#: lib/atlas_web/live/admin/inference_helpers.ex:176
+#: lib/atlas_web/live/admin/inference_live.ex:487
+#: lib/atlas_web/live/admin/inference_live.ex:555
+#: lib/atlas_web/live/automation_live.html.heex:531
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:680
+#, elixir-autogen, elixir-format
+msgid "Execution"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:271
+#: lib/atlas_web/live/automation_live.ex:362
+#, elixir-autogen, elixir-format
+msgid "Executions"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:431
+#: lib/atlas_web/live/automation_live.html.heex:452
+#, elixir-autogen, elixir-format
+msgid "Inputs"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:437
+#, elixir-autogen, elixir-format
+msgid "Inspect durable runs, step attempts, and results."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "JavaScript returning a plan (Linux)"
+msgstr ""
+
+#: lib/atlas_web/components/pagination_components.ex:39
+#: lib/atlas_web/live/admin/inference_live.ex:294
+#: lib/atlas_web/live/automation_live.html.heex:607
+#: lib/atlas_web/live/errors_live/index.ex:347
+#, elixir-autogen, elixir-format
+msgid "Next"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:467
+#, elixir-autogen, elixir-format
+msgid "No records yet."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:435
+#: lib/atlas_web/live/automation_live.html.heex:455
+#, elixir-autogen, elixir-format
+msgid "Outputs"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:595
+#, elixir-autogen, elixir-format
+msgid "Pagination"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:579
+#, elixir-autogen, elixir-format
+msgid "Pause"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:531
+#, elixir-autogen, elixir-format
+msgid "Paused"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:25
+#: lib/atlas_web/live/automation_live.html.heex:492
+#: lib/atlas_web/live/gtm_live.ex:1109
+#, elixir-autogen, elixir-format
+msgid "Published"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:132
+#, elixir-autogen, elixir-format
+msgid "Published workflow ID"
+msgstr ""
+
+#: lib/atlas_web/live/account_live.ex:3536
+#: lib/atlas_web/live/automation_live.html.heex:706
+#, elixir-autogen, elixir-format
+msgid "Reject"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:266
+#, elixir-autogen, elixir-format
+msgid "Retry failed step"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:444
+#: lib/atlas_web/live/automation_live.html.heex:648
+#, elixir-autogen, elixir-format
+msgid "Review the exact payload before a workflow continues."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:371
+#, elixir-autogen, elixir-format
+msgid "Revision"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:229
+#, elixir-autogen, elixir-format
+msgid "Run inputs (JSON object)"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:161
+#, elixir-autogen, elixir-format
+msgid "Runs as you, pinned to the workflow’s current published revision."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:286
+#, elixir-autogen, elixir-format
+msgid "Save your webhook credential"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "Scheduled inputs (JSON object)"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:277
+#: lib/atlas_web/live/automation_live.ex:363
+#, elixir-autogen, elixir-format
+msgid "Schedules"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:296
+#, elixir-autogen, elixir-format
+msgid "Shown only now. Send it as an Authorization: Bearer header, with a unique X-Delivery-ID header."
+msgstr ""
+
+#: lib/atlas_web/live/finance_live.ex:517
+#: lib/atlas_web/live/finance_live/filters.ex:42
+#: lib/atlas_web/live/gtm_email_live.ex:1384
+#: lib/atlas_web/live/gtm_email_live.ex:1418
+#: lib/atlas_web/live/gtm_email_live.ex:490
+#: lib/atlas_web/live/gtm_email_live.ex:659
+#: lib/atlas_web/live/gtm_email_live.ex:680
+#: lib/atlas_web/live/gtm_email_live.ex:911
+#: lib/atlas_web/live/outreach_contacts_live.ex:877
+#: lib/atlas_web/live/project_live/show.ex:635
+#: lib/atlas_web/live/project_live/show.ex:728
+#, elixir-autogen, elixir-format
+msgid "Source"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:443
+#, elixir-autogen, elixir-format
+msgid "Start pinned workflows from authenticated, deduplicated deliveries."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:441
+#, elixir-autogen, elixir-format
+msgid "Start pinned workflows on UTC schedules. Missed occurrences coalesce and overlapping runs are skipped."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:398
+#, elixir-autogen, elixir-format
+msgid "Step attempts"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:374
+#: lib/atlas_web/live/automation_live.html.heex:375
+#: lib/atlas_web/live/automation_live.html.heex:515
+#, elixir-autogen, elixir-format
+msgid "Trigger"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:123
+#, elixir-autogen, elixir-format
+msgid "Trigger created."
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:283
+#: lib/atlas_web/live/automation_live.ex:364
+#: lib/atlas_web/live/project_live/show.ex:590
+#, elixir-autogen, elixir-format
+msgid "Webhooks"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:259
+#: lib/atlas_web/live/automation_live.ex:360
+#, elixir-autogen, elixir-format
+msgid "Workflows"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:447
+#, elixir-autogen, elixir-format
+msgid "You do not have permission to perform this action."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:421
+#, elixir-autogen, elixir-format
+msgid "Approved"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:620
+#, elixir-autogen, elixir-format
+msgid "Behavior types"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:419
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:694
+#, elixir-autogen, elixir-format
+msgid "Close"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:387
+#, elixir-autogen, elixir-format
+msgid "Completed"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:431
+#, elixir-autogen, elixir-format
+msgid "Compute"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:133
+#, elixir-autogen, elixir-format
+msgid "Copy the workflow ID from its details page."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:394
+#, elixir-autogen, elixir-format
+msgid "Create behavior"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:395
+#, elixir-autogen, elixir-format
+msgid "Create schedule"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:396
+#, elixir-autogen, elixir-format
+msgid "Create webhook"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:393
+#, elixir-autogen, elixir-format
+msgid "Create workflow"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:372
+#: lib/atlas_web/live/automation_live.ex:373
+#: lib/atlas_web/live/automation_live.ex:374
+#: lib/atlas_web/live/automation_live.ex:390
+#: lib/atlas_web/live/automation_live.html.heex:383
+#: lib/atlas_web/live/automation_live.html.heex:554
+#, elixir-autogen, elixir-format
+msgid "Created"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:307
+#: lib/atlas_web/live/automation_live.html.heex:356
+#, elixir-autogen, elixir-format
+msgid "Details"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:633
+#, elixir-autogen, elixir-format
+msgid "Effect"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:387
+#: lib/atlas_web/live/automation_live.html.heex:542
+#, elixir-autogen, elixir-format
+msgid "Endpoint"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:402
+#: lib/atlas_web/live/automation_live.ex:406
+#, elixir-autogen, elixir-format
+msgid "Execution %{id}"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:414
+#, elixir-autogen, elixir-format
+msgid "Executor"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:413
+#, elixir-autogen, elixir-format
+msgid "JavaScript"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:372
+#: lib/atlas_web/live/automation_live.html.heex:499
+#, elixir-autogen, elixir-format
+msgid "Language"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:432
+#, elixir-autogen, elixir-format
+msgid "Manual"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:382
+#: lib/atlas_web/live/automation_live.html.heex:539
+#, elixir-autogen, elixir-format
+msgid "Next run"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:444
+#, elixir-autogen, elixir-format
+msgid "No step attempts yet"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:26
+#: lib/atlas_web/live/automation_live.html.heex:326
+#: lib/atlas_web/live/automation_live.html.heex:493
+#, elixir-autogen, elixir-format
+msgid "Not published"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:420
+#, elixir-autogen, elixir-format
+msgid "Pending"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:598
+#, elixir-autogen, elixir-format
+msgid "Prev"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:429
+#, elixir-autogen, elixir-format
+msgid "Read"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:417
+#, elixir-autogen, elixir-format
+msgid "Recorded"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:422
+#, elixir-autogen, elixir-format
+msgid "Rejected"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:567
+#, elixir-autogen, elixir-format
+msgid "Review"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:647
+#, elixir-autogen, elixir-format
+msgid "Review approval"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:390
+#: lib/atlas_web/live/automation_live.html.heex:548
+#, elixir-autogen, elixir-format
+msgid "Reviewer"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:194
+#: lib/atlas_web/live/automation_live.html.heex:204
+#: lib/atlas_web/live/automation_live.html.heex:249
+#, elixir-autogen, elixir-format
+msgid "Run workflow"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:415
+#, elixir-autogen, elixir-format
+msgid "Running"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:183
+#, elixir-autogen, elixir-format
+msgid "Saving..."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:381
+#: lib/atlas_web/live/automation_live.ex:433
+#: lib/atlas_web/live/automation_live.html.heex:536
+#, elixir-autogen, elixir-format
+msgid "Schedule"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:379
+#, elixir-autogen, elixir-format
+msgid "Started by"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:253
+#, elixir-autogen, elixir-format
+msgid "Starting..."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:405
+#: lib/atlas_web/live/automation_live.html.heex:676
+#, elixir-autogen, elixir-format
+msgid "Step"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:445
+#, elixir-autogen, elixir-format
+msgid "Step results will appear as this execution progresses."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:417
+#, elixir-autogen, elixir-format
+msgid "Succeeded"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:630
+#, elixir-autogen, elixir-format
+msgid "Type"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:330
+#, elixir-autogen, elixir-format
+msgid "Updated"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:322
+#: lib/atlas_web/live/automation_live.html.heex:636
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:416
+#, elixir-autogen, elixir-format
+msgid "Waiting for approval"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:434
+#, elixir-autogen, elixir-format
+msgid "Webhook"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:374
+#: lib/atlas_web/live/automation_live.ex:379
+#: lib/atlas_web/live/automation_live.ex:387
+#: lib/atlas_web/live/automation_live.html.heex:363
+#: lib/atlas_web/live/automation_live.html.heex:481
+#: lib/atlas_web/live/automation_live.html.heex:521
+#: lib/atlas_web/live/automation_live.html.heex:666
+#, elixir-autogen, elixir-format
+msgid "Workflow"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:314
+#, elixir-autogen, elixir-format
+msgid "Workflow ID"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:430
+#, elixir-autogen, elixir-format
+msgid "Write"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:435
+#, elixir-autogen, elixir-format
+msgid "Create, version, and run repeatable processes."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:44
+#: lib/atlas_web/live/automation_live.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Edit workflow"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:412
+#: lib/atlas_web/live/automation_live.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "JSON"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:195
+#, elixir-autogen, elixir-format
+msgid "Provide the inputs for a new execution of the current version."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:319
+#, elixir-autogen, elixir-format
+msgid "Save a workflow to make its first version ready to run."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:322
+#, elixir-autogen, elixir-format
+msgid "Save first version"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:323
+#, elixir-autogen, elixir-format
+msgid "Save new version"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:450
+#, elixir-autogen, elixir-format
+msgid "Save the first version before running the workflow or adding a trigger."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:317
+#, elixir-autogen, elixir-format
+msgid "Saving publishes a new version. Existing executions, schedules, and webhooks keep their version."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:453
+#, elixir-autogen, elixir-format
+msgid "This workflow changed. Reload the page before saving a new version."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:113
+#, elixir-autogen, elixir-format
+msgid "Version %{number} saved."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:104
+#: lib/atlas_web/live/automation_live.html.heex:339
+#, elixir-autogen, elixir-format
+msgid "Workflow definition"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:128
+#: lib/atlas_web/components/automation_analytics.ex:201
+#, elixir-autogen, elixir-format
+msgid "Avg. completion time"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:137
+#, elixir-autogen, elixir-format
+msgid "Awaiting approval"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:204
+#, elixir-autogen, elixir-format
+msgid "Awaiting approval by start date"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:131
+#, elixir-autogen, elixir-format
+msgid "Elapsed time from admission to completion, including queueing, retries, and approval waits. Only finished executions with valid timestamps are included."
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:41
+#, elixir-autogen, elixir-format
+msgid "Execution metrics could not be loaded. Your workflows and execution history are still available."
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:21
+#, elixir-autogen, elixir-format
+msgid "Execution overview"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:113
+#, elixir-autogen, elixir-format
+msgid "Executions started in the selected period, across all workflow versions. Retries of the same execution are not counted again."
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:140
+#, elixir-autogen, elixir-format
+msgid "Executions started in this period that are currently waiting for approval. The chart groups these by start date, not historical approval backlog."
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:192
+#, elixir-autogen, elixir-format
+msgid "Failed or stopped"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:193
+#: lib/atlas_web/live/gtm_live.ex:1108
+#, elixir-autogen, elixir-format
+msgid "In progress"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:26
+#: lib/atlas_web/components/automation_analytics.ex:34
+#, elixir-autogen, elixir-format
+msgid "Last %{days} days"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:152
+#: lib/atlas_web/components/automation_analytics.ex:157
+#, elixir-autogen, elixir-format
+msgid "No completed executions"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:154
+#, elixir-autogen, elixir-format
+msgid "No data"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:155
+#, elixir-autogen, elixir-format
+msgid "No executions in this period"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:153
+#: lib/atlas_web/components/automation_analytics.ex:156
+#, elixir-autogen, elixir-format
+msgid "No recorded completion times"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:46
+#: lib/atlas_web/live/account_live.ex:3038
+#, elixir-autogen, elixir-format
+msgid "Retry"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:165
+#, elixir-autogen, elixir-format
+msgid "Run a workflow to see execution activity here."
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:122
+#, elixir-autogen, elixir-format
+msgid "Succeeded executions divided by finished executions. Failed, rejected, and cancelled executions are included; unfinished executions are excluded."
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:119
+#: lib/atlas_web/components/automation_analytics.ex:198
+#, elixir-autogen, elixir-format
+msgid "Success rate"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:161
+#, elixir-autogen, elixir-format
+msgid "These metrics become available when executions finish. Queued runs and approval waits are not shown as zero."
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:68
+#, elixir-autogen, elixir-format
+msgid "vs previous %{days} days"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:66
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:56
+#: lib/atlas_web/live/admin/inference_helpers.ex:87
+#: lib/atlas_web/live/errors_live/index.ex:189
+#: lib/atlas_web/live/errors_live/show.ex:288
+#: lib/atlas_web/live/finance_live.ex:161
+#: lib/atlas_web/live/finance_live.ex:580
+#: lib/atlas_web/live/finance_vendor_live.ex:139
+#: lib/atlas_web/live/overview_live.ex:159
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:40
+#: lib/atlas_web/live/admin/inference_helpers.ex:269
+#: lib/atlas_web/live/admin/roles_live.ex:249
+#: lib/atlas_web/live/errors_live/index.ex:438
+#: lib/atlas_web/live/errors_live/show.ex:1011
+#: lib/atlas_web/live/finance_live/charts.ex:23
+#: lib/atlas_web/live/finance_live/formatters.ex:17
+#: lib/atlas_web/live/finance_vendor_live.ex:787
+#: lib/atlas_web/live/overview_live.ex:561
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr ""
+
+#: lib/atlas_web/components/automation_analytics.ex:106
+#: lib/atlas_web/components/automation_analytics.ex:141
+#, elixir-autogen, elixir-format
+msgid "No data yet"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "Select a date range of 1 to 90 days, not later than today."
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:66
+#: lib/atlas_web/components/automation_execution.ex:89
+#: lib/atlas_web/live/automation_live.html.heex:478
+#, elixir-autogen, elixir-format
+msgid "Approval wait"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:54
+#, elixir-autogen, elixir-format
+msgid "Copy trace ID"
+msgstr ""
+
+#: lib/atlas_web/live/admin/inference_live.ex:277
+#, elixir-autogen, elixir-format
+msgid "Create a profile to expose a stable model name to repository automation."
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:83
+#: lib/atlas_web/live/automation_live.html.heex:470
+#, elixir-autogen, elixir-format
+msgid "Elapsed"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:60
+#, elixir-autogen, elixir-format
+msgid "Elapsed intervals include queueing and approval waits. Worker time excludes approval waiting. Missing historical timings are not estimated."
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:132
+#: lib/atlas_web/live/admin/memory_live.ex:843
+#, elixir-autogen, elixir-format
+msgid "Event"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:102
+#, elixir-autogen, elixir-format
+msgid "Event log"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:30
+#, elixir-autogen, elixir-format
+msgid "Execution trace"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:39
+#, elixir-autogen, elixir-format
+msgid "External trace"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:123
+#: lib/atlas_web/live/errors_live/show.ex:173
+#: lib/atlas_web/live/errors_live/show.ex:635
+#, elixir-autogen, elixir-format
+msgid "Level"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:145
+#, elixir-autogen, elixir-format
+msgid "New events appear as this execution progresses. Older executions may not have an event log."
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:157
+#, elixir-autogen, elixir-format
+msgid "Newer events"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:105
+#, elixir-autogen, elixir-format
+msgid "Newest events first. Payloads and credentials are never copied into this log."
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:143
+#, elixir-autogen, elixir-format
+msgid "No recorded events"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:95
+#, elixir-autogen, elixir-format
+msgid "No step timings yet"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:80
+#: lib/atlas_web/live/account_live.ex:1638
+#: lib/atlas_web/live/automation_live.html.heex:458
+#: lib/atlas_web/live/automation_live.html.heex:483
+#, elixir-autogen, elixir-format
+msgid "Not recorded"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:170
+#, elixir-autogen, elixir-format
+msgid "Older events"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:161
+#, elixir-autogen, elixir-format
+msgid "Page %{page} of %{total}"
+msgstr ""
+
+#: lib/atlas_web/live/admin/inference_profile_live.ex:610
+#, elixir-autogen, elixir-format
+msgid "Repository automation"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:482
+#, elixir-autogen, elixir-format
+msgid "Span ID"
+msgstr ""
+
+#: lib/atlas_web/components/agent_session_components.ex:36
+#: lib/atlas_web/components/agent_session_components.ex:99
+#: lib/atlas_web/live/account_live.ex:2078
+#: lib/atlas_web/live/automation_live.html.heex:454
+#, elixir-autogen, elixir-format
+msgid "Started"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:65
+#, elixir-autogen, elixir-format
+msgid "Step interval"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:112
+#, elixir-autogen, elixir-format
+msgid "The event log could not be loaded. It will retry on refresh."
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:120
+#, elixir-autogen, elixir-format
+msgid "Time (UTC)"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:96
+#, elixir-autogen, elixir-format
+msgid "Timings appear when a worker claims a step."
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:44
+#, elixir-autogen, elixir-format
+msgid "Trace ID"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:67
+#, elixir-autogen, elixir-format
+msgid "Unobserved interval"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:86
+#: lib/atlas_web/live/automation_live.html.heex:474
+#, elixir-autogen, elixir-format
+msgid "Worker time"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:238
+#, elixir-autogen, elixir-format
+msgid "%{phase}: %{duration}, starting %{offset} after admission"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:205
+#: lib/atlas_web/live/document_live.ex:169
+#: lib/atlas_web/live/documents_live.ex:381
+#: lib/atlas_web/live/postal_live.ex:597
+#, elixir-autogen, elixir-format
+msgid "Processing"
+msgstr ""
+
+#: lib/atlas_web/components/automation_execution.ex:67
+#, elixir-autogen, elixir-format
+msgid "Timeline (since admission)"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:763
+#, elixir-autogen, elixir-format
+msgid "Add a prior approval with this payload, replacing target_step and input with the exact action being reviewed."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:729
+#, elixir-autogen, elixir-format
+msgid "Approval"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:724
+#, elixir-autogen, elixir-format
+msgid "Authenticated teammate"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:753
+#, elixir-autogen, elixir-format
+msgid "Behavior contract"
+msgstr ""
+
+#: lib/atlas_web/components/domain_components.ex:42
+#: lib/atlas_web/components/domain_components.ex:104
+#: lib/atlas_web/live/automation_live.html.heex:712
+#: lib/atlas_web/live/project_live/show.ex:359
+#: lib/atlas_web/live/project_live/show.ex:544
+#, elixir-autogen, elixir-format
+msgid "Domain"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:721
+#, elixir-autogen, elixir-format
+msgid "Permissions"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:754
+#, elixir-autogen, elixir-format
+msgid "Published workflows pin this operation version and its contracts."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:730
+#, elixir-autogen, elixir-format
+msgid "Required"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:696
+#, elixir-autogen, elixir-format
+msgid "Search behavior types"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:697
+#, elixir-autogen, elixir-format
+msgid "Search by domain, operation or permission"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:738
+#, elixir-autogen, elixir-format
+msgid "View contract"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live/table.ex:119
+#, elixir-autogen, elixir-format
+msgid "Search..."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live/table.ex:120
+#, elixir-autogen, elixir-format
+msgid "Search table"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live/table.ex:128
+#, elixir-autogen, elixir-format
+msgid "Sort by:"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live/table.ex:186
+#, elixir-autogen, elixir-format
+msgid "Not required"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:803
+#, elixir-autogen, elixir-format
+msgid "No matching behavior types"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:537
+#, elixir-autogen, elixir-format
+msgid "No matching executions"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:542
+#: lib/atlas_web/live/automation_live.html.heex:804
+#, elixir-autogen, elixir-format
+msgid "Try a different search or filter."
+msgstr ""
+
+#: lib/atlas_web/live/automation_live/table.ex:151
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:538
+#, elixir-autogen, elixir-format
+msgid "No matching records"
+msgstr ""
+
+#: lib/atlas_web/live/automation_live.html.heex:674
+#, elixir-autogen, elixir-format
+msgid "Not scheduled"
 msgstr ""

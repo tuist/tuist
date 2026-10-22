@@ -249,6 +249,50 @@
         </.sidebar_group>
       </.sidebar_group>
       <.sidebar_group
+        :if={Atlas.Users.has_scope?(@current_user, "automation:read")}
+        id="sidebar-automation"
+        label={gettext("Automation")}
+        icon="schema"
+        collapsible={false}
+      >
+        <.sidebar_item
+          label={gettext("Workflows")}
+          icon="schema"
+          navigate={~p"/automation/workflows"}
+          selected={String.starts_with?(@current_path, "/automation/workflows")}
+        />
+        <.sidebar_item
+          label={gettext("Behaviors")}
+          icon="devices_code"
+          navigate={~p"/automation/behaviors"}
+          selected={String.starts_with?(@current_path, "/automation/behaviors")}
+        />
+        <.sidebar_item
+          label={gettext("Executions")}
+          icon="history"
+          navigate={~p"/automation/executions"}
+          selected={String.starts_with?(@current_path, "/automation/executions")}
+        />
+        <.sidebar_item
+          label={gettext("Schedules")}
+          icon="calendar_week"
+          navigate={~p"/automation/schedules"}
+          selected={String.starts_with?(@current_path, "/automation/schedules")}
+        />
+        <.sidebar_item
+          label={gettext("Webhooks")}
+          icon="webhook"
+          navigate={~p"/automation/webhooks"}
+          selected={String.starts_with?(@current_path, "/automation/webhooks")}
+        />
+        <.sidebar_item
+          label={gettext("Approvals")}
+          icon="circle_check"
+          navigate={~p"/automation/approvals"}
+          selected={String.starts_with?(@current_path, "/automation/approvals")}
+        />
+      </.sidebar_group>
+      <.sidebar_group
         id="sidebar-library"
         label={gettext("Library")}
         icon="book"

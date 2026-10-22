@@ -4,6 +4,7 @@ defmodule AtlasWeb.Router do
   import Oban.Web.Router
   import Phoenix.LiveDashboard.Router
 
+  alias Atlas.Automations.Interfaces
   alias Atlas.MCP.Server
   alias Atlas.MCP.Transport.StreamableHTTP
   alias AtlasWeb.Plugs.AdminAuth
@@ -132,6 +133,7 @@ defmodule AtlasWeb.Router do
     post "/slack/events", SlackEventsController, :handle
     post "/slack/interactions", SlackEventsController, :interactions
     post "/github/events", GitHubEventsController, :handle
+    post "/automation/hooks/:id", AutomationWebhookController, :create
     post "/inbox/emails", InboxEmailsController, :create
     post "/postal/events", PostalEventsController, :handle
     post "/email/subscriptions", GTMSubscriptionController, :create
@@ -159,6 +161,24 @@ defmodule AtlasWeb.Router do
 
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
+
+    for route <- Interfaces.routes() do
+      match route.method, route.path, AutomationController, route.operation,
+        private: %{automation_parameters: route.parameters}
+    end
+
+    match :*, "/automation/*path", AutomationController, :unsupported
+
+    get "/native/automation/workflows", NativeAutomationController, :workflows
+    get "/native/automation/workflows/:id", NativeAutomationController, :workflow
+    post "/native/automation/workflows/:id/run", NativeAutomationController, :run
+    get "/native/automation/executions", NativeAutomationController, :executions
+    get "/native/automation/executions/:id", NativeAutomationController, :execution
+    get "/native/automation/executions/:id/result", NativeAutomationController, :result
+    post "/native/automation/executions/:id/control", NativeAutomationController, :control
+    get "/native/automation/approvals", NativeAutomationController, :approvals
+    get "/native/automation/approvals/:id", NativeAutomationController, :approval
+    post "/native/automation/approvals/:id/decision", NativeAutomationController, :decide
 
     get "/notes", NotesController, :index
     post "/notes", NotesController, :create
@@ -285,6 +305,19 @@ defmodule AtlasWeb.Router do
       live "/commercial/sales/pocs/new", POCLive.Form, :new
       live "/commercial/sales/pocs/:id", POCLive.Show, :show
       live "/commercial/sales/pocs/:id/edit", POCLive.Form, :edit
+    end
+
+    live_session :scoped_automation,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "automation:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/automation/workflows", AutomationLive, :workflows
+      live "/automation/workflows/:id", AutomationLive, :workflow
+      live "/automation/behaviors", AutomationLive, :behaviors
+      live "/automation/executions", AutomationLive, :executions
+      live "/automation/executions/:id", AutomationLive, :execution
+      live "/automation/schedules", AutomationLive, :schedules
+      live "/automation/webhooks", AutomationLive, :webhooks
+      live "/automation/approvals", AutomationLive, :approvals
     end
 
     live_session :scoped_finance,

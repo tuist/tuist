@@ -91,6 +91,10 @@ defmodule Atlas.Tasks do
     |> audit_result("task.updated", actor, opts)
   end
 
+  def delete_task(%Task{} = task, %User{} = actor, opts \\ []) do
+    task |> Repo.delete() |> audit_result("task.deleted", actor, opts)
+  end
+
   def complete_task(task, actor, opts \\ [])
 
   def complete_task(%Task{status: "open"} = task, %User{} = actor, opts) do
