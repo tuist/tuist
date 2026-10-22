@@ -230,7 +230,8 @@ public struct BazelSetupCommandService {
             bazelrcPath: bazelrcPath,
             bazelrcImportResult: bazelrcImportResult,
             buildInsights: buildInsights,
-            remoteCacheConfigured: setupConfiguration.endpoint != nil && !setupConfiguration.networkTrustedReporting
+            remoteCacheConfigured: setupConfiguration.endpoint != nil && !setupConfiguration.networkTrustedReporting,
+            networkTrustedReporting: setupConfiguration.networkTrustedReporting
         )
     }
 
@@ -244,8 +245,10 @@ public struct BazelSetupCommandService {
         if try await ServerReportPublishingMode.usesNetworkTrust(
             serverURL: serverURL, authenticationController: serverAuthenticationController
         ) {
-            guard let configured = Environment.current.variables["TUIST_BAZEL_BES_BACKEND"],
-                  let url = URL(string: configured),
+            guard let configured = Environment.current.variables["TUIST_BAZEL_BES_BACKEND"] else {
+                throw BazelSetupCommandServiceError.notAuthenticated
+            }
+            guard let url = URL(string: configured),
                   ["grpc", "grpcs"].contains(url.scheme ?? ""), let host = url.host,
                   url.query == nil, url.fragment == nil, url.user == nil, url.password == nil,
                   url.path.isEmpty || url.path == "/"
@@ -312,26 +315,35 @@ public struct BazelSetupCommandService {
         bazelrcPath: AbsolutePath,
         bazelrcImportResult: BazelrcImportResult,
         buildInsights: Bool,
-        remoteCacheConfigured: Bool
+        remoteCacheConfigured: Bool,
+        networkTrustedReporting: Bool
     ) {
         var takeaways = [
             bazelrcImportTakeaway(
                 result: bazelrcImportResult,
-                buildInsights: buildInsights
+                buildInsights: buildInsights,
+                networkTrustedReporting: networkTrustedReporting
             ),
         ]
         if remoteCacheConfigured {
             takeaways
                 .append("Run Bazel normally to use the Tuist remote cache\(buildInsights ? " and record build insights" : "")")
         }
+        if networkTrustedReporting {
+            takeaways
+                .append("Reporting only: no remote cache is configured. Sign in and rerun tuist bazel setup to enable caching.")
+        }
         AlertController.current.success(.alert("Generated \(bazelrcPath.pathString)", takeaways: takeaways))
     }
 
     private func bazelrcImportTakeaway(
         result: BazelrcImportResult,
-        buildInsights: Bool
+        buildInsights: Bool,
+        networkTrustedReporting: Bool
     ) -> TerminalText {
-        let capabilities = buildInsights ? "remote cache and build insights" : "remote cache"
+        let capabilities = networkTrustedReporting
+            ? "credential-free build insights"
+            : (buildInsights ? "remote cache and build insights" : "remote cache")
 
         switch result {
         case .added:

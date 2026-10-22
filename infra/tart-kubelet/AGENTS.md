@@ -15,9 +15,20 @@ workflow code runs in the guest. Never expose host credentials or masters.
   host probes the mirror's manifest, pulls `<mirror>/<repo>@<digest>` with
   `--insecure`, and falls back to the image's own registry when the mirror is
   down, lacks the image or fails the pull. A mirror still fetching the image
-  requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`
-  instead of blocking the single reconcile worker. The golden keeps the Pod
+  requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`.
+  The golden keeps the Pod
   image's name and the GC keeps mirror-pulled OCI entries as their upstream's.
+- The Pod controller has one reconcile worker, so nothing slow may run inside
+  a reconcile: noticing that a VM exited (which frees the scheduler's slot)
+  and a Pod's teardown (finalizer removal) wait behind it. A Pod whose
+  golden is missing starts its pull in the background (`readyGolden`), stays Pending with `PullingImage`,
+  and is re-enqueued when the pull ends; Pods of the same image wait on the
+  same pull, including the prewarmer's. One golden materializes at a time per
+  host. A failed pull is reported to the waiting Pods for 30 seconds, then
+  pulled again. Evidence: on 2026-10-21 the first Pod of a new runner image
+  on b04 and b08 pulled from ghcr.io for 532 s and 562 s inside its reconcile,
+  and the other VM on each host halted unobserved: its Pod read `Running`
+  for up to nine minutes, so the scheduler saw both hosts as full.
 - A golden is named after the Pod's image ref string (`goldenVMName`), not
   the content it resolves to, and so are the golden Node labels the
   runners-controller's affinity reads. Catalog RunnerPools name their image
@@ -74,9 +85,19 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Publish responses by writing `<request>.response.tmp` and hard-linking it to
   `<request>.response`: guests never read a partial response, and an existing
   path (including a guest symlink) is never followed or replaced.
+- A running VM's branch image lives only in its share; never stat or open it by
+  `images/<use>.img` (absent then) and never give it a second name outside the
+  share. Measure and find it with `cachevolumes.APFSBranchFile`/`APFSHasBranch`.
+  Evidence: on 2026-10-21 two of three macOS saves failed because the guest's
+  open of a hard-linked image was denied after the host's 30-second
+  reservation refresh looked the image up by its private name.
 - Publication requires API pod absence, stopped Tart VM, guest clean-detach
   proof, userspace APFS verification on an unmounted device and server publication eligibility. A webhook
   or terminal pod phase alone never fences writers.
+  `verifyCustomImage` also returns the unmounted container's in-use bytes
+  (`diskutil apfs list`), which `Seal` compares with the guest's measurement:
+  writes the guest made through its share can be lost, and such an image passes
+  fsck (result `incomplete`, see `runner-cache/AGENTS.md`).
   The guest side of the clean detach (`tuist-cache-volume --detach-all`, and
   `dispatch-poll.sh` stopping the Tuist CLI's launch agents first) ships in the
   runner image, not with tart-kubelet, so it rolls out with an image release.
@@ -92,9 +113,35 @@ workflow code runs in the guest. Never expose host credentials or masters.
   A background prefetch the server listed for the host gives way first: built-in
   and custom job admission cancel it and drop its reservation (twice its volume
   size) before evicting any master (`displaceSpareLocked`).
+  Among custom masters, eviction takes superseded generations and unused spare
+  prefetches first and the lineages a running or attaching job holds last
+  (`LocalImages.InUse`); see `runner-cache/AGENTS.md`.
+- The heartbeat labels the Node `tuist.dev/cache-volume-capacity-gib` with that
+  budgeted capacity (`CustomVolumes.CapacityNodeLabels`), and none while the
+  cache filesystem is unmounted. The server subtracts the volumes of every job
+  with an open runner session here, attached or only predicted, because a job
+  reserves its volumes at attach, minutes after dispatch. Dispatch affinity and
+  macOS Pod placement prefer this host for a job only while its volumes fit.
 - Run `go test -race ./internal/podagent` and shared lifecycle tests. Real APFS
   checks require macOS/hdiutil; Linux CI covers the injected lifecycle tests.
 - Migration, rollout and validation: [custom-cache-volumes.md](custom-cache-volumes.md).
+- Logs: `logger=custom-cache-volumes` carries `cache phase` (one per
+  `Observation`, with the volume's subject fields), `cache master evicted`, and
+  `admission cancelled a background prefetch` (the cancelled prefetch's `scope`
+  plus the `for_*` subject it made room for; `for_kind=builtin` for built-in
+  admission). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
+  The `tuist_runner_cache_volume_*` metrics keep only operation/source/result.
+  Everything that happened to one volume on a host:
+
+  ```logql
+  {job="tuist-macos-tart-kubelet", instance="<host>"} |= "<scope>"
+    | json | logger="custom-cache-volumes"
+    | line_format "{{.msg}} {{.operation}} {{.reason}} {{.result}} gen={{.generation}} pod={{.pod}}"
+  ```
+
+  Searching for the 48-hex prefix from a `tuist.dev/cache-volume-<prefix>` node
+  label matches the same lines. The Linux agent logs the same fields as JSON
+  under `cache volume operation` and `cache master evicted`.
 
 - Built-in volume telemetry is sampled in the guest at attach and before detach,
   then attributed and queued by the host after finalization. Reports use the
@@ -112,14 +159,27 @@ workflow code runs in the guest. Never expose host credentials or masters.
   deadline is `execution_pending`, not `denied`.
   A job never waits for a download. Without its base locally it mounts the newest
   older master of the same lineage (reported as `mounted_generation`), or else an
-  empty image marked `.cold` that reports a miss and is withheld from publication;
-  either way its base is queued. A superseded master used in the last day stays
+  empty image marked `.cold` that reports a miss and is withheld from publication
+  unless the report response pairs `seal` with `cold_publish: true` (the Store's
+  `publish` action); either way its base is queued. A superseded master used in the last day stays
   until its successor is downloaded through the queue (`LocalImages.Replace`).
+  An unchanged branch of its own base reinstalls that master if admission
+  evicted it during the job (see `runner-cache/AGENTS.md`).
   The host maximum is `--custom-cache-max-volume-gb` (100 GB by default, env
   `TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB`), sent as `max_volume_bytes` with every
   authorization alongside the guest's valid `requested_volume_bytes`; a 507 is
-  reason `capacity`. Reserve the volume's capacity (`Identity.VolumeBytes`, 20 GB
-  when the server sends none) for every attach and, for prefetch, which also
+  reason `capacity`. Reserve what the job is expected to write
+  (`Identity.ExpectedBytes`, capped at `Identity.VolumeBytes`, 20 GB when the
+  server sends none) for every attach, and the rest of it for a running VM, not
+  the capacity: on 2026-10-21 six volumes of one job asked for 130 GB of a 240 GiB
+  rack cache disk while holding under 25 GB, and jobs ran cold for "no room".
+  Jobs can then write past their reservations: the gap between the budget and
+  the APFS quota is the safeguard, so keep the budget well below the quota.
+  `relieve` evicts idle custom masters once reservations no longer fit, and
+  `notePressure` marks running branches `.pressure` (withheld, never published)
+  with under 2 GB left before the quota or the host disk is full. See
+  [custom-cache-volumes.md](custom-cache-volumes.md).
+  For prefetch, which also
   holds the archive, twice `HeadSizeBytes` (twice the capacity when the head size
   is unknown), in both the shared-filesystem check (`reserveBytes`/`reserveSpare`)
   and the custom reservation (`customAdmissionBytes`): if they disagree, the
@@ -163,17 +223,22 @@ workflow code runs in the guest. Never expose host credentials or masters.
   names, and the host writes the working tree and the index itself. Only LFS
   objects the exported commit references are kept, an export is capped at half
   an image (and 200,000 LFS entries), and a build reserves twice its size. A
-  master only starts from, and its tip only moves to, a default-branch job's
-  commit (`default_branch_job` is the server's verified `trusted`, never the
-  branch name) whose LFS objects are all present: its tree is handed to every
-  later job, and a pointer left in it would be served as the file. Branches stay
+  master's tip only moves to a default-branch job's commit (`default_branch_job`
+  is the server's verified `trusted`, never the branch name) whose LFS objects
+  are all present: its tree is handed to every later job, and a pointer left in
+  it would be served as the file. While the lineage has no HEAD
+  (`base_generation` 0), a job with `may_start_master` (a same-repository writer
+  branch its profile saves from; never forks or pull_request_target) may also
+  start the master at its own verified commit, or at its pull request's test
+  merge of it (two parents, one of them that commit); once a master exists, its
+  exports only add objects. Branches stay
   `refs/remotes/origin/*` (actions/checkout deletes local branches before
   fetching) and job commits live under `refs/tuist/recent/*`. Wait past the
   smudged files' mtimes before the final `update-index --really-refresh`: racily
   clean LFS entries turn back into pointers in a guest that has not configured
   the LFS filter.
-- A master that moved to a default-branch commit is published under the job's
-  use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
+- A master whose tip moved (a default-branch commit, or a started lineage) is
+  published under the job's use (`Checkouts.Transfer`, bounded by the checkout capacity, not the custom
   one); a cold host with a HEAD restores it in the background instead. A cold
   answer journals no branch and reports the use deleted at once. A host without
   working git answers `denied`, so guests do not export. `Track` maps the

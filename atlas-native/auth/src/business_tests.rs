@@ -360,6 +360,89 @@ fn invalid_resources_paths_and_write_fields_never_send_credentials() {
 }
 
 #[test]
+fn account_details_filter_nested_data_and_do_not_expand_mutation_permissions() {
+    let record = json!({"id":ID, "fields":{"name":"Customer", "contract_value":"1234.56", "contract_currency":"USD"},
+    "can_edit":false, "can_delete":false, "details":{
+        "fields":{"overview_summary":"Sales context", "secret":"must-not-forward"},
+        "billing":{"email":"billing@example.org", "secret":"must-not-forward"},
+        "contacts":[{"id":ID,"fields":{"full_name":"Taylor", "is_primary":"true", "secret":"must-not-forward"}}],
+        "documents":[{"id":ID,"fields":{"title":"Contract", "summary":"Authorized summary", "storage_key":"must-not-forward"}}],
+        "secret":"must-not-forward"
+    }});
+    for resource in [Resource::Accounts, Resource::Tasks, Resource::Invoices] {
+        let network = MockTransport::new(vec![json!({"item":record})]);
+        let output =
+            execute_using(&network, saved(), resource, Action::Show { id: ID.into() }).unwrap();
+        assert!(!output.to_string().contains("must-not-forward"));
+        if matches!(resource, Resource::Accounts) {
+            assert_eq!(output["item"]["fields"]["contract_value"], "1234.56");
+            assert_eq!(
+                output["item"]["details"]["contacts"][0]["fields"]["is_primary"],
+                "true"
+            );
+            assert_eq!(
+                output["item"]["details"]["documents"][0]["fields"]["summary"],
+                "Authorized summary"
+            );
+            assert_eq!(output["item"]["can_edit"], false);
+        } else {
+            assert!(output["item"].get("details").is_none());
+            assert!(output["item"]["fields"].get("contract_value").is_none());
+        }
+    }
+    let network = MockTransport::new(vec![]);
+    for field in [
+        "contract_value",
+        "contacts_count",
+        "overview_summary",
+        "billing",
+        "details",
+    ] {
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                Resource::Accounts,
+                Action::Update {
+                    id: ID.into(),
+                    fields: BTreeMap::from([(field.into(), Some("injected".into()))])
+                }
+            )
+            .is_err()
+        );
+    }
+    assert!(network.requests.borrow().is_empty());
+}
+
+#[test]
+fn finance_overview_preserves_exact_values_and_only_belongs_to_invoices() {
+    let overview = json!({"currency":"EUR", "as_of":"2026-10-22", "account_count":3,
+        "available_cash":"123456789.13", "monthly_burn":null, "runway_months":null,
+        "fx_published_on":"2026-10-21", "excluded_currencies":[],
+        "months":[{"month":"2026-10", "income":"7.91", "expense":"123.45"}]});
+    for resource in [Resource::Invoices, Resource::Tasks, Resource::Accounts] {
+        let network = MockTransport::new(vec![json!({"items":[], "page":1, "total_pages":1,
+            "total_count":0, "can_write":false, "finance_overview":overview})]);
+        let output = execute_using(
+            &network,
+            saved(),
+            resource,
+            Action::List {
+                page: 1,
+                query: String::new(),
+                filters: BTreeMap::new(),
+            },
+        )
+        .unwrap();
+        if matches!(resource, Resource::Invoices) {
+            assert_eq!(output["finance_overview"], overview);
+        } else {
+            assert!(output.get("finance_overview").is_none());
+        }
+    }
+}
+
+#[test]
 fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
     let network = MockTransport::new(vec![
         json!({"server_version":"0.7.2","user":{"name":"Taylor","email":"taylor@example.org","token":"private"}}),

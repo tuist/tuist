@@ -370,6 +370,10 @@ jobs:
   deploy:
     name: Deploy runner image
     needs: release
+    # The implicit success() also requires release's own skipped needs (the
+    # re-tag job) to have succeeded, which would skip every deploy of a
+    # release that rebuilt all profiles.
+    if: always() && needs.release.result == 'success'
     runs-on: tuist-linux
     timeout-minutes: 5
     permissions:

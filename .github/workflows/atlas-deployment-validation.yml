@@ -24,9 +24,10 @@ jobs:
           install_args: "--locked helm yq jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Validate agent execution boundary
+      - name: Validate deployment configuration and agent execution boundary
         run: |
           bash infra/helm/atlas/test-agent-boundary.sh
+          bash infra/helm/atlas/test-chatgpt-config.sh
           bash atlas/deploy/test-sandbox-retention.sh
       - uses: helm/kind-action@v1.14.0
         with:

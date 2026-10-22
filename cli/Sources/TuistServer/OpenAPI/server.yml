@@ -2434,8 +2434,15 @@ components:
       x-validate:
     OIDCTokenExchangeRequest:
       properties:
+        account_handle:
+          description: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+          maxLength: 255
+          minLength: 1
+          type: string
+          x-struct:
+          x-validate:
         token:
-          description: The OIDC JWT token from the CI provider.
+          description: The OIDC JWT token from a supported CI or workload identity provider.
           type: string
           x-struct:
           x-validate:
@@ -21489,7 +21496,7 @@ paths:
     post:
       callbacks: {}
       description: |
-        Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+        Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
         for a short-lived Tuist access token.
       operationId: exchangeOIDCToken
       parameters: []
@@ -21498,8 +21505,15 @@ paths:
           application/json:
             schema:
               properties:
+                account_handle:
+                  description: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+                  maxLength: 255
+                  minLength: 1
+                  type: string
+                  x-struct:
+                  x-validate:
                 token:
-                  description: The OIDC JWT token from the CI provider.
+                  description: The OIDC JWT token from a supported CI or workload identity provider.
                   type: string
                   x-struct:
                   x-validate:
@@ -21540,7 +21554,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unsupported CI provider or missing repository claim
+          description: Unsupported provider or missing identity claims
         '401':
           content:
             application/json:
@@ -21552,8 +21566,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: No projects linked to the repository
-      summary: Exchange a CI provider OIDC token for a Tuist access token.
+          description: No repository-linked projects or ambiguous repository account
+      summary: Exchange an OIDC identity token for a Tuist access token.
       tags:
         - OIDC Authentication
   /api/accounts/{account_handle}:

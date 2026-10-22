@@ -236,3 +236,11 @@ test('archive paths escape glob characters in literal package directories', t =>
   fs.rmSync(path.join(f.bin, 'tuist-cache-volume'));
   assert.equal(success(f.prepare({ TUIST_INSTALL_PATH: 'app[1]*?' }))['archive-path'], './app[[]1[]][*][?]/.build');
 });
+
+test('size reaches the cache volume and never the GitHub archive', () => {
+  const definition = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
+  const step = id => definition.split(/\n    - /).find(s => s.startsWith(`id: ${id}\n`));
+  assert.match(definition, /\n  size:\n    description: [^\n]+\n    default: ""\n/);
+  assert.match(step('volume'), /^        size: \$\{\{ inputs\.size \}\}$/m);
+  assert.doesNotMatch(step('archive'), /size/);
+});

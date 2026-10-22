@@ -10,7 +10,9 @@
     struct URLSessionTuistTests {
         @Test(.withMockedEnvironment())
         func all_Apple_session_factories_install_the_trust_policy_without_custom_anchors() {
-            let sessions = [URLSession.tuistDefault, .tuistShared, .tuistCAS, .tuistLargeTransfer]
+            let discovery = URLSession.tuistDiscovery
+            defer { discovery.invalidateAndCancel() }
+            let sessions = [URLSession.tuistDefault, .tuistShared, .tuistCAS, .tuistLargeTransfer, discovery]
             #expect(sessions.allSatisfy { $0.delegate is TuistURLSessionDelegate })
             let configuration = URLSessionConfiguration.default
             configuration.timeoutIntervalForRequest = 37
@@ -37,6 +39,38 @@
 
             #expect(proxyHost == "proxy.tuist.dev")
             #expect(proxyPort == 8080)
+        }
+
+        @Test(.withMockedEnvironment())
+        func discovery_preserves_proxy_settings_without_cookies_credentials_or_redirects() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+            let previousSettings = HTTPSettings.current
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            defer { HTTPSettings.current = previousSettings }
+            let session = URLSession.tuistDiscovery
+            defer { session.invalidateAndCancel() }
+            let configuration = session.configuration
+            #expect(session.delegate is TuistURLSessionDelegate)
+            #expect(configuration
+                .connectionProxyDictionary?[kCFNetworkProxiesHTTPSProxy as String] as? String == "proxy.tuist.dev")
+            #expect(configuration.httpCookieStorage == nil)
+            #expect(configuration.urlCredentialStorage == nil)
+            #expect(!configuration.httpShouldSetCookies)
+            #expect(configuration.timeoutIntervalForRequest == 10)
+            #expect(configuration.timeoutIntervalForResource == 10)
+            let delegate = try #require(session.delegate as? URLSessionTaskDelegate)
+            let url = try #require(URL(string: "https://tuist.example"))
+            let response = try #require(HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil, headerFields: nil))
+            await confirmation("Discovery refuses redirects") { completed in
+                delegate.urlSession?(
+                    session, task: session.dataTask(with: url), willPerformHTTPRedirection: response,
+                    newRequest: URLRequest(url: url)
+                ) { request in
+                    #expect(request == nil)
+                    completed()
+                }
+            }
         }
 
         @Test(.withMockedEnvironment())

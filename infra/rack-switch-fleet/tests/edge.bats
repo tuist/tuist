@@ -588,6 +588,147 @@ STUB
     [ "$status" -eq 0 ]
 }
 
+@test "a site with prefixes of its own announces them to the WAN's upstream from the WAN address, and takes only a default route back" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_bgp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"router id 149.6.170.31;"* ]]
+    # one session per family, bound to the floating WAN address, so only the
+    # master has one
+    [[ "$output" == *"protocol bgp upstream4 {
+  local 149.6.170.31 as 218377;
+  neighbor 149.6.170.30 as 174;
+  direct;"* ]]
+    [[ "$output" == *"protocol bgp upstream6 {
+  local 2001:978:2:b::4:11 as 218377;
+  neighbor 2001:978:2:b::4:10 as 174;
+  direct;"* ]]
+    # each prefix is originated as a blackhole in BIRD's own table and is the
+    # only thing announced
+    [[ "$output" == *"protocol static originate4 {
+  ipv4;
+  route 95.130.119.0/24 blackhole;
+}"* ]]
+    [[ "$output" == *"protocol static originate6 {
+  ipv6;
+  route 2a11:83c0::/29 blackhole;
+}"* ]]
+    [[ "$output" == *'export where proto = "originate4";'* ]]
+    [[ "$output" == *'export where proto = "originate6";'* ]]
+    [[ "$output" == *"if net.len = 0 then accept;"* ]]
+    # nothing goes into the node's routes: the default is keepalived's
+    [[ "$output" != *"protocol kernel"* ]]
+    # an IPv4-only announcement has no IPv6 session
+    jq '.management.edge.wan.bgp.prefixes = ["95.130.119.0/24"]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/v4only.json"
+    run fleet_edge_bgp "$BATS_TEST_TMPDIR/v4only.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"protocol bgp upstream4"* ]]
+    [[ "$output" != *"upstream6"* ]]
+    [[ "$output" != *"2001:978:"* ]]
+}
+
+@test "a WAN announcement with a bad AS number or prefix, or no address to announce from, is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/badbgp.json"
+    jq '.management.edge.wan.bgp.asn = "AS218377"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.wan.bgp.asn and peer_asn are AS numbers"* ]]
+    jq '.management.edge.wan.bgp.peer_asn = 4294967296' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan.bgp.prefixes = []' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"announces no prefixes"* ]]
+    jq '.management.edge.wan.bgp.prefixes = ["95.130.119.1/24"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'95.130.119.1/24' is not an IPv4 network with its prefix length"* ]]
+    jq '.management.edge.wan.bgp.prefixes = ["2A11:83C0::/29"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an IPv6 network ending in ::"* ]]
+    jq '.management.edge.wan |= del(.address6, .gateway6)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'2a11:83c0::/29' is IPv6, and the WAN has no IPv6 address to announce it from"* ]]
+    jq '.management.edge.wan |= {vlan, bgp}' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.wan.bgp needs the WAN's address"* ]]
+}
+
+@test "render --check notices a WAN announcement the site has and the chart does not" {
+    chart="$BATS_TEST_TMPDIR/chart"
+    mkdir -p "$chart/sites"
+    cp -R "$FLEET_ROOT/../helm/rack-edge/sites/ber1" "$chart/sites/"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -eq 0 ]
+    rm "$chart/sites/ber1/bird.conf"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: "*"/sites/ber1/bird.conf"* ]]
+}
+
+@test "the Mac minis the site's egress names go out from its block of the site's own prefix, and everything else from the WAN address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    snat='    oifname "wan0" ip saddr { 10.10.0.101 } snat ip to 95.130.119.16-95.130.119.31 persistent'
+    machines='    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade'
+    # the named mini first, so its translation wins over the segment's
+    [[ "$output" == *"$snat"$'\n'"$machines"* ]]
+    # the management segment and the standby keep the WAN address
+    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
+    # without nodes every Mac mini moves, and the storage node, in the
+    # cluster under the WAN address, does not
+    jq '.management.edge.wan.egress |= del(.nodes)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/allminis.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/allminis.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109 } snat ip to 95.130.119.16-95.130.119.31 persistent'* ]]
+    [[ "$output" != *"10.10.0.11 "* ]]
+    [[ "$output" != *"10.10.0.11,"* ]]
+    # without an egress the machines all go out from the WAN address
+    jq '.management.edge.wan |= del(.egress)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/noegress.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/noegress.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"snat"* ]]
+    [[ "$output" == *"$machines"* ]]
+}
+
+@test "an egress outside the site's announced prefixes, or naming something that is not a Mac mini, is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/badegress.json"
+    jq '.management.edge.wan.egress.prefix = "95.130.118.16/28"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'95.130.118.16/28' is not inside an IPv4 prefix management.edge.wan.bgp announces"* ]]
+    jq '.management.edge.wan.egress.prefix = "95.130.119.17/28"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an IPv4 network with its prefix length"* ]]
+    jq '.management.edge.wan.egress.prefix = "95.130.118.0/23"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan |= del(.bgp)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan.egress.nodes = ["ber1-store-a"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'ber1-store-a' is not a Mac mini on the machines segment"* ]]
+    run fleet_edge_check "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "a prefix's range runs from its network address to its last address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    [ "$(fleet_prefix_range 95.130.119.16/28)" = "95.130.119.16-95.130.119.31" ]
+    [ "$(fleet_prefix_range 95.130.119.0/24)" = "95.130.119.0-95.130.119.255" ]
+    [ "$(fleet_prefix_range 95.130.119.7/32)" = "95.130.119.7-95.130.119.7" ]
+}
+
 @test "the edges' VLANs are tagged only on the ports facing an edge's data links and on the ISL" {
     for tor in ber1-tor-a ber1-tor-b; do
         run fleet_render "$SITE_FILE" "$tor"
@@ -950,7 +1091,8 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 peer_address=10.255.255.2 uplinks="* ]]
     [[ "$output" == *"ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 peer_address=10.255.255.1 uplinks="* ]]
-    [[ "$output" != *"10.10.0.1"* ]]
+    # the gateway itself, not a machine address it is a prefix of
+    [[ ! "$output" =~ 10\.10\.0\.1([^0-9]|$) ]]
     for edge in ber1-edge-a ber1-edge-b; do
         run fleet_edge_keepalived "$SITE_FILE" "$edge"
         [ "$status" -eq 0 ]

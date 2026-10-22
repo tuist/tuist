@@ -152,12 +152,10 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
-      # Usage-based pricing meters, reported only for accounts with the
-      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Usage-based pricing meters: the Prices cache and test insights usage
+      # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in the live Stripe account by
-      # `Tuist.Billing.UsageMeterProvisioning`. Carrying a Price here bills
-      # nobody on its own: an account is only charged once the flag is on
-      # for it and its subscription has been switched onto these items.
+      # `Tuist.Billing.UsageMeterProvisioning`.
       usage_meters:
         cache_egress_megabytes: "price_1UITBVLWue9IBlPSvMpJS1co"
         cache_requests: "price_1UITBXLWue9IBlPSXlwD8vxP"
@@ -1437,6 +1435,11 @@ rackFleet:
     # host-config push. A host whose volume predates that keeps its 240 GiB
     # quota until it is reinstalled (`tuist.dev/os-reinstall`, see
     # infra/cluster-api-provider-tuist/AGENTS.md).
+    #
+    # The gap between this budget and the quota is the safeguard for custom
+    # cache volumes: admission reserves what a job is expected to write, not its
+    # capacity, so a job that writes more lands in that gap. Keep the budget well
+    # below the quota (infra/tart-kubelet/custom-cache-volumes.md).
     runnerCacheVolumeGiB: 512
   # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
   # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image

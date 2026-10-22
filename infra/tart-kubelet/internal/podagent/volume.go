@@ -295,8 +295,9 @@ type VolumeManager struct {
 	reserved       map[string]bool
 	CustomReserved func() uint64
 	// DisplaceCustom cancels a background custom-volume prefetch so its space
-	// stops counting in CustomReserved. Called with mu held.
-	DisplaceCustom func() bool
+	// stops counting in CustomReserved; forFields name what it makes room for.
+	// Called with mu held.
+	DisplaceCustom func(forFields ...any) bool
 
 	// converging is the space the in-flight convergence download still needs, or
 	// nil. Admission counts it, so a job admitted mid-download is not promised
@@ -583,7 +584,7 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 	want := m.admissionBytesLocked()
 	// A background custom prefetch gives its space back before a job evicts a master.
 	if m.DisplaceCustom != nil {
-		if free, err := m.availableBytes(); err == nil && free < want && m.DisplaceCustom() {
+		if free, err := m.availableBytes(); err == nil && free < want && m.DisplaceCustom("for_kind", "builtin") {
 			want = m.admissionBytesLocked()
 		}
 	}

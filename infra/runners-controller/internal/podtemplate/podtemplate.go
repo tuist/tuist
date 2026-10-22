@@ -747,40 +747,17 @@ func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 	}
 }
 
-// cacheVolumeNodeLabel is the Node label a host carries for each custom cache
-// volume lineage it holds a master of (runner-cache's MasterNodeLabelPrefix
-// and 48 hex characters of the lineage's scope).
-var cacheVolumeNodeLabel = regexp.MustCompile(`\Atuist\.dev/cache-volume-[0-9a-f]{48}\z`)
+// cacheVolumePreferenceWeight keeps the volume preference below the golden
+// one: a host without the image pulls it for minutes, while a host without a
+// volume only starts that volume cold.
+const cacheVolumePreferenceWeight = 20
 
-const (
-	maxCacheVolumePreferences = 4
-	// cacheVolumePreferenceWeight keeps every volume preference together below
-	// the golden one: a host without the image pulls it for minutes, while a
-	// host without a volume only starts that volume cold.
-	cacheVolumePreferenceWeight = 20
-)
-
-// PreferCacheVolumeNodes adds a soft preference for Nodes holding each of the
-// custom cache volumes `labels` advertise, so a Pod created for queued jobs
-// lands where their volumes already are. Labels that are not cache volume
-// labels are ignored.
-func PreferCacheVolumeNodes(pod *corev1.Pod, labels []string) {
-	var terms []corev1.PreferredSchedulingTerm
-	for _, label := range labels {
-		if len(terms) == maxCacheVolumePreferences {
-			break
-		}
-		if !cacheVolumeNodeLabel.MatchString(label) {
-			continue
-		}
-		terms = append(terms, corev1.PreferredSchedulingTerm{
-			Weight: cacheVolumePreferenceWeight,
-			Preference: corev1.NodeSelectorTerm{MatchExpressions: []corev1.NodeSelectorRequirement{{
-				Key: label, Operator: corev1.NodeSelectorOpExists,
-			}}},
-		})
-	}
-	if len(terms) == 0 {
+// PreferCacheVolumeNode adds a soft preference for `nodeName`, a host the
+// server picked because it holds the custom cache volumes of the queued job
+// this Pod is created for and has cache disk room for them. An empty name
+// leaves the Pod alone.
+func PreferCacheVolumeNode(pod *corev1.Pod, nodeName string) {
+	if nodeName == "" {
 		return
 	}
 	if pod.Spec.Affinity == nil {
@@ -790,7 +767,12 @@ func PreferCacheVolumeNodes(pod *corev1.Pod, labels []string) {
 		pod.Spec.Affinity.NodeAffinity = &corev1.NodeAffinity{}
 	}
 	node := pod.Spec.Affinity.NodeAffinity
-	node.PreferredDuringSchedulingIgnoredDuringExecution = append(node.PreferredDuringSchedulingIgnoredDuringExecution, terms...)
+	node.PreferredDuringSchedulingIgnoredDuringExecution = append(node.PreferredDuringSchedulingIgnoredDuringExecution, corev1.PreferredSchedulingTerm{
+		Weight: cacheVolumePreferenceWeight,
+		Preference: corev1.NodeSelectorTerm{MatchFields: []corev1.NodeSelectorRequirement{{
+			Key: "metadata.name", Operator: corev1.NodeSelectorOpIn, Values: []string{nodeName},
+		}}},
+	})
 }
 
 // schedulingFor returns the nodeSelector + tolerations for a pool's

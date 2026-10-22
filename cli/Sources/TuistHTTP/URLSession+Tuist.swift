@@ -37,27 +37,32 @@ private func resolvedCACertificatePath() -> String? {
 /// Apple sessions always apply the key deny after normal trust evaluation, even
 /// without a custom CA bundle. Additional anchors augment the system roots. Other
 /// platforms keep their metrics behavior and require separate verifier qualification.
-private func tuistSessionDelegate(additionalBlockedSPKIHashes: Set<String>) -> (URLSessionDelegate & URLSessionTaskDelegate)? {
+private func tuistSessionDelegate(
+    additionalBlockedSPKIHashes: Set<String>, followRedirects: Bool
+) -> (URLSessionDelegate & URLSessionTaskDelegate)? {
     #if canImport(Security)
-        if let path = resolvedCACertificatePath(),
-           let certificates = CACertificateLoader.load(from: path),
-           !certificates.isEmpty
-        {
-            return TuistURLSessionDelegate(
-                additionalCertificates: certificates,
-                additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
-            )
-        }
-        return TuistURLSessionDelegate(additionalCertificates: [], additionalBlockedSPKIHashes: additionalBlockedSPKIHashes)
-    #elseif canImport(TuistHAR)
-        return URLSessionMetricsDelegate.shared
+        let certificates = resolvedCACertificatePath().flatMap { CACertificateLoader.load(from: $0) } ?? []
+        return TuistURLSessionDelegate(
+            additionalCertificates: certificates,
+            additionalBlockedSPKIHashes: additionalBlockedSPKIHashes,
+            followRedirects: followRedirects
+        )
     #else
-        return nil
+        if !followRedirects { return NoDiscoveryRedirects() }
+        #if canImport(TuistHAR)
+            return URLSessionMetricsDelegate.shared
+        #else
+            return nil
+        #endif
     #endif
 }
 
-private func makeURLSession(configuration: URLSessionConfiguration, additionalBlockedSPKIHashes: Set<String> = []) -> URLSession {
-    if let delegate = tuistSessionDelegate(additionalBlockedSPKIHashes: additionalBlockedSPKIHashes) {
+private func makeURLSession(
+    configuration: URLSessionConfiguration, additionalBlockedSPKIHashes: Set<String> = [], followRedirects: Bool = true
+) -> URLSession {
+    if let delegate = tuistSessionDelegate(
+        additionalBlockedSPKIHashes: additionalBlockedSPKIHashes, followRedirects: followRedirects
+    ) {
         return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
     }
     return URLSession(configuration: configuration)
@@ -186,6 +191,21 @@ func invalidateSharedTuistURLSession() {
     sharedTuistLargeTransferURLSession.invalidate()
 }
 
+private final class NoDiscoveryRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _: URLSession, task _: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+
+    #if canImport(TuistHAR)
+        func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+            URLSessionMetricsDelegate.shared.urlSession(session, task: task, didFinishCollecting: metrics)
+        }
+    #endif
+}
+
 extension URLSession {
     /// Retains native default cache, cookie and timeout behavior for direct callers.
     /// Apple platforms add the key policy; other platforms require a patched verifier.
@@ -203,6 +223,16 @@ extension URLSession {
             makeURLSession(configuration: configuration, additionalBlockedSPKIHashes: additionalBlockedSPKIHashes)
         }
     #endif
+
+    public static var tuistDiscovery: URLSession {
+        let configuration = tuistURLSessionConfiguration()
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 10
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        configuration.urlCredentialStorage = nil
+        return makeURLSession(configuration: configuration, followRedirects: false)
+    }
 
     public static var tuistShared: URLSession {
         sharedTuistURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)

@@ -5,6 +5,7 @@ mod certificate_trust;
 #[cfg(test)]
 mod certificate_trust_tests;
 mod presence;
+mod themes;
 mod time_off;
 mod transport;
 

@@ -5,7 +5,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Plug.CSRFProtection.InvalidCSRFTokenError
   alias Tuist.AppStore
   alias Tuist.Atlas.Email
-  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.CacheGlobe
@@ -311,19 +310,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /pricing" do
-    test "shows the remote cache hit pricing without the flag", %{conn: conn} do
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn nil -> false end)
-
-      html = conn |> get("/pricing") |> html_response(200)
-
-      assert html =~ "+ $0.5 per additional unit"
-      refute html =~ "Cache egress"
-      refute html =~ "What counts as cache egress and requests?"
-    end
-
-    test "shows usage-based pricing with the flag", %{conn: conn} do
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn nil -> true end)
-
+    test "shows usage-based pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
       assert html =~ "Cache egress"
@@ -334,16 +321,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "+ $2 per additional million"
       assert html =~ "What counts as cache egress and requests?"
       refute html =~ "+ $0.5 per additional unit"
-    end
-
-    test "previews usage-based pricing for a signed-in user it is enabled for", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn %{id: ^user_id} -> true end)
-
-      html = conn |> log_in_user(user) |> get("/pricing") |> html_response(200)
-
-      assert html =~ "Cache egress"
     end
   end
 

@@ -13,6 +13,7 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -59,7 +60,8 @@ defmodule TuistWeb.OpsAccountLive do
   defp assign_free_tier(socket, account) do
     socket
     |> assign(:free_tier_hits, account.current_month_remote_cache_hits_count || 0)
-    |> assign(:free_tier_limit, Billing.get_payment_thresholds()[:remote_cache_hits])
+    |> assign(:free_tier_egress_megabytes, account.current_month_cache_egress_megabytes || 0)
+    |> assign(:free_tier_requests, account.current_month_cache_requests || 0)
     |> assign(:free_tier_reset_at, account.free_tier_reset_at)
     |> assign(:cache_access_blocked, Billing.cache_access_blocked?(account))
   end
@@ -849,6 +851,12 @@ defmodule TuistWeb.OpsAccountLive do
 
   def free_tier_reset_label(nil), do: dgettext("dashboard", "Never")
   def free_tier_reset_label(%DateTime{} = reset_at), do: Timex.format!(reset_at, "{Mfull} {D}, {YYYY} {h24}:{m} UTC")
+
+  def free_tier_egress_label(megabytes), do: ByteFormatter.format_bytes(megabytes * 1_000_000)
+
+  def free_tier_egress_limit_label, do: free_tier_egress_label(UsagePricing.included_egress_megabytes())
+
+  def free_tier_requests_limit, do: UsagePricing.included_requests()
 
   defp runner_concurrency_form(account) do
     account

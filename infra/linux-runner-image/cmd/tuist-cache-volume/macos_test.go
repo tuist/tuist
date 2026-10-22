@@ -287,7 +287,7 @@ func TestMacBusyDetachRetriesBeforePublishing(t *testing.T) {
 	}
 }
 
-func TestMacCheckoutMountsAtTheWorkspace(t *testing.T) {
+func TestMacCheckoutMountsAtTheWorkspaceParent(t *testing.T) {
 	share := t.TempDir()
 	workspace := filepath.Join(t.TempDir(), "repo", "repo")
 	response := macResponse{Directory: digest("checkout"), ID: "lease", Warm: true}
@@ -302,7 +302,7 @@ func TestMacCheckoutMountsAtTheWorkspace(t *testing.T) {
 	if result != "reused" {
 		t.Fatal(result)
 	}
-	if attached[0] != "attach" || attached[1] != filepath.Join(share, response.Directory, "cache.sparseimage") || attached[len(attached)-1] != workspace {
+	if attached[0] != "attach" || attached[1] != filepath.Join(share, response.Directory, "cache.sparseimage") || attached[len(attached)-1] != filepath.Dir(workspace) {
 		t.Fatal(attached)
 	}
 	if marker, _ := os.ReadFile(filepath.Join(share, response.Directory, ".mounted")); string(marker) != "lease" {
@@ -310,6 +310,90 @@ func TestMacCheckoutMountsAtTheWorkspace(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(workspace); len(entries) != 0 {
 		t.Fatal("wrote into the workspace")
+	}
+}
+
+func TestMacCheckoutMovesTheTreeIntoTheWorkspace(t *testing.T) {
+	share := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "repo", "repo")
+	response := macResponse{Directory: digest("checkout"), ID: "lease", Warm: true}
+	data, _ := json.Marshal(response)
+	respondMac(t, share, data)
+	makeShare(t, share, response.Directory)
+	// The attach stands in for the image's volume: the tree sits at its root,
+	// including an entry named like the workspace.
+	result := checkoutMacAt(context.Background(), workspace, share, filepath.Join(t.TempDir(), "state.json"), func(args ...string) error {
+		root := args[len(args)-1]
+		writeFile(t, filepath.Join(root, ".git", "HEAD"), strings.Repeat("a", 40)+"\n")
+		writeFile(t, filepath.Join(root, "README.md"), "readme")
+		writeFile(t, filepath.Join(root, "repo", "Sources", "App.swift"), "app")
+		writeFile(t, filepath.Join(root, ".fseventsd", "fseventsd-uuid"), "")
+		return nil
+	})
+	if result != "reused" {
+		t.Fatal(result)
+	}
+	for _, path := range []string{".git/HEAD", "README.md", "repo/Sources/App.swift"} {
+		if _, err := os.Stat(filepath.Join(workspace, path)); err != nil {
+			t.Errorf("%s did not move into the workspace: %v", path, err)
+		}
+	}
+	entries, _ := os.ReadDir(filepath.Dir(workspace))
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if strings.Join(names, ",") != ".fseventsd,repo" {
+		t.Fatalf("volume root holds %v", names)
+	}
+}
+
+func TestMacCheckoutSkipsAWorkspaceWhoseParentHoldsMore(t *testing.T) {
+	share := t.TempDir()
+	parent := t.TempDir()
+	workspace := filepath.Join(parent, "repo")
+	if err := os.Mkdir(workspace, 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(parent, "other", "file"), "")
+	never := func(...string) error { t.Fatal("mounted over the workspace's parent"); return nil }
+	if result := checkoutMacAt(context.Background(), workspace, share, filepath.Join(t.TempDir(), "state.json"), never); result != "skipped (workspace parent is not empty)" {
+		t.Fatal(result)
+	}
+	if requests, _ := filepath.Glob(filepath.Join(share, "*.request")); len(requests) != 0 {
+		t.Fatal("asked the host for a checkout it cannot mount")
+	}
+}
+
+func TestMacCheckoutDetachesWhenTheTreeCannotMove(t *testing.T) {
+	share := t.TempDir()
+	parent := filepath.Join(t.TempDir(), "repo")
+	workspace := filepath.Join(parent, "repo")
+	response := macResponse{Directory: digest("checkout"), ID: "lease"}
+	data, _ := json.Marshal(response)
+	respondMac(t, share, data)
+	makeShare(t, share, response.Directory)
+	var detached []string
+	state := filepath.Join(t.TempDir(), "state.json")
+	result := checkoutMacAt(context.Background(), workspace, share, state, func(args ...string) error {
+		if args[0] == "detach" {
+			detached = args
+			return nil
+		}
+		// A volume that vanishes under the move fails it for any user, root included.
+		return os.RemoveAll(args[len(args)-1])
+	})
+	if result != "unavailable (layout)" {
+		t.Fatal(result)
+	}
+	if len(detached) < 2 || detached[1] != parent {
+		t.Fatalf("did not detach the volume: %v", detached)
+	}
+	if _, err := os.Stat(filepath.Join(share, response.Directory, ".mounted")); !os.IsNotExist(err) {
+		t.Fatal("reported a checkout the job does not have")
+	}
+	if _, err := os.Stat(state); !os.IsNotExist(err) {
+		t.Fatal("recorded a checkout the job does not have")
 	}
 }
 

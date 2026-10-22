@@ -46,3 +46,18 @@ func (m *VolumeManager) volumeCapacityBytes() (uint64, error) {
 	}
 	return min(capacity, m.budgetBytes()), nil
 }
+
+// hardFreeBytes is the space writes can take before they fail: the volume's
+// free space under its APFS quota, or the host's physical free space when that
+// is lower. Unlike availableBytes it ignores the budget and the host floor.
+func (m *VolumeManager) hardFreeBytes() (uint64, error) {
+	free, err := m.backend.freeBytes(m.Root)
+	if err != nil || m.HostDiskSpace == nil {
+		return free, err
+	}
+	host, err := m.HostDiskSpace()
+	if err != nil {
+		return 0, err
+	}
+	return min(free, host.FreeBytes), nil
+}

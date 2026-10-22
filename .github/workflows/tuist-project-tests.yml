@@ -1,0 +1,467 @@
+name: tuist/tuist Tests
+
+# Every `tuist test` run of the tuist/tuist project (the CLI and the app), with
+# the binary-cache warm they read and the signal that a commit's coverage is
+# complete. Builds, lint and the Linux suite stay in cli.yml and app.yml.
+#
+# Coverage is on for every run: mise.toml's [env] sets TUIST_FEATURE_FLAG_COVERAGE,
+# TUIST_COVERAGE_ENABLED and TUIST_COVERAGE_PREFIX_MAPPING, so every job reads
+# the binary cache's coverage variant, whose binaries carry coverage counters,
+# and the schemes that leave their test action's coverage unset collect it
+# (the acceptance schemes set `coverage: false`).
+#
+# - Pull requests: unit and app tests run selectively, acceptance as before,
+#   and once the unit and app tests have finished, whatever their result,
+#   `tuist coverage complete` marks the run's commit complete. The server
+#   carries what selective testing skipped from main's full runs and the pull
+#   request's earlier runs (both record coverage evidence). A new push cancels
+#   the run in progress, so a superseded commit is never signalled.
+# - Pushes to main: `tuist cache` warms the coverage variant first, then the unit
+#   and app tests run in full (`--no-selective-testing`) against that warm, and
+#   `tuist coverage complete` follows when both passed. Every merge runs on its
+#   own, so every merge is measured; the full runs hold two macOS runners for up
+#   to two hours. Acceptance runs alongside the warm, selectively.
+#
+# Nothing in a deploy or release waits on this workflow. The checkout is the
+# default one, so every job resolves the same commit: on main the pushed commit,
+# on a pull request the run's merge commit (GITHUB_SHA), since the depth-1
+# checkout hides its parents and the CLI can't read the head from HEAD^2.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cli/TuistCacheEE"
+      - "cli/TuistCacheEE/**"
+      - "cli/Sources/**"
+      - "cli/Tests/**"
+      - "cli/Templates/**"
+      # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
+      # inside the CLI, so its changes must run CLI tests and acceptance.
+      - "cas-plugin/**"
+      # SwifterPMCore is compiled into the command-line binary through
+      # TuistSupport, so its changes must run the command-line test suite.
+      - "swifterpm/**"
+      # XCResultParser lives with the server's xcresult NIF but is built into
+      # the command-line binary from those sources, so its changes must run the
+      # command-line test suite.
+      - "server/native/xcresult_nif/Sources/XCResultParser/**"
+      - "app/**"
+      - "*.swift"
+      - ".github/workflows/tuist-project-tests.yml"
+      - "mise/tasks/cli/ee.sh"
+      - "mise.toml"
+      - "mise.lock"
+      - "examples/xcode/**"
+      - "Tuist/**"
+      - ".xcode-version"
+      - ".swiftpm/**"
+      - "Package.swift"
+      - "Package.resolved"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "cli/TuistCacheEE"
+      - "cli/TuistCacheEE/**"
+      - "cli/Sources/**"
+      - "cli/Tests/**"
+      - "cli/Templates/**"
+      - "cas-plugin/**"
+      - "swifterpm/**"
+      - "server/native/xcresult_nif/Sources/XCResultParser/**"
+      - "app/**"
+      - "*.swift"
+      - ".github/workflows/tuist-project-tests.yml"
+      - "mise/tasks/cli/ee.sh"
+      - "mise.toml"
+      - "mise.lock"
+      - "examples/xcode/**"
+      - "Tuist/**"
+      - ".xcode-version"
+      - ".swiftpm/**"
+      - "Package.swift"
+      - "Package.resolved"
+
+permissions:
+  contents: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+  TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  # Forks don't authenticate, so their coverage could never be uploaded; this
+  # skips the export too. Any value overrides Tuist.swift, and an empty one reads
+  # as off, so non-fork runs set '1' (the default).
+  TUIST_COVERAGE_UPLOAD: ${{ github.event.pull_request.head.repo.fork == true && '0' || '1' }}
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
+  TUIST_DEV_INSTANCE: "1"
+
+concurrency:
+  group: tuist-project-tests-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  cache:
+    name: Cache
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    if: github.repository == 'tuist/tuist' && github.event_name == 'push'
+    env:
+      TUIST_EE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Initialize TuistCacheEE submodule
+        run: bash mise/tasks/cli/ee.sh
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-cli-cache
+      # The whole workspace, the app's targets included, as the coverage variant
+      # mise.toml's TUIST_COVERAGE_ENABLED selects.
+      - name: Cache
+        run: tuist cache
+
+  # Selective on pull requests; in full on main, after the warm. A failed warm
+  # doesn't stop the full run: it builds what the cache lacks from source.
+  unit-tests:
+    name: Unit Tests
+    needs: cache
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    if: >-
+      !cancelled() && github.repository == 'tuist/tuist' &&
+      (github.event_name == 'push' || github.event.pull_request.draft == false)
+    env:
+      TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
+      # Which files each test, suite and target executed, from the linked
+      # TestCoverageAttribution package: the server carries a later run's
+      # skipped tests only from a run that recorded it. Main's full runs are the
+      # sources for every selective run, and a pull request's own runs for its
+      # later pushes, which skip what an earlier push already executed. Forks
+      # upload nothing, so they skip it.
+      TUIST_COVERAGE_EVIDENCE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
+      SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-cli-unit-tests
+      - name: Install stable Rust for Cargo reporting fixtures
+        uses: ./.github/actions/mise
+        env:
+          MISE_LOCKED: 0
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
+      - name: Verify scheme process integration
+        run: |
+          tuist generate TuistProcessSchemeIntegration --no-open
+          bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
+      # The scheme leaves its test action's coverage unset, so it follows
+      # TUIST_COVERAGE_ENABLED. The CLI makes the coverage counters atomic itself
+      # (`AtomicCoverageCounters`): tests run in parallel in one process, and plain
+      # increments lose counts. TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix
+      # mapping in coverage builds, so the compilation cache replays across
+      # runners; the CLI maps the covered paths back.
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+      - name: Run tests
+        run: tuist test TuistUnitTests ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4
+
+  # Like unit-tests. The app's dependencies are the same targets with or without
+  # TuistCacheEE, so this job runs without it and still hits the warm.
+  app-tests:
+    name: App Tests
+    needs: cache
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    if: >-
+      !cancelled() && github.repository == 'tuist/tuist' &&
+      (github.event_name == 'push' || github.event.pull_request.draft == false)
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+      TUIST_COVERAGE_EVIDENCE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
+      SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      # Only the CLI, locked: a full install on a cold cache writes checksums
+      # into mise.lock, and the run's coverage, reported from a dirty checkout,
+      # is left out of the commit.
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: app-macos-workspace-app-test
+      - name: Run tests
+        run: tuist test TuistApp ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+  acceptance-tests-build:
+    name: Build Acceptance Tests
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    env:
+      TUIST_EE: "1"
+    outputs:
+      matrix: ${{ steps.shard.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Initialize TuistCacheEE submodule
+        run: bash mise/tasks/cli/ee.sh
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-cli-acceptance-tests-build
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Build tests
+        id: shard
+        run: tuist test --build-only --shard-total 2 --shard-granularity suite --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests
+        env:
+          TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
+
+  acceptance-tests:
+    name: Acceptance Tests
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    needs: acceptance-tests-build
+    permissions:
+      contents: read
+      id-token: write
+    if: toJSON(fromJSON(needs.acceptance-tests-build.outputs.matrix).shard) != '[]'
+    env:
+      TUIST_EE: "1"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.acceptance-tests-build.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Initialize TuistCacheEE submodule
+        run: bash mise/tasks/cli/ee.sh
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-cli-acceptance-tests
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
+      # inside xcodebuild's compilers and routes it to the proxy over a unix
+      # socket. Build both from source and hand their paths to the test via the
+      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
+      # honours.
+      - uses: ./.github/actions/mise
+        env:
+          # The rust pin lives in cas-plugin/mise.toml and has no lockfile entry,
+          # so this workflow's MISE_LOCKED=1 refuses to install it. Every other
+          # workflow that builds the plugin installs this toolchain unlocked.
+          MISE_LOCKED: 0
+        with:
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cas-plugin-rust-${{ runner.os }}
+          workspaces: |
+            cas-plugin -> target
+      - name: Build the cas-plugin
+        working-directory: cas-plugin
+        env:
+          MISE_LOCKED: 0
+        # No GITHUB_ENV export: `xcodebuild test-without-building` runs the test
+        # bundle with the environment captured into the xctestrun at build time,
+        # so a variable exported here never reaches the test process. The suite
+        # resolves both binaries from this path in the source tree instead.
+        run: mise run build
+      - name: Set up new keychain
+        run: |
+          TMP_DIRECTORY=$(mktemp -d)
+          KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      # -maximum-parallel-testing-workers caps how many test runner processes xcodebuild spawns.
+      # Acceptance tests each shell out to their own nested xcodebuild, so every extra runner
+      # multiplies into a fresh set of compiler processes. Uncapped on a 6-core runner that reached
+      # 78 concurrent swift-frontend processes, which is what starved tests into their time limits.
+      # See https://github.com/tuist/tuist/issues/12512 for the measurements behind this number.
+      - name: Run shard ${{ matrix.shard }}
+        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -maximum-parallel-testing-workers 2
+        env:
+          TUIST_SHARD_INDEX: ${{ matrix.shard }}
+          TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
+
+  # Forks don't check out the EE submodule, so the suite that needs the
+  # cas-plugin isn't in the scheme there, and they don't authenticate.
+  acceptance-tests-fork:
+    name: Acceptance Tests (Fork)
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-cli-acceptance-tests-build
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Set up new keychain
+        run: |
+          TMP_DIRECTORY=$(mktemp -d)
+          KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
+          security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+      - name: Run tests
+        run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+
+  # Only a complete commit joins the coverage trend, and pull request gates wait
+  # for it. On a pull request it follows the unit and app tests whatever they
+  # concluded (a fork's runs report nothing, so it has nothing to complete); on
+  # main only when both full runs passed. A CLI release older than
+  # `tuist coverage complete` skips the signal, and the commit stays in progress.
+  coverage-complete:
+    name: Complete Coverage
+    needs: [unit-tests, app-tests]
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    if: >-
+      !cancelled() && github.repository == 'tuist/tuist' && (
+        (github.event_name == 'pull_request' &&
+          github.event.pull_request.draft == false &&
+          github.event.pull_request.head.repo.fork != true) ||
+        (github.event_name == 'push' &&
+          needs.unit-tests.result == 'success' &&
+          needs.app-tests.result == 'success')
+      )
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Signal that the commit's coverage is complete
+        # A release without the command still exits 0 for `--help`, printing
+        # the root help instead. The command's usage line comes from its path,
+        # not its wording, and never wraps at the command's name.
+        run: |
+          help=$(tuist coverage complete --help 2>/dev/null || true)
+          if grep -qE "^USAGE: tuist coverage complete( |$)" <<< "$help"; then
+            tuist coverage complete
+          else
+            echo "::notice::$(tuist version) has no 'tuist coverage complete'; the commit stays in progress until a release with it is pinned."
+          fi
