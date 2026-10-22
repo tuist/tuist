@@ -5,6 +5,7 @@ struct AtlasSettingsView: View {
     @ObservedObject var accounts: AtlasAIAccounts
     var signOut: () -> Void
     var profileRequest: (([String: Any]) async throws -> Data)?
+    var notifications: AtlasPushNotifications?
     @State private var profile: AtlasNativeProfile?
     @State private var profileError: String?
     @Environment(\.atlasPresence) private var presence
@@ -55,6 +56,9 @@ struct AtlasSettingsView: View {
                     Label("Appearance", systemImage: "paintpalette")
                 }
                 .accessibilityIdentifier("profile-appearance")
+            }
+            if let notifications, profile?.pushNotifications?.ios == true {
+                AtlasPushSettingsView(notifications: notifications)
             }
             Section {
                 accountLink(.claude) { AtlasClaudeAccountView(accounts: accounts) }
@@ -138,6 +142,11 @@ private struct AtlasNativeProfile: Decodable {
         let name: String
         let email: String
     }
+    struct PushNotifications: Decodable {
+        let ios: Bool
+        let android: Bool
+    }
     let user: User
     let serverVersion: String
+    let pushNotifications: PushNotifications?
 }

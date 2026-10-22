@@ -17,6 +17,7 @@ profile-validation framework.
   only that exact domain in the signature. Regenerate the profile with Associated
   Domains enabled; do not invent an unauthorized entitlement. The unsigned Once
   device build does not require distribution capabilities.
+- `push.sh` additionally requires a production `aps-environment` in the profile before reading the distribution certificate. Enable Push Notifications on the Atlas App ID and regenerate the ad-hoc profile. `bundle.sh` copies that authorized entitlement and stamps `AtlasPushEnvironment=production` into the temporary signing copy only. Unsigned device builds remain unconfigured; simulator builds use development/sandbox. Validate the credential-free guard with `python3 ios/distribution/push_test.py` on macOS. Never invent a production entitlement for an old profile.
 - Only the protected main-branch publication job receives distribution secrets.
   Device enrollment and vault references are in the [README](../../README.md).
 - Validate with `python3 ios/distribution/keychain_test.py`,

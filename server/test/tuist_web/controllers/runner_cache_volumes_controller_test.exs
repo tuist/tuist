@@ -49,6 +49,19 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     assert result.status == 403
   end
 
+  test "storage that is unavailable is a 503, which agents retry, and a conflict a 409" do
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+    params = %{"node_name" => "node", "id" => Ecto.UUID.generate(), "operation" => "complete"}
+
+    expect(CacheVolumes, :image, fn "node", _, _ -> {:error, :unavailable} end)
+    assert Controller.image(conn(), params).status == 503
+
+    expect(CacheVolumes, :image, fn "node", _, _ -> {:error, :conflict} end)
+    assert Controller.image(conn(), params).status == 409
+  end
+
   test "missing token cannot instruct orphan deletion" do
     result = Controller.report(Plug.Test.conn(:post, "/report"), %{"node_name" => "node", "id" => Ecto.UUID.generate()})
     assert result.status == 403

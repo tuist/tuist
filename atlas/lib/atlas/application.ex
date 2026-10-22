@@ -19,6 +19,7 @@ defmodule Atlas.Application do
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
   alias Atlas.Presence.Notifier
+  alias Atlas.Push.Credentials
   alias Guardian.DB.Sweeper
 
   @impl true
@@ -58,6 +59,7 @@ defmodule Atlas.Application do
       Atlas.Vault,
       Atlas.Repo,
       HTTP.finch_child_spec(),
+      Credentials,
       {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Atlas.PubSub},
       HandleRegistry,

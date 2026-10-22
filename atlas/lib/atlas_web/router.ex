@@ -242,6 +242,9 @@ defmodule AtlasWeb.Router do
     delete "/me/llm-providers/chatgpt/login", LLMConnectionsController, :cancel_chatgpt
     delete "/me/llm-providers/:provider", LLMConnectionsController, :delete
 
+    put "/me/push-devices/:installation_id", PushDevicesController, :update
+    delete "/me/push-devices/:installation_id", PushDevicesController, :delete
+
     get "/notes", NotesController, :index
     post "/notes", NotesController, :create
     get "/notes/search", NotesController, :search

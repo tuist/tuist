@@ -98,10 +98,11 @@ HTTP fallback, and report real phases/steps/waits rather than percentage progres
 Approval confirmation shows the persisted payload and binds its digest to the decision.
 Protected results are fetched separately, never carried on progress channels.
 
-Once 0.68.2 has no Apple extension target. There is no ActivityKit/WidgetKit extension,
-APNs/FCM registration, background push or real-device activity validation in this slice.
-Do not keep sockets alive in suspended apps or claim background delivery. Adding those
-surfaces requires build-system support, actual device signing and notification services.
+Automation has no ActivityKit/WidgetKit extension or background execution/approval
+notification integration. Once 0.68.2 has no Apple extension target. The separate
+native push subsystem below supports other fixed notification kinds; do not imply
+that it delivers Automation progress or decisions. Do not keep Automation sockets
+alive in suspended apps or claim real-device activity validation.
 ## Workspace navigation
 
 - The signed-in shell has five stable destinations: Tasks, Accounts, Finance, Browse, and Profile. iOS uses a native TabView, sidebar-adaptable on iPad/iOS 18+, without automatic More overflow. Android uses platform widgets with readable 48dp+ destination controls and larger-text wrapping. Browse is a searchable hierarchical directory of implemented native screens only. Add future domains there rather than expanding the tab bar indefinitely. Unavailable permissions show an explanation inside a stable tab, not a disappearing destination.
@@ -130,6 +131,14 @@ surfaces requires build-system support, actual device signing and notification s
 - iOS account details use `AtlasAccountDetailSections` for grouped overview, billing/address and collapsible related records with read-only drilldowns. Contract values come from the server's derived term value, not a potentially stale scalar. Load details on entry/refresh and after closing the editor; list refresh must not discard already loaded details. Older servers retain the basic field view. Document summaries are server-filtered by `documents:read`; no native download or storage URL is introduced.
 - Finance is read-only bank overview plus manual invoice bookkeeping, not bank administration or payments. Imported/linked invoices are read-only even for finance writers. iOS `AtlasFinanceOverviewView` uses the server's optional unfiltered `finance_overview` for cash, burn, runway and six months of income/expenses in one reporting currency. Preserve it across appended invoice pages and replace it on refresh. Show no-account, missing-FX and older-server explanations rather than zero/partial totals. Swift Charts has distinct income/expense series and exact textual monthly values. Android's legacy chart still uses original-currency invoice `summary`; do not relabel invoice totals as cashflow or balances.
 - Profile follows Tuist iOS's grouped identity/email/version/sign-out layout, adding the selected server URL, authenticated server version, and existing Claude/ChatGPT settings. Display the server-reported application version, never a protocol constant or invented revision. Profile does not grant identity or server configuration writes.
+
+## Native push notifications
+
+- Push is opt-in from Profile, separate from presence. The server advertises configured platforms through optional `push_notifications` in Profile. Older servers remain usable. Lock-screen content stays generic; tap URLs re-enter the existing origin-bound destination parser and still require server authorization.
+- The shared `auth/src/push.rs` owns fixed bearer registration routes. Swift `AtlasPushNotifications` and Kotlin `AtlasPushNotifications` own platform consent/token callbacks and serialized registration/cleanup. Installation IDs and cleanup markers use the existing device-only secure stores. Mark a registration disabled before discarding an authenticated session; a new user never inherits opt-in. Retry offline cleanup on the same origin using that installation's native OAuth client. Encrypted registration and cleanup records are keyed by canonical server origin, so another server's pending cleanup neither inherits opt-in nor blocks enrollment. Rejected startup sessions must disable the saved session's origin even before the push coordinator is configured. Deleted IDs are terminal and must be replaced.
+- iOS uses the application and notification-center delegates, registers with APNs on launch/foreground, and passes cold-start taps through AtlasNavigation. A queued generic alert can still be displayed by iOS after logout because the app cannot retract an already accepted provider alert. Signing derives the environment from the provisioning profile; see `ios/distribution/AGENTS.md`.
+- Android uses the official Firebase SDK, explicit Application initialization and data-only messages. The service never authenticates or registers devices: it drops messages unless a current encrypted session and enabled server registration match the payload. Runtime notification permission, a notification channel, and Google Play services are required. No Firebase identifiers means disabled push, not broken authentication. Public project identifiers can be imported with `python3 android/push/configure.py /path/to/google-services.json`; never use a service-account JSON in the app. See [Android push packaging](android/push/AGENTS.md) for the lock, manifest audit and final-APK resource gate.
+- No production credentials, cloud resources or provider configuration are provisioned by builds. Physical-device foreground/background/terminated delivery and account-switch smoke tests remain required before enabling production notifications.
 
 ## Server-controlled appearance
 

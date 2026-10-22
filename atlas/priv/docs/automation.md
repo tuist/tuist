@@ -163,7 +163,7 @@ Supported workflow input schemas render as native forms. Unsupported schemas exp
 
 If a launch has an uncertain network outcome, use the app's pending-launch reconciliation instead of submitting a second independent request. The apps securely retain the original request identity and input so Atlas can resolve whether that execution was admitted.
 
-Execution updates use a foreground connection with authoritative refresh and HTTP fallback. Background push delivery and Live Activities are not implemented. Review exact approval payloads and confirm inside the app, not through a one-tap notification.
+Execution updates use a foreground connection with authoritative refresh and HTTP fallback. Background push delivery and Live Activities are not implemented for Automation executions and approvals. Atlas's separate opt-in notification support for other features does not provide workflow progress delivery. Review exact approval payloads and confirm inside the app, not through a one-tap notification.
 
 ## Know the current boundaries
 

@@ -83,8 +83,11 @@ Android nightly publication is skipped rather than distributing ephemeral debug
 identities; debug CI artifacts remain. Android and simulator publication precede
 iOS device signing so a profile capability update cannot block them. iOS signing
 requires an Associated Domains-enabled profile and requests only the hosted app
-link domain. Credential-free Android signing, associated-domain capability,
-keychain-lifecycle and launcher-packaging tests also gate publication.
+link domain. Credential-free Android signing, associated-domain and APNs capability,
+keychain-lifecycle and launcher-packaging tests also gate publication. Android
+builds verify locked Firebase dependencies, explicitly merged SDK manifests, and
+library R IDs against the final APK. Portable importer integrity/resource tests
+run without provider credentials; device signing requires a Push-enabled profile.
 PR/fork builds never receive distribution secrets. These are not
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
 host-labeled archive that preserves its executable permission, not a Tuist preview.
@@ -429,7 +432,7 @@ keep signing unconditional across channels.
 
 ## Atlas releases
 
-Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. The offline ChatGPT configuration check verifies managed ExternalSecret sourcing, runtime `envFrom`, no explicit client-ID shadowing, and standalone/demo isolation. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects. The release-list arguments must remain compatible with the pinned Helm version; fake release-state tests also validate them against the real CLI without cluster access. After rollout and readiness, the managed release smoke test requires the public root to redirect signed-out visitors to `/login`, so a healthy but outdated or misrouted application cannot pass.
+Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. The offline ChatGPT configuration check verifies managed ExternalSecret sourcing, runtime `envFrom`, no explicit client-ID shadowing, and standalone/demo isolation. The push configuration check additionally verifies all APNs credential/scope references and verbatim private-PEM templating without reading real credentials. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects. The release-list arguments must remain compatible with the pinned Helm version; fake release-state tests also validate them against the real CLI without cluster access. After rollout and readiness, the managed release smoke test requires the public root to redirect signed-out visitors to `/login`, so a healthy but outdated or misrouted application cannot pass.
 
 ## Cloudflare configuration
 

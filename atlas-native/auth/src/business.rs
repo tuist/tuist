@@ -358,6 +358,14 @@ struct ProfileUser {
 struct Profile {
     server_version: String,
     user: ProfileUser,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    push_notifications: Option<PushCapabilities>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct PushCapabilities {
+    ios: bool,
+    android: bool,
 }
 
 impl Record {

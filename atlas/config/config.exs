@@ -38,6 +38,7 @@ alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
+alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Atlas.TimeOff.SyncPublicHolidays
 alias Atlas.Workers.PruneRateLimits
@@ -91,7 +92,7 @@ config :atlas, Oban,
   repo: Atlas.Repo,
   notifier: Oban.Notifiers.Postgres,
   peer: Oban.Peers.Database,
-  queues: [default: 10, briefs: 2, mailing: 5, automation: 2],
+  queues: [default: 10, briefs: 2, mailing: 5, automation: 2, push: 10],
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [
@@ -126,6 +127,8 @@ config :atlas, Oban,
        # client never finalized.
        {"*/15 * * * *", ExpirePendingUploads},
        {"*/5 * * * *", PruneRateLimits},
+       # Retires push registrations not refreshed for 60 days and deletes old tombstones.
+       {"50 3 * * *", PrunePushInstallations},
        # Reconciles the engineering error summary. The worker no-ops when
        # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
        # schedule in every environment.

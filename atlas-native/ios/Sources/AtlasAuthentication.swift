@@ -39,6 +39,11 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var accountModel: AtlasAIAccounts?
     private var presenceModel: AtlasPresence?
     private var sessionIdentity = UUID()
+    let pushNotifications = AtlasPushNotifications()
+
+    var pushRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "push")
+    }
 
     var presence: AtlasPresence {
         if let presenceModel { return presenceModel }
@@ -124,6 +129,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         Task {
             await presenceModel?.stop()
             await accountModel?.cancelLogin()
+            await pushNotifications.signOut()
             await acquireAPI()
             defer { releaseAPI() }
             do {
@@ -134,6 +140,11 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     }
 
     private func discardSession(removeRegistration: Bool = false) throws {
+        var origin = server?.absoluteString
+        if let saved = try? AtlasSecureStorage.load("session"), let session = try? object(saved) {
+            origin = (session["registration"] as? [String: Any])?["server"] as? String ?? origin
+        }
+        pushNotifications.prepareForSessionEnd(origin: origin)
         try AtlasSecureStorage.delete("automation.admission")
         try AtlasSecureStorage.delete("session")
         presenceModel?.setActive(false)

@@ -19,7 +19,8 @@ after the launch review sheet dismisses. Results are separate protected reads.
 Execution subscriptions run only in an active scene. Reconnect from authoritative
 state, retain monotonic sequences, fall back to HTTP when WebSockets fail, and clear
 inaccessible data after revocation. Backgrounding must not cancel the durable run.
-There is no Live Activity or APNs support in this build; see the root build limitation.
+Automation has no Live Activity or background execution/approval notification integration;
+the separate native push coordinator supports APNs for other fixed notification kinds.
 
 Add new Swift sources to explicit Once source lists where needed, particularly the
 unhosted test bundle. Run `once build AtlasIOS`, `once test AtlasIOSTests` and

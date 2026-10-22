@@ -21,7 +21,7 @@ and omission must stay distinct; unsupported schemas offer browser fallback.
 
 Stop following when the activity stops, discard late callbacks, and reconcile the
 current execution on return or WebSocket failure. Never imply a background socket keeps
-a workflow running: server state does that. This slice has no FCM/background notifications.
+a workflow running: server state does that. Automation execution/approval updates do not use FCM/background notifications; the separate native push coordinator handles other fixed notification kinds.
 Results are fetched separately and oversized results stay on the protected web page.
 
 Run root Mise Android build and Kotlin lint tasks. Keep new activities non-exported

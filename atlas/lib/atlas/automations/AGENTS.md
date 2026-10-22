@@ -41,8 +41,9 @@ channel subscribes before its authoritative join snapshot and reconciles every f
 seconds thereafter. Socket authentication must be enabled at the endpoint socket level
 (`auth_token: true`), not only inside WebSocket options. Each update rechecks Guardian access-token
 revocation and current domain permission, and terminates on lost access. Hints are not
-state; missed hints/reconnects must never lose durable progress. No mobile device-token
-storage, push delivery or Live Activity extension exists yet.
+state; missed hints/reconnects must never lose durable progress. Automation does not integrate background execution/approval notifications or a Live
+Activity extension. Other fixed notification kinds use the separate native push
+subsystem and its device registrations; do not claim Automation delivery through it.
 
 ## API and MCP primitive interfaces
 
