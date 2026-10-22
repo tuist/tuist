@@ -7,8 +7,8 @@ macOS job on the `tuist-xcode` and `tuist-module` custom volumes, which a job
 reaches only through `tuist/xcode-cache` and `tuist/module-cache`, beside the
 volumes a workflow opts into with `tuist/cache-volume@v1`. See the "Opt-in
 caches" and "Managed cache volumes" paragraphs in `infra/runner-image/AGENTS.md`.
-The runner-cache volume holds only `custom/`; tart-kubelet removes any other
-top-level entry (see `AGENTS.md`).
+The runner-cache volume holds `custom/`; tart-kubelet removes what the built-in
+cache left there (see `AGENTS.md`).
 
 New identities include platform, preventing APFS and ext4 image reuse even when
 repository, key, architecture and UID happen to match. Existing Linux UUIDs and

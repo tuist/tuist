@@ -81,7 +81,7 @@ func exists(path string) bool {
 	return err == nil
 }
 
-func TestSweepRemovesEverythingButCustomVolumesAndHiddenEntries(t *testing.T) {
+func TestSweepRemovesOnlyTheBuiltinCacheEntries(t *testing.T) {
 	m, _ := newTestSpace(t, 100)
 	running := map[string]bool{"live-vm": true}
 	m.Running = func(_ context.Context, vm string) (bool, error) { return running[vm], nil }
@@ -90,14 +90,18 @@ func TestSweepRemovesEverythingButCustomVolumesAndHiddenEntries(t *testing.T) {
 		filepath.Join(m.Root, "custom", ".lock"),
 		filepath.Join(m.Root, ".fseventsd", "log"),
 		filepath.Join(m.Root, "branches", "live-vm", ".host-materialized"),
+		filepath.Join(m.Root, "operator-notes", "notes.txt"),
+		filepath.Join(m.Root, "42a", "master.sparseimage"),
+		filepath.Join(m.Root, "stray-file"),
+		filepath.Join(m.Root, "7"),
 	}
 	removed := []string{
 		filepath.Join(m.Root, "42", "tuist-cache", "master.sparseimage"),
 		filepath.Join(m.Root, "42", "repo-0123456789abcdef", "master.generation"),
+		filepath.Join(m.Root, "9223372036854775807", "tuist-cache", "master.sparseimage"),
 		filepath.Join(m.Root, "branches", "gone-vm", "cache.sparseimage"),
 		filepath.Join(m.Root, "_converge", "42", "tuist-cache", "head-1.sparseimage"),
 		filepath.Join(m.Root, "usage-reports", "report.json"),
-		filepath.Join(m.Root, "stray-file"),
 	}
 	for _, path := range append(append([]string{}, kept...), removed...) {
 		mkdirFile(t, path)
@@ -115,8 +119,10 @@ func TestSweepRemovesEverythingButCustomVolumesAndHiddenEntries(t *testing.T) {
 			t.Errorf("kept %s", path)
 		}
 	}
-	if exists(filepath.Join(m.Root, "42")) || exists(filepath.Join(m.Root, "_converge")) || exists(filepath.Join(m.Root, "usage-reports")) {
-		t.Error("kept an emptied leftover directory")
+	for _, dir := range []string{"42", "9223372036854775807", "_converge", "usage-reports"} {
+		if exists(filepath.Join(m.Root, dir)) {
+			t.Errorf("kept the emptied leftover directory %s", dir)
+		}
 	}
 
 	running["live-vm"] = false
@@ -124,8 +130,15 @@ func TestSweepRemovesEverythingButCustomVolumesAndHiddenEntries(t *testing.T) {
 	if exists(filepath.Join(m.Root, "branches")) {
 		t.Error("kept the share of a VM that stopped")
 	}
-	if !exists(kept[0]) {
-		t.Error("removed a custom volume")
+	for _, path := range kept[:3] {
+		if !exists(path) {
+			t.Errorf("removed %s", path)
+		}
+	}
+	for _, path := range kept[4:] {
+		if !exists(path) {
+			t.Errorf("removed %s", path)
+		}
 	}
 }
 

@@ -66,9 +66,11 @@ workflow code runs in the guest. Never expose host credentials or masters.
   untainted with no goldens and took runner Pods that waited on downloads.
 - Custom cache volumes are the only runner cache on macOS hosts. The volume
   they share is `CacheSpace` (`internal/podagent/volume*.go`): the APFS volume
-  at `--runner-cache-root`, holding `custom/` and nothing else. Every five
-  minutes it removes any other top-level entry (hidden filesystem entries
-  stay), and keeps `branches/<vm>` while that VM runs or `tart` cannot say.
+  at `--runner-cache-root`, which holds `custom/`. Every five minutes it
+  removes the built-in cache's leftovers and nothing else: top-level
+  directories named by a decimal account ID, `_converge/`, `usage-reports/`
+  and `branches/`, keeping `branches/<vm>` while that VM runs or `tart`
+  cannot say. Unknown entries stay and are logged at debug level.
   Runner Pods (`tuist.dev/runner=true`) always get the guest-writable `status`
   share (`StatusDirForPod`), which carries `runner-rc`, `runner.log` and
   `runner-heartbeat`; they never get a `cache` share.

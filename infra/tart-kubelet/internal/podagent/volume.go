@@ -101,7 +101,7 @@ func (m *CacheSpace) Start(ctx context.Context) error {
 	}
 }
 
-// sweepLeftovers removes every top-level entry but the custom volumes and the filesystem's hidden ones.
+// sweepLeftovers removes the built-in cache's per-account masters, VM branches, download staging and report queue.
 func (m *CacheSpace) sweepLeftovers(ctx context.Context) {
 	entries, err := os.ReadDir(m.Root)
 	if err != nil {
@@ -112,11 +112,14 @@ func (m *CacheSpace) sweepLeftovers(ctx context.Context) {
 	var removed []string
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == customRootName || name == "lost+found" || strings.HasPrefix(name, ".") {
+		if !entry.IsDir() || (name != "branches" && name != "_converge" && name != "usage-reports" && !isAccountID(name)) {
+			if name != customRootName && !strings.HasPrefix(name, ".") {
+				logger.V(1).Info("left an unknown entry on the runner-cache root", "name", name)
+			}
 			continue
 		}
 		path := filepath.Join(m.Root, name)
-		if name == "branches" && entry.IsDir() {
+		if name == "branches" {
 			removed = append(removed, m.sweepBranches(ctx, path)...)
 			continue
 		}
@@ -134,6 +137,18 @@ func (m *CacheSpace) sweepLeftovers(ctx context.Context) {
 		fields = append(fields, "freed_bytes", saturatingSub(before, after))
 	}
 	logger.Info("removed leftovers from the runner-cache root", fields...)
+}
+
+func isAccountID(name string) bool {
+	if name == "" || len(name) > 19 {
+		return false
+	}
+	for _, r := range name {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *CacheSpace) sweepBranches(ctx context.Context, dir string) []string {
