@@ -75,6 +75,13 @@ escalate).
 
 ## Build / deploy
 
+Enforce the qualified Go 1.26.10 SDK minimum while retaining the pre-mitigation
+`godebug default=go1.23` runtime defaults. Qualify any replacement SDK with
+`infra/certificate-trust/verify-go.go`, not version ordering alone. Use
+`GOWORK=off` for production-parity module checks/builds: the repository workspace
+has a separate `go1.25` default. The isolated Linux build's `DefaultGODEBUG` has
+been compared against the pre-mitigation module under the same patched compiler.
+
 Built and deployed by `.github/workflows/pomerium-deployment.yml`
 in one shot (same shape as `tuist-ops-deployment.yml`): the
 `build-impersonator` job pushes

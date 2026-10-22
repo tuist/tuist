@@ -66,20 +66,33 @@ impl Transport for Network {
     }
 }
 
-fn client() -> Result<&'static Client> {
+pub(super) fn client() -> Result<&'static Client> {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     if let Some(client) = CLIENT.get() {
         return Ok(client);
     }
-    let client = Client::builder()
+    let client = build_client(tls_config()?)?;
+    let _ = CLIENT.set(client);
+    Ok(CLIENT.get().expect("client was initialized"))
+}
+
+pub(super) fn build_client(config: rustls::ClientConfig) -> Result<Client> {
+    Client::builder()
+        .use_preconfigured_tls(config)
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(10))
         .user_agent("AtlasNative/0.1")
         .build()
-        .map_err(|_| error("network", "Could not initialize secure networking."))?;
-    let _ = CLIENT.set(client);
-    Ok(CLIENT.get().expect("client was initialized"))
+        .map_err(|_| error("network", "Could not initialize secure networking."))
+}
+
+pub(super) fn tls_config() -> Result<rustls::ClientConfig> {
+    let roots = rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    };
+    crate::certificate_trust::client_config(roots, Vec::new())
+        .map_err(|_| error("network", "Could not initialize secure networking."))
 }
 
 fn response<T: DeserializeOwned>(response: reqwest::Result<Response>) -> Result<T> {

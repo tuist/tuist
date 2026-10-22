@@ -172,6 +172,24 @@ added to catch that failed on `admin`'s unwritable cache instead.
   the one image because which one runs is decided per job at dispatch,
   so a warm Pod has to be able to serve either; forking the image would
   split the warm pool to save one binary.
+- Packer uses the shared SPKI policy in `../certificate-trust/` to remove the
+  compromised eMudhra keys from curl's independent `/etc/ssl/cert.pem`, verifies
+  curl/Homebrew bundles, and installs system-keychain deny settings from Apple's
+  root certificates. A real AAA intermediate is tested before/after with offline
+  native verification and a known ISRG root positive; already-denied baselines
+  are recorded without claiming differential success. Controls are actual Packer
+  and release-plan inputs. Qualify fresh-VM Apple and effective job-user behavior
+  before release; source/syntax checks or a settings write are not proof. Preserve warm pools and cache masters
+  during rollout; see `../certificate-trust/README.md`. Dispatch and the Buildkite
+  environment hook force Node/Python onto the patched PEM store; the GitLab
+  executor explicitly forwards those settings to its sanitized job environment.
+- The Go shell agent embeds the twelve-key deny for discovery HTTP and WSS,
+  after ordinary native verification, retaining direct/no-proxy dialers and
+  TLS defaults. Keep its shared main/policy files, trust tests and fixtures byte-identical to
+  the Linux copy. Refuse HTTPS/secure-discovery downgrades, including raw-origin
+  opt-out, and never print credential-bearing URLs or server response bodies.
+  See `../certificate-trust/RUNNER-CLIENTS.md`: host tests do not qualify a
+  Packer image or already-running process. Preserve active jobs/warm floors.
 - `/opt/tuist/buildkite-hooks/` — global agent hooks (`--hooks-path`),
   so they run for every job regardless of what the customer's
   repository defines. `environment` re-exports the cache settings the
@@ -180,9 +198,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   job's start; `pre-exit` posts the job's log and its window back to the
   server, authenticating with the job-scoped report token dispatch
   minted rather than the Pod's SA token. The same two hooks ship in the
-  Linux image (`infra/linux-runner-image/buildkite-hooks/`) and are kept
-  byte-identical: they take their paths from `TUIST_RUNNER_JOB_ENV` and
-  `TUIST_RUNNER_STATE_DIR` so nothing platform-specific leaks in. The log comes from `BUILDKITE_JOB_LOG_TMPFILE`, which the
+  Linux image (`infra/linux-runner-image/buildkite-hooks/`) and share the
+  same job settings protocol. The environment hooks differ in their platform's
+  patched CA bundle path. They take their job paths from `TUIST_RUNNER_JOB_ENV`
+  and `TUIST_RUNNER_STATE_DIR`. The log comes from `BUILDKITE_JOB_LOG_TMPFILE`, which the
   agent writes because it is started with `--enable-job-log-tmpfile` and
   deletes when the job ends — hence a `pre-exit` hook rather than
   anything later. `pre-exit` also writes the job's outcome as it sees it

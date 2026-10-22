@@ -25,6 +25,10 @@ defmodule Slack.MixProject do
 
   defp deps do
     [
+      {:castore, "~> 1.0.22"},
+      # Remove the eMudhra roots until certifi publishes https://github.com/certifi/erlang-certifi/pull/56.
+      {:certifi,
+       github: "certifi/erlang-certifi", ref: "f5d808c59ee727ddcfe8abaff7f4ea036950c8e9", depth: 1, override: true},
       {:bandit, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ecto_sql, "~> 3.10"},

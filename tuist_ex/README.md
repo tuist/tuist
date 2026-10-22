@@ -11,6 +11,21 @@ The guides live in the Tuist documentation: start with
 see [Install the Hex package](https://tuist.dev/en/docs/guides/install-hex-package)
 for every option.
 
+## TLS verification
+
+HTTPS API, authentication, artifact-transfer and dependency-cache connections
+retain normal certificate and hostname verification. The package also rejects
+the twelve known compromised eMudhra-related public keys, including intermediate
+keys, independently of whether the host's CA store has already been updated.
+This policy is bundled in the package and does not modify the host application's
+global CA cache. Unrelated system and private certificate authorities remain
+subject to normal verification.
+
+Update your operating system and Erlang/OTP as well as this package. A TLS error
+must not be worked around by disabling verification or changing an HTTPS URL to
+HTTP. The explicit private-network plaintext cache override is not a fallback
+for failed TLS connections.
+
 ## Configure the server and project
 
 You can share the Tuist server address and the project handle with your team

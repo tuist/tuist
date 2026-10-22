@@ -1,5 +1,14 @@
 import Config
 
+# Configure OTP before dependencies can create clients. Its macOS keychain
+# exporter ignores Apple trust-settings deny records; Packer filters this PEM.
+alias Tuist.Oban.RuntimeConfig
+alias Tuist.Runners.Catalog
+
+if System.get_env("TUIST_MODE") == "xcresult_processor" and :os.type() == {:unix, :darwin} do
+  config :public_key, cacerts_path: "/etc/ssl/cert.pem"
+end
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
@@ -17,7 +26,6 @@ import Config
 #     `:process_build` queue.
 #
 # See `Tuist.Environment.mode/0` for the full list.
-alias Tuist.Oban.RuntimeConfig
 
 # Runner Profiles shape catalog. Helm injects the same
 # `runnersFleetLinux.shapes` list it renders the shape-keyed RunnerPool
@@ -30,7 +38,6 @@ alias Tuist.Oban.RuntimeConfig
 # back to the default would run a catalog that doesn't match the pools
 # that actually exist — reintroducing the drift this injection removes.
 # A boot failure here is caught in the canary stage before production.
-alias Tuist.Runners.Catalog
 
 config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"
 config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"

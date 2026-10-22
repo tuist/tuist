@@ -1,4 +1,4 @@
-FROM golang:1.25-bookworm AS build
+FROM golang:1.26.10-bookworm AS build
 WORKDIR /src
 # Build from the committed go.mod + go.sum so dependency versions (and their
 # checksums) are pinned and reproducible, rather than re-resolving them from the

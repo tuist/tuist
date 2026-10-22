@@ -1,0 +1,109 @@
+name: Certificate Trust
+
+on:
+  pull_request:
+    paths:
+      - infra/certificate-trust/**
+      - '**/Dockerfile*'
+      - '**/go.mod'
+      - '**/go.work'
+      - '**/mise.toml'
+      - '**/.mise.toml'
+      - .github/workflows/**
+      - .github/scripts/runner-image-release-plan.sh
+      - mise/tasks/release/components.json
+      - infra/runner-image/runner.pkr.hcl
+      - infra/runner-image/cmd/runner-shell-agent/**
+      - infra/linux-runner-image/cmd/runner-shell-agent/**
+      - infra/xcresult-processor-image/xcresult-processor.pkr.hcl
+      - server/lib/tuist/application/certificate_trust.ex
+      - server/test/tuist/application/certificate_trust_test.exs
+      - server/test/tuist/application/fixtures/**
+      - tuist_ex/lib/tuist_ex/certificate_trust.ex
+      - tuist_ex/test/tuist_ex/certificate_trust_test.exs
+      - tuist_ex/test/tuist_ex/fixtures/certificate_trust/**
+      - cli/Sources/TuistHTTP/CertificateTrust.swift
+      - cli/Sources/TuistHTTP/TuistURLSessionDelegate.swift
+      - cli/Sources/TuistHTTP/URLSession+Tuist.swift
+      - cli/Sources/TuistREAPI/REAPITransport.swift
+      - cas-plugin/src/certificate_trust*.rs
+      - cas-plugin/src/reapi.rs
+      - cas-plugin/src/lib.rs
+      - cas-plugin/src/bin/tuist-cas-proxy.rs
+      - cas-plugin/tests/fixtures/certificate-trust/**
+      - cas-plugin/Cargo.toml
+      - cas-plugin/Cargo.lock
+      - atlas-native/auth/**
+      - atlas-native/Cargo.lock
+      - atlas-native/once.toml
+      - atlas-native/ios/Sources/**
+      - atlas-native/ios/Tests/AtlasCertificateTrustTests.swift
+      - atlas-native/android/src/**
+      - atlas-native/android/tests/**
+      - swifterpm/Sources/swifterpm/CertificateTrust.swift
+      - swifterpm/Tests/swifterpmTests/CertificateTrustTests.swift
+      - android/app/src/main/java/dev/tuist/app/data/network/CertificateTrust.kt
+      - android/app/src/test/java/dev/tuist/app/data/network/CertificateTrustTest.kt
+      - android/app/src/androidTest/java/dev/tuist/app/data/network/CertificateTrustDeviceTest.kt
+      - grafana-datasource/pkg/plugin/**
+      - gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt
+      - gradle/src/test/kotlin/dev/tuist/gradle/CertificateTrust*Test.kt
+  push:
+    branches: [main]
+    paths:
+      - infra/certificate-trust/**
+      - .github/workflows/certificate-trust.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: certificate-trust-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: tuist-linux
+    env:
+      GOWORK: 'off'
+      GOTOOLCHAIN: local
+      TRUST_EXPECTED_GO_SDK: go1.26.10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.10'
+          cache: false
+      - name: Test policy, public stores and replacement guards
+        working-directory: infra/certificate-trust
+        run: go test -count=1 ./...
+      - name: Test runner discovery and WebSocket trust
+        run: |
+          go -C infra/runner-image test -race -count=1 ./cmd/runner-shell-agent
+          go -C infra/linux-runner-image test -race -count=1 ./cmd/runner-shell-agent
+      - name: Qualify the pinned SDK against all eight intermediate keys
+        working-directory: infra/certificate-trust
+        run: go run .
+      - name: Check shell syntax
+        run: |
+          bash -n infra/certificate-trust/pem-store.sh
+          bash -n infra/certificate-trust/java-store.sh
+          bash -n infra/certificate-trust/guard.sh
+          bash -n atlas-native/android/tests/run-certificate-trust.sh
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '29.0.3'
+          elixir-version: '1.20.2'
+      - name: Test OTP distrust without starting the server or databases
+        run: |
+          elixir -r server/lib/tuist/application/certificate_trust.ex \
+            -e 'ExUnit.start(); Code.require_file("server/test/tuist/application/certificate_trust_test.exs")'
+          elixir -r server/lib/tuist/application/certificate_trust.ex \
+            -e ':ok = :public_key.cacerts_load(~c"server/test/tuist/application/fixtures/isrg-root-x1.pem"); :ok = Tuist.Application.CertificateTrust.assert_clean!(:public_key.cacerts_get())'

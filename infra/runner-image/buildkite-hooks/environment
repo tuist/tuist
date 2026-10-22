@@ -2,8 +2,8 @@
 # Buildkite global `environment` hook. Runs inside the agent before the
 # job's command, for every job the agent takes.
 #
-# Identical on the macOS and Linux fleets; only the path it reads differs,
-# and that arrives as TUIST_RUNNER_JOB_ENV. Keep the two copies in step.
+# Shared with Linux except the platform's patched CA bundle path and
+# Linux-only cache-volume routing exports. Keep the two copies in step.
 #
 # dispatch-poll.sh writes the settings the server sent with this job's
 # dispatch, but the agent sanitizes the job environment, so a variable
@@ -28,6 +28,12 @@ if [ -f "${JOB_ENV}" ]; then
   # shellcheck disable=SC1090
   source "${JOB_ENV}"
 fi
+
+export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--use-openssl-ca"
+export SSL_CERT_FILE=/etc/ssl/cert.pem
+export SSL_CERT_DIR=/var/empty
+export PIP_CERT="$SSL_CERT_FILE"
+export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"
 
 # Never `exit` from here. The agent sources this hook from a wrapper that
 # dumps the environment afterwards to learn what changed; exiting skips

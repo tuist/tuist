@@ -354,6 +354,7 @@ jobs:
         with:
           context: .
           file: ./server/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           target: runner
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
@@ -394,6 +395,7 @@ jobs:
         with:
           context: .
           file: ./registry/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           build-args: |
@@ -424,6 +426,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ./kura
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 

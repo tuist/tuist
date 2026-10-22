@@ -7,4 +7,5 @@ ARG ALPINE_VERSION=3.22
 
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add --no-cache bird2 dnsmasq ethtool iproute2 nftables keepalived tailscale
+RUN apk add --no-cache bird2 dnsmasq ethtool iproute2 nftables keepalived tailscale 'ca-certificates>=20261020-r0' \
+    && update-ca-certificates

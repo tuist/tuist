@@ -1,5 +1,6 @@
 import Foundation
 import TuistAppStorage
+import TuistHTTP
 import TuistServer
 
 public struct AppServerConfiguration: Codable, Equatable, Sendable {
@@ -120,7 +121,7 @@ public struct AppServerEnvironmentService: ServerEnvironmentServicing {
         let (data, response) = if let perform {
             try await perform(request)
         } else {
-            try await URLSession.shared.data(for: request)
+            try await URLSession.tuistDefault.data(for: request)
         }
         guard let response = response as? HTTPURLResponse,
               response.statusCode == statusCode,

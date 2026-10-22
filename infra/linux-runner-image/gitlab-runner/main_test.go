@@ -119,7 +119,7 @@ func TestExecute(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			script := []string{`test "$TUIST_CACHE_VOLUME_URL" = "http://volume-agent:8090"`, `test "$TUIST_CACHE_VOLUME_POD" = "pod-42"`, `test "$TUIST_CACHE_VOLUME_UID" = "uid-42"`, "cat source.txt", "printf '%s\\n' \"$SECRET\"", "echo built > artifact.txt", "exit " + scenario.exit}
+			script := []string{`test "$TUIST_CACHE_VOLUME_URL" = "http://volume-agent:8090"`, `test "$TUIST_CACHE_VOLUME_POD" = "pod-42"`, `test "$TUIST_CACHE_VOLUME_UID" = "uid-42"`, `test "$NODE_OPTIONS" = "--use-openssl-ca"`, `test "$SSL_CERT_FILE" = "/etc/ssl/certs/ca-certificates.crt"`, `test "$PIP_CERT" = "$SSL_CERT_FILE"`, `test "$REQUESTS_CA_BUNDLE" = "$SSL_CERT_FILE"`, "cat source.txt", "printf '%s\\n' \"$SECRET\"", "echo built > artifact.txt", "exit " + scenario.exit}
 			if scenario.activeCancel {
 				script = []string{"cat source.txt", "printf '%s\\n' \"$SECRET\"", "echo ready-to-cancel", "sleep 45"}
 			}
@@ -147,7 +147,7 @@ func TestExecute(t *testing.T) {
 			buildsDir := filepath.Join(dir, "builds")
 			resultFile := filepath.Join(dir, "job-result")
 			cmd := exec.Command(os.Args[0], "--job-file", jobFile, "--builds-dir", buildsDir, "--result-file", resultFile)
-			cmd.Env = append(os.Environ(), "TUIST_CACHE_VOLUME_URL=http://volume-agent:8090", "TUIST_CACHE_VOLUME_POD=pod-42", "TUIST_CACHE_VOLUME_UID=uid-42")
+			cmd.Env = append(os.Environ(), "TUIST_CACHE_VOLUME_URL=http://volume-agent:8090", "TUIST_CACHE_VOLUME_POD=pod-42", "TUIST_CACHE_VOLUME_UID=uid-42", "NODE_OPTIONS=--use-openssl-ca", "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt", "PIP_CERT=/etc/ssl/certs/ca-certificates.crt", "REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt")
 			if scenario.infraFailure {
 				cmd.Env = append(os.Environ(), "PATH="+dir)
 			}

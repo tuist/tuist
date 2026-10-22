@@ -9,10 +9,9 @@ name: HCCM Deployment
 # and the kind of drift that bites at the worst possible time
 # (e.g. a CCM controller pruning Mac mini Nodes during a deploy).
 #
-# Idempotent. The matrix runs all environments in parallel: HCCM is
-# a workload-level component, blast radius is per-cluster, and the
-# change is a thin chart upgrade — no need for a canary→production
-# cascade like the application server has.
+# Image changes are blocked on push until explicitly qualified. Dispatch one
+# environment at a time, staging then canary then production: HCCM 1.39 removes
+# Robot ExternalIP fallback, so ordinary Helm readiness is not an upgrade gate.
 
 on:
   push:
@@ -20,7 +19,17 @@ on:
     paths:
       - infra/k8s/mgmt/bootstrap/hccm-values.yaml
       - .github/workflows/hccm-deployment.yml
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to qualify and reconcile (promote staging, canary, then production)
+        type: choice
+        options: [staging, canary, production]
+        default: staging
+      robot_internalip_targets_qualified:
+        description: Robot InternalIP load-balancer targets and a patched rollback path have been qualified in this environment
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,20 +40,9 @@ jobs:
     if: github.repository == 'tuist/tuist'
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
-        # Per-cluster fixed region — sourced from
-        # infra/k8s/clusters/cluster-<env>.yaml's `region` topology
-        # variable. All workload clusters live in fsn1 today; spreading
-        # across regions is just a matter of overriding `region` per
-        # entry below — the chart's HCLOUD_LOAD_BALANCERS_LOCATION env
-        # follows.
-        include:
-          - environment: canary
-            region: fsn1
-          - environment: staging
-            region: fsn1
-          - environment: production
-            region: fsn1
+        environment: ${{ inputs.environment && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON('["staging","canary","production"]') }}
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ matrix.environment }}
@@ -81,6 +79,15 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Guard HCCM image replacement
+        env:
+          HCCM_INTERNALIP_TARGETS_QUALIFIED: ${{ inputs.robot_internalip_targets_qualified && '1' || '' }}
+        run: |
+          flags=()
+          if [[ "$HCCM_INTERNALIP_TARGETS_QUALIFIED" == 1 ]]; then
+            flags+=(--acknowledged)
+          fi
+          bash infra/certificate-trust/guard.sh hccm "${flags[@]}"
       - name: helm upgrade --install hccm
         run: |
           helm repo add hcloud https://charts.hetzner.cloud >/dev/null
@@ -88,5 +95,5 @@ jobs:
           helm upgrade --install hccm hcloud/hcloud-cloud-controller-manager \
             --namespace kube-system \
             -f infra/k8s/mgmt/bootstrap/hccm-values.yaml \
-            --set "env.HCLOUD_LOAD_BALANCERS_LOCATION.value=${{ matrix.region }}" \
+            --set "env.HCLOUD_LOAD_BALANCERS_LOCATION.value=fsn1" \
             --wait --timeout 3m

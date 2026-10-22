@@ -2,6 +2,17 @@
 
 This node covers the `kura/` workspace, a Rust service for low-latency cache meshes that replicate artifacts and metadata across peer nodes.
 
+## Release image trust
+
+Production and E2E runtime assembly use `Dockerfile.release`, not just
+`Dockerfile`. Both OS bundles and embedded Rust verification libraries must be
+patched. Release assembly requires the named `certificate-trust` build context
+(`../infra/certificate-trust` from this directory) and checks the resulting PEM
+bundle by SPKI before publishing. Keep every build caller and release path
+filter aligned. See `../infra/certificate-trust/README.md` for the progressive
+rollout and instance-pin gates; never use a root-only overlay to claim embedded
+Rust roots are remediated.
+
 ## Key Boundaries
 - Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.
   See [the recovery runbook](../infra/kura-controller/serving-authority.md).

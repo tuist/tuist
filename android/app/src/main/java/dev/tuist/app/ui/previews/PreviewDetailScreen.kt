@@ -218,7 +218,7 @@ private fun PreviewDetailContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                val apkBuild = preview.builds.firstOrNull { it.type == AppBuild.Type.apk }
+                val apkBuild = preview.builds.firstOrNull { it.type == AppBuild.Type.APK }
                 if (apkBuild != null) {
                     Spacer(Modifier.height(NooraSpacing.Spacing3))
                     val context = LocalContext.current
@@ -449,16 +449,16 @@ private fun MetadataRow(
 @Composable
 private fun PlatformPill(platform: PreviewSupportedPlatform) {
     val label = when (platform) {
-        PreviewSupportedPlatform.ios -> "iOS"
-        PreviewSupportedPlatform.ios_simulator -> "iOS Simulator"
-        PreviewSupportedPlatform.macos -> "macOS"
-        PreviewSupportedPlatform.tvos -> "tvOS"
-        PreviewSupportedPlatform.tvos_simulator -> "tvOS Simulator"
-        PreviewSupportedPlatform.watchos -> "watchOS"
-        PreviewSupportedPlatform.watchos_simulator -> "watchOS Simulator"
-        PreviewSupportedPlatform.visionos -> "visionOS"
-        PreviewSupportedPlatform.visionos_simulator -> "visionOS Simulator"
-        PreviewSupportedPlatform.android -> "Android"
+        PreviewSupportedPlatform.IOS -> "iOS"
+        PreviewSupportedPlatform.IOS_SIMULATOR -> "iOS Simulator"
+        PreviewSupportedPlatform.MACOS -> "macOS"
+        PreviewSupportedPlatform.TVOS -> "tvOS"
+        PreviewSupportedPlatform.TVOS_SIMULATOR -> "tvOS Simulator"
+        PreviewSupportedPlatform.WATCHOS -> "watchOS"
+        PreviewSupportedPlatform.WATCHOS_SIMULATOR -> "watchOS Simulator"
+        PreviewSupportedPlatform.VISIONOS -> "visionOS"
+        PreviewSupportedPlatform.VISIONOS_SIMULATOR -> "visionOS Simulator"
+        PreviewSupportedPlatform.ANDROID -> "Android"
     }
     Row(
         modifier = Modifier

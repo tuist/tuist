@@ -1,6 +1,8 @@
 defmodule TuistEx.HTTP do
   @moduledoc false
 
+  alias TuistEx.CertificateTrust
+
   def request(method, url, body \\ nil, headers \\ []) do
     start()
 
@@ -19,20 +21,7 @@ defmodule TuistEx.HTTP do
         {String.to_charlist(url), headers}
       end
 
-    options = [timeout: 15_000, connect_timeout: 10_000, autoredirect: false]
-
-    options =
-      if URI.parse(url).scheme == "https" do
-        Keyword.put(options, :ssl,
-          verify: :verify_peer,
-          cacerts: :public_key.cacerts_get(),
-          customize_hostname_check: [
-            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-          ]
-        )
-      else
-        options
-      end
+    options = options(url, 15_000)
 
     case :httpc.request(method, request, options, body_format: :binary) do
       {:ok, {{_, status, _}, _, response}} ->
@@ -99,11 +88,7 @@ defmodule TuistEx.HTTP do
     options = [timeout: timeout, connect_timeout: 10_000, autoredirect: false]
 
     if URI.parse(url).scheme == "https" do
-      Keyword.put(options, :ssl,
-        verify: :verify_peer,
-        cacerts: :public_key.cacerts_get(),
-        customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
-      )
+      Keyword.put(options, :ssl, CertificateTrust.ssl_options())
     else
       options
     end

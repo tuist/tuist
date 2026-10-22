@@ -43,6 +43,24 @@ agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
 through Helm, without a separate human kubectl elevation.
 
+## Certificate trust
+
+`workflows/certificate-trust.yml` runs Go, shell and isolated ExUnit checks with
+read-only permissions. It has no Python, image manufacturing, registry login,
+publication or deployment. Keep the explicit Go SDK qualification allowlist and
+CI pin aligned; newer release lines alone do not prove the intermediate-key deny.
+The aggregate mitigation paths trigger many independent main deploy workflows:
+split merges by owner rather than treating this test job as a fleet rollout gate.
+Runner idle-only and Kura health-gated waves can stay warm; cache-volume agents,
+parallel gateway updates and singleton access paths need separate qualification.
+Kura and Android SDK image builds require the shared named `certificate-trust`
+Docker context. Keep direct E2E Docker callers and release path detection aligned.
+Management Tailscale image replacements require the manual workflow's separate
+access-path qualification; never bypass its singleton Recreate guard on push.
+Server image builds combine the certificate-trust and optional Mix-cache named
+contexts in one multiline `build-contexts` input; duplicate YAML keys invalidate
+both the manual staging and production workflows.
+
 ## Server production deployment
 
 `workflows/server-production-deployment.yml` decides whether a push deploys by
@@ -168,6 +186,14 @@ Kura's clients test shard also runs the portable Xcode lookup fixture lifecycle
 regressions in `kura/spec/e2e/xcode_lookups_lifecycle_spec.sh`. These validate
 cleanup and deletion guards without Xcode or a cache service; actual compiler
 replay remains an opt-in Apple silicon test.
+
+## SwifterPM certificate fixtures
+
+The standalone SwifterPM unit job and the CLI unit/coverage jobs explicitly install
+Homebrew `openssl@3` for loopback-only TLS test servers. Do not rely on incidental
+runner formula dependencies or use LibreSSL's all-interface server instead. This
+is a test-fixture dependency, not client/runtime verifier qualification or a
+production trust-store change.
 
 ## SwifterPM E2E credentials
 

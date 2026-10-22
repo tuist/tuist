@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - slack/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - noora/**
       - infra/helm/slack/**
       - .github/workflows/slack-deployment.yml
@@ -62,6 +64,7 @@ jobs:
         with:
           context: .
           file: ./slack/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}

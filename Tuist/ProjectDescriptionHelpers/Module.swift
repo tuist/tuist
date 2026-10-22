@@ -1220,11 +1220,13 @@ public enum Module: String, CaseIterable {
                 ]
             case .oidc:
                 [
+                    .target(name: Module.http.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
                 ]
             case .http:
                 [
+                    .external(name: "Crypto"),
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.environment.targetName),
@@ -1268,6 +1270,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cargoCommand:
                 [
+                    .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.reapi.targetName),
@@ -1685,6 +1688,14 @@ public enum Module: String, CaseIterable {
                 []
             case .reapi:
                 [
+                    .target(name: Module.testSupport.targetName),
+                    .external(name: "FileSystemTesting"),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.environment.targetName),
+                    .external(name: "NIOSSL"),
+                    .external(name: "NIOCore"),
+                    .external(name: "NIOPosix"),
+                    .external(name: "NIOTLS"),
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
@@ -2369,6 +2380,7 @@ public enum Module: String, CaseIterable {
                 "swifterpm/Tests/swifterpmTests/ResolveTests.swift",
                 "swifterpm/Tests/swifterpmTests/FileSystemSupportTests.swift",
                 "swifterpm/Tests/swifterpmTests/HTTPClientTests.swift",
+                "swifterpm/Tests/swifterpmTests/CertificateTrustTests.swift",
                 "swifterpm/Tests/swifterpmTests/GitHubTests.swift",
                 "swifterpm/Tests/swifterpmTests/GitLabTests.swift",
                 "swifterpm/Tests/swifterpmTests/TestSupport.swift",

@@ -2,6 +2,31 @@
 
 Deployment assets for the Tuist stack — both the managed cluster we operate and the self-host chart our customers install.
 
+## Certificate trust
+
+The October 2026 eMudhra compromise requires updates to OS bundles AND bundled
+TLS libraries. First-party Go SDK pins require independent behavioral
+qualification (`certificate-trust/verify-go.go`), not cross-branch version
+ordering. Go 1.26.10 passes all eight intermediate-key controls; static
+controller images pin the inspected Debian 13 Distroless bundle. Debian/Ubuntu
+image builds explicitly distrust the affected roots before network fetches.
+Node uses `--use-openssl-ca` (not the additive `--use-system-ca`) until its
+embedded roots are fixed. The runner and xcresult Packer builds also remove the
+roots from macOS curl's independent `/etc/ssl/cert.pem`; Apple revocation updates
+alone do not protect that file. Packer also installs explicit system-keychain
+deny settings. OTP exports roots without honoring those Apple deny settings;
+Darwin xcresult explicitly loads and checks the filtered PEM store. Both native
+and OTP behavior still require fresh-VM qualification. Enforce `go 1.26.10` as
+the compiler minimum and preserve prior runtime compatibility defaults with
+`godebug default=`. A `toolchain` suggestion is not enforcement. Rebuilding is
+not remediation until new digests roll out and actual verifiers are qualified.
+
+[`certificate-trust/`](certificate-trust/AGENTS.md) owns the shared SPKI policy,
+fail-closed shell PEM/public-Java checks, Go/ExUnit tests and warm-rollout guards
+and runbook. No Python or generic vendor-image publishing framework. Use normal
+owner releases and qualified upstream pins. Root-store containment is not a
+verifier patch. Split owner merges; inventory and tests are not rollout approval.
+
 ## What we are aiming at
 
 Two properties, stated because they decide arguments that would otherwise be

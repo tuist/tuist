@@ -41,12 +41,26 @@ only — they are intentionally not part of the generated CLI client.
 
 - Backend: `mage -v` (build), `go test ./...` (unit tests). The plugin has its
   own `go.work` (`use .`), intentionally separate from the repo-root infra
-  workspace, so it tracks the latest `grafana-plugin-sdk-go` + go 1.26.3 without
+  workspace, so it tracks the latest `grafana-plugin-sdk-go` + qualified Go 1.26.10 without
   forcing those versions onto the infra controllers.
 - Frontend: `npm install` then `npm run typecheck` / `npm run lint` /
   `npm run build` (outputs `dist/`). Node is pinned to 24 via `mise.toml`. The
   `.config/` harness is committed and managed by `@grafana/create-plugin` —
   update it with `npx @grafana/create-plugin@latest update`, don't hand-edit.
+  The public `docker-compose.yaml` overrides the generated harness's old
+  `GO_VERSION` default with 1.26.10; use Compose rather than building `.config/`
+  directly without that argument. Qualify new SDKs with the certificate-trust
+  Go verifier, not release-number ordering. Refresh the Go entries in `mise.lock`
+  with `mise lock go` whenever changing the SDK pin; CI installs in locked mode.
+
+## Certificate trust
+
+- `pkg/plugin/certificate_trust.go` independently embeds the twelve-key SPKI deny. The API factory clones the existing default transport/native roots and TLS settings, keeps ordinary verification/original callbacks, and denies keys across complete verified paths (anchors included) and every supplied peer certificate. Refuse custom TLS dialers or disabled verification rather than silently bypassing the policy. Retain the qualified Go compiler pin too.
+- Supplied-but-unused blocked certificates are deliberately refused, as in the Rust clients. A self-hosted server sending a redundant blocked cross-sign/root must repair its served chain; do not add an unprotected alternate transport. Apple/Android native loaders only inspect their evaluated paths, so this strictness is an availability distinction.
+- Every HTTPS redirect and HTTPS proxy connection uses the protected verifier, including resumed sessions. Refuse downgrade after HTTPS, preserve the normal redirect limit and credential behavior, and leave explicitly configured HTTP endpoints under their existing semantics, not as a TLS-failure fallback.
+- API failures expose fixed TLS/timeout/cancellation categories and status codes, never request URLs, response bodies or tokens. Preserve typed causes for classification. Health errors must not mislabel certificate failures as bad tokens.
+- Focused tests: `TUIST_TRUST_LIVE=1 go test ./pkg/plugin -run TestCertificateTrust -timeout 5m` with genuine Go 1.26.10. Live public controls qualify the combined native verifier/root store; accepted private leaf/intermediate/root and redirect/proxy/resumption differentials prove application enforcement. Real DER tests cover all twelve keys. No host trust changes or compromised private keys.
+- Backend builds/unit tests are not execution inside Grafana, catalog publication, other OS/root-store qualification or a safe running-plugin replacement. Keep owner release/drain/rollback gates independent; never restart active Grafana/alerting instances just to activate a source patch.
 
 ## Releasing / publishing
 
@@ -64,7 +78,7 @@ only — they are intentionally not part of the generated CLI client.
   writes a stub when it's absent (the release generates the real one first, so the
   stub only ever appears in local/CI builds).
 - Catalog readiness was checked with `@grafana/plugin-validator`. The plugin runs
-  the **latest** `grafana-plugin-sdk-go` on go 1.26.3 (in its own `go.work`),
+  the **latest** `grafana-plugin-sdk-go` on Go 1.26.10 (in its own `go.work`),
   which clears the validator's "SDK older than 5 months" check and the
   grpc/otel/kin-openapi CVEs. The latest SDK pulls k8s app-platform deps; those
   stay inside this plugin's workspace and do not reach the infra controllers —

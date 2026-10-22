@@ -7,7 +7,8 @@ func makeTemporaryDirectory() async throws -> URL {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("swifterpm-tests-\(UUID().uuidString)", isDirectory: true)
     try await fileSystem.makeDirectory(
-        at: directory.absolutePath, options: [.createTargetParentDirectories])
+        at: directory.absolutePath, options: [.createTargetParentDirectories]
+    )
     return directory
 }
 
@@ -27,7 +28,8 @@ func writeCachedManifest(
     _ manifest: [String: Any], packageDir: URL, cacheFile: URL? = nil, disableSandbox: Bool = false
 ) async throws {
     try await fileSystem.makeDirectory(
-        at: packageDir.absolutePath, options: [.createTargetParentDirectories])
+        at: packageDir.absolutePath, options: [.createTargetParentDirectories]
+    )
     try await writeMinimalPackageManifest(at: packageDir, name: "Fixture")
     let cachePath = cacheFile ?? ManifestLoader.cacheFilePath(packageDir: packageDir)
     try await ManifestCache.write(
@@ -38,7 +40,8 @@ func writeCachedManifest(
 
 func writeMinimalPackageManifest(at packageDir: URL, name: String) async throws {
     try await fileSystem.makeDirectory(
-        at: packageDir.absolutePath, options: [.createTargetParentDirectories])
+        at: packageDir.absolutePath, options: [.createTargetParentDirectories]
+    )
     try await fileSystem.atomicWrite(
         """
         // swift-tools-version: 6.0
@@ -61,6 +64,14 @@ func fixtureURL(_ components: [String]) async throws -> URL {
         URL(fileURLWithPath: await fileSystem.currentWorkingDirectory().pathString)
             .appendingPathComponents(relative),
     ]
+
+    let currentDirectory = try await fileSystem.currentWorkingDirectory()
+    candidates.append(URL(fileURLWithPath: currentDirectory.pathString)
+        .appendingPathComponent("swifterpm").appendingPathComponents(relative))
+    if let sourceRoot = env["TUIST_CONFIG_SRCROOT"] {
+        candidates.append(URL(fileURLWithPath: sourceRoot)
+            .appendingPathComponent("swifterpm").appendingPathComponents(relative))
+    }
 
     if let testSrcDir = env["TEST_SRCDIR"] {
         let srcDir = URL(fileURLWithPath: testSrcDir)

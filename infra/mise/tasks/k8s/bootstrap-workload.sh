@@ -201,6 +201,12 @@ unset HCLOUD_SECRET_TOKEN
 # ---------------------------------------------------------------------------
 log "Step 4/13: install hcloud-cloud-controller-manager"
 
+if [[ "${HCCM_INTERNALIP_TARGETS_QUALIFIED:-0}" == 1 ]]; then
+  KUBECONFIG="$WL_KUBECONFIG" bash "$REPO_ROOT/infra/certificate-trust/guard.sh" hccm --acknowledged
+else
+  KUBECONFIG="$WL_KUBECONFIG" bash "$REPO_ROOT/infra/certificate-trust/guard.sh" hccm
+fi
+
 helm repo add hcloud https://charts.hetzner.cloud >/dev/null 2>&1 || true
 helm repo update hcloud >/dev/null
 

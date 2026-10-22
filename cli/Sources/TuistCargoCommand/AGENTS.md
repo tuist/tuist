@@ -24,5 +24,5 @@
 - Stable identities use nextest binary IDs and Rust namespaces, not artifact hashes or checkout paths.
 - Nextest binaries are concurrent module-level units, not Xcode suite-level units. Declare `concurrent_modules` and reuse the shared measured-concurrency planner with a longest-binary floor. Binary/suite timings use complete attempt timestamp windows, including retry delays and ignoring skips. Omit concurrency evidence when timestamps or wall time are missing; never infer utilization from CPU count or thread limits.
 - Analytics failures must not change Cargo's exit status. Planning/downloading failures must fail a shard rather than execute the entire suite.
-- Repeatable archive upload/download, exactly-once shard execution, merged reports, and fail-closed checks live in `cli/Tests/Fixtures/CargoSharding/AGENTS.md`.
+- Repeatable archive upload/download, exactly-once shard execution, merged reports, and fail-closed checks live in `cli/Tests/Fixtures/CargoSharding/AGENTS.md`. Archive downloads use the policy-protected `URLSession.tuistDefault` while preserving native default transfer timeouts.
 - Keep docs aligned with the deliberately narrow experimental cache. Do not claim parity with a general compiler cache, undeclared-input sandboxing, cross-worker qualification, quarantine enforcement, coverage, or selective testing.

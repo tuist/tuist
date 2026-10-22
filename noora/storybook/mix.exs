@@ -27,6 +27,9 @@ defmodule NooraStorybook.MixProject do
 
   defp deps do
     [
+      # Remove the eMudhra roots until certifi publishes https://github.com/certifi/erlang-certifi/pull/56.
+      {:certifi,
+       github: "certifi/erlang-certifi", ref: "f5d808c59ee727ddcfe8abaff7f4ea036950c8e9", depth: 1, override: true},
       {:phoenix, "~> 1.8.1"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
