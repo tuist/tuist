@@ -21,8 +21,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Only accepted publication becomes a master. Failed upload retries and restart
   recovery retain the same journal identity. Clear conflicts discard the branch.
 - Default custom capacity is 20 decimal GB; the server may choose 1 to 100 GB
-  per volume, up to the host maximum. Built-in Tuist/CAS macOS caches keep
-  their existing separate identities, capacity and retention policy.
+  per volume, up to the host maximum.
 - Unknown measurements remain unknown; never report unavailable usage as zero.
 - Run `go test -race ./...` here, the Linux agent/client suites, and macOS podagent
   suites. Real APFS and real ext4 tests complement mocked command tests.
@@ -152,10 +151,35 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   bytes, else twice the capacity.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
-  abandoned after two minutes without bytes, `DownloadClient` without a whole-
-  transfer timeout. A context that ends while bytes arrive returns
-  `ErrDownloadIncomplete` and keeps the partial; a complete archive that does not
-  restore is deleted. Callers resume only by passing the same path again.
+  abandoned after two minutes without bytes, `ObjectClient` (else `Client` with
+  its timeout cleared) without a whole-transfer timeout. A context that ends while
+  bytes arrive returns `ErrDownloadIncomplete` and keeps the partial; a complete
+  archive that does not restore is deleted. Callers resume only by passing the
+  same path again.
+- `HTTPTransfer.Publish` (`upload.go`) retries inside the call, so a retry never
+  recompresses. An archive of at least two 128 MiB parts asks `upload` with
+  `multipart`; the server starts a multipart upload (S3-compatible storage only)
+  or answers with a single PUT link. Parts go eight at a time, links signed 16 at
+  a time by `upload_parts` for each part's `Content-MD5` (hashed before the links
+  are asked for); `complete` assembles them and answers once the object is
+  readable, and `publish` fast-forwards. One connection to Tigris carries about
+  55 to 110 MB/s from a rack host; 4, 8 and 16 parts carried 260, 417 and
+  582 MB/s (4 GiB, b07, 2026-10-22). Tigris answers a completion before the
+  object is readable (2 to over 30 s), so the server waits up to 20 s and
+  otherwise answers 503. A smaller archive, or an older server, is one
+  PUT carrying the server-signed SHA-256. A retried attempt resumes with the parts
+  storage does not hold; asking for links again returns `ErrConflict` once the
+  lineage advanced. Attempts that store nothing are bounded by four (one that
+  stores parts restarts the count), back off 10 s times the count, and a request
+  that sends nothing for two minutes is abandoned. Only transport errors, stalls
+  and 5xx/429/408 are retried; once storage holds the archive only `publish` is.
+  A call that gives up sends `abort`; the server also aborts every multipart
+  upload once its links expired (`AbortVolumeMasterUploadWorker`). Each retry
+  logs `cache upload retry` with `attempt`, `parts_stored`, `sent_bytes`,
+  `elapsed_ms` and `error`. Transport errors keep the network's own text
+  (`transport error: <cause>`) with URLs replaced, and a `RemoteError` carries
+  the object store's `<Code>` when it sent one. A restore verifies the whole
+  archive's SHA-256.
 - `prefetch` and refreshes download into
   `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
   to install (`fetchMaster`), one download per staging name at a time;
@@ -185,13 +209,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   not APFS reservations.
   Maintenance validates every master even when one lineage cannot be reached.
 
-- APFS admission records a reservation under the built-in lock, then releases it
+- APFS admission records a reservation under the shared admission lock, then releases it
   before downloads or formatting. Reserve remaining growth only for running VMs;
   retain journal recovery and bounded, separately reserved prefetch work.
   An attach needs its expected size; restoration and prefetch also need
   the archive budget. Keep the backend check and host reservation consistent.
   After local-master eviction, the optional shared-filesystem reclamation hook
-  may reclaim built-in macOS masters. Remeasure free space before admitting;
+  may reclaim idle macOS checkout copies. Remeasure free space before admitting;
   successful deletion alone does not prove that CoW blocks were freed. Linux
   has no shared reclaimer and retains its existing admission behavior.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.

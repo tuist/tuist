@@ -128,7 +128,7 @@ func (c *CustomVolumes) reserveCheckout(ctx context.Context, bytes uint64) (func
 		return nil, err
 	}
 	// Evict only when it can make the room: a refused build retries every reconcile.
-	if free < bytes && free+c.Checkouts.Evictable(c.Builtins.backend.allocatedBytes) >= bytes {
+	if free < bytes && free+c.Checkouts.Evictable(c.Space.backend.allocatedBytes) >= bytes {
 		c.Checkouts.Evict(func() bool {
 			free, err = c.freeBytesLocked()
 			return err == nil && free >= bytes
@@ -142,8 +142,8 @@ func (c *CustomVolumes) reserveCheckout(ctx context.Context, bytes uint64) (func
 	}
 	c.checkoutReserved += bytes
 	return func() {
-		c.Builtins.mu.Lock()
-		defer c.Builtins.mu.Unlock()
+		c.Space.mu.Lock()
+		defer c.Space.mu.Unlock()
 		c.checkoutReserved -= bytes
 	}, nil
 }

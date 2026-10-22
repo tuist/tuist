@@ -321,8 +321,7 @@ type RunOptions struct {
 	SharedDirs []string
 
 	// Disks are additional block devices attached via `tart run --disk
-	// <path>`, on top of the VM's root disk. The per-account cache volume
-	// attaches its per-VM branch image here. The list is plural
+	// <path>`, on top of the VM's root disk. The list is plural
 	// from day one so generic user-declared volumes (spec #69) compose
 	// without a wrapper change; v1 passes at most one.
 	Disks []string
@@ -404,7 +403,7 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	for _, dir := range opts.SharedDirs {
 		args = append(args, "--dir", dir)
 	}
-	// Additional block devices (the per-account cache volume branch).
+	// Additional block devices.
 	// Attached plainly: unlike the root disk (whose caching is set via the
 	// dedicated --root-disk-opts flag), tart 2.32's `--disk` takes a bare
 	// path (with only `:ro`-style flags), so a `:caching=cached` suffix here

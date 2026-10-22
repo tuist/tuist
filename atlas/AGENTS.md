@@ -76,6 +76,10 @@ Do not add README entries for internal operational details such as env var names
 - Engineering alert delivery holds a transaction-scoped advisory lock per `(rule, subject)` across its cooldown check, external send, and notification insert, preventing concurrent coalescers/workers from both sending inside a cooldown. Contended deliveries use a try-lock and snooze for ten seconds without holding a pool connection or consuming Oban attempts. Each active delivery still holds one connection until it records the outcome. The one-minute transaction budget covers ordinary bounded transport calls; network-success/process-loss still permits at-least-once retries, not exactly-once delivery.
 - GitHub connector bootstrap serializes database writes with a transaction-scoped advisory lock so concurrent replica startup cannot race read-then-insert paths.
 
+## Native push notifications
+
+- Registrations, delivery and provider credentials live in [push](lib/atlas/push/AGENTS.md); the HTTP contract is in [the native HTTP boundary](lib/atlas_web/controllers/AGENTS.md#push-devices) and operator setup in [deployment guidance](deploy/AGENTS.md#push-notifications). Only fixed notification kinds with generic text are sent; there is no arbitrary-recipient or free-text send path.
+
 ## Native appearance catalog
 
 - `GET /api/native/themes` is public, instance-wide, credential-free appearance data, cached for five minutes. It must precede the authenticated dynamic native-resource route. It never returns identity, permissions, or customer data. Existing clients do not need to request it; newer clients must remain usable on older servers.
