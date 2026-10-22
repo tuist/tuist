@@ -623,6 +623,9 @@ func TestAuthorityPromotesTheStandbyWhenTheExitedHolderDoesNotRestart(t *testing
 	if next.Phase != "Serving" || next.Epoch != 2 || next.PodName != "test-1" || next.Holder != statuses["test-1"].ServingAuthority.Identity || next.FenceEvidence != grant.HolderExit.Evidence || next.ExitResume != nil {
 		t.Fatal("the standby was not promoted after the restart window", next)
 	}
+	if next.ExitPromotedFrom == nil || *next.ExitPromotedFrom != grant.Holder {
+		t.Fatal("the promoted grant must name the exited holder for its recovery", next.ExitPromotedFrom)
+	}
 }
 
 func TestAuthorityNeverTreatsAnotherIncarnationsExitAsFencing(t *testing.T) {
