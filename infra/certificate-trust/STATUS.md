@@ -165,11 +165,13 @@ application verification paths must be assessed separately.
   direct SecTrust expiry/signature checks and registry metadata/seeding failure
   propagation are checked too. The registry archive-download catch and full
   provider archive-to-Git failure flow retain helper-only coverage.
-  Bazel builds the independent macOS candidate, but its test binary crashes during
-  discovery while loading Xcode.app's 26.6 Testing framework despite selecting 27.2.
-  Explicit 26.6 selection is unavailable to Bazel. Attempted test-process environment
-  alignment still loaded the 26.6 framework and crashed; it did not test the mismatch
-  hypothesis. Root cause is unestablished. Bazel runtime, Linux, native SwiftPM/Git
+  Bazel builds the independent macOS candidate. Its broader current test target
+  now passes 355 tests in 28 suites on Xcode 27.2 with live controls enabled.
+  The same diagnostic binary crashes with the globally selected 26.6 Testing
+  framework and discovers tests with matching 27.2 frameworks. Per-process
+  framework/compiler selection and a test-private HOME qualify the full run;
+  no global switch or source workaround was used. See [standalone qualification](SWIFTERPM-CLIENT.md).
+  Linux, native SwiftPM/Git, signed CLI runtime, full archive-failure integration
   and exact published artifacts remain open. No SwifterPM release.
 
 Candidate builds at `47d307fdde` successfully published SHA-only CAPI, egress

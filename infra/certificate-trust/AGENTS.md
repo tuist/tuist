@@ -18,6 +18,8 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
   original native/bundled roots; do not unify stores merely to share a client.
   `GRAFANA-CLIENT.md` records the independent Go backend's full twelve-key callback,
   native-versus-application attribution and exact artifact/runtime limits.
+  `SWIFTERPM-CLIENT.md` records the broader standalone Bazel suite and its matched
+  per-process Xcode/private-HOME qualification, not a signed CLI or CI fix.
   `ACTION-CLIENTS.md` traces bounded wrapper ownership, not provider/helper TLS.
   `RUNNER-CLIENTS.md` covers shell HTTP/WSS and cache-volume HTTPS configuration;
   keep shell source/test copies identical, preserve the helpers' different proxy
