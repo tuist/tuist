@@ -13,6 +13,7 @@
 - Keep `CargoCacheReport` and `CargoCacheDetailsReport` bounded by file count, bytes, records, keys, and wire size. Aggregate up to 4096 report files within the 8 MB budget (not the inspection detail's smaller file cap); mark available details truncated when the aggregate scan is cut short. Never collect arbitrary compiler arguments, environment values, or credentials in telemetry, or infer local/remote hit provenance. Historical server payload fields remain compatible, but unsupported counters stay zero.
 
 ## Cargo and nextest semantics
+- Build metadata reuses `custom_metadata`, `TUIST_BUILD_TAGS` and `TUIST_BUILD_VALUE_*`; explicit values override allowlisted live-wrapper observations. Because older Cargo receivers had no metadata field, omit the entire field until credential-free discovery advertises expanded support (greater than 20), even for small maps. Runner names require opt-in. See `server/docs/build-metadata.md`.
 
 - Project, server, and network configuration is exclusively `tuist.toml` plus environment overrides, even in checkouts with `Tuist.swift`. Use `ConfigLoader.loadCargoConfig`; do not extend ProjectDescription for Cargo settings.
 - Dispatch Cargo before generic flag stripping and command analytics. Preserve Cargo's quiet/verbose flags, output, argument order, failures, and signals. Nested Cargo commands must not recursively decorate a session.

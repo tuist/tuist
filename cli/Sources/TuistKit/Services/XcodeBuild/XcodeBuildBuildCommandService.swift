@@ -39,7 +39,9 @@ struct XcodeBuildBuildCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(
+            buildMetadataObservations: BuildMetadata.observations().filter { $0.key != "tuist.os.version" }
+        ),
         coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
     ) {
         self.coverageBuildSourcesService = coverageBuildSourcesService

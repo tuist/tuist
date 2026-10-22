@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistCI
 import TuistServer
 
@@ -60,8 +61,33 @@ struct CargoReporting {
             ],
             uniquingKeysWith: { _, new in new }
         )
+        // Cargo did not previously accept custom_metadata. Wait for cluster-wide support even for small maps.
+        let metadataLimit = await BuildMetadata.discoverLimit(serverURL: serverURL)
+        payload["custom_metadata"] = buildMetadata(limit: metadataLimit)
+        if metadataLimit > 20, payload["custom_metadata"] == nil {
+            AlertController.current.warning(.alert("Cargo build metadata is invalid and was omitted from the report."))
+        }
         if let cache = CargoCacheReport.read(root: root) { payload["cache"] = cache }
         await submit(payload, kind: "builds")
+    }
+
+    func buildMetadata(limit: Int) -> [String: Any]? {
+        guard limit > 20 else { return nil }
+        let tags = (environment["TUIST_BUILD_TAGS"] ?? "").split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let explicit = BuildMetadata.explicitValues(environment: environment)
+        guard tags.count <= 50, explicit.count <= limit,
+              tags.allSatisfy({ $0.count <= 50 && $0.range(of: "^[a-zA-Z0-9_-]+$", options: .regularExpression) != nil }),
+              explicit.allSatisfy({ $0.key.count <= 50 && $0.value.count <= 500 })
+        else { return nil }
+        return [
+            "tags": tags,
+            "values": BuildMetadata.merge(
+                explicit: explicit,
+                observations: BuildMetadata.observations(environment: environment),
+                limit: limit
+            ),
+        ]
     }
 
     func tests(run: CargoNextestRun, metadata: [String: Any], failed: Bool) async {
