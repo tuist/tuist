@@ -79,8 +79,11 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - The Linux agent prefetches the assigned master after a warm acquisition that
   found no local copy of it (mounted older, started empty, or timed out; checked
   with `HasMaster`), one at a time, bounded to two minutes with no queue and the
-  same disk reserve. macOS queues
-  prefetches (see tart-kubelet). Never create a private branch, publish, or extend
+  same disk reserve. It also restores, one at a time, the HEADs the server lists
+  for its node (`/runners/cache-volumes/masters`, see `CacheVolumes.prefetch_heads/3`)
+  through `PrefetchSpare`: free space above `MinFreeBytes` plus
+  `Identity.RestoreBytes`, never evicting, written as a `.spare` master. macOS
+  queues prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
 - `Attach` never downloads, on either host (`LocalImages.cloneLocal`). It clones
   the base master, else the newest older master of the same scope (recorded

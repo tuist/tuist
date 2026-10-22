@@ -17,6 +17,8 @@ type prefetcher struct {
 	local   func(cachevolumes.Identity) bool
 	observe cachevolumes.Observer
 	budget  time.Duration
+	// installed counts each master it installs.
+	installed func(reason string, bytes int64)
 }
 
 func (p *prefetcher) start(identity cachevolumes.Identity) bool {
@@ -33,7 +35,11 @@ func (p *prefetcher) start(identity cachevolumes.Identity) bool {
 		ctx, cancel := context.WithTimeout(context.Background(), p.budget)
 		defer cancel()
 		done := p.observe.For(cachevolumes.Slot{Identity: identity}).Start("prefetch", "remote")
-		done(p.restore(ctx, cachevolumes.Slot{Identity: identity}))
+		err := p.restore(ctx, cachevolumes.Slot{Identity: identity})
+		done(err)
+		if err == nil && p.installed != nil {
+			p.installed("job", identity.HeadSizeBytes)
+		}
 	}()
 	return true
 }

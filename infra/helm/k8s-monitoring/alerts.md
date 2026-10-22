@@ -6624,7 +6624,7 @@ Backtest, two-hour window evaluated hourly, hours named by their end,
 #### First attaches after idle
 
 The rule is dominated by busy volumes, which stay warm on the hosts that just
-used them. The attaches that need prewarming (`macos_prefetch_heads/2` in
+used them. The attaches that need prewarming (`prefetch_heads/3` in
 `CacheVolumes`) are a volume's first after six hours without one, mostly an
 account's first jobs of the day. This query reads them from the same
 datasource and columns, per platform and day:
@@ -6645,8 +6645,9 @@ WHERE attached_at >= now() - interval '8 days' AND base_generation > 0 AND warm 
 GROUP BY 1, 2 ORDER BY 1, 2
 ```
 
-macOS read 4 of 15 warm on 2026-10-21 and 14 of 21 on 10-22, before
-prewarming. What prewarming downloads, per host and reason:
+macOS read 4 of 15 warm on 2026-10-21 and 14 of 21 on 10-22, and Linux 25
+of 28 on 10-22, before prewarming. What prewarming downloads, per host and reason (Linux agents report
+`job`, `prewarm` and `recent`; macOS hosts also `refresh`):
 
 ```promql
 sum by (instance, reason) (increase(tuist_runner_cache_volume_prefetched_bytes_total{env="production"}[1d]))

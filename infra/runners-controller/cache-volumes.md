@@ -392,8 +392,18 @@ host and 30 seconds on the client. A newer
 HEAD or a clear can make the prefetched generation obsolete; normal generation
 selection and maintenance prevent it from being served as the new HEAD.
 
-This warms hosts after an observed miss and does not replicate every volume to
-every host. Dispatch separately prefers handing a polling host a queued job whose
+This warms hosts after an observed miss. Separately, every 10 minutes the agent
+asks the server which HEADs its node should hold (`GET
+/api/internal/runners/cache-volumes/masters?node_name=<node>`, with the same
+agent token): first volumes at least two workflow runs used this week and left
+idle for four hours, so an account's first jobs of the day start warm, then
+volumes used in the last day. Every node of the fleet gets the same list. The
+agent restores the ones it lacks one at a time, separately from the job
+prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
+only into free space above the reserve, never evicting, and as a speculative
+master that pressure eviction takes first until a job clones it.
+`tuist_runner_cache_volume_prefetched_bytes_total{reason}` counts the saved
+heads' used bytes it installed (`job`, `prewarm`, `recent`). Dispatch separately prefers handing a polling host a queued job whose
 predicted custom volumes the host's Node labels advertise (see
 `Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
 the built-in volume. Both that preference and the macOS Pod placement preference
