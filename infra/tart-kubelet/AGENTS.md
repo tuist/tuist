@@ -39,10 +39,11 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - The GC (`internal/podagent/garbage.go`) reads the Node's fleet's macOS
   RunnerPools as the prewarmer does. A golden or cached OCI image that no pool
   runs and no Pod on the Node references is reaped on the next pass; one a
-  pool still runs keeps the 24h idle retention. Cached images are matched by
+  pool still runs, or will run next (the upcoming runner images ConfigMap,
+  see staging below), keeps the 24h idle retention. Cached images are matched by
   full ref, except a repository a Pod or pool names by tag keeps every digest.
-  A fleet without pools, or a failed RunnerPool List, falls back to retention
-  and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
+  A fleet without pools, or a failed RunnerPool or ConfigMap List, falls back
+  to retention and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
   goldens, 1 or 2 of them current, because runner images are released several
   times a day and every catalog image shares one repository.
 - A release is followed, not re-pulled (`internal/podagent/follow.go`). While
@@ -91,6 +92,30 @@ workflow code runs in the guest. Never expose host credentials or masters.
   and their first VM per image sat in `CreatingVM` for 5+ minutes downloading;
   on 2026-10-21 ber1-runner-b05 came back from `tuist.dev/os-reinstall`
   untainted with no goldens and took runner Pods that waited on downloads.
+- Every host then stages, once a minute and in the background, the goldens it
+  is about to need (`podagent.Prewarmer.stage`, `internal/podagent/stage.go`):
+  for each pool of its fleet it served in the last 24 hours (it held the
+  golden of the image the pool ran then), the pool's current image and the
+  one it moves to next, when the host lacks them. The next image comes from ConfigMaps labelled
+  `tuist.dev/upcoming-runner-images=true`, keyed `<xcode>.<variant>`, which
+  the `announce` job of `runner-image-release.yml` writes into canary and
+  production before it dispatches the deploy that moves the pools. A pool is
+  matched by its `tuist.dev/xcode-version` and `tuist.dev/runner-image-variant`
+  (`standalone` or `stacked`) labels, which the chart renders only on catalog
+  pools that follow releases; an entry outside the pool's repository is
+  ignored. Staging uses `ensureGolden`, so a Pod of the same image joins the
+  pull. It starts no pull while a Pod waits on one, or below 30% free disk,
+  and skips an image the rack's image cache is still fetching until the next
+  pass. A Pod of another image that arrives during a staged pull waits for it,
+  since a host pulls one golden at a time. Following a pool to its new image
+  also covers a deploy that moves pools before the hosts staged them.
+  `tart_kubelet_golden_staged_total{result}` counts what staging did; the
+  pools' materialized and reused counts show whether Pods still pull.
+  Evidence: in the week to 2026-10-22 ber1-runner-b03 to b09 each pulled 24
+  to 42 goldens from ghcr.io, 6 to 7 minutes each on average, over 19 runner
+  image releases, and a release reaches production about 20 minutes after
+  its deploy is dispatched. The rack's image cache only moves those pulls onto
+  the rack network; it does not take them off a job's path.
 - Custom cache volumes are the only runner cache on macOS hosts. The volume
   they share is `CacheSpace` (`internal/podagent/volume*.go`): the APFS volume
   at `--runner-cache-root`, which holds `custom/`. Every five minutes it

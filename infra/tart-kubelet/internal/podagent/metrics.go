@@ -199,6 +199,22 @@ var imagePullSeconds = prometheus.NewHistogramVec(
 	[]string{"source", "result"},
 )
 
+// goldenStagedTotal counts the goldens a serving host staged ahead of its
+// Pods (stage.go), by result: `pulled`, `present` (a Pod pulled it first),
+// `syncing` (the rack image cache is still fetching it) or `error`. Whether
+// staging works shows in the pools' materialized and reused counts.
+var goldenStagedTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_golden_staged_total",
+		Help: "Golden bases staged ahead of the Pods that clone them, by result.",
+	},
+	[]string{"result"},
+)
+
+func recordGoldenStaged(result string) {
+	goldenStagedTotal.WithLabelValues(result).Inc()
+}
+
 func recordImageMirrorProbe(result string) {
 	imageMirrorProbeTotal.WithLabelValues(result).Inc()
 }
@@ -224,6 +240,7 @@ func init() {
 		cacheVolumeRootMounted,
 		imageMirrorProbeTotal,
 		imagePullSeconds,
+		goldenStagedTotal,
 	)
 }
 

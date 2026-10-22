@@ -361,12 +361,80 @@ jobs:
           # action reads only this input, not GITHUB_TOKEN from env.
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
+  # Names this release's images to each cluster's macOS hosts before the deploy
+  # below moves the RunnerPools to them. tart-kubelet pulls the next image of
+  # each pool a host serves in the background (infra/tart-kubelet/AGENTS.md),
+  # so the first job of a new image on a host does not wait 6 to 7 minutes for
+  # the pull. A deploy reaches production about 20 minutes after it is
+  # dispatched. Best effort: a failure here leaves the pulls to the Pods.
+  announce:
+    name: Announce upcoming runner images (${{ matrix.environment }})
+    needs: [plan, release]
+    if: always() && needs.release.result == 'success'
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [canary, production]
+    environment:
+      name: server-k8s-${{ matrix.environment }}
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Write the upcoming runner images ConfigMap
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        # Keys are `<xcode>.<variant>`, as tart-kubelet looks them up from a
+        # RunnerPool's `tuist.dev/xcode-version` and
+        # `tuist.dev/runner-image-variant` labels; values are the image by the
+        # digest the deploy will resolve for the same tag.
+        run: |
+          set -euo pipefail
+          namespace="$(kubectl get runnerpools.tuist.dev -A -l tuist.dev/runner-image-variant \
+            -o jsonpath='{range .items[*]}{.metadata.namespace}{"\n"}{end}' | head -n1)"
+          if [ -z "$namespace" ]; then
+            echo "No RunnerPool follows the runner image catalog in ${{ matrix.environment }}."
+            exit 0
+          fi
+          args=()
+          for xcode in $(jq -r '.[]' infra/runner-image/profiles.json); do
+            tag="macos-${xcode//./-}-${VERSION}"
+            standalone="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "$tag")"
+            stacked="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "${tag}-stacked")"
+            args+=(--from-literal "${xcode}.standalone=ghcr.io/tuist/tuist-runner@${standalone}")
+            args+=(--from-literal "${xcode}.stacked=ghcr.io/tuist/tuist-runner@${stacked}")
+          done
+          kubectl create configmap tuist-upcoming-runner-images --namespace "$namespace" "${args[@]}" \
+            --dry-run=client -o yaml |
+            kubectl label --local -f - tuist.dev/upcoming-runner-images=true -o yaml |
+            kubectl annotate --local -f - "tuist.dev/runner-image-release=${VERSION}" -o yaml |
+            kubectl apply --server-side --field-manager=runner-image-release --force-conflicts -f -
+
   deploy:
     name: Deploy runner image
-    needs: release
+    needs: [release, announce]
     # The implicit success() also requires release's own skipped needs (the
     # re-tag job) to have succeeded, which would skip every deploy of a
-    # release that rebuilt all profiles.
+    # release that rebuilt all profiles. A failed announcement only leaves
+    # the pulls to the Pods.
     if: always() && needs.release.result == 'success'
     runs-on: tuist-linux
     timeout-minutes: 5

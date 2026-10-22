@@ -470,7 +470,13 @@ CI:
      (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
      carried profile's pools, warm Pods and host goldens stay as they
      were. A profile tag that cannot be resolved fails the deploy.
-  5. `deploy` dispatches `server-production-deployment.yml`, which
+  5. `announce` writes each profile's standalone and stacked digest into
+     the `tuist-upcoming-runner-images` ConfigMap of canary and
+     production, so their macOS hosts pull the images their pools move
+     to before the deploy moves them (see "stages" in
+     `infra/tart-kubelet/AGENTS.md`). A failure there does not hold the
+     deploy.
+  6. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
   `macos-xcode-image.yml` dispatches the workflow after publishing a

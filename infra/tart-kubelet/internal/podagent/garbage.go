@@ -602,6 +602,15 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 		if err != nil {
 			log.FromContext(ctx).WithName("gc").Error(err, "list runner pools; keeping superseded images for the retention window")
 		}
+		// A staged golden is an image a pool moves to next: it must not
+		// read as superseded before the deploy that moves the pool.
+		var upcoming upcomingImages
+		if len(pools) > 0 {
+			if upcoming, err = listUpcomingImages(ctx, c.K8s); err != nil {
+				log.FromContext(ctx).WithName("gc").Error(err, "list upcoming runner images; keeping superseded images for the retention window")
+				pools = nil
+			}
+		}
 		for _, pool := range pools {
 			if !pool.runsOn(c.Fleet) {
 				continue
@@ -609,8 +618,14 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 			if out.poolGoldens == nil {
 				out.poolGoldens = map[string]struct{}{}
 			}
-			out.poolGoldens[goldenVMName(pool.Spec.Image)] = struct{}{}
-			out.addImage(pool.Spec.Image, c.Images)
+			images := []string{pool.Spec.Image}
+			if next := upcoming.forPool(pool); next != "" {
+				images = append(images, next)
+			}
+			for _, image := range images {
+				out.poolGoldens[goldenVMName(image)] = struct{}{}
+				out.addImage(image, c.Images)
+			}
 			if previous := pool.previousImage(); previous != "" && previous != pool.Spec.Image {
 				if out.successions == nil {
 					out.successions = map[string]succession{}

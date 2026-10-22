@@ -486,10 +486,11 @@ func main() {
 	prewarmGate := nodeagent.NewPrewarmGate()
 	prewarmGate.FreshDisk = hostDisk.Fresh
 	if err := mgr.Add(&podagent.Prewarmer{
-		K8s:     mgr.GetAPIReader(),
-		Goldens: reconciler,
-		Gate:    prewarmGate,
-		Fleet:   nodeLabels["tuist.dev/fleet"],
+		K8s:           mgr.GetAPIReader(),
+		Goldens:       reconciler,
+		Gate:          prewarmGate,
+		Fleet:         nodeLabels["tuist.dev/fleet"],
+		StageInterval: time.Minute,
 		DiskFree: func() (float64, error) {
 			st, err := hostdisk.Root("/")
 			if err != nil {
