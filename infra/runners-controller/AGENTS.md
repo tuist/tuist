@@ -1142,6 +1142,31 @@ Shape:
   microVM kernel defaults nofile=1024; without both, a docker
   build that walks a non-trivial `node_modules` tree EMFILEs.
 
+### Open-file limits for job steps
+
+The `runner` container needs no setting of its own: measured on
+production and canary (2026-10-22), job steps, every process up
+to `run-job.sh`, and Docker containers all get `RLIMIT_NOFILE`
+soft=hard=1048576 inside the guest. That is above the 65536
+GitHub-hosted runners give, and runners acceptance fails with
+`Runner file limits` if it ever drops below
+(`.github/scripts/runners-acceptance/file-limits.sh`).
+
+The limit a file-heavy job actually hits is on the host:
+virtiofsd, which serves the Pod's rootfs and volumes to the
+guest, holds one host descriptor per inode the guest has cached
+and answers EMFILE once its budget is spent, whatever the guest
+process's rlimit says. Kata's default budget is about one
+million; a server `Seed` job peaked at ~888k cached inodes
+(831k of them ClickHouse part files) and intermittently failed
+with ClickHouse `Too many open files` (errno 24). Runner hosts
+raise the budget through the CAPI provider (`kata_virtiofs.go`,
+see `../cluster-api-provider-tuist/AGENTS.md`). The manual
+`linux-runners-staging-smoke.yml` `file-budget` job keeps 1.2
+million files on the rootfs to prove a host carries it; it is
+not in the canary gate because warm Pods started before a host
+converged keep the old budget.
+
 ### Why stage externals? (job `container:` support)
 
 A workflow that declares `jobs.<id>.container` doesn't run its
