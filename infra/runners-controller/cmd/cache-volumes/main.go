@@ -247,6 +247,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// The timeout bounds metadata requests; archive transfers drop it and end on a stall instead.
 	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
 	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes, Log: metrics.logger}

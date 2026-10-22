@@ -620,9 +620,6 @@ defmodule Tuist.Accounts.UserNotifier do
     )
   end
 
-  defp air_usage_label(_remote_cache_hits, usage, limit),
-    do: dgettext("dashboard_account", "%{usage} of %{limit} remote cache hits used", usage: usage, limit: limit)
-
   defp delimit(number) do
     number
     |> Integer.to_string()

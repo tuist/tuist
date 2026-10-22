@@ -73,7 +73,7 @@ func newObjectServer(t *testing.T) *objectServer {
 
 func (s *objectServer) transfer() *HTTPTransfer {
 	return &HTTPTransfer{
-		URL: s.URL, Node: "node", Client: s.Client(), DownloadClient: s.Client(), MaxBytes: 8 << 20,
+		URL: s.URL, Node: "node", Client: s.Client(), ObjectClient: s.Client(), MaxBytes: 8 << 20,
 		Token:        func(context.Context) (string, error) { return "token", nil },
 		stallTimeout: 200 * time.Millisecond, retryBackoff: time.Millisecond,
 	}
@@ -312,7 +312,7 @@ func TestDownloadThatKeepsReceivingOutlastsTheRequestTimeout(t *testing.T) {
 	transfer := s.transfer()
 	// Metadata requests are bounded as a whole; downloads only by a stall.
 	transfer.Client = &http.Client{Transport: s.Client().Transport, Timeout: 150 * time.Millisecond}
-	transfer.DownloadClient = nil
+	transfer.ObjectClient = nil
 	path := filepath.Join(t.TempDir(), "image")
 
 	if err := transfer.Download(context.Background(), s.slot, path); err != nil {

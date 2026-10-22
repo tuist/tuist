@@ -129,11 +129,9 @@ public struct CargoCommandService {
         )
         try await FileSystem().runInTemporaryDirectory(prefix: "tuist-cargo") { temporary in
             let root = URL(fileURLWithPath: temporary.pathString)
-            let started = Date()
             var environment = context.environment
             environment["TUIST_CARGO_ACTIVE"] = "1"
             environment["TUIST_CARGO_SESSION"] = root.path
-            environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
             environment["TUIST_CARGO_INNER_WRAPPER"] = innerWrapper
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
             let configured = CargoExecutionContext(
@@ -155,6 +153,8 @@ public struct CargoCommandService {
                 environment["RUSTC_WRAPPER"] = wrapper.path
                 environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
             }
+            let started = Date()
+            environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
             let child = CargoExecutionContext(
                 executable: context.executable,
                 directory: context.directory,
@@ -175,7 +175,7 @@ public struct CargoCommandService {
         let invocation = CargoInvocation(context.arguments)
         var executionError: Error?
         var nextest: CargoNextestRun?
-        var cargoTests: CargoTestReport?
+        var cargoTests: CargoTestResult?
         do {
             if invocation.command == "test-build" {
                 try await CargoShardService(runner: runner).plan(
@@ -204,17 +204,22 @@ public struct CargoCommandService {
                 }
             }
         } catch { executionError = error }
-        if invocation.reportsBuild {
+        let finished = Date()
+        if invocation.reportsBuild, !invocation.executesTests || cargoTests != nil {
             await context.reporting.build(
                 root: root,
                 started: started,
+                finished: finished,
                 command: invocation.command ?? "",
                 metadata: metadata,
-                failed: executionError != nil
+                failed: executionError != nil,
+                testResult: cargoTests
             )
         }
         if let nextest { await context.reporting.tests(run: nextest, metadata: metadata, failed: executionError != nil) }
-        if let cargoTests { await context.reporting.tests(report: cargoTests, metadata: metadata, failed: executionError != nil) }
+        if let report = cargoTests?.report {
+            await context.reporting.tests(report: report, metadata: metadata, failed: executionError != nil)
+        }
         if let executionError { throw executionError }
     }
 

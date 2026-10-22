@@ -38,7 +38,7 @@ msgstr ""
 msgid "%{selective_tests_effectiveness}%"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:272
+#: lib/tuist_web/live/projects_live.ex:273
 #, elixir-autogen, elixir-format
 msgid "All projects"
 msgstr ""
@@ -214,7 +214,7 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:384
+#: lib/tuist_web/live/projects_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
@@ -224,14 +224,14 @@ msgstr ""
 msgid "Create a project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:368
+#: lib/tuist_web/live/projects_live.ex:369
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:213
-#: lib/tuist_web/live/projects_live.ex:262
-#: lib/tuist_web/live/projects_live.ex:337
+#: lib/tuist_web/live/projects_live.ex:214
+#: lib/tuist_web/live/projects_live.ex:263
+#: lib/tuist_web/live/projects_live.ex:338
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
@@ -327,9 +327,9 @@ msgstr ""
 msgid "Last 40 runs"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:208
-#: lib/tuist_web/live/projects_live.ex:257
-#: lib/tuist_web/live/projects_live.ex:332
+#: lib/tuist_web/live/projects_live.ex:209
+#: lib/tuist_web/live/projects_live.ex:258
+#: lib/tuist_web/live/projects_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
@@ -366,7 +366,7 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:524
 #: lib/tuist_web/live/project_notifications_live.html.heex:591
 #: lib/tuist_web/live/project_notifications_live.html.heex:764
-#: lib/tuist_web/live/projects_live.ex:393
+#: lib/tuist_web/live/projects_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -442,13 +442,13 @@ msgstr ""
 msgid "Project name"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:42
-#: lib/tuist_web/live/projects_live.ex:153
+#: lib/tuist_web/live/projects_live.ex:43
+#: lib/tuist_web/live/projects_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:223
+#: lib/tuist_web/live/projects_live.ex:224
 #, elixir-autogen, elixir-format
 msgid "Recent projects"
 msgstr ""
@@ -491,7 +491,7 @@ msgstr ""
 msgid "Saved"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:284
+#: lib/tuist_web/live/projects_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Search projects..."
 msgstr ""
@@ -513,13 +513,13 @@ msgstr ""
 msgid "Set your previews to be public or private by default."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:29
-#: lib/tuist_web/live/project_settings_live.ex:32
+#: lib/tuist_web/live/project_settings_live.ex:30
+#: lib/tuist_web/live/project_settings_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:245
+#: lib/tuist_web/live/projects_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr ""
@@ -532,7 +532,7 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:24
+#: lib/tuist_web/live/projects_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -566,8 +566,8 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:25
 #: lib/tuist_web/live/project_bundle_settings_live.ex:19
 #: lib/tuist_web/live/project_notifications_live.ex:27
-#: lib/tuist_web/live/project_settings_live.ex:17
-#: lib/tuist_web/live/projects_live.ex:501
+#: lib/tuist_web/live/project_settings_live.ex:18
+#: lib/tuist_web/live/projects_live.ex:502
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -897,7 +897,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:1102
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:230
 #: lib/tuist_web/live/project_notifications_live.html.heex:507
-#: lib/tuist_web/live/projects_live.ex:431
+#: lib/tuist_web/live/projects_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -959,13 +959,13 @@ msgid "Automations"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:95
-#: lib/tuist_web/live/projects_live.ex:405
+#: lib/tuist_web/live/projects_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:89
-#: lib/tuist_web/live/projects_live.ex:399
+#: lib/tuist_web/live/projects_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Select build system"
 msgstr ""
@@ -1582,7 +1582,7 @@ msgstr ""
 msgid "When a test is updated: %{events}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:375
+#: lib/tuist_web/live/projects_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "New Project"
 msgstr ""
@@ -1608,7 +1608,7 @@ msgstr ""
 msgid "Default branch"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:133
+#: lib/tuist_web/live/project_settings_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Default branch updated."
 msgstr ""
@@ -1623,7 +1623,7 @@ msgstr ""
 msgid "The branch Tuist treats as the baseline for analytics, insights, and comparisons."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:120
+#: lib/tuist_web/live/project_settings_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "can't be blank"
 msgstr ""
@@ -2033,23 +2033,23 @@ msgstr ""
 msgid "Current project logo"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:243
+#: lib/tuist_web/live/project_settings_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Logo must be 2 MB or smaller."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:201
-#: lib/tuist_web/live/project_settings_live.ex:247
+#: lib/tuist_web/live/project_settings_live.ex:202
+#: lib/tuist_web/live/project_settings_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Logo must be a PNG, JPEG, or WebP image."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:228
+#: lib/tuist_web/live/project_settings_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "Logo removed."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:192
+#: lib/tuist_web/live/project_settings_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Logo updated."
 msgstr ""
@@ -2059,7 +2059,7 @@ msgstr ""
 msgid "No file chosen"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:251
+#: lib/tuist_web/live/project_settings_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Only one logo can be uploaded at a time."
 msgstr ""
@@ -2079,12 +2079,12 @@ msgstr ""
 msgid "Remove the current project logo?"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:217
+#: lib/tuist_web/live/project_settings_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "Select a logo before uploading."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:254
+#: lib/tuist_web/live/project_settings_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "The selected file couldn't be uploaded."
 msgstr ""
@@ -2100,12 +2100,12 @@ msgstr ""
 msgid "Upload"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:237
+#: lib/tuist_web/live/project_settings_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "We couldn't remove the logo. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:209
+#: lib/tuist_web/live/project_settings_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "We couldn't save the logo. Please try again."
 msgstr ""

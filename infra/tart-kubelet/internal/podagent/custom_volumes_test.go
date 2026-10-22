@@ -199,22 +199,20 @@ func TestCustomAdmissionGuardHonorsCancellation(t *testing.T) {
 	defer m.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	c := &CustomVolumes{Builtins: m}
+	c := &CustomVolumes{Space: m}
 	if _, err := c.guard(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal(err)
 	}
 }
 
-func TestCustomColdAdmissionBesideBuiltinOnM2(t *testing.T) {
+func TestCustomColdAdmissionOnAFullM2(t *testing.T) {
 	m, be := m2L(t)
-	be.perMaster = 29 * gib
-	seedMaster(t, m, "3")
-	m.reserved = map[string]bool{"running-builtin": true}
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	be.inUse = 59 * gib
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m}
 	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", HeadSizeBytes: customCapacity}}
 	finish, err := c.reserve(context.Background(), slot)
 	if err != nil {
-		t.Fatalf("20 GB cold volume fits beside a 30 GiB builtin reservation and 29 GiB master: %v", err)
+		t.Fatalf("20 GB cold volume fits in the 21 GiB left: %v", err)
 	}
 	if got := c.reservedBytes(); got != customCapacity {
 		t.Fatalf("cold creation reserved %d bytes", got)
@@ -253,39 +251,9 @@ func TestCustomAdmissionFollowsVolumeSizeAndOperation(t *testing.T) {
 	}
 }
 
-func TestConvergenceReservesSpaceBesideCustomVolumes(t *testing.T) {
-	m, _ := m2L(t)
-	m.CustomReserved = func() uint64 { return 40 * gib }
-	key := masterKey{account: "42", volume: ReservedTuistCacheVolume}
-	if _, err := m.PrepareConvergeSpace(key, 25*gib, 25*gib, false, func(error) {}); !errors.Is(err, errNoRoomToConverge) {
-		t.Fatalf("custom reservation ignored: %v", err)
-	}
-	m.CustomReserved = func() uint64 { return 0 }
-	r, err := m.PrepareConvergeSpace(key, 25*gib, 25*gib, false, func(error) {})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer r.Release()
-}
-
-func TestCustomFreeBytesCountsOutstandingConvergence(t *testing.T) {
-	m, _ := m2L(t)
-	c := &CustomVolumes{Builtins: m, Root: m.Root}
-	before, err := c.freeBytes("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.converging = &convergeReservation{}
-	m.converging.outstanding.Store(int64(10 * gib))
-	after, err := c.freeBytes("")
-	if err != nil || before-after != 10*gib {
-		t.Fatal(before, after, err)
-	}
-}
-
 func TestCustomShareAvailableBeforeWorkerStarts(t *testing.T) {
 	m, be := m2L(t)
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m}
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "job", UID: "uid"}}
 	share, err := c.Share(pod)
 	if err != nil {
@@ -307,10 +275,10 @@ func TestCustomShareAvailableBeforeWorkerStarts(t *testing.T) {
 func TestCustomReservationUsesRemainingCapacityAndStopsWithVM(t *testing.T) {
 	m, be := m2L(t)
 	be.perMaster = 15_000_000_000
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m, Namespace: "runners"}
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m, Namespace: "runners"}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: c.Root, SizeGB: 20, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }}, Reserve: c.reserve, Create: func(_ context.Context, path string, _ int64) error {
 		if !m.mu.TryLock() {
-			t.Error("built-in admission blocked during create")
+			t.Error("admission blocked during create")
 		} else {
 			m.mu.Unlock()
 		}
@@ -355,7 +323,7 @@ func TestCustomReservationUsesRemainingCapacityAndStopsWithVM(t *testing.T) {
 
 func TestCustomAdmissionLockWaitUsesRequestDeadline(t *testing.T) {
 	m, _ := m2L(t)
-	c := &CustomVolumes{Root: m.Root, Builtins: m}
+	c := &CustomVolumes{Root: m.Root, Space: m}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
@@ -436,7 +404,7 @@ func TestCustomMailboxesProgressDuringSlowRestoreAndPublication(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			c := &CustomVolumes{Root: root, Store: store, Kube: kube, Node: "host", Namespace: "runners", Builtins: m, URL: server.URL, HTTP: server.Client(), tokenValue: "token", tokenUntil: time.Now().Add(time.Hour), Running: func(context.Context, string) (bool, error) { return false, nil }}
+			c := &CustomVolumes{Root: root, Store: store, Kube: kube, Node: "host", Namespace: "runners", Space: m, URL: server.URL, HTTP: server.Client(), tokenValue: "token", tokenUntil: time.Now().Add(time.Hour), Running: func(context.Context, string) (bool, error) { return false, nil }}
 			requests, reports := make(chan time.Time), make(chan time.Time)
 			ctx, cancel := context.WithCancel(context.Background())
 			stopped := make(chan struct{})
@@ -505,7 +473,7 @@ func TestCustomReservationRefreshPreservesConcurrentAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	started, release := make(chan struct{}), make(chan struct{})
-	c := &CustomVolumes{Root: root, Builtins: m, Store: store, Running: func(context.Context, string) (bool, error) { close(started); <-release; return false, nil }}
+	c := &CustomVolumes{Root: root, Space: m, Store: store, Running: func(context.Context, string) (bool, error) { close(started); <-release; return false, nil }}
 	finished := make(chan error, 1)
 	go func() { finished <- c.refreshReservations(context.Background()) }()
 	<-started
@@ -530,7 +498,7 @@ func TestCheckoutSlotsReserveOnlyTheirGrowthBudget(t *testing.T) {
 	m, be := m2L(t)
 	// A clone reports the master's shared blocks as allocated.
 	be.perMaster = 30_000_000_000
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m}
 	checkout := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Kind: cachevolumes.KindCheckout}}
 	if got := customAdmissionBytes(checkout); got != cachevolumes.CheckoutGrowthBytes {
 		t.Fatal("checkout admitted beyond its growth budget", got)

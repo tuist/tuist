@@ -109,14 +109,16 @@ jobs:
 
       # A BIRD configuration that does not parse would leave the edges'
       # BGP container restarting, with the site's prefixes unannounced. Parsed
-      # by the BIRD the edge image installs, on the image's Alpine.
+      # by the BIRD the edge image installs, on the image's Alpine, pulled from
+      # the ECR copy of Docker's official images: anonymous Docker Hub pulls
+      # from shared runners are intermittently refused.
       - name: The edges' BIRD configurations parse
         run: |
           set -euo pipefail
           alpine="$(sed -n 's/^ARG ALPINE_VERSION=//p' infra/rack-switch-fleet/edge/Dockerfile)"
           for conf in infra/helm/rack-edge/sites/*/bird.conf; do
             [ -e "$conf" ] || continue
-            docker run --rm -v "$PWD/$conf:/bird.conf:ro" "alpine:$alpine" \
+            docker run --rm -v "$PWD/$conf:/bird.conf:ro" "public.ecr.aws/docker/library/alpine:$alpine" \
               sh -ec 'apk add --no-cache -q bird2 && bird -p -c /bird.conf'
             echo "parses: $conf"
           done

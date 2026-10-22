@@ -20,7 +20,7 @@ import (
 
 func TestCustomReservationsFollowTheAllocatedVolumeSize(t *testing.T) {
 	m, _ := m2L(t)
-	c := &CustomVolumes{Builtins: m, reservations: map[string]cachevolumes.Slot{}}
+	c := &CustomVolumes{Space: m, reservations: map[string]cachevolumes.Slot{}}
 	saved := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", BaseGeneration: 1, VolumeBytes: 30_000_000_000, HeadSizeBytes: 10_000_000_000}}
 	cold := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "22222222-2222-4222-8222-222222222222", VolumeBytes: 30_000_000_000}}
 	prefetch := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: cachevolumes.PrefetchReservation, BaseGeneration: 1, VolumeBytes: 30_000_000_000}}
@@ -129,7 +129,7 @@ func expectedAPFS(t *testing.T, free uint64) (*CustomVolumes, *cachevolumes.APFS
 	t.Helper()
 	m, be := m2L(t)
 	be.totalBytes, be.perMaster = free, 0
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m}
 	b := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
 		Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000, FreeBytesContext: c.freeBytesContext,
 	}, Reserve: c.reserve, Create: func(_ context.Context, path string, _ int64) error {
@@ -227,7 +227,7 @@ func TestAJobsSmallVolumesFitBesideEachOther(t *testing.T) {
 func TestARunningCopyReservesItsRemainingExpectedGrowth(t *testing.T) {
 	m, be := m2L(t)
 	be.perMaster = 1_000_000_000
-	c := &CustomVolumes{Root: t.TempDir(), Builtins: m, reservations: map[string]cachevolumes.Slot{}}
+	c := &CustomVolumes{Root: t.TempDir(), Space: m, reservations: map[string]cachevolumes.Slot{}}
 	slot := expectedSlot("11111111-1111-4111-8111-111111111111", 20_000_000_000, 700_000_000)
 	slot.State = "active"
 	c.reservations[slot.ID] = slot

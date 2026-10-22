@@ -78,8 +78,10 @@ Ready before retrying the deployment.
 
 `tuist-pentest`, the fixed-duration security-assessment cluster, is retired.
 Its manifest is removed; the **Pentest Cluster Retirement** workflow deletes
-the Cluster resource and its managed infrastructure. Delete the hand-made
-`pentest.tuist.dev` Cloudflare record afterwards (see `../onboarding.md` §9).
+the Cluster resource, its managed infrastructure and its ingress load balancer.
+Before running it, delete every DNS record pointing at the cluster's load
+balancers: the run frees their IPs, and a reassigned IP would take over the
+hostname (see `../onboarding.md` §9).
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active

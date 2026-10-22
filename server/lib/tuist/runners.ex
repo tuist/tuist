@@ -120,6 +120,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.VolumeMasterOrphans
+  alias Tuist.Runners.Workers.AbortVolumeMasterUploadWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.Storage
@@ -208,6 +209,16 @@ defmodule Tuist.Runners do
   # Presigned-URL lifetime for the cache-volume master archive. Comfortably
   # covers a job: the download is used at materialize, the upload at job end.
   @volume_master_url_ttl_seconds 6 * 60 * 60
+  # Each batch of part links is signed when a host is about to send it.
+  @volume_master_part_url_ttl_seconds 60 * 60
+  # How long a completion waits for the assembled object to become readable,
+  # within the host's 30-second request timeout.
+  @volume_master_readable_attempts 20
+  @volume_master_readable_interval_ms Application.compile_env(
+                                        :tuist,
+                                        [__MODULE__, :volume_master_readable_interval_ms],
+                                        1_000
+                                      )
 
   @doc """
   Mints a presigned PUT URL for the master object of `account_id`'s cache volume
@@ -281,6 +292,122 @@ defmodule Tuist.Runners do
 
   def track_volume_master_upload(account_id, volume_name, digest, content_digest) do
     reclaim_rejected_master_upload(account_id, volume_name, master_object_id(digest, content_digest))
+  end
+
+  @doc """
+  Starts a multipart upload of the master object `volume_master_upload_url/4`
+  would sign a single PUT for, so a host sends a large archive in parts and
+  retries only the parts that fail. Returns `{:ok, upload_id}`, `:unsupported`
+  when the account's storage does not answer part uploads with the ETags a host
+  completes the upload with (only S3-compatible storage does), or `:error`.
+
+  The object is tracked like a single upload's, and the upload is aborted once
+  its links expired, which is a no-op after completion: storage keeps the parts
+  of an upload nobody completed indefinitely, and object listings never see them.
+  """
+  def start_volume_master_upload(account_id, volume_name, tree_digest, content_digest) do
+    with {:ok, account, key} <- volume_master_upload_key(account_id, volume_name, tree_digest, content_digest),
+         true <- Storage.supports_signed_upload_headers?(account) || :unsupported,
+         {:ok, upload_id} <- Storage.multipart_start(key, account) do
+      track_volume_master_upload(account_id, volume_name, tree_digest, content_digest)
+
+      %{account_id: account_id, object_key: key, upload_id: upload_id}
+      |> AbortVolumeMasterUploadWorker.new(schedule_in: @volume_master_url_ttl_seconds)
+      |> Oban.insert!()
+
+      {:ok, upload_id}
+    else
+      :unsupported -> :unsupported
+      _ -> :error
+    end
+  end
+
+  @doc """
+  Signs a PUT link for each `{part_number, content_md5}` of the multipart upload
+  `upload_id` of the master object. The part's base64 MD5 is signed into its link
+  as `Content-MD5`, so storage accepts only the bytes the host hashed; a restore
+  verifies the whole archive's SHA-256.
+  """
+  def volume_master_part_urls(account_id, volume_name, tree_digest, content_digest, upload_id, parts) do
+    with true <- valid_upload_id?(upload_id),
+         {:ok, account, key} <- volume_master_upload_key(account_id, volume_name, tree_digest, content_digest) do
+      parts
+      |> Enum.reduce_while({:ok, []}, fn {part_number, content_md5}, {:ok, links} ->
+        url =
+          Storage.multipart_generate_url(key, upload_id, part_number, account,
+            expires_in: @volume_master_part_url_ttl_seconds,
+            signed_headers: [{"content-md5", content_md5}]
+          )
+
+        if is_binary(url) and Tuist.URL.public_host_url?(url),
+          do: {:cont, {:ok, [%{part_number: part_number, url: url} | links]}},
+          else: {:halt, :error}
+      end)
+      |> case do
+        {:ok, links} -> {:ok, Enum.reverse(links)}
+        :error -> :error
+      end
+    else
+      _ -> :error
+    end
+  end
+
+  @doc """
+  Assembles the master object from `parts` (`{part_number, etag}`) and returns
+  `:ok` once the object can be read. Tigris answers a completion before the
+  object is readable, by 2 to over 30 seconds for a 4 GiB object (2026-10-22),
+  and a HEAD fast-forwarded to an unreadable object fails every download. A
+  completion that is not readable within the wait is `:error`, which the host
+  retries; completing a completed upload succeeds, or finds the upload gone and
+  the object present.
+  """
+  def complete_volume_master_upload(account_id, volume_name, tree_digest, content_digest, upload_id, parts) do
+    with true <- valid_upload_id?(upload_id),
+         {:ok, account, key} <- volume_master_upload_key(account_id, volume_name, tree_digest, content_digest),
+         result when result in [:ok, {:error, :multipart_upload_not_found}] <-
+           Storage.multipart_complete_upload(key, upload_id, parts, account),
+         true <- readable?(key, account, @volume_master_readable_attempts) do
+      :ok
+    else
+      _ -> :error
+    end
+  end
+
+  defp readable?(key, account, attempts) do
+    cond do
+      Storage.object_exists?(key, account) ->
+        true
+
+      attempts <= 1 ->
+        false
+
+      true ->
+        Process.sleep(@volume_master_readable_interval_ms)
+        readable?(key, account, attempts - 1)
+    end
+  end
+
+  def abort_volume_master_upload(account_id, volume_name, tree_digest, content_digest, upload_id) do
+    with true <- valid_upload_id?(upload_id),
+         {:ok, account, key} <- volume_master_upload_key(account_id, volume_name, tree_digest, content_digest),
+         :ok <- Storage.multipart_abort(key, upload_id, account) do
+      :ok
+    else
+      _ -> :error
+    end
+  end
+
+  def valid_upload_id?(upload_id), do: is_binary(upload_id) and byte_size(upload_id) in 1..1024
+
+  defp volume_master_upload_key(account_id, volume_name, tree_digest, content_digest) do
+    with true <- is_integer(account_id) and is_binary(tree_digest) and valid_inventory_digest?(tree_digest),
+         true <- VolumeHeads.valid_storage_volume_name?(volume_name),
+         content when is_binary(content) <- reported_content_digest(content_digest),
+         {:ok, account} <- Accounts.get_account_by_id(account_id) do
+      {:ok, account, volume_master_object_key(account_id, volume_name, master_object_id(tree_digest, content))}
+    else
+      _ -> :error
+    end
   end
 
   def clear_volume_master(account_id, volume_name) do

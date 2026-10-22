@@ -15,7 +15,6 @@ import (
 // APFSImages exposes only private images through a per-VM virtio-fs share.
 // The guest attaches APFS locally: virtio-fs itself cannot preserve cache xattrs.
 // Seal/Delete require BOTH API pod absence and proof that its Tart VM stopped.
-// Built-in Tuist/CAS images remain owned by the existing VolumeManager.
 type APFSImages struct {
 	LocalImages
 	Create  func(context.Context, string, int64) error

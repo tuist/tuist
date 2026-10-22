@@ -172,12 +172,14 @@ begin
   check(baseline[0].zero? && requests.empty?, "Native baseline failed or uploaded reports")
   FileUtils.rm_rf(File.join(checkout, "target"))
   summaries = []
-  run = lambda do |name, arguments, code, count, fail: false, reject: false, env: {}|
+  run = lambda do |name, arguments, code, count, fail: false, reject: false, env: {}, build: "success"|
     rejection = reject
     current = environment.merge(env)
     current["TUIST_FIXTURE_FAIL"] = "1" if fail
     start = requests.length
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     result = command(["cargo", *arguments], checkout, current, root, name)
+    elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000
     received = requests.drop(start)
     File.write(File.join(root, "#{name}.requests.json"), JSON.pretty_generate(received))
     check(result[0] == code, "#{name}: exit #{result[0]} != #{code}\n#{result[2]}")
@@ -185,7 +187,19 @@ begin
     reports = received.select { |item| item["kind"] == "tests" }.map { |item| item.fetch("payload") }
     check(reports.length == (count.nil? ? 0 : 1), "#{name}: unexpected test uploads\n#{result[2]}")
     builds = received.select { |item| item["kind"] == "builds" }.map { |item| item.fetch("payload") }
-    check(builds.length == 1 && builds[0]["status"] == (code.zero? ? "success" : "failure"), "#{name}: wrong build report")
+    if build.nil?
+      check(builds.empty?, "#{name}: expected no unmeasured build report")
+    else
+      check(builds.length == 1 && builds[0]["status"] == build, "#{name}: wrong build report")
+      check(builds[0].fetch("compilations").all? { |row| row.fetch("start_offset_ms") + row.fetch("duration_ms") <= builds[0].fetch("duration_ms") + 1 },
+            "#{name}: compiler rows extend beyond build duration")
+      if name == "nested-compile-failure-test"
+        check(builds[0].fetch("compilations").none? { |row| row["name"] == "nested_failure" }, "Nested compiler leaked into outer build")
+      end
+    end
+    if name == "slow-test-failure"
+      check(builds[0].fetch("duration_ms") + 2000 < elapsed_ms, "Build duration includes test execution")
+    end
     check(!builds[0].fetch("compilations").empty?, "Cold run did not observe rustc") if name == "success"
     unless count.nil?
       report = reports.first
@@ -233,12 +247,92 @@ begin
   check(slow[1].lines.count { |line| line.start_with?("captured line ") } == 1500, "Lost captured failure output")
   check(slow[1].include?("test result: FAILED."), "Lost the failure summary")
   run.call("no-run", ["test", "--offline", "--no-run"], 0, nil)
-  run.call("list", ["test", "--offline", "--", "--list"], 0, nil)
-  run.call("quiet", ["test", "--offline", "--quiet"], 0, nil)
-  run.call("verbose", ["test", "--offline", "--verbose"], 0, nil)
-  run.call("very-verbose", ["test", "--offline", "-vv"], 0, nil)
-  run.call("environment-verbose", ["test", "--offline"], 0, nil, env: { "CARGO_TERM_VERBOSE" => "true" })
-  run.call("environment-quiet", ["test", "--offline"], 0, nil, env: { "CARGO_TERM_QUIET" => "true" })
+  run.call("list", ["test", "--offline", "--", "--list"], 0, nil, build: nil)
+  run.call("quiet", ["test", "--offline", "--quiet"], 0, nil, build: nil)
+  run.call("verbose", ["test", "--offline", "--verbose"], 0, nil, build: nil)
+  run.call("very-verbose", ["test", "--offline", "-vv"], 0, nil, build: nil)
+  run.call("message-format", ["test", "--offline", "--message-format=json"], 0, nil, build: nil)
+  run.call("environment-verbose", ["test", "--offline"], 0, nil, env: { "CARGO_TERM_VERBOSE" => "true" }, build: nil)
+  run.call("environment-quiet", ["test", "--offline"], 0, nil, env: { "CARGO_TERM_QUIET" => "true" }, build: nil)
+  run.call("colored", ["test", "--offline", "--color=always"], 0, 10)
+  run.call("plain-build", ["build", "--offline"], 0, nil)
+  no_tests = File.join(root, "no-tests")
+  FileUtils.mkdir_p(File.join(no_tests, "src"))
+  File.write(File.join(no_tests, "Cargo.toml"), "[package]\nname = \"no-tests\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[lib]\ntest = false\ndoctest = false\n")
+  File.write(File.join(no_tests, "src", "lib.rs"), "pub fn value() {}\n")
+  run.call("no-runnable-tests", ["test", "--offline", "--manifest-path", "../no-tests/Cargo.toml"], 0, nil)
+  source = File.join(checkout, "src", "lib.rs")
+  original_source = File.read(source)
+  begin
+    File.write(source, original_source + "\n#[test]\nfn slow_phase_probe() { std::thread::sleep(std::time::Duration::from_secs(3)); }\n")
+    run.call("slow-test-failure", ["test", "--offline", "--lib"], 101, 4, fail: true)
+    File.write(source, original_source + "\ncompile_error!(\"fixture compilation failure\");\n")
+    run.call("compile-failure", ["test", "--offline"], 101, nil, build: "failure")
+  ensure
+    File.write(source, original_source)
+  end
+  build_script = File.join(checkout, "build.rs")
+  build_nested = File.join(root, "build-script-nested")
+  FileUtils.mkdir_p(File.join(build_nested, "src"))
+  File.write(File.join(build_nested, "Cargo.toml"), "[package]\nname = \"build-script-nested\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")
+  File.write(File.join(build_nested, "src", "lib.rs"), "#[test]\nfn passes() {}\n")
+  begin
+    ["build", "test"].each do |command|
+      File.write(build_script, <<~RUST)
+        fn main() {
+            let status = std::process::Command::new(std::env::var("CARGO").unwrap())
+                .args(["#{command}", "--offline", "--manifest-path", "../build-script-nested/Cargo.toml"])
+                .status().unwrap();
+            assert!(status.success());
+            panic!("outer build script failed after nested Cargo succeeded");
+        }
+      RUST
+      dumped = run.call("build-script-nested-#{command}-failure", ["test", "--offline"], 101, nil, build: nil)
+      check(dumped[2].include?("Finished") && dumped[2].include?("--- stderr"), "Nested Cargo completion was not dumped")
+    end
+  ensure
+    FileUtils.rm_f(build_script)
+  end
+  nested = File.join(root, "nested")
+  FileUtils.mkdir_p(File.join(nested, "src"))
+  File.write(File.join(nested, "Cargo.toml"), "[package]\nname = \"nested-failure\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")
+  File.write(File.join(nested, "src", "lib.rs"), "compile_error!(\"nested compilation failure\");\n")
+  begin
+    File.write(source, original_source + <<~RUST)
+      #[test]
+      fn nested_compile_failure_test() {
+          let status = std::process::Command::new("cargo")
+              .args(["check", "--offline", "--manifest-path", "../nested/Cargo.toml"])
+              .status().unwrap();
+          assert!(!status.success());
+      }
+    RUST
+    run.call("nested-compile-failure-test", ["test", "--offline", "--lib", "nested_compile_failure_test"], 0, 1)
+  ensure
+    File.write(source, original_source)
+  end
+  cargo_config = File.join(checkout, ".cargo", "config.toml")
+  FileUtils.mkdir_p(File.dirname(cargo_config))
+  begin
+    File.write(cargo_config, "[term]\nquiet = true\n")
+    quiet = run.call("configured-quiet-success", ["test", "--offline"], 0, nil, build: nil)
+    check(quiet[2].include?("build phase was not measured"), "Unmeasured build omission was not diagnosed")
+    run.call("configured-quiet-failure", ["test", "--offline"], 101, nil, fail: true, build: nil)
+    File.write(source, original_source + <<~RUST)
+      #[test]
+      fn nested_build_failure() {
+          let status = std::process::Command::new("cargo")
+              .args(["check", "--offline", "--manifest-path", "../nested/Cargo.toml"])
+              .status().unwrap();
+          assert!(status.success());
+      }
+    RUST
+    nested_failure = run.call("configured-quiet-nested-failure", ["test", "--offline", "--lib", "nested_build_failure"], 101, nil, build: nil)
+    check((nested_failure[1] + nested_failure[2]).include?("nested compilation failure"), "Nested compiler was not exercised")
+  ensure
+    File.write(source, original_source)
+    FileUtils.rm_f(cargo_config)
+  end
   run.call("rejected-success", ["test", "--offline"], 0, 10, reject: true)
   run.call("rejected-failure", ["test", "--offline", "--no-fail-fast"], 101, 10, fail: true, reject: true)
   leak_pid = File.join(root, "leaked-child.pid")

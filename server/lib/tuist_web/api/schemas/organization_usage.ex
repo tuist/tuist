@@ -12,7 +12,8 @@ defmodule TuistWeb.API.Schemas.OrganizationUsage do
     properties: %{
       current_month_remote_cache_hits: %Schema{
         type: :number,
-        description: "The number of remote cache hits in the current month"
+        deprecated: true,
+        description: "Deprecated. No longer computed and always 0."
       }
     },
     required: [:current_month_remote_cache_hits]
