@@ -1628,11 +1628,8 @@ defmodule Tuist.RunnersTest do
       parts = [{1, ~s("etag-1")}]
       expect(Tuist.Storage, :multipart_complete_upload, fn ^key, "upload-1", ^parts, _actor -> :ok end)
       # Storage answers before the object is readable.
-      expect(Tuist.Storage, :object_exists?, 3, fn ^key, _actor ->
-        heads = Process.get(:heads, 0) + 1
-        Process.put(:heads, heads)
-        heads == 3
-      end)
+      expect(Tuist.Storage, :object_exists?, 2, fn ^key, _actor -> false end)
+      expect(Tuist.Storage, :object_exists?, fn ^key, _actor -> true end)
 
       assert :ok = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
 
