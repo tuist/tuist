@@ -116,7 +116,7 @@ This area owns LiveView pages and components for the web UI.
 
 - Volume inventory uses 20-row server pagination. The Jobs-style Sort by menu and sortable headers cover volume, repository, used space, capacity and last used. Sort changes reset the page and preserve search/date range; page links retain sorting. Default to most recently used.
 
-- Keep the inventory Sort by control beside search with Jobs toolbar spacing. Include the Jobs-style Linux platform badge; macOS remains a separate follow-up. Capacity without a report reads "Not reported", not a guessed zero or default disk size; confirmed reclaimed storage still reads zero.
+- Keep the inventory Sort by control beside search with Jobs toolbar spacing. Include the Jobs-style Linux platform badge; macOS remains a separate follow-up. Capacity without a measured copy reads the volume's capacity (`CacheVolumes.volume_bytes/2`), not a guessed zero; confirmed reclaimed storage still reads zero.
 
 - Volume clearing uses “Clear volume” in the trigger, modal title and confirm action, with a short header description. Cache update policy is not user-configurable; omit its controls and metadata. Label mount activity “Job runs”.
 
@@ -136,11 +136,6 @@ This area owns LiveView pages and components for the web UI.
 - Keep failure categories out of default build overview and Build Runs tables. Retain category filtering and saved category sorting before pagination. Build details show the shared classification with a focusable Noora info hint beside the category heading; successful, cancelled and unfinished builds omit it. `BuildHealth` shares category labels, detail presentation, filters, and the Gradle cumulative task-time widget/chart. Preserve missing versus zero estimates.
 
 - Gradle Cumulative task time saved belongs in the existing Cache Analytics card as a fourth selectable widget with its own chart. Use one title without a repeating caption in the widget and build details; tooltips explain that this is estimated cumulative task time, not elapsed build time saved. Keep async failures independent of existing cache metrics and preserve missing versus recorded zero.
-
-- Automatic macOS Tuist/Xcode cache records share the volume inventory and detail
-  presentation with custom volumes; do not add Automatic/Custom labels or sections.
-  Keep measured usage/history/analytics on the shared path. Clear is not exposed
-  for `builtin_name` records until their host lifecycle supports invalidation.
 
 - Reuse RunnersLive.platform_label/1 for translated platform names in the volume
   inventory and details. Refresh English Gettext templates after UI string edits.

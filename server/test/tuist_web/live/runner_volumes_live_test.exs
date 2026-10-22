@@ -93,38 +93,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert html =~ "request_delete"
   end
 
-  test "built-in volumes are named after the caches they hold" do
-    assigns = assigns(true)
-
-    volume = %{
-      assigns.selected
-      | builtin_name: "tuist-cache",
-        key: "tuist-cache",
-        platform: "macos",
-        architecture: "arm64"
-    }
-
-    data = assigns.data.result
-    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :retained_capacity_bytes, 20_000_000_000))
-    data = %{data | volumes: [volume], stats: stats}
-    assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
-    detail = render_component(&RunnerVolumesLive.render/1, assigns)
-    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Xcode and module caches"
-    assert detail =~ "macOS"
-    assert detail =~ "20.0 GB"
-    refute detail =~ "Automatic"
-    badges = detail |> Floki.parse_document!() |> Floki.find(".noora-badge") |> Floki.text()
-    assert badges =~ "macOS"
-    refute badges =~ "Custom"
-    refute detail =~ "phx-click=\"request_delete\""
-    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
-    cell = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
-    assert Floki.text(cell) =~ "Xcode and module caches"
-    refute inventory =~ "tuist-cache"
-    assert inventory =~ "20.0 GB"
-    assert inventory =~ "/runners/volumes/#{volume.id}"
-  end
-
   test "the managed Gradle cache is named after its tool, and other keys stay as they are" do
     assigns = assigns(true)
     gradle = %{assigns.selected | key: "tuist-gradle"}

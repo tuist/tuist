@@ -2198,11 +2198,11 @@ defmodule TuistWeb.RunnerJobLiveTest do
   end
 
   test "names managed volumes after the caches they hold" do
-    builtin = %Volume{id: Ecto.UUID.generate(), key: "tuist-cache", builtin_name: "tuist-cache"}
+    xcode = %Volume{id: Ecto.UUID.generate(), key: "tuist-xcode"}
     gradle = %Volume{id: Ecto.UUID.generate(), key: "tuist-gradle"}
 
     usages =
-      for volume <- [builtin, gradle] do
+      for volume <- [xcode, gradle] do
         %Usage{
           volume_id: volume.id,
           volume: volume,
@@ -2214,9 +2214,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: usages, account_name: "org", failed: true)
 
-    assert html =~ "Xcode and module caches"
+    assert html =~ "Xcode cache"
     assert html =~ "Gradle cache ran out of space"
-    refute html =~ "tuist-cache"
+    refute html =~ "tuist-xcode"
     refute html =~ "tuist-gradle"
   end
 
