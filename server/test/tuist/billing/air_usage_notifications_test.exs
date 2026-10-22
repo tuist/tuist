@@ -10,7 +10,8 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
 
   test "notifies every admin, excluding ordinary members and viewers" do
     owner = AccountsFixtures.user_fixture()
-    organization = AccountsFixtures.organization_fixture(creator: owner, current_month_remote_cache_hits_count: 160)
+    organization = AccountsFixtures.organization_fixture(creator: owner)
+    set_cache_requests(organization.account.id, 800_000)
     admin = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(admin, organization, role: :admin)
 
@@ -21,12 +22,17 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
     assert {:ok, _} = AirUsageNotifications.enqueue(organization.account.id, DateTime.utc_now())
     notifications = Repo.all(AirUsageNotification)
     assert Enum.sort(Enum.map(notifications, & &1.user_id)) == Enum.sort([owner.id, admin.id])
-    assert Enum.all?(notifications, &(&1.threshold == 80 && &1.usage == 160 && &1.limit == 200))
+
+    assert Enum.all?(
+             notifications,
+             &(&1.metric == :cache_requests && &1.threshold == 80 && &1.usage == 800_000 && &1.limit == 1_000_000)
+           )
+
     assert length(all_enqueued(worker: AirUsageNotificationWorker)) == 2
   end
 
   test "notifies personal account owners at each threshold once, even after jobs are pruned" do
-    user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 160)
+    user = cache_requests_user(800_000)
     now = DateTime.utc_now()
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     Repo.update_all(AirUsageNotification, set: [delivered_at: DateTime.truncate(now, :second)])
@@ -34,7 +40,7 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     refute_enqueued(worker: AirUsageNotificationWorker)
 
-    Accounts.update_account_current_month_usage(user.account.id, %{remote_cache_hits_count: 200})
+    set_cache_requests(user.account.id, 1_000_000)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert Enum.sort(Enum.map(Repo.all(AirUsageNotification), & &1.threshold)) == [80, 100]
@@ -43,7 +49,7 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
 
   test "requeues undelivered notifications after terminal jobs or pruning" do
     for state <- ["completed", "cancelled", "discarded", :pruned] do
-      user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 160)
+      user = cache_requests_user(800_000)
       now = DateTime.utc_now()
       {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
       notification = Repo.get_by!(AirUsageNotification, account_id: user.account.id)
@@ -58,7 +64,7 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
   end
 
   test "does not enqueue a duplicate while delivery is active or awaiting retry" do
-    user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 160)
+    user = cache_requests_user(800_000)
     now = DateTime.utc_now()
     {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     notification = Repo.get_by!(AirUsageNotification, account_id: user.account.id)
@@ -72,8 +78,21 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
   end
 
   test "ignores nil and below-threshold usage and handles exact boundaries and overshoots" do
-    for {usage, expected} <- [{nil, nil}, {0, nil}, {159, nil}, {160, 80}, {199, 80}, {200, 100}, {240, 100}] do
-      user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: usage)
+    for {usage, expected} <- [
+          {nil, nil},
+          {0, nil},
+          {799_999, nil},
+          {800_000, 80},
+          {999_999, 80},
+          {1_000_000, 100},
+          {1_200_000, 100}
+        ] do
+      user = AccountsFixtures.user_fixture()
+
+      user.account
+      |> change(current_month_cache_egress_megabytes: 0, current_month_cache_requests: usage)
+      |> Repo.update!()
+
       assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
       notification = Repo.get_by(AirUsageNotification, account_id: user.account.id)
       assert (notification && notification.threshold) == expected
@@ -82,7 +101,7 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
 
   test "excludes active and trialing paid and open-source plans" do
     for plan <- [:pro, :enterprise, :open_source], status <- ["active", "trialing"] do
-      user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 200)
+      user = cache_requests_user(1_000_000)
       BillingFixtures.subscription_fixture(account_id: user.account.id, plan: plan, status: status)
       assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
     end
@@ -92,20 +111,20 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
   end
 
   test "notifies accounts whose paid subscription has lapsed" do
-    user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 200)
+    user = cache_requests_user(1_000_000)
     BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro, status: "canceled")
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
     assert Repo.get_by!(AirUsageNotification, account_id: user.account.id).threshold == 100
   end
 
   test "sends only the reached-limit notification when usage jumps over both thresholds" do
-    user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 230)
+    user = cache_requests_user(1_150_000)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
     assert [%{threshold: 100}] = Repo.all(AirUsageNotification)
   end
 
   test "a new calendar month or free-tier reset allows another notification" do
-    user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 160)
+    user = cache_requests_user(800_000)
     now = DateTime.utc_now()
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     notification = Repo.get_by!(AirUsageNotification, account_id: user.account.id)
@@ -122,9 +141,8 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
     assert Repo.aggregate(AirUsageNotification, :count) == 3
   end
 
-  test "warns an account on usage-based pricing about the cache allowances, not hits" do
+  test "warns about the cache allowances and never about remote cache hits" do
     user = AccountsFixtures.user_fixture()
-    {:ok, true} = FunWithFlags.enable(:usage_based_pricing, for_actor: user.account)
 
     Accounts.update_account_current_month_usage(user.account.id, %{
       remote_cache_hits_count: 500,
@@ -138,22 +156,19 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
              Repo.all(AirUsageNotification)
   end
 
-  test "keeps warning an account on the previous pricing about hits alone" do
-    user = AccountsFixtures.user_fixture()
-
-    Accounts.update_account_current_month_usage(user.account.id, %{
-      remote_cache_hits_count: 160,
-      cache_egress_megabytes: 150_000,
-      cache_requests: 2_000_000
-    })
-
-    assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, DateTime.utc_now())
-    assert [%{metric: :remote_cache_hits, threshold: 80}] = Repo.all(AirUsageNotification)
-  end
-
   test "does not notify for a refresh from a previous month" do
-    user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 200)
+    user = cache_requests_user(1_000_000)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, Timex.shift(DateTime.utc_now(), months: -1))
     assert Repo.all(AirUsageNotification) == []
+  end
+
+  defp cache_requests_user(requests) do
+    user = AccountsFixtures.user_fixture()
+    set_cache_requests(user.account.id, requests)
+    user
+  end
+
+  defp set_cache_requests(account_id, requests) do
+    Accounts.update_account_current_month_usage(account_id, %{remote_cache_hits_count: 0, cache_requests: requests})
   end
 end

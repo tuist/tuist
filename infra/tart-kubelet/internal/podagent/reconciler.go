@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -197,19 +198,38 @@ type Reconciler struct {
 	// prewarm gate reads to tell an erased disk from an idle one.
 	HostDisk *HostDisk
 
-	// goldenMu guards goldenLocks; goldenLocks serializes golden-base
-	// materialization per image digest so two Pods admitted close
-	// together don't both run the one-time pull+clone for the same
-	// golden (the second `tart clone` would fail "VM exists"). Reconcile
-	// concurrency is 1 today, but the lock keeps ensureGolden correct if
-	// that's ever raised, and costs nothing on the warm fast path.
-	goldenMu    sync.Mutex
-	goldenLocks map[string]*sync.Mutex
+	// goldenMu guards the maps below. goldenLocks serializes golden-base
+	// materialization per golden so the prewarmer and a Pod's background
+	// pull never both run the one-time pull+clone (the second `tart clone`
+	// would fail "VM exists"). goldenWaiters are the Pods to re-enqueue when
+	// a golden's lock is released, goldenPulled the start of a background
+	// pull that landed and that no Pod has cloned from yet, and
+	// goldenFailures the last background pull that failed.
+	goldenMu       sync.Mutex
+	goldenLocks    map[string]*sync.Mutex
+	goldenWaiters  map[string]map[types.NamespacedName]struct{}
+	goldenPulled   map[string]time.Time
+	goldenFailures map[string]goldenFailure
 
-	// readinessEvents re-enqueues a Pod whose readiness probe result
-	// changed, so the transition is published without waiting for the
+	// pullMu keeps one golden materialization running on the host at a
+	// time, as the single reconcile worker did when pulls ran inside it: a
+	// golden is tens of GB, and two at once could fill the disk.
+	pullMu sync.Mutex
+
+	// now is the clock for the golden retry interval. Nil uses time.Now.
+	now func() time.Time
+
+	// requeueEvents re-enqueues a Pod whose readiness probe result changed
+	// or whose golden base finished materializing, without waiting for the
 	// periodic requeue. Nil outside a manager (tests); sends never block.
-	readinessEvents chan event.GenericEvent
+	requeueEvents chan event.GenericEvent
+}
+
+// goldenFailure is a background golden pull that failed, reported to the
+// Pods that wait on it until goldenRetryInterval has passed.
+type goldenFailure struct {
+	err error
+	at  time.Time
 }
 
 // MetricsScrapeAnnotation is the pod annotation that tells
@@ -235,7 +255,7 @@ const MetricsPortAnnotation = "prometheus.io/port"
 //     tolerate every taint); we don't want them in our reconcile
 //     queue spamming TartCreateFailed events.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.readinessEvents = make(chan event.GenericEvent, 64)
+	r.requeueEvents = make(chan event.GenericEvent, 64)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}, builder.WithPredicates(predicate.NewPredicateFuncs(func(o client.Object) bool {
 			pod, ok := o.(*corev1.Pod)
@@ -244,7 +264,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 			return podIsHandled(pod)
 		}))).
-		WatchesRawSource(source.Channel(r.readinessEvents, &handler.EnqueueRequestForObject{})).
+		WatchesRawSource(source.Channel(r.requeueEvents, &handler.EnqueueRequestForObject{})).
 		Complete(r)
 }
 
@@ -402,10 +422,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if err := r.createPod(ctx, pod); err != nil {
 		reason := "TartCreateFailed"
-		if errors.Is(err, errMirrorSyncing) {
+		switch {
+		case errors.Is(err, errGoldenPulling):
+			reason = "PullingImage"
+			logger.Info("waiting for this host's golden base", "image", pod.Spec.Containers[0].Image)
+		case errors.Is(err, errMirrorSyncing):
 			reason = "ImageCacheSyncing"
 			logger.Info("waiting for the rack image cache", "reason", err.Error())
-		} else {
+		default:
 			logger.Error(err, "create failed; will retry")
 		}
 		// Surface the failure to the API server immediately so
@@ -503,18 +527,19 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	if existingClone == nil {
 		// Clone the runner from this host's golden base for the image's
 		// digest — a local APFS clonefile (sub-second, zero network),
-		// not a fresh OCI pull. ensureGolden pays the full multi-GB pull
-		// at most once per digest per host; back-to-back recycles take
-		// only the clonefile path. This is what stops the fleet
-		// re-downloading the whole VM image between jobs.
+		// not a fresh OCI pull. The full multi-GB pull runs at most once
+		// per digest per host, in the background (readyGolden); back-to-back
+		// recycles take only the clonefile path. This is what stops the
+		// fleet re-downloading the whole VM image between jobs.
 		cloneStart := time.Now()
-		base, materialized, err := r.ensureGolden(ctx, c.Image)
+		base, pulledAt, err := r.readyGolden(ctx, pod, c.Image)
 		if err != nil {
 			return err
 		}
 		provisionPath := "warm"
-		if materialized {
+		if !pulledAt.IsZero() {
 			provisionPath = "cold"
+			cloneStart = pulledAt
 			RecordGoldenMaterialized(pool)
 		} else {
 			RecordGoldenReused(pool)
@@ -756,13 +781,102 @@ func GoldenNodeLabels(ctx context.Context, t *tart.Client) (map[string]string, e
 	return labels, nil
 }
 
+// errGoldenPulling reports that the Pod's golden base is being materialized
+// in the background. The Pod stays Pending (`PullingImage`) and is
+// re-enqueued when the golden's materialization ends.
+var errGoldenPulling = errors.New("pulling the runner image into this host's golden base")
+
+// goldenRetryInterval is how long a failed background pull is reported to
+// the Pods that wait on it before one of them pulls again, the requeue a
+// failed create gets.
+const goldenRetryInterval = 30 * time.Second
+
+// readyGolden returns this host's golden base for image without waiting on a
+// pull. A cold pull takes minutes (532 s and 562 s on two rack hosts on
+// 2026-10-21) and the Pod controller has a single worker, so pulling inside
+// the reconcile held the teardown of every finished Pod on the host, and
+// their VM slots, for as long. When the golden is missing, readyGolden starts
+// materializing it in the background (or joins the materialization already
+// running, including the prewarmer's) and returns errGoldenPulling; the Pod
+// is re-enqueued when it ends. pulledAt is when the background pull started,
+// for the one Pod that clones first from a golden it pulled, and zero for a
+// golden that was already there.
+func (r *Reconciler) readyGolden(ctx context.Context, pod *corev1.Pod, image string) (name string, pulledAt time.Time, err error) {
+	name = goldenVMName(image)
+	key := types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}
+
+	r.goldenMu.Lock()
+	lock := r.goldenLockLocked(name)
+	if !lock.TryLock() {
+		r.waitForGoldenLocked(name, key)
+		r.goldenMu.Unlock()
+		return "", time.Time{}, errGoldenPulling
+	}
+	if failure, ok := r.goldenFailures[name]; ok {
+		if r.clock().Sub(failure.at) < goldenRetryInterval {
+			r.goldenMu.Unlock()
+			lock.Unlock()
+			return "", time.Time{}, failure.err
+		}
+		delete(r.goldenFailures, name)
+	}
+	r.goldenMu.Unlock()
+
+	vm, getErr := r.Tart.Get(ctx, name)
+	if getErr == nil && vm != nil {
+		r.goldenMu.Lock()
+		pulledAt = r.goldenPulled[name]
+		delete(r.goldenPulled, name)
+		r.goldenMu.Unlock()
+		r.releaseGolden(name, lock)
+		r.recordGolden(ctx)
+		return name, pulledAt, nil
+	}
+	if getErr != nil {
+		// Not the (nil, nil) "not found" case — `tart get` actually
+		// errored (timeout, lock contention, parse). The golden may well
+		// exist on disk; a run of these lines is the signal that a rising
+		// materialized rate is a warm-path miss, not first-sight.
+		log.FromContext(ctx).Error(getErr, "golden warm-path probe failed; taking cold path (may re-pull)", "golden", name)
+	}
+
+	r.goldenMu.Lock()
+	r.waitForGoldenLocked(name, key)
+	r.goldenMu.Unlock()
+	// The pull outlives this reconcile but not the controller: ctx is the
+	// controller's, which controller-runtime cancels only on shutdown.
+	go r.pullGoldenInBackground(ctx, image, name, lock, r.clock())
+	return "", time.Time{}, errGoldenPulling
+}
+
+// pullGoldenInBackground materializes a golden whose lock the caller holds,
+// records the outcome for the Pods that wait on it and releases the lock.
+func (r *Reconciler) pullGoldenInBackground(ctx context.Context, image, name string, lock *sync.Mutex, started time.Time) {
+	err := r.materializeGolden(ctx, image, name)
+	r.goldenMu.Lock()
+	if err != nil {
+		r.goldenFailures = orEmpty(r.goldenFailures)
+		r.goldenFailures[name] = goldenFailure{err: err, at: r.clock()}
+	} else {
+		r.goldenPulled = orEmpty(r.goldenPulled)
+		r.goldenPulled[name] = started
+	}
+	r.goldenMu.Unlock()
+	if err != nil && !errors.Is(err, errMirrorSyncing) {
+		log.FromContext(ctx).Error(err, "materialize golden base", "golden", name, "image", image)
+	}
+	r.releaseGolden(name, lock)
+}
+
 // ensureGolden materializes this host's golden base VM for `image`
-// exactly once and returns its name. The first call for a digest pays
-// the full `tart pull` + `tart clone` (download + extract the multi-GB
-// image into a runnable bundle); every later call returns immediately
-// off the on-disk golden, and the runner clones the caller makes from
-// it are APFS clonefiles that touch the network zero times. `materialized`
-// is true only on the cold path so the caller can count real pulls.
+// exactly once and returns its name, waiting for the pull. The prewarmer
+// calls it; a Pod goes through readyGolden, which never waits. The first
+// call for a digest pays the full `tart pull` + `tart clone` (download +
+// extract the multi-GB image into a runnable bundle); every later call
+// returns immediately off the on-disk golden, and the runner clones made
+// from it are APFS clonefiles that touch the network zero times.
+// `materialized` is true only on the cold path so the caller can count real
+// pulls.
 //
 // The golden is never run; it's a stable copy-on-write base. Deleting
 // its source OCI cache later is safe — APFS keeps the shared blocks
@@ -770,8 +884,11 @@ func GoldenNodeLabels(ctx context.Context, t *tart.Client) (map[string]string, e
 func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name string, materialized bool, err error) {
 	name = goldenVMName(image)
 
-	unlock := r.lockGolden(name)
-	defer unlock()
+	r.goldenMu.Lock()
+	lock := r.goldenLockLocked(name)
+	r.goldenMu.Unlock()
+	lock.Lock()
+	defer r.releaseGolden(name, lock)
 
 	// Warm path: golden already on disk for this digest — no network.
 	vm, getErr := r.Tart.Get(ctx, name)
@@ -780,29 +897,33 @@ func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name strin
 		return name, false, nil
 	}
 	if getErr != nil {
-		// Not the (nil, nil) "not found" case — `tart get` actually
-		// errored (timeout, lock contention, parse). The golden may well
-		// exist on disk; falling through to the cold path re-pulls the
-		// whole image needlessly, so surface the probe failure instead
-		// of silently churning. A run of these lines is the signal that
-		// a rising materialized rate is a warm-path miss, not first-sight.
 		log.FromContext(ctx).Error(getErr, "golden warm-path probe failed; taking cold path (may re-pull)", "golden", name)
 	}
 
-	// Cold path: pull + materialize once.
+	if err := r.materializeGolden(ctx, image, name); err != nil {
+		return "", false, err
+	}
+	return name, true, nil
+}
+
+// materializeGolden pulls image and clones it into the golden `name`. The
+// caller holds the golden's lock and has found no golden on disk.
+func (r *Reconciler) materializeGolden(ctx context.Context, image, name string) error {
+	r.pullMu.Lock()
+	defer r.pullMu.Unlock()
 	pulled, err := r.pullGoldenImage(ctx, image)
 	if err != nil {
-		return "", false, err
+		return err
 	}
 	if cloneErr := r.Tart.CloneFrom(ctx, pulled.ref, name, pulled.insecure); cloneErr != nil {
 		// A half-created golden (clone failed mid-way) would make every
 		// later clone-from-golden fail. Best-effort delete so the next
 		// provision re-materializes from scratch.
 		_ = r.Tart.Delete(ctx, name)
-		return "", false, fmt.Errorf("materialize golden base: %w", cloneErr)
+		return fmt.Errorf("materialize golden base: %w", cloneErr)
 	}
 	r.recordGolden(ctx)
-	return name, true, nil
+	return nil
 }
 
 func (r *Reconciler) recordGolden(ctx context.Context) {
@@ -871,11 +992,10 @@ func (r *Reconciler) pullWithReclaim(ctx context.Context, pull imagePull) error 
 	return nil
 }
 
-// lockGolden returns the unlock func for the per-golden-name mutex,
-// lazily creating the lock map on first use (the Reconciler is built as
-// a struct literal, so the map starts nil).
-func (r *Reconciler) lockGolden(name string) func() {
-	r.goldenMu.Lock()
+// goldenLockLocked returns the per-golden-name mutex, creating it on first
+// use (the Reconciler is built as a struct literal, so the map starts nil).
+// The caller holds goldenMu.
+func (r *Reconciler) goldenLockLocked(name string) *sync.Mutex {
 	if r.goldenLocks == nil {
 		r.goldenLocks = map[string]*sync.Mutex{}
 	}
@@ -884,10 +1004,55 @@ func (r *Reconciler) lockGolden(name string) func() {
 		m = &sync.Mutex{}
 		r.goldenLocks[name] = m
 	}
-	r.goldenMu.Unlock()
+	return m
+}
 
-	m.Lock()
-	return m.Unlock
+// waitForGoldenLocked records that the Pod waits on the golden `name`. The
+// caller holds goldenMu.
+func (r *Reconciler) waitForGoldenLocked(name string, pod types.NamespacedName) {
+	if r.goldenWaiters == nil {
+		r.goldenWaiters = map[string]map[types.NamespacedName]struct{}{}
+	}
+	if r.goldenWaiters[name] == nil {
+		r.goldenWaiters[name] = map[types.NamespacedName]struct{}{}
+	}
+	r.goldenWaiters[name][pod] = struct{}{}
+}
+
+// releaseGolden unlocks the golden `name` and re-enqueues the Pods that
+// waited on it. A waiter that registers after the unlock finds the lock free
+// and probes the golden itself, so none is missed.
+func (r *Reconciler) releaseGolden(name string, lock *sync.Mutex) {
+	lock.Unlock()
+	r.goldenMu.Lock()
+	waiters := r.goldenWaiters[name]
+	delete(r.goldenWaiters, name)
+	r.goldenMu.Unlock()
+	if r.requeueEvents == nil {
+		return
+	}
+	for pod := range waiters {
+		ref := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: pod.Namespace, Name: pod.Name}}
+		select {
+		case r.requeueEvents <- event.GenericEvent{Object: ref}:
+		default:
+			// Queue full; the periodic requeue retries the Pod instead.
+		}
+	}
+}
+
+func (r *Reconciler) clock() time.Time {
+	if r.now != nil {
+		return r.now()
+	}
+	return time.Now()
+}
+
+func orEmpty[V any](m map[string]V) map[string]V {
+	if m == nil {
+		return map[string]V{}
+	}
+	return m
 }
 
 // startMetricsForwarder spins up the host-side TCP relay declared by

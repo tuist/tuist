@@ -1,7 +1,10 @@
 defmodule TuistTestSupport.Fixtures.AccountsFixtures do
   @moduledoc false
 
+  import Ecto.Query, only: [from: 2]
+
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.Oauth2Identity
 
   def user_fixture(opts \\ []) do
@@ -23,6 +26,8 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
 
     {:ok, user} =
       Accounts.create_user(email, create_opts)
+
+    put_cache_usage(from(a in Account, where: a.user_id == ^user.id), opts)
 
     Tuist.Repo.preload(user, Keyword.get(opts, :preload, [:account]))
   end
@@ -112,7 +117,16 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
       )
 
+    put_cache_usage(from(a in Account, where: a.organization_id == ^organization.id), opts)
+
     Tuist.Repo.preload(organization, preload)
+  end
+
+  defp put_cache_usage(account_query, opts) do
+    case Keyword.take(opts, [:current_month_cache_egress_megabytes, :current_month_cache_requests]) do
+      [] -> :ok
+      usage -> Tuist.Repo.update_all(account_query, set: usage)
+    end
   end
 
   def unique_user_email, do: "#{TuistTestSupport.Utilities.unique_integer(6)}@tuist.io"

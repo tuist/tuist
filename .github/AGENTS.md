@@ -33,6 +33,11 @@ Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.
 
+`workflows/cache-dns.yml` plans `infra/cache-dns/zone.yaml` on pull requests and
+applies it on `main`, assuming roles from `infra/cache-dns/deploy-role.yaml`. The
+pull-request role can create change sets but never execute them, so a modified
+workflow on a branch still cannot change the zone.
+
 The runners-controller release publishes both the controller and cache-volume
 agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
@@ -424,7 +429,7 @@ keep signing unconditional across channels.
 
 ## Atlas releases
 
-Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects. The release-list arguments must remain compatible with the pinned Helm version; fake release-state tests also validate them against the real CLI without cluster access. After rollout and readiness, the managed release smoke test requires the public root to redirect signed-out visitors to `/login`, so a healthy but outdated or misrouted application cannot pass.
+Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. The offline ChatGPT configuration check verifies managed ExternalSecret sourcing, runtime `envFrom`, no explicit client-ID shadowing, and standalone/demo isolation. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects. The release-list arguments must remain compatible with the pinned Helm version; fake release-state tests also validate them against the real CLI without cluster access. After rollout and readiness, the managed release smoke test requires the public root to redirect signed-out visitors to `/login`, so a healthy but outdated or misrouted application cannot pass.
 
 ## Cloudflare configuration
 

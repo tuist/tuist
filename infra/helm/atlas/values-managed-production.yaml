@@ -179,6 +179,8 @@ externalSecrets:
       remoteRef: "atlas-google-oauth/username"
     GOOGLE_CLIENT_SECRET:
       remoteRef: "atlas-google-oauth/credential"
+    ATLAS_CHATGPT_CLIENT_ID:
+      remoteRef: "atlas-chatgpt-oauth/client_id"
     SUPER_ADMIN_PASSWORD:
       remoteRef: "atlas-super-admin/password"
     STRIPE_API_KEY:
