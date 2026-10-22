@@ -137,8 +137,9 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account's custom cache volumes honor sizes above 20 GB. Off, a
-  larger requested size is capped to 20 GB; smaller sizes are always honored.
+  Whether the account's custom cache volumes honor sizes above their key's
+  default (20 GB, 30 GB for `tuist-xcode`). Off, a larger requested size is
+  capped to that default; smaller sizes are always honored.
   """
   def runner_custom_volume_sizes_enabled?(account) do
     FunWithFlags.enabled?(:runner_custom_volume_sizes, for: account)

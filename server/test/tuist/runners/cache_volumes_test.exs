@@ -929,19 +929,52 @@ defmodule Tuist.Runners.CacheVolumesTest do
       end
     end
 
-    test "managed volumes ignore requests and the Gradle volume honors them", %{job: job, account: account} do
+    test "managed volumes start at their own default and honor requests like any volume", %{job: job, account: account} do
       large_sizes(true)
+      complete(job)
+
+      assert {:ok, %{volume_bytes: 30_000_000_000} = first} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("xcode", nil) | key: "tuist-xcode"})
+
+      assert {:ok, %{volume_bytes: 20_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("module", nil) | key: "tuist-module"})
+
+      publish_report("node", first.id)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000} = grown} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("grown", gb(50)) | key: "tuist-xcode"})
+
+      assert grown.parent_id == first.id
+      publish_report("node", grown.id)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000} = next} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("smaller", gb(10)) | key: "tuist-xcode"})
+
+      assert next.parent_id == grown.id
+      xcode = Repo.get_by!(Volume, account_id: account.id, key: "tuist-xcode")
+      assert xcode.requested_volume_bytes == gb(10)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000, pending_volume_bytes: 10_000_000_000}} =
+               Query.run(:show, account.id, %{"volume_id" => xcode.id})
+
+      assert {:ok, %{volume_bytes: 50_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("gradle", gb(50)) | key: "tuist-gradle"})
+    end
+
+    test "without the flag a managed request is capped at the volume's default", %{job: job} do
+      large_sizes(false)
 
       assert {:ok, %{volume_bytes: 30_000_000_000}} =
-               CacheVolumes.allocate_for_job(job, identity(), %{sized("xcode", gb(5)) | key: "tuist-xcode"})
-
-      assert is_nil(Repo.get_by!(Volume, account_id: account.id, key: "tuist-xcode").requested_volume_bytes)
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("xcode", gb(50)) | key: "tuist-xcode"})
 
       assert {:ok, %{volume_bytes: 20_000_000_000}} =
                CacheVolumes.allocate_for_job(job, identity(), %{sized("module", gb(50)) | key: "tuist-module"})
 
-      assert {:ok, %{volume_bytes: 50_000_000_000}} =
-               CacheVolumes.allocate_for_job(job, identity(), %{sized("gradle", gb(50)) | key: "tuist-gradle"})
+      assert {:ok, %{volume_bytes: 25_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{
+                 sized("other-xcode", gb(25), %{uid: 1002})
+                 | key: "tuist-xcode"
+               })
     end
 
     test "a capacity above the host maximum allocates nothing", %{job: job, account: account} do
