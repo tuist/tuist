@@ -101,11 +101,15 @@ defmodule TuistEx.Analytics.EnvTest do
       end
     end
 
-    pull_request = &%{"GITHUB_REF" => "refs/pull/7/merge"}[&1]
+    pull_request = &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => "merge-commit"}[&1]
 
     assert Env.git_commit_sha(pull_request, git.("pull-request-head")) == "pull-request-head"
     # HEAD is not a merge commit.
     assert Env.git_commit_sha(pull_request, git.(nil)) == "merge-commit"
+
+    # Only GITHUB_SHA says HEAD is GitHub's merge commit.
+    assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/pull/7/merge"}[&1], git.("x")) ==
+             "merge-commit"
 
     # HEAD's commit object cannot be read.
     unreadable = fn
@@ -124,9 +128,6 @@ defmodule TuistEx.Analytics.EnvTest do
            ) == "deadbeef"
 
     github = fn sha -> &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => sha}[&1] end
-
-    assert Env.git_commit_sha(github.("merge-commit"), git.("pull-request-head")) ==
-             "pull-request-head"
 
     # A checkout of the pull request's head keeps GITHUB_REF at the merge ref;
     # when that head is itself a merge commit, its second parent is not the

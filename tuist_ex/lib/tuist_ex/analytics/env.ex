@@ -109,25 +109,23 @@ defmodule TuistEx.Analytics.Env do
       do: nilify_empty(environment.("GITHUB_REF_NAME") || "")
   end
 
-  # On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit
-  # that exists only in the checkout, so the pull request's head, its second
-  # parent, is reported instead, as the command line tool does. The parent is
-  # read from the commit object: in a shallow checkout, such as
-  # `actions/checkout`'s default depth of 1, the grafts hide HEAD's parents
-  # from `rev-parse HEAD^2`. On GitHub Actions, `GITHUB_SHA` is that merge
-  # commit: a workflow that checked out another commit, such as the pull
-  # request's head, reports HEAD, since that commit's second parent, if it has
-  # one, is not the pull request.
+  # On a GitHub Actions pull request HEAD is GitHub's merge commit
+  # (`GITHUB_SHA`, from `refs/pull/N/merge`), which is on no branch, so its
+  # second parent, the pull request's head, is reported, as the command line
+  # tool does. Only when HEAD is `GITHUB_SHA`: a workflow that checked out
+  # another commit, such as the pull request's head, reports HEAD, since that
+  # commit's second parent, when it merged the base branch in, is a base branch
+  # commit. The parent is read from the commit object, since in a shallow
+  # checkout the grafts hide it from `rev-parse HEAD^2`.
   def git_commit_sha(environment \\ &System.get_env/1, git \\ &git/2) do
     environment.("GIT_COMMIT") || head_or_pull_request_head(environment, git)
   end
 
   defp head_or_pull_request_head(environment, git) do
     head = git.("rev-parse", ["HEAD"])
-    merge_commit = nilify_empty(environment.("GITHUB_SHA") || "")
 
-    if String.starts_with?(git_ref(environment) || "", "refs/pull/") and
-         merge_commit in [nil, head] do
+    if (head && environment.("GITHUB_SHA") == head) and
+         String.starts_with?(environment.("GITHUB_REF") || "", "refs/pull/") do
       second_parent(git.("cat-file", ["-p", "HEAD"])) || head
     else
       head
@@ -144,7 +142,10 @@ defmodule TuistEx.Analytics.Env do
       "parent " <> sha -> [String.trim(sha)]
       _ -> []
     end)
-    |> Enum.at(1)
+    |> case do
+      [_first, second] -> second
+      _ -> nil
+    end
   end
 
   def git_ref(environment \\ &System.get_env/1),

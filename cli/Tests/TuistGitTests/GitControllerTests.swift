@@ -347,6 +347,7 @@ struct GitControllerTests {
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
             "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
             "GITHUB_HEAD_REF": "feature-branch",
         ]
         commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
@@ -388,6 +389,7 @@ struct GitControllerTests {
         let gitInfo = try await subject.gitInfo(workingDirectory: path)
 
         #expect(gitInfo.sha == "actual-pr-head-sha")
+        #expect(!commandRunner.called(["git", "-C", path.pathString, "rev-parse", "HEAD^2"]))
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -433,7 +435,8 @@ struct GitControllerTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func gitInfo_reports_the_head_of_a_pull_request_checked_out_without_its_merge_commit_parent() async throws {
+    func gitInfo_reports_head_on_a_pull_request_ref_without_githubs_merge_commit() async throws {
+        // Only GITHUB_SHA says HEAD is GitHub's merge commit.
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = ["GITHUB_REF": "refs/pull/1/merge"]
@@ -441,15 +444,14 @@ struct GitControllerTests {
 
         let gitInfo = try await subject.gitInfo(workingDirectory: path)
 
-        #expect(gitInfo.sha == "actual-pr-head-sha")
-        #expect(!commandRunner.called(["git", "-C", path.pathString, "rev-parse", "HEAD^2"]))
+        #expect(gitInfo.sha == "merge-commit-sha")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func gitInfo_reports_head_on_a_pull_request_ref_whose_head_is_not_a_merge_commit() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
-        mockEnvironment.variables = ["GITHUB_REF": "refs/pull/1/merge"]
+        mockEnvironment.variables = ["GITHUB_REF": "refs/pull/1/merge", "GITHUB_SHA": "head-sha"]
         stubPullRequestCheckout(path: path, head: "head-sha", secondParent: nil)
 
         let gitInfo = try await subject.gitInfo(workingDirectory: path)
@@ -1248,7 +1250,6 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "def456\n"
         )
-        commandRunner.errorCommand(["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "def456"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
@@ -1261,7 +1262,8 @@ struct GitControllerTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_circleci() async throws {
-        // Given
+        // Given: the pull request's head merged the base branch in, so its second parent is a base
+        // branch commit. CircleCI names no merge commit, so HEAD is reported.
         let path = try #require(FileSystem.temporaryTestDirectory)
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.variables = [
@@ -1274,7 +1276,10 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "ghi789\n"
         )
-        commandRunner.errorCommand(["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "ghi789"])
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "ghi789"],
+            output: rawMergeCommit("ghi789", parents: ["fix-bug-parent-sha", "main-sha"])
+        )
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
@@ -1284,6 +1289,16 @@ struct GitControllerTests {
         #expect(gitInfo.ref == "refs/pull/6740/merge")
         #expect(gitInfo.branch == "fix-bug")
         #expect(gitInfo.sha == "ghi789")
+        #expect(!commandRunner.called([
+            "git",
+            "-C",
+            path.pathString,
+            "log",
+            "--no-walk",
+            "--no-decorate",
+            "--format=raw",
+            "ghi789",
+        ]))
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_buildkite() async throws {
@@ -1300,7 +1315,6 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "jkl012\n"
         )
-        commandRunner.errorCommand(["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "jkl012"])
         commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When

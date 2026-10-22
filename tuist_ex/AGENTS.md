@@ -119,16 +119,16 @@ threshold is uploaded first (`/tests/coverage/uploads`). Retries never carry
 `--cover`. `mix tuist.coverage.complete` signals the commit's coverage
 complete, as `tuist coverage complete` does. Tests that start or stop `cover`
 must leave a running cover server alone: under `mix test --cover` it is Mix's.
-On a pull request's merge ref (`refs/pull/N/merge`), `Env.git_commit_sha/2`
-reports HEAD's second parent, the pull request's head, as the command line
-tool does, since the merge commit exists only in the checkout. The parent is
+On a GitHub Actions pull request (`GITHUB_REF` `refs/pull/N/merge`) whose
+HEAD is `GITHUB_SHA`, GitHub's merge commit, `Env.git_commit_sha/2` reports
+HEAD's second parent, the pull request's head, as the command line tool does;
+every other checkout reports HEAD, since a pull request head that merged the
+base branch in has a base branch commit as its second parent. The parent is
 read from `git cat-file -p HEAD`, not `rev-parse HEAD^2`, whose shallow grafts
 hide it in a depth-1 checkout; HEAD is reported when the object cannot be read
-or has one parent. `Git.history/4` fetches a head the checkout lacks alone by
+or does not have exactly two parents. `Git.history/4` fetches a head the checkout lacks alone by
 SHA with `:history`, and otherwise leaves it out of the walk with "<sha> is
-not in the checkout". When `GITHUB_SHA` (GitHub's merge commit) is set and is
-not HEAD, the workflow checked out another commit, and HEAD is reported.
-`GIT_COMMIT` still wins.
+not in the checkout". `GIT_COMMIT` still wins.
 `Git` and `Analytics.GitHistory` port the command line tool's Git history
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,
 `GitHistoryService.swift`) and must stay in step with it, since the server

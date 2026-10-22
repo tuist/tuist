@@ -83,24 +83,26 @@ class ProcessGitInfoProvider(
     }
 
     /**
-     * On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit that exists only in
-     * the checkout, so the pull request's head, its second parent, is reported instead. The parent is
-     * read from the commit object: in a shallow checkout, such as `actions/checkout`'s default depth
-     * of 1, the grafts hide HEAD's parents from `rev-parse HEAD^2`. On GitHub Actions, `GITHUB_SHA` is
-     * that merge commit: a workflow that checked out another commit, such as the pull request's head,
-     * reports HEAD, since that commit's second parent, if it has one, is not the pull request.
+     * On a GitHub Actions pull request HEAD is GitHub's merge commit (`GITHUB_SHA`, from
+     * `refs/pull/N/merge`), which is on no branch, so its second parent, the pull request's head, is
+     * reported, as the CLI does. Only when HEAD is `GITHUB_SHA`: a workflow that checked out another
+     * commit, such as the pull request's head, reports HEAD, since that commit's second parent, when
+     * it merged the base branch in, is a base branch commit. The parent is read from the commit
+     * object, since in a shallow checkout the grafts hide it from `rev-parse HEAD^2`.
      */
     override fun commitSha(): String? {
         val head = runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
-        val mergeCommit = environmentProvider("GITHUB_SHA")?.takeIf(String::isNotEmpty)
-        if (ref()?.startsWith("refs/pull/") == true && (mergeCommit == null || mergeCommit == head)) {
+        if (head != null && environmentProvider("GITHUB_SHA") == head &&
+            environmentProvider("GITHUB_REF")?.startsWith("refs/pull/") == true
+        ) {
             runCatching { gitCommandRunner(listOf("cat-file", "-p", "HEAD")) }.getOrNull()
                 ?.lineSequence()
                 ?.takeWhile(String::isNotEmpty)
                 ?.filter { it.startsWith("parent ") }
                 ?.map { it.removePrefix("parent ").trim() }
-                ?.elementAtOrNull(1)
-                ?.let { return it }
+                ?.toList()
+                ?.takeIf { it.size == 2 }
+                ?.let { return it[1] }
         }
         return head
     }

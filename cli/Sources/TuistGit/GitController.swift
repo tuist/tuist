@@ -385,26 +385,21 @@ public struct GitController: GitControlling {
             )
         }
 
-        // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
-        // HEAD is an ephemeral merge commit. Use the second parent (the actual
-        // PR branch tip) instead, since the merge commit doesn't exist on the remote.
-        // On GitHub Actions, GITHUB_SHA is that merge commit: a workflow that checked out
-        // another commit, such as the pull request's head, reports HEAD, since that commit's
-        // second parent, if it has one, is not the pull request.
-        // The parent is read from the commit object: in a shallow clone, such as
-        // `actions/checkout`'s default depth of 1, the grafts hide HEAD's parents from
-        // `rev-parse HEAD^2`, while the raw format prints them.
+        // SHA — on a GitHub Actions pull request HEAD is GitHub's merge commit (GITHUB_SHA, from
+        // refs/pull/N/merge), which is on no branch, so its second parent, the pull request's head,
+        // is reported. Only when HEAD is GITHUB_SHA: elsewhere, or when a workflow checked out
+        // another commit, HEAD is usually the pull request's head, whose second parent, when it
+        // merged the base branch in, is a base branch commit. The parent is read from the commit
+        // object, since in a shallow clone the grafts hide it from `rev-parse HEAD^2`.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
-            let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
-            let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
-                && (mergeCommit == nil || mergeCommit == head)
-            if isPullRequestMergeCheckout, let head,
+            if let head, environment["GITHUB_SHA"] == head,
+               environment["GITHUB_REF"]?.hasPrefix("refs/pull/") == true,
                let raw = try? await capture(
                    command: "git", "-C", workingDirectory.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", head
                ),
-               let parents = GitHistoryParser.parseRawParents(raw)[head], parents.count >= 2
+               let parents = GitHistoryParser.parseRawParents(raw)[head], parents.count == 2
             {
                 commitSHA = parents[1]
             } else {

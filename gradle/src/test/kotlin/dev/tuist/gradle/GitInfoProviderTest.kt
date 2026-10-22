@@ -221,8 +221,9 @@ class GitInfoProviderTest {
             "committer A <a@tuist.dev> 1700000000 +0000\n\nMerge $secondParent into base\nparent message\n"
 
     @Test
-    fun `commitSha is the pull request's head on a pull request merge checkout`() {
-        assertEquals("pull-request-head", mergeCheckout("refs/pull/123/merge") { "pull-request-head" }.commitSha())
+    fun `commitSha is HEAD on a pull request ref without GitHub's merge commit`() {
+        // Only GITHUB_SHA says HEAD is GitHub's merge commit.
+        assertEquals("merge-commit", mergeCheckout("refs/pull/123/merge") { "pull-request-head" }.commitSha())
     }
 
     @Test
@@ -244,14 +245,17 @@ class GitInfoProviderTest {
     }
 
     @Test
-    fun `commitSha falls back to HEAD when the merge commit's second parent is not in the checkout`() {
-        assertEquals("merge-commit", mergeCheckout("refs/pull/123/merge") { throw RuntimeException("shallow") }.commitSha())
+    fun `commitSha falls back to HEAD when HEAD's commit object cannot be read`() {
+        assertEquals(
+            "merge-commit",
+            mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit") { throw RuntimeException("unreadable") }.commitSha()
+        )
     }
 
     @Test
     fun `commitSha is HEAD outside a pull request ref`() {
         for (ref in listOf("refs/heads/main", null)) {
-            assertEquals("merge-commit", mergeCheckout(ref) { "pull-request-head" }.commitSha())
+            assertEquals("merge-commit", mergeCheckout(ref, githubSha = "merge-commit") { "pull-request-head" }.commitSha())
         }
     }
 }
