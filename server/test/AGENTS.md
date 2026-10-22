@@ -59,6 +59,7 @@ This directory contains ExUnit tests for the Tuist Server.
 - Use mocks/stubs/DI for environment-dependent behavior.
 - Telemetry handlers are global: `:telemetry_test.attach_event_handlers/2` also delivers an event a concurrently running test emitted, tagged with this test's own ref. Use `TuistTestSupport.TelemetryCapture.attach_event_handlers/1`, which forwards only what the attaching process emits.
 
+- Direct `XcodeGraph.Buffer` fixture inserts must provide `project_id` and `modules_count` along with the existing header fields. Use the parent event's project and `nil` for uncounted historical graphs; write-through buffers require every schema column key.
 - Build-entity replacement regressions must assert actual cross-month physical partitions, late older writes, cleared nullable values and time/cohort moves before filters. Native ID-index/materialization tests use unsandboxed ClickHouse owners, not disabled assertions. Keep timing assertions out of normal ExUnit tests.
 
 ## Related Context
