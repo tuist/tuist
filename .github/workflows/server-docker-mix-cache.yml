@@ -1,13 +1,20 @@
-name: Server Docker Mix Cache
+name: Server Cache Benchmarks
 
 on:
   pull_request:
     paths:
       - .github/scripts/server-docker-mix-cache*
       - .github/scripts/server-docker-mix-benchmark.sh
+      - .github/scripts/server-elixir-cache-*
       - .github/workflows/server-docker-mix-cache.yml
       - server/Dockerfile
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      benchmark:
+        description: Cache implementation to measure
+        type: choice
+        options: [docker, elixir-remote]
+        default: docker
 
 permissions:
   contents: read
@@ -25,11 +32,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash .github/scripts/server-docker-mix-cache.test.sh
+      - run: python3 .github/scripts/server-elixir-cache-benchmark.test.py
 
   seed:
     name: Seed registry and production project caches
     needs: test
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'tuist/tuist'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'tuist/tuist' && inputs.benchmark != 'elixir-remote'
     runs-on: tuist-linux-large
     timeout-minutes: 45
     permissions:
@@ -52,6 +60,51 @@ jobs:
           path: ~/.cache/tuist-server-docker-mix
       - name: Seed the shared registry cache and production project snapshot
         run: bash .github/scripts/server-docker-mix-benchmark.sh seed
+
+  elixir-remote:
+    name: Measure full-server remote dependency cache
+    needs: test
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'tuist/tuist' && inputs.benchmark == 'elixir-remote'
+    runs-on: tuist-linux-large
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MIX_ENV: dev
+      ERL_FLAGS: "+S 4:4"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          restore-mix-cache: "false"
+      - run: git diff --exit-code -- server/mix.lock
+      - name: Seed and compare cache-disabled and remote-only builds
+        run: python3 .github/scripts/server-elixir-cache-benchmark.py
+      - name: Record raw results
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Full-server remote dependency-cache comparison'
+            echo 'Fresh builds and pristine locked sources; SDK bootstrap and server compilation included.'
+            echo 'Seed is separate. Remote samples start with an empty local artifact store; no Mix snapshot volume is attached.'
+            echo 'Four Erlang schedulers and three dependency compilation workers. Downloads/source reset are outside the timers.'
+            echo 'RPC read durations exclude local staging; inspect complete process times and actual remote-hit counts.'
+            echo '```json'
+            if [ -f "$RUNNER_TEMP/elixir-cache-benchmark/samples.json" ]; then
+              python3 -m json.tool "$RUNNER_TEMP/elixir-cache-benchmark/samples.json"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: elixir-remote-cache-benchmark
+          path: |
+            ${{ runner.temp }}/elixir-cache-benchmark/*.json
+            ${{ runner.temp }}/elixir-cache-benchmark/*.log
+          retention-days: 7
 
   benchmark:
     name: Measure ${{ matrix.variant }}
