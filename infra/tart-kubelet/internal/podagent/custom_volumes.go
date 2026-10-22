@@ -123,7 +123,7 @@ func (c *CustomVolumes) request(ctx context.Context, operation string, body any,
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
-	response, err := c.HTTP.Do(req)
+	response, err := cachevolumes.DoServer(c.HTTP, req, customCacheLog())
 	if err != nil {
 		return 0, err
 	}
@@ -155,7 +155,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
 		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000, MaxVolumeBytes: c.maxVolumeBytes(),
-		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: c.maxVolumeBytes(), Token: c.token},
+		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: c.maxVolumeBytes(), Token: c.token, Log: customCacheLog()},
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 		Displace:         c.displaceSpare,
@@ -167,7 +167,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		c.Checkouts.Observe = observeCustomCache
 		c.Checkouts.Log = slog.New(logr.ToSlogHandler(log.FromContext(ctx)))
 		// Checkout images are larger than custom ones, so their archives get their own bound.
-		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Token: c.token}
+		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Token: c.token, Log: customCacheLog()}
 	}
 	// A superseded master stays mountable until its successor is downloaded here.
 	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }

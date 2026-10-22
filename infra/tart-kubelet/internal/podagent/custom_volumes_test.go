@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
+	"io"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	"net/http"
 	"net/http/httptest"
@@ -641,5 +642,30 @@ func TestCustomVolumeReportPublishesAnEmptyStartOnlyWhenTheServerAllowsIt(t *tes
 				t.Fatalf("action = %q, %v; want %q", action, err, tc.want)
 			}
 		})
+	}
+}
+
+func TestCustomVolumeServerRequestsSurviveAServerRollout(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			// A server pod a rollout replaces closes the connection without answering.
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			conn.Close()
+			return
+		}
+		io.WriteString(w, `{"id":"authorized-use"}`)
+	}))
+	defer server.Close()
+	c := &CustomVolumes{URL: server.URL, HTTP: server.Client(), Node: "host", tokenValue: "token", tokenUntil: time.Now().Add(time.Hour)}
+	ctx, cancel := context.WithTimeout(context.Background(), customAcquireBudget)
+	defer cancel()
+	var identity cachevolumes.Identity
+
+	status, err := c.request(ctx, "authorize", map[string]any{"pod_uid": "u"}, &identity)
+
+	if err != nil || status != http.StatusOK || identity.ID != "authorized-use" || calls != 2 {
+		t.Fatalf("status=%d err=%v identity=%+v calls=%d", status, err, identity, calls)
 	}
 }

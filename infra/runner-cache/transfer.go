@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -18,10 +19,13 @@ type HTTPTransfer struct {
 	URL, Node, TokenPath string
 	Client               *http.Client
 	// DownloadClient fetches image archives. It must not bound the whole
-	// transfer: a stall, not a deadline, ends an attempt. Nil uses Client.
+	// transfer: a stall, not a deadline, ends an attempt. Nil uses Client
+	// without its Timeout.
 	DownloadClient *http.Client
 	MaxBytes       int64
 	Token          func(context.Context) (string, error)
+	// Log receives server request retries; nil is slog.Default.
+	Log *slog.Logger
 
 	// Zero values use the package defaults; injectable so tests don't wait real minutes.
 	stallTimeout time.Duration
@@ -74,7 +78,7 @@ func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
-	response, err := t.Client.Do(req)
+	response, err := DoServer(t.Client, req, t.Log)
 	if err != nil {
 		return transferResponse{}, fmt.Errorf("image metadata request failed: %w", transferError(err))
 	}
@@ -160,11 +164,14 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 	if offset > 0 {
 		req.Header.Set("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
 	}
-	client := t.DownloadClient
-	if client == nil {
-		client = t.Client
+	stall := t.stallTimeout
+	if stall <= 0 {
+		stall = downloadStallTimeout
 	}
-	response, err := client.Do(req)
+	// The watchdog also covers a server that accepts the request but never answers.
+	watchdog := time.AfterFunc(stall, func() { cancel(errDownloadStalled) })
+	defer watchdog.Stop()
+	response, err := t.downloadClient().Do(req)
 	if err != nil {
 		if cause := context.Cause(ctx); errors.Is(cause, errDownloadStalled) {
 			return cause
@@ -209,12 +216,7 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 	if _, err = file.Seek(offset, io.SeekStart); err != nil {
 		return err
 	}
-	stall := t.stallTimeout
-	if stall <= 0 {
-		stall = downloadStallTimeout
-	}
-	watchdog := time.AfterFunc(stall, func() { cancel(errDownloadStalled) })
-	defer watchdog.Stop()
+	watchdog.Reset(stall)
 	body := &progressReader{r: response.Body, progress: func() { watchdog.Reset(stall) }}
 	written, err := io.Copy(file, io.LimitReader(body, limit+1-offset))
 	if err != nil {
@@ -232,6 +234,17 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 		return errors.New("image download ended early")
 	}
 	return file.Sync()
+}
+
+// downloadClient is DownloadClient, else Client without its whole-request
+// Timeout, which would cut off a download that is still receiving bytes.
+func (t *HTTPTransfer) downloadClient() *http.Client {
+	if t.DownloadClient != nil {
+		return t.DownloadClient
+	}
+	client := *t.Client
+	client.Timeout = 0
+	return &client
 }
 
 type progressReader struct {

@@ -145,7 +145,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   custom HEADs the server lists for the host class (free space only, no eviction).
   Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
   carry a bounded `reason` and the host logs why; a 425 retried until the
-  deadline is `execution_pending`, not `denied`.
+  deadline is `execution_pending`, not `denied`. `CustomVolumes.request` and the
+  transfers send server requests through `cachevolumes.DoServer`, which repeats
+  them on a dropped connection or a 502-504 inside the same deadline.
   A job never waits for a download. Without its base locally it mounts the newest
   older master of the same lineage (reported as `mounted_generation`), or else an
   empty image marked `.cold` that reports a miss and is withheld from publication
