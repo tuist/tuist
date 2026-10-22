@@ -100,7 +100,9 @@ defmodule Atlas.MixProject do
       # Revert to a Hex version once the fix is released.
       {:emcp, github: "addstar34/emcp", ref: "c687e279cf4f550f69934549a1303312ed3a23b5", override: true},
       {:ex_json_schema, "~> 0.11"},
-      {:javex, "~> 0.1.5"},
+      # Javex includes documentation tooling in :prod. Keep its dependency graph
+      # runtime-only so Once does not resolve project-local docs/lint dependencies.
+      {:javex, "~> 0.1.5", env: :runtime},
       {:browse, "~> 0.5"},
       {:browse_chrome, "~> 0.4"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"}

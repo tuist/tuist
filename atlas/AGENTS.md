@@ -260,6 +260,7 @@ custom classes must fully style the input
 - `.github/workflows/atlas.yml` builds, lints, and tests through [Once](https://github.com/tuist/once), pinned in `mise.toml` and `mise.lock`. Once derives the targets from `mix.exs`, so there is no Atlas-specific manifest. The root `once.toml` limits workspace discovery to Atlas, binds the shared cache to the `tuist/atlas` project, and declares `atlas_image` (this Dockerfile, cached in `tuist/atlas-oci`).
 - Run Once from the repository root with package-qualified targets (`once test atlas/mix_tests`). From `atlas/`, Once treats this directory as the workspace root, and the `../noora` path dependency fails as escaping the workspace.
 - `once run atlas/mix_lint` also runs `mix deps.unlock --check-unused`, so remove dependencies from `mix.lock` when you drop them from `mix.exs`.
+- Javex 0.1.5 is evaluated in the `:runtime` dependency environment because its `:prod` dependencies include project-local documentation tooling. Keep docs/lint packages out of Atlas's runtime dependency graph. Verify dependency changes with the Atlas-pinned Once binary from the repository root (`once query targets`), not only with Mix.
 - The Dockerfile pins its base images by digest so Once can cache instructions individually. Update a digest together with its tag.
 
 ## Mix guidelines
