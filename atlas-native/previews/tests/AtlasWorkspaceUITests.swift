@@ -53,12 +53,17 @@ final class AtlasWorkspaceUITests: XCTestCase {
     @MainActor func testStableTabsNativeBrowseAndProfile() throws {
         let app = launch()
         defer { app.terminate() }
-        XCTAssertTrue(app.navigationBars["Tasks"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Conversations"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.tabBars.buttons.count, 5)
         XCTAssertFalse(app.tabBars.buttons["More"].exists)
+        XCTAssertTrue(app.buttons["conversations-private"].waitForExistence(timeout: 5))
+        attach(app, "ios-workspace-conversations-preview")
+        app.tabBars.buttons["Browse"].tap()
+        try tap("workspace-section-tasks", in: app)
         XCTAssertTrue(app.buttons["business-item-task-1"].waitForExistence(timeout: 5))
         XCTAssertGreaterThan(app.navigationBars["Tasks"].staticTexts["Tasks"].frame.height, 30)
         attach(app, "ios-workspace-tasks")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
         app.tabBars.buttons["Accounts"].tap()
         XCTAssertTrue(app.staticTexts["Northstar"].waitForExistence(timeout: 5))
         XCTAssertGreaterThan(app.navigationBars["Accounts"].staticTexts["Accounts"].frame.height, 30)
@@ -93,8 +98,8 @@ final class AtlasWorkspaceUITests: XCTestCase {
     @MainActor func testNativeSearchInDarkAccessibilityText() throws {
         let app = launch(arguments: ["--dark", "--large-text"])
         defer { app.terminate() }
-        XCTAssertTrue(app.navigationBars["Tasks"].waitForExistence(timeout: 10))
-        attach(app, "ios-workspace-tasks-large-dark")
+        XCTAssertTrue(app.navigationBars["Conversations"].waitForExistence(timeout: 10))
+        attach(app, "ios-workspace-conversations-large-dark-preview")
         app.tabBars.buttons["Browse"].tap()
         let search = app.searchFields.firstMatch
         if !search.isHittable {

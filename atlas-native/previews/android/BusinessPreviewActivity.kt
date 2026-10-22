@@ -127,6 +127,7 @@ class BusinessPreviewActivity : Activity() {
         super.onCreate(savedInstanceState)
         checkBusinessModels()
         checkPresenceModel()
+        checkConversationsModel()
         checkDestinations()
         val retained = lastNonConfigurationInstance as? State
         state = retained ?: State(

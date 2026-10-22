@@ -42,21 +42,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
 
     var presence: AtlasPresence {
         if let presenceModel { return presenceModel }
-        let open = authenticatedRequest(operation: "presence")
-        let model = AtlasPresence { action in
-            if action["action"] as? String == "open" { return try await open(action) }
-            var request = action
-            request["operation"] = "presence"
-            guard let input = String(bytes: try JSONSerialization.data(withJSONObject: request), encoding: .utf8) else {
-                throw AtlasAuthenticationError(kind: "invalid_request", message: "Could not encode presence request.")
-            }
-            let response = try await AtlasAuthBridge.execute(input)
-            let envelope = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any]
-            guard let result = envelope?["ok"] else {
-                throw AtlasAuthenticationError(kind: "closed", message: "Presence is disconnected.")
-            }
-            return try JSONSerialization.data(withJSONObject: result)
-        }
+        let model = AtlasPresence(request: liveRequest(operation: "presence"))
         presenceModel = model
         return model
     }
@@ -186,6 +172,32 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         authenticatedRequest(operation: "business")
     }
 
+    var conversationRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "conversation_session")
+    }
+
+    var conversationLocalRequest: ([String: Any]) async throws -> Data {
+        liveRequest(operation: "conversation_session")
+    }
+
+    private func liveRequest(operation: String) -> ([String: Any]) async throws -> Data {
+        let open = authenticatedRequest(operation: operation)
+        return { action in
+            if action["action"] as? String == "open" { return try await open(action) }
+            var request = action
+            request["operation"] = operation
+            guard let input = String(bytes: try JSONSerialization.data(withJSONObject: request), encoding: .utf8) else {
+                throw AtlasAuthenticationError(kind: "invalid_request", message: "Could not encode live request.")
+            }
+            let response = try await AtlasAuthBridge.execute(input)
+            let envelope = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any]
+            guard let result = envelope?["ok"] else {
+                throw AtlasAuthenticationError(kind: "closed", message: "Live updates are disconnected.")
+            }
+            return try JSONSerialization.data(withJSONObject: result)
+        }
+    }
+
     private func authenticatedRequest(operation: String) -> ([String: Any]) async throws -> Data {
         let identity = sessionIdentity
         return { [weak self] action in
@@ -200,8 +212,8 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             request["session"] = session
             let response = try await self.command(request)
             guard self.sessionIdentity == identity else {
-                if operation == "presence", let connection = response["connection"] as? String {
-                    _ = try? await self.command(["operation": "presence", "action": "close", "connection": connection])
+                if ["presence", "conversation_session"].contains(operation), let connection = response["connection"] as? String {
+                    _ = try? await self.command(["operation": operation, "action": "close", "connection": connection])
                 }
                 throw CancellationError()
             }

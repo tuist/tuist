@@ -29,6 +29,10 @@ enum Command {
         #[serde(flatten)]
         action: crate::presence::Action,
     },
+    ConversationSession {
+        #[serde(flatten)]
+        action: crate::conversation_session::Action,
+    },
     Business {
         session: Session,
         resource: crate::business::Resource,
@@ -68,6 +72,9 @@ pub fn execute(input: &str) -> String {
             Command::DefaultThemes => return Ok(crate::themes::defaults()),
             Command::Presence { action } => {
                 return crate::presence::execute(action);
+            }
+            Command::ConversationSession { action } => {
+                return crate::conversation_session::execute(action);
             }
             Command::Business {
                 session,

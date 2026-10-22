@@ -90,7 +90,9 @@ class AtlasAuthentication(
     private val storage = AtlasSecureStorage(context.applicationContext)
     private val worker = Executors.newSingleThreadExecutor()
     private val holidayWorker = Executors.newFixedThreadPool(2)
-    private val presenceWorker = Executors.newFixedThreadPool(2)
+
+    // Presence and the conversation session each block in a bounded `next` wait, leaving room for local commands.
+    private val presenceWorker = Executors.newFixedThreadPool(4)
 
     @Volatile private var sessionIdentity = 0
     private val main = Handler(Looper.getMainLooper())
@@ -225,14 +227,29 @@ class AtlasAuthentication(
     fun presence(
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
+    ) = live("presence", action, completion)
+
+    // Rust owns conversation state behind one handle. Opening and commands restore credentials first;
+    // draft, active(false), next and close only touch the local handle.
+    fun conversationSession(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) = live("conversation_session", action, completion)
+
+    // Opening and requests restore the session through the credential queue; everything else only touches
+    // local Rust handles and runs on its own workers so blocking waits never hold up sign-out.
+    private fun live(
+        name: String,
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
     ) {
-        if (action.optString("action") == "open") {
-            operation("presence", action, completion)
+        if (action.optString("action") == "open" || action.optString("action") == "request") {
+            operation(name, action, completion)
             return
         }
         apiRequests += 1
         presenceWorker.execute {
-            val result = runCatching { command(JSONObject(action.toString()).put("operation", "presence")) }
+            val result = runCatching { command(JSONObject(action.toString()).put("operation", name)) }
             main.post {
                 apiRequests -= 1
                 completion(result)
@@ -260,9 +277,9 @@ class AtlasAuthentication(
         fun finish(result: Result<JSONObject>) {
             main.post {
                 apiRequests -= 1
-                if (identity != sessionIdentity && operation == "presence") {
+                if (identity != sessionIdentity && (operation == "presence" || operation == "conversation_session")) {
                     result.getOrNull()?.optString("connection")?.takeIf { it.isNotEmpty() }?.let { id ->
-                        presence(JSONObject().put("action", "close").put("connection", id)) {}
+                        live(operation, JSONObject().put("action", "close").put("connection", id)) {}
                     }
                 }
                 completion(

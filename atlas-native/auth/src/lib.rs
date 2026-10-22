@@ -1,6 +1,9 @@
 mod accounts;
 mod bridge;
 mod business;
+mod conversation_live;
+mod conversation_session;
+mod conversations;
 mod presence;
 mod themes;
 mod time_off;
@@ -33,7 +36,7 @@ pub struct PendingLogin {
     created_at: u64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Session {
     registration: Registration,
     access_token: String,

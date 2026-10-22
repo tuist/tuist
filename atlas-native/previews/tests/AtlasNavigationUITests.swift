@@ -52,6 +52,10 @@ final class AtlasNavigationUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         XCUIDevice.shared.orientation = .portrait
+        app.tabBars.buttons["Browse"].tap()
+        let tasks = app.descendants(matching: .any)["workspace-section-tasks"].firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 5))
+        tasks.tap()
         XCTAssertTrue(app.staticTexts["Review onboarding"].waitForExistence(timeout: 5))
         XCUIDevice.shared.press(.home)
         app.activate()
@@ -99,7 +103,7 @@ final class AtlasNavigationUITests: XCTestCase {
             "This link belongs to a different Atlas server. Sign in to that server and open the link again."
         ].exists)
         app.alerts.buttons["OK"].tap()
-        XCTAssertTrue(app.navigationBars["Tasks"].exists)
+        XCTAssertTrue(app.navigationBars["Conversations"].exists)
     }
 
     @MainActor func testWarmRecordLinkReplacesAnExistingDetailAndBackReturnsToList() {
@@ -116,6 +120,10 @@ final class AtlasNavigationUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         XCUIDevice.shared.orientation = .portrait
+        app.tabBars.buttons["Browse"].tap()
+        let tasks = app.descendants(matching: .any)["workspace-section-tasks"].firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 5))
+        tasks.tap()
         let row = app.descendants(matching: .any)["business-item-task-1"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
@@ -141,7 +149,7 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertTrue(token.waitForExistence(timeout: 5))
         token.tap()
         token.typeText("preview-only")
-        XCTAssertFalse(app.tabBars.buttons["Tasks"].isHittable)
+        XCTAssertFalse(app.tabBars.buttons["Conversations"].isHittable)
         XCUIDevice.shared.press(.home)
         app.activate()
         XCTAssertTrue(app.alerts["Atlas link"].waitForExistence(timeout: 5))
