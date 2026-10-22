@@ -473,7 +473,7 @@ func TestRunOnceReapsImagesNoPoolRuns(t *testing.T) {
 		Name   string
 		Source string
 	}
-	newCollector := func(t *testing.T, entries []entry, pools *poolLister, collectorFleet string, pods ...*corev1.Pod) (*Collector, func(t *testing.T) []string) {
+	newCollector := func(t *testing.T, entries []entry, pools *poolLister, collectorFleet string, objs ...client.Object) (*Collector, func(t *testing.T) []string) {
 		t.Helper()
 		dir := t.TempDir()
 		listing := "["
@@ -498,10 +498,6 @@ func TestRunOnceReapsImagesNoPoolRuns(t *testing.T) {
 		scheme := runtime.NewScheme()
 		if err := corev1.AddToScheme(scheme); err != nil {
 			t.Fatalf("add core scheme: %v", err)
-		}
-		objs := make([]client.Object, 0, len(pods))
-		for _, p := range pods {
-			objs = append(objs, p)
 		}
 		k := fake.NewClientBuilder().WithScheme(scheme).
 			WithObjects(objs...).
@@ -574,6 +570,24 @@ func TestRunOnceReapsImagesNoPoolRuns(t *testing.T) {
 		c.RunOnce(context.Background())
 		if got := read(t); !reflect.DeepEqual(got, []string{goldenVMName(superseded)}) {
 			t.Fatalf("deletes = %v, want only the superseded golden: a tag-named Pod may run any digest Tart lists", got)
+		}
+	})
+
+	t.Run("keeps the golden and OCI entry of the image a pool moves to next", func(t *testing.T) {
+		staged := repo + "@sha256:staged"
+		pools := &poolLister{pools: []unstructured.Unstructured{
+			catalogPool("macos-27-0", current, "27.0", "stacked", 0, 0),
+			runnerPool("macos-26-6", running, fleet, 1, 1),
+		}}
+		upcoming := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "tuist-upcoming-runner-images", Labels: map[string]string{upcomingImagesLabel: "true"}},
+			Data:       map[string]string{"27.0.stacked": staged},
+		}
+		withStaged := append([]entry{{goldenVMName(staged), "local"}, {staged, "OCI"}}, entries...)
+		c, read := newCollector(t, withStaged, pools, fleet, pod, upcoming)
+		c.RunOnce(context.Background())
+		if got, want := read(t), []string{goldenVMName(superseded), superseded}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("deletes = %v, want only the superseded golden and its OCI entry %v", got, want)
 		}
 	})
 
