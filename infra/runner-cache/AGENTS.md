@@ -76,18 +76,22 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `no_metadata`. Checkouts log `expired`, `idle` (LRU under pressure) or
   `cleared` (the checkout volume's scope changed). The `evict` observation also
   names the master's `scope` and `generation`.
-- Linux may prefetch one immutable master after a timed-out warm acquisition,
-  bounded to two minutes with no queue and the same disk reserve. macOS queues
+- The Linux agent prefetches the assigned master after a warm acquisition that
+  found no local copy of it (mounted older, started empty, or timed out; checked
+  with `HasMaster`), one at a time, bounded to two minutes with no queue and the
+  same disk reserve. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
-- APFS `Attach` never downloads. It clones the base master, else the newest older
-  master of the same scope (recorded in `<image>.base` and
+- `Attach` never downloads, on either host (`LocalImages.cloneLocal`). It clones
+  the base master, else the newest older master of the same scope (recorded
+  durably in `<image>.base` before the branch exists, and in
   `Slot.MountedGeneration`), else formats an empty image marked `<image>.cold`.
   A cold branch reports `Warm=false` and `Seal` returns `ErrWithheld`, which the
   Store treats like a poisoned branch: deleted, never published. Only the Store's
   `publish` action (the server's size rule, see `CacheVolumes`) sets
   `Slot.PublishCold` for that one seal; the full, unchanged, identical and
-  generation checks still apply. Linux never starts a branch empty over a HEAD.
+  generation checks still apply. Linux checks `.cold` before its unchanged and
+  full checks.
 - APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a
@@ -113,7 +117,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   newer than the one it recorded. The first attach writes `.entries` after the
   marker; later attaches of the branch keep it. A missing baseline means changed;
   a `.verified` or `.checking` branch skips the check.
-- An `ErrUnchanged` branch cloned from its own base (APFS: no `.base`) becomes
+- An `ErrUnchanged` branch cloned from its own base (no `.base` or `.cold`) becomes
   that generation's local master when the host no longer holds it, after the
   same verification publication runs (`keepUnchanged`, `keep` observation).
   Admission may evict a master while a job runs, and an unchanged lineage never
@@ -152,8 +156,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   transfer timeout. A context that ends while bytes arrive returns
   `ErrDownloadIncomplete` and keeps the partial; a complete archive that does not
   restore is deleted. Callers resume only by passing the same path again.
-- `prefetch` downloads into `staging/<scope>-<generation>-<content digest>.img`
-  and takes the scope lock only to install;
+- `prefetch` and refreshes download into
+  `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
+  to install (`fetchMaster`), one download per staging name at a time;
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
@@ -172,8 +177,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   publishes it on the node heartbeat and the Linux agent merges it into its Node
   patch, removing labels of evicted lineages.
 - Linux refreshes a superseded master used in the last day to the new HEAD in
-  the background (one at a time, prefetch admission) before removing it.
-  Maintenance and admission skip the scope a refresh download holds. Only a
+  the background (one at a time, prefetch admission) before removing it. A job
+  attaching that lineage meanwhile clones the stale master. Maintenance and
+  admission skip the scope a refresh is downloading. Only a
   master the refresh installed under the scope lock inherits the stale master's
   last use. macOS leaves `RefreshWithin` zero: refreshes use LocalImages admission,
   not APFS reservations.

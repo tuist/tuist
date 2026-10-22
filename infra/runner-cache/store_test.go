@@ -54,6 +54,8 @@ func identity(id string) Identity {
 const first = "00000000-0000-0000-0000-000000000001"
 const second = "00000000-0000-0000-0000-000000000002"
 const third = "00000000-0000-0000-0000-000000000003"
+const fourth = "00000000-0000-0000-0000-000000000004"
+const fifth = "00000000-0000-0000-0000-000000000005"
 
 func newStore(t *testing.T) (*Store, *memoryBackend) {
 	t.Helper()

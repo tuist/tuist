@@ -131,10 +131,12 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	warm, err := a.store.Acquire(ctx, identity, input.PodName, input.PodUID)
 	outcome = err
+	// A job that mounted an older copy, started empty or timed out fetches the
+	// saved version in the background for the next job on this host.
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		a.prefetch.start(identity)
+	}
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			a.prefetch.start(identity)
-		}
 		log.Printf("cache acquire failed: %v", err)
 		http.Error(w, "unavailable", 503)
 		return
@@ -278,7 +280,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -333,7 +335,7 @@ func dedicatedFilesystem(root string, references ...string) error {
 
 func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	state := slot.State
-	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS})
+	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot)})
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(a.authorizeURL, "/authorize")+"/report", bytes.NewReader(body))
@@ -355,10 +357,23 @@ func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 		return "", fmt.Errorf("report status %d", resp.StatusCode)
 	}
 	var result struct {
-		Action string `json:"action"`
+		Action      string `json:"action"`
+		ColdPublish bool   `json:"cold_publish"`
 	}
 	err = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&result)
+	// Only an explicit server decision lets a branch that started empty replace
+	// the saved version; a plain seal keeps withholding it.
+	if result.Action == "seal" && result.ColdPublish {
+		return "publish", err
+	}
 	return result.Action, err
+}
+
+func mountedGeneration(slot cachevolumes.Slot) any {
+	if slot.MountedGeneration <= 0 {
+		return nil
+	}
+	return slot.MountedGeneration
 }
 
 // runnerPod reports whether the request comes from the live runner pod it names
