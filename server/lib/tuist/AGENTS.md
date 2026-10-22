@@ -102,6 +102,7 @@ This directory contains the core business logic and domain modules for the serve
 - Ecto: `server/lib/tuist/ecto/AGENTS.md`
 - Github: `server/lib/tuist/github/AGENTS.md`
 - Http: `server/lib/tuist/http/AGENTS.md`
+- Idempotent Requests (report creation retries): `server/lib/tuist/idempotent_requests/AGENTS.md`
 - Ingestion: `server/lib/tuist/ingestion/AGENTS.md`
 - Key Value Store: `server/lib/tuist/key_value_store/AGENTS.md`
 - Kura: `server/lib/tuist/kura/AGENTS.md`
