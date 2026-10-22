@@ -32,6 +32,7 @@ on:
       - Slack Deployment
       - Server
       - Server Deployment
+      - Server Native
       - Server Kura Regional Deployment
       - Server Production Deployment
       - Tuist Ops Deployment

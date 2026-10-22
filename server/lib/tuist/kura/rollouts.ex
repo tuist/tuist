@@ -20,6 +20,11 @@ defmodule Tuist.Kura.Rollouts do
   the per-pod `/status/rollout` reports; it never crosses the public
   gateway.
 
+  A server whose image change waits on an operator procedure (the
+  controller's `status.imageHold`: a positively fenced instance, a replica
+  recovery's hold) is left out of convergence rather than holding its wave
+  open, and never counts as evidence that the target is healthy.
+
   Scheduling is at-most-once per rollout *attempt*, deliberately replacing
   the per-server-per-tag-lifetime invariant of the interim scheduler:
   resume means re-attempt (fresh deployments for every non-converged
@@ -242,7 +247,8 @@ defmodule Tuist.Kura.Rollouts do
 
   @doc """
   Per-wave progress for the ops view and the rollout metrics: account and
-  server counts, converged and soak-eligible servers, per wave.
+  server counts, converged, soak-eligible and operator-held servers, per
+  wave.
   """
   def wave_summary(%Rollout{id: id}) do
     accounts_by_wave =
@@ -261,7 +267,8 @@ defmodule Tuist.Kura.Rollouts do
         wave: rs.wave,
         servers: count(rs.id),
         converged: count(fragment("CASE WHEN ? IS NOT NULL THEN 1 END", rs.converged_at)),
-        soak_eligible: count(fragment("CASE WHEN ? THEN 1 END", rs.soak_eligible))
+        soak_eligible: count(fragment("CASE WHEN ? THEN 1 END", rs.soak_eligible)),
+        held: count(fragment("CASE WHEN ? IS NULL AND ? IS NOT NULL THEN 1 END", rs.converged_at, rs.held_reason))
       })
       |> Repo.all()
       |> Map.new(&{&1.wave, &1})
@@ -272,14 +279,15 @@ defmodule Tuist.Kura.Rollouts do
     |> Enum.uniq()
     |> Enum.sort()
     |> Enum.map(fn wave ->
-      servers = Map.get(server_rows, wave, %{servers: 0, converged: 0, soak_eligible: 0})
+      servers = Map.get(server_rows, wave, %{servers: 0, converged: 0, soak_eligible: 0, held: 0})
 
       %{
         wave: wave,
         accounts: Map.get(accounts_by_wave, wave, 0),
         servers: servers.servers,
         converged: servers.converged,
-        soak_eligible: servers.soak_eligible
+        soak_eligible: servers.soak_eligible,
+        held: servers.held
       }
     end)
   end
@@ -674,6 +682,7 @@ defmodule Tuist.Kura.Rollouts do
     scope_servers(rollout, max_wave(rollout))
     mint_missing_deployments(rollout)
     mark_convergences(rollout)
+    mark_operator_holds(rollout)
     recapture_ineligible_baselines(rollout)
 
     cond do
@@ -687,7 +696,7 @@ defmodule Tuist.Kura.Rollouts do
         # rollout record gates production promotion.
         pause_rollout(rollout, failure)
 
-      all_converged?(rollout) ->
+      all_converged?(rollout) and not held_without_evidence?(rollout) ->
         complete_rollout(rollout)
 
       deadline_exceeded?(rollout) ->
@@ -716,6 +725,7 @@ defmodule Tuist.Kura.Rollouts do
         scope_servers(rollout, rollout.current_wave)
         mint_missing_deployments(rollout)
         mark_convergences(rollout)
+        mark_operator_holds(rollout)
         recapture_ineligible_baselines(rollout)
 
         if failure = hard_failure(rollout) do
@@ -740,7 +750,8 @@ defmodule Tuist.Kura.Rollouts do
         # source's older image) has no RolloutServer row yet, so
         # `all_converged?` would say yes and complete the rollout with
         # that server still on the old image.
-        if all_converged?(rollout) and not unscoped_servers?(rollout, max_wave(rollout)) and
+        if all_converged?(rollout) and not held_without_evidence?(rollout) and
+             not unscoped_servers?(rollout, max_wave(rollout)) and
              is_nil(gate_failure(rollout)) do
           {:completed, complete_rollout(rollout)}
         else
@@ -1101,13 +1112,95 @@ defmodule Tuist.Kura.Rollouts do
     :ok
   end
 
+  # A held server waits on an operator procedure (`mark_operator_holds/1`),
+  # so it is left out: it would otherwise hold its wave open until the
+  # deadline paused the rollout, on every rollout until someone finished
+  # that procedure, and keep the whole fleet on the old image.
   defp all_converged?(rollout) do
     RolloutServer
     |> join(:inner, [rs], s in assoc(rs, :kura_server))
     |> where([rs], rs.kura_rollout_id == ^rollout.id and is_nil(rs.converged_at))
+    |> where([rs], is_nil(rs.held_reason))
     |> where([_rs, s], s.status not in ^@terminal_server_statuses)
     |> Repo.exists?()
     |> Kernel.not()
+  end
+
+  # Leaving held servers out of convergence must not let a wave pass on no
+  # evidence. The canary wave has to converge at least one server of its
+  # own before any customer wave schedules, and a rollout whose scope is
+  # entirely held proves nothing about the target. Later waves are judged
+  # with the evidence already gathered, as the fleet-wide gate is.
+  defp held_without_evidence?(rollout) do
+    scope =
+      RolloutServer
+      |> join(:inner, [rs], s in assoc(rs, :kura_server))
+      |> where([rs], rs.kura_rollout_id == ^rollout.id)
+      |> where([_rs, s], s.status not in ^@terminal_server_statuses)
+
+    scope =
+      if rollout.mode == :progressive and rollout.current_wave == 0,
+        do: where(scope, [rs], rs.wave == 0),
+        else: scope
+
+    held? = scope |> where([rs], is_nil(rs.converged_at) and not is_nil(rs.held_reason)) |> Repo.exists?()
+    held? and not (scope |> where([rs], not is_nil(rs.converged_at)) |> Repo.exists?())
+  end
+
+  # The controller publishes `status.imageHold` when the requested image
+  # waits on an operator procedure it never completes alone: a positively
+  # fenced instance keeps its runtime pin and `OnDelete` until an operator
+  # qualifies the image, replaces the standby and hands over, and a replica
+  # recovery leaves its rollout hold for an operator to lift. Bounded and
+  # rotating like `recapture_ineligible_baselines/1`, since each server costs
+  # a live read inside the rollout lock. An unreadable aggregate keeps the
+  # previous verdict rather than flipping on no evidence. A held server that
+  # later converges is gated like any other from then on.
+  defp mark_operator_holds(rollout) do
+    timestamp = now()
+
+    rollout_servers =
+      RolloutServer
+      |> join(:inner, [rs], s in assoc(rs, :kura_server))
+      |> where([rs], rs.kura_rollout_id == ^rollout.id and is_nil(rs.converged_at))
+      |> where([_rs, s], s.status not in ^@terminal_server_statuses)
+      |> order_by([rs], asc: rs.updated_at)
+      |> limit(@scope_batch_size)
+      |> preload([rs, s], kura_server: s)
+      |> Repo.all()
+
+    Enum.each(rollout_servers, fn rollout_server ->
+      held_reason =
+        case tick_rollout_health(rollout_server.kura_server) do
+          {:ok, %{image_hold: hold}} -> hold
+          {:ok, health} when is_map(health) -> nil
+          _ -> rollout_server.held_reason
+        end
+
+      {:ok, _} =
+        rollout_server
+        |> RolloutServer.update_changeset(%{held_reason: held_reason})
+        |> Ecto.Changeset.force_change(:updated_at, timestamp)
+        |> Repo.update()
+
+      record_hold_change(rollout, rollout_server, held_reason)
+    end)
+  end
+
+  defp record_hold_change(_rollout, %RolloutServer{held_reason: reason}, reason), do: :ok
+
+  defp record_hold_change(rollout, rollout_server, held_reason) do
+    {action, reason} =
+      if held_reason,
+        do: {"server_held", held_reason},
+        else: {"server_hold_released", rollout_server.held_reason}
+
+    record_event(rollout, action, "system", nil, %{
+      server_id: rollout_server.kura_server_id,
+      region: rollout_server.kura_server.region,
+      wave: rollout_server.wave,
+      hold: reason
+    })
   end
 
   # Hard signals pause immediately, whatever the soak clock says: a
@@ -1171,7 +1264,7 @@ defmodule Tuist.Kura.Rollouts do
         pause_rollout(rollout, {details.signal, details})
 
       nil ->
-        if all_converged?(rollout) do
+        if all_converged?(rollout) and not held_without_evidence?(rollout) do
           healthy_since = rollout.wave_healthy_since || now()
           rollout = persist_healthy_since(rollout, healthy_since)
 
@@ -1383,6 +1476,8 @@ defmodule Tuist.Kura.Rollouts do
       |> Rollout.update_changeset(%{status: :completed, completed_at: now()})
       |> Repo.update!()
 
+    cancel_held_deployments(rollout)
+
     record_event(rollout, "completed", "system", nil, %{})
     Notifier.notify(:completed, rollout, %{})
     rollout
@@ -1567,6 +1662,18 @@ defmodule Tuist.Kura.Rollouts do
         })
         |> Repo.update()
     end)
+  end
+
+  # A server can hold one open deployment, so a held server's would
+  # otherwise outlive the completed rollout and keep the next rollout from
+  # minting one for its own target. Cancelling leaves the requested image
+  # applied on the instance, which is what the operator qualifies.
+  defp cancel_held_deployments(rollout) do
+    RolloutServer
+    |> where([rs], rs.kura_rollout_id == ^rollout.id and is_nil(rs.converged_at))
+    |> where([rs], not is_nil(rs.held_reason))
+    |> Repo.all()
+    |> Enum.each(&cancel_open_deployment(&1, "rollout completed while the server waits on an operator image hold"))
   end
 
   defp cancel_open_deployment(%RolloutServer{deployment_id: nil}, _message), do: :ok

@@ -31,9 +31,6 @@ authentication for the module cache, and the
 In GitLab CI, combine snippets with `!reference`, because `extends` replaces
 `before_script`.
 
-Some accounts still get the Xcode and module caches in every macOS job
-automatically. There, those two steps change nothing, so you can add them now.
-
 ### Xcode cache {#xcode-cache}
 
 Keeps the store of Xcode's compilation cache on macOS runners.
@@ -326,28 +323,20 @@ are unsupported. Ignore workspace links without a trailing slash in `.gitignore`
 
 ## Saving changes {#saving-changes}
 
-The Xcode and module caches save the changes of successful jobs from your own
-repository. Jobs from forks start with empty caches and never save, and neither
-do failed or cancelled jobs or jobs that use neither cache.
-
-| Provider | Xcode and module caches |
-| --- | --- |
-| GitHub Actions | Successful jobs from the repository itself, including its pull requests |
-| Buildkite | Successful builds from the pipeline's own repository |
-| GitLab CI | Not saved yet: each job starts with empty caches |
-
-The Gradle cache and custom volumes save the changes of successful jobs:
+The managed caches and custom volumes save the changes of successful jobs from
+your own repository, on any branch:
 
 | Provider | Jobs that save changes |
 | --- | --- |
-| GitHub Actions | Push, schedule, manual dispatch and pull request jobs from the repository itself, on any branch |
-| Buildkite | Webhook and schedule builds on the default branch |
-| GitLab CI | Push, schedule and web pipelines on the default branch |
+| GitHub Actions | Push, schedule, manual dispatch and pull request jobs from the repository itself |
+| Buildkite | Webhook and schedule builds of the pipeline's repository, including its pull requests |
+| GitLab CI | Push, schedule and web pipelines of the project, and pipelines of its own merge requests when the connection has an <.localized_link href="/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines">API access token</.localized_link> |
 
-Other jobs, including fork pull requests, `pull_request_target` jobs, merge
-requests and tags, can use the cache, but their changes are discarded. A job
-that doesn't change a volume leaves the saved version in place. With GitHub
-Actions, you can narrow which branches save on the runner profile; see
+Other jobs can use the cache, but their changes are discarded. These include
+fork pull requests, `pull_request_target` jobs, Buildkite builds started from
+the API or the dashboard, GitLab merge requests from forks or without an API
+access token, and tags. A job that doesn't change a volume leaves the saved
+version in place. You can narrow which branches save on the runner profile; see
 [Choose which branches save](#choose-which-branches-save).
 
 Concurrent jobs work independently; changes from different jobs are not merged.
@@ -355,11 +344,11 @@ Never cache credentials or irreplaceable data.
 
 ### Choose which branches save {#choose-which-branches-save}
 
-For GitHub Actions, you can change which branches save the Gradle cache and
-custom volumes. Open **Runners → Profiles**, edit the profile your workflows use
-in `runs-on:`, and expand **Save cache from**. The settings apply to every
-volume used by jobs on that profile, including volumes created later. They don't
-apply to the Xcode and module caches.
+You can change which branches save the managed caches and custom volumes. Open
+**Runners → Profiles**, edit the profile your jobs use, and expand **Save cache
+from**. Jobs use the profile they request: in `runs-on:` on GitHub Actions, as
+the queue on Buildkite, or in `tags:` on GitLab CI. The settings apply to every
+volume used by jobs on that profile, including volumes created later.
 
 ![The runner profile form with the Save cache from section expanded, with Default branch turned on and develop and release/* added as additional branches](/images/guides/features/runners/save-cache-from.png)
 
@@ -371,25 +360,24 @@ only from some branches, turn on **Limit to specific branches**:
 - Under **Additional branches**, add up to 20 branch names that also save. Use
   `*` as a wildcard: `release/*` matches `release/1.0`.
 
-Successful push, schedule and manual-dispatch jobs, and pull requests from the
-same repository, save their changes when their branch matches. On push and
-manual-dispatch runs, a tag with a matching name also matches.
+The jobs listed in [Saving changes](#saving-changes) save their changes when
+their branch matches. On GitHub Actions push and manual-dispatch runs, a tag
+with a matching name also matches.
 
-Jobs on other branches can still use the cache, but their changes are discarded.
-Fork pull requests and `pull_request_target` jobs never save. Narrowing these
-settings or deleting the profile discards pending changes they no longer allow;
-a deleted profile falls back to saving from every branch. Buildkite and GitLab
-CI always save from the default branch.
+Jobs on other branches can still use the cache, but their changes are
+discarded. Jobs that never save, such as fork pull requests, don't save on a
+matching branch either. Narrowing these settings or deleting the profile
+discards pending changes they no longer allow; a deleted profile falls back to
+saving from every branch.
 
 ## Capacity and retention {#capacity-and-retention}
 
-The Xcode and module caches share storage that Tuist sizes and prunes for you,
-and they don't count against the capacity of the volumes below.
-
-The Gradle cache and each custom volume hold up to **20 GB** and expire after
-**7 days without a job mount**. The next job starts with an empty volume after
-expiry. The Gradle cache step has Gradle remove entries unused for seven days
-after every build.
+The Xcode cache holds up to **30 GB**. The module cache, the Gradle cache and
+each custom volume hold up to **20 GB**. All of them expire after **7 days
+without a job mount**, and the next job starts with an empty volume after
+expiry. Tuist prunes the Xcode and module caches to stay within their size, and
+the Gradle cache step has Gradle remove entries unused for seven days after
+every build.
 
 Custom volumes do not prune old dependencies: use your tool's cleanup settings
 to keep them small. Writes to a full volume can fail the job. When saved

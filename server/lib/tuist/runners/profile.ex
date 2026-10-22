@@ -23,9 +23,8 @@ defmodule Tuist.Runners.Profile do
   branch, unless turned off, and jobs on additional branches. See
   `Tuist.Runners.CacheVolumes`.
 
-  Cached checkouts, on by default, let macOS jobs start with their
-  repository already checked out while the `:runner_cached_checkouts` flag
-  is on for the account.
+  Cached checkouts, on by default, let macOS and Linux jobs start with
+  their repository already checked out.
 
   Backed by [priv/repo/migrations/20260527130000_create_runner_profiles.exs](priv/repo/migrations/20260527130000_create_runner_profiles.exs)
   and [priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs](priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs).

@@ -433,7 +433,9 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete;patch
+// +kubebuilder:rbac:groups="",resources=pods/resize,verbs=patch
+// +kubebuilder:rbac:groups=apps,resources=controllerrevisions,verbs=get
 // +kubebuilder:rbac:groups="",resources=pods/portforward,verbs=create
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
@@ -648,6 +650,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileCPUResizeHold(ctx, instance, time.Now()); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -679,8 +684,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	instance.Status.ImageHold = rollout.imageHold
 	if image, held := heldRuntimeImage(instance); held {
 		instance.Status.Phase = "Pending"
+		instance.Status.ImageHold = imageHoldFencedPin
 		instance.Status.Message = fmt.Sprintf("Requested runtime image %s is held at qualified image %s; qualify the new image before updating the fenced runtime pin", instance.Spec.Image, image)
 	}
 	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
@@ -3428,7 +3435,9 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 		if fencedServing(instance) || instance.Spec.ReplicaRecovery != nil || instance.Status.ReplicaRecovery != nil {
 			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
 			sts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted = appsv1.RetainPersistentVolumeClaimRetentionPolicyType
+			delete(sts.Annotations, cpuResizeHoldAnnotation)
 		}
+		holdCPURequestChange(sts, previousTemplate, time.Now())
 		return nil
 	})
 	return err
@@ -3542,7 +3551,7 @@ func podKuraImage(pod *corev1.Pod) string {
 // is told to budget and evicts down into it, so it is left alone.
 func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	if fencedServing(instance) {
-		return false, nil
+		return r.reconcileFencedDataStorageResize(ctx, instance)
 	}
 	desired := storageQuantity(instance)
 	if desired.IsZero() {
@@ -3996,6 +4005,7 @@ type rolloutState struct {
 	observedImage string
 	readyReplicas int32
 	message       string
+	imageHold     string
 }
 
 func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance) (rolloutState, error) {
@@ -4051,6 +4061,7 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 		phase:         "Pending",
 		observedImage: observedImage,
 		readyReplicas: readyReplicas,
+		imageHold:     operatorImageHold(instance, sts, replicas),
 		message: fmt.Sprintf(
 			"%d/%d replicas ready, %d/%d updated, observedGeneration=%t, revisionsMatch=%t",
 			readyReplicas,

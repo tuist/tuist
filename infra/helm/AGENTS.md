@@ -103,7 +103,8 @@ runs the mixed-version latency expression through promtool.
 - `k8s-monitoring/kura-availability-alert-rules.json` reflects the enabled rule,
   provisioned separately from Helm. Its zero-ready-replica expression and routing
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
-  Keep unavailable service separate from the 30-minute redundancy warning.
+  Keep unavailable service separate from the 30-minute redundancy warning, and keep
+  the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
 - Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
 - The managed production overlay enables the browser RUM gateway; the chart default remains disabled. Roll back by disabling that production override, restoring the direct Alloy backend and `/collect` rewrite.
 - When filtering metrics, preserve every side of absence-based alerts. The
@@ -163,9 +164,8 @@ runs the mixed-version latency expression through promtool.
   Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
   production rendering exercises the cache-volume agent's shared-tag fallback.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
   Canary and production enable them fleet-wide after the platform-index
   enablement migration. Self-hosting and staging stay off by default; staging's
   40 GiB cache quota cannot fit the built-in reservation and custom admission floor.

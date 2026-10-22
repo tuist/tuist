@@ -37,7 +37,29 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var browser: ASWebAuthenticationSession?
     private var apiWaiters: [CheckedContinuation<Void, Never>] = []
     private var accountModel: AtlasAIAccounts?
+    private var presenceModel: AtlasPresence?
     private var sessionIdentity = UUID()
+
+    var presence: AtlasPresence {
+        if let presenceModel { return presenceModel }
+        let open = authenticatedRequest(operation: "presence")
+        let model = AtlasPresence { action in
+            if action["action"] as? String == "open" { return try await open(action) }
+            var request = action
+            request["operation"] = "presence"
+            guard let input = String(bytes: try JSONSerialization.data(withJSONObject: request), encoding: .utf8) else {
+                throw AtlasAuthenticationError(kind: "invalid_request", message: "Could not encode presence request.")
+            }
+            let response = try await AtlasAuthBridge.execute(input)
+            let envelope = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any]
+            guard let result = envelope?["ok"] else {
+                throw AtlasAuthenticationError(kind: "closed", message: "Presence is disconnected.")
+            }
+            return try JSONSerialization.data(withJSONObject: result)
+        }
+        presenceModel = model
+        return model
+    }
 
     var accountSettings: AtlasAIAccounts {
         if let accountModel { return accountModel }
@@ -99,6 +121,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
 
     func signOut() {
         Task {
+            await presenceModel?.stop()
             await accountModel?.cancelLogin()
             await acquireAPI()
             defer { releaseAPI() }
@@ -111,6 +134,8 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
 
     private func discardSession(removeRegistration: Bool = false) throws {
         try AtlasSecureStorage.delete("session")
+        presenceModel?.setActive(false)
+        presenceModel = nil
         server = nil
         accountModel = nil
         sessionIdentity = UUID()
@@ -154,24 +179,37 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     }
 
     var holidayRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "time_off")
+    }
+
+    var businessRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "business")
+    }
+
+    private func authenticatedRequest(operation: String) -> ([String: Any]) async throws -> Data {
         let identity = sessionIdentity
         return { [weak self] action in
             guard let self, self.server != nil, self.sessionIdentity == identity else {
                 throw AtlasAuthenticationError(kind: "sign_in_required", message: "Sign in to Atlas again.")
             }
-            let session = try await self.holidaySession(identity: identity)
+            let session = try await self.apiSession(identity: identity)
             try Task.checkCancellation()
             guard self.sessionIdentity == identity else { throw CancellationError() }
             var request = action
-            request["operation"] = "time_off"
+            request["operation"] = operation
             request["session"] = session
             let response = try await self.command(request)
-            guard self.sessionIdentity == identity else { throw CancellationError() }
+            guard self.sessionIdentity == identity else {
+                if operation == "presence", let connection = response["connection"] as? String {
+                    _ = try? await self.command(["operation": "presence", "action": "close", "connection": connection])
+                }
+                throw CancellationError()
+            }
             return try JSONSerialization.data(withJSONObject: response)
         }
     }
 
-    private func holidaySession(identity: UUID) async throws -> [String: Any] {
+    private func apiSession(identity: UUID) async throws -> [String: Any] {
         await acquireAPI()
         defer { releaseAPI() }
         try Task.checkCancellation()

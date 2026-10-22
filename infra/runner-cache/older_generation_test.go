@@ -3,6 +3,7 @@ package cachevolumes
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func TestAPFSMountsAnOlderGenerationWhenItsBaseIsNotLocal(t *testing.T) {
 	if len(remote.downloads()) != 0 {
 		t.Fatal("downloaded the base inside the job's budget instead of mounting an older master")
 	}
-	if data, _ := os.ReadFile(b.image(slot)); string(data) != "generation 2" {
+	if data, _ := os.ReadFile(filepath.Join(apfsPath(t, b, slot), SharedImageName)); string(data) != "generation 2" {
 		t.Fatalf("cloned %q, want the newest older generation", data)
 	}
 	if got := b.MountedGeneration(slot); got != 2 {

@@ -20,6 +20,7 @@ type volumeMetrics struct {
 	capacity    prometheus.Gauge
 	reserve     prometheus.Gauge
 	maintenance prometheus.Gauge
+	checkouts   prometheus.Gauge
 	logger      *slog.Logger
 }
 
@@ -32,8 +33,9 @@ func newVolumeMetrics(logger *slog.Logger, reserve uint64) *volumeMetrics {
 		capacity:    prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cache_volume_filesystem_capacity_bytes", Help: "Capacity of the dedicated cache filesystem."}),
 		reserve:     prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cache_volume_filesystem_reserve_bytes", Help: "Free-space reserve required for new allocations."}),
 		maintenance: prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cache_volume_maintenance_last_success_timestamp_seconds", Help: "Last successful reconciliation, or zero before the first success."}),
+		checkouts:   prometheus.NewGauge(prometheus.GaugeOpts{Name: "tuist_runner_cached_checkouts_ready", Help: "1 while this host builds and serves cached checkouts, 0 while it lacks git or git-lfs."}),
 	}
-	m.registry.MustRegister(m.operations, m.duration, m.free, m.capacity, m.reserve, m.maintenance)
+	m.registry.MustRegister(m.operations, m.duration, m.free, m.capacity, m.reserve, m.maintenance, m.checkouts)
 	m.reserve.Set(float64(reserve))
 	return m
 }
@@ -51,6 +53,7 @@ func (m *volumeMetrics) observe(o cachevolumes.Observation) {
 			level = slog.LevelWarn
 		}
 		fields := []any{"operation", o.Operation, "source", o.Source, "result", result, "duration_ms", o.Duration.Milliseconds()}
+		fields = append(fields, o.Subject.Fields()...)
 		var remote *cachevolumes.RemoteError
 		if errors.As(o.Err, &remote) {
 			fields = append(fields, "remote_operation", remote.Operation, "http_status", remote.StatusCode)

@@ -48,15 +48,20 @@ conclusion="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json concl
 jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")"
 jq -r '.jobs[] | "- \(.name): \(.conclusion // .status)"' <<< "${jobs}" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
-[ "${conclusion}" = success ] && exit 0
-
-jq -r '.jobs[] | select(.conclusion != "success" and .conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${jobs}" |
+# Cache volume failures are reported but never block: the volume steps run with
+# continue-on-error, so they leave the run successful, and are re-raised here
+# as warnings. Every other layer's failure fails the gate.
+jq -r '.jobs[] | select(.conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${jobs}" |
   while IFS=$'\t' read -r job_id name; do
     gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" \
       --jq '.[] | select(.annotation_level == "failure" and (.title // "") != "") | "\(.title)\t\(.message)"' |
       while IFS=$'\t' read -r title message; do
-        echo "::error title=${title} (${ENVIRONMENT})::${name}: ${message}"
-        printf -- '- **%s** on %s: %s\n' "${title}" "${name}" "${message}" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+        level=error
+        [ "${title}" = "Cache volumes" ] && level=warning
+        echo "::${level} title=${title} (${ENVIRONMENT})::${name}: ${message}"
+        printf -- '- %s **%s** on %s: %s\n' "${level}" "${title}" "${name}" "${message}" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
       done
   done
+
+[ "${conclusion}" = success ] && exit 0
 fail "Runners acceptance" "the runners or their cache are broken on ${ENVIRONMENT} (${conclusion}): ${url}"

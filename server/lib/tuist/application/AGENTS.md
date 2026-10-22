@@ -5,6 +5,7 @@
 - `Tuist.Application.prep_stop/1` calls `EndpointDrainer` before the application supervision tree stops. It drains Phoenix sockets and Bandit connections while Oban and endpoint configuration remain available.
 - Drain socket transports before the Bandit servers, following Phoenix's shutdown order. Terminate children through their supervisor so they are not restarted; leave endpoint configuration alive for Oban's subsequent job drain.
 - `RuntimeChildren` derives role-specific children without starting processes. Configured discovery starts before database/traffic children so connections can converge before serving requests; a later startup failure can still churn membership. Its `retain_cluster_node/1` callback prevents DNS polling from explicitly disconnecting healthy peers, not actual node/TCP failure or OTP partition prevention. A shared cookie makes image upgrades mixed-version clusters; the first migration from image-baked cookies temporarily leaves separate islands.
+- Keep the dedicated `:display` Cachex cache before its PubSub invalidator; membership recovery must never flush the general `:tuist`, authentication or license caches. The independent `:license` cache also retains only a short upstream-validation retry entry on failures.
 - Start the disposable `Tuist.OpenGraphImages` generation cache before the endpoint. Its Cachex data and per-key claims owner restart together; a restart may fail cold requests transiently, but published images remain available from shared storage.
 - Startup references across the application boundary require exports in `Tuist`,
   including `ClickHouseRepo.PromExPlugin` for read-telemetry attachment.
@@ -18,4 +19,4 @@ Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Appli
 
 ## Replica-safety rollout
 
-Boot Kura reconciliation is enqueued through the existing unique Oban worker instead of running once in every boot task. Keep best-effort test-ingestion enrichments on the existing detached `Tuist.Tasks` path; they do not require an application-level task supervisor, drainer or extra pod grace. Required analytics buffer shutdown and shadow-write draining retain their existing lifecycles; neither makes acknowledged in-memory staging durable across hard replica loss.
+Boot Kura reconciliation is enqueued through the existing unique Oban worker instead of running once in every boot task. Keep best-effort test-ingestion enrichments on the existing detached `Tuist.Tasks` path; they do not require an application-level task supervisor, drainer or extra pod grace. Required analytics buffer shutdown retains its existing lifecycle; it does not make acknowledged in-memory staging durable across hard replica loss.

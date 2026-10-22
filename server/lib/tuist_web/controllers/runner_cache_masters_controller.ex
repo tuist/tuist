@@ -47,7 +47,8 @@ defmodule TuistWeb.RunnerCacheMastersController do
             :image_digest,
             :content_digest,
             :download_url,
-            :volume_bytes
+            :volume_bytes,
+            :head_size_bytes
           ])
         end)
 

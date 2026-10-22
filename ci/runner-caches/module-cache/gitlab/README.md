@@ -25,9 +25,13 @@ The snippet sets `TUIST_XDG_CACHE_HOME` to the cache and `TUIST_CACHE_MAX_BYTES`
 to its share of the storage, so the Tuist CLI evicts the least recently used
 binaries before the cache fills up.
 
-Tuist does not yet verify GitLab jobs for its built-in caches, so on GitLab the
-cache starts empty and is not saved. Once Tuist verifies GitLab jobs, the same
-snippet starts saving with no pipeline change.
+Successful push, schedule and web pipelines of your project save their changes,
+on any branch. Tag pipelines and merge request pipelines use the cache but don't
+save, unless the GitLab connection has an API access token and the merge
+request comes from the project itself; see
+[Merge request pipelines](https://tuist.dev/en/docs/guides/features/runners/ci-providers/gitlab-ci#merge-request-pipelines).
+To save only from some branches, limit them on the runner profile; see
+[Choose which branches save](https://tuist.dev/en/docs/guides/features/runners/cache-volumes#choose-which-branches-save).
 
 On runners that are not Tuist macOS runners the snippet does nothing. If the
 runner could not restore the cache, it warns and the job runs with an empty

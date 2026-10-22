@@ -5,6 +5,8 @@ import SwiftUI
 struct AtlasSettingsPreview: App {
     @State private var openedURL: URL?
     @StateObject private var holidays = AtlasTimeOffPreviewData()
+    @StateObject private var business = AtlasBusinessPreviewData()
+    @StateObject private var presence = AtlasPresencePreviewData()
     @StateObject private var accounts = AtlasAIAccounts { request in
         let response: String
         switch request["action"] as? String {
@@ -33,8 +35,9 @@ struct AtlasSettingsPreview: App {
         WindowGroup {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("--workspace") {
-                    AtlasWorkspaceView(server: URL(string: "https://atlas.example.org")!, holidayRequest: holidays.request) {
-                        AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                    AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request, presence: presence.model) {
+                        AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts,
+                                          signOut: {}, profileRequest: business.request)
                     }
                 } else {
                     NavigationStack {
@@ -64,5 +67,44 @@ struct AtlasSettingsPreview: App {
             .preferredColorScheme(ProcessInfo.processInfo.arguments.contains("--dark") ? .dark : .light)
             .dynamicTypeSize(ProcessInfo.processInfo.arguments.contains("--large-text") ? .accessibility2 : .large)
         }
+    }
+}
+
+@MainActor
+private final class AtlasPresencePreviewData: ObservableObject {
+    private var sequence = 0
+    private var location: [String: String] = [:]
+    private var waiting: CheckedContinuation<Data, Never>?
+    lazy var model = AtlasPresence { [self] action in
+        switch action["action"] as? String {
+        case "open": return Data("{\"connection\":\"preview-only\"}".utf8)
+        case "update":
+            location = [:]
+            for field in ["resource", "id"] {
+                if let value = action[field] as? String { location[field] = value }
+            }
+            sequence += 1
+            waiting?.resume(returning: snapshot())
+            waiting = nil
+            return Data("{\"updated\":true}".utf8)
+        case "next":
+            if (action["after"] as? UInt64 ?? 0) < sequence { return snapshot() }
+            return await withCheckedContinuation { waiting = $0 }
+        default:
+            sequence += 1
+            waiting?.resume(returning: snapshot())
+            waiting = nil
+            return Data("{\"closed\":true}".utf8)
+        }
+    }
+
+    private func snapshot() -> Data {
+        try! JSONSerialization.data(withJSONObject: [
+            "sequence": sequence, "location": location,
+            "people": [
+                ["id": "online", "name": "Alex Morgan", "email": "alex@example.org", "online": true, "here": true],
+                ["id": "offline", "name": "Sam Rivera", "email": "sam@example.org", "online": false, "here": false]
+            ]
+        ])
     }
 }

@@ -58,6 +58,12 @@ defmodule Tuist.Runners do
   started. `UnstartedExecutionsWorker` is the backstop for a delivery
   that never lands.
 
+  The webhook arrives seconds after GitHub starts B, so dispatch can
+  hand B to another Pod in between. That Pod's runner is idle and
+  carries the same labels, so A moves onto its claim instead of the
+  queue, and B's row moves off its stale handle onto the Pod running it.
+  Re-queueing A there would reserve one Pod more than there are jobs.
+
   ## Who releases a claim, and why there is a backstop
 
   A claim is a reservation against the account's concurrency budget.
@@ -180,6 +186,10 @@ defmodule Tuist.Runners do
   # up and throughput matters more than any single job's warmth.
   @volume_affinity_age_tolerance_seconds 30
 
+  # The queued jobs the controller places new Pods for, each on a Node holding
+  # its volumes.
+  @preferred_node_candidates 5
+
   defp volume_affinity_top_k do
     Application.get_env(:tuist, :runner_volume_affinity_top_k, @volume_affinity_top_k)
   end
@@ -198,20 +208,6 @@ defmodule Tuist.Runners do
   # reordered for one.
   defp builtin_volumes?(fleet_name) do
     Catalog.fleet_platform(fleet_name) == :macos
-  end
-
-  @doc """
-  Whether the account's macOS jobs keep the Xcode and module caches on their own
-  custom volumes, which their CI integrations attach, instead of the built-in
-  volume.
-  """
-  def managed_cache_volumes?(account) do
-    FeatureFlags.runner_opt_in_caches_enabled?(account) and
-      FeatureFlags.runner_managed_cache_volumes_enabled?(account)
-  end
-
-  defp managed_cache_volumes?(fleet_name, account) do
-    builtin_volumes?(fleet_name) and managed_cache_volumes?(account)
   end
 
   # Both fleets keep custom cache volume masters on their hosts and advertise
@@ -708,6 +704,13 @@ defmodule Tuist.Runners do
       occupied runner sessions over active one-minute buckets in
       the last hour (Postgres). Keeps sparse but real bursts warm
       and includes post-job cache and teardown time.
+    * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
+      job, most imminent first, that holds the custom volumes the job is
+      predicted to attach and has cache room for them
+      (`VolumeAffinities.preferred_nodes/3`). The controller prefers the
+      i-th Node for the i-th Pod it creates, so a job lands where its
+      volumes already are without stacking jobs on a host that cannot
+      hold their volumes together.
 
   The controller composes these into a desired-replica value
   using its CRD-bound knobs (`minWarmPoolFloor`, `maxReplicas`)
@@ -725,8 +728,20 @@ defmodule Tuist.Runners do
       occupied: occupied,
       queued: queued,
       withheld: withheld,
-      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name)
+      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
+      preferred_nodes: preferred_nodes(fleet_name)
     }
+  end
+
+  # macOS Pods are placed before a job is assigned, so the queued jobs are the
+  # only hint of which volumes the next Pod will need.
+  defp preferred_nodes(fleet_name) do
+    with true <- builtin_volumes?(fleet_name),
+         {:ok, candidates} <- Jobs.pick_queued_top_k(fleet_name, [], [], @preferred_node_candidates) do
+      VolumeAffinities.preferred_nodes(fleet_name, candidates, @preferred_node_candidates)
+    else
+      _ -> []
+    end
   end
 
   # Returns `{dispatchable, withheld}`.
@@ -1249,9 +1264,9 @@ defmodule Tuist.Runners do
           # runs a different one. The volume and untrusted labels ride the same
           # patch so the host sees them atomically. See stamp_account_label/5.
           #
-          # A job on managed cache volumes keeps its caches on custom volumes, so the
-          # host neither materializes nor promotes the built-in one for it.
-          builtin_volume? = trusted and not managed_cache_volumes?(fleet_name, account)
+          # macOS jobs keep their Xcode and module caches on custom volumes, so the
+          # host neither materializes nor promotes the built-in one for them.
+          builtin_volume? = trusted and not builtin_volumes?(fleet_name)
           stamp_account_label(namespace, pod_name, account, volume_name, builtin_volume?)
 
           record_affinity_outcome(fleet_name, affinity_outcome, trusted)

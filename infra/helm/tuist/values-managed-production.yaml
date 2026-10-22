@@ -408,10 +408,11 @@ pdcAgent:
   # single replica would make a node drain take every PDC-routed panel down.
   # Three is Grafana's production recommendation.
   replicas: 3
-  # Pin the tunnel to the CNPG read-only service. Without this the agent
-  # permits any destination reachable from its pod, not just Postgres.
+  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
+    - tuist-tuist-clickhouse.tuist.svc.cluster.local:8123
 
 capi:
   vultrPrivateNetwork:
@@ -580,13 +581,6 @@ postgresql:
       destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
-  # The in-cluster ClickHouse is production's system of record (spec #73).
-  # Every workload reads and writes it through TUIST_CLICKHOUSE_URL, and
-  # ClickHouse Cloud receives nothing.
-  #
-  # Going back to `external` does not copy anything back: rows written since
-  # the switch exist only on the in-cluster server.
-  mode: managed
   managed:
     enabled: true
     # Two from the start, one per AX102-4 in the `clickhouse` pool
@@ -1432,7 +1426,23 @@ rackFleet:
     # guest slot can transiently hold its running Pod plus a predecessor GC has
     # not collected yet.
     maxPods: 5
-    runnerCacheVolumeGiB: 240
+    # Shared built-in/custom cache budget on the 1858 GiB disk, enforced by
+    # tart-kubelet (`--runner-cache-budget-gib`). Planning allowance: 512 GiB
+    # cache + up to 540 GiB goldens (every catalog image; hosts usually hold
+    # 1 to 3) + 280 GiB guest disks + 100 GiB host data, which stays above the
+    # 15% (279 GiB) free floor cache admission and the golden GC keep.
+    #
+    # The volume's APFS quota is half the disk (929 GiB), fixed when the
+    # volume is created, so a budget up to that applies with the next
+    # host-config push. A host whose volume predates that keeps its 240 GiB
+    # quota until it is reinstalled (`tuist.dev/os-reinstall`, see
+    # infra/cluster-api-provider-tuist/AGENTS.md).
+    #
+    # The gap between this budget and the quota is the safeguard for custom
+    # cache volumes: admission reserves what a job is expected to write, not its
+    # capacity, so a job that writes more lands in that gap. Keep the budget well
+    # below the quota (infra/tart-kubelet/custom-cache-volumes.md).
+    runnerCacheVolumeGiB: 512
   # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
   # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image
   # is a macOS 26 guest, which fits the hosts' macOS 27.

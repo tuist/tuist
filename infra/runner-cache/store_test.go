@@ -438,3 +438,23 @@ func TestCleanupDoesNotBlockAllocationAndRechecksLease(t *testing.T) {
 		t.Fatal("removed newly acquired mailbox", err)
 	}
 }
+
+func TestInUseFollowsTheBranchesThatHoldAScope(t *testing.T) {
+	s, _ := newStore(t)
+	scope := identity(first).Scope
+	if s.InUse(scope) {
+		t.Fatal("an empty journal holds a scope")
+	}
+	if _, err := s.Acquire(context.Background(), identity(first), "p1", "u1"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.InUse(scope) || s.InUse(strings.Repeat("b", 64)) {
+		t.Fatal("an active branch does not hold only its own scope")
+	}
+	if err := s.Reconcile(func(string, string) (bool, error) { return true, nil }, func(Slot, bool) (string, error) { return "delete", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if s.InUse(scope) {
+		t.Fatal("a deleted branch still holds its scope")
+	}
+}

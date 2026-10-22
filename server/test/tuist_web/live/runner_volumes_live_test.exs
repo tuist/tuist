@@ -10,7 +10,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
-  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerVolumesLive
 
   defp assigns(can_manage) do
@@ -506,18 +505,79 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
   end
 
-  test "detail warns when the saved snapshot is too full to reuse" do
+  test "detail warns when the saved snapshot is too full for the capacity the next job gets" do
     assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate()}
     data = assigns.data.result
-    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+    saved = %{saved_bytes: 17_000_000_000, saved_capacity_bytes: 20_000_000_000, head_volume_bytes: 20_000_000_000}
+    full = Map.update!(data.stats, volume.id, &Map.merge(&1, saved))
+    full_data = %{data | stats: full, volumes: [volume]}
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: volume, data: AsyncResult.ok(full_data)})
 
     assert html =~ ~s(id="volume-full-alert")
     assert html =~ "This volume is almost full"
+    assert html =~ "17.0 GB of 20.0 GB"
 
-    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    grown = %{volume | requested_volume_bytes: 50_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: grown,
+          data: AsyncResult.ok(%{full_data | volumes: [grown]})
+      })
+
     refute html =~ ~s(id="volume-full-alert")
+
+    roomy = Map.update!(data.stats, volume.id, &Map.merge(&1, %{saved | saved_bytes: 10_000_000_000}))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: roomy, volumes: [volume]})
+      })
+
+    refute html =~ ~s(id="volume-full-alert")
+  end
+
+  test "detail shows the volume's capacity and a smaller size pending until the next clear" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate(), requested_volume_bytes: 5_000_000_000}
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :head_volume_bytes, 50_000_000_000))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    capacity = html |> Floki.parse_document!() |> Floki.find("#volume-capacity") |> Floki.text()
+    assert capacity =~ "50.0 GB"
+    assert html =~ ~s(id="volume-pending-size-alert")
+    assert html =~ "Saved at 50.0 GB. New contents will use 5.0 GB after the next clear."
+
+    larger = %{volume | requested_volume_bytes: 100_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: larger,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [larger]})
+      })
+
+    refute html =~ ~s(id="volume-pending-size-alert")
+
+    inventory =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: nil,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    assert inventory =~ "50.0 GB"
   end
 
   test "reader sees metrics but no mutation controls" do
@@ -547,14 +607,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     }
 
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("confirm", %{}, socket)
-  end
-
-  test "the built-in volume page is not found for accounts that still get it automatically" do
-    id = Ecto.UUID.generate()
-    expect(CacheVolumes, :get, fn 1, ^id -> %Volume{id: id, key: "tuist-cache", builtin_name: "tuist-cache"} end)
-    socket = %Socket{assigns: %{__changed__: %{}, selected_account: %{id: 1}, include_builtin: false}}
-
-    assert_raise NotFoundError, fn -> RunnerVolumesLive.handle_params(%{"id" => id}, "", socket) end
   end
 
   test "requesting another account's volume never opens confirmation" do

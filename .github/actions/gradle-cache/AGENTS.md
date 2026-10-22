@@ -7,6 +7,10 @@ GitLab entry points are in `ci/runner-caches/gradle-cache/`.
   calls the installed `tuist-cache-volume` client (Linux and macOS images) with
   key `tuist-gradle` and `$GRADLE_USER_HOME/{caches,wrapper}`. The `tuist-` prefix keeps
   it apart from keys customers pick for `tuist/cache-volume`. No server flag gates it.
+- The optional `size` input (`TUIST_GRADLE_CACHE_SIZE`; Buildkite `size`,
+  GitLab `TUIST_GRADLE_CACHE_SIZE`) is passed as `--size` only when the client's
+  `-h` output lists `-size`. Older clients attach without it and the step warns.
+  A size the client rejects is a client failure: it warns and never fails the job.
 - The init script it writes must stay byte-identical across `setup.sh`, the
   Buildkite hook and the GitLab snippet; `ci/runner-caches/integrations_test.sh`
   enforces it. It must never fail a build: look the cleanup API up dynamically

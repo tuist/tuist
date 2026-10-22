@@ -46,6 +46,70 @@ defmodule Atlas.Finance.Invoices do
     |> Repo.get(id)
   end
 
+  def manual?(%Invoice{document_id: nil, finance_transaction_id: nil, metadata: %{"source" => "manual"}}), do: true
+  def manual?(_invoice), do: false
+
+  def create_manual_invoice(attrs, actor, opts \\ []) do
+    %Invoice{status: "needs_review", metadata: %{"source" => "manual", "created_by_id" => actor.id}}
+    |> Invoice.manual_changeset(attrs)
+    |> Repo.insert()
+    |> audit_manual_result("finance_invoice.created", actor, opts)
+  end
+
+  def update_manual_invoice(id, attrs, actor, opts \\ []) do
+    mutate_manual_invoice(id, fn invoice ->
+      invoice |> Invoice.manual_changeset(attrs) |> Repo.update()
+    end)
+    |> audit_manual_result("finance_invoice.updated", actor, opts)
+  end
+
+  def delete_manual_invoice(id, actor, opts \\ []) do
+    mutate_manual_invoice(id, &Repo.delete/1)
+    |> audit_manual_result("finance_invoice.deleted", actor, opts)
+  end
+
+  def monthly_invoice_totals do
+    Invoice
+    |> where([invoice], not is_nil(invoice.invoice_date) and not is_nil(invoice.total_amount_value))
+    |> where([invoice], not is_nil(invoice.total_amount_currency))
+    |> group_by([invoice], [fragment("to_char(?, 'YYYY-MM')", invoice.invoice_date), invoice.total_amount_currency])
+    |> select([invoice], %{
+      month: fragment("to_char(?, 'YYYY-MM')", invoice.invoice_date),
+      currency: invoice.total_amount_currency,
+      amount: sum(invoice.total_amount_value)
+    })
+    |> order_by([invoice], [fragment("to_char(?, 'YYYY-MM')", invoice.invoice_date), invoice.total_amount_currency])
+    |> Repo.all()
+    |> Enum.map(&Map.update!(&1, :amount, fn amount -> Decimal.to_string(amount, :normal) end))
+  end
+
+  defp mutate_manual_invoice(id, fun) do
+    case Ecto.UUID.cast(id) do
+      {:ok, id} ->
+        Repo.transaction(fn ->
+          invoice = Invoice |> where(id: ^id) |> lock("FOR UPDATE") |> Repo.one()
+
+          if is_nil(invoice), do: Repo.rollback(:not_found)
+          if not manual?(invoice), do: Repo.rollback(:read_only)
+
+          case fun.(invoice) do
+            {:ok, invoice} -> invoice
+            {:error, reason} -> Repo.rollback(reason)
+          end
+        end)
+
+      :error ->
+        {:error, :not_found}
+    end
+  end
+
+  defp audit_manual_result({:ok, invoice} = result, action, actor, opts) do
+    audit_invoice(action, invoice, [], Keyword.put(opts, :actor, actor))
+    result
+  end
+
+  defp audit_manual_result(error, _action, _actor, _opts), do: error
+
   def get_invoice_by_document(%Document{id: document_id}), do: get_invoice_by_document(document_id)
 
   def get_invoice_by_document(document_id) when is_binary(document_id) do

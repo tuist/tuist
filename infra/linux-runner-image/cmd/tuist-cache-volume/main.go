@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -25,19 +26,33 @@ type paths []string
 func (p *paths) String() string         { return fmt.Sprint([]string(*p)) }
 func (p *paths) Set(value string) error { *p = append(*p, value); return nil }
 
+const maxPaths = 16
+
 var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
 var directoryPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+var sizePattern = regexp.MustCompile(`(?i)^([0-9]{1,3})gb$`)
 var errInvalidPath = errors.New("invalid cache path")
+var errArguments = errors.New("invalid arguments")
 var errExecutionPending = errors.New("GitHub had not yet reported which job this runner is running, so the Tuist server could not authorize a volume in time")
 var hexComponent = regexp.MustCompile(`^[0-9a-f]{8,}$`)
 
 func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
 
+// parseSize returns the requested capacity in bytes for a size such as 50gb.
+func parseSize(value string) (int64, error) {
+	if match := sizePattern.FindStringSubmatch(value); match != nil {
+		if gb, err := strconv.Atoi(match[1]); err == nil && gb >= 1 && gb <= 100 {
+			return int64(gb) * 1_000_000_000, nil
+		}
+	}
+	return 0, fmt.Errorf("invalid cache volume size %q: use a whole number of GB from 1gb to 100gb, such as 50gb", value)
+}
+
 func main() {
 	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
 		var err error
-		if os.Args[1] == "mount-worker" && len(os.Args) == 2 {
-			err = mountWorker()
+		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "local")) {
+			err = mountWorker(len(os.Args) == 3)
 		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
 			err = serveMounts(os.Args[2], os.Args[3])
 		} else {
@@ -49,28 +64,35 @@ func main() {
 		}
 		return
 	}
-	detach := flag.Bool("detach-all", false, "Detach macOS volumes after the job")
-	checkout := flag.String("checkout", "", "Mount the job's cached checkout at this workspace (macOS, before the first step)")
-	export := flag.Bool("checkout-export", false, "Hand the host what the job's checkout added (macOS, after the job)")
-	key := flag.String("key", "", "Stable cache name; change it to invalidate")
-	var targets paths
-	flag.Var(&targets, "path", "Directory to cache (repeatable; relative to the working directory)")
-	flag.Parse()
-	if *checkout != "" {
+	opts, err := parseArguments(os.Args[1:], os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return
+	}
+	if err != nil {
+		if !errors.Is(err, errArguments) {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(2)
+	}
+	if opts.checkout != "" {
 		// Never fails the job: without a cached checkout, actions/checkout clones as usual.
 		if runtime.GOOS == "darwin" {
-			fmt.Println("Tuist cached checkout: " + checkoutMac(*checkout))
+			fmt.Println("Tuist cached checkout: " + checkoutMac(opts.checkout))
+		} else {
+			fmt.Println("Tuist cached checkout: " + checkoutLinux(opts.checkout))
 		}
 		return
 	}
-	if *export {
+	if opts.export {
 		// Never fails the teardown: without an export the host keeps its master.
 		if runtime.GOOS == "darwin" {
 			fmt.Println("Tuist cached checkout export: " + exportCheckoutMac())
+		} else {
+			fmt.Println("Tuist cached checkout export: " + exportCheckoutLinux())
 		}
 		return
 	}
-	if *detach {
+	if opts.detach {
 		if runtime.GOOS != "darwin" {
 			os.Exit(2)
 		}
@@ -80,14 +102,10 @@ func main() {
 		}
 		return
 	}
-	if !keyPattern.MatchString(*key) || len(targets) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: tuist-cache-volume --key NAME --path DIR [--path DIR]")
-		os.Exit(2)
+	if contentHashedKey(opts.key) {
+		fmt.Fprintf(os.Stderr, "::notice::Cache volume key %q looks like it contains a content hash. Every new key starts an empty volume; use a stable name and let your tools update the saved contents.\n", opts.key)
 	}
-	if contentHashedKey(*key) {
-		fmt.Fprintf(os.Stderr, "::notice::Cache volume key %q looks like it contains a content hash. Every new key starts an empty volume; use a stable name and let your tools update the saved contents.\n", *key)
-	}
-	if err := attach(*key, targets); err != nil {
+	if err := attach(opts.key, opts.targets, opts.size); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		if errors.Is(err, errInvalidPath) {
 			os.Exit(2)
@@ -95,7 +113,60 @@ func main() {
 		os.Exit(1)
 	}
 }
-func attach(key string, targets []string) error {
+
+type options struct {
+	detach   bool
+	checkout string
+	export   bool
+	key      string
+	targets  []string
+	size     int64
+}
+
+// parseArguments validates the command line before anything is acquired. The
+// size is zero when --size is absent.
+func parseArguments(args []string, output io.Writer) (options, error) {
+	flags := flag.NewFlagSet("tuist-cache-volume", flag.ContinueOnError)
+	flags.SetOutput(output)
+	detach := flags.Bool("detach-all", false, "Detach macOS volumes after the job")
+	checkout := flags.String("checkout", "", "Mount the job's cached checkout at this workspace (before the first step)")
+	export := flags.Bool("checkout-export", false, "Hand the host what the job's checkout added (after the job)")
+	key := flags.String("key", "", "Stable cache name; change it to invalidate")
+	var targets paths
+	flags.Var(&targets, "path", "Directory to cache (repeatable, up to 16; relative to the working directory)")
+	size := flags.String("size", "", "Volume capacity, a whole number of GB from 1gb to 100gb, such as 50gb")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return options{}, err
+		}
+		// The flag set has already printed the error and the usage.
+		return options{}, errArguments
+	}
+	if *checkout != "" {
+		return options{checkout: *checkout}, nil
+	}
+	if *export {
+		return options{export: true}, nil
+	}
+	if *detach {
+		return options{detach: true}, nil
+	}
+	if !keyPattern.MatchString(*key) || len(targets) == 0 {
+		return options{}, errors.New("usage: tuist-cache-volume --key NAME --path DIR [--path DIR] [--size NGB]")
+	}
+	if len(targets) > maxPaths {
+		return options{}, fmt.Errorf("a cache volume takes at most %d paths", maxPaths)
+	}
+	result := options{key: *key, targets: targets}
+	var err error
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "size" {
+			result.size, err = parseSize(*size)
+		}
+	})
+	return result, err
+}
+func attach(key string, targets []string, size int64) error {
 	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	root := "/home/runner/work/_tuist_cache"
 	if runtime.GOOS == "darwin" {
@@ -105,15 +176,15 @@ func attach(key string, targets []string) error {
 		root = "/__w/_tuist_cache"
 	}
 	if runtime.GOOS == "darwin" {
-		return attachMac(key, targets, root)
+		return attachMac(key, targets, root, size)
 	}
-	return attachWithClient(key, targets, root, client)
+	return attachWithClient(key, targets, root, size, client)
 }
-func attachWithClient(key string, targets []string, root string, client *http.Client) error {
-	return attachWithMounter(key, targets, root, client, bindDirectory)
+func attachWithClient(key string, targets []string, root string, size int64, client *http.Client) error {
+	return attachWithMounter(key, targets, root, size, client, bindDirectory)
 }
-func attachWithMounter(key string, targets []string, root string, client *http.Client, mount func(string, string, string) error) error {
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key) }, mount)
+func attachWithMounter(key string, targets []string, root string, size int64, client *http.Client, mount func(string, string, string) error) error {
+	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquire(client, key, size) }, mount)
 }
 func attachUsing(key string, targets []string, root string, getVolume func() (string, string, bool, error), mount func(string, string, string) error) error {
 	// Validate all paths before acquiring storage. Never replace existing content.
@@ -172,17 +243,19 @@ func attachUsing(key string, targets []string, root string, getVolume func() (st
 	if err != nil || lease == "" || string(proof) != lease {
 		return coldDirectories(absolute)
 	}
-	for i, path := range absolute {
-		// The configured path spelling is the identity within the volume. Relative
-		// paths remain stable when runner and Docker workspace prefixes differ.
-		sourceName := "data"
-		if len(targets) > 1 {
-			sourceName = digest(filepath.Clean(targets[i]))
-		}
-		source := filepath.Join(base, sourceName)
-		if err := os.MkdirAll(source, 0777); err != nil {
+	sourceNames, manifest := volumeLayout(base, targets)
+	for _, sourceName := range sourceNames {
+		if err := os.MkdirAll(filepath.Join(base, sourceName), 0777); err != nil {
 			return err
 		}
+	}
+	if manifest != nil {
+		if err := writeManifest(base, manifest); err != nil {
+			fmt.Fprintf(os.Stderr, "::warning::Could not record the cache volume's path layout: %v\n", err)
+		}
+	}
+	for i, path := range absolute {
+		sourceName := sourceNames[i]
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err
 		}
@@ -230,12 +303,16 @@ func emptyTarget(path string) error {
 	}
 	return nil
 }
-func acquire(client *http.Client, key string) (string, string, bool, error) {
+func acquire(client *http.Client, key string, size int64) (string, string, bool, error) {
 	endpoint := os.Getenv("TUIST_CACHE_VOLUME_URL")
 	if endpoint == "" {
 		return "", "", false, errors.New("cache volumes disabled")
 	}
-	body, _ := json.Marshal(map[string]any{"pod_name": os.Getenv("TUIST_CACHE_VOLUME_POD"), "pod_uid": os.Getenv("TUIST_CACHE_VOLUME_UID"), "key": key, "architecture": runtime.GOARCH, "uid": os.Getuid()})
+	request := map[string]any{"pod_name": os.Getenv("TUIST_CACHE_VOLUME_POD"), "pod_uid": os.Getenv("TUIST_CACHE_VOLUME_UID"), "key": key, "architecture": runtime.GOARCH, "uid": os.Getuid()}
+	if size > 0 {
+		request["requested_volume_bytes"] = size
+	}
+	body, _ := json.Marshal(request)
 	req, err := http.NewRequest("POST", endpoint+"/acquire", bytes.NewReader(body))
 	if err != nil {
 		return "", "", false, err
