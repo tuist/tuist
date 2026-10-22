@@ -121,13 +121,15 @@ complete, as `tuist coverage complete` does. Tests that start or stop `cover`
 must leave a running cover server alone: under `mix test --cover` it is Mix's.
 On a GitHub Actions pull request (`GITHUB_REF` `refs/pull/N/merge`) whose
 HEAD is `GITHUB_SHA`, GitHub's merge commit, `Env.git_commit_sha/2` reports
-HEAD's second parent, the pull request's head, as the command line tool does;
+the pull request's head, as the command line tool does: as the event payload
+names it (`GITHUB_EVENT_PATH`, `pull_request.head.sha`), else as HEAD's second
+parent;
 every other checkout reports HEAD, since a pull request head that merged the
-base branch in has a base branch commit as its second parent. The parent is
-read from `git cat-file -p HEAD`, not `rev-parse HEAD^2`, whose shallow grafts
+base branch in has a base branch commit as its second parent. The second
+parent is read from `git cat-file -p HEAD`, not `rev-parse HEAD^2`, whose shallow grafts
 hide it in a depth-1 checkout; HEAD is reported when the object cannot be read
 or does not have exactly two parents. `Git.history/4` fetches a head the checkout lacks alone by
-SHA with `:history`, and otherwise leaves it out of the walk with "<sha> is
+SHA with `:history` (every fetch passes `--recurse-submodules=no`), and otherwise leaves it out of the walk with "<sha> is
 not in the checkout". `GIT_COMMIT` still wins.
 `Git` and `Analytics.GitHistory` port the command line tool's Git history
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,

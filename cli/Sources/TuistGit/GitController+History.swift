@@ -83,7 +83,7 @@ extension GitController {
     private func fetchMissingHead(git: [String], head: String, limits: GitHistoryLimits, deadline: Date) async -> Bool {
         if await commitSHA(git: git, ref: head) != nil { return true }
         guard limits.remoteAccess == .history else { return false }
-        let fetch = git + ["fetch", "--no-tags", "--filter=blob:none", "--depth=1", "origin", head]
+        let fetch = git + ["fetch", "--no-tags", "--recurse-submodules=no", "--filter=blob:none", "--depth=1", "origin", head]
         guard await self.fetch(arguments: fetch, deadline: deadline) == .succeeded else { return false }
         return await commitSHA(git: git, ref: head) != nil
     }
@@ -169,7 +169,7 @@ extension GitController {
             return MergeBaseResolution(sha: nil, ref: nil, reasons: ["the base branch \(baseBranch) is not in the checkout"])
         }
         if ref == nil {
-            var fetch = git + ["fetch", "--no-tags", "--filter=blob:none"]
+            var fetch = git + ["fetch", "--no-tags", "--recurse-submodules=no", "--filter=blob:none"]
             if shallow { fetch.append("--depth=1") }
             fetch += ["origin", baseRefspec]
             if await self.fetch(arguments: fetch, deadline: deadline) == .timedOut {
@@ -215,7 +215,15 @@ extension GitController {
         var step = 50
         while Date() < deadline, depth < maxDepth {
             step = min(step, maxDepth - depth)
-            let deepen = git + ["fetch", "--no-tags", "--filter=blob:none", "--deepen=\(step)", "origin", baseRefspec]
+            let deepen = git + [
+                "fetch",
+                "--no-tags",
+                "--recurse-submodules=no",
+                "--filter=blob:none",
+                "--deepen=\(step)",
+                "origin",
+                baseRefspec,
+            ]
             guard await fetch(arguments: deepen, deadline: deadline) == .succeeded else { break }
             if let sha = await resolve(ref) { return MergeBaseResolution(sha: sha, ref: ref, reasons: []) }
             depth += step

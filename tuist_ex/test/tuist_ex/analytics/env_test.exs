@@ -139,6 +139,29 @@ defmodule TuistEx.Analytics.EnvTest do
     assert Env.git_commit_sha(github.("another-commit"), git.("main")) == "merge-commit"
   end
 
+  @tag :tmp_dir
+  test "reads the pull request's head from GitHub's event payload", %{tmp_dir: tmp_dir} do
+    event = Path.join(tmp_dir, "event.json")
+
+    environment =
+      &%{
+        "GITHUB_REF" => "refs/pull/7/merge",
+        "GITHUB_SHA" => "merge-commit",
+        "GITHUB_EVENT_PATH" => event
+      }[&1]
+
+    git = fn
+      "rev-parse", ["HEAD"] -> "merge-commit"
+      "cat-file", ["-p", "HEAD"] -> "tree t\nparent base\nparent parent-head\n\nMerge"
+    end
+
+    File.write!(event, ~s({"pull_request": {"head": {"sha": "payload-head"}}}))
+    assert Env.git_commit_sha(environment, git) == "payload-head"
+
+    File.write!(event, ~s({"action": "synchronize"}))
+    assert Env.git_commit_sha(environment, git) == "parent-head"
+  end
+
   test "takes the branch from the CI provider before git" do
     # A GitHub Actions pull request is a detached checkout, where git says "HEAD".
     assert Env.git_branch(&%{"GITHUB_HEAD_REF" => "feature/x"}[&1]) == "feature/x"

@@ -205,7 +205,16 @@ defmodule TuistEx.Git do
     if is_nil(commit_sha(dir, head)) do
       run_until(
         dir,
-        ["fetch", "--quiet", "--no-tags", "--filter=blob:none", "--depth=1", "origin", head],
+        [
+          "fetch",
+          "--quiet",
+          "--no-tags",
+          "--recurse-submodules=no",
+          "--filter=blob:none",
+          "--depth=1",
+          "origin",
+          head
+        ],
         deadline
       )
     end
@@ -297,7 +306,7 @@ defmodule TuistEx.Git do
       case {base_ref(dir, base_branch), limits.remote_access} do
         {nil, :history} ->
           fetch =
-            ["fetch", "--quiet", "--no-tags", "--filter=blob:none"] ++
+            ["fetch", "--quiet", "--no-tags", "--recurse-submodules=no", "--filter=blob:none"] ++
               if(shallow?, do: ["--depth=1"], else: [])
 
           case run_until(dir, fetch ++ ["origin", refspec], deadline) do
@@ -359,6 +368,7 @@ defmodule TuistEx.Git do
                "fetch",
                "--quiet",
                "--no-tags",
+               "--recurse-submodules=no",
                "--filter=blob:none",
                "--deepen=#{step}",
                "origin",

@@ -1,9 +1,14 @@
 package dev.tuist.gradle
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
 import kotlin.test.assertEquals
 
 class GitInfoProviderTest {
+
+    @TempDir
+    lateinit var tempDir: File
 
     @Test
     fun `branch prefers CI environment variable over HEAD`() {
@@ -199,11 +204,17 @@ class GitInfoProviderTest {
         assertEquals(null, provider.remoteUrlOrigin())
     }
 
-    private fun mergeCheckout(ref: String?, githubSha: String? = null, secondParent: () -> String) = ProcessGitInfoProvider(
+    private fun mergeCheckout(
+        ref: String?,
+        githubSha: String? = null,
+        eventPath: String? = null,
+        secondParent: () -> String
+    ) = ProcessGitInfoProvider(
         environmentProvider = { key ->
             when (key) {
                 "GITHUB_REF" -> ref
                 "GITHUB_SHA" -> githubSha
+                "GITHUB_EVENT_PATH" -> eventPath
                 else -> null
             }
         },
@@ -231,6 +242,32 @@ class GitInfoProviderTest {
         assertEquals(
             "pull-request-head",
             mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit") { "pull-request-head" }.commitSha()
+        )
+    }
+
+    @Test
+    fun `commitSha is the pull request's head as GitHub's event payload names it`() {
+        val event = File(tempDir, "event.json").apply {
+            writeText("""{"pull_request": {"head": {"sha": "payload-head"}, "base": {"sha": "base"}}}""")
+        }
+
+        assertEquals(
+            "payload-head",
+            mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit", eventPath = event.path) {
+                throw RuntimeException("the commit object is not read")
+            }.commitSha()
+        )
+    }
+
+    @Test
+    fun `commitSha reads the merge commit's parents when the event payload names no pull request`() {
+        val event = File(tempDir, "event.json").apply { writeText("""{"action": "synchronize"}""") }
+
+        assertEquals(
+            "pull-request-head",
+            mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit", eventPath = event.path) {
+                "pull-request-head"
+            }.commitSha()
         )
     }
 

@@ -110,9 +110,10 @@ defmodule TuistEx.Analytics.Env do
   end
 
   # On a GitHub Actions pull request HEAD is GitHub's merge commit
-  # (`GITHUB_SHA`, from `refs/pull/N/merge`), which is on no branch, so its
-  # second parent, the pull request's head, is reported, as the command line
-  # tool does. Only when HEAD is `GITHUB_SHA`: a workflow that checked out
+  # (`GITHUB_SHA`, from `refs/pull/N/merge`), which is on no branch, so the
+  # pull request's head is reported, as the command line tool does: as the
+  # event payload (`GITHUB_EVENT_PATH`) names it, else as the merge commit's
+  # second parent. Only when HEAD is `GITHUB_SHA`: a workflow that checked out
   # another commit, such as the pull request's head, reports HEAD, since that
   # commit's second parent, when it merged the base branch in, is a base branch
   # commit. The parent is read from the commit object, since in a shallow
@@ -126,9 +127,23 @@ defmodule TuistEx.Analytics.Env do
 
     if head && environment.("GITHUB_SHA") == head &&
          String.starts_with?(environment.("GITHUB_REF") || "", "refs/pull/") do
-      second_parent(git.("cat-file", ["-p", "HEAD"])) || head
+      github_pull_request_head(environment.("GITHUB_EVENT_PATH")) ||
+        second_parent(git.("cat-file", ["-p", "HEAD"])) || head
     else
       head
+    end
+  end
+
+  defp github_pull_request_head(nil), do: nil
+
+  defp github_pull_request_head(event_path) do
+    with {:ok, contents} <- File.read(event_path),
+         {:ok, %{"pull_request" => %{"head" => %{"sha" => sha}}}}
+         when is_binary(sha) and sha != "" <-
+           JSON.decode(contents) do
+      sha
+    else
+      _ -> nil
     end
   end
 

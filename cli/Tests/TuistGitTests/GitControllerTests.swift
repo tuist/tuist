@@ -393,6 +393,48 @@ struct GitControllerTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_reads_the_pull_request_head_from_githubs_event_payload() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let event = path.appending(component: "event.json")
+        try await FileSystem().writeText(
+            #"{"pull_request": {"head": {"sha": "payload-head-sha"}, "base": {"sha": "base-sha"}}}"#,
+            at: event
+        )
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
+            "GITHUB_EVENT_PATH": event.pathString,
+        ]
+        stubPullRequestCheckout(path: path, head: "merge-commit-sha", secondParent: "actual-pr-head-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "payload-head-sha")
+        #expect(!commandRunner.called(
+            ["git", "-C", path.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", "merge-commit-sha"]
+        ))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_reads_the_merge_commits_parents_when_the_event_payload_names_no_pull_request() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let event = path.appending(component: "event.json")
+        try await FileSystem().writeText(#"{"action": "synchronize"}"#, at: event)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
+            "GITHUB_EVENT_PATH": event.pathString,
+        ]
+        stubPullRequestCheckout(path: path, head: "merge-commit-sha", secondParent: "actual-pr-head-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "actual-pr-head-sha")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func gitInfo_when_github_actions_checks_out_another_commit_than_the_merge_commit() async throws {
         // A workflow that checks out the pull request's head keeps GITHUB_REF at the merge ref.
         // When that head is itself a merge commit, its second parent is not the pull request.
@@ -721,6 +763,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -753,6 +796,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--depth=1",
             "origin",
@@ -793,6 +837,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--depth=1",
             "origin",
@@ -837,6 +882,7 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -858,6 +904,7 @@ struct GitControllerTests {
         #expect(commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -866,6 +913,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=100",
             "origin",
@@ -884,6 +932,7 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -892,6 +941,7 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=70",
             "origin",
@@ -913,6 +963,7 @@ struct GitControllerTests {
         #expect(commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=70",
             "origin",
@@ -921,6 +972,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=100",
             "origin",
@@ -941,6 +993,7 @@ struct GitControllerTests {
         commandRunner.errorCommand(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=50",
             "origin",
@@ -959,6 +1012,7 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + [
             "fetch",
             "--no-tags",
+            "--recurse-submodules=no",
             "--filter=blob:none",
             "--deepen=100",
             "origin",
@@ -1070,7 +1124,15 @@ struct GitControllerTests {
         #expect(history.commits.map(\.sha) == ["basehead"])
         #expect(history
             .fallbackReason == "shallow clone: the merge base with main is not in the checkout; head is not in the checkout")
-        #expect(!commandRunner.called(git + ["fetch", "--no-tags", "--filter=blob:none", "--depth=1", "origin", "head"]))
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--recurse-submodules=no",
+            "--filter=blob:none",
+            "--depth=1",
+            "origin",
+            "head",
+        ]))
     }
 
     /// `actions/checkout`'s default: `refs/pull/N/merge` at depth 1, without the pull request's head
