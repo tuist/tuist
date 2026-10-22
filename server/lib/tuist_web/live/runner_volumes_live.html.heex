@@ -14,7 +14,7 @@
       <div data-part="volume-icon"><.database /></div>
       <h1>{display_name(@selected)}</h1>
     </div>
-    <div :if={@can_manage and is_nil(@selected.builtin_name)} data-part="actions">
+    <div :if={@can_manage} data-part="actions">
       <.button
         variant="secondary"
         size="medium"

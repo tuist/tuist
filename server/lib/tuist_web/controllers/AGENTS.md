@@ -74,7 +74,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 
 - Shared Grafana build-health endpoints support Xcode, Gradle, Bazel, and Once. Reject other project build systems with a clear client error until an adapter exists; keep existing duration endpoints unchanged.
 
-- `RunnerCacheMastersController.report_usage` accepts only the per-machine
-  `tuist-runner-host` audience, derives the node from its ServiceAccount, and
-  delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
-  body-supplied account/node/repository fields cannot authorize these reports.
+- `RunnerCacheMastersController.index` accepts only the per-machine
+  `tuist-runner-host` audience and derives the node from its ServiceAccount; it
+  lists custom volume HEADs only. Workflow tokens and body-supplied node fields
+  cannot authorize it.
