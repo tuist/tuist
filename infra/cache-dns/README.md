@@ -89,6 +89,28 @@ wildcard must be deployed and validated before shipping a CLI that derives URLs.
    eligible custom endpoints remain alongside the managed stable name. After
    validating the initial production cohort, enable the same flag globally.
 
+## DNS query logs
+
+The zone logs every query that reaches its nameservers to the CloudWatch Logs
+group `/aws/route53/cache.tuist.dev`, kept for 14 days. Route53 delivers public
+query logs only to us-east-1, so the stack must be applied there. Each line
+carries the queried hostname, the recursive resolver's IP, the client subnet when
+the resolver sent one, and the Route53 edge location that answered.
+
+Latency records steer by the resolver, not the client: a client whose resolver
+sits on another continent is sent to that continent's region. To check which
+resolvers an account's clients use, run a Logs Insights query against the group:
+
+```
+fields @timestamp, @message
+| filter @message like /etsy.cache.tuist.dev/
+| parse @message "* * * * * * * * * *" version, ts, zone, name, type, rcode, protocol, edge, resolver, subnet
+| stats count() by resolver, subnet, edge
+```
+
+Queries appear only after logging is enabled, and resolvers cache answers for
+the 60-second TTL, so expect about one line per resolver and hostname per minute.
+
 ## Lifetimes and failure behavior
 
 All eight managed public metros have distinct AWS latency-region mappings:
