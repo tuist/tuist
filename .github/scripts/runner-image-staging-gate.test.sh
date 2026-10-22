@@ -27,10 +27,10 @@ golden() {
 
 cat > "$scratch/kubectl" <<BASH
 #!/usr/bin/env bash
-case "\$2" in
-  runnerpools.tuist.dev) cat "$scratch/pools.json" ;;
-  nodes) cat "$scratch/nodes.json" ;;
-  configmaps) cat "$scratch/announcements.json" ;;
+case " \$* " in
+  *" runnerpools.tuist.dev "*) cat "$scratch/pools.json" ;;
+  *" nodes "*) cat "$scratch/nodes.json" ;;
+  *" configmaps "*) cat "$scratch/announcements.json" ;;
   *) exit 1 ;;
 esac
 BASH
@@ -107,5 +107,12 @@ expect "$new" "$new_stacked" "an announcement without a time"
 
 echo '{"items": []}' > "$scratch/announcements.json"
 expect "$new" "$new_stacked" "no announcement of the new images"
+
+# A cluster the gate cannot read fails it, so the deploy moves the pools.
+printf '#!/usr/bin/env bash\nexit 1\n' > "$scratch/kubectl"
+if PATH="$scratch:$PATH" bash "$SCRIPT" "{\"26.6\": \"$new\"}" "{\"26.6\": \"$new_stacked\"}" >/dev/null 2>&1; then
+  echo "Expected the gate to fail when the cluster cannot be read." >&2
+  exit 1
+fi
 
 echo "All runner image staging gate tests passed."

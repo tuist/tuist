@@ -28,9 +28,9 @@ stacked="${2:?usage: runner-image-staging-gate.sh <digests-json> <stacked-digest
 timeout="${RUNNER_IMAGE_STAGING_TIMEOUT_SECONDS:-3600}"
 now="${NOW:-$(date -u +%s)}"
 
-pools="$(kubectl get runnerpools.tuist.dev --all-namespaces -l tuist.dev/runner-image-variant -o json)"
-nodes="$(kubectl get nodes -o json)"
-announcements="$(kubectl get configmaps --all-namespaces -l tuist.dev/upcoming-runner-images=true -o json)"
+pools="$(kubectl --request-timeout=30s get runnerpools.tuist.dev --all-namespaces -l tuist.dev/runner-image-variant -o json)"
+nodes="$(kubectl --request-timeout=30s get nodes -o json)"
+announcements="$(kubectl --request-timeout=30s get configmaps --all-namespaces -l tuist.dev/upcoming-runner-images=true -o json)"
 
 golden_label() {
   local sum
