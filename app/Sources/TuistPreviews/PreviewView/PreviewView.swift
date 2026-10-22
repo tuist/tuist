@@ -12,6 +12,7 @@ public struct PreviewView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: PreviewViewModel
     @State private var showingDeleteAlert = false
+    private let onDelete: () -> Void
 
     private let fullDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -22,8 +23,10 @@ public struct PreviewView: View {
 
     public init(
         preview: ServerPreview,
-        fullHandle: String
+        fullHandle: String,
+        onDelete: @escaping () -> Void = {}
     ) {
+        self.onDelete = onDelete
         viewModel = PreviewViewModel(
             preview: preview,
             fullHandle: fullHandle
@@ -32,8 +35,10 @@ public struct PreviewView: View {
 
     public init(
         previewId: String,
-        fullHandle: String
+        fullHandle: String,
+        onDelete: @escaping () -> Void = {}
     ) {
+        self.onDelete = onDelete
         viewModel = PreviewViewModel(
             previewId: previewId,
             fullHandle: fullHandle
@@ -107,9 +112,9 @@ public struct PreviewView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    Button(action: {
+                    Button {
                         showingDeleteAlert = true
-                    }) {
+                    } label: {
                         HStack(spacing: Noora.Spacing.spacing2) {
                             Text("Delete preview")
                                 .font(.body.weight(.medium))
@@ -128,6 +133,7 @@ public struct PreviewView: View {
                             errorHandler.fireAndHandleError {
                                 try await viewModel.deletePreview(preview)
                                 dismiss()
+                                onDelete()
                             }
                         }
                     } message: {
@@ -135,11 +141,15 @@ public struct PreviewView: View {
                     }
                 }
                 .padding(Noora.Spacing.spacing4)
+                .frame(maxWidth: 720)
+                .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, Noora.Spacing.spacing4)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    ShareLink(item: preview.url)
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(item: preview.url) {
+                        Label("Share preview", systemImage: "square.and.arrow.up")
+                    }
                 }
             }
             .background(Noora.Colors.surfaceBackgroundPrimary)

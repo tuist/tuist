@@ -7,46 +7,86 @@ import TuistNoora
 public struct LogInView: View {
     @EnvironmentObject var errorHandler: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var appleSignInDelegate: AppleSignInDelegate?
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            Image("TuistRoundedIcon")
-                .resizable()
-                .frame(width: 60, height: 60)
-                .padding(.bottom, Noora.Spacing.spacing9)
-
-            Text("Welcome to Tuist")
-                .font(.title.weight(.medium))
-                .foregroundColor(Noora.Colors.surfaceLabelPrimary)
-                .padding(.bottom, Noora.Spacing.spacing5)
-
-            signIn
-        }
-        .disabled(authenticationService.isSigningIn)
-        .background(
-            Image("LaunchScreenBackground")
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .ignoresSafeArea()
-        )
+        content
+            .disabled(authenticationService.isSigningIn)
+            .background(
+                Image("LaunchScreenBackground")
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .ignoresSafeArea()
+            )
     }
 
     @ViewBuilder
+    private var content: some View {
+        #if compiler(>=6.4)
+            if #available(iOS 27.1, *), horizontalSizeClass == .regular {
+                ArrangementView {
+                    signInContent(includesWelcome: false)
+                } secondary: {
+                    ScrollView {
+                        welcome
+                            .padding(Noora.Spacing.spacing8)
+                    }
+                    .defaultScrollAnchor(.center)
+                }
+                .arrangementViewStyle(.split)
+            } else {
+                signInContent(includesWelcome: true)
+            }
+        #else
+            signInContent(includesWelcome: true)
+        #endif
+    }
+
+    private var welcome: some View {
+        VStack(alignment: .leading, spacing: Noora.Spacing.spacing6) {
+            Image("TuistRoundedIcon")
+                .resizable()
+                .frame(width: 52, height: 52)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: Noora.Spacing.spacing4) {
+                Text("Welcome to Tuist")
+                    .font(.largeTitle.weight(.semibold))
+                    .foregroundStyle(Noora.Colors.surfaceLabelPrimary)
+                    .accessibilityAddTraits(.isHeader)
+
+                Text("Sign in to browse your projects and app previews.")
+                    .font(.body)
+                    .foregroundStyle(Noora.Colors.surfaceLabelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: 400, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func signInContent(includesWelcome: Bool) -> some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: Noora.Spacing.spacing9) {
+                    if includesWelcome {
+                        welcome
+                    }
+                    signIn
+                }
+                .frame(maxWidth: 400)
+                .padding(.horizontal, Noora.Spacing.spacing8)
+                .padding(.vertical, Noora.Spacing.spacing8)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geometry.size.height)
+            }
+        }
+    }
+
     private var signIn: some View {
-        Text("Sign in to access your projects and\ncollaborate with your team")
-            .font(.subheadline.weight(.regular))
-            .multilineTextAlignment(.center)
-            .foregroundColor(Noora.Colors.surfaceLabelPrimary)
-            .padding(.bottom, Noora.Spacing.spacing15)
-
-        Spacer()
-
         VStack(spacing: Noora.Spacing.spacing5) {
             SocialButton(
                 title: "Sign in with Tuist",
@@ -55,6 +95,9 @@ public struct LogInView: View {
             ) {
                 signInToTuistHosted { try await authenticationService.signIn() }
             }
+
+            divider
+                .padding(.vertical, Noora.Spacing.spacing4)
 
             SocialButton(
                 title: "Sign in with Apple",
@@ -92,39 +135,19 @@ public struct LogInView: View {
                 signInToTuistHosted { try await authenticationService.signInWithGitHub() }
             }
 
-            divider
-
-            SocialButton(
-                title: "Self-hosted server",
-                style: .secondary,
-                icon: "ServerIcon"
-            ) {
+            Button {
                 presentSelfHostedServerAlert()
+            } label: {
+                Label("Self-hosted server", systemImage: "server.rack")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(Noora.Colors.buttonEnabledLabel)
+            .padding(.top, Noora.Spacing.spacing4)
         }
-        .padding(.horizontal, Noora.Spacing.spacing8)
-        .padding(.top, Noora.Spacing.spacing9)
-        .padding(.bottom, Noora.Spacing.spacing4)
         .frame(maxWidth: .infinity)
-        .background(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 32,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: 32
-            )
-            .fill(Color(light: .white.opacity(0.6), dark: Color(hex: 0x0E0E0E, alpha: 0.8)))
-            .overlay(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 32,
-                    bottomLeadingRadius: 0,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: 32
-                )
-                .stroke(Color(light: Color.white, dark: Color(hex: 0x1F1F1F)), lineWidth: 2)
-            )
-            .ignoresSafeArea(.container, edges: .bottom)
-        )
     }
 
     private var divider: some View {
