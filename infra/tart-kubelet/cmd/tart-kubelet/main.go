@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +53,9 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+// deprecatedFlags are accepted and ignored so an older launchd plist still starts the process.
+var deprecatedFlags = []string{"cache-volume-cap-gib", "cache-volume-cas-gib"}
+
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 }
@@ -81,9 +85,7 @@ func main() {
 		customCacheNamespace string
 		customCacheSA        string
 		customCacheMaxGB     int
-		cacheVolumeCapGiB    int
 		runnerCacheBudgetGiB int
-		cacheVolumeCASGiB    int
 		imageMirrors         imageMirrorList
 		imageMirrorSync      time.Duration
 	)
@@ -142,11 +144,11 @@ func main() {
 			"default of 1. A host that runs guests from more than one pool wants at least one golden per pool, "+
 			"otherwise reclaiming under pressure strands a pool into a full cold image pull.")
 	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
-		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images. "+
-			"Empty (default) disables cache volumes entirely: every VM boots on the status-quo cold path. "+
+		"Mount point of the quota-bounded APFS volume that holds the runner cache volumes. "+
+			"Empty (default) disables cache volumes entirely. "+
 			"Host bootstrap sets this to the runner-cache volume it provisions (e.g. /var/lib/tart-cache).")
 	flag.IntVar(&runnerCacheBudgetGiB, "runner-cache-budget-gib", envIntOr("TART_KUBELET_RUNNER_CACHE_BUDGET_GIB", 0),
-		"Space (GiB) every cache on --runner-cache-root may take together. Admission, convergence and eviction "+
+		"Space (GiB) every cache on --runner-cache-root may take together. Admission and eviction "+
 			"measure against it below the volume's quota, so it can change without recreating the volume. "+
 			"0 (default) leaves the quota as the bound.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", envOr("TART_KUBELET_CUSTOM_CACHE_URL", ""), "Opt-in server /api/internal/runners/cache-volumes URL")
@@ -154,16 +156,9 @@ func main() {
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
 	flag.IntVar(&customCacheMaxGB, "custom-cache-max-volume-gb", envIntOr("TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB", 100),
 		"Largest custom cache volume this host accepts, in decimal GB. Sent with every authorization; the server never allocates a larger volume to this host. At least 20.")
-	flag.IntVar(&cacheVolumeCapGiB, "cache-volume-cap-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAP_GIB", 20),
-		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
-			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
-	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAS_GIB", 0),
-		"The Xcode compilation cache (CAS) is FOLDED into the cache image (a store dir beside the binary cache) "+
-			"when this is > 0. The CAS and the binary cache share --cache-volume-cap-gib less a reserve "+
-			"(max(2 GiB, 20%)) that is the room a job has before anything prunes, and the guest divides that budget "+
-			"by what each cache holds. This value is the CAS's share of the fixed split that runner images older "+
-			"than that division apply, the binary cache getting the rest. Persisted across VMs, riding the binary "+
-			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
+	for _, name := range deprecatedFlags {
+		flag.Int(name, 0, "Deprecated and ignored.")
+	}
 	flag.Var(&imageMirrors, "image-mirror",
 		"<upstream>=<endpoint> (e.g. ghcr.io=http://10.10.0.11:5000): a registry serving the upstream's images under the same "+
 			"repository names, tried in order before the upstream when a golden base is pulled. May be repeated. An http endpoint is "+
@@ -186,6 +181,11 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	flag.Visit(func(f *flag.Flag) {
+		if slices.Contains(deprecatedFlags, f.Name) {
+			setupLog.Info("ignoring deprecated flag", "flag", f.Name, "value", f.Value.String())
+		}
+	})
 
 	if vncRelayPort < 0 || vncRelayPort > 65535 {
 		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port %d", vncRelayPort), "parse flag")
@@ -360,29 +360,15 @@ func main() {
 		}
 	}
 
-	// Per-account cache volumes. Only active when the host was
-	// provisioned with a runner-cache root; otherwise a disabled manager
-	// no-ops and every VM boots on the cold path. Registered as a manager
-	// Runnable so its watermark evictor + observability sampler run on a
-	// ticker alongside the reconciler.
-	volumes := podagent.NewVolumeManager(runnerCacheRoot, cacheVolumeCapGiB, nil)
-	volumes.BudgetGiB = runnerCacheBudgetGiB
-	volumes.CASGiB = cacheVolumeCASGiB
-	if cacheVolumeCASGiB >= cacheVolumeCapGiB && cacheVolumeCASGiB > 0 {
-		setupLog.Info("WARNING --cache-volume-cas-gib >= --cache-volume-cap-gib; the CAS budget is clamped so the binary cache and reserve keep a slice — lower cas-gib or raise cap-gib",
-			"cas-gib", cacheVolumeCASGiB, "cap-gib", cacheVolumeCapGiB)
-	}
-	if volumes.Enabled() {
-		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB, "cas-gib", cacheVolumeCASGiB)
-		// Wait for the runner-cache volume to actually mount BEFORE recoverState
-		// runs. recoverState reattaches the branches of VMs that survived a kubelet
-		// restart and populates the retained set the startup sweep trusts; if the
-		// volume were still unmounted during recovery but appeared afterward, the
-		// sweep would delete branches those surviving VMs still have mounted. On a
-		// normally-mounted host this returns immediately.
-		volumes.AwaitMountedRoot(context.Background())
-		if err := mgr.Add(volumes); err != nil {
-			setupLog.Error(err, "add cache-volume manager")
+	// The volume every runner cache on the host shares; without one, jobs run without cache volumes.
+	space := podagent.NewCacheSpace(runnerCacheRoot, nil)
+	space.BudgetGiB = runnerCacheBudgetGiB
+	space.Running = tartClient.IsRunning
+	if space.Enabled() {
+		setupLog.Info("runner cache volumes enabled", "root", runnerCacheRoot, "budget-gib", runnerCacheBudgetGiB)
+		space.AwaitMountedRoot(context.Background())
+		if err := mgr.Add(space); err != nil {
+			setupLog.Error(err, "add runner cache space")
 			os.Exit(1)
 		}
 	}
@@ -395,7 +381,7 @@ func main() {
 	// VM, and stop+delete it as stale — killing a healthy workload on
 	// every kubelet update. We do this synchronously, before
 	// mgr.Start, using a fresh non-cached client.
-	if err := recoverState(cfg, scheme, tartClient, store, volumes, nodeName); err != nil {
+	if err := recoverState(cfg, scheme, tartClient, store, nodeName); err != nil {
 		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
 	}
 
@@ -410,39 +396,24 @@ func main() {
 	}
 
 	var customVolumes *podagent.CustomVolumes
-	if customCacheURL != "" && volumes.Enabled() {
+	var prefetch *podagent.PrefetchPoller
+	if customCacheURL != "" && space.Enabled() {
 		if customCacheMaxGB < 20 {
 			setupLog.Error(fmt.Errorf("--custom-cache-max-volume-gb=%d", customCacheMaxGB), "custom cache volumes need a maximum of at least the default 20 GB")
 			os.Exit(1)
 		}
 		checkoutsRoot := filepath.Join(runnerCacheRoot, "custom", "checkouts")
-		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes, MaxVolumeBytes: int64(customCacheMaxGB) * 1_000_000_000,
+		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Space: space, MaxVolumeBytes: int64(customCacheMaxGB) * 1_000_000_000,
 			// Checkout masters share the custom volumes' filesystem, admission and agent.
 			Checkouts: &cachevolumes.Checkouts{Root: checkoutsRoot, Images: &cachevolumes.APFSCheckoutImages{}, Tools: podagent.GitLFS(checkoutsRoot, nil)}}
 		if err := mgr.Add(customVolumes); err != nil {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)
 		}
-	}
-	// Fast-forwards this host's cache masters to their volumes' HEADs, one
-	// download at a time, and prefetches the masters the server says this
-	// host's fleet needs. A host whose guests already take its memory (an M2-L
-	// promises 14 of its 16 GB) downloads only while no job runs.
-	var converge *podagent.ConvergeWorker
-	if volumes.Enabled() {
-		physicalMemory, err := podagent.PhysicalMemoryBytes()
-		if err != nil {
-			setupLog.Error(err, "read physical memory; converging cache masters only while no job runs")
-		}
-		alongsideJobs := err == nil && podagent.ConvergeAlongsideJobs(physicalMemory, hostMemoryMB)
-		converge = podagent.NewConvergeWorker(volumes, alongsideJobs, &podagent.ServerPrefetch{Client: typedClient})
-		if customVolumes != nil {
-			converge.Custom = customVolumes
-		}
-		setupLog.Info("cache-volume convergence", "alongside-jobs", alongsideJobs,
-			"physical-memory-bytes", physicalMemory, "host-memory-mb", hostMemoryMB)
-		if err := mgr.Add(converge); err != nil {
-			setupLog.Error(err, "add cache-volume converge worker")
+		// Every host of the class warms the custom HEADs the server lists for it.
+		prefetch = &podagent.PrefetchPoller{Source: &podagent.ServerPrefetch{Client: typedClient}, Custom: customVolumes}
+		if err := mgr.Add(prefetch); err != nil {
+			setupLog.Error(err, "add custom cache prefetch")
 			os.Exit(1)
 		}
 	}
@@ -471,9 +442,8 @@ func main() {
 		// Pod-bound, so it dies when the Pod is reaped regardless.
 		TokenMinter:   &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 28800},
 		GC:            gcCollector,
-		Volumes:       volumes,
 		CustomVolumes: customVolumes,
-		Converge:      converge,
+		Prefetch:      prefetch,
 		Recorder:      mgr.GetEventRecorderFor("tart-kubelet"),
 		Images:        images,
 	}
@@ -551,15 +521,6 @@ func main() {
 		},
 		DynamicLabels: []nodeagent.LabelAdvertisement{
 			{Name: "golden-images", Labels: goldenLabelProvider},
-			// Unlike goldens, a failed scan is NOT masked with the last good
-			// result. The scan reads the runner-cache root, so it typically
-			// fails because the volume is unmounted — in which case the masters
-			// really are unusable and advertising them would send warm-expecting
-			// work to a host that will materialize cold. Retiring the labels
-			// costs at most a heartbeat of oldest-queued dispatch.
-			{Name: "cache-masters", Labels: func(context.Context) (map[string]string, error) {
-				return volumes.CacheMasterNodeLabels()
-			}},
 			// The custom volume lineages this host holds a master of, so dispatch
 			// can prefer it for jobs that attach them.
 			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {
@@ -890,7 +851,6 @@ func recoverState(
 	scheme *runtime.Scheme,
 	tartClient *tart.Client,
 	store *podagent.Store,
-	volumes *podagent.VolumeManager,
 	nodeName string,
 ) error {
 	c, err := client.New(cfg, client.Options{Scheme: scheme})
@@ -958,18 +918,7 @@ func recoverState(
 			// observation for recovered entries.
 			StartTS:      *startTS,
 			BootObserved: true,
-		}
-		// Reattach the cache-volume branch this VM is still virtio-fs-mounting
-		// so the startup SweepBranches keeps it (not reap it out from under the
-		// running job) and Finalize can still promote its warm set. Preserves the
-		// untrusted decision: an untrusted (fork) branch keeps SourceAccount empty
-		// so Finalize discards it — recovery never revives attacker content into
-		// the master. A missing branch leaves the entry on the cold path.
-		if att, ok := podagent.ReattachVolumeForPod(volumes, pod, vmName); ok {
-			entry.Volume = att
-			if statusDir, sdErr := tartClient.StatusDir(vmName); sdErr == nil {
-				entry.VolumeStatusDir = statusDir
-			}
+			StatusDir:    podagent.StatusDirForPod(tartClient, pod, vmName),
 		}
 		store.Put(pod.Namespace, pod.Name, entry)
 		matched++

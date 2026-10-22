@@ -467,14 +467,13 @@ picks the lend up rather than bootstrapping over it.
    one, which may still be running it in its VM, and says so. It then pushes
    its runtime with `bootstrap.UpdateTartKubelet` as a takeover
    (`PerHost.TakeOver`): its own node identity, Node name
-   (`<rackFleet.name>-<host>`) and fleet label, its cache volume server, a
-   fresh tailnet login, which moves the host's device to the borrower's tags,
-   and none of the cache-volume usage reports tart-kubelet queued for the
-   lender's server, which the borrower's would answer 425 for good. Then it
-   deletes the old Node and lets the stranded runners go, whose VMs the new
-   tart-kubelet's orphan collector reaps. From then on its drift loop keeps
-   the host converged, and `status.state` is Active. The lease's status is one
-   write per reconcile, not the CAPI patch helper's separate one for
+   (`<rackFleet.name>-<host>`) and fleet label, its cache volume server,
+   and a fresh tailnet login, which moves the host's device to the
+   borrower's tags. Then it deletes the old Node and lets the stranded
+   runners go, whose VMs the new tart-kubelet's orphan collector reaps.
+   From then on its drift loop keeps the host converged, and
+   `status.state` is Active. The lease's status is one write per
+   reconcile, not the CAPI patch helper's separate one for
    conditions: a reconcile reading it between the two saw the host taken over
    with no runtime stamped and pushed it all again.
 
@@ -3015,7 +3014,7 @@ reflected in `desiredHostConfigHash`:
 | `hostCPU` / `hostMemoryMB` | Node capacity — the actual guest-count control |
 | `maxPods` | Node Pod ceiling. Counts **every** Pod bound to the Node, and a terminal Pod holds its slot until GC — so it is guests x 2, not guests + system Pods. See below |
 | `guestCapacity` | The per-guest host resources: the VNC relay port range and the disk-pressure goldens floor. Declares intent; creates no capacity |
-| `runnerCacheVolumeGiB` | The per-account cache volume's quota, which tracks the SKU's disk |
+| `runnerCacheVolumeGiB` | The runner cache volume's quota, which tracks the SKU's disk |
 
 `maxPods` is sized as guests x 2 + 1 because a Pod stays bound to its
 Node after it finishes: each guest slot can transiently hold its running

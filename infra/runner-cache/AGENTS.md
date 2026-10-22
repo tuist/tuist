@@ -21,8 +21,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Only accepted publication becomes a master. Failed upload retries and restart
   recovery retain the same journal identity. Clear conflicts discard the branch.
 - Default custom capacity is 20 decimal GB; the server may choose 1 to 100 GB
-  per volume, up to the host maximum. Built-in Tuist/CAS macOS caches keep
-  their existing separate identities, capacity and retention policy.
+  per volume, up to the host maximum.
 - Unknown measurements remain unknown; never report unavailable usage as zero.
 - Run `go test -race ./...` here, the Linux agent/client suites, and macOS podagent
   suites. Real APFS and real ext4 tests complement mocked command tests.
@@ -185,13 +184,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   not APFS reservations.
   Maintenance validates every master even when one lineage cannot be reached.
 
-- APFS admission records a reservation under the built-in lock, then releases it
+- APFS admission records a reservation under the shared admission lock, then releases it
   before downloads or formatting. Reserve remaining growth only for running VMs;
   retain journal recovery and bounded, separately reserved prefetch work.
   An attach needs its expected size; restoration and prefetch also need
   the archive budget. Keep the backend check and host reservation consistent.
   After local-master eviction, the optional shared-filesystem reclamation hook
-  may reclaim built-in macOS masters. Remeasure free space before admitting;
+  may reclaim idle macOS checkout copies. Remeasure free space before admitting;
   successful deletion alone does not prove that CoW blocks were freed. Linux
   has no shared reclaimer and retains its existing admission behavior.
 - Per-pod cleanup errors must not prevent cleanup of other fenced pods.

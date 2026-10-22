@@ -1,27 +1,14 @@
 # Custom macOS cache volumes
 
-## Compatibility decision
+## The macOS runner cache
 
-Keep the automatic built-in volume and add separate opt-in custom volumes.
-The built-in image contains Tuist's `tuist/` cache tree and the Xcode
-`CompilationCache.noindex` store. Dispatch exports the Tuist cache home and CAS
-configuration, assigns their shared byte budget, prunes CAS, and compares a
-specialized inventory before publishing. Workflows already rely on that wiring,
-including plain xcodebuild jobs that never invoke Tuist.
-
-Changing those images to opt-in would silently turn existing workflows cold.
-Using the built-in inventory for arbitrary directories would fail to notice
-changes outside its known trees. Neither is compatible. Existing `tuist-cache`
-and `repo-*` HEADs, objects, local masters, capacities and retention remain in
-place. No migration deletes or renames them. Custom-volume clear affects only
-that custom identity; it does not clear the built-in Tuist or Xcode cache.
-
-The automatic wiring is retired. The server now puts every macOS job on the
-`tuist-xcode` and `tuist-module` custom volumes, which a job reaches only through
-`tuist/xcode-cache` and `tuist/module-cache`. Dispatch stamps the untrusted label,
-so the host gives the job an empty built-in image and never promotes it. See the
-"Opt-in caches" and "Managed cache volumes" paragraphs in
-`infra/runner-image/AGENTS.md`.
+Custom volumes are the only runner cache on macOS hosts. The server puts every
+macOS job on the `tuist-xcode` and `tuist-module` custom volumes, which a job
+reaches only through `tuist/xcode-cache` and `tuist/module-cache`, beside the
+volumes a workflow opts into with `tuist/cache-volume@v1`. See the "Opt-in
+caches" and "Managed cache volumes" paragraphs in `infra/runner-image/AGENTS.md`.
+The runner-cache volume holds `custom/`; tart-kubelet removes what the built-in
+cache left there (see `AGENTS.md`).
 
 New identities include platform, preventing APFS and ext4 image reuse even when
 repository, key, architecture and UID happen to match. Existing Linux UUIDs and
@@ -66,7 +53,7 @@ They are logical filesystem bytes, not unique physical allocation or billing
 measurements. APFS shares
 extents. Both backends use real free space and local master eviction. Admission
 reserves only the remaining growth (expected size minus allocated blocks) of running
-custom guests alongside built-in reservations on the same bounded filesystem.
+custom guests on the same bounded filesystem.
 Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
 it. Live reservations are recovered from the durable journal after restart.
@@ -100,8 +87,7 @@ on every host that runs custom volumes.
 - Past the budget but below the quota, writes succeed. Later jobs on the host
   are refused (`capacity`) and run cold, and each reconcile evicts idle custom
   masters, least recently used first and never one a job holds, until the
-  reservations fit again (`LocalImages.Relieve`). The built-in evictor does the
-  same for built-in masters on its own tick.
+  reservations fit again (`LocalImages.Relieve`).
 - With under 2 GB left below the quota, or on the host's disk, tart-kubelet
   marks every running custom branch `.pressure` (checked every second), and
   `Seal` withholds it (`ErrPressure`, result `pressure`). A write that failed on
@@ -145,7 +131,7 @@ required. The chart's self-hosted default remains disabled.
    guarded rollback to recreate the legacy index. The rollback refuses any
    remaining macOS rows.
 2. Release the runner image with the common client and successful-job detach
-   hook. Older images keep built-in caches; they cannot mount custom volumes.
+   hook. Older images cannot mount custom volumes.
    Update the client before the host verification change: publication now requires
    its lease-bound `.usage` report. Older custom-volume clients without that report
    can still read caches, but their branches are discarded after teardown.
@@ -158,8 +144,7 @@ required. The chart's self-hosted default remains disabled.
    and launchd flags. Only newly booted VMs receive the custom share.
 5. Exercise cold/warm native jobs for all three providers, private PR/MR reads,
    failures, cancellation, concurrent writers, clear during a running job,
-   host restart, unavailable object storage and quota pressure. Verify the
-   built-in caches still warm existing jobs without workflow edits.
+   host restart, unavailable object storage and quota pressure.
 6. Keep self-hosted and additional environment enablement explicit. Unavailable
    capacity falls back to a job-local directory, so successful jobs alone are not
    proof of persistence: require a real APFS mount on the seed run and a cache hit
@@ -169,7 +154,6 @@ For rollback, disable new server allocations first and let active jobs and
 agent journals drain before removing host enablement or rolling back binaries.
 Do not delete the custom root or downgrade the schema while copies remain.
 Disabling allocation leaves existing report/image cleanup endpoints available.
-Old built-in volume code and images remain compatible throughout.
 
 ## Validation record
 
@@ -177,19 +161,18 @@ Old built-in volume code and images remain compatible throughout.
 
 Production M4 Pro replacement hosts use a 512 GiB shared cache filesystem,
 up from 240 GiB. M2 remains at 80 GiB. This is a sparse aggregate ceiling for
-built-in images, custom images, retained masters and transfer staging; custom
-volume capacity remains 20 decimal GB. No M5 rack capacity is enabled here.
+custom images, retained masters and transfer staging; custom volume capacity
+remains 20 decimal GB. No M5 rack capacity is enabled here.
 
-Cache admission, built-in convergence and built-in master eviction use the lesser
+Cache admission and master eviction use the lesser
 of quota free space and physical host free space above the 15% golden-image
 reclamation floor. Free-space telemetry reports the volume within its budget,
 without the host floor. Probe errors decline new allocations. Existing jobs and
 non-cache host writes can still reduce
 physical free space; this admission guard complements the existing golden-image
 reclaimer and Node DiskPressure reporting rather than enforcing a disk partition.
-Custom requests first evict their own reusable masters, then may reclaim built-in
-masters and displace convergence staging under the built-in admission lock. Live
-branches and writer reservations remain protected, and actual filesystem space
+Custom requests first evict their own reusable masters, then idle checkout
+copies. Live branches and writer reservations remain protected, and actual filesystem space
 is remeasured after deletion because CoW clones can retain the removed blocks.
 
 The initial planning allowance is 512 GiB cache, 340 GiB for overlapping VM base
@@ -223,8 +206,7 @@ Keep the host free-space guard in place on hosts already provisioned at 512 GiB.
 ### Budget below the quota
 
 `runnerCacheVolumeGiB` is passed to tart-kubelet as `--runner-cache-budget-gib`:
-the space every cache on the volume may take together. Admission, convergence,
-eviction and `tart_kubelet_cache_volume_root_free_bytes` measure the volume's
+the space every cache on the volume may take together. Admission, eviction and `tart_kubelet_cache_volume_root_free_bytes` measure the volume's
 free space as the lesser of its quota headroom and the budget less what the
 volume uses (`df` reports an APFS volume's own usage). APFS fixes a quota when
 the volume is created, so on a disk of 1 TiB or more bootstrap creates it at
@@ -326,34 +308,10 @@ job cloning the same lineage. Requests for the same master join.
 Each heartbeat also advertises one `tuist.dev/cache-volume-<scope prefix>` Node
 label per lineage with an installed master, read from the `masters/` directory,
 so the server can tell which custom volumes this host holds.
-The converge worker also hands it the saved custom-volume HEADs the server lists
-for the host class: dispatch cannot know which custom volumes a job attaches, so
+The prefetch poller (`PrefetchPoller`) also hands it the saved custom-volume HEADs
+the server lists for the host class: dispatch cannot know which custom volumes a job attaches, so
 every host of the class warms them. These speculative downloads use free space
 only and never evict a master. Read-only `retain` and `download` image requests
 may name a use allocated on another node, since such a master is held under the
 use that published it. Agent shutdown cancels and joins the worker. macOS custom volumes emit the shared
 operation/source/result metrics through tart-kubelet's existing metrics endpoint.
-Custom admission counts outstanding built-in convergence downloads, and built-in
-convergence reserves space for live custom images before starting a download.
-
-## Built-in volume measurements
-
-The existing Xcode/Tuist cache appears in the same volume inventory as custom
-volumes after its first measured job. The guest samples the mounted APFS
-filesystem at attach and teardown, including capacity, used bytes, mount duration
-and warm/cold source. After finalization removes the private branch, tart-kubelet
-queues the report durably and retries using its host-scoped identity. The server
-resolves the account and repository through the actual executed job's session.
-
-Roll out the additive server migration and endpoint before the host binary and
-runner image. Older hosts/images continue running but cannot populate missing
-measurements retroactively. New hosts retain reports while the endpoint is
-unavailable. Rolling back the host/image stops new observations without changing
-built-in publication; leave the additive schema in place when rolling back the
-server.
-
-Storage totals track the measured canonical saved image and observed job copies,
-not a census of physical host/S3 replicas. Superseding a canonical measurement is
-recorded separately from physical deletion. Built-in volumes do not participate
-in custom-volume expiry or clear until their backend supports the same fencing
-contract; the UI does not expose an unsafe clear action.

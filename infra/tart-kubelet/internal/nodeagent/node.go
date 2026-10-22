@@ -71,8 +71,8 @@ type Maintainer struct {
 	// DynamicLabels are the agent-owned label sets that change at runtime,
 	// each evaluated every heartbeat: the `tuist.dev/golden-<hash>`
 	// advertisements of which golden base VMs this host holds, and the
-	// `tuist.dev/cache-master-<account>` advertisements of which per-account
-	// cache masters are resident. They're merged alongside NodeLabels and
+	// `tuist.dev/cache-volume-<scope>` advertisements of which custom cache
+	// masters are resident. They're merged alongside NodeLabels and
 	// pruned the same way — a key that stops being returned (golden GC'd, or
 	// master evicted) is dropped on the next heartbeat.
 	//
