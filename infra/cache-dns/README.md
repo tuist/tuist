@@ -103,7 +103,7 @@ resolvers an account's clients use, run a Logs Insights query against the group:
 
 ```
 fields @timestamp, @message
-| filter @message like /etsy.cache.tuist.dev/
+| filter @message like /acme.cache.tuist.dev/
 | parse @message "* * * * * * * * * *" version, ts, zone, name, type, rcode, protocol, edge, resolver, subnet
 | stats count() by resolver, subnet, edge
 ```
