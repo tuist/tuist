@@ -63,7 +63,7 @@ independent workqueues:
   A tier that cannot be funded in full is split proportionally to cost,
   and the whole Pods the rounding leaves go one per pool per round to the
   pools with the largest target (which includes the hourly peak), then by
-  name (`grantRemainder`). Every macOS image keeps a one-Pod floor, and
+  name (`grantRemainder`). Every rack image keeps a one-Pod floor, and
   without this one queued job past capacity rounded every floor to zero:
   all images went cold for one job, and the freed slots sat unassigned.
   Now only as many floors yield as the load needs, least recently used
@@ -249,7 +249,7 @@ independent workqueues:
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), or past `idleHostReservationGrace` (30s) when the best
     candidate holds only idle runners and no seat in flight (draining it
-    waits on no job, and with a warm runner per image every host of a
+    waits on no job, and with a warm runner per rack image every host of a
     quiet fleet can hold one), the RunnerPool reconciler taints one eligible host
     `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
     the fewest running jobs and, among those, one already holding the

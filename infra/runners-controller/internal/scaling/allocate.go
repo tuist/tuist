@@ -204,7 +204,7 @@ type tierWant struct {
 // grantRemainder hands the capacity a proportional split rounded away to
 // whole Pods, one per pool per round, so a partially funded tier still
 // spends what it can. Without it a tier of many 1-Pod asks, the shape of
-// one warm floor per macOS image, rounds every ask to zero the moment the
+// one warm floor per rack image, rounds every ask to zero the moment the
 // tier is one Pod short: every image's warm runner was reaped to make
 // room for one queued job, and the slots it freed sat empty.
 //

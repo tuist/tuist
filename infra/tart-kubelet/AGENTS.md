@@ -47,8 +47,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   release of 2026-10-22 13:00 UTC the GC freed about 60 GiB per reaped golden
   per rack host, and the next pull took 10 to 23 s on hosts that still held
   the base against 9.5 to 12.8 minutes on hosts that did not. Every 6 vCPU
-  macOS pool keeps a warm floor, so the prewarmer below pulls every catalog
-  image onto a joining host (about 60 GiB each; the rack's disk plan in
+  rack pool keeps a warm floor, so the prewarmer below pulls every catalog
+  image onto a joining rack host (about 60 GiB each; the rack's disk plan in
   `values-managed-production.yaml` allows for all of them).
 - `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
   kicks loginwindow before each run when it is missing; on timeout the error

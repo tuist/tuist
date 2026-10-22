@@ -64,7 +64,7 @@ const (
 	// idleHostReservationGrace is the shorter wait for a host whose
 	// other occupants are all idle runners: clearing it retires warm Pods
 	// and waits on no job, so it costs those Pods a cold start and nothing
-	// else. Every macOS image keeps a warm runner, so on a quiet fleet each
+	// else. Every rack image keeps a warm runner, so on a quiet fleet each
 	// host can hold one, and a 12 vCPU job would otherwise wait the full
 	// reservationGrace behind runners nobody is using. It matches
 	// preemptionWait, the same judgement for a same-shape sibling.
