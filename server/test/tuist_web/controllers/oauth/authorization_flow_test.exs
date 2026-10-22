@@ -80,6 +80,24 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     refute third_access_token in [access_token, refreshed_access_token]
   end
 
+  for envelope <- [:query, :body] do
+    @tag envelope: envelope
+    test "anonymous #{envelope} external request URIs never reach the network", %{envelope: envelope} do
+      reject(&Finch.request/2)
+      uri = "http://127.0.0.1/private"
+
+      {path, body} =
+        case envelope do
+          :query -> {"/oauth2/token?" <> URI.encode_query(%{"request_uri" => uri}), %{}}
+          :body -> {"/oauth2/token", %{"request_uri" => uri}}
+        end
+
+      response = build_conn() |> post(path, body) |> json_response(400)
+      assert response["error"] == "invalid_request"
+      assert response["error_description"] =~ "External request_uri is not supported"
+    end
+  end
+
   test "request objects exchange and rotate using the upstream grant flow", %{conn: conn, user: user} do
     client_id = register_client(conn)
     code = authorize(conn, client_id)

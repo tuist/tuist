@@ -6,6 +6,7 @@ defmodule Tuist.OAuth.ExchangeTest do
   alias Boruta.Oauth.RefreshTokenRequest
   alias Boruta.Oauth.Request
   alias Boruta.Oauth.Token
+  alias Tuist.Accounts.User
   alias Tuist.OAuth.Exchange
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -54,8 +55,23 @@ defmodule Tuist.OAuth.ExchangeTest do
              end)
 
     assert_receive {:new_user, id}
-    assert Repo.get(Tuist.Accounts.User, id) == nil
+    assert Repo.get(User, id) == nil
     assert_receive {:response_transaction, false, _}
+  end
+
+  test "an unexpected authorization return rolls back before responding" do
+    assert %{status: 500} =
+             exchange(connection(), fn _ ->
+               user = AccountsFixtures.user_fixture()
+               send(self(), {:unexpected_user, user.id})
+               :unexpected
+             end)
+
+    assert_receive {:unexpected_user, id}
+    assert Repo.get(User, id) == nil
+
+    assert_receive {:response_transaction, false,
+                    %Error{error: :unknown_error, error_description: ":unexpected_authorization_result"}}
   end
 
   test "a refresh credential carried only by a request object is locked" do
@@ -98,20 +114,99 @@ defmodule Tuist.OAuth.ExchangeTest do
     assert %{status: 200} = exchange(conn, fn %RefreshTokenRequest{refresh_token: "body-token"} -> success() end)
   end
 
-  test "a changing request URI is fetched once before the credential transaction" do
-    url = "https://request.example.test/object"
-    claims = %{"grant_type" => "refresh_token", "refresh_token" => "first-token", "client_id" => Ecto.UUID.generate()}
+  for envelope <- [:query, :body],
+      uri <- [
+        "http://127.0.0.1/internal",
+        "http://[::ffff:127.0.0.1]/internal",
+        "https://request.example.test/object",
+        "file:///private/object"
+      ] do
+    @tag envelope: envelope, uri: uri, external_uri: true
+    test "#{envelope} external request URI #{uri} is rejected before network or database work", %{
+      envelope: envelope,
+      uri: uri
+    } do
+      reject(&Finch.request/2)
+      reject(&Repo.transaction/1)
 
-    expect(Finch, :request, fn %{scheme: :https, host: "request.example.test", path: "/object"}, OpenIDHttpClient ->
-      refute Repo.in_transaction?()
-      {:ok, %Finch.Response{status: 200, headers: [], body: jwt(claims)}}
-    end)
+      conn =
+        case envelope do
+          :query -> connection(%{}, "/oauth2/token?" <> URI.encode_query(%{"request_uri" => uri}))
+          :body -> connection(%{"request_uri" => uri})
+        end
+
+      assert %{status: 400} = exchange(conn, fn _ -> flunk("external request URI authorized") end)
+      assert_receive {:response_transaction, false, %Error{error: :invalid_request, error_description: description}}
+      assert description =~ "External request_uri is not supported"
+    end
+  end
+
+  test "a query request object takes precedence over external URIs in either envelope" do
+    reject(&Finch.request/2)
+    claims = %{"grant_type" => "refresh_token", "refresh_token" => "inline-token", "client_id" => Ecto.UUID.generate()}
+    query = URI.encode_query(%{"request" => jwt(claims), "request_uri" => "http://127.0.0.1/query"})
+    conn = connection(%{"request_uri" => "http://127.0.0.1/body"}, "/oauth2/token?" <> query)
+    assert %{status: 200} = exchange(conn, fn %RefreshTokenRequest{refresh_token: "inline-token"} -> success() end)
+  end
+
+  test "a body request object takes precedence over a body external URI" do
+    reject(&Finch.request/2)
+    claims = %{"grant_type" => "refresh_token", "refresh_token" => "inline-token", "client_id" => Ecto.UUID.generate()}
+    conn = connection(%{"request" => jwt(claims), "request_uri" => "http://127.0.0.1/body"})
+    assert %{status: 200} = exchange(conn, fn %RefreshTokenRequest{refresh_token: "inline-token"} -> success() end)
+  end
+
+  test "a query external URI is rejected rather than falling back to a body request object" do
+    reject(&Finch.request/2)
+    claims = %{"grant_type" => "refresh_token", "refresh_token" => "inline-token", "client_id" => Ecto.UUID.generate()}
+    conn = connection(%{"request" => jwt(claims)}, "/oauth2/token?request_uri=http%3A%2F%2F127.0.0.1")
+    assert %{status: 400} = exchange(conn, fn _ -> flunk("lower-priority request authorized") end)
+    assert_receive {:response_transaction, false, %Error{error_description: description}}
+    assert description =~ "External request_uri is not supported"
+  end
+
+  test "a malformed higher-priority request object never falls back to an external URI" do
+    reject(&Finch.request/2)
+
+    conn =
+      connection(%{"request_uri" => "http://127.0.0.1/body"}, "/oauth2/token?request=&request_uri=http%3A%2F%2F127.0.0.1")
+
+    assert %{status: 400} = exchange(conn, fn _ -> flunk("malformed request authorized") end)
+    assert_receive {:response_transaction, false, %Error{error_description: "Unsigned request jwt param is malformed."}}
+  end
+
+  test "query stored-request URNs retain the upstream lookup without a network fetch" do
+    reject(&Finch.request/2)
+
+    stored =
+      Repo.insert!(%Boruta.Ecto.AuthorizationRequest{
+        client_id: Ecto.UUID.generate(),
+        expires_at: System.system_time(:second) + 60
+      })
+
+    uri = "urn:ietf:params:oauth:request_uri:" <> stored.id
+
+    conn =
+      connection(
+        %{"grant_type" => "refresh_token", "refresh_token" => "stored-request-token"},
+        "/oauth2/token?" <> URI.encode_query(%{"request_uri" => uri})
+      )
 
     assert %{status: 200} =
-             exchange(connection(%{"request_uri" => url}), fn %RefreshTokenRequest{refresh_token: "first-token"} ->
-               assert Repo.in_transaction?()
+             exchange(conn, fn %RefreshTokenRequest{client_id: client_id, refresh_token: "stored-request-token"} ->
+               assert client_id == stored.client_id
                success()
              end)
+  end
+
+  test "an invalid stored-request ID retains the upstream error without fetching a URI" do
+    reject(&Finch.request/2)
+    uri = "urn:ietf:params:oauth:request_uri:not-an-id"
+    conn = connection(%{}, "/oauth2/token?" <> URI.encode_query(%{"request_uri" => uri}))
+    assert %{status: 400} = exchange(conn, fn _ -> flunk("invalid stored request authorized") end)
+
+    assert_receive {:response_transaction, false,
+                    %Error{error_description: "Could not fetch stored authorization request."}}
   end
 
   for authentication <- [:claim_secret, :basic_with_claim_assertion] do

@@ -3,8 +3,10 @@ defmodule Tuist.OAuth.Exchange do
   Serializes authorization-code and refresh-token exchanges using Boruta's
   request parser, authorization protocol and response conversion.
 
-  Parse exactly once before taking a database connection: request objects and
-  request URIs must select the same credential that Boruta redeems. Responses
+  Parse exactly once before taking a database connection: inline request objects
+  and stored request references select the credential that Boruta redeems.
+  External request URIs are rejected before Boruta can fetch them from this
+  unauthenticated endpoint. Responses
   are deferred until the transaction commits. The transaction covers validation,
   replacement creation and revocation. A lost response after commit still
   consumes the credential; this is not token delivery recovery or revocation
@@ -24,7 +26,8 @@ defmodule Tuist.OAuth.Exchange do
 
   def token(conn, application, opts \\ []) do
     result =
-      with {:ok, request} <- Request.token_request(conn) do
+      with :ok <- allow_request_uri(conn),
+           {:ok, request} <- Request.token_request(conn) do
         authorize = Keyword.get(opts, :authorize, &Authorization.token/1)
 
         case credential_query(request) do
@@ -45,6 +48,26 @@ defmodule Tuist.OAuth.Exchange do
       else
         reraise error, __STACKTRACE__
       end
+  end
+
+  # Match Boruta's envelope precedence by key presence, including malformed
+  # higher-priority carriers. Do not fall back to a lower request envelope.
+  defp allow_request_uri(%{query_params: %{"request" => _}}), do: :ok
+
+  defp allow_request_uri(%{query_params: %{"request_uri" => "urn:ietf:params:oauth:request_uri:" <> _}}), do: :ok
+
+  defp allow_request_uri(%{query_params: %{"request_uri" => _}}), do: external_request_uri_error()
+  defp allow_request_uri(%{body_params: %{"request" => _}}), do: :ok
+  defp allow_request_uri(%{body_params: %{"request_uri" => _}}), do: external_request_uri_error()
+  defp allow_request_uri(_conn), do: :ok
+
+  defp external_request_uri_error do
+    {:error,
+     %Error{
+       status: :bad_request,
+       error: :invalid_request,
+       error_description: "External request_uri is not supported at the token endpoint; use an inline request."
+     }}
   end
 
   defp exchange(request, authorize, query) do
@@ -71,6 +94,9 @@ defmodule Tuist.OAuth.Exchange do
     with {:ok, tokens} <- authorize.(request),
          %TokenResponse{} = response <- TokenResponse.from_token(tokens) do
       {:success, response}
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :unexpected_authorization_result}
     end
   end
 
@@ -86,7 +112,7 @@ defmodule Tuist.OAuth.Exchange do
   end
 
   defp credential_query(%AuthorizationCodeRequest{code: code}) when is_binary(code) do
-    from(t in Token, where: t.type == "code" and t.value == ^code)
+    from(t in Token, where: t.type in ["code", "preauthorized_code"] and t.value == ^code)
   end
 
   defp credential_query(%RefreshTokenRequest{refresh_token: token}) when is_binary(token) do

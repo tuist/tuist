@@ -14,15 +14,24 @@ defmodule Tuist.OAuth.ExchangeConcurrencyTest do
     def token_error(conn, _), do: Plug.Conn.send_resp(conn, 400, "used")
   end
 
-  for grant <- ["authorization_code", "refresh_token"], carrier <- [:form, :request] do
-    @tag grant: grant, carrier: carrier
-    test "#{grant} via #{carrier} serializes independent connections", %{grant: grant, carrier: carrier} do
+  for {grant, token_type} <- [
+        {"authorization_code", "code"},
+        {"authorization_code", "preauthorized_code"},
+        {"refresh_token", "access_token"}
+      ],
+      carrier <- [:form, :request] do
+    @tag grant: grant, token_type: token_type, carrier: carrier
+    test "#{grant} (#{token_type}) via #{carrier} serializes independent connections", %{
+      grant: grant,
+      token_type: token_type,
+      carrier: carrier
+    } do
       value = Ecto.UUID.generate()
 
       token =
         Sandbox.unboxed_run(Repo, fn ->
           Repo.insert!(%Token{
-            type: if(grant == "authorization_code", do: "code", else: "access_token"),
+            type: token_type,
             value: value,
             refresh_token: value,
             expires_at: System.system_time(:second) + 60

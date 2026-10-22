@@ -6,6 +6,7 @@ defmodule TuistWeb.Controllers.Oauth.TokenControllerTest do
 
   alias Boruta.Oauth.Error
   alias Boruta.Oauth.TokenResponse
+  alias Tuist.OAuth.Exchange
   alias TuistWeb.Oauth.TokenController
 
   setup do
@@ -14,15 +15,15 @@ defmodule TuistWeb.Controllers.Oauth.TokenControllerTest do
   end
 
   describe "token/2" do
-    test "calls oauth module token function", %{conn: conn} do
-      expect(Boruta.Oauth, :token, 1, fn conn, module ->
+    test "delegates ordinary grants to the serialized exchange", %{conn: conn} do
+      expect(Exchange, :token, 1, fn conn, TokenController ->
         response = %TokenResponse{
           token_type: "Bearer",
           access_token: "access_token",
           expires_in: 3600
         }
 
-        module.token_success(conn, response)
+        TokenController.token_success(conn, response)
       end)
 
       conn = TokenController.token(conn, %{})
