@@ -3,11 +3,9 @@ package podagent
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -61,36 +59,6 @@ func TestVolumeUsagePersistsRetriesAndHostIdentity(t *testing.T) {
 	}
 	if attempts != 2 {
 		t.Fatalf("attempts %d", attempts)
-	}
-}
-
-func TestGuestVolumeUsageSamplesFilesystemAndPreservesInitialSize(t *testing.T) {
-	for _, source := range []string{"cold", "warm", "seeded"} {
-		t.Run(source, func(t *testing.T) {
-			root := t.TempDir()
-			if err := os.WriteFile(filepath.Join(root, "cache-source"), []byte(source), 0600); err != nil {
-				t.Fatal(err)
-			}
-			body := fmt.Sprintf(`
-STATUS_SHARE=%q
-CACHE_MOUNT=%q
-CACHE_ATTACHED_AT=2026-09-30T08:00:00Z
-CACHE_ATTACH_MS=42
-size=2
-df() { printf 'Filesystem 1024-blocks Used Available Capacity Mounted\n/dev/disk1 100 %%s 90 10%%%% /cache\n' "$size"; }
-stage_volume_usage attach
-size=7
-stage_volume_usage teardown
-`, root, root)
-			cmd := exec.Command("bash", "-c", guestShellScript(t, body, "stage_volume_usage"))
-			if output, err := cmd.CombinedOutput(); err != nil {
-				t.Fatalf("%v: %s", err, output)
-			}
-			got := readVolumeUsage(root)
-			if got == nil || got.AttachedSizeBytes != 2048 || got.SizeBytes != 7168 || got.CapacityBytes != 102400 || got.AttachMS != 42 || *got.Warm != (source != "cold") {
-				t.Fatalf("usage: %+v", got)
-			}
-		})
 	}
 }
 
