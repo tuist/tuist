@@ -1,4 +1,5 @@
 Mimic.copy(Lumis, type_check: true)
+Mimic.copy(Javex, type_check: true)
 Mimic.copy(Atlas.Automations.Plan, type_check: true)
 Mimic.copy(Atlas.Accounts.ExchangeRates, type_check: true)
 Mimic.copy(Atlas.Accounts, type_check: true)

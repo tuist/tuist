@@ -5,6 +5,7 @@ defmodule Atlas.Automations.JavaScript do
   alias Atlas.Automations.JavaScript.Runtime
 
   @runtime Runtime
+  @worker_timeout 30_000
 
   def child_spec do
     if supported?() do
@@ -43,11 +44,13 @@ defmodule Atlas.Automations.JavaScript do
     Javy.IO.writeSync(1, new TextEncoder().encode(JSON.stringify(output)));
     """
 
-    with {:ok, compiled} <- Javex.compile(script, runtime: @runtime, timeout: 5000, max_source: 70_000),
+    # Isolated calls include cold worker startup and provider compilation, not
+    # just guest execution. Fuel still bounds the untrusted program's CPU work.
+    with {:ok, compiled} <- Javex.compile(script, runtime: @runtime, timeout: @worker_timeout, max_source: 70_000),
          {:ok, output} <-
            Javex.run(compiled, input,
              runtime: @runtime,
-             timeout: 1000,
+             timeout: @worker_timeout,
              fuel: 5_000_000,
              max_memory: 16 * 1024 * 1024,
              max_input: 65_536,
