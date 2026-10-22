@@ -86,8 +86,10 @@ and the runtime reopens its own marked volume only for that grant. If no such
 restart is ready 60 seconds after the exit was recorded, the controller
 promotes a ready standby on another host whose initial backfill completed. A
 process holding an inherited volume reports not ready until its exit resume
-installs, so after a promotion the old ordinal stays unready and marked and
-needs the replica recovery below.
+installs, so after a promotion the old ordinal stays unready and marked. The
+promoted grant records it as `exit_promoted_from`, and the controller submits
+the replica recovery below for it (ID `exit-<pod>-<incarnation>`, kubelet's
+exit report as fence evidence) unless another recovery is pending or in flight.
 A current operator `primaryPromotion` request takes precedence. Host loss,
 partitions and interrupted handovers report no exit and keep the manual path.
 
