@@ -119,6 +119,10 @@ defmodule TuistEx.Analytics.EnvTest do
 
     assert Env.git_commit_sha(pull_request, unreadable) == "merge-commit"
 
+    # Outside a checkout there is no commit.
+    assert Env.git_commit_sha(pull_request, fn _subcommand, _args -> nil end) == nil
+    assert Env.git_commit_sha(fn _ -> nil end, fn _subcommand, _args -> nil end) == nil
+
     assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/heads/main"}[&1], git.("x")) ==
              "merge-commit"
 

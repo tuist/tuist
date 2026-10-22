@@ -124,7 +124,7 @@ defmodule TuistEx.Analytics.Env do
   defp head_or_pull_request_head(environment, git) do
     head = git.("rev-parse", ["HEAD"])
 
-    if (head && environment.("GITHUB_SHA") == head) and
+    if head && environment.("GITHUB_SHA") == head &&
          String.starts_with?(environment.("GITHUB_REF") || "", "refs/pull/") do
       second_parent(git.("cat-file", ["-p", "HEAD"])) || head
     else
