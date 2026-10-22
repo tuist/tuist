@@ -17,10 +17,12 @@
 #            `probe`, so the host's incomplete-image check and the guest's
 #            detach flush handle a large final write.
 #   verify   runs in a later job and requires every volume to be a saved copy
-#            (cache-hit=true) holding exactly what the seed job wrote.
+#            (cache-hit=true) holding exactly what the seed job wrote. A copy
+#            an overlapping probe run saved over this one is inconclusive.
 #
 # Usage: volume.sh attach|seed|payload|verify. Env for verify: SEED_PENDING,
-# the seed job's inconclusive volumes.
+# the seed job's inconclusive volumes; GH_TOKEN and VOLUME_LABEL, to find the
+# seed jobs of this run and of the run that saved a copy.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
@@ -57,11 +59,23 @@ volume_path() { cat "${state}/$1.path"; }
 pending_here() { [ -e "${state}/$1.pending" ]; }
 
 inconclusive() {
-  local name="$1" where="$2"
-  echo "::warning title=Cache volumes inconclusive::$(label "${name}"): GitHub had not yet reported which job the runner runs when ${where} attached it, so its round trip is unchecked"
+  local name="$1" reason="$2"
+  echo "::warning title=Cache volumes inconclusive::$(label "${name}"): ${reason}, so its round trip is unchecked"
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-    printf -- '- Inconclusive: %s, refused in %s because GitHub had not yet reported its job\n' "$(label "${name}")" "${where}" >> "${GITHUB_STEP_SUMMARY}"
+    printf -- '- Inconclusive: %s, %s\n' "$(label "${name}")" "${reason}" >> "${GITHUB_STEP_SUMMARY}"
   fi
+}
+
+pending_reason() { echo "GitHub had not yet reported which job the runner runs when $1 attached it"; }
+
+# Prints, in epoch seconds, when a run attempt's seed job (the macOS job on the
+# volume label) started and when the host may still have been saving its
+# volumes: PUBLISH_SECONDS after the job ended, which volume-wait allows for.
+# Prints nothing when the run has no seed job.
+PUBLISH_SECONDS=120
+seed_window() {
+  gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$1/attempts/$2/jobs?per_page=100" --jq \
+    "[.jobs[] | select((.name | startswith(\"macOS \")) and (.name | endswith(\" (${VOLUME_LABEL})\")) and (.name | startswith(\"macOS cache volume\") | not))][0] // empty | \"\(.started_at // \"2100-01-01T00:00:00Z\" | fromdateiso8601) \((.completed_at // \"2100-01-01T00:00:00Z\" | fromdateiso8601) + ${PUBLISH_SECONDS})\""
 }
 
 # Sets device to the disk the volume is mounted from.
@@ -100,7 +114,7 @@ attach_volume() {
 
   if grep -qF "${PENDING_PATTERN}" "${log}"; then
     : > "${state}/${name}.pending"
-    inconclusive "${name}" "this job"
+    inconclusive "${name}" "$(pending_reason "this job")"
     return 0
   fi
 
@@ -119,16 +133,27 @@ attach_volume() {
 
 # The saved copy must carry this run's id or a later one: overlapping probe
 # runs share the volumes, and run ids and attempts only grow, so a later id
-# still proves publication works. Only an older one is stale.
+# still proves publication works. An older one is stale, unless that run's seed
+# job, saves included, overlapped this run's: both cloned the same saved copy
+# and the host turns down whichever saves second ("cache generation advanced"),
+# so the round trip is inconclusive and marked `.raced`.
 require_run() {
-  local name="$1" saved
+  local name="$1" saved our_start our_end their_start their_end
   saved="$(cat "$(volume_path "${name}")/${marker}" 2>/dev/null || echo none)"
   if [ "${saved}" = "${run}" ]; then
     return 0
-  elif [[ "${saved}" =~ ^([0-9]+)-([0-9]+)$ ]] && [[ "${run}" =~ ^([0-9]+)-([0-9]+)$ ]] &&
-    { [ "${saved%-*}" -gt "${run%-*}" ] || { [ "${saved%-*}" -eq "${run%-*}" ] && [ "${saved##*-}" -gt "${run##*-}" ]; }; }; then
-    echo "$(label "${name}"): attached the copy saved by run ${saved}, which seeded after this one"
-    return 0
+  elif [[ "${saved}" =~ ^([0-9]+)-([0-9]+)$ ]] && [[ "${run}" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+    if [ "${saved%-*}" -gt "${run%-*}" ] || { [ "${saved%-*}" -eq "${run%-*}" ] && [ "${saved##*-}" -gt "${run##*-}" ]; }; then
+      echo "$(label "${name}"): attached the copy saved by run ${saved}, which seeded after this one"
+      return 0
+    fi
+    read -r our_start our_end <<< "$(seed_window "${run%-*}" "${run##*-}")"
+    read -r their_start their_end <<< "$(seed_window "${saved%-*}" "${saved##*-}")"
+    if [ -n "${their_start}" ] && [ "${their_start}" -lt "${our_end}" ] && [ "${their_end}" -gt "${our_start}" ]; then
+      : > "${state}/${name}.raced"
+      inconclusive "${name}" "run ${saved}'s seed job overlapped this run's: both cloned the same saved copy and the host kept run ${saved}'s save"
+      return 0
+    fi
   fi
   fail "Cache volumes" "$(label "${name}"): the verify job attached the copy saved by run ${saved}, which predates this run's seed job (${run}). The host withheld the seed job's save (an incomplete image, a failed guest detach or a refused save) or had not published it before the verify job attached; the seed job's teardown on the host says which"
 }
@@ -199,7 +224,7 @@ case "${mode}" in
     while read -r name _; do
       case " ${SEED_PENDING:-} " in
         *" ${name} "*)
-          inconclusive "${name}" "the seed job"
+          inconclusive "${name}" "$(pending_reason "the seed job")"
           continue
           ;;
       esac
@@ -212,6 +237,7 @@ case "${mode}" in
       case "${name}" in
         probe)
           require_run probe
+          [ -e "${state}/probe.raced" ] && continue
           require_entries probe "${marker} payload payload.sha256 "
           (cd "${path}" && shasum -a 256 -c -s payload.sha256) ||
             fail "Cache volumes" "$(label probe): the saved ${PAYLOAD_MB} MB payload, the seed job's last write, does not match its checksum, so the host saved an image that lost writes"
@@ -223,6 +249,7 @@ case "${mode}" in
           ;;
         xcode | module)
           require_run "${name}"
+          [ -e "${state}/${name}.raced" ] && continue
           ;;
       esac
       pass "The $(label "${name}") holds the seed job's saved copy"

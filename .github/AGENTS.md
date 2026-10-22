@@ -507,7 +507,12 @@ covered only by the production schedule.
   write. `volume-wait` then waits on a GitHub-hosted runner for the host to
   publish, and `macos-volume` attaches them all and requires `cache-hit=true`,
   a real APFS mount, the run id or a later one (overlapping probe runs share
-  the volumes), the payload's checksum and exactly the seeded entries.
+  the volumes), the payload's checksum and exactly the seeded entries. An
+  older run's id is a failure unless that run's seed job overlapped this one's
+  (each widened by the 120 s publish allowance): both cloned the same saved
+  copy and the host turns down whichever saves second, so the volume is
+  `Cache volumes inconclusive`. Verify reads both seed jobs' times from the
+  Actions API, which is why `macos-volume` has `actions: read`.
   Canary has one rack host, so verify lands where seed published; production's
   multi-host fleets would make it depend on convergence.
 - The script attaches through the in-repo action sources rather than the

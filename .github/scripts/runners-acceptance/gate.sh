@@ -49,9 +49,9 @@ jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=
 jq -r '.jobs[] | "- \(.name): \(.conclusion // .status)"' <<< "${jobs}" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
 # Re-raises every layer's failure, cache volumes included, as an error. A cache
-# volume GitHub had not yet reported the job for leaves the run successful with
-# a `Cache volumes inconclusive` warning, re-raised here as a warning: a GitHub
-# webhook delay must not block a deploy.
+# volume GitHub had not yet reported the job for, or one an overlapping probe
+# run saved over, leaves the run successful with a `Cache volumes inconclusive`
+# warning, re-raised here as a warning: neither must block a deploy.
 jq -r '.jobs[] | select(.conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${jobs}" |
   while IFS=$'\t' read -r job_id name; do
     gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" \
