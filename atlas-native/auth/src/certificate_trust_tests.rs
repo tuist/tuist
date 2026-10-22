@@ -1,4 +1,4 @@
-use crate::certificate_trust::{self, spki_hash, BLOCKED_SPKI_HASHES};
+use crate::certificate_trust::{self, BLOCKED_SPKI_HASHES, spki_hash};
 use rcgen::{BasicConstraints, CertificateParams, IsCa, Issuer, KeyPair};
 use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 use rustls::{Error, RootCertStore};
@@ -151,7 +151,7 @@ impl Fixture {
     }
 
     fn config(&self, blocked: Vec<String>) -> rustls::ClientConfig {
-        certificate_trust::client_config(roots(&[self.root.clone()]), blocked).unwrap()
+        certificate_trust::client_config(roots(std::slice::from_ref(&self.root)), blocked).unwrap()
     }
 
     fn url(&self) -> String {
@@ -302,7 +302,10 @@ fn production_http_and_presence_clients_reject_all_twelve_public_controls() {
                     policy_failure(&error),
                     "not a policy-specific failure: {error:?}"
                 );
-                eprintln!("Atlas {label} incident_roots={injected} {issuer}/{prefix}: certificate rejection, key_deny={}", policy_failure(&error));
+                eprintln!(
+                    "Atlas {label} incident_roots={injected} {issuer}/{prefix}: certificate rejection, key_deny={}",
+                    policy_failure(&error)
+                );
             }
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()
