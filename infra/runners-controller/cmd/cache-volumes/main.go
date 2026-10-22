@@ -306,9 +306,6 @@ func main() {
 				metrics.free.Set(float64(available))
 				metrics.capacity.Set(float64(capacity))
 			}
-			if err != nil {
-				log.Printf("cache maintenance failed: %v", err)
-			}
 			time.Sleep(30 * time.Second)
 		}
 	}()

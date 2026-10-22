@@ -34,6 +34,12 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   requires no ready CRI sandbox or non-exited container. Kubelet directory
   absence is only a cleanup fence: waiting for it before unmounting deadlocks
   on propagated SubPath mounts. Terminal phase and timeouts are not fences.
+  Kubelet unmounts those SubPath mounts only on a backoff retry after the
+  agent's unmount, so the loop device often outlives it by tens of seconds:
+  `detach` then returns `ErrReleasePending`. A branch that passed its checks
+  becomes `.detaching` (not poisoned) and is verified once the device is gone;
+  a branch being deleted keeps `Slot.Discard` so later passes delete it instead
+  of sealing it again. Neither fails maintenance.
 - Publish synchronously after verification: compress, preflight, upload,
   fast-forward, then install the accepted master. Bound compressed and expanded
   downloads and verify checksums. Require reflinks without byte-copy fallback.
@@ -49,6 +55,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   reclaim their journals only after the existing writer fences pass.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
+  The Linux agent's phase log line carries a failure's `error` text, URLs replaced.
 - Every `Observation` carries a `Subject` (`Observer.For(slot)`/`With`) that
   agents append to their phase log line, never to a metric label: `scope` (64
   hex; node labels use its first 48), `use`, `kind` (`custom`, `managed`,
@@ -212,7 +219,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   kernel's background zeroing), clones with `cp --reflink=always`, loop-mounts
   builds in the agent, keeps the tree in `checkout/` beside the volume's own
   files, and chowns it to the job's UID. git runs as root on that tree, so the
-  populator passes `safe.directory=*` per command. A Linux checkout slot is
+  populator passes `safe.directory=*` per command, and `gc.autoDetach=false`: a
+  repack git detaches (every ingest adds a pack; past 50 one starts) keeps the
+  image busy and no build can unmount it again. A Linux checkout slot is
   seeded through `LocalImages.Seed`, never formatted, and admitted only while
   free space covers the whole checkout image, since it holds the job's workspace.
   That check never evicts (`reserveSpare`); the usual reserve admission does.

@@ -21,6 +21,11 @@ import (
 var ErrConflict = errors.New("cache generation advanced")
 var ErrPoisoned = errors.New("cache image failed write-back verification")
 
+// ErrReleasePending reports a volume this host unmounted whose loop device
+// another mount still holds: kubelet removes a pod's subPath mounts only on a
+// retry after that unmount. The branch is intact; a later pass finishes it.
+var ErrReleasePending = errors.New("loop device still has live references after detach")
+
 // ErrWithheld discards a finished branch that must not replace the saved version.
 var ErrWithheld = errors.New("cache branch withheld from publication")
 
@@ -724,7 +729,7 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 		return err
 	}
 	if remaining != "" {
-		return errors.New("loop device still has live references after detach")
+		return ErrReleasePending
 	}
 	return nil
 }
@@ -734,11 +739,12 @@ func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	if b.Cold(slot) && !slot.PublishCold {
 		return ErrWithheld
 	}
-	// A verified branch is already detached and passed these checks; verify
-	// rejects one whose verification was interrupted.
+	// A verified or detaching branch is already unmounted and passed these checks;
+	// verify rejects one whose verification was interrupted.
 	_, verified := os.Stat(b.image(slot) + ".verified")
 	_, checking := os.Stat(b.image(slot) + ".checking")
-	if os.IsNotExist(verified) && os.IsNotExist(checking) {
+	_, detaching := os.Stat(b.image(slot) + ".detaching")
+	if os.IsNotExist(verified) && os.IsNotExist(checking) && os.IsNotExist(detaching) {
 		if err := b.withheld(slot, path); err != nil {
 			if errors.Is(err, ErrUnchanged) {
 				b.keepUnchanged(slot, func() error {
@@ -834,6 +840,8 @@ func (b *LocalImages) keepUnchanged(slot Slot, verify func() error) {
 // The guard is durable before consuming one-shot kernel write-back errors.
 // A crash or failure during verification permanently disqualifies this branch.
 // Successful verification survives upload retries without remounting the image.
+// A branch that passed its checks while another mount still holds its loop
+// device is `.detaching` until that mount goes, then verified.
 func (b *LocalImages) verify(slot Slot, path string) error {
 	image := b.image(slot)
 	if _, err := os.Stat(image + ".checking"); err == nil {
@@ -843,6 +851,14 @@ func (b *LocalImages) verify(slot Slot, path string) error {
 	}
 	if _, err := os.Stat(image + ".verified"); err == nil {
 		return b.detach(slot, path)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if _, err := os.Stat(image + ".detaching"); err == nil {
+		if err := b.detach(slot, path); err != nil {
+			return err
+		}
+		return durableRename(image+".detaching", image+".verified")
 	} else if !os.IsNotExist(err) {
 		return err
 	}
@@ -866,7 +882,12 @@ func (b *LocalImages) verify(slot Slot, path string) error {
 	if err := check(device, path); err != nil {
 		return errors.Join(ErrPoisoned, err)
 	}
-	if err := b.detach(slot, path); err != nil {
+	if err := b.detach(slot, path); errors.Is(err, ErrReleasePending) {
+		if err := durableRename(image+".checking", image+".detaching"); err != nil {
+			return err
+		}
+		return ErrReleasePending
+	} else if err != nil {
 		return errors.Join(ErrPoisoned, err)
 	}
 	return durableRename(image+".checking", image+".verified")
@@ -876,7 +897,7 @@ func (b *LocalImages) Delete(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified", ".entries", ".base", ".cold"} {
+	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".detaching", ".verified", ".entries", ".base", ".cold"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}

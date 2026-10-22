@@ -15,6 +15,9 @@ type memoryBackend struct {
 	parents                   map[string]string
 	attached, sealed, deleted int
 	failSeal                  bool
+	// sealErr and deleteErr, when set, are what Seal and Delete return.
+	sealErr, deleteErr error
+	sealCalls          int
 }
 
 func (b *memoryBackend) Attach(_ context.Context, slot Slot, path string) error {
@@ -26,6 +29,10 @@ func (b *memoryBackend) Attach(_ context.Context, slot Slot, path string) error 
 }
 func (*memoryBackend) Measure(Slot, string) (int64, int64, error) { return 100, 1000, nil }
 func (b *memoryBackend) Seal(slot Slot, path string) error {
+	b.sealCalls++
+	if b.sealErr != nil {
+		return b.sealErr
+	}
 	if b.failSeal {
 		return errors.New("storage unavailable")
 	}
@@ -33,7 +40,13 @@ func (b *memoryBackend) Seal(slot Slot, path string) error {
 	b.parents[slot.ID] = path
 	return nil
 }
-func (b *memoryBackend) Delete(_ Slot, _ string) error { b.deleted++; return nil }
+func (b *memoryBackend) Delete(_ Slot, _ string) error {
+	if b.deleteErr != nil {
+		return b.deleteErr
+	}
+	b.deleted++
+	return nil
+}
 func identity(id string) Identity {
 	return Identity{ID: id, Account: 1, Scope: strings.Repeat("a", 64), CanPublish: true}
 }
@@ -165,6 +178,46 @@ func TestDiscardedPRCannotBeSealedAndDeletionRequiresAcknowledgement(t *testing.
 		t.Fatal("did not finish deletion")
 	}
 }
+func TestLingeringLoopReferenceDelaysSealWithoutFailingReconcile(t *testing.T) {
+	s, b := newStore(t)
+	s.Acquire(context.Background(), identity(first), "p", "u")
+	done := func(string, string) (bool, error) { return true, nil }
+	seal := func(Slot, bool) (string, error) { return "seal", nil }
+	b.sealErr = ErrReleasePending
+	if err := s.Reconcile(done, seal); err != nil {
+		t.Fatal(err)
+	}
+	if slots, _ := s.slots(); slots[0].State != "active" || b.deleted != 0 {
+		t.Fatal("gave up a branch that only waits for its loop device", slots[0].State, b.deleted)
+	}
+	b.sealErr = nil
+	if err := s.Reconcile(done, seal); err != nil {
+		t.Fatal(err)
+	}
+	if slots, _ := s.slots(); slots[0].State != "sealed" || b.sealed != 1 {
+		t.Fatal(slots[0].State, b.sealed)
+	}
+}
+
+func TestDiscardWaitingForALingeringLoopReferenceIsNeverSealedAgain(t *testing.T) {
+	s, b := newStore(t)
+	s.Acquire(context.Background(), identity(first), "p", "u")
+	done := func(string, string) (bool, error) { return true, nil }
+	seal := func(Slot, bool) (string, error) { return "seal", nil }
+	b.sealErr, b.deleteErr = ErrUnchanged, ErrReleasePending
+	if err := s.Reconcile(done, seal); err != nil {
+		t.Fatal(err)
+	}
+	// The volume is unmounted now: sealing it again could only fail.
+	b.sealErr, b.deleteErr = errors.New("volume not mounted"), nil
+	if err := s.Reconcile(done, seal); err != nil {
+		t.Fatal(err)
+	}
+	if slots, _ := s.slots(); slots[0].State != "deleted" || b.deleted != 1 || b.sealCalls != 1 {
+		t.Fatal(slots[0].State, b.deleted, b.sealCalls)
+	}
+}
+
 func TestRejectsTraversalAndCrossPodRetry(t *testing.T) {
 	s, _ := newStore(t)
 	x := identity(first)

@@ -5,7 +5,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
   import Mimic
 
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
   alias Tuist.Runners
@@ -843,8 +842,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     defp sized(pod, bytes, extra \\ %{}),
       do: pod |> attrs() |> Map.merge(%{requested_volume_bytes: bytes, max_volume_bytes: gb(100)}) |> Map.merge(extra)
 
-    defp large_sizes(enabled), do: stub(FeatureFlags, :runner_custom_volume_sizes_enabled?, fn _ -> enabled end)
-
     defp saved_volume(account), do: Repo.get!(Volume, volume(account).id)
 
     defp uses(account),
@@ -855,7 +852,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
         )
 
     test "without a request a volume starts at 20 GB and keeps a grown capacity", %{job: job} do
-      large_sizes(true)
       complete(job)
 
       assert {:ok, %{volume_bytes: 20_000_000_000, head_size_bytes: nil} = first} =
@@ -900,29 +896,20 @@ defmodule Tuist.Runners.CacheVolumesTest do
                Query.run(:show, account.id, %{"volume_id" => id})
     end
 
-    test "new volumes take the requested size, capped at 20 GB without the flag", %{job: job, account: account} do
-      large_sizes(false)
-
+    test "new volumes take the requested size", %{job: job, account: account} do
       assert {:ok, %{volume_bytes: 5_000_000_000}} =
                CacheVolumes.allocate_for_job(job, identity(), %{sized("a", gb(5)) | key: "small"})
 
-      assert {:ok, %{volume_bytes: 20_000_000_000}} =
+      assert {:ok, %{volume_bytes: 50_000_000_000}} =
                CacheVolumes.allocate_for_job(job, identity(), %{sized("b", gb(50)) | key: "large"})
 
-      assert Repo.get_by!(Volume, account_id: account.id, key: "large").requested_volume_bytes == gb(20)
-
-      large_sizes(true)
-
-      assert {:ok, %{volume_bytes: 50_000_000_000}} =
-               CacheVolumes.allocate_for_job(job, identity(), %{sized("c", gb(50)) | key: "flagged"})
+      assert Repo.get_by!(Volume, account_id: account.id, key: "large").requested_volume_bytes == gb(50)
 
       assert {:ok, %{volume_bytes: 100_000_000_000}} =
-               CacheVolumes.allocate_for_job(job, identity(), %{sized("d", gb(100)) | key: "largest"})
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("c", gb(100)) | key: "largest"})
     end
 
     test "invalid requests are no request", %{job: job} do
-      large_sizes(true)
-
       for {bytes, n} <- Enum.with_index([1_500_000_000, 0, gb(101), "50", -gb(1)]) do
         assert {:ok, %{volume_bytes: 20_000_000_000}} =
                  CacheVolumes.allocate_for_job(job, identity(), %{sized("invalid-#{n}", bytes) | key: "invalid-#{n}"})
@@ -930,8 +917,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
 
     test "managed volumes ignore requests and the Gradle volume honors them", %{job: job, account: account} do
-      large_sizes(true)
-
       assert {:ok, %{volume_bytes: 30_000_000_000}} =
                CacheVolumes.allocate_for_job(job, identity(), %{sized("xcode", gb(5)) | key: "tuist-xcode"})
 
@@ -945,8 +930,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
 
     test "a capacity above the host maximum allocates nothing", %{job: job, account: account} do
-      large_sizes(true)
-
       assert {:error, :capacity} =
                CacheVolumes.allocate_for_job(job, identity(), sized("small-host", gb(50), %{max_volume_bytes: gb(20)}))
 
@@ -984,7 +967,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
 
     test "a pull request gets the larger copy without changing the volume's size", %{job: job, account: account} do
-      large_sizes(true)
       complete(job)
       {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs("saved"))
       publish_report("node", saved.id)
@@ -997,7 +979,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
 
     test "the full-volume reset measures the saved head against the job's capacity", %{job: job, account: account} do
-      large_sizes(true)
       complete(job)
       {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs("saved"))
       publish_report("node", saved.id, %{"size_bytes" => gb(19), "capacity_bytes" => gb(20)})
@@ -1016,7 +997,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
 
     test "the nearly full warning uses the capacity the next job gets", %{job: job, account: account} do
-      large_sizes(true)
       complete(job)
       {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs("saved"))
       publish_report("node", saved.id, %{"size_bytes" => gb(17), "capacity_bytes" => gb(20)})

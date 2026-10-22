@@ -73,8 +73,7 @@ these schemas persist volume identities and per-job uses.
 - Allocation picks each use's capacity (`runner_cache_volume_uses.volume_bytes`).
   The host sends `requested_volume_bytes` (whole GB, 1 to 100; anything else is no
   request) and `max_volume_bytes` (absent: 32 GB). Managed keys keep their fixed
-  size and ignore requests; `tuist-gradle` is not managed. Requests above 20 GB
-  are capped to 20 GB unless `:runner_custom_volume_sizes` is on for the account.
+  size and ignore requests; `tuist-gradle` is not managed.
   With a saved head the capacity is the larger of the lineage capacity (the head
   use's `volume_bytes`, else the key default) and the request; without one it is
   the request or 20 GB. A capacity above the host maximum rolls back and answers
