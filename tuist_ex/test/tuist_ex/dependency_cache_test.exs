@@ -88,7 +88,11 @@ defmodule TuistEx.DependencyCacheTest do
 
         File.write!(
           probe,
-          String.replace(File.read!(probe), "deps: []", ~s(deps: [{:grpc, "~> 0.11"}]))
+          String.replace(
+            File.read!(probe),
+            "deps: []",
+            ~s(deps: [{:grpc, "~> 0.11"}, {:mint, "== 1.10.2"}])
+          )
         )
 
         commit!(Path.join(dir, "package"))
@@ -130,6 +134,35 @@ defmodule TuistEx.DependencyCacheTest do
       run_mix = &mix(project, &1, env)
       {output, status} = run_mix.(["deps.get"])
       assert status == 0, output
+
+      if unquote(bootstrap) == :deterministic do
+        source = Path.join(project, "deps/mint/lib/mint/http2/frame.ex")
+
+        probe = """
+        [source, direction, output] = System.argv()
+        frames = ~w(data headers priority rst_stream settings push_promise ping goaway window_update continuation end_stream padded end_headers ack)
+        frames = if direction == "reverse", do: Enum.reverse(frames), else: frames
+        Enum.each(frames, &String.to_atom/1)
+        [{Mint.HTTP2.Frame, binary}] = Code.compile_file(source)
+        File.write!(output, binary)
+        """
+
+        for order <- ["forward", "reverse"] do
+          {output, status} =
+            System.cmd(
+              "elixir",
+              ["-e", probe, source, order, Path.join(project, "mint-#{order}.beam")],
+              env: [{"ERL_FLAGS", "+S 2:2"}, {"ERL_COMPILER_OPTIONS", "[deterministic]"}],
+              stderr_to_stdout: true
+            )
+
+          assert status == 0, output
+        end
+
+        assert File.read!(Path.join(project, "mint-forward.beam")) ==
+                 File.read!(Path.join(project, "mint-reverse.beam"))
+      end
+
       {first, status} = run_mix.(compile_args)
       assert status == 0, first
       assert first =~ "Generated dep_probe app"

@@ -213,6 +213,14 @@ protocol consolidation, undeclared inputs or different checkout paths.
 your coverage, debugging and source-discovery tooling before adopting it. Cache
 keys still include complete upstream BEAM bytes, without stripping metadata.
 
+Compiler flags cannot make unordered compile-time generators reproducible. The
+SDK requires Mint 1.10.2 or later (including its security backports) because
+versions before 1.10 generate functions by
+iterating atom-keyed maps, producing different BEAMs across fresh VMs. This
+minimum fixes that generator, not every dependency or compiler pass: even with
+`deterministic`, other bootstrap outputs can still vary and invalidate downstream
+keys. A high hit rate on a small fixture is not proof of full-graph reuse.
+
 Verified local snapshots are tried before the remote cache. Idle builds and
 builds fully served locally do not contact cache endpoints or resolve credentials.
 A compile lazily opens one remote session, closes it even on compiler failure,

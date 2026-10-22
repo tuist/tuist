@@ -105,7 +105,11 @@ does not set it automatically; its exact value remains part of the key. Complete
 upstream bytes are still hashed, not normalized or stripped. This is not a
 cross-checkout or arbitrary-builder reproducibility guarantee. The compiler option
 also omits source/options from `module_info(:compile)`, so validate coverage,
-debugging and source-discovery tools before adopting it.
+debugging and source-discovery tools before adopting it. Compiler flags do not
+fix unordered compile-time generators. The SDK requires Mint 1.10.2 or later,
+including its security backports. This release sorts the maps used to generate its HTTP/2 frame functions; update older
+Mint lock entries when upgrading the SDK. Other dependencies and compiler passes
+can still produce varying bootstrap BEAMs, even with `deterministic` enabled.
 
 Lexer and parser outputs are treated as derived files only when they are absent
 from the locked Git tree or Hex package file manifest. Shipped `.erl` files and
