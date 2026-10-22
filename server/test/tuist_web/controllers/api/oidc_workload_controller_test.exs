@@ -64,7 +64,9 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     ProjectsFixtures.project_fixture(account: project.account, vcs_connection: [repository_full_handle: "tuist/tuist"])
     response = conn |> exchange(sign(key), String.upcase(account)) |> json_response(:ok)
     assert response["expires_in"] == 3600
+    refute Map.has_key?(response, "refresh_token")
     assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
+    assert claims["exp"] - claims["iat"] == 3600
     assert claims["all_projects"] == true
     refute Map.has_key?(claims, "project_ids")
     assert claims["sub"] == to_string(project.account.id)
@@ -102,6 +104,138 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     assert Authorization.authorize(:project_cache_read, subject, transferred_in) == :ok
     accessible = Projects.list_accessible_projects(subject, preload: [])
     assert MapSet.new(accessible, & &1.id) == MapSet.new([existing.id, future.id, transferred_in.id])
+  end
+
+  test "account-wide workload credentials cannot administer projects, runners or account members", %{
+    conn: conn,
+    key: key,
+    project: project,
+    account: account
+  } do
+    response = conn |> exchange(sign(key), account) |> json_response(:ok)
+    assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
+    assert {:ok, subject} = Guardian.resource_from_claims(claims)
+    assert claims["all_projects"] == true
+    assert Authorization.authorize(:project_cache_update, subject, project) == :ok
+    assert Authorization.authorize(:run_create, subject, project) == :ok
+
+    for {action, resource} <- [
+          project_create: project.account,
+          project_update: project,
+          project_delete: project,
+          runners_read: project.account,
+          runners_update: project.account,
+          runners_interactive_access: project.account,
+          account_update: project.account,
+          account_delete: project.account,
+          account_token_create: project.account,
+          organization_read: project.account,
+          invitation_create: project.account,
+          member_update: project.account,
+          member_delete: project.account
+        ] do
+      assert Authorization.authorize(action, subject, resource) == {:error, :forbidden},
+             "workload credential must not authorize #{action}"
+    end
+  end
+
+  for {provider, issuer, jwks_url, repository_claims} <- [
+        {"GitHub Actions", "https://token.actions.githubusercontent.com",
+         "https://token.actions.githubusercontent.com/.well-known/jwks", %{"repository" => "tuist/oidc-security"}},
+        {"GitHub Enterprise", "https://token.actions.githubusercontent.com/tuist-enterprise",
+         "https://token.actions.githubusercontent.com/.well-known/jwks", %{"repository" => "tuist/oidc-security"}},
+        {"CircleCI", "https://oidc.circleci.com/org/tuist-org",
+         "https://oidc.circleci.com/org/tuist-org/.well-known/jwks-pub.json",
+         %{"oidc.circleci.com/vcs-origin" => "github.com/tuist/oidc-security"}},
+        {"Bitrise", "https://token.builds.bitrise.io", "https://token.builds.bitrise.io/.well-known/jwks",
+         %{
+           "repository_owner" => "tuist",
+           "repository_slug" => "oidc-security",
+           "repository_url" => "https://github.com/tuist/oidc-security"
+         }}
+      ] do
+    test "#{provider} stays repository-scoped even with a directly inserted reserved-issuer policy", %{
+      conn: conn,
+      key: key,
+      other_key: other_key,
+      project: unrelated,
+      policy: policy,
+      account: account
+    } do
+      issuer = unquote(issuer)
+      jwks_url = unquote(jwks_url)
+      repository_claims = unquote(Macro.escape(repository_claims))
+
+      # Bypass changeset validation to prove issuer routing is also enforced at runtime.
+      Repo.update!(Ecto.Changeset.change(policy, issuer: issuer))
+
+      assert OIDCTrustPolicy.matches?(
+               Repo.reload!(policy),
+               Map.merge(repository_claims, %{
+                 "iss" => issuer,
+                 "aud" => "tuist",
+                 "sub" => "service:production"
+               })
+             )
+
+      linked =
+        ProjectsFixtures.project_fixture(
+          account: unrelated.account,
+          vcs_connection: [repository_full_handle: "tuist/oidc-security"]
+        )
+
+      sibling =
+        ProjectsFixtures.project_fixture(
+          account: unrelated.account,
+          vcs_connection: [repository_full_handle: "tuist/oidc-security"]
+        )
+
+      reject(&Accounts.oidc_trust_candidates/3)
+      reject(&JWKSClient.get/2)
+      parent = self()
+
+      stub(Req, :get, fn url, _opts ->
+        send(parent, {:builtin_jwks_fetch, url})
+        {:ok, %{status: 200, body: JSON.decode!(jwks(key))}}
+      end)
+
+      overrides = Map.put(repository_claims, "iss", issuer)
+
+      for account_handle <- [account, nil] do
+        response = conn |> exchange(sign(key, overrides), account_handle) |> json_response(:ok)
+        assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
+        assert claims["scopes"] == ["ci"]
+        assert claims["sub"] == to_string(unrelated.account_id)
+        assert MapSet.new(claims["project_ids"]) == MapSet.new([linked.id, sibling.id])
+        refute claims["all_projects"]
+        assert {:ok, subject} = Guardian.resource_from_claims(claims)
+        assert Authorization.authorize(:project_cache_read, subject, linked) == :ok
+        assert Authorization.authorize(:project_cache_read, subject, unrelated) == {:error, :forbidden}
+        future = ProjectsFixtures.project_fixture(account: unrelated.account)
+        assert Authorization.authorize(:project_cache_read, subject, future) == {:error, :forbidden}
+        assert_receive {:builtin_jwks_fetch, ^jwks_url}
+      end
+
+      # The matching policy's key must never rescue a forged built-in-provider token.
+      assert conn |> exchange(sign(other_key, overrides), account) |> json_response(:unauthorized)
+      refute_receive {:jwks_fetch, _, _}
+    end
+  end
+
+  test "reserved unsupported issuers never fall back to directly inserted workload policies", %{
+    conn: conn,
+    key: key,
+    policy: policy,
+    account: account
+  } do
+    issuer = "https://token.actions.githubusercontent.com/enterprise/extra"
+    Repo.update!(Ecto.Changeset.change(policy, issuer: issuer))
+    reject(&Accounts.oidc_trust_candidates/3)
+    reject(&JWKSClient.get/2)
+    reject(&Req.get/2)
+
+    assert conn |> exchange(sign(key, %{"iss" => issuer}), account) |> json_response(:bad_request)
+    refute_receive {:jwks_fetch, _, _}
   end
 
   test "an account can exchange before it has any projects", %{conn: conn, key: key, project: project, account: account} do

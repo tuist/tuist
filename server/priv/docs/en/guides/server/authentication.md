@@ -59,6 +59,9 @@ A trust policy lets workloads from another identity provider, such as a deployme
 
 GitHub Actions, CircleCI, and Bitrise issuers are reserved for the repository-based flow above and can't be used in a trust policy.
 
+> [!NOTE]
+> For a self-hosted rollout, apply the database migrations and upgrade every serving Tuist server replica before configuring workload identities or moving jobs to them. Then upgrade the CLI or Elixir integration to a version that supports `TUIST_OIDC_TOKEN` and `TUIST_OIDC_ACCOUNT`. Existing GitHub Actions, CircleCI, and Bitrise jobs keep using repository-based authorization and don't require an account handle. Before switching production jobs, verify a short-lived token exchange and a cache operation with the intended workload. To stop new exchanges, remove the policy; allow up to one hour for already-issued Tuist access tokens to expire. Deleting a policy does not immediately revoke those tokens.
+
 #### Create a policy {#create-a-trust-policy}
 
 In the Tuist dashboard, open your account's **Settings** > **Authentication** and find the **Workload identities** section. You must be an account administrator (or the owner of a personal account). Each account can have up to 20 policies. Configure an identity once for account-wide CI access; no project selection is required.
@@ -79,6 +82,9 @@ Each policy grants CI access to **all current and future projects owned by the a
 
 Every workload that can obtain a token with matching claims can access all of those projects, so choose claims that the provider guarantees and that nobody can reuse. Prefer stable numeric IDs over names that can be renamed or registered again after deletion.
 
+> [!WARNING]
+> On a shared identity provider, bind the policy to your organization or tenant **and** the intended application, project, or service account. A branch name such as `main`, an environment such as `production`, or a generic role alone is not an identity boundary: another tenant may obtain a token with the same values. For example, a GitLab.com policy must include the intended project's stable `project_id`, not only `ref`. A matching token grants account-wide CI access, including cache writes, so a policy that trusts unrelated workloads can allow cache poisoning.
+
 Tuist grants access only for policies whose own JWKS URL holds the key that signed the token, after checking the issuer, audience, expiration, not-before time (with up to 60 seconds of clock skew), and every claim. The issued one-hour CI token is account-wide, not a snapshot of project IDs: it includes projects created or transferred into the account after issuance. Project authorization still requires current account ownership, so transferring a project out removes its access under that account's token.
 
 #### Authenticate a workload {#authenticate-a-workload}
@@ -87,7 +93,7 @@ Tuist grants access only for policies whose own JWKS URL holds the key that sign
 2. Set `TUIST_OIDC_TOKEN` to that token and `TUIST_OIDC_ACCOUNT` to the handle of the Tuist account that owns the project. The account is required for every trust policy exchange. It only selects where to look and grants nothing by itself.
 3. Run `tuist auth login`. For Elixir projects, you can use `mix tuist.login` instead, or let the Elixir integration exchange the token automatically when no `TUIST_TOKEN` or valid stored credentials are available.
 
-The resulting Tuist access token has the `ci` scope group only for the projects explicitly selected by matching policies in that account. Exchanges fail if more than 20 policies in the account match the same token or if they use more than two different JWKS URLs.
+The resulting Tuist access token has only the `ci` scope group and covers all current and future projects owned by the selected account. Exchanges fail if more than 20 policies in the account match the same token or if they use more than two different JWKS URLs.
 
 Tuist doesn't refresh these sessions. Access tokens expire after one hour and have no refresh token. Provider identity tokens are often valid for only a few minutes, so keeping an old `TUIST_OIDC_TOKEN` isn't a renewal strategy: for jobs that run longer than an hour, request a new identity token and log in again before the Tuist session expires. Removing a policy stops new exchanges, but access tokens that were already issued remain valid until they expire.
 
@@ -144,7 +150,7 @@ Do not print or commit the token itself. Every Machine in the authorized Fly app
 
 ### OIDC token scopes {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For workload identity trust policies, access is limited to projects explicitly selected by a matching policy in the selected account. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
+OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
 
 > [!TIP]
 > **Security Benefits**
