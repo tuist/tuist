@@ -2,11 +2,11 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConfig
 import TuistCore
 import TuistEnvironment
 import TuistLogging
 import TuistProcess
-import TuistServer
 import XCResultParser
 
 /// A run that collects per-test coverage evidence: where the test processes write, and the
@@ -42,8 +42,9 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 
 /// Collects which files each test executed (`TestCoverageEvidence`).
 ///
-/// Opt-in with `TUIST_COVERAGE_EVIDENCE=1`, behind the `COVERAGE` client flag. The test targets
-/// link the TestCoverageAttribution package (https://github.com/tuist/TestCoverageAttribution),
+/// Collected whenever the run uploads coverage (`UploadResultBundleService.uploadsCoverage`,
+/// behind the `COVERAGE` client flag). The test targets opt in by linking the
+/// TestCoverageAttribution package (https://github.com/tuist/TestCoverageAttribution),
 /// which records the coverage counters each test moves; Swift Testing suites also need its
 /// `.coverageAttribution` trait. `prepare` hands back the environment that tells the test
 /// processes where to write; after the run `record` reduces what they wrote to source files,
@@ -52,7 +53,7 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 /// and a run whose targets don't link the package is a normal run.
 @Mockable
 public protocol TestCoverageEvidenceServicing {
-    func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession?
+    func prepare(platform: TestCoverageEvidencePlatform?, config: Tuist) async -> TestCoverageEvidenceSession?
 
     func record(
         session: TestCoverageEvidenceSession,
@@ -62,7 +63,6 @@ public protocol TestCoverageEvidenceServicing {
 }
 
 public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
-    static let enabledVariable = "TUIST_COVERAGE_EVIDENCE"
     /// Where TestCoverageAttribution writes; xcodebuild passes it to the test processes with the
     /// `TEST_RUNNER_` prefix.
     static let attributionDirectoryVariable = "TEST_COVERAGE_ATTRIBUTION_DIR"
@@ -75,9 +75,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         self.commandRunner = commandRunner
     }
 
-    public func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession? {
-        guard ClientFeatureFlags.contains("COVERAGE"), Environment.current.isVariableTruthy(Self.enabledVariable)
-        else { return nil }
+    public func prepare(platform: TestCoverageEvidencePlatform?, config: Tuist) async -> TestCoverageEvidenceSession? {
+        guard UploadResultBundleService.uploadsCoverage(config: config) else { return nil }
         guard platform != nil else {
             Logger.current.debug("Coverage evidence is only collected on macOS and the iOS simulator")
             return nil
