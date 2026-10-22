@@ -450,6 +450,7 @@ defmodule TuistEx.DependencyCacheTest do
     )
   end
 
+  @tag wall_clock: true
   test "rebar3 dependencies and their Mix dependents restore without compilation", %{
     project: project,
     dir: dir
@@ -470,6 +471,28 @@ defmodule TuistEx.DependencyCacheTest do
     assert Enum.all?(second["dependency_cache"], &(&1["outcome"] == "local_hit"))
     refute second["output"] =~ "Compiling"
     refute second["output"] =~ "Generated dep_probe"
+
+    # A restored producer must also be usable by a consumer that needs compilation.
+    consumer = Enum.find(first["dependency_cache"], &(&1["dependency"] == "dep_probe"))
+    File.rm_rf!(Path.join([dir, "cache", consumer["key"]]))
+    File.rm_rf!(Path.join(project, "_build"))
+    producer = Enum.find(first["dependency_cache"], &(&1["dependency"] == "erlang_probe"))
+    producer_beam = Path.join([dir, "cache", producer["key"], "files/ebin/erlang_probe.beam"])
+    expected_producer = File.read!(producer_beam)
+    mixed = run!(project)
+
+    assert File.read!(Path.join(project, "_build/dev/lib/erlang_probe/ebin/erlang_probe.beam")) ==
+             expected_producer
+
+    assert mixed["value"] == 7
+
+    assert Enum.find(mixed["dependency_cache"], &(&1["dependency"] == "erlang_probe"))["outcome"] ==
+             "local_hit"
+
+    assert Enum.find(mixed["dependency_cache"], &(&1["dependency"] == "dep_probe"))["outcome"] ==
+             "miss"
+
+    refute mixed["output"] =~ "Compiling erlang_probe"
 
     File.rm_rf!(Path.join(dir, "cache"))
     current = run!(project)

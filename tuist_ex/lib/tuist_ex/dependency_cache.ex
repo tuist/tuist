@@ -110,7 +110,6 @@ defmodule TuistEx.DependencyCache do
                       compile(dependency, dependencies, context, options, remote, fetch)
 
                     CompileReporter.record_cache(reporter, observation)
-                    Mix.Dep.load_and_cache()
                     {[], %{}}
 
                   local_chain?(dependency, dependencies) ->
