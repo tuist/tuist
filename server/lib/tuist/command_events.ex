@@ -423,37 +423,6 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def remote_cache_hits_count_for_customer(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
-    from(p in Project,
-      join: a in Account,
-      on: p.account_id == a.id,
-      where: a.customer_id == ^customer_id,
-      select: p.id
-    )
-    |> Repo.all()
-    |> case do
-      [] ->
-        0
-
-      project_ids ->
-        ClickHouseRepo.one(
-          from(e in Event,
-            where:
-              e.ran_at >= ^period_start and e.ran_at < ^period_end and
-                e.project_id in ^project_ids,
-            select:
-              sum(
-                fragment(
-                  "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END",
-                  e.remote_cache_target_hits,
-                  e.remote_test_target_hits
-                )
-              )
-          )
-        )
-    end
-  end
-
   def delete_project_events(project_id) do
     delete_events_for_project_ids([project_id])
   end
