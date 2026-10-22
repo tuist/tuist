@@ -23,7 +23,7 @@ defmodule Atlas.Push.Workers.DeliverTest do
     stub(Config, :apns, fn -> {:ok, apns} end)
     stub(Config, :fcm, fn -> {:ok, fcm} end)
     stub(Config, :capabilities, fn -> %{"ios" => true, "android" => true} end)
-    stub(Config, :available?, fn _platform -> true end)
+    stub(Config, :available?, fn _platform, _environment -> true end)
     stub(NativeLinks.Config, :origin, fn -> "https://atlas.example.com" end)
 
     stub(Config, :req_options, fn ->
@@ -112,6 +112,15 @@ defmodule Atlas.Push.Workers.DeliverTest do
       assert :ok = perform_job(Deliver, args(installation))
       assert_received {:request, _, _, second_headers, _}
       assert Map.new(second_headers)["authorization"] == "bearer " <> jwt
+    end
+
+    test "production-only credentials never contact sandbox or retire its device", %{user: user, apns: apns} do
+      installation = register(user, ios_device(%{"environment" => "sandbox"}))
+      stub(Config, :apns, fn -> {:ok, %{apns | environment: "production"}} end)
+
+      assert {:cancel, :apns_not_configured} = perform_job(Deliver, args(installation))
+      refute_received {:request, _, _, _, _}
+      assert Repo.reload!(installation).retired_at == nil
     end
 
     test "retires a definitively unregistered token", %{user: user, responses: responses} do

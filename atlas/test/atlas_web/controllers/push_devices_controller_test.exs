@@ -9,7 +9,7 @@ defmodule AtlasWeb.PushDevicesControllerTest do
   alias Atlas.Repo
 
   setup %{conn: conn} do
-    stub(Config, :available?, fn platform -> platform in ["ios", "android"] end)
+    stub(Config, :available?, fn platform, _environment -> platform in ["ios", "android"] end)
     {_conn, user} = log_in_user(conn)
     {client_id, token} = native_access_token(user)
     api = build_conn() |> put_req_header("authorization", "Bearer #{token}")
@@ -92,7 +92,7 @@ defmodule AtlasWeb.PushDevicesControllerTest do
   end
 
   test "reports unconfigured providers", %{api: api, installation_id: id} do
-    stub(Config, :available?, fn _platform -> false end)
+    stub(Config, :available?, fn _platform, _environment -> false end)
     assert api |> put(path(id), ios_device()) |> json_response(503) == %{"error" => "push_unavailable"}
   end
 

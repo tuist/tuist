@@ -16,7 +16,7 @@ defmodule Atlas.PushTest do
 
   setup do
     stub(Config, :capabilities, fn -> %{"ios" => true, "android" => true} end)
-    stub(Config, :available?, fn platform -> platform in ["ios", "android"] end)
+    stub(Config, :available?, fn platform, _environment -> platform in ["ios", "android"] end)
     user = user_fixture()
     %{user: user, client_id: native_client_id(user), installation_id: Ecto.UUID.generate()}
   end
@@ -81,10 +81,25 @@ defmodule Atlas.PushTest do
     end
 
     test "returns unavailable when the platform's provider is not configured", %{user: user} = context do
-      stub(Config, :available?, fn platform -> platform == "ios" end)
+      stub(Config, :available?, fn platform, _environment -> platform == "ios" end)
 
       assert {:error, :unavailable} = Push.register(user, context.client_id, context.installation_id, android_device())
       assert {:ok, _} = Push.register(user, context.client_id, context.installation_id, ios_device())
+    end
+
+    test "rejects sandbox registrations when only production credentials are configured", context do
+      stub(Config, :available?, fn platform, environment -> platform == "ios" and environment == "production" end)
+
+      assert {:error, :unavailable} =
+               Push.register(
+                 context.user,
+                 context.client_id,
+                 context.installation_id,
+                 ios_device(%{"environment" => "sandbox"})
+               )
+
+      assert Repo.aggregate(Installation, :count) == 0
+      assert {:ok, _} = Push.register(context.user, context.client_id, context.installation_id, ios_device())
     end
 
     test "a registration arriving after its deletion cannot resurrect it",

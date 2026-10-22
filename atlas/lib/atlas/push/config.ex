@@ -23,6 +23,15 @@ defmodule Atlas.Push.Config do
     end
   end
 
+  def apns_for(environment) when environment in ["sandbox", "production"] do
+    with {:ok, apns} <- __MODULE__.apns(),
+         true <- Map.get(apns, :environment, "production") in ["both", environment] do
+      {:ok, apns}
+    else
+      _ -> {:error, :not_configured}
+    end
+  end
+
   def fcm do
     case Keyword.get(config(), :fcm) do
       %{} = fcm -> {:ok, fcm}
@@ -35,6 +44,10 @@ defmodule Atlas.Push.Config do
   end
 
   def available?(platform), do: Map.get(capabilities(), platform, false)
+
+  def available?("ios", environment), do: match?({:ok, _}, apns_for(environment))
+  def available?("android", "production"), do: available?("android")
+  def available?(_platform, _environment), do: false
 
   @doc false
   def req_options, do: Keyword.get(config(), :req_options, [])
@@ -54,11 +67,20 @@ defmodule Atlas.Push.Config do
         if !Regex.match?(@apple_identifier, team_id), do: raise("ATLAS_APNS_TEAM_ID must be a 10-character team ID")
         if !Regex.match?(@apple_identifier, key_id), do: raise("ATLAS_APNS_KEY_ID must be a 10-character key ID")
         ensure_key!(private_key, "EC", "ATLAS_APNS_PRIVATE_KEY must be a PEM-encoded P-256 APNs signing key")
-        %{team_id: team_id, key_id: key_id, private_key: private_key}
+        %{team_id: team_id, key_id: key_id, private_key: private_key, environment: parse_apns_environment!(env)}
 
       _ ->
         raise "Set ATLAS_APNS_TEAM_ID, ATLAS_APNS_KEY_ID and ATLAS_APNS_PRIVATE_KEY together, or none of them"
     end
+  end
+
+  defp parse_apns_environment!(env) do
+    environment = present(env, "ATLAS_APNS_ENVIRONMENT") || "production"
+
+    if environment not in ["production", "sandbox", "both"],
+      do: raise("ATLAS_APNS_ENVIRONMENT must be production, sandbox or both")
+
+    environment
   end
 
   defp parse_fcm!(env) do

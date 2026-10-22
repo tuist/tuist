@@ -50,7 +50,7 @@ defmodule Atlas.Push do
       when is_binary(oauth_client_id) and is_map(params) do
     with {:ok, installation_id} <- validate_installation_id(installation_id),
          {:ok, attrs} <- validate_device(params),
-         :ok <- ensure_available(attrs.platform) do
+         :ok <- ensure_available(attrs.platform, attrs.environment) do
       token_hash = Installation.token_hash(attrs.platform, attrs.token)
       audit = audit_opts(user, opts)
 
@@ -499,8 +499,8 @@ defmodule Atlas.Push do
   defp valid_environment?("ios", environment), do: environment in ["sandbox", "production"]
   defp valid_environment?("android", environment), do: environment == "production"
 
-  defp ensure_available(platform) do
-    if Config.available?(platform), do: :ok, else: {:error, :unavailable}
+  defp ensure_available(platform, environment) do
+    if Config.available?(platform, environment), do: :ok, else: {:error, :unavailable}
   end
 
   defp valid_destination?({screen, nil}) when is_binary(screen), do: NativeLinks.for_open([screen]) == {screen, nil}

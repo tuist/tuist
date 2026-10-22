@@ -83,7 +83,7 @@ and Android registration filtering cover delivery display in that window.
   take a node-local `:global.trans` lock per key and recheck, then generate in the
   caller's process; expired-credential responses drop the entry. `Atlas.HTTP` always adds dedicated HTTP/2 pools for both APNs hosts.
 - `Config.parse!/1` reads `ATLAS_APNS_TEAM_ID`, `ATLAS_APNS_KEY_ID`,
-  `ATLAS_APNS_PRIVATE_KEY` (the `.p8` PEM) and `ATLAS_FCM_SERVICE_ACCOUNT_JSON`.
+  `ATLAS_APNS_PRIVATE_KEY` (the `.p8` PEM), `ATLAS_APNS_ENVIRONMENT` and `ATLAS_FCM_SERVICE_ACCOUNT_JSON`. APNs defaults to `production`; choose `sandbox` for a sandbox-only key or `both` only for a legacy key explicitly authorized for both. Registration rejects unsupported environments, and send-time checks prevent older queued sandbox jobs from using a production-only key without retiring their device tokens.
   Providers are all-or-nothing; malformed values fail boot without echoing key
   material. The FCM token endpoint is fixed, never taken from the JSON. The APNs
   topic is fixed to `dev.tuist.atlas`. Unconfigured platforms are reported as

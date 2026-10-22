@@ -12,7 +12,7 @@ defmodule Atlas.MCP.Tools.SendTestPushNotificationTest do
 
   setup do
     stub(Config, :capabilities, fn -> %{"ios" => true, "android" => true} end)
-    stub(Config, :available?, fn _platform -> true end)
+    stub(Config, :available?, fn _platform, _environment -> true end)
     user = insert_user!()
     %{user: user, conn: mcp_conn(user)}
   end

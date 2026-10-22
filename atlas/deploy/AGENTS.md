@@ -20,8 +20,10 @@ Secrets for the managed deployment; nothing is provisioned by this code change):
 
 - `ATLAS_APNS_TEAM_ID` (`U6LC622NKF`), `ATLAS_APNS_KEY_ID`, and `ATLAS_APNS_PRIVATE_KEY`:
   an APNs token-auth `.p8` key from the Apple Developer account with the Apple Push
-  Notifications service enabled. One key serves sandbox and production; the stored
-  environment of each registration chooses the host. The topic is fixed to
+  Notifications service enabled. `ATLAS_APNS_ENVIRONMENT` defaults to `production`;
+  use `sandbox` for a sandbox-only key or `both` only for a key explicitly authorized
+  for both. The stored device environment chooses the host only when the credential
+  supports it. The managed `atlas-apns` key is production-only. The topic is fixed to
   `dev.tuist.atlas`, whose App ID needs the Push Notifications capability and a
   regenerated ad-hoc profile.
 - `ATLAS_FCM_SERVICE_ACCOUNT_JSON`: the full JSON key of a Firebase project service
@@ -29,6 +31,15 @@ Secrets for the managed deployment; nothing is provisioned by this code change):
   `cloudmessaging.messages.create`; verify the predefined role name in the Google
   Cloud console rather than granting project editor). Use the Firebase project
   registered for Android package `dev.tuist.atlas`.
+
+Managed production reads `atlas-apns/{team_id,key_id,private_key,environment}` from
+`atlas-k8s-production` through the existing `onepassword` ClusterSecretStore into
+`atlas-app`. Keep the private PEM field concealed in 1Password and preserve its
+bytes in the ExternalSecret template (`trim: false`); the key never enters Helm
+values, Git or native builds. Verify Secret reconciliation before the next rollout.
+The `.p8` file does not encode Apple's topic/environment authorization, so verify
+those restrictions in the developer portal; local signature checks are not proof
+of live delivery. Regenerate the Atlas profile with Push Notifications enabled.
 
 Each provider is all-or-nothing. A partial or malformed set fails boot rather than
 silently disabling delivery, so add all values in one change. Unset providers make

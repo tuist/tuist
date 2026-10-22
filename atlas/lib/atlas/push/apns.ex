@@ -25,7 +25,7 @@ defmodule Atlas.Push.APNs do
   def origins, do: Map.values(@hosts)
 
   def deliver(%{token: token, environment: environment}, payload, opts) when is_map_key(@hosts, environment) do
-    with {:ok, apns} <- Config.apns(),
+    with {:ok, apns} <- Config.apns_for(environment),
          {:ok, provider_token} <- Credentials.apns_token(apns) do
       request =
         Keyword.merge(

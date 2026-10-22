@@ -55,7 +55,7 @@ defmodule Atlas.PushFixtures do
 
   @doc "Credentials unique to the calling test, so per-identity caches never collide across async tests."
   def apns_config do
-    %{team_id: "TEAM123456", key_id: random_identifier(), private_key: ec_pem()}
+    %{team_id: "TEAM123456", key_id: random_identifier(), private_key: ec_pem(), environment: "both"}
   end
 
   def fcm_config do

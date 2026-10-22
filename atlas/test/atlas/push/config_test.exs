@@ -1,5 +1,6 @@
 defmodule Atlas.Push.ConfigTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   import Atlas.PushFixtures
 
@@ -44,7 +45,7 @@ defmodule Atlas.Push.ConfigTest do
   test "parses complete credentials without keeping the service account's token endpoint" do
     config = Config.parse!(Map.merge(apns_env(), fcm_env()))
 
-    assert %{team_id: "TEAM123456", key_id: "KEY1234567"} = config[:apns]
+    assert %{team_id: "TEAM123456", key_id: "KEY1234567", environment: "production"} = config[:apns]
 
     assert config[:fcm] == %{
              project_id: "atlas-push-test",
@@ -53,10 +54,22 @@ defmodule Atlas.Push.ConfigTest do
            }
   end
 
+  test "APNs credentials only authorize their configured environment" do
+    for environment <- ["production", "sandbox", "both"] do
+      apns = Config.parse!(apns_env(%{"ATLAS_APNS_ENVIRONMENT" => environment}))[:apns]
+      stub(Config, :apns, fn -> {:ok, apns} end)
+
+      for target <- ["production", "sandbox"] do
+        assert Config.available?("ios", target) == environment in ["both", target]
+      end
+    end
+  end
+
   test "partial or malformed credentials fail without echoing secrets" do
     invalid = [
       Map.delete(apns_env(), "ATLAS_APNS_KEY_ID"),
       apns_env(%{"ATLAS_APNS_TEAM_ID" => "team"}),
+      apns_env(%{"ATLAS_APNS_ENVIRONMENT" => "secret-material"}),
       apns_env(%{
         "ATLAS_APNS_PRIVATE_KEY" => "-----BEGIN PRIVATE KEY-----\nsecret-material\n-----END PRIVATE KEY-----"
       }),
