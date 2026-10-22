@@ -649,10 +649,10 @@ extension XcodeBuildTestCommandService {
 }
 
 extension XcodeBuildTestCommandService {
-    /// Runs xcodebuild telling the test processes where to record when the run collects evidence, and
-    /// reduces what it wrote, and exports the run's coverage, before anything else (a stress pass)
-    /// runs tests over the same derived data and replaces the profile. The run's own outcome is
-    /// what the caller sees.
+    /// Runs xcodebuild telling the test processes where to record when the run collects evidence,
+    /// exports the run's coverage, and reduces what the test processes wrote with the export's
+    /// `llvm-cov` reports, before anything else (a stress pass) runs tests over the same derived
+    /// data and replaces the profile. The run's own outcome is what the caller sees.
     private func runCollectingCoverage(
         arguments: [String],
         resultBundlePath: AbsolutePath?,
@@ -673,19 +673,21 @@ extension XcodeBuildTestCommandService {
         } catch {
             runError = error
         }
+        let export = await coverageExportService.export(
+            resultBundlePath: resultBundlePath,
+            derivedDataDirectory: derivedDataPath,
+            config: config,
+            runStartedAt: runStartedAt,
+            keepingReports: session != nil
+        )
         if let session {
             _ = await testCoverageEvidenceService.record(
                 session: session,
                 resultBundlePath: resultBundlePath,
-                derivedDataDirectory: derivedDataPath
+                derivedDataDirectory: derivedDataPath,
+                reports: export?.reports
             )
         }
-        _ = await coverageExportService.export(
-            resultBundlePath: resultBundlePath,
-            derivedDataDirectory: derivedDataPath,
-            config: config,
-            runStartedAt: runStartedAt
-        )
         if let runError { throw runError }
     }
 }

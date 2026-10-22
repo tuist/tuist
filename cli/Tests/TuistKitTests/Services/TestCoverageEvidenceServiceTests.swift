@@ -124,6 +124,43 @@ struct TestCoverageEvidenceServiceTests {
         }
     }
 
+    @Test func readsAReportWhereverItsChunksEnd() {
+        let report = Array("SF:/src/Måth.swift\nFN:2,add\nFNDA:1,add\nDA:2,1\nDA:3,0\nend_of_record".utf8)
+        var whole = TestCoverageEvidenceService.LCOVFunctionTable()
+        whole.read(bytes: report)
+        whole.finish()
+
+        #expect(whole.filesByFunction == ["add": ["/src/Måth.swift"]])
+        #expect(whole.executableLines == ["/src/Måth.swift": IndexSet([2, 3])])
+        for split in 1 ..< report.count {
+            var table = TestCoverageEvidenceService.LCOVFunctionTable()
+            table.read(bytes: report[..<split])
+            table.read(bytes: Data(report[split...]))
+            table.finish()
+            #expect(table.filesByFunction == whole.filesByFunction)
+            #expect(table.executableLines == whole.executableLines)
+            #expect(table.coveredLines == whole.coveredLines)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func findsTheExportsReportOfAnImageThroughSymlinksForTheSameProfile() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(components: "Build", "Products", "Debug")
+        let image = products.appending(components: "AppTests.xctest", "Contents", "MacOS", "AppTests")
+        try FileManager.default.createDirectory(atPath: image.parentDirectory.pathString, withIntermediateDirectories: true)
+        try Data().write(to: URL(fileURLWithPath: image.pathString))
+        let link = directory.appending(component: "Products")
+        try FileManager.default.createSymbolicLink(atPath: link.pathString, withDestinationPath: products.pathString)
+        let profile = directory.appending(component: "Coverage.profdata")
+        let report = directory.appending(component: "0.lcov")
+
+        let reports = CoverageReports(directory: directory, profile: profile, reportsByProduct: [image.pathString: report])
+
+        #expect(reports.report(ofImage: "\(link.pathString)/AppTests.xctest/Contents/MacOS/AppTests", profile: profile) == report)
+        #expect(reports.report(ofImage: image.pathString, profile: directory.appending(component: "Other.profdata")) == nil)
+        #expect(reports.report(ofImage: "/elsewhere/AppTests", profile: profile) == nil)
+    }
+
     @Test func collectsOnlyWhereTheTestProcessesCanWriteToTheMac() {
         #expect(TestCoverageEvidencePlatform(destination: "platform=macOS,arch=arm64") == .macOS)
         #expect(TestCoverageEvidencePlatform(destination: "platform=iOS Simulator,name=iPhone 16") == .iOSSimulator)
@@ -150,7 +187,8 @@ struct TestCoverageEvidenceServiceTests {
         let evidence = await TestCoverageEvidenceService().record(
             session: TestCoverageEvidenceSession(directory: output, environment: [:]),
             resultBundlePath: bundle,
-            derivedDataDirectory: nil
+            derivedDataDirectory: nil,
+            reports: nil
         )
 
         // No target links TestCoverageAttribution: the bundle still says the run asked.
@@ -168,14 +206,23 @@ struct TestCoverageEvidenceServiceTests {
             atPath: output.appending(component: "4242").pathString,
             withIntermediateDirectories: true
         )
+        let reports = directory.appending(component: "reports")
+        try FileManager.default.createDirectory(atPath: reports.pathString, withIntermediateDirectories: true)
 
         let evidence = await TestCoverageEvidenceService().record(
             session: TestCoverageEvidenceSession(directory: output, environment: [:]),
             resultBundlePath: bundle,
-            derivedDataDirectory: nil
+            derivedDataDirectory: nil,
+            reports: CoverageReports(
+                directory: reports,
+                profile: directory.appending(component: "Coverage.profdata"),
+                reportsByProduct: [:]
+            )
         )
 
         #expect(evidence == TestCoverageEvidence(paths: [], scopes: [], status: .failed))
+        // The export's reports are the evidence's to remove, whatever it found.
+        #expect(!FileManager.default.fileExists(atPath: reports.pathString))
     }
 
     @Test(.withMockedEnvironment()) func tellsTheTestProcessesWhereToRecord() async throws {

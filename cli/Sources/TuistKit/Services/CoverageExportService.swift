@@ -29,18 +29,64 @@ import XCResultParser
 /// bundle's report.
 @Mockable
 public protocol CoverageExportServicing {
-    /// The export's path inside the bundle, or nil when the run uploads no coverage, has none, or
-    /// could not be exported. `runStartedAt` is when the test action started: a profile older
-    /// than that is an earlier run's.
+    /// The export, or nil when the run uploads no coverage, has none, or could not be exported.
+    /// `runStartedAt` is when the test action started: a profile older than that is an earlier
+    /// run's. With `keepingReports`, the products' `llvm-cov` reports outlive the export, for the
+    /// run's coverage evidence to read instead of exporting the same images again; whoever reads
+    /// them removes their directory.
     func export(
         resultBundlePath: AbsolutePath?,
         derivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        runStartedAt: Date
-    ) async -> AbsolutePath?
+        runStartedAt: Date,
+        keepingReports: Bool
+    ) async -> CoverageExportResult?
 }
 
-public struct CoverageExportService: CoverageExportServicing {
+public struct CoverageExportResult: Equatable, Sendable {
+    /// The export's path inside the bundle.
+    public let path: AbsolutePath
+    public let reports: CoverageReports?
+
+    public init(path: AbsolutePath, reports: CoverageReports?) {
+        self.path = path
+        self.reports = reports
+    }
+}
+
+/// The LCOV report `llvm-cov` gave for each product of a run, with the profile it read.
+public struct CoverageReports: Equatable, Sendable {
+    /// Holds the reports; removed by whoever reads them.
+    public let directory: AbsolutePath
+    public let profile: AbsolutePath
+    /// By the product's path with every symlink resolved.
+    let reportsByProduct: [String: AbsolutePath]
+
+    public init(directory: AbsolutePath, profile: AbsolutePath, reportsByProduct: [String: AbsolutePath]) {
+        self.directory = directory
+        self.profile = profile
+        self.reportsByProduct = Dictionary(
+            reportsByProduct.map { (Self.canonical($0.key), $0.value) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    /// The report of the image at `path`, when it was read with `profile`.
+    public func report(ofImage path: String, profile: AbsolutePath) -> AbsolutePath? {
+        guard Self.canonical(profile.pathString) == Self.canonical(self.profile.pathString) else { return nil }
+        return reportsByProduct[Self.canonical(path)]
+    }
+
+    /// A test process names its images by the path it loaded them from, and the export its
+    /// products by the build's; either may go through a symlink (`/tmp`, `Versions/Current`).
+    private static func canonical(_ path: String) -> String {
+        guard let pointer = realpath(path, nil) else { return path }
+        defer { free(pointer) }
+        return String(cString: pointer)
+    }
+}
+
+public struct CoverageExportService: CoverageExportServicing { // swiftlint:disable:this type_body_length
     private let fileSystem: FileSysteming
     private let commandRunner: CommandRunning
     private let xcResultService: XCResultServicing
@@ -59,8 +105,9 @@ public struct CoverageExportService: CoverageExportServicing {
         resultBundlePath: AbsolutePath?,
         derivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        runStartedAt: Date
-    ) async -> AbsolutePath? {
+        runStartedAt: Date,
+        keepingReports: Bool
+    ) async -> CoverageExportResult? {
         // Without a project to upload to, the run sends nothing, so nothing is measured.
         guard config.fullHandle != nil, UploadResultBundleService.uploadsCoverage(config: config), let resultBundlePath,
               (try? await fileSystem.exists(resultBundlePath)) == true
@@ -85,7 +132,7 @@ public struct CoverageExportService: CoverageExportServicing {
             let output = resultBundlePath.appending(component: CoverageExport.fileName)
             let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
             let targetNames = products.map { CompilationPrefixMaps.targetName(ofProduct: $0.path) }
-            try await fileSystem.runInTemporaryDirectory(prefix: "tuist-coverage-export") { directory in
+            let write: @Sendable (AbsolutePath) async throws -> [String: AbsolutePath] = { directory in
                 async let reports = export(
                     products: products,
                     profile: profile,
@@ -113,8 +160,23 @@ public struct CoverageExportService: CoverageExportServicing {
                     remap: { path, report in prefixMaps.remap(path, target: targetNames[report]) },
                     to: output
                 )
+                return exported
             }
-            return output
+            guard keepingReports else {
+                _ = try await fileSystem.runInTemporaryDirectory(prefix: "tuist-coverage-export", write)
+                return CoverageExportResult(path: output, reports: nil)
+            }
+            let directory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-coverage-reports")
+            do {
+                let exported = try await write(directory)
+                return CoverageExportResult(
+                    path: output,
+                    reports: CoverageReports(directory: directory, profile: profile, reportsByProduct: exported)
+                )
+            } catch {
+                try? FileManager.default.removeItem(atPath: directory.pathString)
+                throw error
+            }
         } catch {
             AlertController.current.warning(
                 .alert(

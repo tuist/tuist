@@ -274,6 +274,33 @@ struct CoverageMappingTests {
         ]).isEmpty)
     }
 
+    @Test func tellsTheLinesThatRanFromTheFunctionsThatMovedAndTheirNeighboursAlone() {
+        func function(_ reference: UInt64, _ lines: (start: Int, column: Int, end: Int, endColumn: Int)) -> CoverageMapping
+            .Function
+        {
+            .init(reference: reference, hash: 0, expressions: [], regions: [(file: 0, region: .init(
+                kind: .code, counter: .reference(0),
+                lineStart: lines.start, columnStart: lines.column, lineEnd: lines.end, columnEnd: lines.endColumn
+            ))])
+        }
+        let mapping = CoverageMapping(files: ["/src/Math.swift"], functions: [
+            function(1, (1, 1, 10, 2)),
+            // A closure inside the first function, which did not run.
+            function(2, (3, 5, 5, 6)),
+            // Starts on the line the first function ends on.
+            function(3, (10, 20, 12, 2)),
+            function(4, (20, 1, 25, 2)),
+        ])
+        func everyFunction(_ counts: [Int: [UInt64]]) -> IndexSet {
+            IndexSet(mapping.lines(file: 0, counts: counts).filter { $0.value > 0 }.keys)
+        }
+
+        for counts: [Int: [UInt64]] in [[0: [4]], [0: [4], 1: [1]], [2: [1]], [3: [2]], [0: [1], 3: [1]], [:]] {
+            #expect(mapping.coveredLines(file: 0, counts: counts) == everyFunction(counts))
+        }
+        #expect(mapping.coveredLines(file: 0, counts: [0: [4]]) == IndexSet([1, 2, 3, 6, 7, 8, 9, 10]))
+    }
+
     @Test func readsTheTextProfile() {
         let text = """
         :ir
@@ -287,8 +314,10 @@ struct CoverageMappingTests {
         1
 
         """
-        #expect(TestCoverageEvidenceService.profileCounts(text: text) == [
-            .init(reference: CoverageObserverOutput.nameReference("add"), hash: 11): [3, 1],
-        ])
+        let reference = CoverageObserverOutput.nameReference("add")
+        #expect(TestCoverageEvidenceService.profile(text: text) == .init(
+            counts: [.init(reference: reference, hash: 11): [3, 1]],
+            namesByReference: [reference: "add"]
+        ))
     }
 }

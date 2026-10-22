@@ -2366,27 +2366,30 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        // What TestCoverageAttribution recorded is reduced, and the run's coverage exported, as
+        // The run's coverage is exported, and what TestCoverageAttribution recorded reduced, as
         // soon as the run ends, before a stress pass runs tests over the same derived data and
-        // replaces the profile both read.
+        // replaces the profile both read. The reduction reads the export's `llvm-cov` reports of
+        // the same images instead of exporting them again.
         let evidenceSession = action == .build ? nil : await testCoverageEvidenceService
             .prepare(platform: evidencePlatform, config: config)
         let runStartedAt = Date()
         let recordCoverageEvidence = {
+            guard action != .build else { return }
+            let export = await coverageExportService.export(
+                resultBundlePath: resultBundlePath,
+                derivedDataDirectory: projectDerivedDataDirectory,
+                config: config,
+                runStartedAt: runStartedAt,
+                keepingReports: evidenceSession != nil
+            )
             if let evidenceSession {
                 _ = await testCoverageEvidenceService.record(
                     session: evidenceSession,
                     resultBundlePath: resultBundlePath,
-                    derivedDataDirectory: projectDerivedDataDirectory
+                    derivedDataDirectory: projectDerivedDataDirectory,
+                    reports: export?.reports
                 )
             }
-            guard action != .build else { return }
-            _ = await coverageExportService.export(
-                resultBundlePath: resultBundlePath,
-                derivedDataDirectory: projectDerivedDataDirectory,
-                config: config,
-                runStartedAt: runStartedAt
-            )
         }
 
         do {

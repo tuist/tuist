@@ -39,7 +39,12 @@ struct CoverageObserverOutput {
         self.records = records
     }
 
-    init(directory: URL) throws {
+    /// `namesByReference` is the run's profile's names (``TestCoverageEvidenceService/profile(text:)``),
+    /// which every image's functions are among once their process wrote its profile: an image
+    /// with a function the table lacks reads its own `__llvm_prf_names` instead. Inflating and
+    /// hashing every image's names is most of the cost otherwise, and the statically linked test
+    /// bundles of a run repeat the same names.
+    init(directory: URL, namesByReference: [UInt64: String] = [:]) throws {
         var images: [Int: Image] = [:]
         let table = try String(contentsOf: directory.appendingPathComponent("images.tsv"), encoding: .utf8)
         for line in table.split(separator: "\n") {
@@ -51,14 +56,18 @@ struct CoverageObserverOutput {
                   let countersAddress = UInt64(fields[3])
             else { continue }
             let data = try Data(contentsOf: directory.appendingPathComponent("\(index).data"))
-            let names = (try? Data(contentsOf: directory.appendingPathComponent("\(index).names"))) ?? Data()
             let functions = Self.functionCounters(
                 data: data, dataAddress: dataAddress, countersAddress: countersAddress, countersSize: countersSize
             )
+            var byReference = namesByReference
+            if !functions.allSatisfy({ namesByReference[$0.reference] != nil }) {
+                let names = (try? Data(contentsOf: directory.appendingPathComponent("\(index).names"))) ?? Data()
+                byReference = Self.namesByReference(Self.parseNames(names))
+            }
             images[index] = Image(
                 path: String(fields[4]),
                 functionByCounter: Self.functionByCounter(
-                    functions: functions, names: Self.parseNames(names), countersSize: countersSize
+                    functions: functions, namesByReference: byReference, countersSize: countersSize
                 ),
                 functions: functions.sorted { $0.first < $1.first }
             )
@@ -195,11 +204,23 @@ struct CoverageObserverOutput {
         return []
     }
 
-    static func functionByCounter(functions: [FunctionCounters], names: [String], countersSize: Int) -> [String?] {
+    static func namesByReference(_ names: [String]) -> [UInt64: String] {
         var byReference: [UInt64: String] = [:]
         for name in names {
             byReference[nameReference(name)] = name
         }
+        return byReference
+    }
+
+    static func functionByCounter(functions: [FunctionCounters], names: [String], countersSize: Int) -> [String?] {
+        functionByCounter(functions: functions, namesByReference: namesByReference(names), countersSize: countersSize)
+    }
+
+    static func functionByCounter(
+        functions: [FunctionCounters],
+        namesByReference byReference: [UInt64: String],
+        countersSize: Int
+    ) -> [String?] {
         var result: [String?] = Array(repeating: nil, count: countersSize / 8)
         for function in functions {
             let name = byReference[function.reference]

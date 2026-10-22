@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Testing
 @testable import TuistKit
@@ -100,16 +102,20 @@ struct CoverageObserverOutputTests {
         #expect(CoverageObserverOutput.nameReference("main") == 0xDB95_6436_E78D_D5FA)
     }
 
+    private let dataAddress: UInt64 = 0x1000
+    private let countersAddress: UInt64 = 0x2000
+
+    /// `__llvm_prf_data` in the current layout: 64-byte records whose counter pointer is relative
+    /// to the record.
+    private func profileRecord(index: Int, name: String, firstCounter: Int, count: UInt32) -> Data {
+        let recordAddress = Int64(dataAddress) + Int64(index * 64)
+        let pointer = Int64(countersAddress) + Int64(firstCounter * 8) - recordAddress
+        var data = u64(CoverageObserverOutput.nameReference(name)) + u64(0) + u64(UInt64(bitPattern: pointer))
+        data += Data(count: 24) + u32(count)
+        return data + Data(count: 64 - data.count)
+    }
+
     @Test func mapsCountersToFunctionsThroughRelativeRecords() {
-        let dataAddress: UInt64 = 0x1000
-        let countersAddress: UInt64 = 0x2000
-        func profileRecord(index: Int, name: String, firstCounter: Int, count: UInt32) -> Data {
-            let recordAddress = Int64(dataAddress) + Int64(index * 64)
-            let pointer = Int64(countersAddress) + Int64(firstCounter * 8) - recordAddress
-            var data = u64(CoverageObserverOutput.nameReference(name)) + u64(0) + u64(UInt64(bitPattern: pointer))
-            data += Data(count: 24) + u32(count)
-            return data + Data(count: 64 - data.count)
-        }
         let data = profileRecord(index: 0, name: "add", firstCounter: 0, count: 2)
             + profileRecord(index: 1, name: "sign", firstCounter: 2, count: 3)
 
@@ -128,5 +134,33 @@ struct CoverageObserverOutputTests {
                 data: Data(count: 10), dataAddress: dataAddress, countersAddress: countersAddress, countersSize: 16
             ).isEmpty
         )
+    }
+
+    @Test(.inTemporaryDirectory) func namesTheFunctionsFromTheProfileAndAnImageItLacksFromTheImage() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let url = URL(fileURLWithPath: directory.pathString)
+        // The profile knows `add` and `sign`, so the first image's own (here empty) names are
+        // never read; it does not know `helper`, so the second image's are.
+        try (profileRecord(index: 0, name: "add", firstCounter: 0, count: 2)
+            + profileRecord(index: 1, name: "sign", firstCounter: 2, count: 1))
+            .write(to: url.appendingPathComponent("0.data"))
+        try Data().write(to: url.appendingPathComponent("0.names"))
+        try profileRecord(index: 0, name: "helper", firstCounter: 0, count: 1).write(to: url.appendingPathComponent("1.data"))
+        let names = Data("helper".utf8)
+        try (Data([UInt8(names.count), 0]) + names).write(to: url.appendingPathComponent("1.names"))
+        try """
+        0\t24\t\(dataAddress)\t\(countersAddress)\t/products/App
+        1\t8\t\(dataAddress)\t\(countersAddress)\t/products/Helper
+
+        """.write(to: url.appendingPathComponent("images.tsv"), atomically: true, encoding: .utf8)
+        try Data().write(to: url.appendingPathComponent("records.bin"))
+
+        let output = try CoverageObserverOutput(
+            directory: url,
+            namesByReference: CoverageObserverOutput.namesByReference(["add", "sign"])
+        )
+
+        #expect(output.images[0]?.functionByCounter == ["add", "add", "sign"])
+        #expect(output.images[1]?.functionByCounter == ["helper"])
     }
 }
