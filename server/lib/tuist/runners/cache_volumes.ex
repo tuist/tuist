@@ -10,9 +10,7 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   import Ecto.Query
 
-  alias Tuist.Accounts.Account
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -260,7 +258,7 @@ defmodule Tuist.Runners.CacheVolumes do
         Repo.one!(from(v in volume_query(job, identity, attrs), lock: "FOR UPDATE"))
 
       volume = expire_locked(volume, now)
-      requested = requested_volume_bytes(job, attrs)
+      requested = requested_volume_bytes(attrs)
       {volume, saved_head, volume_bytes} = size_locked(volume, requested, max_volume_bytes(attrs))
 
       head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
@@ -351,22 +349,13 @@ defmodule Tuist.Runners.CacheVolumes do
   defp allocation_volume_bytes(%{key: key}, saved_head, requested),
     do: Map.get(@managed_volume_bytes, key) || max(saved_volume_bytes(key, saved_head), requested || 0)
 
-  # Managed volumes size themselves. Sizes above the default need the account's
-  # flag; larger requests are capped to the default.
-  defp requested_volume_bytes(job, attrs) do
+  # Managed volumes size themselves.
+  defp requested_volume_bytes(attrs) do
     requested = Map.get(attrs, :requested_volume_bytes)
 
-    cond do
-      Map.has_key?(@managed_volume_bytes, attrs.key) or not valid_requested_volume_bytes?(requested) ->
-        nil
-
-      requested > @volume_bytes and
-          not FeatureFlags.runner_custom_volume_sizes_enabled?(%Account{id: job.account_id}) ->
-        @volume_bytes
-
-      true ->
-        requested
-    end
+    if Map.has_key?(@managed_volume_bytes, attrs.key) or not valid_requested_volume_bytes?(requested),
+      do: nil,
+      else: requested
   end
 
   # Only a use that may publish records its request, so pull requests leave the
