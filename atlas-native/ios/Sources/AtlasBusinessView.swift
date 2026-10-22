@@ -13,19 +13,20 @@ struct AtlasBusinessView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            // Bottom-aligning the first count header clamps the list to its natural start, clear of navigation.
-            let anchor: UnitPoint = model.resource == .invoices ? .top : .bottom
+            // Bottom-align a real first row to preserve List's top inset; supplementary headers ignore alignment.
+            let firstRowID = model.resource == .invoices ? nil : model.page?.items.first?.id
+            let anchor: UnitPoint = firstRowID == nil ? .top : .bottom
             list.onChange(of: model.page?.page) { _, page in
                 if page == 1 {
-                    if hasLoaded { proxy.scrollTo("business-start", anchor: anchor) }
+                    if hasLoaded { proxy.scrollTo(firstRowID ?? "business-start", anchor: anchor) }
                     hasLoaded = true
                 }
             }
             .onChange(of: model.filters) { _, _ in
-                if hasLoaded, model.page?.page == 1 { proxy.scrollTo("business-start", anchor: anchor) }
+                if hasLoaded, model.page?.page == 1 { proxy.scrollTo(firstRowID ?? "business-start", anchor: anchor) }
             }
             .onChange(of: model.query) { _, _ in
-                if hasLoaded, model.page?.page == 1 { proxy.scrollTo("business-start", anchor: anchor) }
+                if hasLoaded, model.page?.page == 1 { proxy.scrollTo(firstRowID ?? "business-start", anchor: anchor) }
             }
         }
     }
@@ -58,8 +59,8 @@ struct AtlasBusinessView: View {
                     }
                 } header: {
                     Text(model.query.isEmpty ? "\(page.totalCount) items" : "Results for “\(model.query)” · \(page.totalCount) items")
-                        .id(model.resource == .invoices ? "business-records" : "business-start")
                 }
+                .id(model.resource == .invoices ? "business-records" : "business-start")
                 if model.filters["group_by"] == "reminder" {
                     ForEach(AtlasTaskReminderGroup.allCases) { group in
                         let items = page.items.filter { (model.records[$0.id] ?? $0)["reminder_group"] == group.rawValue }
