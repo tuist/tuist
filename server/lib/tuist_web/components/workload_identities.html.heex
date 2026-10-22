@@ -149,8 +149,12 @@
         data-part="policy"
         aria-labelledby={"oidc-trust-policy-#{policy.id}-title"}
       >
+        <ResourceCard.background id={"oidc-trust-policy-#{policy.id}-background"} />
         <div data-part="policy-header">
-          <h3 id={"oidc-trust-policy-#{policy.id}-title"}>{policy.name}</h3>
+          <div data-part="policy-title">
+            <h3 id={"oidc-trust-policy-#{policy.id}-title"}>{policy.name}</h3>
+            <.badge label="OIDC" color="focus" size="large" />
+          </div>
           <.button
             icon_only
             variant="secondary"

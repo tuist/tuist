@@ -241,6 +241,13 @@ defmodule TuistWeb.AccountWorkloadIdentitiesLiveTest do
              )
 
       assert has_element?(lv, "#oidc-trust-policy-#{policy.id}-title", policy.name)
+      assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-part=policy-title] .noora-badge", "OIDC")
+
+      assert has_element?(
+               lv,
+               "svg#oidc-trust-policy-#{policy.id}-background.tuist-resource-card-background[aria-hidden=true][focusable=false]"
+             )
+
       assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=issuer] dd", policy.issuer)
       assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=jwks] dd", policy.jwks_url)
       assert has_element?(lv, "#oidc-trust-policy-#{policy.id} [data-field=audience] dd", policy.audience)

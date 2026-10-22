@@ -10,6 +10,7 @@ defmodule TuistWeb.Components.WorkloadIdentities do
   alias Tuist.Accounts
   alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.Authorization
+  alias TuistWeb.Components.ResourceCard
   alias TuistWeb.Errors.UnauthorizedError
 
   @policy_fields [:name, :issuer, :jwks_url, :audience, :claims]

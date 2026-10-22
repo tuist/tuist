@@ -76,6 +76,7 @@
 
       & > [data-part="policy"] {
         display: flex;
+        position: relative;
         flex-direction: column;
         gap: var(--noora-spacing-5);
         box-shadow: var(--noora-border-light-default);
@@ -86,20 +87,34 @@
         overflow-wrap: anywhere;
       }
 
+      & [data-part="policy-header"],
+      & [data-part="configuration"],
+      & [data-part="policy-footer"] {
+        position: relative;
+      }
+
       & [data-part="policy-header"] {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
         gap: var(--noora-spacing-4);
 
+        & > .noora-button {
+          flex-shrink: 0;
+        }
+      }
+
+      & [data-part="policy-title"] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+        min-width: 0;
+
         & > h3 {
           min-width: 0;
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-        }
-
-        & > .noora-button {
-          flex-shrink: 0;
         }
       }
 
