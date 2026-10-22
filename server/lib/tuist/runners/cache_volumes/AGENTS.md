@@ -6,9 +6,10 @@ these schemas persist volume identities and per-job uses.
 - Account-scope all browser reads and writes. Agent reports, uploads and
   publications are separately authenticated and bound to the node that received
   the allocation. Read-only image `retain` and `download` requests may name a use
-  from any node: hosts prefetch a macOS custom HEAD (`macos_prefetch_heads/2`,
-  listed by `VolumePrefetch`) under the use that published it.
-- `macos_prefetch_heads/2` lists, for every host of a class, first up to 32
+  from any node: hosts prefetch a custom HEAD (`prefetch_heads/3`, listed by
+  `VolumePrefetch`) under the use that published it.
+- `prefetch_heads/3` lists, for every macOS host of a class and every Linux
+  host of a fleet (Linux job shapes share its nodes), first up to 32
   `prewarm` HEADs (volumes at least two workflow runs used in the last seven
   days and unused for four hours) and then up to 8 `recent` HEADs (used in the
   last day). Each list takes the accounts in turn, most recently active first,
@@ -16,12 +17,15 @@ these schemas persist volume identities and per-job uses.
   cannot change before its next job, so one download per host covers the whole
   idle period, including a weekend. Two runs leave out keys one run made for
   itself (every `e2e-reuse-*` key). Hosts download only into free space, and
-  the listing goes to every host of the class because an account's first job
+  the listing goes to every host of the class or fleet because an account's first job
   of the day goes to whichever idle runner polls first. A schedule learned per
   weekday and UTC hour covered none of the customer first-of-day starts from
   2026-10-08 to 10-22, whose start times move by hours from day to day. The
-  `reason` reaches the host's `tuist_runner_cache_volume_prefetched_bytes_total`
-  metric.
+  `reason` reaches the hosts' `tuist_runner_cache_volume_prefetched_bytes_total`
+  metric. macOS hosts ask `GET /api/internal/runners/cache-masters` with their
+  per-machine token; the Linux agent asks
+  `GET /api/internal/runners/cache-volumes/masters?node_name=` with the agent
+  token every Linux node shares, which only answers for Linux fleets.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
   (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
   requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
@@ -178,7 +182,7 @@ these schemas persist volume identities and per-job uses.
   under the use through `image/3` (`checkout_publish`): only the generation and the
   use not having published yet are checked, not the job's outcome or the use's
   state, and a published checkout use is released (`delete`) when its job is gone.
-  `macos_prefetch_heads` skips checkout volumes; a host restores their HEAD itself.
+  `prefetch_heads` skips checkout volumes; a host restores their HEAD itself.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
   default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the

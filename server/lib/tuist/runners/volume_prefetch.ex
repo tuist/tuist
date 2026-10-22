@@ -1,21 +1,24 @@
 defmodule Tuist.Runners.VolumePrefetch do
   @moduledoc """
-  Which custom cache-volume HEADs a macOS runner host should download before a
-  job for them lands on it.
+  Which custom cache-volume HEADs a runner host should download before a job for
+  them lands on it.
 
-  The host asks here while it is idle, as the host itself rather than through a
-  guest: the answer carries download URLs for every account on the fleet, which
-  a guest running a customer's job must never see. The host authenticates with a
-  token for its own per-machine `tart-kubelet-<machine>` ServiceAccount, whose
-  name is its Node's, so it can only ask about its own fleet.
+  The host asks here as the host itself, never through a guest: the answer names
+  saved HEADs of every account on the fleet, which a guest running a customer's
+  job must never see. A macOS host authenticates with a token for its own
+  per-machine `tart-kubelet-<machine>` ServiceAccount, whose name is its Node's,
+  so it can only ask about its own fleet. A Linux host's cache agent uses the
+  agent ServiceAccount every Linux Node shares, which can already download any
+  HEAD by its use, and names its Node as in its other requests.
 
-  The list names the saved HEADs of the custom volumes jobs used on the Node's
-  host class, for every Node of the class (`CacheVolumes.macos_prefetch_heads/2`):
-  first the volumes an account uses day after day and has left idle, so its next
-  working day starts warm, then the volumes used in the last day. Dispatch
-  hands a queued job to whichever host polls first, and an account's first job
-  of the day goes to any idle runner, so every Node of the class gets the same
-  list. The host downloads these only into free space.
+  The list names the saved HEADs of the platform's custom volumes that jobs used
+  on the Node's peers, for every peer (`CacheVolumes.prefetch_heads/3`): first
+  the volumes runs keep reusing and have left idle, so the account's next working
+  day starts warm, then the volumes used in the last day. Dispatch hands a queued
+  job to whichever host polls first, and an account's first job of the day goes
+  to any idle runner, so every peer gets the same list. Peers are the Nodes of a
+  macOS host class, or every Node of a Linux fleet, whose job shapes share its
+  Nodes. Hosts download these only into free space.
   """
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
@@ -42,33 +45,34 @@ defmodule Tuist.Runners.VolumePrefetch do
 
   @doc """
   The HEADs `node_name` should hold, most wanted first, each with the reason it
-  is listed for. Empty for a Node that is not in a macOS fleet.
+  is listed for. Empty for a Node that is not in a fleet of `platform`
+  (`:macos` or `:linux`).
   """
-  def for_node(node_name) do
+  def for_node(node_name, platform) when platform in [:macos, :linux] do
     with {:ok, node} <- K8sClient.get_node(node_name),
          labels when is_map(labels) <- get_in(node, ["metadata", "labels"]),
          fleet when is_binary(fleet) <- labels[@fleet_label],
-         true <- macos_fleet?(fleet),
-         {:ok, peer_names} <- class_peers(node, fleet),
+         true <- platform_fleet?(fleet, platform),
+         {:ok, peer_names} <- peers(node, fleet, platform),
          true <- node_name in peer_names do
-      CacheVolumes.macos_prefetch_heads(peer_names, DateTime.utc_now())
+      CacheVolumes.prefetch_heads(Atom.to_string(platform), peer_names, DateTime.utc_now())
     else
       _ -> []
     end
   end
 
   # The Node's `tuist.dev/fleet` label is its CAPI fleet (for example
-  # `tuist-tuist-runners-fleet`), shared by every SKU group in it. It is a macOS
-  # fleet when a macOS RunnerPool's `fleetSelector` is that label, the same match
-  # the scheduler makes.
-  defp macos_fleet?(fleet) do
+  # `tuist-tuist-runners-fleet`), shared by every SKU group in it. It is a fleet
+  # of a platform when a RunnerPool of that platform has it as its
+  # `fleetSelector`, the same match the scheduler makes.
+  defp platform_fleet?(fleet, platform) do
     case K8sClient.list_runner_pools(Environment.runners_namespace()) do
       {:ok, pools} ->
         Enum.any?(pools, fn pool ->
           name = get_in(pool, ["metadata", "name"])
 
           get_in(pool, ["spec", "fleetSelector"]) == fleet and is_binary(name) and
-            Catalog.fleet_platform(name) == :macos
+            Catalog.fleet_platform(name) == platform
         end)
 
       {:error, _reason} ->
@@ -76,18 +80,18 @@ defmodule Tuist.Runners.VolumePrefetch do
     end
   end
 
-  # The Nodes of the fleet in the same host class as `node`, itself included.
-  # SKU groups of one fleet share its label, and the Node carries nothing naming
+  # The Nodes of a Linux fleet, or those of a macOS fleet in the same host class as
+  # `node`, itself included. SKU groups of one fleet share its label, and the Node carries nothing naming
   # its group, but each class advertises its own capacity (an M2-L 8 CPU and
   # 14 GiB, an M4-XL 12 CPU and 28 GiB), which decides which jobs land on it.
-  defp class_peers(node, fleet) do
+  defp peers(node, fleet, platform) do
     class = node_class(node)
 
     case K8sClient.list_nodes("#{@fleet_label}=#{fleet}") do
       {:ok, %{"items" => items}} ->
         names =
           for peer <- items,
-              node_class(peer) == class,
+              platform == :linux or node_class(peer) == class,
               name = get_in(peer, ["metadata", "name"]),
               is_binary(name),
               do: name

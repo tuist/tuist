@@ -868,8 +868,8 @@ defmodule Tuist.Runners.CacheVolumes do
   defp reserved_bytes(_key, volume_bytes, _head_size_bytes), do: min(volume_bytes, @unmeasured_reserved_bytes)
 
   @doc """
-  The saved HEADs of the macOS custom volumes jobs used on `node_names` in the
-  week before `now`, most wanted first. Each is the identity a host restores and
+  The saved HEADs of the `platform` custom volumes jobs used on `node_names` in
+  the week before `now`, most wanted first. Each is the identity a host restores and
   then retains its master under (the use that published the HEAD), with the
   `reason` it is listed for:
 
@@ -883,7 +883,7 @@ defmodule Tuist.Runners.CacheVolumes do
   account's volumes most recently used first, so the volumes of one busy account
   never crowd out another account's.
   """
-  def macos_prefetch_heads(node_names, %DateTime{} = now) do
+  def prefetch_heads(platform, node_names, %DateTime{} = now) when platform in ["macos", "linux"] do
     now = DateTime.truncate(now, :second)
     since = DateTime.add(now, -@prefetch_history_days * 24 * 60 * 60, :second)
     idle_since = DateTime.add(now, -@prewarm_idle_seconds, :second)
@@ -895,7 +895,7 @@ defmodule Tuist.Runners.CacheVolumes do
           join: v in Volume,
           on: v.id == u.volume_id,
           where:
-            u.node_name in ^node_names and u.inserted_at >= ^since and u.inserted_at <= ^now and v.platform == "macos" and
+            u.node_name in ^node_names and u.inserted_at >= ^since and u.inserted_at <= ^now and v.platform == ^platform and
               is_nil(v.deleted_at) and v.key != ^@checkout_key,
           group_by: v.id,
           select: %{

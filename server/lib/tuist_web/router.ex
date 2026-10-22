@@ -1092,6 +1092,7 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/checkout", RunnerCacheVolumesController, :checkout
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
+    get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
     get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show

@@ -11,7 +11,7 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
         {:ok, %{namespace: "tuist", name: "tart-kubelet-mac-01", uid: "uid"}}
       end)
 
-      expect(VolumePrefetch, :for_node, fn "mac-01" ->
+      expect(VolumePrefetch, :for_node, fn "mac-01", :macos ->
         [
           %{
             kind: "custom",
@@ -53,7 +53,7 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
 
     test "refuses a token without the host audience", %{conn: conn} do
       stub(K8sClient, :create_runner_host_token_review, fn "runner-token" -> {:error, :unauthenticated} end)
-      reject(&VolumePrefetch.for_node/1)
+      reject(&VolumePrefetch.for_node/2)
 
       conn =
         conn
@@ -68,7 +68,7 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "tuist-runner-pool", uid: "uid"}}
       end)
 
-      reject(&VolumePrefetch.for_node/1)
+      reject(&VolumePrefetch.for_node/2)
 
       conn =
         conn

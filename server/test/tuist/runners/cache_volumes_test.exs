@@ -131,7 +131,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
   end
 
   defp listed_volumes(node_names, now) do
-    for head <- CacheVolumes.macos_prefetch_heads(node_names, now), do: {Repo.get!(Usage, head.id).volume_id, head.reason}
+    for head <- CacheVolumes.prefetch_heads("macos", node_names, now),
+        do: {Repo.get!(Usage, head.id).volume_id, head.reason}
   end
 
   test "allocations carry the size the host creates the volume at", %{job: job} do
@@ -464,7 +465,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:error, :conflict} = CacheVolumes.image("node", first.id, %{"operation" => "download", "generation" => 2})
   end
 
-  test "lists the saved heads of macOS custom volumes used on the given hosts in the last day", %{
+  test "lists the saved heads of the platform's custom volumes used on the given hosts in the last day", %{
     job: job,
     account: account
   } do
@@ -496,15 +497,17 @@ defmodule Tuist.Runners.CacheVolumesTest do
                head_size_bytes: 1024,
                reason: "recent"
              }
-           ] = CacheVolumes.macos_prefetch_heads(["other-node", "node"], now)
+           ] = CacheVolumes.prefetch_heads("macos", ["other-node", "node"], now)
 
     assert {id, image_digest, content_digest} == {mac.id, published.image_digest, published.content_digest}
+    linux_id = linux.id
+    assert [%{id: ^linux_id, reason: "recent"}] = CacheVolumes.prefetch_heads("linux", ["node"], now)
     refute Repo.get!(Usage, unsaved.id).status == "published"
-    assert [] = CacheVolumes.macos_prefetch_heads(["other-node"], now)
-    assert [] = CacheVolumes.macos_prefetch_heads(["node"], DateTime.add(now, 25 * 60 * 60, :second))
+    assert [] = CacheVolumes.prefetch_heads("macos", ["other-node"], now)
+    assert [] = CacheVolumes.prefetch_heads("macos", ["node"], DateTime.add(now, 25 * 60 * 60, :second))
 
     CacheVolumes.delete(account.id, mac_volume.id)
-    assert [] = CacheVolumes.macos_prefetch_heads(["node"], now)
+    assert [] = CacheVolumes.prefetch_heads("macos", ["node"], now)
   end
 
   test "lists volumes two workflow runs used in the last week and idle for four hours to prewarm first", %{job: job} do
@@ -2171,7 +2174,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
       assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", checkout.id, publish)
       assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
-      assert [] = CacheVolumes.macos_prefetch_heads(["mac-node"], DateTime.utc_now())
+      assert [] = CacheVolumes.prefetch_heads("macos", ["mac-node"], DateTime.utc_now())
     end
 
     test "follows the setting of the profile the job was dispatched to", %{account: account, job: job, params: params} do
