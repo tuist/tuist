@@ -1,0 +1,477 @@
+[
+  {
+    "annotations": {
+      "description": "Runner cache volume saves are failing on {{ $labels.platform }}: {{ $values.C.Value | humanizePercentage }} of the {{ $values.B.Value }} jobs that saved a volume in the last hour had their save refused (invalid_image, incomplete, error or timeout). A refused save keeps the previous copy, so the next jobs start from stale or empty caches and the loss compounds until the cause is fixed. Unchanged, withheld and release_pending saves are excluded because they are not failures.\n\nFirst query (Loki, grafanacloud-logs): macOS sum by (result, kind) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"publish\"` | json result=\"result\", kind=\"kind\" [1h])); Linux the same over {cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"`. Then read the error field of a few failing lines.\n\nLikely causes:\n- macOS invalid_image \"cache image failed write-back verification\": the guest could not open or write its image through the VM share. Check whether a runner image or tart-kubelet release went out just before the onset (on 2026-10-21 runner image 0.43.1 refused every save from 17:00 to 20:37).\n- macOS incomplete: the image holds less than the guest wrote (lost guest writes). See the incomplete rule.\n- Linux invalid_image with a maintenance \"loop device still has live references\" error: the agent verified a volume kubelet still held and poisoned the save (2026-10-20 to 10-22, fixed by #14590).\n- error \"image upload failed\": the cache upload endpoint or Kura is failing.\n\nRoll back the release that started it; there is no per-account mitigation.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-cache-volume-saves-failing",
+      "summary": "{{ $values.C.Value | humanizePercentage }} of {{ $labels.platform }} runner cache volume saves failed in the last hour ({{ $values.B.Value }} saves)"
+    },
+    "condition": "D",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "label_replace((count(sum by (use) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"publish\"` | json result=\"result\", use=\"use\" | result=~`invalid_image|incomplete|error|timeout` [1h]))) or vector(0)), \"platform\", \"macos\", \"\", \"\") or label_replace((count(sum by (use) (count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"operation\":\"publish\"` | json result=\"result\", use=\"use\" | result=~`invalid_image|incomplete|error|timeout` [1h]))) or vector(0)), \"platform\", \"linux\", \"\", \"\")",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "A"
+        },
+        "queryType": "instant",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(count(sum by (use) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"publish\"` | json result=\"result\", use=\"use\" | result!~`unchanged|withheld|release_pending|cancelled` [1h]))), \"platform\", \"macos\", \"\", \"\") or label_replace(count(sum by (use) (count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"operation\":\"publish\"` | json result=\"result\", use=\"use\" | result!~`unchanged|withheld|release_pending|cancelled` [1h]))), \"platform\", \"linux\", \"\", \"\")",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "B"
+        },
+        "queryType": "instant",
+        "refId": "B",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A / $B",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$C > 0.3 && $B >= 20",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "D",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "D",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "30m",
+    "labels": {
+      "severity": "critical"
+    },
+    "noDataState": "OK",
+    "notification_settings": {
+      "receiver": "Incidents"
+    },
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runner cache volumes",
+    "title": "Runner cache volume saves failing",
+    "uid": "runner-cache-volume-saves-failing"
+  },
+  {
+    "annotations": {
+      "description": "Jobs on {{ $labels.platform }} are starting without their cache volume: {{ $values.C.Value | humanizePercentage }} of {{ $values.B.Value }} volume attaches in the last hour were refused or failed, so those jobs ran cold. GitHub binding delays (execution_pending) are excluded and alert separately.\n\nFirst query (Loki, grafanacloud-logs): macOS sum by (result) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |~ `\"msg\":\"(cache phase\",\"operation\":\"attach\"|custom cache volume)` | json result=\"result\" [1h])), then read the msg and error of the refusals; Linux sum by (result) (count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"operation\":\"acquire\"` | json result=\"result\" [1h])). The guest sees it as `Cache volume unavailable: <reason>` in the runner log.\n\nLikely causes:\n- macOS capacity, \"custom cache volume unavailable; job continues cold ... cache capacity exhausted\": the host has no room for the volume. Check host disk (tuist_runner_cache_volume_filesystem_available_bytes) and whether admission reserves more than volumes need.\n- macOS \"custom cache volume larger than this host holds\": the server answered 507 because the lineage's capacity exceeds the host maximum.\n- Linux timeout: the agent did not attach within its 25 second acquire budget, typically because it waited on a download, and the guest got `cache service returned 503`.\n- error or \"not authorized\": the server refused allocation; check the server logs for the runner cache volumes controller.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-cache-volume-attaches-unavailable",
+      "summary": "{{ $values.C.Value | humanizePercentage }} of {{ $labels.platform }} runner cache volume attaches failed in the last hour ({{ $values.B.Value }} attaches)"
+    },
+    "condition": "D",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "label_replace((sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |~ `\"msg\":\"(cache phase\",\"operation\":\"attach\"|custom cache volume (not authorized;|larger than this host))` | json result=\"result\" | result!~`success|cancelled` [1h])) or vector(0)), \"platform\", \"macos\", \"\", \"\") or label_replace((sum(count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"operation\":\"acquire\"` | json result=\"result\" | result!~`success|cancelled|execution_pending` [1h])) or vector(0)), \"platform\", \"linux\", \"\", \"\")",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "A"
+        },
+        "queryType": "instant",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "label_replace(sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |~ `\"msg\":\"(cache phase\",\"operation\":\"attach\"|custom cache volume (not authorized;|larger than this host))` | json result=\"result\" | result!=`cancelled` [1h])), \"platform\", \"macos\", \"\", \"\") or label_replace(sum(count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"operation\":\"acquire\"` | json result=\"result\" | result!~`cancelled|execution_pending` [1h])), \"platform\", \"linux\", \"\", \"\")",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "B"
+        },
+        "queryType": "instant",
+        "refId": "B",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A / $B",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$C > 0.25 && $B >= 20",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "D",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "D",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runner cache volumes",
+    "title": "Runner cache volume attaches unavailable",
+    "uid": "runner-cache-volume-attaches-unavailable"
+  },
+  {
+    "annotations": {
+      "description": "{{ $values.A.Value }} runner cache volume and checkout attaches in the last 30 minutes were refused with execution_pending: the server could not tell which GitHub job each runner is running, so it would not scope a volume and those jobs ran cold. The binding comes from GitHub's workflow_job in_progress webhook, with ExecutionLookupWorker reading the GitHub API as a fallback. Baseline is 0 to 2 per 30 minutes; a burst means GitHub is delivering in_progress late (and its API reports the job late too).\n\nCheck https://www.githubstatus.com for degraded Webhooks or Actions first. There is nothing to fix on our side when GitHub is delayed; jobs keep running, only without their caches.\n\nFirst query (Loki, grafanacloud-logs): sum(count_over_time({cluster=\"tuist-production\", service_name=\"tuist\"} |= `execution lookup found no job` [1h])) (normally about 5 per hour; 1,237 per hour on 2026-10-21). The host side is {cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `execution_pending` for Linux and {job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `not authorized in time` for macOS.\n\nLikely causes:\n- GitHub webhook delivery delays (2026-10-21 14:52 to 19:23 UTC).\n- Our webhook endpoint is failing or slow: check the GitHub App's recent deliveries and the :webhooks Oban queue.\n- The GitHub App installation lost access, so the API fallback fails too: look for `execution lookup failed to list jobs` in the server logs.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-cache-volumes-waiting-on-github-job-binding",
+      "summary": "{{ $values.A.Value }} runner cache volume attaches waited on a GitHub job binding in the last 30 minutes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "(sum(count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"result\":\"execution_pending\"` |~ `\"operation\":\"(acquire|checkout_acquire)\"` [30m])) or vector(0)) + (sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |~ `\"msg\":\"(custom cache volume not authorized in time|[^\"]*execution_pending)` [30m])) or vector(0))",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "A"
+        },
+        "queryType": "instant",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  20
+                ],
+                "type": "gt"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runner cache volumes",
+    "title": "Runner cache volumes waiting on GitHub job binding",
+    "uid": "runner-cache-volume-execution-pending"
+  },
+  {
+    "annotations": {
+      "description": "Only {{ $values.C.Value | humanizePercentage }} of the {{ $values.B.Value }} macOS volume attaches in the last two hours whose lineage had a saved copy started warm (from the host's master or an older generation); the rest attached cold. Baseline is 91 to 100%. Cold starts are slower builds, and a cold job's save is withheld so it cannot replace a good head. Linux is not covered: none of its 5,737 uses with a saved copy attached cold from 2026-10-20 to 10-22.\n\nFirst query (Loki, grafanacloud-logs): sum by (instance, source) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"attach\"` |= `\"result\":\"success\"` | json source=\"source\", kind=\"kind\" | kind!=\"checkout\" [2h])) to see whether the cold attaches concentrate on some hosts. Per account, the server records it as runner_cache_volume_uses.warm = false with base_generation > 0.\n\nLikely causes:\n- Masters evicted on the hosts jobs land on: look for `\"operation\":\"evict\"` and host disk pressure.\n- Placement sends an account's jobs to hosts that hold none of its masters (a new rack host per job, or a fleet change).\n- Prefetch is not keeping up: `\"operation\":\"prefetch\"` with result capacity or timeout.\n\nThe rule counts lines, not volumes, so the e2e reuse keys are included; they add about two attaches an hour.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-cache-volume-warm-rate-low",
+      "summary": "Only {{ $values.C.Value | humanizePercentage }} of macOS cache volume attaches with a saved copy started warm in the last 2 hours ({{ $values.B.Value }} attaches)"
+    },
+    "condition": "D",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"attach\"` |= `\"result\":\"success\"` | json source=\"source\", kind=\"kind\" | kind!=`checkout` | source=~`local|older` [2h])) or vector(0)",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "A"
+        },
+        "queryType": "instant",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 7200,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"attach\"` |= `\"result\":\"success\"` | json source=\"source\", kind=\"kind\" | kind!=`checkout` | source=~`local|older|cold` [2h]))",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "B"
+        },
+        "queryType": "instant",
+        "refId": "B",
+        "relativeTimeRange": {
+          "from": 7200,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$A / $B",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "$C < 0.85 && $B >= 50",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "D",
+          "type": "math"
+        },
+        "queryType": "expression",
+        "refId": "D",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runner cache volumes",
+    "title": "Runner cache volume warm rate low",
+    "uid": "runner-cache-volume-warm-rate-low"
+  },
+  {
+    "annotations": {
+      "description": "{{ $values.A.Value }} macOS cache volume saves in the last hour were withheld as incomplete: the image the host read back holds fewer bytes than the guest reported writing, so the guest's last writes never reached it. Publishing it would have restored an empty or partial volume to the next job, so the host withholds it and the previous copy stays. One is enough to look at: on a healthy fleet there are none.\n\nFirst query (Loki, grafanacloud-logs): {job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"result\":\"incomplete\"`, which names the instance (host), pod, scope and the byte counts in error.\n\nLikely causes:\n- The guest's writes did not reach the image before the VM stopped (an unclean guest shutdown or a lost APFS checkpoint).\n- A runner image or tart-kubelet change in how the image is shared with the guest or flushed at job end. Check what was released before the first one.\n- One host's disk or APFS container misbehaving: several on the same instance point at the host.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-cache-volume-saves-incomplete",
+      "summary": "{{ $values.A.Value }} macOS cache volume saves lost guest writes in the last hour"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-logs",
+        "model": {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "editorMode": "code",
+          "expr": "sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"publish\"` |= `\"result\":\"incomplete\"` [1h])) or vector(0)",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "queryType": "instant",
+          "refId": "A"
+        },
+        "queryType": "instant",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              }
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "0s",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "notification_settings": null,
+    "orgID": 1,
+    "record": null,
+    "ruleGroup": "Runner cache volumes",
+    "title": "Runner cache volume saves incomplete",
+    "uid": "runner-cache-volume-saves-incomplete"
+  }
+]

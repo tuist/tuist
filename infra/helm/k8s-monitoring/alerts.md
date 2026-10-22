@@ -2749,6 +2749,117 @@ nothing alerts if it stops. If that is worth covering, the detector is
 claims held against work actually running — not withheld depth, which
 cannot tell a leak from a busy customer.
 
+### Runner cache volume rules
+
+Five rules in folder `Alerts`, group **Runner cache volumes**, evaluated
+every five minutes, watch the runner cache volumes (custom, managed and
+checkout volumes attached to Tuist Runners jobs). They are recorded in
+[`runner-cache-volume-alert-rules.json`](runner-cache-volume-alert-rules.json)
+and were created through `POST /api/v1/provisioning/alert-rules` with
+`X-Disable-Provenance: true`, so they stay editable in the UI like their
+siblings. Merging the file does not provision Grafana: change the live rule
+and the file together.
+
+| Rule | UID | Routing |
+| --- | --- | --- |
+| Runner cache volume saves failing | `runner-cache-volume-saves-failing` | `Incidents` (pages) |
+| Runner cache volume attaches unavailable | `runner-cache-volume-attaches-unavailable` | policy tree (`#notifications`) |
+| Runner cache volumes waiting on GitHub job binding | `runner-cache-volume-execution-pending` | policy tree (`#notifications`) |
+| Runner cache volume warm rate low | `runner-cache-volume-warm-rate-low` | policy tree (`#notifications`) |
+| Runner cache volume saves incomplete | `runner-cache-volume-saves-incomplete` | policy tree (`#notifications`) |
+
+All five are production only and read Loki (`grafanacloud-logs`), because the
+metric that carries the same fields cannot be rated.
+`tuist_runner_cache_volume_operations_total` (macOS hosts and the Linux
+`agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
+removed and only a plain `sum` stored, so `rate()` and `increase()` over it
+return an empty result, as with the Oban counters in **Ingestion jobs being
+discarded**. The aggregated sum also goes down whenever an agent restarts, so
+it cannot stand in for a counter either. Moving these rules to the metric needs
+the metric's aggregation rule changed to keep counter semantics first (see
+`README.md`, *Metrics aggregated downstream of this chart*), and it would
+still lack `kind`, `use` and the refusal messages the rules read.
+
+The host logs used:
+
+- macOS: `{job="tuist-macos-tart-kubelet", env="production"}`, lines with
+  `"msg":"cache phase"` and the `operation`, `source`, `result`, `kind`,
+  `use` fields, plus the refusal lines `custom cache volume ... job continues
+  cold`. The stream also carries the huge `runner log` lines, so every query
+  starts with a line filter.
+- Linux: `{cluster="tuist-production", namespace="tuist-runners",
+  service_name="agent"}`, lines with `"msg":"cache volume operation"` and the
+  same fields.
+
+Before 2026-10-21 17:00 UTC neither host logged `use` on these lines, so the
+backtests below count lines where a rule counts uses. The macOS publish path
+does not retry, so the two agree there; the Linux one retried a failing
+publish every 30 seconds, which overstates its line counts.
+
+**Cost.** The macOS stream is about 32 MB an hour and each rule query scans its
+whole window, so the group scans roughly 85 GB of logs a day at five-minute
+evaluation, against about 2,600 GB a day of queries the stack already ran in
+October 2026. Do not move the group to one-minute evaluation without
+shortening the windows.
+
+#### Runner cache volume saves failing
+
+Per platform, the share of jobs whose save was refused in the last hour:
+
+```logql
+# A: uses with a failed publish (Linux is the same over the agent stream)
+count(sum by (use) (count_over_time(
+  {job="tuist-macos-tart-kubelet", env="production"}
+    |= `"msg":"cache phase"` |= `"operation":"publish"`
+    | json result="result", use="use"
+    | result=~`invalid_image|incomplete|error|timeout` [1h]))) or vector(0)
+# B: uses that published, excluding non-failures
+#    result!~`unchanged|withheld|release_pending|cancelled`
+```
+
+- Condition: `$A / $B > 0.3 && $B >= 20`
+- Pending period: 10 minutes; keep firing for 30 minutes, so a quiet hour in
+  the middle of a breakage (17:30 to 19:00 on 2026-10-21 had 4 and 12 saves)
+  does not resolve and re-page
+- Severity: critical. Routed to `Incidents` with `notification_settings`, like
+  the other paging rules: a save failure loses the job's cache for every later
+  job until it is fixed, and on 2026-10-21 nobody noticed for hours
+- **No Data: Normal**, **Error: Error**
+
+Backtest, one-hour window, hours named by their end (UTC):
+
+| Window | macOS | Linux |
+| --- | --- | --- |
+| 2026-10-17 to 10-19 | at most 21 saves an hour; 2 of 21 (9.5%) | max 8.5% |
+| 2026-10-20 | max 6% | 46%, 34% and 36% at 10:00, 12:00 and 15:00 (fires) |
+| 2026-10-21 00:00 to 17:00 | max 21% at 14 saves; max 18% above 20 saves | 35% and 39% at 15:00 and 17:00 (fires) |
+| 2026-10-21 17:00 to 23:00 | 71 to 100% (fires from 17:30 to 23:00) | 70%, 40% and 65% at 18:00, 20:00 and 21:00 (fires) |
+| 2026-10-22 00:00 to 09:30 | max 2% | 62%, 47% and 46% at 05:00, 06:00 and 08:00 (fires); 0 of 78 by 09:45 |
+
+The macOS breakage is the runner image 0.43.1 regression: the guest could not
+open its image through the VM share, every save failed write-back verification
+(`invalid_image`), and 0.44.0 at 20:37 left about two in three still failing.
+The Linux firings are real too. From 2026-10-20 until #14590 reached production
+on 10-22 at about 09:30, the agent's maintenance pass lost a race with
+kubelet's subPath unmount and poisoned about 38% of Linux custom saves
+(`invalid_image` after `loop device still has live references`). On 10-17 to
+10-19, before that, the Linux ratio stayed under 9%.
+
+The `invalid_image` share before 17:00 on 10-21 is low on macOS (1 to 5 an
+hour against 55 to 80 successes), even though the server records only about a
+third of the macOS uses that may publish as `published` from 08:00 that day.
+The host never refused those saves: 583 of the 729 discarded uses reported a
+size and were never superseded, host verdicts in that window were at least 81%
+`success` every hour, and macOS uploads logged 425 `conflict` results from 10-20 to 10-22
+as managed caches moved onto custom volumes and macOS volume use grew
+sevenfold. This rule measures host verdicts, so that gap is outside it.
+
+#### When it fires
+
+Run the first query in the description, then read `error` on a few failing
+lines. A runner image or tart-kubelet release just before the onset is the
+usual cause; roll it back. Per-account mitigation does not help.
+
 ### Node leaking cgroups
 
 ```promql
@@ -6397,6 +6508,117 @@ sum by (cluster, namespace, method, route) (
 
 - Pending period: 2 minutes
 - Summary: `Bandit reported repeated request read timeouts for {{ $labels.route }} in {{ $labels.cluster }}`
+
+### Runner cache volume attaches unavailable
+
+Group, data source and cost are described in **Runner cache volume rules**.
+Per platform, the share of volume attaches in the last hour that were refused
+or failed, so the job ran without its volume:
+
+- macOS failures: `cache phase` lines with `operation` `attach` and a result
+  other than `success` or `cancelled` (in practice `capacity`), plus the
+  refusal lines `custom cache volume not authorized; ...` and `custom cache
+  volume larger than this host holds; ...`, which carry no result. The
+  `custom cache volume unavailable; ...` line is not counted: it repeats the
+  attach result.
+- Linux failures: `operation` `acquire` with a result other than `success`,
+  `cancelled` or `execution_pending` (`timeout` and `error`).
+- `execution_pending` is excluded on both sides because it has its own rule.
+- Condition: `$A / $B > 0.25 && $B >= 20`; pending period 10 minutes;
+  severity warning; no contact point, so the policy tree sends it to
+  `#notifications`. A cold job is slower, not broken, so this does not page.
+
+Backtest, one-hour window, hours named by their end (UTC), 2026-10-19 to
+10-22:
+
+- Linux fires at 16:00 and 17:00 on 10-19 (71 of 127 and 116 of 160 acquires
+  timed out): the agent spent its 25 second acquire budget downloading the
+  volume and the guest got `cache service returned 503`, fixed by #14589.
+  Every other hour is at most 19% (12 of 62 at 09:00 on 10-22).
+- macOS fires at 13:00 on 10-20 (9 of 31 attaches refused for `capacity`,
+  `cache capacity exhausted`). Every other hour is at most 21%. The `capacity`
+  refusals on 10-21 between 09:00 and 12:00 (9 to 11 an hour) stay under 5% of
+  that morning's volume and do not fire.
+
+Guest-side `Cache volume unavailable: <reason>` lines in the runner log
+(`service_name="tuist-runner"` on Linux) tell the same story from inside the
+job (144 in the two hours of the 10-19 timeouts), but that stream scans about
+10 million lines every two hours, so it stays an investigation query rather
+than a rule input.
+
+### Runner cache volumes waiting on GitHub job binding
+
+The number of volume and checkout attaches in the last 30 minutes, summed over
+both platforms, that the server answered with `execution_pending` (HTTP 425):
+it has not yet learned which GitHub job the runner is running, because that
+comes from the `workflow_job` `in_progress` webhook, and
+`Tuist.Runners.Workers.ExecutionLookupWorker` reading the GitHub API is only a
+fallback. The host gives up after 30 seconds and the job runs cold.
+
+```logql
+(sum(count_over_time({cluster="tuist-production", namespace="tuist-runners", service_name="agent"}
+    |= `"msg":"cache volume operation"` |= `"result":"execution_pending"`
+    |~ `"operation":"(acquire|checkout_acquire)"` [30m])) or vector(0))
++ (sum(count_over_time({job="tuist-macos-tart-kubelet", env="production"}
+    |~ `"msg":"(custom cache volume not authorized in time|[^"]*execution_pending)` [30m])) or vector(0))
+```
+
+- Threshold: `> 20`; pending period 5 minutes; severity warning; policy tree
+  (`#notifications`). It means GitHub is late, so there is nothing to page
+  anyone for; the description links githubstatus.com.
+- The host side is used rather than the server's `execution lookup found no
+  job` log line: the server stream is about 530,000 lines an hour, and the
+  host lines are what the job actually experienced.
+
+Backtest, 30-minute windows, 2026-10-17 to 10-22: at most 2 in every window
+except 2026-10-21 14:30 to 17:00, when it read 24, 160, 259, 293, 250 and 64.
+It fires at about 14:35. In the hours ending 12:00 to 18:00 the server logged
+`execution lookup found no job` 5, 6, 48, 448, 1,237, 491 and 51 times, and 0
+to 16 an hour in every other hour from 10-20 to 10-22. GitHub's delivery delay
+ran from 14:52 to 19:23. The host-side refusals stopped at about 17:00, so the
+rule resolves around 17:30, while the server kept missing a few bindings until
+about 21:00.
+
+### Runner cache volume warm rate low
+
+macOS only. Among volume attaches in the last two hours whose lineage had a
+saved copy (`source` `local`, `older` or `cold`; `empty` means there was none,
+and checkout volumes are excluded), the share that started warm (`local` or
+`older`):
+
+- Condition: `$A / $B < 0.85 && $B >= 50`; pending period 15 minutes;
+  severity warning; policy tree (`#notifications`)
+- The host's `warm` flag is what the server stores as
+  `runner_cache_volume_uses.warm`, and both show the same dip. The server
+  could exclude the `e2e-reuse-*` keys and the acceptance probe, which
+  the logs cannot name, but the Grafana Postgres role (`tuist_grafana_ro`)
+  has no grant on those tables. The e2e keys add about two macOS attaches an
+  hour (15% of them cold), which moves a two-hour ratio by well under a point,
+  and the probe has no production volume uses.
+- Linux is not covered: none of its 5,737 uses with a saved copy attached cold
+  from 2026-10-20 to 10-22.
+
+Backtest, two-hour window, hours named by their end, 2026-10-20 to 10-22:
+the normal minimum above 50 attaches is 91.5%. On 10-21 it read 87.5% at
+10:00, 81.6% at 11:00, 79.4% at 12:00, 78.5% at 13:00 and 86.9% at 14:00, so it
+fires from about 11:00 to 13:30. That morning managed caches had just moved
+onto custom volumes and macOS volume use grew sevenfold. The Postgres view of
+the same hours (`warm = false` with `base_generation > 0`, hourly) read 78 to
+85%.
+
+### Runner cache volume saves incomplete
+
+macOS only: any save in the last hour that the host withheld as `incomplete`
+because the image held fewer bytes than the guest reported writing (#14584).
+The guest's last writes never reached the image, and before #14584 such an
+image was published and the next job restored an empty volume.
+
+- Threshold: `> 0`; no pending period; severity warning; policy tree
+  (`#notifications`)
+- Backtest, 2026-10-20 to 10-22: exactly one, at 2026-10-21 23:03 UTC on rack
+  host b05 (10,249,740,288 of 10,354,028,544 bytes), so the rule fires once.
+  It also counts toward **Runner cache volume saves failing**, which needs
+  far more than one to fire.
 
 ### Runner job replica divergence
 
