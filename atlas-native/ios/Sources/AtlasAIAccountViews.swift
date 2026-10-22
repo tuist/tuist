@@ -1,17 +1,6 @@
 import SwiftUI
 import UIKit
 
-enum AtlasSettingsStyle {
-    static let tint = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 102 / 255, green: 199 / 255, blue: 232 / 255, alpha: 1)
-            : UIColor(red: 8 / 255, green: 124 / 255, blue: 170 / 255, alpha: 1)
-    })
-    static let onTint = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? .black : .white
-    })
-}
-
 enum AtlasAIService: String {
     case claude, chatgpt
 
@@ -122,6 +111,8 @@ struct AtlasClaudeAccountView: View {
                 }
             }
         }
+        .protectsAtlasNavigation()
+        .toolbar(.hidden, for: .tabBar)
         .navigationTitle("Claude")
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
@@ -132,9 +123,9 @@ struct AtlasClaudeAccountView: View {
                     Text(saving ? "Saving…" : "Save connection")
                 }
                 .frame(maxWidth: .infinity, minHeight: 24)
-                .foregroundStyle(canSave ? AtlasSettingsStyle.onTint : Color.secondary)
             }
             .buttonStyle(.borderedProminent)
+            .modifier(AtlasPrimaryAction())
             .controlSize(.large)
             .disabled(!canSave)
             .frame(maxWidth: 560)
@@ -143,7 +134,7 @@ struct AtlasClaudeAccountView: View {
             .frame(maxWidth: .infinity)
             .background(.bar)
         }
-        .tint(AtlasSettingsStyle.tint)
+        .modifier(AtlasThemedContent())
         .onAppear { visible = true; accounts.clearError() }
         .onDisappear { visible = false; token = ""; accounts.clearError() }
         .confirmationDialog("Disconnect Claude?", isPresented: $confirmingDisconnect, titleVisibility: .visible) {
@@ -235,10 +226,12 @@ struct AtlasChatGPTAccountView: View {
                 }
             }
         }
+        .protectsAtlasNavigation()
+        .toolbar(.hidden, for: .tabBar)
         .navigationTitle("ChatGPT")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { actions }
-        .tint(AtlasSettingsStyle.tint)
+        .modifier(AtlasThemedContent())
         .task(id: accounts.login?.id) { if accounts.login != nil { await accounts.poll() } }
         .onAppear { accounts.clearError() }
         .onDisappear {
@@ -279,9 +272,9 @@ struct AtlasChatGPTAccountView: View {
                             Text(startLabel)
                         }
                         .frame(maxWidth: .infinity, minHeight: 24)
-                        .foregroundStyle(accounts.busy ? Color.secondary : AtlasSettingsStyle.onTint)
                     }
                     .buttonStyle(.borderedProminent)
+                    .modifier(AtlasPrimaryAction())
                     .controlSize(.large)
                     .disabled(accounts.busy)
                 }

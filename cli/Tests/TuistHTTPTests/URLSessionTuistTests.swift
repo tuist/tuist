@@ -22,6 +22,37 @@
         }
 
         @Test(.withMockedEnvironment())
+        func discovery_preserves_proxy_settings_without_cookies_credentials_or_redirects() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+            let previousSettings = HTTPSettings.current
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            defer { HTTPSettings.current = previousSettings }
+            let session = URLSession.tuistDiscovery
+            defer { session.invalidateAndCancel() }
+            let configuration = session.configuration
+            #expect(configuration
+                .connectionProxyDictionary?[kCFNetworkProxiesHTTPSProxy as String] as? String == "proxy.tuist.dev")
+            #expect(configuration.httpCookieStorage == nil)
+            #expect(configuration.urlCredentialStorage == nil)
+            #expect(!configuration.httpShouldSetCookies)
+            #expect(configuration.timeoutIntervalForRequest == 10)
+            #expect(configuration.timeoutIntervalForResource == 10)
+            let delegate = try #require(session.delegate as? URLSessionTaskDelegate)
+            let url = try #require(URL(string: "https://tuist.example"))
+            let response = try #require(HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil, headerFields: nil))
+            await confirmation("Discovery refuses redirects") { completed in
+                delegate.urlSession?(
+                    session, task: session.dataTask(with: url), willPerformHTTPRedirection: response,
+                    newRequest: URLRequest(url: url)
+                ) { request in
+                    #expect(request == nil)
+                    completed()
+                }
+            }
+        }
+
+        @Test(.withMockedEnvironment())
         func tuistURLSessionConfiguration_uses_default_timeouts_and_connection_limit() async throws {
             let configuration = tuistURLSessionConfiguration()
 

@@ -4,8 +4,8 @@ struct AtlasWorkspaceView<Profile: View>: View {
     let holidayRequest: ([String: Any]) async throws -> Data
     let businessRequest: ([String: Any]) async throws -> Data
     var presence: AtlasPresence?
+    @ObservedObject var navigation: AtlasNavigation
     @ViewBuilder var settings: () -> Profile
-    @State private var selection = "tasks"
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -17,6 +17,7 @@ struct AtlasWorkspaceView<Profile: View>: View {
             }
         }
         .environment(\.atlasPresence, presence)
+        .environment(\.atlasNavigation, navigation)
         .safeAreaInset(edge: .top, spacing: 0) {
             if let presence { AtlasAlsoHere(presence: presence).padding(.horizontal) }
         }
@@ -26,19 +27,54 @@ struct AtlasWorkspaceView<Profile: View>: View {
     }
 
     private var tabs: some View {
-        TabView(selection: $selection) {
+        TabView(selection: $navigation.selection) {
             ForEach(AtlasBusinessResource.allCases) { resource in
-                NavigationStack { AtlasBusinessView(resource: resource, request: businessRequest) }
+                AtlasBusinessStack(resource: resource, recordID: navigation.destinations[resource.rawValue]?.recordID,
+                                   revision: navigation.revisions[resource.rawValue], request: businessRequest)
                     .tabItem { Label(resource.title, systemImage: resource.icon) }
                     .tag(resource.rawValue)
             }
-            NavigationStack {
-                AtlasBrowsePage(group: nil, holidayRequest: holidayRequest, businessRequest: businessRequest)
-            }
+            AtlasBrowseStack(screen: navigation.destinations["browse"]?.screen, revision: navigation.revisions["browse"],
+                             holidayRequest: holidayRequest, businessRequest: businessRequest)
             .tabItem { Label("Browse", systemImage: "square.grid.2x2") }.tag("browse")
             NavigationStack { settings().onAppear { presence?.show(resource: "profile") } }
+                .id(navigation.revisions["profile"])
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }.tag("profile")
         }
+    }
+}
+
+private struct AtlasBrowseStack: View {
+    let holidayRequest: ([String: Any]) async throws -> Data
+    let businessRequest: ([String: Any]) async throws -> Data
+    @State private var path: [String]
+    let screen: String?
+    let revision: UUID?
+    @Environment(\.atlasPresence) private var presence
+
+    init(screen: String?, revision: UUID?, holidayRequest: @escaping ([String: Any]) async throws -> Data,
+         businessRequest: @escaping ([String: Any]) async throws -> Data) {
+        self.screen = screen
+        self.revision = revision
+        self.holidayRequest = holidayRequest
+        self.businessRequest = businessRequest
+        _path = State(initialValue: screen.map { ["time-off", "people"].contains($0) ? [$0] : [] } ?? [])
+    }
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            AtlasBrowsePage(group: nil, holidayRequest: holidayRequest, businessRequest: businessRequest)
+                .navigationDestination(for: String.self) { screen in
+                    if screen == "time-off" {
+                        AtlasTimeOffView(title: AtlasCatalog().sections.first { $0.screen == "time-off" }?.title ?? "Time off",
+                                         request: holidayRequest)
+                            .onAppear { presence?.show(resource: "time_off") }
+                    } else if screen == "people", let presence {
+                        AtlasPeopleView(presence: presence)
+                    }
+                }
+        }
+        .onChange(of: revision) { _, _ in path = screen.map { [$0] } ?? [] }
     }
 }
 
@@ -74,6 +110,7 @@ private struct AtlasBrowsePage: View {
                 }
             }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle(group?.title ?? "Browse")
         .searchable(text: $query, prompt: "Find a feature")
         .autocorrectionDisabled().textInputAutocapitalization(.never)

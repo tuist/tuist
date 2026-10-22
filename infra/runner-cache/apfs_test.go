@@ -18,7 +18,7 @@ func newAPFS(t *testing.T) (*APFSImages, *testTransfer) {
 			t.Fatal(size)
 		}
 		return os.WriteFile(path, []byte("cold APFS"), 0600)
-	}, Verify: func(string) error { return nil }}
+	}, Verify: func(string) (int64, error) { return 1 << 40, nil }}
 	b.Run = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		if name != "cp" || args[0] != "-c" {
 			t.Fatalf("unexpected %s %v", name, args)
@@ -43,34 +43,37 @@ func apfsPath(t *testing.T, b *APFSImages, slot Slot) string {
 	return path
 }
 
-func TestAPFSAdmissionBudgetsOneImageForEveryAttach(t *testing.T) {
+func TestAPFSAdmitsWhatTheJobIsExpectedToWrite(t *testing.T) {
 	for _, tc := range []struct {
-		name         string
-		free         uint64
-		warm         bool
-		wantCapacity bool
+		name string
+		head int64
+		warm bool
+		free uint64
+		fits bool
 	}{
-		{name: "cold image fits", free: 20_000_000_000},
-		{name: "cold image does not fit", free: 19_999_999_999, wantCapacity: true},
-		{name: "warm attach fits in one image", free: 20_000_000_000, warm: true},
-		{name: "warm attach does not fit", free: 19_999_999_999, warm: true, wantCapacity: true},
+		{name: "empty start fits its default", free: 5_000_000_000, fits: true},
+		{name: "empty start does not fit", free: 4_999_999_999},
+		{name: "small head fits its growth margin", head: 700_000_000, warm: true, free: 2_700_000_000, fits: true},
+		{name: "small head does not fit", head: 700_000_000, warm: true, free: 2_699_999_999},
+		{name: "large head fits half again", head: 10_000_000_000, warm: true, free: 15_000_000_000, fits: true},
+		{name: "large head does not fit", head: 10_000_000_000, warm: true, free: 14_999_999_999},
+		{name: "head near the capacity needs the capacity", head: 18_000_000_000, warm: true, free: 20_000_000_000, fits: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b, _ := newAPFS(t)
 			b.FreeBytes = func(string) (uint64, error) { return tc.free, nil }
 			slot := Slot{Identity: identity(first), PodUID: "pod"}
 			if tc.warm {
-				slot.BaseGeneration = 1
-				slot.ImageDigest = strings.Repeat("b", 40)
-				slot.ContentDigest = strings.Repeat("c", 64)
+				slot = warmSlot(first, "pod")
 			}
+			slot.VolumeBytes, slot.HeadSizeBytes = 20_000_000_000, tc.head
+
 			err := b.Attach(context.Background(), slot, apfsPath(t, b, slot))
-			if tc.wantCapacity {
-				if !errors.Is(err, ErrCapacity) {
-					t.Fatalf("expected capacity rejection, got %v", err)
-				}
-			} else if err != nil {
-				t.Fatal(err)
+			if tc.fits && err != nil {
+				t.Fatalf("refused with %d bytes free: %v", tc.free, err)
+			}
+			if !tc.fits && !errors.Is(err, ErrCapacity) {
+				t.Fatalf("admitted with %d bytes free: %v", tc.free, err)
 			}
 		})
 	}
@@ -163,7 +166,7 @@ func TestAPFSNoPublicationWithoutCleanDetach(t *testing.T) {
 				detached(t, path, "other")
 			case "failed verification":
 				detached(t, path, slot.ID)
-				b.Verify = func(string) error { return errors.New("disk failure") }
+				b.Verify = func(string) (int64, error) { return 0, errors.New("disk failure") }
 			case "interrupted verification":
 				detached(t, path, slot.ID)
 				_ = os.WriteFile(b.image(slot)+".checking", nil, 0600)

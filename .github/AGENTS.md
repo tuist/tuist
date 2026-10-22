@@ -53,7 +53,7 @@ same environment. When the base cannot be resolved, the push deploys.
 `workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
 using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
 and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
-when authentication succeeds, except for device builds, which use local caching
+when authentication succeeds, except for Android and iOS device builds, which use local caching
 only so signed releases do not consume shared outputs written by PRs. Main builds publish the tested artifacts to the
 private Tuist project's `nightly` preview track after distinct build, test and
 language-specific lint jobs pass; pull requests never publish. The single
@@ -63,15 +63,22 @@ Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
 The separate native iOS UI job builds the isolated Once fixture runner, exercises
-CRUD/navigation with `xcodebuild test-without-building`, and exports xcresult
+CRUD/navigation, including `AtlasNavigationUITests` object links, with `xcodebuild test-without-building`, and exports xcresult
 screenshots plus a simulator recording as `atlas-native-ui-evidence`. Fixtures
 make no live account-management requests and never enter production source globs.
 Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
 ad-hoc profile from 1Password, then publishes its IPA alongside the APK and
-simulator app in a separate step without the 1Password token. Signing runs before
-any uploads to avoid publishing a simulator-only nightly when it fails. Credential-free
+simulator app in separate steps without the 1Password token. Android distribution
+is re-signed with a stable key only when the protected environment configures
+`ATLAS_ANDROID_KEYSTORE_REF`, its password reference, alias, and the same
+`ATLAS_ANDROID_APP_LINK_SHA256` allowlist used by the server. Without a key reference,
+Android nightly publication is skipped rather than distributing ephemeral debug
+identities; debug CI artifacts remain. Android and simulator publication precede
+iOS device signing so a profile capability update cannot block them. iOS signing
+requires an Associated Domains-enabled profile and requests only the hosted app
+link domain. Credential-free Android signing, associated-domain capability,
 keychain-lifecycle and launcher-packaging tests also gate publication.
 PR/fork builds never receive distribution secrets. These are not
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
@@ -167,7 +174,7 @@ never persist it or extend its host scope beyond github.com.
 
 ## CLI dependency volumes
 
-macOS jobs in `cli.yml`, `app.yml` and `coverage.yml` use the standard
+macOS jobs in `cli.yml`, `app.yml`, `tuist-project-tests.yml` and `tuist-project-coverage-backfill.yml` use the standard
 `tuist-macos-27-0` profile and install dependencies through `tuist/install`.
 Custom volumes do not require the larger M4 shape. If host cache capacity is
 unavailable, each attachment falls back independently to an empty job-local directory; always
@@ -178,8 +185,9 @@ separate from the built-in account-wide cache policy. Retained contents must be
 safe for fork contributors to read. Linux and release/backport workflows have
 separate toolchain and runner requirements and are not part of this migration.
 
-On pushes to `main`, `cli.yml` runs Cache, Unit Tests and the acceptance
-tests. Lint and SwiftPM Build run on pull requests only. The `Package.resolved`
+`cli.yml` holds builds, lint and the Linux suite; every macOS `tuist test` run
+of `tuist/tuist` lives in `tuist-project-tests.yml` (below). Lint and SwiftPM Build run on
+pull requests only. The `Package.resolved`
 job runs on both and checks that the lockfile's `originHash` is the SHA-256 of
 the root `Package.swift`. `tuist/install` forces resolved versions, so the other
 jobs never notice a stale hash, but local installs then fall back to a full
@@ -311,8 +319,26 @@ job plans them without `--cover`; `mix tuist.test --no-download --cover`
 instruments each disposable downloaded build using native line counters.
 Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
-fallback, and never let it fail the run. Xcode coverage lives in `coverage.yml`,
-whose runs read the binary cache. The coverage settings are set once, in the
+fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
+from `tuist-project-tests.yml` (`tuist/tuist Tests`), which runs every macOS `tuist test` of the
+CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
+a pull request the unit and app tests run selectively, acceptance as before, and
+`coverage-complete` runs `tuist coverage complete` once the unit and app tests
+finished, whatever their result (not on drafts or forks). On a push to main the
+`cache` job warms the binary cache first, then the unit and app tests run in full
+(`--no-selective-testing`) and `coverage-complete`
+follows when both passed. The unit and app tests set `TUIST_COVERAGE_EVIDENCE` on both
+(not on forks): the server carries skipped tests only from runs that recorded
+evidence, main's full runs for every selective run and a pull request's own runs
+for its later pushes. Every merge runs on its own (no queue); a new push to a
+pull request cancels its run in progress, so a superseded commit is never
+signalled. The default checkout is enough: every job of a run reports the same
+commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1
+checkout hides its parents, so the CLI can't resolve the head through `HEAD^2`).
+`tuist-project-coverage-backfill.yml` is a dispatch-only
+full run of an earlier commit on main, tested with main's `mise.toml`. The
+selective runs upload coverage too; the server drops from their skips whatever a
+full run of the scheme at the commit executed. The coverage settings are set once, in the
 root `mise.toml`'s `[env]` (`TUIST_FEATURE_FLAG_COVERAGE`, `TUIST_COVERAGE_ENABLED`,
 `TUIST_COVERAGE_PREFIX_MAPPING`), so every job that loads mise's environment and
 every developer resolve the same variant and the same prefix mapping; both are
@@ -323,7 +349,7 @@ backward-compatibility gate's CLI knows it. The test runs pass no
 follow the resolved option, and the acceptance-test schemes set `coverage: false`
 to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until
 `mise.toml` pins one with it the runs collect no coverage and stay green
-(`tuist coverage complete` leaves the commit pending). `cli.yml`'s single
+(`tuist coverage complete` leaves the commit pending). `tuist-project-tests.yml`'s single
 `tuist cache` on main warms the variant those settings select: plain binaries
 before that pin, the coverage variant after it. Plain environment variables
 never reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones do), so
@@ -474,18 +500,42 @@ covered only by the production schedule.
   cas-proxy's `remote_hits` for the rebuild's store to be above zero. The
   project lives in `project/`, not `fixture/`: the root `.gitignore` ignores
   `Fixture`, which matches case-insensitively on macOS.
-- On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
-  custom cache volume: the probe job seeds it with its run id through
-  `tuist/cache-volume` after the Xcode build, since GitHub can report which job
-  a runner runs later than the host's 25-second authorization budget.
-  `volume-wait` then waits on a GitHub-hosted runner for the host to publish,
-  and `macos-volume` attaches it and requires that run id or a later one,
-  since overlapping probe runs share the volume. Its failures are reported, never
-  blocking: both volume steps run with `continue-on-error`, and `gate.sh`
-  re-raises their `Cache volumes` annotations as warnings. Canary has one rack host, so
-  verify lands where seed published; production's multi-host fleets would make
-  it depend on convergence. Both jobs require a real APFS mount, because an
-  unavailable volume falls back to a job-local directory and still succeeds.
+- On canary only, the macOS probe also round-trips cache volumes, and a failure
+  blocks production like any other layer. `scripts/runners-acceptance/volume.sh`
+  attaches four volumes after the Xcode build, since GitHub can report which job
+  a runner runs later than the host's 25-second authorization budget: custom
+  volumes `runners-acceptance-probe` (emptied and reseeded with the run id each
+  run) and `runners-acceptance-static` (written once, then never changed, which
+  covers an unchanged volume losing its saved copy), and the managed Xcode and
+  module cache volumes through the in-repo `actions/xcode-cache` and
+  `actions/module-cache`, each with a run-id marker at its root. The job's last
+  step writes a 256 MB payload into the probe volume, so the host's
+  incomplete-image check and the guest's detach flush handle a large final
+  write. `volume-wait` then waits on a GitHub-hosted runner for the host to
+  publish, and `macos-volume` attaches them all and requires `cache-hit=true`,
+  a real APFS mount, the run id or a later one (overlapping probe runs share
+  the volumes), the payload's checksum and exactly the seeded entries. An
+  older run's id is a failure unless that run's seed job overlapped this one's
+  (each widened by the 120 s publish allowance): both cloned the same saved
+  copy and the host turns down whichever saves second, so the volume is
+  `Cache volumes inconclusive`. Verify reads both seed jobs' times from the
+  Actions API, which is why `macos-volume` has `actions: read`.
+  Canary has one rack host, so verify lands where seed published; production's
+  multi-host fleets would make it depend on convergence.
+- The script attaches through the in-repo action sources rather than the
+  released actions because it reads the client's output: an unavailable volume
+  falls back to a job-local directory and the job still succeeds, so any
+  fallback fails as `Cache volumes`, except one refused because GitHub had not
+  yet reported the runner's job (the client's "GitHub had not yet reported which
+  job this runner is running", the server's 425 `execution_pending`). That is a
+  webhook delay, not a regression: the volume is skipped with a
+  `Cache volumes inconclusive` warning, the seed job hands its skipped volumes
+  to verify, and `gate.sh` re-raises the warning without failing. The round trip
+  is not retried: the regressions it guards against were deterministic or
+  intermittent save losses, which a retry would hide or merely repeat.
+  The pattern must match `errExecutionPending` in
+  `infra/linux-runner-image/cmd/tuist-cache-volume/main.go`.
+  `macos-cache-volumes-smoke.yml` covers the released `tuist/cache-volume`.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.

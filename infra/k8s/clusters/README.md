@@ -1,7 +1,7 @@
 # Tuist ClusterClass + Cluster CRs
 
 Self-hosted Kubernetes manifests for the Tuist workload clusters
-(staging / canary / production / preview / pentest), reconciled by our own
+(staging / canary / production / preview), reconciled by our own
 management cluster running CAPI + caph. Production Kura regions are
 dedicated node pools inside the production workload cluster.
 
@@ -28,7 +28,6 @@ clusters/
 │                              carries ClickHouse)            (mgmt-cluster-apply.yml)
 ├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
 ├── cluster-preview.yaml       preview Cluster CR             (mgmt-cluster-apply.yml)
-├── cluster-pentest.yaml       isolated pentest Cluster CR    (mgmt-cluster-apply.yml)
 └── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
     ├── staging/{cluster,kustomization}.yaml
     ├── canary/{cluster,kustomization}.yaml
@@ -52,8 +51,8 @@ Two mechanisms apply these manifests, split deliberately (see
   templates (whose delete-and-apply fallback for `field is immutable` a plain
   Kustomization can't reproduce — a new `bare-metal*.yaml` is picked up by its
   glob without touching the workflow), `machinedrainrules.yaml`, and the
-  `cluster-preview.yaml` (replicas mutated out-of-band by the preview
-  workflows) and `cluster-pentest.yaml` (isolated security-assessment) CRs.
+  `cluster-preview.yaml` CR (replicas mutated out-of-band by the preview
+  workflows).
   Flux never sees these files.
 
 Tenant `Cluster` CRs were migrated in from `tuist/{hive,once,atlas}`
@@ -69,7 +68,6 @@ the tenant-repo copies are then retired to a pointer.
 | `tuist-canary` | 3× cpx22 | md-0: 3× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
-| `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`) |
 
 Canary's third general-purpose worker reserves capacity for deployment hooks
 and rolling-update surge pods alongside its two CNPG instances. Two workers
@@ -78,11 +76,10 @@ hook remained unschedulable until Helm timed out and rolled back. After
 changing this pool, wait for Flux to reconcile and the new worker to become
 Ready before retrying the deployment.
 
-`tuist-pentest` is a dedicated, fixed-duration security-assessment cluster.
-It intentionally has no Kura, runner, Mac, processor, or stable-egress pools.
-When the engagement ends, remove its manifest in a reviewed change, then run
-the **Pentest Cluster Retirement** workflow to delete the Cluster resource and
-its managed infrastructure.
+`tuist-pentest`, the fixed-duration security-assessment cluster, is retired.
+Its manifest is removed; the **Pentest Cluster Retirement** workflow deletes
+the Cluster resource and its managed infrastructure. Delete the hand-made
+`pentest.tuist.dev` Cloudflare record afterwards (see `../onboarding.md` §9).
 
 The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
 production Phoenix server's public egress is SNAT'd through the active

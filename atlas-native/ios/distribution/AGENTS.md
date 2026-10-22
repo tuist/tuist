@@ -12,9 +12,15 @@ profile-validation framework.
   the login keychain or mutate Once's cached output.
 - Check the Atlas app identity, ad-hoc profile expiration and matching signing
   certificate. Use the profile's entitlements with Atlas-only Keychain access.
+  `associated-domains.sh` requires profile authorization for `applinks:atlas.tuist.dev`
+  (or the profile wildcard) before fetching the private certificate, then requests
+  only that exact domain in the signature. Regenerate the profile with Associated
+  Domains enabled; do not invent an unauthorized entitlement. The unsigned Once
+  device build does not require distribution capabilities.
 - Only the protected main-branch publication job receives distribution secrets.
   Device enrollment and vault references are in the [README](../../README.md).
-- Validate with `python3 ios/distribution/keychain_test.py`, `bash -n`, ShellCheck
+- Validate with `python3 ios/distribution/keychain_test.py`,
+  `python3 ios/distribution/associated_domains_test.py` (macOS), `bash -n`, ShellCheck
   and an actual signing run. The credential-free tests cover ordered search-list
   restoration, paths with spaces, an empty list, and setup/import failures.
   Signature verification does not establish installation on a registered physical device.

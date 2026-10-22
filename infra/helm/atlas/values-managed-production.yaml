@@ -88,6 +88,9 @@ env:
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
+  ATLAS_APPLE_APP_IDS: "U6LC622NKF.dev.tuist.atlas"
+  # Add ATLAS_ANDROID_APP_LINK_SHA256 only after provisioning the stable distribution key.
+  # Its public certificate must match atlas-mobile-previews signing configuration.
   POOL_SIZE: "10"
   DATABASE_SSL: "1"
   # Tags every Sentry event with the deploy environment. SENTRY_RELEASE

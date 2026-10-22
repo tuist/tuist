@@ -155,7 +155,6 @@ abstract class TuistBuildInsightsService :
         val requestedTasks: ListProperty<String>
         val backgroundUpload: Property<Boolean>
         val actorId: Property<String>
-        val networkTrustedPublishing: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -319,8 +318,7 @@ abstract class TuistBuildInsightsService :
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = projectDir,
-            httpClients = httpClients,
-            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
+            httpClients = httpClients
         )
 
         val httpClient = TuistHttpClient(
@@ -528,7 +526,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
             parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
             config.actorId?.let { parameters.actorId.set(it) }
-            parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
         }
 
         // A provider can have only one subscription. An operation-only service also

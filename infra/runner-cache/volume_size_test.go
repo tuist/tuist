@@ -49,14 +49,14 @@ func TestAPFSUsesTheHostDefaultForAVolumeWithoutASize(t *testing.T) {
 	}
 }
 
-func TestAPFSAdmitsALargerVolumeOnlyWithRoomForIt(t *testing.T) {
+func TestAPFSAdmitsALargeHeadOnlyWithRoomForIt(t *testing.T) {
 	b, _ := sizedAPFS(t)
 	b.FreeBytes = func(string) (uint64, error) { return 25_000_000_000, nil }
 	slot := Slot{Identity: identity(first), PodUID: "pod"}
-	slot.VolumeBytes = 30_000_000_000
+	slot.VolumeBytes, slot.HeadSizeBytes = 30_000_000_000, 20_000_000_000
 
 	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); !errors.Is(err, ErrCapacity) {
-		t.Fatal("admitted a 30 GB volume into 25 GB of free space:", err)
+		t.Fatal("admitted a 20 GB head into 25 GB of free space:", err)
 	}
 }
 
@@ -195,7 +195,7 @@ func TestAPFSGrowsAWarmCopyToTheChosenCapacity(t *testing.T) {
 	if len(*grown) != 1 || (*grown)[0] != 50_000_000_000 {
 		t.Fatalf("grew %v, want one growth to 50 GB", *grown)
 	}
-	if data, _ := os.ReadFile(b.image(slot)); string(data) != "saved APFS" {
+	if data, _ := os.ReadFile(filepath.Join(apfsPath(t, b, slot), SharedImageName)); string(data) != "saved APFS" {
 		t.Fatal("did not attach the warm copy")
 	}
 }
@@ -275,21 +275,54 @@ func TestAPFSSealsAGuestReportUpToTheHostMaximum(t *testing.T) {
 	}
 }
 
-func TestLocalAdmissionScalesWithLargeVolumes(t *testing.T) {
-	for volume, admitted := range map[int64]bool{5_000_000_000: true, 20_000_000_000: true, 40_000_000_000: true, 41_000_000_000: false} {
-		b, _ := newLocal(t)
-		b.SizeGB, b.MinFreeBytes = 20, 40_000_000_000
-		b.FreeBytes = func(string) (uint64, error) { return 60_000_000_000, nil }
-		slot := Slot{Identity: identity(first), PodUID: "p"}
-		slot.VolumeBytes = volume
+func TestIdentityExpectsTheHeadPlusGrowthWithinTheVolume(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		volume, head int64
+		expected     int64
+	}{
+		{"unmeasured", 20_000_000_000, 0, 5_000_000_000},
+		{"unmeasured small volume", 3_000_000_000, 0, 3_000_000_000},
+		{"unmeasured without a size", 0, 0, 5_000_000_000},
+		{"small head grows by the minimum", 20_000_000_000, 700_000_000, 2_700_000_000},
+		{"large head grows by half", 30_000_000_000, 15_000_000_000, 22_500_000_000},
+		{"head near the capacity", 20_000_000_000, 18_000_000_000, 20_000_000_000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id := Identity{VolumeBytes: tc.volume, HeadSizeBytes: tc.head}
+			if got := id.ExpectedBytes(20_000_000_000); got != tc.expected {
+				t.Fatalf("expected %d bytes, want %d", got, tc.expected)
+			}
+		})
+	}
+}
 
-		err := b.Attach(context.Background(), slot, t.TempDir())
-		if admitted && err != nil {
-			t.Fatalf("%d GB volume rejected with 60 GB free: %v", volume/1_000_000_000, err)
-		}
-		if !admitted && !errors.Is(err, ErrCapacity) {
-			t.Fatalf("%d GB volume admitted with 60 GB free: %v", volume/1_000_000_000, err)
-		}
+func TestLocalAdmissionScalesWithWhatTheJobIsExpectedToWrite(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		volume, head int64
+		admitted     bool
+	}{
+		{"unmeasured 100 GB volume needs only the floor", 100_000_000_000, 0, true},
+		{"head within the default", 20_000_000_000, 18_000_000_000, true},
+		{"large head that fits", 100_000_000_000, 26_000_000_000, true},
+		{"large head that does not fit", 100_000_000_000, 30_000_000_000, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, _ := newLocal(t)
+			b.SizeGB, b.MinFreeBytes = 20, 40_000_000_000
+			b.FreeBytes = func(string) (uint64, error) { return 60_000_000_000, nil }
+			slot := Slot{Identity: identity(first), PodUID: "p"}
+			slot.VolumeBytes, slot.HeadSizeBytes = tc.volume, tc.head
+
+			err := b.Attach(context.Background(), slot, t.TempDir())
+			if tc.admitted && err != nil {
+				t.Fatalf("rejected with 60 GB free: %v", err)
+			}
+			if !tc.admitted && !errors.Is(err, ErrCapacity) {
+				t.Fatalf("admitted with 60 GB free: %v", err)
+			}
+		})
 	}
 }
 
@@ -329,6 +362,9 @@ func TestLocalGrowsAWarmCopyAndItsFilesystemBeforeTheJob(t *testing.T) {
 	}
 	slot := warmSlot(first, "p")
 	slot.VolumeBytes = 1_000_000_000
+	if err := b.Prefetch(context.Background(), slot); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
 		t.Fatal(err)
@@ -358,6 +394,9 @@ func TestLocalNeverShrinksOrResizesAFullSizeCopy(t *testing.T) {
 	}
 	slot := warmSlot(first, "p")
 	slot.VolumeBytes = 8 << 20
+	if err := b.Prefetch(context.Background(), slot); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
 		t.Fatal(err)

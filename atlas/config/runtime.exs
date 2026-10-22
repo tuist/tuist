@@ -3,6 +3,7 @@ import Config
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
 alias Atlas.LLMs.ChatGPT
+alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
@@ -146,6 +147,16 @@ support_chat_parent_origins =
 config :atlas, AtlasWeb.Endpoint, endpoint_config
 config :atlas, :demo_mode, demo_mode
 
+if native_themes = System.get_env("ATLAS_NATIVE_THEME_CATALOG") do
+  catalog =
+    case Jason.decode(native_themes) do
+      {:ok, catalog} -> catalog
+      {:error, _} -> nil
+    end
+
+  config :atlas, :native_theme_catalog, catalog
+end
+
 config :atlas, :gtm_email,
   from_name: System.get_env("ATLAS_GTM_EMAIL_FROM_NAME", "Tuist"),
   from_email: System.get_env("ATLAS_GTM_EMAIL_FROM_EMAIL", "contact@tuist.dev"),
@@ -155,6 +166,10 @@ config :atlas, :gtm_email,
 # Bank-transfer footer printed at the bottom of every Stripe invoice. Kept
 # out of source so real IBAN/BIC/beneficiary details are never checked in.
 config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
+
+# Verified native app identities for universal and app links. Unset means the
+# association files are not served.
+config :atlas, :native_links, NativeLinksConfig.parse!(System.get_env())
 
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),

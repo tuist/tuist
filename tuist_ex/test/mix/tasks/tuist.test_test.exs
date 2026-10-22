@@ -144,6 +144,73 @@ defmodule Mix.Tasks.Tuist.TestTest do
     assert output =~ "unsigned history isolation verified"
   end
 
+  test "invalid configuration, raised probes and slow probes never prevent local tests" do
+    script = ~S"""
+    Mix.start()
+    Mix.env(:test)
+
+    Mix.Project.in_project(:tuist_ex, File.cwd!(), [test_coverage: [tool: :custom]], fn _ ->
+      {:ok, _} = Application.ensure_all_started(:mimic)
+      Code.require_file("test/test_helper.exs")
+      ExUnit.configure(autorun: false)
+
+      defmodule ReportingProbeIsolationRegression do
+        use ExUnit.Case, async: false
+
+        test "mode detection is isolated and bounded once per invocation" do
+          Mimic.set_mimic_global()
+          owner = self()
+          Mimic.stub(TuistEx.Analytics.GitHistory, :enabled?, fn _ -> false end)
+          Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, _ ->
+            send(owner, :tests_ran)
+            :ok
+          end)
+
+          for args <- [["--cover"], ["--retries", "1"]] do
+            Mix.Tasks.Tuist.Test.run(["--url", "not-a-url"] ++ args)
+            assert_received :tests_ran
+          end
+
+          for behavior <- [:raise, :timeout] do
+            Mimic.stub(TuistEx.Auth, :network_publishing?, fn _ ->
+              send(owner, {:probe, behavior})
+              case behavior do
+                :raise -> raise File.Error, reason: :eacces, action: "read", path: "credentials"
+                :timeout -> Process.sleep(:infinity)
+              end
+            end)
+
+            args = if behavior == :raise, do: ["--cover"], else: ["--retries", "1"]
+            Mix.Tasks.Tuist.Test.run(args)
+            assert_received {:probe, ^behavior}
+            refute_received {:probe, ^behavior}
+            assert_received :tests_ran
+          end
+          IO.puts("reporting probe isolation verified")
+        end
+      end
+
+      if ExUnit.run().failures != 0, do: System.halt(1)
+    end)
+    """
+
+    paths = Enum.flat_map(:code.get_path(), &["-pa", List.to_string(&1)])
+
+    {output, status} =
+      System.cmd(System.find_executable("elixir"), paths ++ ["-e", script],
+        stderr_to_stdout: true,
+        env: [
+          {"TUIST_SHARD_INDEX", ""},
+          {"TUIST_EX_RETRY_RESULTS", ""},
+          {"CI", "true"},
+          {"TUIST_URL", nil}
+        ]
+      )
+
+    assert status == 0, output
+    assert output =~ "reporting probe isolation verified"
+  end
+
   test "does not retry a run whose failed tests all timed out" do
     script = ~S"""
     Mix.start()

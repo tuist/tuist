@@ -8,6 +8,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
 - `API.OIDCController` exchanges custom workload identities only through account-owned OIDC policies, requiring `account_handle`. Verified policy IDs are reloaded in one account-scoped batch and matched again against their own verified JWKS URL, issuer, audience and exact typed claims before issuance. Custom workload tokens have CI scope and `all_projects: true`, including future projects, and can be exchanged before any projects exist; ordinary ownership checks still prevent access to other accounts. Built-in GitHub Actions/CircleCI/Bitrise providers retain repository authorization and cannot be overridden by custom policies. Never infer a VCS grant from custom workload claims. Missing custom account input is a 400; other custom verification failures share a generic 401. The route uses the existing hosted requester limiter.
+- `WellKnownController.tuist_discovery/2` serves public, cookie-free `GET /.well-known/tuist.json` with the current instance-wide `network_trusted_report_publishing` boolean and `Cache-Control: no-store`. It reveals no account/project data, never enables hosted publishing, and is only client discovery: every report endpoint still enforces the authoritative policy and license.
 - Test-run detail metrics reuse the already-loaded and project-authorized run rather than looking it up again for its persisted reporting version.
 - Xcresult jobs carry the persisted run's `reporting_version` as a parser-work hint, so version-1 jobs skip unsupported coverage parsing. Never take it from client input or use a job hint instead of the persisted shard plan for ingestion behavior; absent hints retain legacy parser behavior.
 - Sharded test reporting maps `:shard_plan_not_visible` to HTTP 503 with `Retry-After: 1`, so the CLI can replay after replica lag for both legacy and immutable plans. Foreign-project plans remain non-retryable 4xx responses; do not turn all not-found/validation errors into retries.
@@ -74,7 +75,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 
 - Shared Grafana build-health endpoints support Xcode, Gradle, Bazel, and Once. Reject other project build systems with a clear client error until an adapter exists; keep existing duration endpoints unchanged.
 
-- `RunnerCacheMastersController.report_usage` accepts only the per-machine
-  `tuist-runner-host` audience, derives the node from its ServiceAccount, and
-  delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
-  body-supplied account/node/repository fields cannot authorize these reports.
+- `RunnerCacheMastersController.index` accepts only the per-machine
+  `tuist-runner-host` audience and derives the node from its ServiceAccount; it
+  lists custom volume HEADs only. Workflow tokens and body-supplied node fields
+  cannot authorize it.
