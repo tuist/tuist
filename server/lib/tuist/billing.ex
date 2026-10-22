@@ -904,12 +904,12 @@ defmodule Tuist.Billing do
           Repo.rollback(:customer_mismatch)
         end
 
-        apply_subscription_change(current)
+        on_subscription_change(current)
       end)
 
     case result do
-      {:ok, change} ->
-        finish_subscription_change(change)
+      {:ok, :ok} ->
+        :ok
 
       {:error, :customer_mismatch} ->
         Logger.warning("Ignoring Stripe subscription with a mismatched customer")
@@ -919,10 +919,6 @@ defmodule Tuist.Billing do
 
   # Apply a trusted snapshot. Webhook callers must use reconcile_subscription/1.
   def on_subscription_change(subscription) do
-    subscription |> apply_subscription_change() |> finish_subscription_change()
-  end
-
-  defp apply_subscription_change(subscription) do
     case Accounts.get_account_from_customer_id(subscription.customer) do
       {:error, :not_found} ->
         # We had a race-condition that caused multiple customers to be created on Stripe
@@ -978,10 +974,9 @@ defmodule Tuist.Billing do
     end
 
     notify_when_turned_unpaid(account, current_subscription, subscription)
+
     :ok
   end
-
-  defp finish_subscription_change(:ok), do: :ok
 
   # Only the transition is news. The row read before the update carries the
   # previous status, so a redelivered event finds it already `unpaid`.

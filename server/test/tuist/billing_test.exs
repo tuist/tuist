@@ -262,10 +262,12 @@ defmodule Tuist.BillingTest do
       AccountsFixtures.user_fixture(customer_id: "customer_id")
       reject(&FunWithFlags.disable/2)
       reject(&FunWithFlags.enable/2)
+
       expect(Stripe.Subscription, :retrieve, fn _ ->
         assert Repo.in_transaction?()
         {:ok, pro_subscription_payload("active")}
       end)
+
       assert :ok = Billing.reconcile_subscription(pro_subscription_payload("active"))
       assert Repo.get_by!(Billing.Subscription, subscription_id: "sub_lapsing").status == "active"
     end
