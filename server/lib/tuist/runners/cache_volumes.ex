@@ -28,6 +28,12 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @retention_seconds 7 * 24 * 60 * 60
   @checkout_key "checkout"
+  @prefetch_history_days 7
+  @prewarm_use_days 2
+  @prewarm_idle_seconds 4 * 60 * 60
+  @prewarm_limit 16
+  @recent_use_seconds 24 * 60 * 60
+  @recent_limit 8
   @checkout_reserved_bytes 8_000_000_000
   @unmeasured_reserved_bytes 5_000_000_000
   @growth_reserved_bytes 2_000_000_000
@@ -862,27 +868,71 @@ defmodule Tuist.Runners.CacheVolumes do
   defp reserved_bytes(_key, volume_bytes, _head_size_bytes), do: min(volume_bytes, @unmeasured_reserved_bytes)
 
   @doc """
-  The saved HEADs of the macOS custom volumes jobs used on `node_names` since
-  `since`, most recently used first. Each is the identity a host restores and
-  then retains its master under: the use that published the HEAD.
-  """
-  def recent_macos_heads(node_names, %DateTime{} = since, limit) do
-    since = DateTime.truncate(since, :second)
+  The saved HEADs of the macOS custom volumes jobs used on `node_names` in the
+  week before `now`, most wanted first. Each is the identity a host restores and
+  then retains its master under (the use that published the HEAD), with the
+  `reason` it is listed for:
 
-    from(u in Usage,
-      join: v in Volume,
-      on: v.id == u.volume_id,
-      where:
-        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.deleted_at) and
-          v.key != ^@checkout_key,
-      group_by: v.id,
-      order_by: [desc: max(u.inserted_at)],
-      limit: ^limit,
-      select: v
-    )
-    |> Repo.all()
-    |> Enum.flat_map(&head_identity/1)
+    * `"prewarm"`: used on at least two of the last seven days and not for four
+      hours. Its HEAD cannot change before its next job, so a host that
+      downloads it while the account is idle still holds the right copy when
+      the account's next working day starts.
+    * `"recent"`: used in the last day, and not listed to prewarm.
+
+  Each list takes the accounts in turn, most recently active first, and each
+  account's volumes most recently used first, so the volumes of one busy account
+  never crowd out another account's.
+  """
+  def macos_prefetch_heads(node_names, %DateTime{} = now) do
+    now = DateTime.truncate(now, :second)
+    since = DateTime.add(now, -@prefetch_history_days * 24 * 60 * 60, :second)
+    idle_since = DateTime.add(now, -@prewarm_idle_seconds, :second)
+    recent_since = DateTime.add(now, -@recent_use_seconds, :second)
+
+    candidates =
+      Repo.all(
+        from(u in Usage,
+          join: v in Volume,
+          on: v.id == u.volume_id,
+          where:
+            u.node_name in ^node_names and u.inserted_at >= ^since and u.inserted_at <= ^now and v.platform == "macos" and
+              is_nil(v.deleted_at) and v.key != ^@checkout_key,
+          group_by: v.id,
+          select: %{
+            volume: v,
+            last_used_at: max(u.inserted_at),
+            use_days:
+              fragment("count(DISTINCT floor(extract(epoch FROM (?::timestamptz - ?)) / 86400))", ^now, u.inserted_at)
+          }
+        )
+      )
+
+    {prewarm, rest} =
+      Enum.split_with(candidates, fn candidate ->
+        candidate.use_days >= @prewarm_use_days and DateTime.compare(candidate.last_used_at, idle_since) != :gt
+      end)
+
+    recent = Enum.filter(rest, &(DateTime.compare(&1.last_used_at, recent_since) != :lt))
+
+    listed_heads(prewarm, "prewarm", @prewarm_limit) ++ listed_heads(recent, "recent", @recent_limit)
   end
+
+  # Each account's most recently used volume first: those are the keys its next
+  # jobs attach, ahead of keys it stopped using.
+  defp listed_heads(candidates, reason, limit) do
+    candidates
+    |> Enum.group_by(& &1.volume.account_id)
+    |> Enum.map(fn {_account_id, volumes} -> Enum.sort_by(volumes, &DateTime.to_unix(&1.last_used_at), :desc) end)
+    |> Enum.sort_by(fn [latest | _] -> {-DateTime.to_unix(latest.last_used_at), latest.volume.account_id} end)
+    |> take_turns()
+    |> Stream.flat_map(&head_identity(&1.volume))
+    |> Stream.map(&Map.put(&1, :reason, reason))
+    |> Enum.take(limit)
+  end
+
+  defp take_turns([]), do: []
+
+  defp take_turns(lists), do: Enum.map(lists, &hd/1) ++ take_turns(for [_ | rest] <- lists, rest != [], do: rest)
 
   defp head_identity(volume) do
     with %{generation: generation, tree_digest: digest, content_digest: content}

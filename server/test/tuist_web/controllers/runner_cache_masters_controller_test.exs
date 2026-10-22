@@ -22,7 +22,8 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
             image_digest: "d",
             content_digest: "c",
             volume_bytes: 30_000_000_000,
-            head_size_bytes: 12_000_000_000
+            head_size_bytes: 12_000_000_000,
+            reason: "prewarm"
           }
         ]
       end)
@@ -43,7 +44,8 @@ defmodule TuistWeb.RunnerCacheMastersControllerTest do
                    "image_digest" => "d",
                    "content_digest" => "c",
                    "volume_bytes" => 30_000_000_000,
-                   "head_size_bytes" => 12_000_000_000
+                   "head_size_bytes" => 12_000_000_000,
+                   "reason" => "prewarm"
                  }
                ]
              }

@@ -6,8 +6,20 @@ these schemas persist volume identities and per-job uses.
 - Account-scope all browser reads and writes. Agent reports, uploads and
   publications are separately authenticated and bound to the node that received
   the allocation. Read-only image `retain` and `download` requests may name a use
-  from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
+  from any node: hosts prefetch a macOS custom HEAD (`macos_prefetch_heads/2`,
   listed by `VolumePrefetch`) under the use that published it.
+- `macos_prefetch_heads/2` lists, for every host of a class, first up to 16
+  `prewarm` HEADs (volumes used on at least two of the last seven days, counted
+  in 24-hour periods back from now, and unused for four hours) and then up to 8
+  `recent` HEADs (used in the last day). Each list takes the accounts in turn, most recently active
+  first. An idle volume's HEAD cannot change before its next job, so one
+  download per host covers the whole idle period, including a weekend. Hosts
+  download it only into free space, and the listing goes to every host of the
+  class because an account's first job of the day goes to whichever idle
+  runner polls first. A schedule learned per weekday and UTC hour covered none
+  of the customer first-of-day starts from 2026-10-08 to 10-22: start times
+  move by hours from day to day. The `reason` reaches the host's
+  `tuist_runner_cache_volume_prefetched_bytes_total` metric.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
   (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
   requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
@@ -164,7 +176,7 @@ these schemas persist volume identities and per-job uses.
   under the use through `image/3` (`checkout_publish`): only the generation and the
   use not having published yet are checked, not the job's outcome or the use's
   state, and a published checkout use is released (`delete`) when its job is gone.
-  `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
+  `macos_prefetch_heads` skips checkout volumes; a host restores their HEAD itself.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
   default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the

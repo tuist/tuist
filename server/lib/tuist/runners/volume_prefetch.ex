@@ -10,9 +10,12 @@ defmodule Tuist.Runners.VolumePrefetch do
   name is its Node's, so it can only ask about its own fleet.
 
   The list names the saved HEADs of the custom volumes jobs used on the Node's
-  host class over the last day, for every Node of the class: dispatch cannot
-  know which custom volumes a queued job will attach, so it cannot steer the job
-  to a Node holding them. The host downloads these only into free space.
+  host class, for every Node of the class (`CacheVolumes.macos_prefetch_heads/2`):
+  first the volumes an account uses day after day and has left idle, so its next
+  working day starts warm, then the volumes used in the last day. Dispatch
+  hands a queued job to whichever host polls first, and an account's first job
+  of the day goes to any idle runner, so every Node of the class gets the same
+  list. The host downloads these only into free space.
   """
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
@@ -21,8 +24,6 @@ defmodule Tuist.Runners.VolumePrefetch do
 
   @host_service_account_prefix "tart-kubelet-"
   @fleet_label "tuist.dev/fleet"
-  @recent_window_seconds 24 * 60 * 60
-  @limit 8
 
   @doc """
   The Node a runner host's ServiceAccount identifies, or `:error` for any other
@@ -40,8 +41,8 @@ defmodule Tuist.Runners.VolumePrefetch do
   def node_for_service_account(_namespace, _name), do: :error
 
   @doc """
-  The HEADs `node_name` should hold, most wanted first, each with a presigned
-  download URL. Empty for a Node that is not in a macOS fleet.
+  The HEADs `node_name` should hold, most wanted first, each with the reason it
+  is listed for. Empty for a Node that is not in a macOS fleet.
   """
   def for_node(node_name) do
     with {:ok, node} <- K8sClient.get_node(node_name),
@@ -50,8 +51,7 @@ defmodule Tuist.Runners.VolumePrefetch do
          true <- macos_fleet?(fleet),
          {:ok, peer_names} <- class_peers(node, fleet),
          true <- node_name in peer_names do
-      since = DateTime.add(DateTime.utc_now(), -@recent_window_seconds, :second)
-      CacheVolumes.recent_macos_heads(peer_names, since, @limit)
+      CacheVolumes.macos_prefetch_heads(peer_names, DateTime.utc_now())
     else
       _ -> []
     end

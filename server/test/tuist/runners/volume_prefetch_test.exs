@@ -66,12 +66,13 @@ defmodule Tuist.Runners.VolumePrefetchTest do
         scope: String.duplicate("s", 64),
         generation: 2,
         image_digest: String.duplicate("a", 40),
-        content_digest: String.duplicate("c", 64)
+        content_digest: String.duplicate("c", 64),
+        reason: "prewarm"
       }
 
       stub_fleet([fleet_node("mac-01"), fleet_node("mac-02"), fleet_node("m4-01", @fleet, @m4)])
 
-      expect(CacheVolumes, :recent_macos_heads, 2, fn nodes, %DateTime{}, 8 ->
+      expect(CacheVolumes, :macos_prefetch_heads, 2, fn nodes, %DateTime{} ->
         assert Enum.sort(nodes) == ["mac-01", "mac-02"]
         [custom]
       end)
@@ -82,7 +83,7 @@ defmodule Tuist.Runners.VolumePrefetchTest do
 
     test "answers nothing for a Node outside a macOS fleet" do
       stub_fleet([fleet_node("linux-01", "runners-linux")])
-      reject(&CacheVolumes.recent_macos_heads/3)
+      reject(&CacheVolumes.macos_prefetch_heads/2)
 
       assert VolumePrefetch.for_node("linux-01") == []
     end
