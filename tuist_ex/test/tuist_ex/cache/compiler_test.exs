@@ -85,6 +85,37 @@ defmodule TuistEx.Cache.CompilerTest do
     assert File.read!(Path.join(root, "src/scanner.erl")) == "derived output"
   end
 
+  test "generator discovery visits only source directories without changing nested input boundaries" do
+    root =
+      Path.join(System.tmp_dir!(), "tuist-generator-paths-#{System.unique_integer([:positive])}")
+
+    on_exit(fn -> File.rm_rf!(root) end)
+
+    for path <- ["src/.git/parser.xrl", "src/_build/parser.yrl", "docs/ignored.xrl"] do
+      File.mkdir_p!(Path.dirname(Path.join(root, path)))
+      File.write!(Path.join(root, path), "grammar")
+    end
+
+    File.write!(
+      Path.join(root, "src/probe.app.src"),
+      "{application, probe, [{vsn, \"1.0\"}, {modules, []}]}."
+    )
+
+    File.ln_s!(root, Path.join(root, "docs/unsafe-link"))
+
+    dependency = %Mix.Dep{
+      app: :probe,
+      manager: :rebar3,
+      extra: [],
+      opts: [dest: root],
+      system_env: []
+    }
+
+    config = Compiler.config(dependency, false)
+    assert config[:source_generators] == ["src/.git/parser.erl", "src/_build/parser.erl"]
+    assert catch_throw(Compiler.source_paths(dependency, config)) == :unmodeled_input
+  end
+
   test "invalid explicit builder settings fail with an actionable configuration error" do
     assert_raise Mix.Error, ~r/builders must be a keyword list/, fn ->
       Compiler.validate_builders!(builders: %{})

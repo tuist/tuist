@@ -3,6 +3,7 @@ defmodule TuistEx.Cache.DependencyKeyTest do
   use Mimic
 
   alias TuistEx.Cache.Compiler
+  alias TuistEx.Cache.Plan
   alias TuistEx.DependencyCache
 
   setup do
@@ -77,6 +78,68 @@ defmodule TuistEx.Cache.DependencyKeyTest do
     expect(Compiler, :source_tree, fn _, _ -> [{"src/added_after_enumeration.c", 0, "digest"}] end)
 
     assert {:bypass, "custom_compiler"} = action_key(ctx)
+  end
+
+  test "two consumers model shared upstream inputs only once during lookup planning", ctx do
+    second = %{ctx.consumer | app: :second_consumer}
+
+    options =
+      Keyword.update!(
+        ctx.options,
+        :builders,
+        &Keyword.put(&1, :second_consumer, platform: "immutable-image", outputs: [])
+      )
+
+    dependencies = [ctx.producer, ctx.consumer, second]
+    expect(Compiler, :config, 3, fn _, true, _ -> [] end)
+    expect(Compiler, :source_paths, 3, fn _, _ -> [] end)
+    expect(Compiler, :source_tree, 3, fn _, _ -> [] end)
+    expect(Compiler, :artifacts, fn _, _ -> [] end)
+
+    Plan.with_plan(fn ->
+      assert {:ok, _} =
+               DependencyCache.action_key(
+                 ctx.consumer,
+                 dependencies,
+                 %{compiler_options: []},
+                 options
+               )
+
+      assert {:ok, _} =
+               DependencyCache.action_key(second, dependencies, %{compiler_options: []}, options)
+    end)
+  end
+
+  test "shared lookup models never hide a source change from fresh validation", ctx do
+    Plan.with_plan(fn ->
+      first = key(ctx)
+      File.write!(Path.join(ctx.producer.opts[:dest], "src/input.hrl"), "new header")
+      assert key(ctx) == first
+      refute Plan.fresh(fn -> key(ctx) end) == first
+      Plan.clear()
+      refute key(ctx) == first
+    end)
+  end
+
+  test "installed upstream artifacts invalidate the speculative lookup model", ctx do
+    Plan.with_plan(fn ->
+      first = key(ctx)
+      File.mkdir_p!(Path.join(ctx.producer.opts[:build], "priv"))
+      File.write!(Path.join(ctx.producer.opts[:build], "priv/data"), "restored resource")
+      assert key(ctx) == first
+      Plan.invalidate(:producer)
+      refute key(ctx) == first
+    end)
+  end
+
+  test "lookup planning does not omit or alter accepted key inputs", ctx do
+    expected = key(ctx)
+
+    Plan.with_plan(fn ->
+      assert key(ctx) == expected
+      assert Plan.fresh(fn -> key(ctx) end) == expected
+      assert key(ctx) == expected
+    end)
   end
 
   test "runtime, optional and app flags on dependency edges enter the key", ctx do

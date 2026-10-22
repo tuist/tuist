@@ -95,6 +95,27 @@ defmodule TuistEx.Cache.KeyTest do
     assert "nested/_build/modeled" in Key.paths(root)
   end
 
+  test "subdirectory enumeration preserves checkout-relative names and nested metadata", %{
+    root: root
+  } do
+    for name <- ["src/.git/parser.xrl", "src/_build/parser.yrl", "docs/ignored.xrl"] do
+      path = Path.join(root, name)
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "grammar")
+    end
+
+    expected = Enum.filter(Key.paths(root), &(&1 == "src" or String.starts_with?(&1, "src/")))
+    assert Key.paths_in(root, "src") == expected
+    assert Key.paths_in(root, ".") == Key.paths(root)
+    assert catch_throw(Key.paths_in(root, "../outside")) == :unmodeled_input
+    assert catch_throw(Key.paths_in(root, "_build")) == :unmodeled_input
+    File.ln_s!(root, Path.join(root, "src/link"))
+    assert catch_throw(Key.paths_in(root, "src")) == :unmodeled_input
+    File.ln_s!("src", Path.join(root, "source-alias"))
+    assert catch_throw(Key.paths_in(root, "source-alias/_build")) == :unmodeled_input
+    assert catch_throw(Key.paths_in(Path.join(root, "source-alias"), ".")) == :unmodeled_input
+  end
+
   test "path-only traversal does not need source read permission", %{root: root} do
     path = Path.join(root, "source.ex")
     File.write!(path, "private contents")

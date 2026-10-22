@@ -1795,7 +1795,12 @@ defmodule TuistEx.DependencyCacheTest do
     File.rm_rf!(Path.join(project, "_build"))
     second = run!(project)
     assert second["value"] == "after"
-    assert [%{"outcome" => "miss", "reason" => "inputs_changed"}] = second["dependency_cache"]
+    assert [%{"outcome" => "miss", "reason" => "", "key" => new_key}] = second["dependency_cache"]
+    refute new_key == hd(first["dependency_cache"])["key"]
+    File.rm_rf!(Path.join(project, "_build"))
+    third = run!(project)
+    assert third["value"] == "after"
+    assert [%{"outcome" => "local_hit", "key" => ^new_key}] = third["dependency_cache"]
   end
 
   @tag hash_audit: true

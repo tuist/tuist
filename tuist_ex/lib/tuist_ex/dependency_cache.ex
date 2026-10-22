@@ -6,6 +6,7 @@ defmodule TuistEx.DependencyCache do
   alias TuistEx.Analytics.Report
   alias TuistEx.Cache.Compiler
   alias TuistEx.Cache.Key
+  alias TuistEx.Cache.Plan
   alias TuistEx.Cache.Prefetch
   alias TuistEx.Cache.Reapi
   alias TuistEx.Cache.Store
@@ -58,7 +59,7 @@ defmodule TuistEx.DependencyCache do
       Mix.ensure_application!(:parsetools)
 
       Mix.Project.with_build_lock(fn ->
-        prepare_dependencies(args, options, reporter, analytics_options)
+        Plan.with_plan(fn -> prepare_dependencies(args, options, reporter, analytics_options) end)
       end)
     end
 
@@ -281,50 +282,82 @@ defmodule TuistEx.DependencyCache do
     started = now()
 
     current? = fn ->
-      capture_context(options) == context and
-        action_key(dependency, dependencies, context, options) == {:ok, key}
+      Plan.fresh(fn ->
+        capture_context(options) == context and
+          action_key(dependency, dependencies, context, options) == {:ok, key}
+      end)
     end
 
     case restore(fetch, root, key, dependency, current?, options) do
       {:ok, previous_duration, metrics, outcome} ->
+        Plan.invalidate(dependency.app)
+
         dependency
         |> observation(outcome, "", key, now() - started, previous_duration)
         |> Map.merge(metrics)
 
       :miss ->
-        prepared? = prepare_sources(dependency, options)
-        duration = compile_dependency(dependency)
+        # Lookup models may be shared, but compilation/publication must use a
+        # newly captured key even when a stale plan never found an artifact.
+        {context, modeled} =
+          Plan.fresh(fn ->
+            context = capture_context(options)
+            {context, action_key(dependency, dependencies, context, options)}
+          end)
 
-        {reason, metrics} =
-          if prepared? do
-            case Store.publish_with_metrics(
-                   root,
-                   key,
-                   dependency.opts[:build],
-                   dependency.opts[:dest],
-                   duration,
-                   &(valid_artifact?(&1, dependency, options) and current?.()),
-                   materialize_resources: materialize?(dependency, options)
-                 ) do
-              {:ok, metrics} ->
-                metrics =
-                  if Keyword.get(options, :upload, true),
-                    do: publish_remote(remote, root, key, dependency.app, metrics),
-                    else: metrics
+        case modeled do
+          {:ok, key} ->
+            publish_compilation(dependency, dependencies, context, options, key, remote)
 
-                {"", metrics}
-
-              {:error, _} ->
-                {if(current?.(), do: "store_failed", else: "inputs_changed"), %{}}
-            end
-          else
-            {"unmodeled_input", %{}}
-          end
-
-        dependency
-        |> observation("miss", reason, key, duration, nil)
-        |> Map.merge(metrics)
+          {:bypass, reason} ->
+            duration = compile_dependency(dependency)
+            observation(dependency, "bypass", reason, "", duration, nil)
+        end
     end
+  end
+
+  defp publish_compilation(dependency, dependencies, context, options, key, remote) do
+    root = store_root(options)
+
+    current? = fn ->
+      Plan.fresh(fn ->
+        capture_context(options) == context and
+          action_key(dependency, dependencies, context, options) == {:ok, key}
+      end)
+    end
+
+    prepared? = prepare_sources(dependency, options)
+    duration = compile_dependency(dependency)
+
+    {reason, metrics} =
+      if prepared? do
+        case Store.publish_with_metrics(
+               root,
+               key,
+               dependency.opts[:build],
+               dependency.opts[:dest],
+               duration,
+               &(valid_artifact?(&1, dependency, options) and current?.()),
+               materialize_resources: materialize?(dependency, options)
+             ) do
+          {:ok, metrics} ->
+            metrics =
+              if Keyword.get(options, :upload, true),
+                do: publish_remote(remote, root, key, dependency.app, metrics),
+                else: metrics
+
+            {"", metrics}
+
+          {:error, _} ->
+            {if(current?.(), do: "store_failed", else: "inputs_changed"), %{}}
+        end
+      else
+        {"unmodeled_input", %{}}
+      end
+
+    dependency
+    |> observation("miss", reason, key, duration, nil)
+    |> Map.merge(metrics)
   end
 
   defp restore(fetch, root, key, dependency, current?, options) do
@@ -438,6 +471,7 @@ defmodule TuistEx.DependencyCache do
       Mix.Tasks.Deps.Compile.compile(dependencies)
     after
       Code.prepend_paths(paths -- :code.get_path())
+      Plan.clear()
     end
   end
 
@@ -478,7 +512,9 @@ defmodule TuistEx.DependencyCache do
         {:bypass, "custom_compiler"}
 
       true ->
-        model_key(dependency, closure, context, options)
+        Plan.in_context({context, options}, fn ->
+          model_key(dependency, closure, context, options)
+        end)
     end
   rescue
     _ -> {:bypass, "unmodeled_input"}
@@ -488,10 +524,10 @@ defmodule TuistEx.DependencyCache do
   end
 
   defp model_key(dependency, closure, context, options) do
-    root = Key.canonical_path(store_root(options))
+    root = planned_path(store_root(options))
 
     for dep <- [dependency | closure], input <- [dep.opts[:dest], dep.opts[:build]] do
-      if Path.type(Path.relative_to(root, Key.canonical_path(input))) == :relative,
+      if Path.type(Path.relative_to(root, planned_path(input))) == :relative,
         do: throw(:unmodeled_input)
     end
 
@@ -506,7 +542,7 @@ defmodule TuistEx.DependencyCache do
       |> Enum.sort_by(fn {dep, _, _} -> dep.app end)
       |> Enum.map(fn {dep, upstream_config, tree} ->
         {dep.app, dependency_options(dep), tree, compiler_config(upstream_config),
-         Compiler.artifacts(dep, upstream_config)}
+         Plan.fetch({:artifacts, dep}, fn -> Compiler.artifacts(dep, upstream_config) end)}
       end)
 
     paths =
@@ -520,24 +556,34 @@ defmodule TuistEx.DependencyCache do
     {:ok, inputs |> model_term() |> Key.build()}
   end
 
+  defp planned_path(path), do: Plan.fetch({:path, path}, fn -> Key.canonical_path(path) end)
+
   defp structural_model(dependency, options) do
-    config = dependency_config(dependency, options)
+    modeled =
+      Plan.fetch({:structure, dependency}, fn ->
+        config = dependency_config(dependency, options)
 
-    if not Compiler.supported_config?(config) or
-         Enum.any?(
-           Compiler.source_paths(dependency, config),
-           &Compiler.unsupported_source?(&1, config)
-         ),
-       do: throw(:custom_compiler)
+        if Compiler.supported_config?(config) and
+             not Enum.any?(
+               Compiler.source_paths(dependency, config),
+               &Compiler.unsupported_source?(&1, config)
+             ), do: {dependency, config}, else: :unsupported
+      end)
 
-    {dependency, config}
+    if modeled == :unsupported, do: throw(:custom_compiler), else: modeled
   end
 
   defp modeled_source({dependency, config}) do
-    sources = Compiler.source_tree(dependency, config)
-    # Recheck the freshly read tree, not only the earlier path enumeration.
-    if unsupported_sources?(sources, config), do: throw(:custom_compiler)
-    {dependency, config, sources}
+    modeled =
+      Plan.fetch({:source, dependency}, fn ->
+        sources = Compiler.source_tree(dependency, config)
+
+        if unsupported_sources?(sources, config),
+          do: :unsupported,
+          else: {dependency, config, sources}
+      end)
+
+    if modeled == :unsupported, do: throw(:custom_compiler), else: modeled
   end
 
   defp dependency_config(dependency, options),

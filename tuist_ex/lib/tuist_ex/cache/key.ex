@@ -21,6 +21,37 @@ defmodule TuistEx.Cache.Key do
   def paths(path, generated \\ []),
     do: path |> Path.expand() |> walk("", false, generated, false) |> Enum.map(&elem(&1, 0))
 
+  # Keep the checkout root when scanning a source subdirectory: nested .git and
+  # _build names are inputs, not the checkout's ignored metadata directories.
+  def paths_in(path, directory) do
+    root = Path.expand(path)
+    relative = Path.relative_to(Path.expand(directory, root), root)
+    relative = if relative == ".", do: "", else: relative
+
+    if Path.type(relative) != :relative or List.first(Path.split(relative)) in [".git", "_build"],
+      do: throw(:unmodeled_input)
+
+    relative
+    |> Path.split()
+    |> Enum.drop(-1)
+    |> Enum.reduce(root, fn name, parent ->
+      reject_source_link!(parent)
+      Path.join(parent, name)
+    end)
+    |> reject_source_link!()
+
+    root |> walk(relative, false, [], false) |> Enum.map(&elem(&1, 0))
+  end
+
+  defp reject_source_link!(path) do
+    case File.lstat(path) do
+      {:ok, %{type: :symlink}} -> throw(:unmodeled_input)
+      {:ok, _} -> :ok
+      {:error, :enoent} -> :ok
+      _ -> throw(:unmodeled_input)
+    end
+  end
+
   # Resolve directory aliases only for store containment checks, not input discovery.
   def canonical_path(path), do: resolve(Path.expand(path), 40)
 

@@ -135,13 +135,13 @@ defmodule TuistEx.Cache.Compiler do
     directories = Enum.map(paths, &Path.expand(to_string(&1), root))
 
     outputs =
-      root
-      |> Key.paths()
+      directories
+      |> Enum.uniq()
+      |> Enum.flat_map(fn directory ->
+        Key.paths_in(root, directory)
+      end)
       |> Enum.filter(fn path ->
-        absolute = Path.expand(path, root)
-
-        Path.extname(path) in extensions and File.regular?(absolute) and
-          Enum.any?(directories, &(Path.type(Path.relative_to(absolute, &1)) == :relative))
+        Path.extname(path) in extensions and File.regular?(Path.join(root, path))
       end)
       |> Enum.map(&(Path.rootname(&1) <> ".erl"))
       |> Enum.uniq()
