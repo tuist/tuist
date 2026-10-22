@@ -15,9 +15,20 @@ workflow code runs in the guest. Never expose host credentials or masters.
   host probes the mirror's manifest, pulls `<mirror>/<repo>@<digest>` with
   `--insecure`, and falls back to the image's own registry when the mirror is
   down, lacks the image or fails the pull. A mirror still fetching the image
-  requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`
-  instead of blocking the single reconcile worker. The golden keeps the Pod
+  requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`.
+  The golden keeps the Pod
   image's name and the GC keeps mirror-pulled OCI entries as their upstream's.
+- The Pod controller has one reconcile worker, so nothing slow may run inside
+  a reconcile: a finished Pod's teardown (finalizer removal) waits behind it,
+  and with it the host's VM slot. A Pod whose golden is missing starts its
+  pull in the background (`readyGolden`), stays Pending with `PullingImage`,
+  and is re-enqueued when the pull ends; Pods of the same image wait on the
+  same pull, including the prewarmer's. One golden materializes at a time per
+  host. A failed pull is reported to the waiting Pods for 30 seconds, then
+  pulled again. Evidence: on 2026-10-21 the first Pod of a new runner image
+  on b04 and b08 pulled from ghcr.io for 532 s and 562 s inside its reconcile,
+  two finished Pods stayed Terminating that long, and a job queued eight
+  minutes on an account with no macOS concurrency in use.
 - A golden is named after the Pod's image ref string (`goldenVMName`), not
   the content it resolves to, and so are the golden Node labels the
   runners-controller's affinity reads. Catalog RunnerPools name their image
