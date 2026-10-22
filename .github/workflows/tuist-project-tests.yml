@@ -89,6 +89,10 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  # Forks don't authenticate, so their coverage could never be uploaded; this
+  # skips the export too. Any value overrides Tuist.swift, and an empty one reads
+  # as off, so non-fork runs set '1' (the default).
+  TUIST_COVERAGE_UPLOAD: ${{ github.event.pull_request.head.repo.fork == true && '0' || '1' }}
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
   TUIST_DEV_INSTANCE: "1"
