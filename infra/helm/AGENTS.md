@@ -28,7 +28,7 @@ runs the mixed-version latency expression through promtool.
   without a floor starts every job cold (scale-up plus VM boot, 13 to 75 s).
   The 12 vCPU shape pools stay at 0, because an idle one holds a whole host.
   Staging and canary run one lent rack host with two slots: staging warms
-  26.6 and 27.0, and canary keeps its slots free for the runners acceptance
+  26.6 and 27.1, and canary keeps its slots free for the runners acceptance
   probe. How warm runners give way to queued jobs is in
   `../runners-controller/AGENTS.md` ("Fleet-capacity awareness").
 
