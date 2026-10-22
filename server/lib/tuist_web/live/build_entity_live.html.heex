@@ -3,6 +3,7 @@
   data-toolchain={@resource.system}
   data-kind={@resource.kind}
   data-view={if @entity, do: "detail", else: "inventory"}
+  data-durations={to_string(@durations?)}
 >
   <.button
     :if={@entity}
@@ -18,21 +19,17 @@
     <h1>{@entity.name}</h1>
     <div data-part="badges">
       <.badge
-        :for={{key, _value} <- Enum.sort(@entity.identity)}
+        :for={
+          {key, _value} <-
+            @entity.identity
+            |> then(&Labels.visible_identity(@resource.system, @resource.kind, &1))
+            |> Enum.sort()
+        }
         label={"#{identity_label(key)}: #{Labels.identity_value(@entity.identity, key)}"}
         color="primary"
         style="light-fill"
       />
     </div>
-    <p
-      :if={@resource.system == :mix && @resource.kind == "module"}
-      data-part="identity-note"
-    >
-      {dgettext(
-        "dashboard_builds",
-        "Durations measure compilation of the containing file, which every module in that file shares. Do not add them up across modules."
-      )}
-    </p>
   </div>
 
   <div :if={!@entity} data-part="filters">
@@ -75,6 +72,7 @@
           ready={ready?}
         />
         <.percentile_dropdown_widget
+          :if={@durations?}
           id="inventory-duration"
           loading={!ready?}
           title={inventory_duration_title(assigns)}
@@ -126,7 +124,13 @@
           trend_type={:inverse}
           trend_label={@analytics_trend_label}
         />
-        <.inventory_count_widget {assigns} metric={:entities} ready={ready?} />
+        <.default_branch_module_widget :if={@resource.system == :xcode} {assigns} />
+        <.inventory_count_widget
+          :if={@resource.system != :xcode}
+          {assigns}
+          metric={:entities}
+          ready={ready?}
+        />
       </div>
       <.chart_type_toggle
         :if={ready? && @widget == "duration" && @analytics.result.total.duration_samples > 0}
@@ -139,10 +143,15 @@
         uri={@uri}
       />
       <.card_section data-part="analytics-chart" data-chart-frame="standard">
-        <.skeleton_box :if={!ready?} width="100%" height="200px" />
+        <.default_branch_module_chart :if={default_branch_chart?(assigns)} {assigns} />
+        <.skeleton_box
+          :if={!ready? && !default_branch_chart?(assigns)}
+          width="100%"
+          height="200px"
+        />
         <.chart
           :if={
-            ready? && chart_available?(assigns) &&
+            ready? && !default_branch_chart?(assigns) && chart_available?(assigns) &&
               (@widget != "duration" || @duration_chart_type == "line")
           }
           id="build-entity-inventory-chart"
@@ -161,7 +170,7 @@
           chart_id="build-entity-inventory-scatter-chart"
         />
         <.empty_card_section
-          :if={ready? && !chart_available?(assigns)}
+          :if={ready? && !default_branch_chart?(assigns) && !chart_available?(assigns)}
           title={empty_chart_title(assigns)}
         >
           <:image>
@@ -216,43 +225,11 @@
           trend_label={@analytics_trend_label}
         />
         <.widget
-          id="entity-hit-rate"
-          loading={!ready?}
-          title={dgettext("dashboard_builds", "Cache hit rate")}
-          value={if ready?, do: percentage(@analytics.result.total.hit_rate)}
-          selected={@widget == "hit_rate"}
-          legend_color="primary"
-          empty={ready? && is_nil(@analytics.result.total.hit_rate)}
-          empty_label={
-            if ready? && @analytics.result.total.observations == 0,
-              do: dgettext("dashboard_builds", "No data"),
-              else: dgettext("dashboard_builds", "No recorded lookups")
-          }
-          phx_click="select_widget"
-          phx_value_widget="hit_rate"
-          trend_value={
-            if ready?,
-              do:
-                hit_rate_trend(
-                  @analytics.result.total.hit_rate,
-                  @analytics.result.previous.hit_rate
-                )
-          }
-          trend_value_label={
-            if ready?,
-              do:
-                hit_rate_trend_label(
-                  @analytics.result.total.hit_rate,
-                  @analytics.result.previous.hit_rate
-                )
-          }
-          trend_type={:regular}
-          trend_label={@analytics_trend_label}
-        />
-        <.widget
+          :if={@durations?}
           id="entity-duration"
           loading={!ready?}
           title={Labels.duration(@resource.system, @resource.kind)}
+          description={inventory_duration_description(assigns)}
           value={
             if ready?,
               do:
@@ -369,14 +346,6 @@
     title={Labels.plural(@resource.system, @resource.kind)}
     icon="stack_2"
   >
-    <:actions>
-      <.button
-        :if={@resource.system == :gradle}
-        label={dgettext("dashboard_builds", "Task rankings")}
-        variant="secondary"
-        navigate={gradle_rankings_path(assigns)}
-      />
-    </:actions>
     <.card_section data-part="inventory-section">
       <div data-part="toolbar">
         <form id="entity-search-form" phx-change="filters">
@@ -385,7 +354,7 @@
             type="search"
             name="q"
             value={@search}
-            placeholder={dgettext("dashboard_builds", "Search by name or identity")}
+            placeholder={Labels.search_placeholder(@resource.system, @resource.kind)}
             phx-debounce="300"
           />
         </form>
@@ -410,15 +379,6 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
-        <.filter_dropdown
-          id="entity-inventory-filter"
-          label={dgettext("dashboard_builds", "Filter")}
-          available_filters={@available_filters}
-          active_filters={@active_filters}
-        />
-      </div>
-      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-        <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
       <.async_section :let={ready?} results={[@entries]} chart_frame="small">
         <.skeleton_box :if={!ready?} width="100%" height="180px" />
@@ -444,11 +404,20 @@
             :for={field <- Labels.inventory_fields(@resource.system, @resource.kind)}
             label={identity_label(field)}
           >
-            <.text_cell label={Labels.identity_value(row.identity, field)} />
+            <.badge_cell
+              :if={Labels.type_field?(field)}
+              label={Labels.identity_value(row.identity, field)}
+              color="neutral"
+              style="light-fill"
+            />
+            <.text_cell
+              :if={!Labels.type_field?(field)}
+              label={Labels.identity_value(row.identity, field)}
+            />
           </:col>
           <:col
             :let={row}
-            :for={{field, label} <- inventory_duration_sort_options()}
+            :for={{field, label} <- inventory_duration_sort_options(assigns)}
             label={label}
             patch={inventory_sort_patch(assigns, field)}
             sort_order={@inventory_sort_by == field && @inventory_sort_order}
@@ -509,7 +478,7 @@
     title={
       if @tab == "history",
         do: Labels.history(@resource.system, @resource.kind),
-        else: dgettext("dashboard_builds", "Recent activity")
+        else: Labels.recent(@resource.system, @resource.kind)
     }
     icon="history"
   >
@@ -553,10 +522,12 @@
         >
           <.dropdown_item
             :for={
-              {field, label} <- [
-                {"observed_at", dgettext("dashboard_builds", "Recorded at")},
-                {"duration_ms", Labels.duration(@resource.system, @resource.kind)}
-              ]
+              {field, label} <-
+                [{"observed_at", dgettext("dashboard_builds", "Recorded at")}] ++
+                  if(@durations?,
+                    do: [{"duration_ms", Labels.duration(@resource.system, @resource.kind)}],
+                    else: []
+                  )
             }
             value={field}
             label={label}
@@ -618,19 +589,12 @@
               />
               <.badge_cell
                 :if={row.status not in ["success", "failure", "skipped"]}
-                label={Labels.status(row.status)}
-                color={Labels.status_color(row.status)}
-                style="light-fill"
-              />
-              <.badge_cell
-                :if={row.cache_status not in ["none", "unknown"]}
                 label={
-                  dgettext("dashboard_builds", "Cache: %{result}",
-                    result: Labels.status(row.cache_status)
-                  )
+                  if row.status == "unknown",
+                    do: dgettext("dashboard_builds", "Not recorded"),
+                    else: Labels.status(row.status)
                 }
-                data-cache-status={row.cache_status}
-                color={Labels.status_color(row.cache_status)}
+                color={Labels.status_color(row.status)}
                 style="light-fill"
               />
             </div>
@@ -650,6 +614,7 @@
           </:col>
           <:col
             :let={row}
+            :if={@durations?}
             label={Labels.duration(@resource.system, @resource.kind)}
             patch={sort_patch(assigns, "duration_ms")}
             sort_order={@sort_by == "duration_ms" && @sort_order}
@@ -667,7 +632,7 @@
           <:empty_state>
             <.table_empty_state
               icon="history"
-              title={dgettext("dashboard_builds", "No observations in this period")}
+              title={Labels.empty_history(@resource.system, @resource.kind)}
               subtitle={
                 dgettext(
                   "dashboard_builds",

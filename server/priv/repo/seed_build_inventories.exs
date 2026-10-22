@@ -13,6 +13,8 @@ alias Tuist.Builds
 alias Tuist.Builds.Build
 alias Tuist.Builds.BuildTarget
 alias Tuist.ClickHouseRepo
+alias Tuist.CommandEvents
+alias Tuist.CommandEvents.Event
 alias Tuist.Gradle
 alias Tuist.Gradle.Build, as: GradleBuild
 alias Tuist.Gradle.Task, as: GradleTask
@@ -25,6 +27,8 @@ alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.ReapiCache
 alias Tuist.Repo
+alias Tuist.Xcode
+alias Tuist.Xcode.XcodeGraph
 
 if Mix.env() != :dev, do: raise("Build inventory seeds are only supported in development")
 
@@ -106,6 +110,8 @@ defmodule BuildInventoryDemoSeeds do
 
     flush_buffers()
     seed_untimed_xcode(projects.xcode, now)
+    seed_default_branch_graphs(projects.xcode, user, now)
+    flush_buffers()
     print_links(projects, user.account.name)
     IO.puts("Synthetic preview only. Login: tuistrocks@tuist.dev / tuistrocks")
   end
@@ -403,6 +409,10 @@ defmodule BuildInventoryDemoSeeds do
           GradleTask.Buffer,
           MixBuild.Buffer,
           CompiledFile.Buffer,
+          Event.Buffer,
+          XcodeGraph.Buffer,
+          Tuist.Xcode.XcodeProject.Buffer,
+          Tuist.Xcode.XcodeTarget.Buffer,
           Observation.Buffer
         ] do
       buffer.flush()
@@ -432,6 +442,66 @@ defmodule BuildInventoryDemoSeeds do
       )
   end
 
+  defp seed_default_branch_graphs(project, user, now) do
+    for {snapshot, offset, count} <- [
+          {"before-period", -8 * 86_400, 35},
+          {"removed-modules", -3 * 86_400, 32},
+          {"latest", -3600, 30}
+        ] do
+      id = Identity.observation_id(@tag, to_string(project.id), "default-branch-graph-v1:#{snapshot}")
+
+      if !ClickHouseRepo.exists?(from(g in XcodeGraph, where: g.project_id == ^project.id and g.command_event_id == ^id)) do
+        existing = ClickHouseRepo.one(from(e in Event, where: e.project_id == ^project.id and e.id == ^id))
+        event = existing || create_graph_event(project, user, id, DateTime.add(now, offset, :second))
+
+        {:ok, _} =
+          Xcode.create_xcode_graph(%{
+            command_event: event,
+            xcode_graph: %{
+              name: "Synthetic inventory preview: #{snapshot}",
+              projects: [
+                %{
+                  "name" => "InventoryDemo",
+                  "path" => "InventoryDemo.xcodeproj",
+                  "targets" => Enum.map(0..(count - 1), &%{"name" => target_name(&1)})
+                }
+              ]
+            }
+          })
+      end
+    end
+  end
+
+  defp create_graph_event(project, user, id, ran_at) do
+    {:ok, event} =
+      CommandEvents.create_command_event(%{
+        id: id,
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate", "--no-open"],
+        duration: 1500,
+        client_id: @tag,
+        tuist_version: "4.208.0",
+        swift_version: "6.2",
+        macos_version: "26.0",
+        is_ci: true,
+        status: :success,
+        git_branch: project.default_branch,
+        git_commit_sha: :sha |> :crypto.hash(id) |> Base.encode16(case: :lower),
+        ran_at: ran_at,
+        created_at: ran_at,
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        test_targets: [],
+        local_test_target_hits: [],
+        remote_test_target_hits: []
+      })
+
+    event
+  end
+
   defp print_links(projects, account_handle) do
     base = System.fetch_env!("TUIST_SERVER_URL")
 
@@ -443,11 +513,11 @@ defmodule BuildInventoryDemoSeeds do
       sort_order: "desc"
     ]
 
-    for resource <- BuildEntities.Resources.all() do
+    for resource <- BuildEntities.Resources.dashboard_resources() do
       project = Map.fetch!(projects, resource.system)
       {entries, meta} = BuildEntities.list(project.id, resource.system, resource.kind, window)
       true = meta.total_count >= 28
-      true = Enum.any?(entries, &is_number(&1.p90_duration_ms))
+      if resource.key != :mix_modules, do: true = Enum.any?(entries, &is_number(&1.p90_duration_ms))
       path = "#{base}/#{account_handle}/#{project.name}#{resource.path}"
       IO.puts("#{resource.label}: #{path} (#{meta.total_count} entries)")
       IO.puts("  Example detail: #{path}/#{hd(entries).id}")

@@ -97,11 +97,12 @@ defmodule Tuist.BuildEntities.Resources do
   ]
 
   def all, do: @resources
+  def dashboard_resources, do: Enum.reject(@resources, &(&1.key == :mix_files))
   def fetch!(key), do: Enum.find(@resources, &(&1.key == key)) || raise(ArgumentError, "Unknown resource")
 
   def for_project(project) do
     if BuildEntities.enabled?(project),
-      do: Enum.filter(@resources, &(&1.system == project.build_system)),
+      do: Enum.filter(dashboard_resources(), &(&1.system == project.build_system)),
       else: []
   end
 end

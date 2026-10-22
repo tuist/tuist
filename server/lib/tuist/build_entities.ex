@@ -293,8 +293,12 @@ defmodule Tuist.BuildEntities do
     candidates = "AND entity_id IN (SELECT toUUID(entity) FROM (#{candidates}))"
     join = if observation_filters == [], do: "LEFT", else: "INNER"
 
+    duration_system = execution_duration_system(system, opts)
+
     aggregate =
-      if include_metrics?, do: metrics_select() <> last_execution_select(system), else: "count() AS observations"
+      if include_metrics?,
+        do: metrics_select(duration_system) <> last_execution_select(system),
+        else: "count() AS observations"
 
     columns =
       if include_metrics? do
@@ -951,20 +955,92 @@ defmodule Tuist.BuildEntities do
             end_at: end_at
           })
 
-        read_analytics(params, filters, start_at, end_at, true)
+        duration_system = execution_duration_system(system, opts)
+        read_analytics(params, filters, start_at, end_at, true, duration_system)
 
       :error ->
         %{total: empty_inventory_metrics(), previous: empty_inventory_metrics(), points: []}
     end
   end
 
-  defp read_analytics(params, filters, start_at, end_at, inventory?) do
+  @doc """
+  Xcode module counts from reported generated-project graphs on the configured
+  default branch, not from execution activity. Carries the latest known graph
+  forward to each day and the period end, regardless of environment. Missing
+  or historical uncounted graphs remain unavailable; an explicitly empty graph
+  is zero. A graph is a reported workspace snapshot, not an exhaustive claim
+  about every workspace in the repository.
+  """
+  def default_branch_module_counts(project_id, branch, opts \\ []) do
+    {start_at, end_at} = window(opts)
+
+    rows =
+      if is_binary(branch) and branch != "" do
+        {:ok, %{rows: rows}} =
+          bounded_query(
+            """
+            SELECT GROUPING(day), current, toString(day), argMax(tuple(modules_count), version).1
+            FROM (
+              SELECT g.modules_count, tuple(e.last_ran_at, g.inserted_at, g.id) AS version,
+                     e.last_ran_at >= {start_at:DateTime64(6)} AS current, toDate(e.last_ran_at) AS day
+              FROM xcode_graphs AS g
+              INNER JOIN (
+                SELECT id, argMax(tuple(ran_at, git_branch), tuple(updated_at, created_at)) AS event,
+                       event.1 AS last_ran_at
+                FROM command_events
+                WHERE project_id = {project_id:Int64}
+                  AND id IN (
+                    SELECT command_event_id FROM xcode_graphs
+                    WHERE project_id = {project_id:Int64} AND inserted_at >= {inserted_after:DateTime64(6)}
+                  )
+                GROUP BY id
+                HAVING event.2 = {branch:String}
+                  AND last_ran_at >= {lookback_at:DateTime64(6)} AND last_ran_at < {end_at:DateTime64(6)}
+              ) AS e ON g.command_event_id = e.id
+              WHERE g.project_id = {project_id:Int64} AND g.inserted_at >= {inserted_after:DateTime64(6)}
+            )
+            GROUP BY GROUPING SETS ((current), (current, day))
+            """,
+            %{
+              project_id: project_id,
+              branch: branch,
+              start_at: start_at,
+              end_at: end_at,
+              lookback_at: DateTime.add(start_at, -30, :day),
+              inserted_after: DateTime.add(DateTime.utc_now(), -31, :day)
+            },
+            @kind_scan_settings
+          )
+
+        rows
+      else
+        []
+      end
+
+    states = Map.new(for [1, current, _date, count] <- rows, do: {current in [true, 1], count})
+    previous = Map.get(states, false)
+    days = Map.new(for [0, current, date, count] <- rows, current in [true, 1], do: {date, count})
+
+    {points, _last_count} =
+      start_at
+      |> DateTime.to_date()
+      |> Date.range(end_at |> DateTime.add(-1, :microsecond) |> DateTime.to_date())
+      |> Enum.map_reduce(previous, fn date, count ->
+        date = Date.to_iso8601(date)
+        count = Map.get(days, date, count)
+        {%{date: date, entities: count}, count}
+      end)
+
+    %{total: Map.get(states, true, previous), previous: previous, points: points}
+  end
+
+  defp read_analytics(params, filters, start_at, end_at, inventory?, duration_system \\ nil) do
     {source, select, parser, empty, settings} =
       if inventory? do
         source = "SELECT * FROM (#{latest_observations("")}) #{where([time_range() | filters])}"
 
         select =
-          metrics_select() <>
+          metrics_select(duration_system) <>
             """
             , uniqExact(entity_id), countIf(status IN ('success', 'failure')),
             countIf(status IN ('success', 'failure') AND cache_status NOT IN ('hit', 'hit_local', 'hit_remote'))
@@ -1070,6 +1146,12 @@ defmodule Tuist.BuildEntities do
       {:ok, {system, kind, _fields}} ->
         {start_at, end_at} = window(opts)
         {filters, filter_params} = observation_filters(opts)
+
+        filters =
+          if Keyword.get(opts, :execution_durations_only, false),
+            do: [execution_evidence(system) | filters],
+            else: filters
+
         limit = scatter_limit(opts)
 
         params =
@@ -1136,7 +1218,7 @@ defmodule Tuist.BuildEntities do
     end
   end
 
-  defp last_execution_select(system) do
+  defp execution_evidence(system) do
     evidence =
       case system do
         :xcode -> "duration_ms IS NOT NULL"
@@ -1144,7 +1226,11 @@ defmodule Tuist.BuildEntities do
         _ -> "status IN ('success', 'failure')"
       end
 
-    executed = "cache_status NOT IN ('hit', 'hit_local', 'hit_remote') AND (#{evidence})"
+    "cache_status NOT IN ('hit', 'hit_local', 'hit_remote') AND (#{evidence})"
+  end
+
+  defp last_execution_select(system) do
+    executed = execution_evidence(system)
 
     """
     , if(countIf(#{executed}) = 0, NULL,
@@ -1158,7 +1244,12 @@ defmodule Tuist.BuildEntities do
     Map.merge(metrics_from_row(metrics), %{last_status: status, last_ran_at: if(ran_at, do: to_datetime(ran_at))})
   end
 
-  defp metrics_select do
+  defp execution_duration_system(system, opts) do
+    if Keyword.get(opts, :execution_durations_only, false), do: system
+  end
+
+  defp metrics_select(duration_system \\ nil) do
+    condition = if duration_system, do: execution_evidence(duration_system)
     hit_statuses = Enum.map_join(@hit_statuses, ", ", &"'#{&1}'")
 
     """
@@ -1166,12 +1257,19 @@ defmodule Tuist.BuildEntities do
     countIf(cache_status IN (#{hit_statuses})) AS hits,
     countIf(cache_status = 'miss') AS misses,
     countIf(status = 'failure') AS failures,
-    count(duration_ms) AS duration_samples,
-    avgOrNull(duration_ms) AS avg_duration_ms,
-    quantileOrNull(0.5)(duration_ms) AS p50_duration_ms,
-    quantileOrNull(0.9)(duration_ms) AS p90_duration_ms,
-    quantileOrNull(0.99)(duration_ms) AS p99_duration_ms
+    #{if condition, do: "countIf(duration_ms IS NOT NULL AND (#{condition}))", else: "count(duration_ms)"} AS duration_samples,
+    #{duration_aggregate("avg", condition)} AS avg_duration_ms,
+    #{duration_aggregate("quantile", condition, "0.5")} AS p50_duration_ms,
+    #{duration_aggregate("quantile", condition, "0.9")} AS p90_duration_ms,
+    #{duration_aggregate("quantile", condition, "0.99")} AS p99_duration_ms
     """
+  end
+
+  defp duration_aggregate(function, condition, parameter \\ nil) do
+    function = function <> "OrNull" <> if(condition, do: "If", else: "")
+    parameter = if parameter, do: "(#{parameter})", else: ""
+    arguments = if condition, do: "duration_ms, #{condition}", else: "duration_ms"
+    "#{function}#{parameter}(#{arguments})"
   end
 
   defp metrics_from_row([observations, hits, misses, failures, duration_samples, avg, p50, p90, p99]) do
@@ -1209,6 +1307,7 @@ defmodule Tuist.BuildEntities do
          {:ok, id} <- Ecto.UUID.cast(id) do
       {start_at, end_at} = window(opts)
       {filters, filter_params} = observation_filters(opts)
+      filters = if Keyword.get(opts, :executions_only, false), do: [execution_evidence(system) | filters], else: filters
 
       params =
         Map.merge(filter_params, %{
