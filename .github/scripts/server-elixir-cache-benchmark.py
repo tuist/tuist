@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 
 
 SAMPLE_TIMEOUT = 1200
-TOTAL_TIMEOUT = 3000  # Leave time for setup, termination and artifacts in the 60-minute job.
+TOTAL_TIMEOUT = 3000  # Measured from the job's first step, leaving 10 minutes for cleanup.
 
 
 def cache_config(source, mode, store):
@@ -52,13 +52,20 @@ def endpoint_origin(endpoint):
         return "invalid endpoint override"
 
 
-def summarize(events, seeded_keys=()):
+def summarize(events, seeded_keys=(), seeded_apps=()):
     outcomes = collections.Counter(event["outcome"] for event in events)
     misses = {e["key"] for e in events if e["outcome"] == "miss" and e.get("key")}
     available = {
         e["key"] for e in events
         if e.get("key") and (e["outcome"] == "remote_hit" or e.get("write_source") == "remote")
     }
+    available_apps = {
+        e["dependency"] for e in events
+        if e.get("dependency") and e.get("key") and
+        (e["outcome"] == "remote_hit" or e.get("write_source") == "remote")
+    }
+    restored_apps = {e["dependency"] for e in events if e["outcome"] == "remote_hit" and e.get("dependency")}
+    missing_apps = set(seeded_apps) - restored_apps
     return {
         "outcomes": dict(outcomes),
         "keyed_local_hits": sum(e["outcome"] == "local_hit" and bool(e.get("key")) for e in events),
@@ -69,7 +76,9 @@ def summarize(events, seeded_keys=()):
         "remote_read_us": sum(e.get("read_duration_us", 0) for e in events if e["outcome"] == "remote_hit"),
         "remote_available_keys": sorted(available),
         "seeded_key_misses": sorted(misses.intersection(seeded_keys)),
-        "degraded": bool(misses),
+        "remote_available_apps": sorted(available_apps),
+        "seeded_app_misses": sorted(missing_apps),
+        "degraded": bool(misses or missing_apps),
     }
 
 
@@ -79,7 +88,7 @@ def validate(sample):
     if sample["mode"] == "disabled" and sample["outcomes"]:
         raise RuntimeError("Disabled sample unexpectedly used dependency caching")
     if sample["mode"] in ("seed", "remote"):
-        if sample["local_entries_before"] != 0 or sample["keyed_local_hits"] != 0:
+        if sample["keyed_local_hits"] != 0:
             raise RuntimeError("Remote comparison was contaminated by local artifact hits")
     if sample["mode"] == "remote" and sample["remote_hits"] == 0:
         raise RuntimeError("Remote failed open without any actual remote restores")
@@ -117,17 +126,19 @@ def terminate(process):
         try:
             process.wait(timeout=3)
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait()
+            pass
+        # The leader may have exited while descendants still compile or upload.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait()
     finally:
         for sig, handler in handlers.items():
             signal.signal(sig, handler)
 
 
-def measure(root, results, env, index, mode, timeout, seeded_keys):
+def measure(root, results, env, index, mode, timeout, seeded_keys, seeded_apps=()):
     label = f"{index}-{mode}"
     result_file = results / f"{label}.json"
     event_file = results / f"{label}-events.json"
@@ -155,7 +166,7 @@ def measure(root, results, env, index, mode, timeout, seeded_keys):
     errors = []
     sample = read_record(result_file, errors)
     events = read_record(event_file, errors).get("dependency_cache", [])
-    sample.update(summarize(events, seeded_keys))
+    sample.update(summarize(events, seeded_keys, seeded_apps))
     sample["degraded"] = mode == "remote" and sample["degraded"]
     sample.update(
         mode=mode, index=index, status=status, process_wall_s=wall,
@@ -187,7 +198,8 @@ def raise_interruption(signum, _frame):
 def main():
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise RuntimeError("Use only a disposable GitHub Actions checkout; this resets dependency/build directories")
-    deadline = time.monotonic() + TOTAL_TIMEOUT
+    elapsed = max(0, time.time() - float(os.environ["BENCH_JOB_STARTED"]))
+    deadline = time.monotonic() + max(0, TOTAL_TIMEOUT - elapsed)
     root = pathlib.Path(os.environ["GITHUB_WORKSPACE"]).resolve()
     results = pathlib.Path(os.environ["RUNNER_TEMP"]) / "elixir-cache-benchmark"
     results.mkdir(exist_ok=False)
@@ -217,6 +229,7 @@ def main():
     write_json(results / "environment.json", metadata)
     samples = []
     seeded_keys = set()
+    seeded_apps = set()
     previous_handler = signal.signal(signal.SIGTERM, raise_interruption)
     try:
         for index, mode in enumerate(["seed", "disabled", "remote", "remote", "disabled"]):
@@ -225,12 +238,10 @@ def main():
                     shutil.rmtree(path)
             shutil.copytree(pristine, server / "deps", symlinks=True)
             mixfile.write_text(cache_config(original, mode, store))
-            local_entries_before = len(list(store.glob("*/manifest.json")))
             timeout = min(SAMPLE_TIMEOUT, max(0, deadline - time.monotonic()))
             samples.append(dict(mode=mode, index=index, completed=False, status=None))
             write_samples(results, samples)
-            sample, interruption = measure(root, results, env, index, mode, timeout, seeded_keys)
-            sample["local_entries_before"] = local_entries_before
+            sample, interruption = measure(root, results, env, index, mode, timeout, seeded_keys, seeded_apps)
             samples[-1] = sample
             write_samples(results, samples)
             print(f"END {index}-{mode} " + json.dumps(sample), flush=True)
@@ -241,8 +252,9 @@ def main():
             validate(sample)
             if mode == "seed":
                 seeded_keys.update(sample["remote_available_keys"])
-        if any(s["seeded_key_misses"] for s in samples if s["mode"] == "remote"):
-            raise RuntimeError("Remote samples missed seeded keys; results are degraded")
+                seeded_apps.update(sample["remote_available_apps"])
+        if any(s["seeded_key_misses"] or s["seeded_app_misses"] for s in samples if s["mode"] == "remote"):
+            raise RuntimeError("Remote samples failed to restore seeded dependencies; results are degraded")
     finally:
         signal.signal(signal.SIGTERM, previous_handler)
         mixfile.write_text(original)

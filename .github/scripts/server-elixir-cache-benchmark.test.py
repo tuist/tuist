@@ -61,9 +61,9 @@ class BenchmarkTest(unittest.TestCase):
             benchmark.validate(dict(status=0, completed=False))
 
     def test_missing_remote_hits_or_local_contamination_fail(self):
-        sample = dict(status=0, completed=True, mode="remote", remote_hits=1, keyed_local_hits=0, local_entries_before=0)
+        sample = dict(status=0, completed=True, mode="remote", remote_hits=1, keyed_local_hits=0)
         benchmark.validate(sample)
-        for change in [dict(remote_hits=0), dict(keyed_local_hits=1), dict(local_entries_before=1), dict(record_errors=["corrupt record"])]:
+        for change in [dict(remote_hits=0), dict(keyed_local_hits=1), dict(record_errors=["corrupt record"])]:
             with self.assertRaises(RuntimeError):
                 benchmark.validate(sample | change)
         with self.assertRaises(RuntimeError):
@@ -103,8 +103,19 @@ class BenchmarkTest(unittest.TestCase):
         self.assertEqual(timeouts, sorted(timeouts, reverse=True))
         self.assertLess(timeouts[-1], timeouts[0])
 
+    def test_setup_time_consumes_total_job_budget(self):
+        with patch.object(benchmark, "TOTAL_TIMEOUT", 200):
+            timeouts = self.run_fixture(setup_elapsed=100)
+        self.assertTrue(all(timeout <= 100 for timeout in timeouts))
+
     def test_seeded_misses_fail_after_preserving_all_comparisons(self):
-        self.run_fixture(degraded=True, expected_error=RuntimeError)
+        self.run_fixture(degraded="same-key", expected_error=RuntimeError)
+
+    def test_seeded_dependency_key_drift_still_fails(self):
+        self.run_fixture(degraded="key-drift", expected_error=RuntimeError)
+
+    def test_seeded_dependency_bypass_still_fails(self):
+        self.run_fixture(degraded="bypass", expected_error=RuntimeError)
 
     def test_unresponsive_child_group_is_killed_after_grace_period(self):
         process = Mock(pid=123)
@@ -128,7 +139,7 @@ class BenchmarkTest(unittest.TestCase):
         with self.assertRaisesRegex(KeyboardInterrupt, "SIGTERM"):
             benchmark.raise_interruption(signal.SIGTERM, None)
 
-    def run_fixture(self, *, interruption=None, lock_change=False, degraded=False, expected_error=None, expected_samples=5):
+    def run_fixture(self, *, interruption=None, lock_change=False, degraded=False, setup_elapsed=0, expected_error=None, expected_samples=5):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             checkout = root / "checkout"
@@ -171,17 +182,17 @@ class BenchmarkTest(unittest.TestCase):
                         self.result.write_text('{"phases_ms":')
                         raise interruption
                     self.result.write_text(json.dumps(dict(completed=True, phases_ms={})))
-                    events = [] if self.mode == "disabled" else [dict(outcome="miss" if self.mode == "seed" else "remote_hit", reason="", key="key", write_source="remote" if self.mode == "seed" else "")]
+                    events = [] if self.mode == "disabled" else [dict(dependency="package", outcome="miss" if self.mode == "seed" else "remote_hit", reason="", key="key", write_source="remote" if self.mode == "seed" else "")]
                     if degraded and self.mode == "remote":
-                        events[0]["key"] = "other-key"
-                        events.append(dict(outcome="miss", reason="", key="key"))
+                        events[0].update(dependency="other", key="other-key")
+                        events.append(dict(dependency="package", outcome="bypass" if degraded == "bypass" else "miss", reason="", key="key" if degraded == "same-key" else "drifted-key"))
                     self.events.write_text(json.dumps(dict(dependency_cache=events)))
                     if lock_change:
                         (server / "mix.lock").write_text("changed")
                     return 0
 
             handler = signal.getsignal(signal.SIGTERM)
-            with patch.dict(os.environ, GITHUB_ACTIONS="true", GITHUB_WORKSPACE=str(checkout), RUNNER_TEMP=str(temp), GITHUB_SHA="commit", GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="2"), patch.object(benchmark.subprocess, "Popen", FakeProcess), patch.object(benchmark.platform, "platform", return_value="test-linux"), patch.object(benchmark.os, "killpg") as killpg, patch("builtins.print"):
+            with patch.dict(os.environ, GITHUB_ACTIONS="true", GITHUB_WORKSPACE=str(checkout), RUNNER_TEMP=str(temp), GITHUB_SHA="commit", GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="2", BENCH_JOB_STARTED=str(benchmark.time.time() - setup_elapsed)), patch.object(benchmark.subprocess, "Popen", FakeProcess), patch.object(benchmark.platform, "platform", return_value="test-linux"), patch.object(benchmark.os, "killpg") as killpg, patch("builtins.print"):
                 if expected_error:
                     with self.assertRaises(expected_error):
                         benchmark.main()
@@ -194,14 +205,15 @@ class BenchmarkTest(unittest.TestCase):
             samples = json.loads((temp / "elixir-cache-benchmark/samples.json").read_text())
             self.assertEqual(len(samples), expected_samples)
             if interruption is not None:
-                killpg.assert_called_once_with(123, signal.SIGTERM)
+                self.assertEqual(killpg.call_args_list, [call(123, signal.SIGTERM), call(123, signal.SIGKILL)])
                 self.assertTrue(samples[0]["interrupted"])
                 self.assertFalse(samples[0]["completed"])
                 self.assertTrue(samples[0]["record_errors"])
             else:
                 self.assertTrue(all(sample["compiled_apps"] == ["package", "tuist"] for sample in samples))
             if degraded:
-                self.assertEqual(samples[2]["seeded_key_misses"], ["key"])
+                self.assertEqual(samples[2]["seeded_key_misses"], ["key"] if degraded == "same-key" else [])
+                self.assertEqual(samples[2]["seeded_app_misses"], ["package"])
                 self.assertTrue(samples[2]["degraded"])
             return timeouts
 

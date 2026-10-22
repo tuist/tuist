@@ -74,6 +74,8 @@ jobs:
       MIX_ENV: dev
       ERL_FLAGS: "+S 4:4"
     steps:
+      - name: Start total benchmark budget
+        run: echo "BENCH_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
@@ -99,7 +101,8 @@ jobs:
             echo 'Four Erlang schedulers; three dependency workers configured, but selected cache misses/bypasses compile serially.'
             echo 'Downloads/source reset are outside the timers. Native download caches remain shared across samples.'
             echo 'RPC read durations exclude local staging; inspect complete process times, coverage and degraded flags.'
-            echo 'Seeded-key misses fail the comparison after all samples are recorded. A 50-minute total budget preserves cleanup time.'
+            echo 'Missing seeded dependencies, including key drift or bypasses, fail after all samples are recorded.'
+            echo 'A 50-minute budget starting before checkout/setup preserves cleanup time.'
             echo '```json'
             if [ -f "$RUNNER_TEMP/elixir-cache-benchmark/samples.json" ]; then
               python3 -m json.tool "$RUNNER_TEMP/elixir-cache-benchmark/samples.json"

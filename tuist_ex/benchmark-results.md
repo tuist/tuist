@@ -283,8 +283,8 @@ attempt. This isolates reruns from previously populated keys without filtering
 dependencies or weakening their inputs. It preserves raw JSON, partition-prefixed
 compiled applications, sanitized environment metadata and logs, and requires
 actual remote writes and hits with zero keyed local restores. Partial coverage
-is marked degraded; misses for keys confirmed by the seed fail the comparison
-after all samples are recorded. Disabled samples must have no cache observations.
+is marked degraded; any dependency confirmed by the seed that fails to restore
+(including key drift or bypass) fails the comparison after all samples are recorded. Disabled samples must have no cache observations.
 Native download helpers and rebar plugin caches remain shared and may be warmed
 by the seed: a clean build/local artifact store is not a pristine machine. Downloading dependencies and source
 reset are outside the build timers; SDK bootstrap and server compilation remain
@@ -292,7 +292,7 @@ inside. A completed-build marker is required in addition to exit status zero.
 The driver records started samples before launching them, writes checkpoints
 atomically, terminates only its child process group on timeout/SIGINT/SIGTERM,
 preserves incomplete/malformed records, and enforces a 50-minute total deadline
-below the job timeout. Per-sample waits remain capped at 20 minutes.
+measured from the first job step, including checkout and dependency setup. Per-sample waits remain capped at 20 minutes.
 
 The [first CI attempt](https://github.com/tuist/tuist/actions/runs/39802560723)
 passed lifecycle tests and reached the private-endpoint runner, but its lock
@@ -325,9 +325,11 @@ Disabled/seed builds compile all 213 fetched applications with outputs.
 The original artifact's `compiled_apps` arrays omit partition-prefixed output.
 Re-parsing its preserved logs with the corrected parser yields 218 application
 names (213 fetched) for seed/disabled and 82 (77 fetched) for remote. Counts include
-local applications/root separately; the original raw data has not been rewritten.
+local/root/tool applications separately; the original raw data has not been rewritten.
 The retrospective seed-key check finds zero seeded-key misses in both remote
-samples, while partial coverage is still degraded.
+samples, while partial coverage is still degraded. The strengthened app-level
+coverage guard would reject this run because nine seeded dependencies changed
+keys and compiled instead of restoring.
 
 Preparation took 64.640 / 74.931 s. Remote reads report an aggregate 1.397 / 1.572 s
 for 54,388,405 logical artifact bytes, across overlapping requests rather than a
@@ -366,6 +368,6 @@ separate from the measured server builds above. The CI benchmark driver's six
 Python tests, Docker-cache lifecycle shell tests, Elixir driver syntax/formatting
 and actionlint passed before the adversarial review; the first CI attempt also
 passed those driver/lifecycle tests. The review expanded the Python coverage to
-17 tests, including run scoping, seeded misses, partition output, lock mutation,
-timeouts/cancellation, forced termination, malformed records, total deadlines and
-credential-free endpoint metadata.
+20 tests, including run scoping, seeded misses/key drift/bypasses, partition
+output, lock mutation, timeouts/cancellation, forced termination, malformed
+records, total deadlines including setup and credential-free endpoint metadata.
