@@ -4123,7 +4123,20 @@ rule moves. The paired controller error lines are
 `upstream sent no valid HTTP/1.0 header` and
 `no connection data found for keepalive http2 connection`. Gateway gRPC now
 reaches Kura on a dedicated port (PR #13227), so the two lanes no longer share a
-pool.
+pool; a firing on a `-grpc` upstream has a different cause, below.
+
+A burst of 502s on the `-grpc` upstream whose request times all sit just above
+one second, paired with
+`recv() failed (104: Connection reset by peer) while reading response header`,
+is the pod's listen queue overflowing rather than Kura answering. nginx opens one
+upstream connection per concurrent gRPC call, so a Bazel upload burst arrives as
+hundreds of simultaneous handshakes. Past the listen backlog the kernel drops
+SYNs (the one-second retry), then switches the port to SYN cookies and resets
+connections whose request bytes arrive before Kura accepts them. The node
+journal shows `Possible SYN flooding on port 0.0.0.0:4001. Sending cookies.`
+in the same second. Kura bound its public, HTTPS and gateway gRPC listeners
+with tokio's default backlog of 128, which a single burst exceeds, until it
+moved them to 4096.
 
 A 502 on an upload (`POST` or `PUT`) with upstream status 502 and 0 upstream
 bytes is a connection Kura closed with request bytes still unread. The paired
