@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -39,6 +40,9 @@ func runnerPool(name, image, fleet string, replicas, floor int64) unstructured.U
 type poolLister struct {
 	pools []unstructured.Unstructured
 	err   error
+	// upcoming is the data of the upcoming runner images ConfigMap.
+	upcoming    map[string]string
+	upcomingErr error
 }
 
 func (l *poolLister) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
@@ -48,6 +52,9 @@ func (l *poolLister) Get(context.Context, client.ObjectKey, client.Object, ...cl
 func (l *poolLister) List(_ context.Context, list client.ObjectList, _ ...client.ListOption) error {
 	if l.err != nil {
 		return l.err
+	}
+	if cms, ok := list.(*corev1.ConfigMapList); ok {
+		return l.listUpcoming(cms)
 	}
 	ul, ok := list.(*unstructured.UnstructuredList)
 	if !ok {
@@ -63,6 +70,10 @@ func (l *poolLister) List(_ context.Context, list client.ObjectList, _ ...client
 type recordingGoldens struct {
 	pulled []string
 	err    map[string]error
+	// held names the goldens on disk, and awaiting whether a Pod waits on
+	// a pull.
+	held     map[string]struct{}
+	awaiting bool
 	// onPull runs after each pull, standing in for the disk it consumes.
 	onPull func()
 }
@@ -77,6 +88,12 @@ func (g *recordingGoldens) ensureGolden(_ context.Context, image string) (string
 	}
 	return goldenVMName(image), true, nil
 }
+
+func (g *recordingGoldens) heldGoldens(context.Context) (map[string]struct{}, error) {
+	return g.held, nil
+}
+
+func (g *recordingGoldens) podsAwaitGolden() bool { return g.awaiting }
 
 type fakeGate struct {
 	held     bool
@@ -233,4 +250,17 @@ func TestPrewarmerWaitsForAnImageTheCacheIsFetching(t *testing.T) {
 	if !gate.released {
 		t.Fatal("gate not released")
 	}
+}
+
+func (l *poolLister) listUpcoming(list *corev1.ConfigMapList) error {
+	if l.upcomingErr != nil {
+		return l.upcomingErr
+	}
+	if l.upcoming != nil {
+		cm := corev1.ConfigMap{Data: l.upcoming}
+		cm.SetName("tuist-upcoming-runner-images")
+		cm.SetLabels(map[string]string{upcomingImagesLabel: "true"})
+		list.Items = append(list.Items, cm)
+	}
+	return nil
 }
