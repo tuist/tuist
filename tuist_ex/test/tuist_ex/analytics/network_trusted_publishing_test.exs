@@ -302,7 +302,8 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
       refute Auth.network_publishing?(options(directory, %{"TUIST_TOKEN" => value}))
     end
 
-    for variable <- ~w(ACTIONS_ID_TOKEN_REQUEST_TOKEN CIRCLE_OIDC_TOKEN_V2 BITRISE_OIDC_ID_TOKEN),
+    for variable <-
+          ~w(TUIST_OIDC_TOKEN ACTIONS_ID_TOKEN_REQUEST_TOKEN CIRCLE_OIDC_TOKEN_V2 BITRISE_OIDC_ID_TOKEN),
         value <- ["", "identity"] do
       refute Auth.network_publishing?(options(directory, %{variable => value}))
     end
@@ -368,7 +369,7 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     tmp_dir: directory
   } do
     url = "https://oidc-#{System.unique_integer([:positive])}.example"
-    key = {Auth, :provider_token, url}
+    key = {Auth, :provider_token, url, nil}
     on_exit(fn -> :persistent_term.erase(key) end)
 
     payload =
@@ -396,6 +397,59 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     refute File.exists?(Path.join([directory, "tuist", "credentials"]))
   end
 
+  test "self-hosted workload reporting binds cached sessions to the supplied identity and account",
+       %{
+         tmp_dir: directory
+       } do
+    url = "https://workload-#{System.unique_integer([:positive])}.example"
+
+    for account <- ["acme", "other"] do
+      on_exit(fn -> :persistent_term.erase({Auth, :provider_token, url, account}) end)
+    end
+
+    for {account, identity} <- [{"acme", "first"}, {"acme", "second"}, {"other", "second"}] do
+      payload =
+        %{exp: System.system_time(:second) + 3_600, account: account, identity: identity}
+        |> JSON.encode!()
+        |> Base.url_encode64(padding: false)
+
+      token = "header.#{payload}.signature"
+
+      opts =
+        options(directory, %{
+          "TUIST_URL" => url,
+          "TUIST_OIDC_ACCOUNT" => " #{account} ",
+          "TUIST_OIDC_TOKEN" => " #{identity}\n"
+        })
+
+      expect(HTTP, :request, fn :post,
+                                exchange_url,
+                                %{token: ^identity, account_handle: ^account} ->
+        assert exchange_url == url <> "/api/auth/oidc/token"
+        {:ok, 200, %{"access_token" => token}}
+      end)
+
+      refute Auth.network_publishing?(opts)
+      assert {:ok, ^token} = Auth.reporting_token(opts)
+      assert {:ok, ^token} = Auth.reporting_token(opts)
+    end
+
+    reject(HTTP, :request, 3)
+
+    for identity <- ["", " \n "] do
+      opts =
+        options(directory, %{
+          "TUIST_URL" => url,
+          "TUIST_OIDC_ACCOUNT" => "acme",
+          "TUIST_OIDC_TOKEN" => identity
+        })
+
+      refute Auth.network_publishing?(opts)
+      assert {:error, message} = Auth.reporting_token(opts)
+      assert message =~ "TUIST_OIDC_TOKEN is empty"
+    end
+  end
+
   test "self-hosted empty environment and stale stored tokens retain authenticated fallback", %{
     tmp_dir: directory
   } do
@@ -411,7 +465,7 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     for mode <- [:empty_with_stored, :empty_with_oidc, :expired_with_oidc] do
       host = "#{mode}-#{System.unique_integer([:positive])}.example"
       url = "https://#{host}"
-      on_exit(fn -> :persistent_term.erase({Auth, :provider_token, url}) end)
+      on_exit(fn -> :persistent_term.erase({Auth, :provider_token, url, nil}) end)
       values = %{"TUIST_URL" => url, "XDG_STATE_HOME" => Path.join(directory, "state")}
       values = if mode == :expired_with_oidc, do: values, else: Map.put(values, "TUIST_TOKEN", "")
 
@@ -492,7 +546,7 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
   } do
     for {host, contents} <- [{"empty-token.tuist.dev", nil}, {"stale-token.tuist.dev", "corrupt"}] do
       url = "https://#{host}"
-      key = {Auth, :provider_token, url}
+      key = {Auth, :provider_token, url, nil}
       on_exit(fn -> :persistent_term.erase(key) end)
 
       if contents do
@@ -529,6 +583,49 @@ defmodule TuistEx.Analytics.NetworkTrustedPublishingTest do
     end)
 
     assert {:ok, "exchanged-access"} = Auth.reporting_token(opts)
+  end
+
+  test "supplied workload identity authenticates to the selected account instead of publishing anonymously",
+       %{
+         tmp_dir: directory
+       } do
+    opts =
+      options(directory, %{
+        "TUIST_OIDC_TOKEN" => " fly-identity \n",
+        "TUIST_OIDC_ACCOUNT" => " acme \n"
+      })
+
+    expect(HTTP, :request, fn :post, url, body ->
+      assert String.ends_with?(url, "/api/auth/oidc/token")
+      assert body == %{token: "fly-identity", account_handle: "acme"}
+      {:ok, 200, %{"access_token" => "exchanged-access"}}
+    end)
+
+    assert {:ok, "exchanged-access"} = Auth.reporting_token(opts)
+  end
+
+  test "rejected and blank workload identities never downgrade to anonymous publishing", %{
+    tmp_dir: directory
+  } do
+    opts = options(directory, %{"TUIST_OIDC_TOKEN" => "rejected"})
+
+    expect(HTTP, :request, 2, fn :post, url, body ->
+      assert String.ends_with?(url, "/api/auth/oidc/token")
+      assert body == %{token: "rejected"}
+      {:ok, 401, %{}}
+    end)
+
+    assert {:error, _} = Auth.reporting_token(opts)
+    assert {:error, _} = Auth.reporting_token(opts)
+
+    reject(HTTP, :request, 3)
+
+    for token <- ["", " \n "] do
+      assert {:error, message} =
+               Auth.reporting_token(options(directory, %{"TUIST_OIDC_TOKEN" => token}))
+
+      assert message =~ "TUIST_OIDC_TOKEN is empty"
+    end
   end
 
   test "rejected or malformed supplied CI identity fails closed on repeated reports", %{

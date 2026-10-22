@@ -15,10 +15,18 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     project: project
   } do
     # When
-    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
 
     # Then
     assert html =~ "Settings"
+    assert html =~ "Default branch"
+    assert html =~ "Project logo"
+    refute has_element?(lv, "#oidc-trust-policies")
+
+    refute has_element?(
+             lv,
+             ~s(a[href="/#{organization.account.name}/#{project.name}/settings/authentication"])
+           )
   end
 
   test "report publishing has no dashboard control even when enabled for the instance", %{

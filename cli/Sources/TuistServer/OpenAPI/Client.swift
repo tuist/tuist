@@ -8182,9 +8182,9 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// Exchange a CI provider OIDC token for a Tuist access token.
+    /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    /// Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -18625,7 +18625,7 @@ public struct Client: APIProtocol {
     }
     /// Shows the usage of an organization
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// Returns the usage of the organization with the given identifier.
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.

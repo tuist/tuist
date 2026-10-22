@@ -55,6 +55,10 @@ defmodule Noora.TextArea do
 
   attr(:rest, :global)
 
+  slot(:overlay,
+    doc: "Decorative content behind the textarea. Hidden until enabled by a client hook; callers own its styling."
+  )
+
   def text_area(%{field: %FormField{} = field} = assigns) do
     assigns
     |> assign(field: nil, id: Map.get(assigns, :id, field.id))
@@ -103,6 +107,9 @@ defmodule Noora.TextArea do
           disabled={@disabled}
           {@rest}
         >{@value}</textarea>
+        <div :if={@overlay != []} data-part="overlay" aria-hidden="true" inert hidden>
+          {render_slot(@overlay)}
+        </div>
         <span :if={@show_character_count && !@disabled} data-part="character-count">
           {@character_count}/{@max_length}
         </span>

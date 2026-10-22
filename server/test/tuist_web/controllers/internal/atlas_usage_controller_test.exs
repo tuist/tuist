@@ -22,10 +22,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
 
   describe "GET /api/internal/atlas/accounts/:account_handle/usage" do
     test "returns the curated account usage read model", %{conn: conn} do
-      AccountsFixtures.organization_fixture(
-        name: "tuist-org",
-        current_month_remote_cache_hits_count: 42
-      )
+      AccountsFixtures.organization_fixture(name: "tuist-org")
 
       ok_workload_identity_stub()
 
@@ -34,7 +31,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
         |> put_req_header("authorization", "Bearer valid-token")
         |> get("/api/internal/atlas/accounts/tuist-org/usage")
 
-      assert %{"current_month_remote_cache_hits" => 42} = json_response(conn, 200)
+      assert %{"current_month_remote_cache_hits" => 0} = json_response(conn, 200)
     end
 
     test "returns 404 when the account does not exist", %{conn: conn} do

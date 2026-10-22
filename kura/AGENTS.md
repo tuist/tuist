@@ -15,7 +15,12 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   Live-writer resumption requires the same process's publication-mutex fencing
   acknowledgment and drained mutations, then a new CAS epoch bound to that
   acknowledgment. Keep the unclean marker and refuse restarted incarnations;
-  this acknowledgment never authorizes another replica. Handover batches must
+  this acknowledgment never authorizes another replica. The one exception is
+  an exit resume: a restarted container in the same pod may reopen the volume
+  only through a grant whose `exit_resume` names the exact holder its marker
+  records, which kubelet attested as terminated through the incarnation the
+  runtime writes to the termination log. Every other grant, pod or legacy
+  start still refuses the marked volume. Handover batches must
   negotiate support, bound descriptors and referenced bytes, preserve ordered
   full-corpus verification, and retain the individual-record fallback.
   A preparation-capable destination may first reconcile under the exact Serving

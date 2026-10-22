@@ -2,25 +2,13 @@ import Foundation
 
 /// Server organization usage
 public struct ServerOrganizationUsage: Codable {
-    public init(
-        currentMonthRemoteCacheHits: Int
-    ) {
-        self.currentMonthRemoteCacheHits = currentMonthRemoteCacheHits
-    }
+    public init() {}
 
-    public let currentMonthRemoteCacheHits: Int
-
-    init(_ organizationUsage: Components.Schemas.OrganizationUsage) {
-        currentMonthRemoteCacheHits = Int(organizationUsage.current_month_remote_cache_hits)
-    }
+    init(_: Components.Schemas.OrganizationUsage) {}
 
     #if DEBUG
-        public static func test(
-            currentMonthRemoteCacheHits: Int = 100
-        ) -> Self {
-            .init(
-                currentMonthRemoteCacheHits: currentMonthRemoteCacheHits
-            )
+        public static func test() -> Self {
+            .init()
         }
     #endif
 }

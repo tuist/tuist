@@ -4,6 +4,29 @@ import TuistAlert
 import TuistCI
 import TuistServer
 
+struct CargoBuildOutcome {
+    let finished: Date
+    let failed: Bool
+
+    static func test(_ result: CargoTestResult, compilations: [CargoCompilation]) -> Self? {
+        // Tests can invoke Cargo themselves and append failed compiler rows after the outer build succeeded.
+        if let finished = result.buildFinished { return Self(finished: finished, failed: false) }
+        guard result.canReportBuildFailure, result.report == nil, compilations.contains(where: { $0.status == "failure" }) else {
+            return nil
+        }
+        return Self(finished: result.finished, failed: true)
+    }
+
+    func compilations(_ rows: [CargoCompilation], started: Date) -> [CargoCompilation] {
+        let duration = CargoCommandService.milliseconds(finished.timeIntervalSince(started))
+        // Compiler start offsets and durations are rounded independently to milliseconds.
+        return rows.filter {
+            (0 ... duration).contains($0.startOffsetMs)
+                && (0 ... duration - $0.startOffsetMs + 1).contains($0.durationMs)
+        }
+    }
+}
+
 struct CargoReporting {
     let process: CargoProcess
     let directory: AbsolutePath
@@ -37,7 +60,15 @@ struct CargoReporting {
         return result
     }
 
-    func build(root: URL, started: Date, command: String, metadata: [String: Any], failed: Bool) async {
+    func build(
+        root: URL,
+        started: Date,
+        finished: Date,
+        command: String,
+        metadata: [String: Any],
+        failed: Bool,
+        testResult: CargoTestResult? = nil
+    ) async {
         let events = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.fileSizeKey])) ?? []
         var remainingBytes = 40_000_000
         let compilations = events.filter { $0.pathExtension == "json" }.prefix(20000).compactMap { url -> CargoCompilation? in
@@ -46,15 +77,30 @@ struct CargoReporting {
             remainingBytes -= data.count
             return try? JSONDecoder().decode(CargoCompilation.self, from: data)
         }
-        guard let compilationData = try? JSONEncoder().encode(compilations),
+        let outcome: CargoBuildOutcome
+        if let testResult {
+            guard let measured = CargoBuildOutcome.test(testResult, compilations: compilations) else {
+                if environment["TUIST_DEBUG"] == "1" {
+                    FileHandle.standardError
+                        .write(Data("Tuist Cargo reporting: build phase was not measured; skipping build report.\n".utf8))
+                }
+                return
+            }
+            outcome = measured
+        } else {
+            outcome = CargoBuildOutcome(finished: finished, failed: failed)
+        }
+        let reportedCompilations = testResult?.buildFinished == nil
+            ? compilations : outcome.compilations(compilations, started: started)
+        guard let compilationData = try? JSONEncoder().encode(reportedCompilations),
               let rows = try? JSONSerialization.jsonObject(with: compilationData) else { return }
         var payload = metadata
         payload.merge(
             [
                 "id": UUID().uuidString,
-                "duration_ms": CargoCommandService.milliseconds(Date().timeIntervalSince(started)),
+                "duration_ms": CargoCommandService.milliseconds(outcome.finished.timeIntervalSince(started)),
                 "started_at": ISO8601DateFormatter().string(from: started),
-                "status": failed ? "failure" : "success",
+                "status": outcome.failed ? "failure" : "success",
                 "command": command,
                 "contract_version": "1",
                 "compilations": rows,

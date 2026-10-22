@@ -17,6 +17,19 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "workload authentication documents account-wide access and shared-provider trust boundaries" do
+      guide = Docs.get_page("/en/guides/server/authentication").markdown
+      assert guide =~ "only the `ci` scope group and covers all current and future projects"
+      assert guide =~ "without granting project creation, project administration, runner administration"
+      assert guide =~ "bind the policy to your organization or tenant"
+      assert guide =~ "not only `ref`"
+      assert guide =~ "cache poisoning"
+      assert guide =~ "upgrade every serving Tuist server replica before configuring workload identities"
+      assert guide =~ "Deleting a policy does not immediately revoke those tokens"
+      assert guide =~ "access tokens that were already issued remain valid until they expire"
+      refute guide =~ "projects explicitly selected"
+    end
+
     test "cache documentation exposes Rust with its experimental qualification" do
       index = Docs.get_page("/en/index").markdown
       assert index =~ "supported_for=\"apple,gradle,bazel,rust\""

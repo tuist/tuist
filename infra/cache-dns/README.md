@@ -89,6 +89,29 @@ wildcard must be deployed and validated before shipping a CLI that derives URLs.
    eligible custom endpoints remain alongside the managed stable name. After
    validating the initial production cohort, enable the same flag globally.
 
+## Changing the zone stack
+
+Edit `zone.yaml` in a pull request. The `Cache DNS` workflow creates a change
+set for it and writes the planned changes to the job summary, then deletes it.
+Merging to `main` applies the same template. Either job fails instead of
+proceeding when the change set would replace or remove the hosted zone; those
+changes need an operator.
+
+The workflow signs in to the DNS account through GitHub's OIDC provider, using
+roles from `deploy-role.yaml`. Apply that stack once, by hand:
+
+1. In the DNS account, in us-east-1, create a stack named
+   `tuist-cache-dns-deploy-role` from `deploy-role.yaml` with
+   `CAPABILITY_NAMED_IAM`.
+2. Set the repository variable `CACHE_DNS_AWS_ACCOUNT_ID` to the DNS account's
+   ID. Until it is set, both jobs are skipped.
+3. Re-run the workflow on an open pull request touching `zone.yaml` to confirm
+   the plan role works.
+
+The first `main` run associates the zone stack with the
+`tuist-cache-dns-cloudformation` execution role; later updates run as that role.
+Pull requests from forks get no OIDC token and are not planned.
+
 ## DNS query logs
 
 The zone logs every query that reaches its nameservers to the CloudWatch Logs
@@ -97,9 +120,12 @@ query logs only to us-east-1, so the stack must be applied there. Each line
 carries the queried hostname, the recursive resolver's IP, the client subnet when
 the resolver sent one, and the Route53 edge location that answered.
 
-Latency records steer by the resolver, not the client: a client whose resolver
-sits on another continent is sent to that continent's region. To check which
-resolvers an account's clients use, run a Logs Insights query against the group:
+Latency records steer by the client subnet when the resolver sends one (Google
+Public DNS does) and by the resolver's own address otherwise, so a client behind
+a resolver on another continent may be sent to that continent's region. Either
+way, a client is only steered among the regions its account has. To check which
+resolvers and subnets an account's lookups come from, run a Logs Insights query
+against the group:
 
 ```
 fields @timestamp, @message

@@ -651,8 +651,8 @@ end
 llm_mode = present_env.(["LLM_MODE"])
 llm_config = Application.get_env(:atlas, :llm, [])
 
-# Personal ChatGPT connections require an Atlas-authorized device OAuth client.
-# Do not substitute another application's public client ID.
+# Personal ChatGPT connections use an explicitly configured device OAuth client.
+# Client provisioning and temporary managed overrides belong to deployment configuration.
 config :atlas, ChatGPT, client_id: present_env.(["ATLAS_CHATGPT_CLIENT_ID"])
 
 cond do
