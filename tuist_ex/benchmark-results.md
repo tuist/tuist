@@ -1,6 +1,19 @@
 # Full-server dependency-cache benchmark
 
-## Conclusion
+## Latest remote result
+
+A subsequent remote-only laptop build restored **145 fetched applications** from
+production REAPI with an empty local artifact store. It took **155.330 s** wall
+clock, including cold SDK bootstrap and all 1,344 server files. The next disabled
+build took **344.771 s**. An earlier remote attempt took **433.606 s** because
+seeded keys unexpectedly missed; that result is retained, not discarded. These
+single samples under changing host load do not establish a stable speedup.
+
+The CI comparison uses the runner's injected private Kura endpoint rather than
+the laptop's public route. See [Remote-only comparison](#remote-only-comparison)
+for the complete results, CI method and remaining limitations.
+
+## Local-only investigation conclusion
 
 The small dependency fixtures do not represent the performance of Tuist Server's
 whole graph. The original full-graph implementation was a regression: repeated
@@ -17,7 +30,8 @@ These are two warm samples and one disabled sample under variable host load, not
 a stable percentage speedup. A further disabled sample was interrupted when host
 load exceeded 100 on an 18-logical-CPU machine. It is preserved but excluded from
 completed-build comparisons. This is still not complete dependency reuse or a
-production remote-cache benchmark: 76 fetched applications still compile.
+production remote-cache benchmark: in these local-only samples, 76 fetched
+applications still compile.
 
 Lookup models are never used as installation/publication proof. Staged validation
 reads fresh inputs without the lookup memo. Lookup misses also capture a fresh
@@ -25,7 +39,7 @@ context and key before compilation. Compilation clears the plan, restoration
 invalidates the installed application's models, and preparation always removes
 its process-local state.
 
-## Workload and method
+## Workload and method (local-only samples)
 
 - Actual `server/mix.exs`, configuration, dependency lock and application sources,
   plus the local `noora`, `tuist_common` and `tuist_ex` packages. The server compiled
@@ -75,7 +89,7 @@ compiler operations, without installing the analytics per-file profiler:
 6. Finish the reporter locally. Record complete subprocess wall time as well as
    the individual phases. No build reports are sent to the hosted service.
 
-## Results
+## Results (local-only samples)
 
 Times are seconds. "Dependencies" includes cache preparation and the subsequent
 ordinary dependency loading/compilation, including the remaining local packages.
@@ -183,6 +197,88 @@ The benchmark does not strip checker metadata or weaken upstream fingerprints
 to hide those misses. Restoring the bootstrap closure before compilation is a
 separate, still-unresolved requirement.
 
+## Remote-only comparison
+
+The laptop was connected to `https://tuist.cache.tuist.dev` for `tuist/server`
+using existing authentication, with zstd negotiated. All 177 verified artifacts
+in the earlier local store were uploaded successfully before timing (66.6 s).
+This is a populated remote containing keys from earlier builds, not a single
+cold-build seed. It includes bootstrap-dependent variants: the successful remote
+builds restored the eight applications that missed in the local-only samples.
+No upstream bytes were normalized or removed from their keys.
+
+Each following sample reset the same checkout's complete build and pristine
+dependency sources. Remote samples also started with **zero local artifacts**
+and disabled uploads, so newly compiled misses could not seed later remote
+samples. Configuration, locked graph, four schedulers, one dependency worker,
+phase boundaries and exclusions match the local workload above. These samples
+include the final source-directory ancestor-symlink guard.
+
+Times are seconds, in execution order. Dependencies combine cache preparation
+and ordinary dependency loadpaths/compilation.
+
+| Sample | Bootstrap | Dependencies | Server compilation | Process wall | Remote hits / misses |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Remote attempt 1 | 21.825 | 361.585 | 49.303 | 433.606 | 50 / 95 |
+| Disabled 1 | 36.435 | 204.744 | 39.003 | 280.873 | Not applicable |
+| Remote diagnostic | 15.607 | 97.762 | 37.214 | 150.953 | 145 / 0 |
+| Remote repeat, unmodified client | 22.284 | 96.894 | 35.682 | 155.330 | 145 / 0 |
+| Disabled repeat | 15.787 | 264.018 | 64.581 | 344.771 | Not applicable |
+
+The diagnostic sample only added transport-failure logging in a disposable SDK
+copy; it emitted no failure diagnostics. The subsequent 155.330 s sample uses the
+unmodified client. There are two ordinary remote samples, two disabled samples
+and one diagnostic sample, not medians or a controlled estimate of CI speedup.
+Laptop load declined from roughly 45–60 around the first attempt to roughly 9
+around the successful remote samples, then rose again around the disabled repeat.
+Server-compilation times also show that variation.
+
+Both successful remote builds have 145 keyed remote restores, 15 already-current
+bootstrap observations and 56 bypass observations. The latter include 53 fetched
+compiled applications, Heroicons' intentional no-compile setting and two local
+projects. **68 fetched applications still compile**: 15 during bootstrap and 53
+unsupported builders/upstream chains. Already-current observations are not local
+keyed restores. Local projects and the SDK are counted separately.
+
+For the unmodified remote repeat, preparation took 94.052 s:
+
+- Keyed restore events: 21.040 s, including acquisition, staging and fresh checks.
+- Reported remote read durations: 8.809 s in aggregate across overlapping reads,
+  for 60,986,063 artifact bytes. This is not a standalone elapsed download phase.
+- Bypass events: 40.532 s; current observations: 0.150 s.
+- Outside event durations: 32.330 s of modeling, lookups and other orchestration.
+- Subsequent dependency loadpaths/local compilation: 2.842 s.
+
+The first attempt is not a clean warm-cache comparison: 110 attempted keys matched
+the seed, but only 50 restored. Fresh standalone connections subsequently fetched
+several of the missed keys successfully. No transport-failure diagnostics were
+captured in that original attempt, and later attempts did not reproduce it. Its
+exact cause remains unresolved; do not silently discard it or claim that every
+seeded lookup is reliable.
+
+### Colocated CI method
+
+The manual **Server Cache Benchmarks** workflow accepts `benchmark=elixir-remote`.
+It runs the full server on `tuist-linux-large` (4 vCPU, 16 GiB), with OIDC cache
+authentication, four schedulers and three dependency workers. The runner injects
+a private, in-cluster Kura endpoint; the workflow does not override it with the
+laptop's public endpoint. No Mix snapshot volume is attached.
+
+The driver seeds remote artifacts, then runs disabled, remote, remote, disabled,
+resetting source/build/local artifact state each time. It preserves raw JSON,
+compiled applications, environment and logs, and requires actual remote writes
+and hits with zero keyed local restores. Downloading dependencies and source
+reset are outside the build timers; SDK bootstrap and server compilation remain
+inside. A completed-build marker is required in addition to exit status zero.
+
+The [first CI attempt](https://github.com/tuist/tuist/actions/runs/39802560723)
+passed lifecycle tests and reached the private-endpoint runner, but its lock
+safety check caught dependency upgrades by the generic setup action. No timed
+builds ran. The benchmark now restores the committed lock and checks out exactly
+its SCM revisions without resolving again, then verifies the lock is unchanged.
+The [replacement run](https://github.com/tuist/tuist/actions/runs/39805066453) has
+been dispatched; no colocated timings are available yet.
+
 ## Remaining work
 
 The full graph is the acceptance target. Lookup planning removes substantial
@@ -191,7 +287,9 @@ input-modeling overhead remains. Repeat alternating full-graph samples on a
 quiet/dedicated host before quantifying a stable speedup, including a fresh cold
 sample. Complete warm reuse additionally requires restoration before bootstrap
 and auditing the remaining builders and upstream contracts. Remote-only
-restoration with an empty local store remains unmeasured.
+restoration with an empty local store is now measured on the laptop, but
+colocated CI results, repeatability and the first attempt's unexpected misses
+remain outstanding.
 
 The focused fixture benchmarks remain useful for regressions and individual
 mechanisms, but their large relative speedups must not be presented as the
@@ -203,4 +301,6 @@ The package suite passed **423 tests** after the lookup-planning changes. A fina
 focused run passed **36 tests**, including the ancestor-symlink guard added during
 review. Formatting, compilation with warnings as errors, `mix hex.build`,
 `mix docs --warnings-as-errors` and `git diff --check` passed. These checks are
-separate from the measured server builds above.
+separate from the measured server builds above. The CI benchmark driver's six
+Python tests, Docker-cache lifecycle shell tests, Elixir driver syntax/formatting
+and actionlint passed; the first CI attempt also passed the driver/lifecycle tests.
