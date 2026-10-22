@@ -72,7 +72,7 @@ func newObjectServer(t *testing.T) *objectServer {
 
 func (s *objectServer) transfer() *HTTPTransfer {
 	return &HTTPTransfer{
-		URL: s.URL, Node: "node", Client: s.Client(), DownloadClient: s.Client(), MaxBytes: 8 << 20,
+		URL: s.URL, Node: "node", Client: s.Client(), ObjectClient: s.Client(), MaxBytes: 8 << 20,
 		Token:        func(context.Context) (string, error) { return "token", nil },
 		stallTimeout: 200 * time.Millisecond, retryBackoff: time.Millisecond,
 	}

@@ -28,6 +28,11 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @retention_seconds 7 * 24 * 60 * 60
   @checkout_key "checkout"
+  # A host uploads a master as one PUT (`upload`) or in parts (`upload` with
+  # `multipart`, `upload_parts`, `complete`), then fast-forwards the HEAD to it.
+  @publication_operations ["upload", "upload_parts", "complete", "publish"]
+  @max_parts 10_000
+  @max_part_links 64
   @checkout_reserved_bytes 8_000_000_000
   @unmeasured_reserved_bytes 5_000_000_000
   @growth_reserved_bytes 2_000_000_000
@@ -920,16 +925,23 @@ defmodule Tuist.Runners.CacheVolumes do
   def image(node, id, params) do
     with {:ok, id} <- Ecto.UUID.cast(id),
          %Usage{} = usage <- image_usage(id, node, params) do
-      Repo.transaction(fn ->
+      fn ->
         volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
         usage = Repo.get!(Usage, id)
         volume = expire_locked(volume, DateTime.utc_now())
         image_action(volume, usage, params)
-      end)
+      end
+      |> Repo.transaction()
+      |> finish_image_action()
     else
       _ -> {:error, :not_found}
     end
   end
+
+  # Assembling or aborting a multipart upload runs after the transaction, so a
+  # slow storage call never holds the volume lock.
+  defp finish_image_action({:ok, {:storage, call}}), do: call.()
+  defp finish_image_action(result), do: result
 
   # Retaining a master and downloading a saved master only read the lineage, so a
   # host may name a use allocated elsewhere: the server lists HEADs for hosts to
@@ -987,18 +999,43 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  defp image_action(%Volume{key: @checkout_key} = volume, usage, %{
-         "operation" => operation,
+  # A host that gives up on a multipart upload discards its parts. Nothing about
+  # the use matters: the upload names an object only this use could publish.
+  defp image_action(volume, _usage, %{
+         "operation" => "abort",
          "image_digest" => digest,
-         "content_digest" => content
-       })
-       when operation in ["upload", "publish"] do
+         "content_digest" => content,
+         "upload_id" => upload_id
+       }) do
     if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
-    checkout_publish(volume, usage, operation, digest, content)
+    account_id = volume.account_id
+    name = storage_name(volume)
+
+    {:storage,
+     fn ->
+       case Runners.abort_volume_master_upload(account_id, name, digest, content, upload_id) do
+         :ok -> {:ok, %{}}
+         :error -> {:error, :unavailable}
+       end
+     end}
   end
 
-  defp image_action(volume, usage, %{"operation" => operation, "image_digest" => digest, "content_digest" => content})
-       when operation in ["upload", "publish"] do
+  defp image_action(
+         %Volume{key: @checkout_key} = volume,
+         usage,
+         %{"operation" => operation, "image_digest" => digest, "content_digest" => content} = params
+       )
+       when operation in @publication_operations do
+    if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
+    checkout_publish(volume, usage, params)
+  end
+
+  defp image_action(
+         volume,
+         usage,
+         %{"operation" => operation, "image_digest" => digest, "content_digest" => content} = params
+       )
+       when operation in @publication_operations do
     if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
 
     cond do
@@ -1014,7 +1051,7 @@ defmodule Tuist.Runners.CacheVolumes do
       true ->
         completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
         if is_nil(completion) or completion.conclusion != "success", do: Repo.rollback(:conflict)
-        image_publish(volume, usage, operation, digest, content)
+        image_publish(volume, usage, operation, digest, content, params)
     end
   end
 
@@ -1025,7 +1062,11 @@ defmodule Tuist.Runners.CacheVolumes do
   # the lineage and the HEAD the master fast-forwards, once. Only a default-branch
   # job's master moves an existing HEAD; another job with a writer branch can only
   # publish the lineage's first one.
-  defp checkout_publish(volume, usage, operation, digest, content) do
+  defp checkout_publish(
+         volume,
+         usage,
+         %{"operation" => operation, "image_digest" => digest, "content_digest" => content} = params
+       ) do
     cond do
       usage.generation != volume.generation or not is_nil(volume.deleted_at) ->
         Repo.rollback(:conflict)
@@ -1040,7 +1081,7 @@ defmodule Tuist.Runners.CacheVolumes do
         Repo.rollback(:conflict)
 
       true ->
-        image_publish(volume, usage, operation, digest, content)
+        image_publish(volume, usage, operation, digest, content, params)
     end
   end
 
@@ -1072,24 +1113,55 @@ defmodule Tuist.Runners.CacheVolumes do
     usage.status == "published" and usage.image_digest == digest and usage.content_digest == content
   end
 
-  defp image_publish(volume, usage, "upload", digest, content) do
-    name = storage_name(volume)
+  defp image_publish(volume, usage, "upload", digest, content, params) do
+    name = upload_viable!(volume, usage)
 
-    if not Runners.fast_forward_viable?(volume.account_id, name, usage.base_generation) or
-         (cold?(volume, usage) and not cold_publish?(volume, usage)),
-       do: Repo.rollback(:conflict)
+    multipart =
+      if params["multipart"] == true,
+        do: Runners.start_volume_master_upload(volume.account_id, name, digest, content),
+        else: :unsupported
 
-    case Runners.volume_master_upload_url(volume.account_id, name, digest, content) do
-      {:ok, url, checksum} ->
-        Runners.track_volume_master_upload(volume.account_id, name, digest, content)
-        %{upload_url: url, checksum_sha256: checksum}
-
-      _ ->
-        Repo.rollback(:unavailable)
+    case multipart do
+      {:ok, upload_id} -> %{upload_id: upload_id}
+      :unsupported -> single_upload(volume, name, digest, content)
+      :error -> Repo.rollback(:unavailable)
     end
   end
 
-  defp image_publish(volume, usage, "publish", digest, content) do
+  # Asking for the next parts' links checks the lineage again, so a host stops
+  # sending an archive another job's publication already superseded.
+  defp image_publish(volume, usage, "upload_parts", digest, content, params) do
+    name = upload_viable!(volume, usage)
+
+    with upload_id when is_binary(upload_id) <- params["upload_id"],
+         {:ok, sums} <- part_sums(params["parts"]),
+         {:ok, parts} <- Runners.volume_master_part_urls(volume.account_id, name, digest, content, upload_id, sums) do
+      %{parts: parts}
+    else
+      :error -> Repo.rollback(:unavailable)
+      _ -> Repo.rollback(:invalid_request)
+    end
+  end
+
+  defp image_publish(volume, usage, "complete", digest, content, params) do
+    name = upload_viable!(volume, usage)
+    account_id = volume.account_id
+
+    with upload_id when is_binary(upload_id) <- params["upload_id"],
+         {:ok, parts} <- uploaded_parts(params["parts"]) do
+      {:storage,
+       fn ->
+         case Runners.complete_volume_master_upload(account_id, name, digest, content, upload_id, parts) do
+           :ok -> {:ok, %{}}
+           :error -> {:error, :unavailable}
+         end
+       end}
+    else
+      _ -> Repo.rollback(:invalid_request)
+    end
+  end
+
+  defp image_publish(volume, usage, "publish", digest, content, _params) do
     case Runners.report_volume_head(
            volume.account_id,
            storage_name(volume),
@@ -1121,6 +1193,64 @@ defmodule Tuist.Runners.CacheVolumes do
         Repo.rollback(:unavailable)
     end
   end
+
+  defp upload_viable!(volume, usage) do
+    name = storage_name(volume)
+
+    if not Runners.fast_forward_viable?(volume.account_id, name, usage.base_generation) or
+         (cold?(volume, usage) and not cold_publish?(volume, usage)),
+       do: Repo.rollback(:conflict)
+
+    name
+  end
+
+  defp single_upload(volume, name, digest, content) do
+    case Runners.volume_master_upload_url(volume.account_id, name, digest, content) do
+      {:ok, url, checksum} ->
+        Runners.track_volume_master_upload(volume.account_id, name, digest, content)
+        %{upload_url: url, checksum_sha256: checksum}
+
+      _ ->
+        Repo.rollback(:unavailable)
+    end
+  end
+
+  # Each part names the base64 MD5 of its bytes, which its link is signed for.
+  defp part_sums(parts) when is_list(parts) and parts != [] and length(parts) <= @max_part_links do
+    sums =
+      Enum.map(parts, fn
+        %{"part_number" => number, "content_md5" => sum} when is_integer(number) and number in 1..@max_parts ->
+          if is_binary(sum) and Regex.match?(~r/\A[A-Za-z0-9+\/]{22}==\z/, sum), do: {number, sum}
+
+        _ ->
+          nil
+      end)
+
+    if Enum.all?(sums) and length(Enum.uniq_by(sums, &elem(&1, 0))) == length(sums),
+      do: {:ok, sums},
+      else: :invalid
+  end
+
+  defp part_sums(_parts), do: :invalid
+
+  defp uploaded_parts(parts) when is_list(parts) and parts != [] and length(parts) <= @max_parts do
+    parsed =
+      Enum.map(parts, fn
+        %{"part_number" => number, "etag" => etag}
+        when is_integer(number) and number in 1..@max_parts and is_binary(etag) and etag != "" and
+               byte_size(etag) <= 256 ->
+          {number, etag}
+
+        _ ->
+          nil
+      end)
+
+    if Enum.all?(parsed) and length(Enum.uniq_by(parsed, &elem(&1, 0))) == length(parsed),
+      do: {:ok, Enum.sort_by(parsed, &elem(&1, 0))},
+      else: :invalid
+  end
+
+  defp uploaded_parts(_parts), do: :invalid
 
   defp discard(usage, now) do
     Repo.update!(Ecto.Changeset.change(usage, status: "discarded", finished_at: usage.finished_at || now))

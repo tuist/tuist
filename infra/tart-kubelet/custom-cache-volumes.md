@@ -41,8 +41,10 @@ host kernel, and reads the container's `Capacity In Use By Volumes` from
 than the guest measured before detaching is poisoned (result `incomplete`): it
 passes fsck but mounts as an older state of the volume, empty for a new one.
 It then persists a verification guard, uploads the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
-Only an accepted image becomes a local master. A failed upload retries without
-reformatting or consuming another verification; a crash during verification
+Only an accepted image becomes a local master. The upload retries within the
+publication with a fresh link (see `HTTPTransfer.Publish` in runner-cache); a
+publication that still fails retries on a later pass without reformatting or
+consuming another verification; a crash during verification
 poisons the branch. Expired or cleared generations cannot publish later.
 
 Mount duration remains unknown because host preparation excludes guest attachment.
