@@ -88,7 +88,7 @@ config :atlas, Oban,
   repo: Atlas.Repo,
   notifier: Oban.Notifiers.Postgres,
   peer: Oban.Peers.Database,
-  queues: [default: 10, briefs: 2, mailing: 5, conversations: 4],
+  queues: [default: 10, briefs: 2, mailing: 5, orbit: 4],
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [

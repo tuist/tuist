@@ -963,10 +963,10 @@ defmodule Atlas.MCP.Server do
 
   defp audit_arguments(conn, name, arguments)
 
-  # Conversation tool arguments can quote private thread content, which must not
-  # become readable through the audit trail. The conversation itself keeps the
+  # Orbit tool arguments can quote private thread content, which must not
+  # become readable through the audit trail. The thread itself keeps the
   # rendered call for its participants.
-  defp audit_arguments(%{assigns: %{mcp_claims: %{"conversation_run_id" => _}}}, _name, _arguments), do: %{}
+  defp audit_arguments(%{assigns: %{mcp_claims: %{"orbit_run_id" => _}}}, _name, _arguments), do: %{}
   defp audit_arguments(_conn, name, arguments), do: audit_arguments(name, arguments)
 
   defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do

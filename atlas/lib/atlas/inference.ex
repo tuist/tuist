@@ -27,7 +27,7 @@ defmodule Atlas.Inference do
   @token_attr_keys Map.values(@token_attr_key_map)
   @default_profile_page_size 10
   @max_profile_page_size 100
-  @atlas_roles [:inference, :coding, :embedding, :conversations]
+  @atlas_roles [:inference, :coding, :embedding, :orbit]
 
   def list_model_bindings do
     ModelBinding
@@ -826,7 +826,7 @@ defmodule Atlas.Inference do
     |> maybe_clear_atlas_role(changeset, :inference)
     |> maybe_clear_atlas_role(changeset, :coding)
     |> maybe_clear_atlas_role(changeset, :embedding)
-    |> maybe_clear_atlas_role(changeset, :conversations)
+    |> maybe_clear_atlas_role(changeset, :orbit)
     |> persist_model_binding_operation(changeset, operation)
     |> Repo.transaction()
     |> case do
@@ -931,12 +931,12 @@ defmodule Atlas.Inference do
   defp atlas_token_name("inference"), do: "Atlas inference"
   defp atlas_token_name("coding"), do: "Atlas coding"
   defp atlas_token_name("embedding"), do: "Atlas embeddings"
-  defp atlas_token_name("conversations"), do: "Atlas conversations"
+  defp atlas_token_name("orbit"), do: "Orbit"
 
   defp atlas_role_field(:inference), do: :atlas_inference
   defp atlas_role_field(:coding), do: :atlas_coding
   defp atlas_role_field(:embedding), do: :atlas_embedding
-  defp atlas_role_field(:conversations), do: :atlas_conversations
+  defp atlas_role_field(:orbit), do: :atlas_orbit
 
   defp atlas_token_allowed?(%Token{atlas_role: nil}, %ModelBinding{}), do: true
 
@@ -946,7 +946,7 @@ defmodule Atlas.Inference do
 
   defp atlas_token_allowed?(%Token{atlas_role: "embedding"}, %ModelBinding{atlas_embedding: true}), do: true
 
-  defp atlas_token_allowed?(%Token{atlas_role: "conversations"}, %ModelBinding{atlas_conversations: true}), do: true
+  defp atlas_token_allowed?(%Token{atlas_role: "orbit"}, %ModelBinding{atlas_orbit: true}), do: true
 
   defp atlas_token_allowed?(%Token{atlas_role: role}, %ModelBinding{}) when is_binary(role), do: false
 

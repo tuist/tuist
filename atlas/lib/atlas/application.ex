@@ -7,7 +7,6 @@ defmodule Atlas.Application do
 
   alias Atlas.Accounts.HandleRegistry
   alias Atlas.Agents.Sessions.TelemetryHandler
-  alias Atlas.Conversations.Checkpoints
   alias Atlas.Demo
   alias Atlas.Engineering.Errors.DropAlerter
   alias Atlas.Engineering.Errors.Event.Buffer
@@ -17,6 +16,7 @@ defmodule Atlas.Application do
   alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
+  alias Atlas.Orbit.Checkpoints
   alias Atlas.Presence.Notifier
   alias Guardian.DB.Sweeper
 
@@ -63,7 +63,7 @@ defmodule Atlas.Application do
       GitHubAppBootstrap,
       {Oban, Application.fetch_env!(:atlas, Oban)},
       Notifier,
-      Atlas.Conversations.Notifier,
+      Atlas.Orbit.Notifier,
       {Task.Supervisor, name: Atlas.TaskSupervisor},
       Sweeper
     ] ++

@@ -157,8 +157,8 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
       label: gettext("Atlas embeddings"),
       color: "secondary"
     })
-    |> maybe_add_atlas_role(profile.atlas_conversations, %{
-      label: gettext("Atlas conversations"),
+    |> maybe_add_atlas_role(profile.atlas_orbit, %{
+      label: gettext("Orbit"),
       color: "primary"
     })
     |> Enum.reverse()
@@ -169,7 +169,7 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
       {profile.atlas_inference, gettext("Inference")},
       {profile.atlas_coding, gettext("Coding")},
       {profile.atlas_embedding, gettext("Embeddings")},
-      {profile.atlas_conversations, gettext("Conversations")}
+      {profile.atlas_orbit, gettext("Orbit")}
     ]
     |> Enum.filter(&elem(&1, 0))
     |> Enum.map(&elem(&1, 1))

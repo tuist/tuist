@@ -363,8 +363,8 @@ defmodule Atlas.Audit do
     |> put_claim(claims, "slack_app")
     |> put_claim(claims, "slack_channel_id")
     |> put_claim(claims, "mcp_tool_groups")
-    |> put_claim(claims, "conversation_id")
-    |> put_claim(claims, "conversation_run_id")
+    |> put_claim(claims, "thread_id")
+    |> put_claim(claims, "orbit_run_id")
   end
 
   def claim_metadata(_claims), do: %{}

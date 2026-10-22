@@ -51,7 +51,7 @@ Paths in this table are relative to `lib/atlas/`. All are native execution.
 | `memory/{edge_classifier,bulletin_synthesizer}.ex` | Audited classification/synthesis from supplied memory data; no tools. |
 | `engineering/errors/agents/summary_agent.ex` | Audited structured operation over a bounded error snapshot; no domain tools. |
 | `slack/{conversation_agent,conversation_responder}.ex` | Native runs with inline account/content, search, memory, and MCP tools; buffered model delivery in local mode, incremental streaming for external providers. Account/systems investigator subagents are native sessions with explicit tool lists, not coding agents. |
-| `conversations/runs.ex` (`Conversations.Agent`) | Native runs bound to the `conversations` inference role, with fenced, read-only Atlas MCP tools executed in-process as the acting user. Session rows store only a run label, a redacted result and fixed error categories; telemetry keeps names and timings. Per-turn snapshots are encrypted on the run row for resumption. |
+| `orbit/runs.ex` (`Orbit.Agent`) | Native runs bound to the `orbit` inference role, with fenced, read-only Atlas MCP tools executed in-process as the acting user. Session rows store only a run label, a redacted result and fixed error categories; telemetry keeps names and timings. Per-turn snapshots are encrypted on the run row for resumption. |
 | `slack/mcp_tools.ex`, `memory/tools.ex`, `slack/url_content.ex` | Tool definitions, not remote runtimes. Atlas MCP calls run in-process with caller claims; optional proxy/provider calls retain their own transport and authorization. |
 
 `Atlas.LLMs.RunnerTest` checks compiled production Condukt callbacks and the

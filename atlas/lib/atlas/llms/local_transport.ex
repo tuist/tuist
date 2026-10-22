@@ -18,7 +18,7 @@ defmodule Atlas.LLMs.LocalTransport do
   behavior, and usage accounting stay identical.
 
   Callers that need a specific role pass it explicitly as
-  `{LocalTransport, role: :conversations}`. An explicit role only serves chat
+  `{LocalTransport, role: :orbit}`. An explicit role only serves chat
   completions and never falls back to another role's profile.
   """
 

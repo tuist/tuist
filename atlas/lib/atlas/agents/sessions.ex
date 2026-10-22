@@ -18,9 +18,9 @@ defmodule Atlas.Agents.Sessions do
   @atlas_opts [:account_id]
 
   # Agents whose prompts, results, and failures can contain private
-  # conversation content. Their rows keep only a label and fixed categories;
-  # the conversation log is the readable record, scoped to its participants.
-  @redacted_agents [inspect(Atlas.Conversations.Agent)]
+  # Orbit thread content. Their rows keep only a label and fixed categories;
+  # the thread log is the readable record, scoped to its participants.
+  @redacted_agents [inspect(Atlas.Orbit.Agent)]
   @category ~r/\A[a-z_]{1,64}\z/
   @label ~r/\A[a-z_]{1,64}:[0-9a-f-]{36}\z/
 

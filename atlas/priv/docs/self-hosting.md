@@ -136,15 +136,15 @@ helm show values oci://ghcr.io/tuist/charts/atlas --version VERSION
 
 You can configure external services through the application Secret and environment values. If you'd prefer the chart to manage [PostgreSQL](https://www.postgresql.org/docs/18/index.html), its bundled database configuration requires [CloudNativePG](https://cloudnative-pg.io/documentation/). Managed secret synchronization requires [External Secrets Operator](https://external-secrets.io/), as do the chart's bundled vector storage and backup secret synchronization. These are choices you can make later; they're not prerequisites for the base installation.
 
-## Enable the conversation assistant
+## Enable Orbit
 
-People can chat with the Atlas assistant from the native apps, privately or in shared conversations. The assistant uses an inference profile you choose for the whole workspace, not people's personal AI accounts. Until a profile is assigned, conversations still work between people and the apps explain that the assistant isn't configured.
+Orbit is the native apps' space for working with the Atlas assistant in private or shared threads. The assistant uses an inference profile you choose for the whole workspace, not people's personal AI accounts. Until a profile is assigned, threads still work between people and the apps explain that the assistant isn't configured.
 
 1. In **Admin → Inference**, add a provider and a profile for the model you want to use.
-2. Open the profile, choose **Edit profile**, then **Use for Atlas conversations**. Only one profile can hold this role, and Atlas never falls back to another profile.
-3. Optionally, set `ATLAS_CONVERSATIONS_AGENT_NAME` in the application environment to change the assistant's display name. It defaults to "Atlas".
+2. Open the profile, choose **Edit profile**, then **Use for Orbit**. Only one profile can hold this role, and Atlas never falls back to another profile.
+3. Optionally, set `ATLAS_ORBIT_AGENT_NAME` in the application environment to change the assistant's display name. It defaults to "Atlas".
 
-The assistant can only read Atlas data that everyone in a conversation is allowed to see, and it can't change data, send messages, or browse the web.
+The assistant can only read Atlas data that everyone in a thread is allowed to see, and it can't change data, send messages, or browse the web.
 
 ## Enable ChatGPT sign-in
 
