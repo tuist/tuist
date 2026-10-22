@@ -109,13 +109,13 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert Repo.get!(Volume, volume.id).platform == "linux"
   end
 
-  test "macOS identities are separate while existing Linux UUIDs and built-in heads survive", %{
+  test "macOS identities are separate while existing Linux UUIDs and other volumes' heads survive", %{
     job: job,
     account: account
   } do
     {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs())
-    builtin = VolumeHeads.reserved_tuist_cache()
-    assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, builtin)
+    linux_name = CacheVolumes.storage_name(Repo.get!(Volume, Repo.get!(Usage, linux.id).volume_id))
+    assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, linux_name)
     {:ok, mac} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs(), :platform, "macos"))
     refute mac.scope == linux.scope
     assert length(CacheVolumes.list(account.id).volumes) == 2
@@ -123,7 +123,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert mac_volume.platform == "macos"
     assert String.starts_with?(CacheVolumes.storage_name(mac_volume), "macos-")
     assert VolumeHeads.valid_storage_volume_name?(CacheVolumes.storage_name(mac_volume))
-    refute VolumeHeads.valid_volume_name?(CacheVolumes.storage_name(mac_volume))
     {:ok, again} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     assert again.id == linux.id
     assert {:ok, _} = CacheVolumes.report("node", mac.id, report())
@@ -138,7 +137,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
                "content_digest" => String.duplicate("c", 64)
              })
 
-    assert VolumeHeads.get_head(account.id, builtin).generation == 1
+    assert VolumeHeads.get_head(account.id, linux_name).generation == 1
   end
 
   test "allocation derives macOS from the executed session, ignoring guest platform", %{account: account, job: job} do
@@ -325,13 +324,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
       Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.utc_now()))
       assert {:error, :unavailable} = CacheVolumes.allocate(params)
     end
-  end
-
-  test "custom Linux names never become valid macOS dispatch names", %{job: job, account: account} do
-    {:ok, _} = CacheVolumes.allocate_for_job(job, identity(), attrs())
-    name = CacheVolumes.storage_name(volume(account))
-    assert VolumeHeads.valid_storage_volume_name?(name)
-    refute VolumeHeads.valid_volume_name?(name)
   end
 
   test "only one concurrent base can publish through the shared macOS HEAD", %{job: job, account: account} do

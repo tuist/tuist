@@ -213,6 +213,8 @@ func Result(err error) string {
 		return "withheld"
 	case errors.Is(err, ErrBusy):
 		return "busy"
+	case errors.Is(err, ErrReleasePending):
+		return "release_pending"
 	case errors.Is(err, ErrCapacity):
 		return "capacity"
 	case errors.Is(err, ErrExecutionPending):

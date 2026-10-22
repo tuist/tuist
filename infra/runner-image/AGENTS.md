@@ -966,9 +966,17 @@ semantics; this doc is just about the VM image.
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - The job-started hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
-  before the first step. It mounts the job's cached checkout at the workspace
-  only when the host serves one and the workspace is empty, and otherwise leaves
-  it untouched, so actions/checkout clones as before. It never fails the job.
+  before the first step. It mounts the job's cached checkout only when the host
+  serves one, the workspace is empty and its parent holds nothing else, and
+  otherwise leaves it untouched, so actions/checkout clones as before. It never
+  fails the job. The image mounts at the workspace's parent and the guest moves
+  the tree into the workspace: the workspace must not be a volume root, because
+  Foundation stages safe saves in `<volume root>/.TemporaryItems` and Xcode's
+  task sandbox refuses writes there inside the project (CoreML compilation into
+  a DerivedData under the workspace fails with "compile failed to write partial
+  plist"). `tuist-cache-volume --key` leaves out a path in the mounted
+  checkout's `.git` that already holds data (such as `.git/lfs`) with a notice,
+  instead of refusing it as non-empty.
   When the host granted a checkout (mounted, or `cold`, `capacity`, `timeout`)
   it records the workspace and the mounted master's commit and LFS objects in
   `/Users/runner/.tuist-checkout.json`. The teardown then runs

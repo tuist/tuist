@@ -111,7 +111,7 @@ class TokenProviderTest {
                 repeat(2) { assertFailsWith<IllegalStateException> { provider.getOptionalToken() } }
                 val config = ReportConfigurationProvider(
                     "company/mobile", url, tempDir, TuistHttpClients(useEnvironmentProxy = false),
-                    allowNetworkTrustedPublishing = true, tokenProviderFactory = { provider },
+                    tokenProviderFactory = { provider },
                     serverUrlResolver = { resolved, _ -> resolved }
                 )
                 assertFailsWith<IllegalStateException> { config.getConfiguration() }
@@ -152,14 +152,15 @@ class TokenProviderTest {
         for (host in listOf("tuist.dev", "www.tuist.dev", "canary.tuist.dev", "staging.tuist.dev", "cloud.tuist.io", "TUIST.DEV", "tuist.dev.", "other.tuist.dev")) {
             val provider = ReportConfigurationProvider(
                 "company/mobile", "https://$host", tempDir,
-                TuistHttpClients(useEnvironmentProxy = false), allowNetworkTrustedPublishing = true,
+                TuistHttpClients(useEnvironmentProxy = false),
                 tokenProviderFactory = { createProvider() }, serverUrlResolver = { url, _ -> url }
             )
-            assertFailsWith<IllegalStateException> { provider.getConfiguration() }
+            val error = assertFailsWith<TokenProvider.NotAuthenticatedException> { provider.getConfiguration() }
+            assertTrue(error.message.orEmpty().contains("tuist auth login"))
         }
         val authenticated = ReportConfigurationProvider(
             "company/mobile", ServerUrlResolver.DEFAULT_URL, tempDir,
-            TuistHttpClients(useEnvironmentProxy = false), allowNetworkTrustedPublishing = true,
+            TuistHttpClients(useEnvironmentProxy = false),
             tokenProviderFactory = { createProvider(envVars = mapOf("TUIST_TOKEN" to "existing-token")) },
             serverUrlResolver = { url, _ -> url }
         )

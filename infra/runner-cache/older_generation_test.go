@@ -2,6 +2,7 @@ package cachevolumes
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -131,5 +132,101 @@ func TestReplaceKeepsAStaleMasterUntilItsSuccessorIsLocal(t *testing.T) {
 	}
 	if exists(b.master(idle)) || len(asked) != 0 {
 		t.Fatal("fetched a successor for a master no job used in the last day", asked)
+	}
+}
+
+func TestLocalMountsAnOlderGenerationWhenItsBaseIsNotLocal(t *testing.T) {
+	b, _ := newLocal(t)
+	unmountEmpties(b)
+	remote := &headTransfer{heads: map[string]Identity{}, errs: map[string]error{}}
+	b.Transfer = remote
+	scope := strings.Repeat("a", 64)
+	installMaster(t, b, first, scope, 1, time.Now())
+	installMaster(t, b, first, scope, 4, time.Now())
+	if err := os.WriteFile(b.master(installMaster(t, b, first, scope, 2, time.Now())), []byte("generation 2"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	slot := Slot{Identity: identity(second), PodUID: "pod"}
+	slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = head(3).BaseGeneration, head(3).ImageDigest, head(3).ContentDigest
+	path := t.TempDir()
+
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if len(remote.downloads()) != 0 {
+		t.Fatal("downloaded the base inside the job's budget instead of mounting an older master")
+	}
+	if data, _ := os.ReadFile(b.image(slot)); string(data) != "generation 2" {
+		t.Fatalf("cloned %q, want the newest older generation", data)
+	}
+	if b.MountedGeneration(slot) != 2 || b.Cold(slot) {
+		t.Fatalf("mounted generation = %d, want 2", b.MountedGeneration(slot))
+	}
+	if err := b.Delete(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if exists(b.image(slot) + ".base") {
+		t.Fatal("left the mounted generation behind")
+	}
+}
+
+func TestLocalPublishesChangesOnTopOfAnOlderGeneration(t *testing.T) {
+	b, remote := newLocal(t)
+	remote.generation = 3
+	installMaster(t, b, first, strings.Repeat("a", 64), 1, time.Now())
+	slot := warmSlot(second, "pod")
+	slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = head(2).BaseGeneration, head(2).ImageDigest, head(2).ContentDigest
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, path)
+
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if remote.uploads != 1 {
+		t.Fatalf("uploads = %d, want 1", remote.uploads)
+	}
+}
+
+func TestLocalNeverKeepsAnUnchangedOlderGenerationAsItsBaseMaster(t *testing.T) {
+	b, remote := newLocal(t)
+	installMaster(t, b, first, strings.Repeat("a", 64), 1, time.Now())
+	slot := warmSlot(second, "pod")
+	slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = head(2).BaseGeneration, head(2).ImageDigest, head(2).ContentDigest
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := b.Seal(slot, path); !errors.Is(err, ErrUnchanged) {
+		t.Fatal(err)
+	}
+	if remote.uploads != 0 || b.HasMaster(slot.Identity) {
+		t.Fatal("generation 1's content became generation 2's master")
+	}
+}
+
+func TestLinuxStoreRecordsTheGenerationAJobActuallyMounted(t *testing.T) {
+	b, remote := newLocal(t)
+	installMaster(t, b, first, strings.Repeat("a", 64), 1, time.Now())
+	store, err := Open(b.Root, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	id := identity(second)
+	id.BaseGeneration, id.ImageDigest, id.ContentDigest = head(2).BaseGeneration, head(2).ImageDigest, head(2).ContentDigest
+	warm, err := store.Acquire(context.Background(), id, "job", "pod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	slots, err := store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !warm || remote.downloads != 0 || len(slots) != 1 || slots[0].MountedGeneration != 1 {
+		t.Fatalf("warm = %v, journal = %+v", warm, slots)
 	}
 }

@@ -362,6 +362,9 @@ func TestLocalGrowsAWarmCopyAndItsFilesystemBeforeTheJob(t *testing.T) {
 	}
 	slot := warmSlot(first, "p")
 	slot.VolumeBytes = 1_000_000_000
+	if err := b.Prefetch(context.Background(), slot); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
 		t.Fatal(err)
@@ -391,6 +394,9 @@ func TestLocalNeverShrinksOrResizesAFullSizeCopy(t *testing.T) {
 	}
 	slot := warmSlot(first, "p")
 	slot.VolumeBytes = 8 << 20
+	if err := b.Prefetch(context.Background(), slot); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
 		t.Fatal(err)

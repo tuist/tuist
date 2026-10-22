@@ -15,7 +15,7 @@ defmodule Tuist.Runners.CacheVolumeStorageTest do
     stub(Accounts, :get_account_by_id, fn 123 -> {:ok, account} end)
     stub(Storage, :supports_signed_upload_headers?, fn ^account -> true end)
 
-    for name <- ["tuist-cache", "repo-0123456789abcdef", "linux-" <> String.duplicate("c", 64)] do
+    for name <- ["macos-" <> String.duplicate("d", 64), "linux-" <> String.duplicate("c", 64)] do
       key = "runner-volume-masters/123/#{name}/#{digest}-#{content}.image"
 
       expect(Storage, :generate_upload_url, fn ^key, ^account, options ->
@@ -30,11 +30,17 @@ defmodule Tuist.Runners.CacheVolumeStorageTest do
   end
 
   test "invalid storage names and digests cannot become object keys" do
-    for name <- ["linux-../other", "linux-", "../tuist-cache"] do
+    for name <- ["linux-../other", "linux-", "../tuist-cache", "tuist-cache", "repo-0123456789abcdef"] do
       assert :error = Runners.volume_master_upload_url(123, name, String.duplicate("a", 40), String.duplicate("b", 64))
       assert :error = Runners.volume_master_download_url(123, name, String.duplicate("a", 40), String.duplicate("b", 64))
     end
 
-    assert :error = Runners.volume_master_download_url(123, "tuist-cache", "../bad", String.duplicate("b", 64))
+    assert :error =
+             Runners.volume_master_download_url(
+               123,
+               "linux-" <> String.duplicate("c", 64),
+               "../bad",
+               String.duplicate("b", 64)
+             )
   end
 end

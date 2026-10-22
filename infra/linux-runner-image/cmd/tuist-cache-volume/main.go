@@ -167,6 +167,13 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 	return result, err
 }
 func attach(key string, targets []string, size int64) error {
+	statePath := linuxCheckoutStatePath
+	if runtime.GOOS == "darwin" {
+		statePath = checkoutStatePath
+	}
+	if targets = withoutCheckoutPaths(targets, statePath); len(targets) == 0 {
+		return writeOutput(false)
+	}
 	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	root := "/home/runner/work/_tuist_cache"
 	if runtime.GOOS == "darwin" {
@@ -193,18 +200,7 @@ func attachUsing(key string, targets []string, root string, getVolume func() (st
 		if p == "" || strings.ContainsFunc(p, func(r rune) bool { return r < 32 || r == 127 }) {
 			return fmt.Errorf("%w: paths must be nonempty and contain no control characters", errInvalidPath)
 		}
-		if p == "~" || strings.HasPrefix(p, "~/") {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return err
-			}
-			if p == "~" {
-				p = home
-			} else {
-				p = filepath.Join(home, strings.TrimPrefix(p, "~/"))
-			}
-		}
-		abs, err := filepath.Abs(p)
+		abs, err := absolutePath(p)
 		if err != nil {
 			return err
 		}
@@ -268,6 +264,22 @@ func attachUsing(key string, targets []string, root string, getVolume func() (st
 	}
 	fmt.Printf("Tuist cache volume attached (warm=%t)\n", warm)
 	return writeOutput(warm)
+}
+
+// absolutePath resolves a cache path against the home and working directories.
+func absolutePath(p string) (string, error) {
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		if p == "~" {
+			p = home
+		} else {
+			p = filepath.Join(home, strings.TrimPrefix(p, "~/"))
+		}
+	}
+	return filepath.Abs(p)
 }
 func writeOutput(warm bool) error {
 	if output := os.Getenv("GITHUB_OUTPUT"); output != "" {
