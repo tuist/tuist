@@ -7,6 +7,7 @@ defmodule AtlasWeb.NativeConversationsController do
 
   alias Atlas.Audit
   alias Atlas.Conversations
+  alias Atlas.Conversations.Components
   alias Atlas.Conversations.Conversation
   alias Atlas.Conversations.Message
   alias Atlas.Users.User
@@ -157,6 +158,7 @@ defmodule AtlasWeb.NativeConversationsController do
       tool_status: message.tool_status,
       tool_input: message.tool_input || "",
       tool_output: message.tool_output || "",
+      component: Components.for_message(message),
       # Stable creation order; clients sort by it. Status changes to a tool
       # message move the conversation's revision, not this value.
       seq: message.position

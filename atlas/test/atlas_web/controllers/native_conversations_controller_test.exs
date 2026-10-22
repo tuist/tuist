@@ -7,6 +7,7 @@ defmodule AtlasWeb.NativeConversationsControllerTest do
   import Atlas.ConversationsFixtures
 
   alias Atlas.Conversations
+  alias Atlas.Repo
 
   test "every route requires a bearer token, even with a browser session", %{conn: conn} do
     {session, _user} = log_in_user(conn)
@@ -138,6 +139,33 @@ defmodule AtlasWeb.NativeConversationsControllerTest do
                "error" => "not_found"
              }
     end
+  end
+
+  test "cards are server projections of authorized durable messages and disappear with access" do
+    owner = user_fixture()
+    {:ok, conversation, _} = Conversations.ensure_private(owner)
+
+    {:ok, _} =
+      Repo.transaction(fn ->
+        Conversations.append!(conversation, %{
+          kind: "tool",
+          tool_name: "list_accounts",
+          tool_status: "succeeded",
+          tool_output: JSON.encode!(%{"accounts" => [%{"name" => "Northstar"}]})
+        })
+      end)
+
+    response = owner |> bearer() |> get("/api/native/conversations/#{conversation.id}/messages") |> json_response(200)
+    [message] = response["messages"]["items"]
+    assert message["component"]["type"] == "result_table"
+    assert message["component"]["data"]["rows"] == [["Northstar"]]
+    assert message["component"]["actions"] == [%{"id" => "show_evidence", "label" => "View source"}]
+
+    conversation |> Ecto.Changeset.change(required_scopes: ["accounts:read"]) |> Repo.update!()
+
+    assert owner |> bearer() |> get("/api/native/conversations/#{conversation.id}/messages") |> json_response(404) == %{
+             "error" => "not_found"
+           }
   end
 
   test "participants can be added by the owner and leave on their own" do
