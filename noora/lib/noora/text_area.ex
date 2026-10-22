@@ -53,7 +53,7 @@ defmodule Noora.TextArea do
 
   attr(:disabled, :boolean, default: false, doc: "Whether the textarea is disabled.")
 
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(autocomplete autocorrect))
 
   def text_area(%{field: %FormField{} = field} = assigns) do
     assigns
