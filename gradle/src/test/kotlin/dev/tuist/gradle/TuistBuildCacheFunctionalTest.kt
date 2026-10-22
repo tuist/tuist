@@ -16,6 +16,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -34,6 +35,10 @@ class TuistBuildCacheFunctionalTest {
 
     private val entries = ConcurrentHashMap<String, ByteArray>()
     private val uploadedChecksums = ConcurrentHashMap<String, String>()
+    private val requests = ConcurrentLinkedQueue<RecordedRequest>()
+
+    @Volatile
+    private var cacheTokenResponse: () -> MockResponse = { MockResponse().setResponseCode(404) }
 
     @Volatile
     private var servedChecksum: (ByteArray) -> String = ::sha256
@@ -44,6 +49,7 @@ class TuistBuildCacheFunctionalTest {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.requestUrl?.encodedPath.orEmpty()
+                requests += request
                 return when {
                     path.startsWith("/api/cache/gradle/") && request.method == "PUT" -> {
                         val body = request.body.readByteArray()
@@ -59,6 +65,7 @@ class TuistBuildCacheFunctionalTest {
                                     .addHeader("tuist-checksum-sha256", servedChecksum(body))
                             }
                             ?: MockResponse().setResponseCode(404)
+                    path == "/api/cache/token" -> cacheTokenResponse()
                     path.endsWith("/gradle/builds") ->
                         MockResponse().setResponseCode(201).setBody("""{"id":"build"}""")
                     else -> MockResponse().setResponseCode(200).setBody("{}")
@@ -98,6 +105,57 @@ class TuistBuildCacheFunctionalTest {
         val warm = run("clean", "produce")
         assertEquals(TaskOutcome.FROM_CACHE, warm.task(":produce")?.outcome, warm.output)
         assertEquals("produced", File(projectDir, "build/produced.txt").readText())
+    }
+
+    @Test
+    fun `sends cache nodes the exchanged token and the server the credential`() {
+        cacheTokenResponse = { MockResponse().setBody("""{"token":"cache-token","expires_in":1800}""") }
+
+        val cold = run("produce")
+        assertEquals(TaskOutcome.SUCCESS, cold.task(":produce")?.outcome, cold.output)
+        val warm = run("clean", "produce")
+        assertEquals(TaskOutcome.FROM_CACHE, warm.task(":produce")?.outcome, warm.output)
+
+        val exchanges = requests.filter { it.requestUrl?.encodedPath == "/api/cache/token" }
+        assertEquals(2, exchanges.size, "one exchange per build")
+        exchanges.forEach { exchange ->
+            assertEquals("POST", exchange.method)
+            assertEquals("test/cache", exchange.requestUrl?.queryParameter("full_handle"))
+            assertEquals("Bearer test-token", exchange.getHeader("Authorization"))
+        }
+        val cacheRequests = requests.filter { it.requestUrl?.encodedPath.orEmpty().startsWith("/api/cache/gradle/") }
+        assertEquals(setOf("PUT", "GET"), cacheRequests.map { it.method }.toSet())
+        assertEquals(setOf("Bearer cache-token"), cacheRequests.map { it.getHeader("Authorization") }.toSet())
+        val serverRequests = requests.filter { it.requestUrl?.encodedPath.orEmpty().endsWith("/gradle/builds") }
+        assertTrue(serverRequests.isNotEmpty(), "expected build reports")
+        assertEquals(setOf("Bearer test-token"), serverRequests.map { it.getHeader("Authorization") }.toSet())
+    }
+
+    @Test
+    fun `sends cache nodes the credential when the server cannot exchange it`() {
+        cacheTokenResponse = { MockResponse().setResponseCode(404) }
+
+        val cold = run("produce")
+        assertEquals(TaskOutcome.SUCCESS, cold.task(":produce")?.outcome, cold.output)
+
+        val upload = requests.single { it.requestUrl?.encodedPath.orEmpty().startsWith("/api/cache/gradle/") && it.method == "PUT" }
+        assertEquals("Bearer test-token", upload.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `disables the remote cache without falling back to the credential when the free tier is exhausted`() {
+        cacheTokenResponse = {
+            MockResponse().setResponseCode(402).setBody("""{"message":"The free tier of test is exhausted."}""")
+        }
+
+        val cold = run("produce")
+
+        assertEquals(TaskOutcome.SUCCESS, cold.task(":produce")?.outcome, cold.output)
+        assertTrue(cold.output.contains("The free tier of test is exhausted."), cold.output)
+        assertTrue(
+            requests.none { it.requestUrl?.encodedPath.orEmpty().startsWith("/api/cache/gradle/") },
+            "no cache request may be sent with the credential"
+        )
     }
 
     private fun run(vararg tasks: String): BuildResult =

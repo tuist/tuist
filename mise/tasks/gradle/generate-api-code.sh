@@ -42,6 +42,7 @@ mkdir -p "$TARGET_DIR/model"
 cp "$AUTH_MODEL/AuthenticationTokens.kt" "$TARGET_DIR/model/"
 cp "$AUTH_MODEL/RefreshTokenBody.kt" "$TARGET_DIR/model/"
 cp "$AUTH_MODEL/CacheEndpoints.kt" "$TARGET_DIR/model/"
+cp "$AUTH_MODEL/CacheToken.kt" "$TARGET_DIR/model/"
 
 # Shard models (all models referenced by ShardsApi)
 cp "$SHARDS_MODEL/Shard.kt" "$TARGET_DIR/model/"

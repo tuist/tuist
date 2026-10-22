@@ -5,8 +5,10 @@
 package dev.tuist.gradle.api
 
 import dev.tuist.gradle.api.model.CacheEndpoints
+import dev.tuist.gradle.api.model.CacheToken
 import retrofit2.Call
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Query
 
 interface CacheApi {
@@ -14,4 +16,9 @@ interface CacheApi {
     fun getCacheEndpoints(
         @Query("account_handle") accountHandle: String
     ): Call<CacheEndpoints>
+
+    @POST("api/cache/token")
+    fun getCacheToken(
+        @Query("full_handle") fullHandle: String
+    ): Call<CacheToken>
 }

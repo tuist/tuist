@@ -54,13 +54,16 @@ class TuistHttpClient(
     }
 
     private fun getOrFetchConfig(): CacheConfiguration {
-        cachedConfig?.let { return it }
+        cachedConfig?.takeIf(::isCurrent)?.let { return it }
 
         synchronized(configLock) {
-            cachedConfig?.let { return it }
+            cachedConfig?.takeIf(::isCurrent)?.let { return it }
             val newConfig = configurationProvider.getConfiguration()
             cachedConfig = newConfig
             return newConfig
         }
     }
+
+    private fun isCurrent(config: CacheConfiguration): Boolean =
+        config.validUntilMs?.let { System.currentTimeMillis() < it } ?: true
 }
