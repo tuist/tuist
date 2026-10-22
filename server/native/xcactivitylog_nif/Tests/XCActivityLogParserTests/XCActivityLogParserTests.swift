@@ -108,14 +108,35 @@ struct XCActivityLogParserTests {
     @Test func buildSteps_classifiesModernSwiftCompilation() async throws {
         let result = try await parseFixture("clean-build")
         #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.target == "App" })
-        #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.title.hasPrefix("Emit Swift module") })
+        #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.title.hasPrefix("Emitting module for ") })
         #expect(result.build_steps.contains { $0.category == "scriptExecution" })
         #expect(!result.build_steps.contains { $0.title.hasPrefix("Build target ") })
     }
 
+    @Test func buildSteps_emitsSwiftJobsWithTheirOwnInterval() async throws {
+        let result = try await parseFixture("xcode_27_local_cache_misses")
+        let job = try #require(result.build_steps.first { $0.title == "Compiling Alpha.swift, Bravo.swift, Charlie.swift" })
+        #expect(job.category == "swiftCompilation")
+        #expect(job.duration_ms > 5)
+        #expect(job.log.contains("Local cache found for key:"))
+        #expect(job.log.contains("Alpha.swift"))
+        #expect(!result.build_steps.contains { $0.title == "Compile Alpha.swift" })
+    }
+
+    @Test func buildSteps_foldsSwiftJobChildDiagnostics() async throws {
+        let result = try await parseFixture("xcode_27_failed_build")
+        let job = try #require(result.build_steps.first { $0.title == "Emitting module for SmartBlocksStream" })
+        #expect(job.log.contains("is deprecated"))
+    }
+
+    @Test func buildSteps_marksSwiftJobsWithFailingChildrenAsFailed() async throws {
+        let result = try await parseFixture("failed-build")
+        #expect(result.build_steps.contains { $0.title.hasPrefix("Compiling ") && $0.status == "failure" })
+    }
+
     @Test func buildSteps_retainsRecordedStepCommands() async throws {
         let result = try await parseFixture("xcode_26_cas_clean_build")
-        let step = try #require(result.build_steps.first { $0.log.hasPrefix("EmitSwiftModule normal") })
+        let step = try #require(result.build_steps.first { $0.log.contains("\nEmitSwiftModule normal") })
         #expect(step.log.contains("EmitSwiftModule normal"))
         #expect(step.log.contains("cd "))
         #expect(!step.log_truncated)

@@ -23,20 +23,21 @@ struct BuildStepLog {
         }
     }
 
-    func extract(step: BuildStep) -> (text: String, truncated: Bool) {
-        let key = Key(signature: step.signature, start: step.startTimestamp, end: step.endTimestamp)
-        let matches = sections[key] ?? []
+    /// `steps` is the emitted step followed by any sub-steps folded into it.
+    func extract(steps: [BuildStep]) -> (text: String, truncated: Bool) {
         // Synthetic or ambiguous parser steps still have a signature, but must
         // never inherit another operation's command or output.
-        let section = matches.count == 1 ? matches[0] : nil
-        let result = Self.render(
-            signature: step.signature,
-            command: section?.commandDetailDesc ?? "",
-            output: section?.text ?? "",
-            messages: section?.messages.map(\.title) ?? [],
+        let sections = steps.compactMap { step -> IDEActivityLogSection? in
+            let matches = self.sections[Key(signature: step.signature, start: step.startTimestamp, end: step.endTimestamp)] ?? []
+            return matches.count == 1 ? matches[0] : nil
+        }
+        return Self.render(
+            signature: steps.first?.signature ?? "",
+            command: sections.map(\.commandDetailDesc).filter { !$0.isEmpty }.joined(separator: "\n"),
+            output: sections.map(\.text).filter { !$0.isEmpty }.joined(separator: "\n"),
+            messages: sections.flatMap { $0.messages.map(\.title) },
             limit: 64 * 1024
         )
-        return result
     }
 
     static func render(signature: String, command: String, output: String, messages: [String], limit: Int) -> (text: String, truncated: Bool) {
