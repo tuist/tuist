@@ -15,9 +15,20 @@ workflow code runs in the guest. Never expose host credentials or masters.
   host probes the mirror's manifest, pulls `<mirror>/<repo>@<digest>` with
   `--insecure`, and falls back to the image's own registry when the mirror is
   down, lacks the image or fails the pull. A mirror still fetching the image
-  requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`
-  instead of blocking the single reconcile worker. The golden keeps the Pod
+  requeues the Pod (`ImageCacheSyncing`) for up to `--image-mirror-sync-timeout`.
+  The golden keeps the Pod
   image's name and the GC keeps mirror-pulled OCI entries as their upstream's.
+- The Pod controller has one reconcile worker, so nothing slow may run inside
+  a reconcile: noticing that a VM exited (which frees the scheduler's slot)
+  and a Pod's teardown (finalizer removal) wait behind it. A Pod whose
+  golden is missing starts its pull in the background (`readyGolden`), stays Pending with `PullingImage`,
+  and is re-enqueued when the pull ends; Pods of the same image wait on the
+  same pull, including the prewarmer's. One golden materializes at a time per
+  host. A failed pull is reported to the waiting Pods for 30 seconds, then
+  pulled again. Evidence: on 2026-10-21 the first Pod of a new runner image
+  on b04 and b08 pulled from ghcr.io for 532 s and 562 s inside its reconcile,
+  and the other VM on each host halted unobserved: its Pod read `Running`
+  for up to nine minutes, so the scheduler saw both hosts as full.
 - A golden is named after the Pod's image ref string (`goldenVMName`), not
   the content it resolves to, and so are the golden Node labels the
   runners-controller's affinity reads. Catalog RunnerPools name their image
@@ -28,12 +39,29 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - The GC (`internal/podagent/garbage.go`) reads the Node's fleet's macOS
   RunnerPools as the prewarmer does. A golden or cached OCI image that no pool
   runs and no Pod on the Node references is reaped on the next pass; one a
-  pool still runs keeps the 24h idle retention. Cached images are matched by
+  pool still runs, or will run next (the upcoming runner images ConfigMap,
+  see staging below), keeps the 24h idle retention. Cached images are matched by
   full ref, except a repository a Pod or pool names by tag keeps every digest.
-  A fleet without pools, or a failed RunnerPool List, falls back to retention
-  and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
+  A fleet without pools, or a failed RunnerPool or ConfigMap List, falls back
+  to retention and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
   goldens, 1 or 2 of them current, because runner images are released several
   times a day and every catalog image shares one repository.
+- A release is followed, not re-pulled (`internal/podagent/follow.go`). While
+  a host holds the golden of a pool's `status.previousImage` (or of
+  `status.observedImage` before the runners-controller has seen the new
+  `spec.image`) and not the current one, the GC keeps the previous golden and
+  its cached image and pulls the current image in the background, one at a
+  time, through `ensureGolden`. The next pass after the pull reaps the
+  previous one as superseded. A stacked golden's base stays in Tart's content
+  store throughout, so the pull is only the overlay. Bounds: no follow under
+  disk pressure or below the prewarmer's 30% free floor, and a golden is kept
+  for its successor at most `defaultFollowTimeout` (2h). Evidence: after the
+  release of 2026-10-22 13:00 UTC the GC freed about 60 GiB per reaped golden
+  per rack host, and the next pull took 10 to 23 s on hosts that still held
+  the base against 9.5 to 12.8 minutes on hosts that did not. Every 6 vCPU
+  rack pool keeps a warm floor, so the prewarmer below pulls every catalog
+  image onto a joining rack host (about 60 GiB each; the rack's disk plan in
+  `values-managed-production.yaml` allows for all of them).
 - `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
   kicks loginwindow before each run when it is missing; on timeout the error
   names who holds `/dev/console`. `_mbsetupuser` (Setup Assistant from first
@@ -64,8 +92,59 @@ workflow code runs in the guest. Never expose host credentials or masters.
   and their first VM per image sat in `CreatingVM` for 5+ minutes downloading;
   on 2026-10-21 ber1-runner-b05 came back from `tuist.dev/os-reinstall`
   untainted with no goldens and took runner Pods that waited on downloads.
-- Built-in cache behavior remains in `internal/podagent/volume*.go` and the
-  runner-image dispatch script. Preserve existing Tuist/CAS paths and identities.
+- A release is also staged before pools move to it. Once a minute every host
+  pulls in the background the image each pool of its fleet moves to next,
+  when it holds the golden of the pool's current image and not the next one
+  (`podagent.Prewarmer.stage`, `internal/podagent/stage.go`). The next image
+  comes from ConfigMaps labelled
+  `tuist.dev/upcoming-runner-images=true`, keyed `<xcode>.<variant>`, which
+  the `announce` job of `runner-image-release.yml` writes into canary and
+  production. A deploy holds each pool on its current image until every
+  Ready, schedulable Node holding the current image's golden label also
+  holds the new one (`.github/scripts/runner-image-staging-gate.sh`, run by
+  `server-deployment.yml` before the chart upgrade), and `announce` waits for
+  the same before it dispatches the release's deploy. Both give up an hour
+  after the announcement (`tuist.dev/runner-image-announced-at`), and a
+  release dispatched with `skip_staging` moves the pools at once
+  (`tuist.dev/runner-image-staging: skip`). A pool is
+  matched by its `tuist.dev/xcode-version` and `tuist.dev/runner-image-variant`
+  (`standalone` or `stacked`) labels, which the chart renders only on catalog
+  pools that follow releases; an entry outside the pool's repository is
+  ignored. Staging uses `ensureGolden`, so a Pod of the same image joins the
+  pull. It stays out of the jobs' way: it starts no pull while a Pod waits on
+  one, nor while a runner Pod on the host has claimed a job (the server's
+  `tuist.dev/runner-pool-owner` label, or a `claimed` runner heartbeat; an
+  idle warm runner does not count), for up to `stageJobWaitCap` (20 minutes)
+  after it first waited, so a host that always runs a job still stages before
+  the gate gives up. Its pulls run under `taskpolicy -b` (macOS background
+  QoS, so running VMs get the CPU and disk first) with `--concurrency 2`
+  instead of Tart's 4 (`tart.InBackground`, `Client.BackgroundPull`). It
+  stops below 30% free disk, and skips an image the rack's image cache is
+  still fetching until the next pass. A Pod of another image that arrives
+  during a staged pull waits for it, since a host pulls one golden at a time,
+  and a Pod of the same image waits on it at background priority. A pool moved before its hosts
+  staged it (the timeout or a skip) is followed as above; a host that held
+  neither image pulls on its first Pod.
+  `tart_kubelet_golden_staged_total{result}` counts what staging did; the
+  pools' materialized and reused counts show whether Pods still pull.
+  Following alone still leaves the first Pod after a move waiting on the pull
+  (the overlay on a stacked host, the whole image when the base changed or
+  on a standalone host). Evidence: in the week to 2026-10-22
+  ber1-runner-b03 to b09 each pulled 24 to 42 goldens from ghcr.io, 6 to 7
+  minutes each on average, over 19 runner image releases, and a release
+  reaches production about 20 minutes after its deploy is dispatched. The
+  rack's image cache only moves those pulls onto the rack network; it does
+  not take them off a job's path.
+- Custom cache volumes are the only runner cache on macOS hosts. The volume
+  they share is `CacheSpace` (`internal/podagent/volume*.go`): the APFS volume
+  at `--runner-cache-root`, which holds `custom/`. Every five minutes it
+  removes the built-in cache's leftovers and nothing else: top-level
+  directories named by a decimal account ID, `_converge/`, `usage-reports/`
+  and `branches/`, keeping `branches/<vm>` while that VM runs or `tart`
+  cannot say. Unknown entries stay and are logged at debug level.
+  Runner Pods (`tuist.dev/runner=true`) always get the guest-writable `status`
+  share (`StatusDirForPod`), which carries `runner-rc`, `runner.log` and
+  `runner-heartbeat`; they never get a `cache` share.
 - Custom volumes use `internal/podagent/custom_volumes*.go` and the shared
   [`runner-cache`](../runner-cache/AGENTS.md) journal, archive and publication code.
   Enable through `runnersFleet.customCacheVolumes.enabled` after validation.
@@ -90,18 +169,17 @@ workflow code runs in the guest. Never expose host credentials or masters.
   The guest side of the clean detach (`tuist-cache-volume --detach-all`, and
   `dispatch-poll.sh` stopping the Tuist CLI's launch agents first) ships in the
   runner image, not with tart-kubelet, so it rolls out with an image release.
-- Built-in and custom admission share the existing quota-bounded APFS filesystem
-  and account for each other's private-image capacity. Storage failure goes cold.
-  `--runner-cache-budget-gib` caps the free space and capacity they see below
-  the quota (`volume_space.go`), so the budget can change without a new
-  volume; APFS cannot change a quota after the volume is created.
-  Admission, convergence and cache eviction also preserve the host's 15% physical
-  free-space floor. Custom admission reclaims its own masters first, then built-in
-  masters/convergence staging under the shared lock; remeasure actual space after
-  deletion because running CoW clones can pin blocks. Never reclaim live branches.
-  A background prefetch the server listed for the host gives way first: built-in
-  and custom job admission cancel it and drop its reservation (twice its volume
-  size) before evicting any master (`displaceSpareLocked`).
+- Custom and checkout admission share the quota-bounded APFS filesystem.
+  Storage failure goes cold. `--runner-cache-budget-gib` caps the free space
+  and capacity they see below the quota (`volume_space.go`), so the budget can
+  change without a new volume; APFS cannot change a quota after the volume is
+  created. Admission and cache eviction also preserve the host's 15% physical
+  free-space floor. Custom admission evicts its own masters first, then idle
+  checkout copies (`reclaim`); remeasure actual space after deletion because
+  running CoW clones can pin blocks. Never reclaim live branches.
+  A background prefetch the server listed for the host gives way first: job
+  admission cancels it and drops its reservation (twice its volume size)
+  before evicting any master (`displaceSpareLocked`).
   Among custom masters, eviction takes superseded generations and unused spare
   prefetches first and the lineages a running or attaching job holds last
   (`LocalImages.InUse`); see `runner-cache/AGENTS.md`.
@@ -117,8 +195,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
 - Logs: `logger=custom-cache-volumes` carries `cache phase` (one per
   `Observation`, with the volume's subject fields), `cache master evicted`, and
   `admission cancelled a background prefetch` (the cancelled prefetch's `scope`
-  plus the `for_*` subject it made room for; `for_kind=builtin` for built-in
-  admission). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
+  plus the `for_*` subject it made room for), and `removed leftovers from the
+  runner-cache root` (`removed`, `freed_bytes`). Fields are listed in [`runner-cache`](../runner-cache/AGENTS.md).
   The `tuist_runner_cache_volume_*` metrics keep only operation/source/result.
   Everything that happened to one volume on a host:
 
@@ -132,12 +210,6 @@ workflow code runs in the guest. Never expose host credentials or masters.
   label matches the same lines. The Linux agent logs the same fields as JSON
   under `cache volume operation` and `cache master evicted`.
 
-- Built-in volume telemetry is sampled in the guest at attach and before detach,
-  then attributed and queued by the host after finalization. Reports use the
-  existing per-machine host token and a private fsynced queue under the cache root.
-  Preserve execution binding, bounded guest-file reads, retry idempotency, and the
-  separation between a superseded canonical measurement and physical deletion.
-
 - Custom admission locks cover reservation only, never remote downloads or image
   creation. Count remaining growth for running VMs and recover it from journals.
   Master prefetch runs one download at a time from a bounded, deduplicated queue:
@@ -145,7 +217,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
   custom HEADs the server lists for the host class (free space only, no eviction).
   Jobs never wait on it. It is reserved and joined at stop. Unavailable responses
   carry a bounded `reason` and the host logs why; a 425 retried until the
-  deadline is `execution_pending`, not `denied`.
+  deadline is `execution_pending`, not `denied`. `CustomVolumes.request` and the
+  transfers send server requests through `cachevolumes.DoServer`, which repeats
+  them on a dropped connection or a 502-504 inside the same deadline.
   A job never waits for a download. Without its base locally it mounts the newest
   older master of the same lineage (reported as `mounted_generation`), or else an
   empty image marked `.cold` that reports a miss and is withheld from publication

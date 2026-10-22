@@ -108,14 +108,35 @@ struct XCActivityLogParserTests {
     @Test func buildSteps_classifiesModernSwiftCompilation() async throws {
         let result = try await parseFixture("clean-build")
         #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.target == "App" })
-        #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.title.hasPrefix("Emit Swift module") })
+        #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.title.hasPrefix("Emitting module for ") })
         #expect(result.build_steps.contains { $0.category == "scriptExecution" })
         #expect(!result.build_steps.contains { $0.title.hasPrefix("Build target ") })
     }
 
+    @Test func buildSteps_emitsSwiftJobsWithTheirOwnInterval() async throws {
+        let result = try await parseFixture("xcode_27_local_cache_misses")
+        let job = try #require(result.build_steps.first { $0.title == "Compiling Alpha.swift, Bravo.swift, Charlie.swift" })
+        #expect(job.category == "swiftCompilation")
+        #expect(job.duration_ms > 5)
+        #expect(job.log.contains("Local cache found for key:"))
+        #expect(job.log.contains("Alpha.swift"))
+        #expect(!result.build_steps.contains { $0.title == "Compile Alpha.swift" })
+    }
+
+    @Test func buildSteps_foldsSwiftJobChildDiagnostics() async throws {
+        let result = try await parseFixture("xcode_27_failed_build")
+        let job = try #require(result.build_steps.first { $0.title == "Emitting module for SmartBlocksStream" })
+        #expect(job.log.contains("is deprecated"))
+    }
+
+    @Test func buildSteps_marksSwiftJobsWithFailingChildrenAsFailed() async throws {
+        let result = try await parseFixture("failed-build")
+        #expect(result.build_steps.contains { $0.title.hasPrefix("Compiling ") && $0.status == "failure" })
+    }
+
     @Test func buildSteps_retainsRecordedStepCommands() async throws {
         let result = try await parseFixture("xcode_26_cas_clean_build")
-        let step = try #require(result.build_steps.first { $0.log.hasPrefix("EmitSwiftModule normal") })
+        let step = try #require(result.build_steps.first { $0.log.contains("\nEmitSwiftModule normal") })
         #expect(step.log.contains("EmitSwiftModule normal"))
         #expect(step.log.contains("cd "))
         #expect(!step.log_truncated)
@@ -140,6 +161,24 @@ struct XCActivityLogParserTests {
         let interval = BuildStepData.interval(start: 10.5, end: 12, buildStart: 10, buildEnd: 20)
         #expect(interval?.0 == 500)
         #expect(interval?.1 == 1500)
+    }
+
+    @Test func buildSteps_logDeduplicatesNonASCIIText() {
+        let path = "/Users/José/Projects/🙂App/カフェ.swift"
+        let log = BuildStepLog.render(
+            signature: "Compile App",
+            command: "",
+            output: "警告: \(path)\nok",
+            messages: ["警告: \(path)", "注意 🚀 naïve", "©", "Cafe\u{301}"],
+            limit: 1000
+        )
+        #expect(log.text == "Compile App\n警告: \(path)\nok\n注意 🚀 naïve\n©\nCafe\u{301}")
+        #expect(!log.truncated)
+
+        // Byte matching never splits a character: "©" (C2 A9) shares its last
+        // byte with "é" (C3 A9), and canonically equivalent spellings stay distinct.
+        let distinct = BuildStepLog.render(signature: "Café", command: "", output: "", messages: ["©", "Cafe\u{301}"], limit: 1000)
+        #expect(distinct.text == "Café\n©\nCafe\u{301}")
     }
 
     @Test func buildSteps_logNormalizesAndDeduplicatesBeforeTruncation() {

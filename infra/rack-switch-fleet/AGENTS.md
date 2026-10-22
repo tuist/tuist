@@ -1158,11 +1158,26 @@ addresses and the gateways.
   seconds, and graceful restart asks the upstream to keep the routes
   meanwhile. Each prefix is a blackhole in BIRD's own table and nothing BIRD
   learns goes into the node's routes, so the default through the WAN stays
-  keepalived's and announcing changes nothing the rack sends: the machines
-  are still translated onto the WAN address. Of what the upstream sends, only
+  keepalived's and announcing changes nothing the rack sends on its own: what
+  moves machines onto the prefix is the egress below. Of what the upstream sends, only
   a default route is kept. `birdc -s /run/bird/bird.ctl show protocols` in
   the pod's `bgp` container shows the sessions. CI parses every site's
   `bird.conf` with the BIRD the edge image installs.
+- **Egress from the site's own prefix.** `management.edge.wan.egress.prefix`
+  is an IPv4 block inside a prefix `bgp` announces (`95.130.119.16/28`), and
+  the Mac minis on the machines segment go out to the WAN translated into it
+  instead of onto the WAN address: one `snat ... persistent` rule in
+  `mgmt-path.sh`, ahead of the segment's masquerade, so a mini keeps the same
+  address of the block across its connections. The upstream routes the
+  announced prefix to the WAN address, and the replies are untranslated by
+  conntrack before routing, so the edges hold no address of the block.
+  `egress.nodes` limits it to the named minis, for moving them over one env
+  at a time: `ber1-runner-b01` (staging's lent mini) first, then
+  `ber1-runner-b02` (canary's), then the key dropped so every mini moves.
+  The storage nodes never move: their cluster addresses are the WAN address,
+  forwarded to them by the edges, and their egress has to match. `render`
+  refuses a block outside the announced prefixes and a node that is not a
+  Mac mini on the segment (`fleet_edge_check_egress`).
 
 ### Cold boot
 

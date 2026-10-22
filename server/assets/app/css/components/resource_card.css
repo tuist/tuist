@@ -1,0 +1,18 @@
+.tuist-resource-card-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+
+  @media (forced-colors: active) {
+    display: none;
+  }
+
+  & path,
+  & rect,
+  & circle {
+    stroke: var(--noora-surface-border-primary);
+  }
+}

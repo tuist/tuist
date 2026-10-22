@@ -5,7 +5,8 @@ Rust core owns the hierarchical domain/section catalog and destinations; the CLI
 uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
 strings or routes. Authentication networking and OAuth state live in the independent
 Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
-and secure persistence. Orbit, tasks, sales accounts, manual invoice bookkeeping, time off,
+and secure persistence. Automation is native (run, monitor, approve) through Browse;
+workflow authoring remains web-first. Orbit, tasks, sales accounts, manual invoice bookkeeping, time off,
 and Profile are native on both platforms. Mobile navigation hides browser-only
 catalog entries and empty ancestor groups. Profile uses authenticated APIs on the
 selected server. OAuth tokens are not browser cookies.
@@ -31,10 +32,10 @@ selected server. OAuth tokens are not browser cookies.
   graph.
 - `cli/`: host Rust executable sharing the catalog; see `cli/AGENTS.md`.
 - `core/include/`: authored C header and Clang module map imported by Swift.
-- `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
+- `android/`: Kotlin platform-widget UI, JNI adapter, manifest and resources; see `android/AGENTS.md`.
+- `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge/form tests; see `ios/AGENTS.md`.
 - `android/distribution/`: stable-key Android signing and publication guard; see
   `android/distribution/AGENTS.md`. PR/debug builds must never supply verified-link identities.
-- `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions.
   iOS also offers Sign in with Google using the shared Rust provider hint and the
@@ -82,10 +83,31 @@ Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
 Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
+## Native Automation
+
+The shared auth crate allowlists authenticated JSON requests and bounded Phoenix
+WebSocket subscriptions; navigation core stays dependency-free. The server owns
+contract validation, revision checks, authorization, durable progress and approvals.
+Native controls project supported schemas and explicitly fall back to web for
+unsupported shapes. Do not execute workflow source on a phone or render server HTML.
+
+A reviewed launch freezes revision, inputs and a UUID request ID. Securely retain an
+unconfirmed request and replay it unchanged; never turn a timeout into a new request.
+Pending requests belong to the credential lifetime and are cleared on explicit new
+sign-in/sign-out. Execution watches are foreground-only, reconcile on reconnect and
+HTTP fallback, and report real phases/steps/waits rather than percentage progress.
+Approval confirmation shows the persisted payload and binds its digest to the decision.
+Protected results are fetched separately, never carried on progress channels.
+
+Automation has no ActivityKit/WidgetKit extension or background execution/approval
+notification integration. Once 0.68.2 has no Apple extension target. The separate
+native push subsystem below supports other fixed notification kinds; do not imply
+that it delivers Automation progress or decisions. Do not keep Automation sockets
+alive in suspended apps or claim real-device activity validation.
 ## Workspace navigation
 
 - The signed-in shell has five stable destinations: Orbit, Accounts, Finance, Browse, and Profile. Orbit is the feature, with stable navigation ID `orbit`; Thread is the persistent entity. Keep `orbit_session`, `/api/native/orbit/threads`, `orbit:thread:<uuid>` and `orbit:me` aligned with the server, with explicit private/shared thread terminology. Tasks remains a native Browse shortcut; existing task links open Browse → Tasks, including direct record reads. iOS uses a native TabView, sidebar-adaptable on iPad/iOS 18+, without automatic More overflow. Android uses platform widgets with readable 48dp+ destination controls and larger-text wrapping. Browse is a searchable hierarchical directory of implemented native screens only. Add future domains there rather than expanding the tab bar indefinitely. Unavailable permissions show an explanation inside a stable tab, not a disappearing destination.
-- `core/src/navigation.rs` owns stable IDs, titles, descriptions, parent groups, canonical URLs, native screen keys, shortcut placement, and required browser scopes. Root domains mirror Atlas: Overview, Commercial, Outbound, Engineering, People, Operations, Library, and Admin. Commercial contains Sales, Finance, and GTM; Operations contains Hardware. The catalog includes the existing domain entry points, including customer evaluations, vendor costs, postal correspondence, engineering specs, hardware financing/insurance, documents, and administrative tools. Add future destinations/groups here rather than hard-coding new menus in either platform.
+- `core/src/navigation.rs` owns stable IDs, titles, descriptions, parent groups, canonical URLs, native screen keys, shortcut placement, and required browser scopes. Root domains mirror Atlas: Automation, Overview, Commercial, Outbound, Engineering, People, Operations, Library, and Admin. Automation uses its own native feature views through Browse without adding a sixth top-level tab; retain the original five section indices and the expanded eight-field bridge. Commercial contains Sales, Finance, and GTM; Operations contains Hardware. The catalog includes the existing domain entry points, including customer evaluations, vendor costs, postal correspondence, engineering specs, hardware financing/insurance, documents, and administrative tools. Add future destinations/groups here rather than hard-coding new menus in either platform.
 - C/JNI section fields 0–3 and the original five indices remain compatible. Fields 4–7 expose stable ID, group ID, shortcut flag, and required web scope. The parallel group bridge exposes title, description, stable ID, parent ID, and placement. Group strings have the same immutable process-lifetime ownership and primitive JNI rules as section strings. Rust tests enforce unique routes/IDs, reachable nonempty groups, valid parents, acyclicity, and stable original destinations.
 - iOS `AtlasWorkspaceView` composes native NavigationStack/List destinations. Android `AtlasWorkspaceModel` owns the selected group and search without retaining an Activity; `AtlasWorkspaceScreen` owns SearchView and directory rows, and `AtlasHomeScreen` composes the stable destinations. Retain models across configuration changes, save only validated navigation IDs for process restoration, disable automatic form/search state persistence, and detach old listeners. Back clears search before ascending the hierarchy, with system Back/Up support; drafts survive rotation and failed saves.
 - The shared catalog/CLI retain web routes, but mobile never displays browser-only entries. Scope metadata is descriptive, never a local authorization grant; Atlas enforces actual access. Implement future native adapters under the same stable destination IDs without changing the information architecture.
@@ -110,6 +132,14 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - iOS account details use `AtlasAccountDetailSections` for grouped overview, billing/address and collapsible related records with read-only drilldowns. Contract values come from the server's derived term value, not a potentially stale scalar. Load details on entry/refresh and after closing the editor; list refresh must not discard already loaded details. Older servers retain the basic field view. Document summaries are server-filtered by `documents:read`; no native download or storage URL is introduced.
 - Finance is read-only bank overview plus manual invoice bookkeeping, not bank administration or payments. Imported/linked invoices are read-only even for finance writers. iOS `AtlasFinanceOverviewView` uses the server's optional unfiltered `finance_overview` for cash, burn, runway and six months of income/expenses in one reporting currency. Preserve it across appended invoice pages and replace it on refresh. Show no-account, missing-FX and older-server explanations rather than zero/partial totals. Swift Charts has distinct income/expense series and exact textual monthly values. Android's legacy chart still uses original-currency invoice `summary`; do not relabel invoice totals as cashflow or balances.
 - Profile follows Tuist iOS's grouped identity/email/version/sign-out layout, adding the selected server URL, authenticated server version, and existing Claude/ChatGPT settings. Display the server-reported application version, never a protocol constant or invented revision. Profile does not grant identity or server configuration writes.
+
+## Native push notifications
+
+- Push is opt-in from Profile, separate from presence. The server advertises configured platforms through optional `push_notifications` in Profile. Older servers remain usable. Lock-screen content stays generic; tap URLs re-enter the existing origin-bound destination parser and still require server authorization.
+- The shared `auth/src/push.rs` owns fixed bearer registration routes. Swift `AtlasPushNotifications` and Kotlin `AtlasPushNotifications` own platform consent/token callbacks and serialized registration/cleanup. Installation IDs and cleanup markers use the existing device-only secure stores. Mark a registration disabled before discarding an authenticated session; a new user never inherits opt-in. Retry offline cleanup on the same origin using that installation's native OAuth client. Encrypted registration and cleanup records are keyed by canonical server origin, so another server's pending cleanup neither inherits opt-in nor blocks enrollment. Rejected startup sessions must disable the saved session's origin even before the push coordinator is configured. Deleted IDs are terminal and must be replaced.
+- iOS uses the application and notification-center delegates, registers with APNs on launch/foreground, and passes cold-start taps through AtlasNavigation. A queued generic alert can still be displayed by iOS after logout because the app cannot retract an already accepted provider alert. Signing derives the environment from the provisioning profile; see `ios/distribution/AGENTS.md`.
+- Android uses the official Firebase SDK, explicit Application initialization and data-only messages. The service never authenticates or registers devices: it drops messages unless a current encrypted session and enabled server registration match the payload. Runtime notification permission, a notification channel, and Google Play services are required. No Firebase identifiers means disabled push, not broken authentication. Public project identifiers can be imported with `python3 android/push/configure.py /path/to/google-services.json`; never use a service-account JSON in the app. See [Android push packaging](android/push/AGENTS.md) for the lock, manifest audit and final-APK resource gate.
+- No production credentials, cloud resources or provider configuration are provisioned by builds. Physical-device foreground/background/terminated delivery and account-switch smoke tests remain required before enabling production notifications.
 
 ## Server-controlled appearance
 

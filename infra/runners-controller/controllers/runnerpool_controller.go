@@ -214,7 +214,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Setting on first reconcile (when `ObservedImage` is empty) is
 	// fine — there are no stale Pods yet, and the timestamp just
 	// establishes the t=0 baseline for any future roll.
+	//
+	// The image being replaced goes to `status.previousImage`, which
+	// tart-kubelet reads to pull the new image on hosts holding the old one
+	// before its GC reaps the old one.
 	if pool.Status.ObservedImage != pool.Spec.Image {
+		if pool.Status.ObservedImage != "" {
+			pool.Status.PreviousImage = pool.Status.ObservedImage
+		}
 		pool.Status.ObservedImage = pool.Spec.Image
 		pool.Status.ImageRolledAt = metav1.Now()
 	}

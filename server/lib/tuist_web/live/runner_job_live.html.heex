@@ -132,7 +132,7 @@
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerJobLive.run_duration_ms(@job),
+                  TuistWeb.Helpers.RunnerJobDurations.run_ms(@job),
                   fractional_seconds: false
                 )}
               </span>
@@ -142,7 +142,7 @@
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerJobLive.queued_duration_ms(@job),
+                  TuistWeb.Helpers.RunnerJobDurations.queued_ms(@job),
                   fractional_seconds: false
                 )}
               </span>

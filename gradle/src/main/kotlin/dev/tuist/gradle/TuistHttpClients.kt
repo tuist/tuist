@@ -16,6 +16,8 @@ import java.util.concurrent.TimeUnit
  * metrics, SSL) live in exactly one place, and the underlying OkHttp connection
  * pool is shared.
  *
+ * Requests the plugin sends retry transient failures with [retryPolicy] (see [TuistRetry]).
+ *
  * When the `HTTPS_PROXY` or `HTTP_PROXY` environment variable is set, the
  * clients automatically route requests through it by default; otherwise they use
  * direct connections. Callers can opt out by setting [useEnvironmentProxy] to
@@ -25,7 +27,8 @@ open class TuistHttpClients(
     private val useEnvironmentProxy: Boolean = true,
     private val proxyURLProvider: () -> String? = { environmentProxyURL() },
     private val environmentVariables: Map<String, String> = System.getenv(),
-    private val pluginVersion: String? = PluginVersion.current
+    private val pluginVersion: String? = PluginVersion.current,
+    val retryPolicy: RetryPolicy = RetryPolicy()
 ) {
 
     val javaProxy: java.net.Proxy? by lazy {

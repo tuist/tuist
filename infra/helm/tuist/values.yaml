@@ -2186,27 +2186,16 @@ macosFleet:
     # bootstraps every macOS fleet in the cluster, so raising the global
     # over-provisions every single-guest host in all of them.
     guestCapacity: 1
-  # Per-account cache volumes. When gib > 0, bootstrap
+  # Runner cache volumes. When gib > 0, bootstrap
   # provisions a quota-bounded APFS volume of that many GiB on each Mac
-  # mini to hold per-account cache-volume images, and turns the feature on
+  # mini to hold the runner cache volumes, and turns the feature on
   # in tart-kubelet (--runner-cache-root). The quota is the aggregate
   # ceiling for all cache volumes on the host — the filesystem bound that
   # keeps them from ever starving the VM image path. Operator-wide (the
   # provider applies it to every Mac it bootstraps); 0 (default) leaves the
-  # feature off and every runner VM boots on the status-quo cold path.
+  # feature off.
   runnerCacheVolume:
     gib: 0
-    # Per-account master image cap (GiB). The image is sparse so this is a
-    # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
-    masterCapGib: 0
-    # Turns on the Xcode compilation cache (CAS) folded into each per-account
-    # cache image (> 0). The CAS and the binary cache share masterCapGib less a
-    # reserve of max(2 GiB, 20% of the cap), which the guest divides by what
-    # each holds. This value is the CAS's share of the fixed split that runner
-    # images older than that division apply, the binary cache getting the rest.
-    # 0 (default) leaves the compilation cache VM-local (dies with the VM); the
-    # binary cache is unaffected.
-    casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set
@@ -2580,11 +2569,7 @@ runnersFleet:
     # Keep it equal to what those two actually admit.
     guestCapacity: ~
     # Per-SKU override of `macosFleet.runnerCacheVolume.gib`. The right
-    # quota tracks the SKU's disk, and these differ by 4x. Resident
-    # cache masters scale as `gib/masterCapGib - (liveBranches + 1)`
-    # and a dual-guest host can hold two live branches, so a host
-    # running two guests needs a LARGER quota than a single-guest one
-    # just to keep the same number of accounts hot. The provisioning
+    # quota tracks the SKU's disk, and these differ by 4x. The provisioning
     # script never resizes, so this only takes effect on a fresh host.
     #
     # Unlike the fields above, this one reads on PRESENCE: null (or

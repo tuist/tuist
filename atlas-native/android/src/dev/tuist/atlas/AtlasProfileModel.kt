@@ -12,6 +12,8 @@ class AtlasProfileModel(
         private set
     var version = ""
         private set
+    var pushAvailable = false
+        private set
     var busy = false
         private set
     var error: String? = null
@@ -34,6 +36,7 @@ class AtlasProfileModel(
                     name = nextName
                     email = nextEmail
                     version = nextVersion
+                    pushAvailable = response.optJSONObject("push_notifications")?.optBoolean("android") == true
                 } catch (_: Exception) {
                     error = "Could not read your Atlas profile. Try again."
                 }
@@ -49,6 +52,7 @@ class AtlasProfileModel(
         name = ""
         email = ""
         version = ""
+        pushAvailable = false
         error = null
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Testing
+import TuistEnvironment
 import TuistTesting
 
 @testable import TuistServer
@@ -126,9 +127,12 @@ struct RefreshOAuthTokenServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment()) func refreshTokens_reports_server_errors_as_transient() async throws {
-        let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { _ in
-            Self.response(statusCode: 503, json: [:])
+    @Test(.withMockedEnvironment()) func refreshTokens_reports_server_errors_as_transient_once_retries_run_out() async throws {
+        try withoutRetryDelay()
+        let requests = RequestRecorder()
+        let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { request in
+            requests.record(request)
+            return Self.response(statusCode: 503, json: [:])
         }
 
         do {
@@ -138,6 +142,59 @@ struct RefreshOAuthTokenServiceTests {
             #expect(error as? RefreshAuthTokenServiceError == .unknownError(503))
             #expect(ServerErrorClassifier.isTransient(error))
         }
+        #expect(requests.requests.count == 5)
+    }
+
+    @Test(.withMockedEnvironment()) func refreshTokens_sends_the_refresh_again_after_a_transient_failure() async throws {
+        try withoutRetryDelay()
+        let requests = RequestRecorder()
+        let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { request in
+            requests.record(request)
+            switch requests.requests.count {
+            case 1: return Self.response(statusCode: 502, json: [:])
+            case 2: throw URLError(.networkConnectionLost)
+            default:
+                return Self.response(
+                    statusCode: 200,
+                    json: ["access_token": "new-access-token", "refresh_token": "new-refresh-token"]
+                )
+            }
+        }
+
+        let got = try await subject.refreshTokens(serverURL: serverURL, refreshToken: "refresh-token")
+
+        #expect(got.refreshToken == "new-refresh-token")
+        #expect(requests.requests.count == 3)
+        #expect(Set(requests.requests.map(\.httpBody)).count == 1)
+    }
+
+    @Test(.withMockedEnvironment(), arguments: [
+        (400, ["error": "invalid_grant", "error_description": "Revoked."], RefreshAuthTokenServiceError.unauthorized("Revoked.")),
+        (401, ["error": "invalid_client", "error_description": "Invalid client."], .unauthorized("Invalid client.")),
+        (400, ["error": "invalid_request"], .badRequest),
+        (200, ["token_type": "bearer"], .unauthorized("The refresh token is expired or invalid")),
+    ])
+    func refreshTokens_does_not_send_a_rejected_refresh_again(
+        statusCode: Int,
+        json: [String: String],
+        expected: RefreshAuthTokenServiceError
+    ) async throws {
+        try withoutRetryDelay()
+        let requests = RequestRecorder()
+        let subject = RefreshOAuthTokenService(serverEnvironmentService: serverEnvironmentService) { request in
+            requests.record(request)
+            return Self.response(statusCode: statusCode, json: json)
+        }
+
+        await #expect(throws: expected) {
+            try await subject.refreshTokens(serverURL: serverURL, refreshToken: "refresh-token")
+        }
+        #expect(requests.requests.count == 1)
+    }
+
+    private func withoutRetryDelay() throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS"] = "0"
     }
 
     private static func response(statusCode: Int, json: [String: String]) -> (Data, URLResponse) {

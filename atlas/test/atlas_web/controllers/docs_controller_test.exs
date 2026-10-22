@@ -1,6 +1,8 @@
 defmodule AtlasWeb.DocsControllerTest do
   use AtlasWeb.ConnCase, async: true
 
+  alias Atlas.Automations.Interfaces
+  alias Atlas.Automations.Plan
   alias AtlasWeb.DocsHTML
 
   test "documentation is public and marked for the shared crawler rate limits", %{conn: conn} do
@@ -76,7 +78,9 @@ defmodule AtlasWeb.DocsControllerTest do
     assert Enum.empty?(LazyHTML.query(document, "[data-part=hero-cards]"))
     assert Enum.count(LazyHTML.query(document, "#docs-nav-tabs")) == 1
     assert Enum.count(LazyHTML.query(document, "#docs-mobile-nav-tabs")) == 1
-    assert Enum.count(LazyHTML.query(document, "#docs-sidebar [data-part=nav-link]")) == 4
+    assert Enum.count(LazyHTML.query(document, "#docs-sidebar [data-part=nav-link]")) == 5
+    assert Enum.count(LazyHTML.query(document, "#docs-sidebar [data-part=nav-link][href='/docs/automation']")) == 1
+    assert Enum.count(LazyHTML.query(document, "#docs-content a[href='/docs/automation']")) == 1
     assert Enum.count(LazyHTML.query(document, "#docs-sidebar [data-part=nav-link][href='/docs']")) == 1
     assert Enum.count(LazyHTML.query(document, "#docs-sidebar [data-part=nav-link][href='/docs/mcps']")) == 1
     assert Enum.count(LazyHTML.query(document, "#docs-sidebar [data-part=nav-link][href='/docs/ai-accounts']")) == 1
@@ -153,7 +157,7 @@ defmodule AtlasWeb.DocsControllerTest do
            |> String.trim() == "MCP"
 
     assert document
-           |> LazyHTML.query("#docs-sidebar [data-part=nav-link]")
+           |> LazyHTML.query("#docs-sidebar [data-part=nav-link][href='/docs/ai-account-tools']")
            |> LazyHTML.text()
            |> String.trim() == "AI accounts"
 
@@ -168,6 +172,49 @@ defmodule AtlasWeb.DocsControllerTest do
     assert DocsHTML.page("ai-account-tools").category == "References"
     assert DocsHTML.page("ai-account-tools").section == "MCP"
     assert response(get(conn, "/docs-markdown/ai-account-tools"), 200) == DocsHTML.page("ai-account-tools").markdown
+  end
+
+  test "Automation guide includes a valid plan with the documented task output references", %{conn: conn} do
+    page = DocsHTML.page("automation")
+    [_, source] = Regex.run(~r/```json\n(.*?)\n```/s, page.markdown)
+    plan = JSON.decode!(source)
+    assert {:ok, %{"steps" => [create, record]}} = Plan.compile(plan)
+    assert create["behavior"]["type"] == "tasks.create"
+    assert create["behavior"]["version"] == 2
+
+    assert {:ok, %{"title" => "Prepare documents"}} =
+             Plan.resolve(create["inputs"], %{"title" => "Prepare documents"}, %{})
+
+    outputs = %{"create_task" => %{"task" => %{"id" => "created-task", "title" => "Prepare documents"}}}
+
+    assert {:ok, %{"task_id" => "created-task", "title" => "Prepare documents"}} =
+             Plan.resolve(record["inputs"], %{}, outputs)
+
+    document = conn |> get("/docs/automation") |> html_response(200) |> LazyHTML.from_document()
+    text = document |> LazyHTML.query("#docs-content") |> LazyHTML.text()
+    assert text =~ "Build and run workflows"
+    assert text =~ "Background push delivery and Live Activities are not implemented"
+    assert text =~ "including a local macOS server"
+    assert text =~ "automation:write"
+    assert text =~ "Browse → Automation"
+    assert page.category == "Guides"
+    assert page.sidebar_title == "Automation"
+    assert response(get(conn, "/docs-markdown/automation"), 200) == page.markdown
+  end
+
+  test "Automation reference covers every shared interface operation", %{conn: conn} do
+    page = DocsHTML.page("automation-tools")
+    document = conn |> get("/docs/automation-tools") |> html_response(200) |> LazyHTML.from_document()
+    text = document |> LazyHTML.query("#docs-content") |> LazyHTML.text()
+
+    for operation <- Interfaces.operations(), do: assert(text =~ operation.mcp)
+
+    assert page.category == "References"
+    assert page.section == "MCP"
+    assert text =~ "request_id"
+    assert text =~ "revision_id"
+    assert text =~ "Cache-Control: no-store"
+    assert response(get(conn, "/docs-markdown/automation-tools"), 200) == page.markdown
   end
 
   test "ChatGPT operator setup belongs to self-hosting, not the upstream MCP guide", %{conn: conn} do

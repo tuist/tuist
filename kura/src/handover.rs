@@ -816,6 +816,7 @@ mod tests {
                 handover: Some(intent.clone()),
                 barrier: None,
                 resume_epoch: None,
+                exit_resume: None,
             })
             .unwrap();
         state
@@ -2085,6 +2086,7 @@ mod tests {
             handover: Some(intent.clone()),
             barrier: None,
             resume_epoch: None,
+            exit_resume: None,
         };
         let _ = state.runtime.authority.install(grant);
         let receipt = Receipt {
@@ -2319,6 +2321,7 @@ mod tests {
                 handover: Some(intent.clone()),
                 barrier: None,
                 resume_epoch: None,
+                exit_resume: None,
             })
             .unwrap();
         intent

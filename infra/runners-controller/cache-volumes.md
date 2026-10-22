@@ -176,6 +176,9 @@ GitHub's execution webhook can arrive after the first workflow step. An open
 Linux session without that verified binding returns an explicit pending response;
 the agent waits up to 30 seconds, retrying once per second. A denied identity is
 not retried, and no volume is allocated before verified attribution arrives.
+Every agent request to the server is idempotent and is sent again, within the
+same budget, when a server rollout closes its connection or the server answers
+502, 503 or 504 (`DoServer` in `../runner-cache`).
 
 The journal is persisted and fsynced before creating a branch. Cold images are
 formatted in a private temporary file and atomically renamed before exposure;

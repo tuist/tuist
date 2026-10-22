@@ -15,6 +15,7 @@ defmodule Atlas.MCP.ToolCase do
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.Event
   alias Atlas.Accounts.Invoice
+  alias Atlas.Automations.DomainRegistry
   alias Atlas.MCP.Tool
   alias Atlas.Outreach.Candidate
   alias Atlas.Repo
@@ -39,7 +40,20 @@ defmodule Atlas.MCP.ToolCase do
   def execute_tool(module, conn, args) do
     case module.execute(conn, args) do
       {:ok, payload} = result ->
-        Tool.json_response(payload, module)
+        response = Tool.json_response(payload, module)
+
+        for entry <- DomainRegistry.entries(),
+            entry["source_tool"] == module.name(),
+            DomainRegistry.adapter(entry) == module do
+          case ExJsonSchema.Validator.validate(
+                 ExJsonSchema.Schema.resolve(entry["output_schema"]),
+                 response["structuredContent"]
+               ) do
+            :ok -> :ok
+            _ -> raise "Frozen workflow output contract drifted: #{entry["name"]}@#{entry["version"]}"
+          end
+        end
+
         result
 
       other ->

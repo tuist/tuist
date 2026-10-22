@@ -598,10 +598,7 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={integrations_path}
       />
       <.tab_menu_horizontal_item
-        :if={
-          Accounts.organization?(@selected_account) and
-            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
-        }
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Authentication")}
         selected={String.starts_with?(@current_path, authentication_path)}
         navigate={authentication_path}

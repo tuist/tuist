@@ -19,6 +19,7 @@ This directory contains the core business logic and domain modules for the serve
 - `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 
 - Public overview values use `KeyValueStore`, opting into shared Redis with a bounded Cachex fallback. `KeyValueStore.LoadLimiter` only admits and coalesces misses; it never stores values. Soft timeouts retain worker slots until remote work finishes. Propagate `$callers` to workers for sandbox and mock ownership. Keep docs/marketing `ContentCache` independent of analytics.
+- `OIDC` keeps built-in repository providers separate from account-configured workload providers with account-wide CI access. Custom identities require a target account, exact policy issuer/audience/typed claims and verification by that policy's own public HTTPS JWKS endpoint. Unsigned hints only prefilter bounded verification work; recheck current account-policy evidence before issuing a CI-only `all_projects: true` credential. This intentionally covers current and future projects; existing project authorization must still enforce current account ownership. Never cache authorization or interpret custom repository claims as a VCS grant. See [oidc/AGENTS.md](oidc/AGENTS.md) for SSRF, algorithm, fetch, cache and request bounds.
 - `SCIM.provision_user/2` preserves existing stored membership roles unless the identity provider supplies a recognized role. Apply the SSO enrollment default only when creating a membership, including reactivation after deprovisioning. Explicit role changes, group removals and deactivation remain authoritative; keep role resolution inside the existing transaction and membership lock.
 - Ecto schemas, contexts, and domain services.
 - `Kura.Origins` discards counts for deleted accounts when persisting a batch. It locks surviving account keys within the write transaction so concurrent deletion cannot invalidate the batch or discard other accounts' counts.
@@ -101,6 +102,7 @@ This directory contains the core business logic and domain modules for the serve
 - Ecto: `server/lib/tuist/ecto/AGENTS.md`
 - Github: `server/lib/tuist/github/AGENTS.md`
 - Http: `server/lib/tuist/http/AGENTS.md`
+- Idempotent Requests (report creation retries): `server/lib/tuist/idempotent_requests/AGENTS.md`
 - Ingestion: `server/lib/tuist/ingestion/AGENTS.md`
 - Key Value Store: `server/lib/tuist/key_value_store/AGENTS.md`
 - Kura: `server/lib/tuist/kura/AGENTS.md`

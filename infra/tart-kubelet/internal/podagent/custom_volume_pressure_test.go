@@ -15,7 +15,7 @@ import (
 func pressured(t *testing.T) (*CustomVolumes, *fakeBackend, cachevolumes.Slot, cachevolumes.Slot) {
 	t.Helper()
 	m, be := m2L(t)
-	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m, reservations: map[string]cachevolumes.Slot{}}
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m, reservations: map[string]cachevolumes.Slot{}}
 	c.images = &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: c.Root}}
 	custom := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111"}, State: "active"}
 	checkout := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "22222222-2222-4222-8222-222222222222", Kind: cachevolumes.KindCheckout}, State: "active"}
@@ -53,7 +53,7 @@ func TestPressureNearTheQuotaWithholdsRunningBranches(t *testing.T) {
 
 func TestPressureOnTheHostDiskWithholdsRunningBranches(t *testing.T) {
 	c, _, custom, _ := pressured(t)
-	c.Builtins.HostDiskSpace = func() (hostdisk.Stats, error) {
+	c.Space.HostDiskSpace = func() (hostdisk.Stats, error) {
 		return hostdisk.Stats{TotalBytes: 2000 * gib, FreeBytes: customPressureBytes - 1}, nil
 	}
 
@@ -68,7 +68,7 @@ func TestPressureOnTheHostDiskWithholdsRunningBranches(t *testing.T) {
 // is overcommitted, and that gap is what absorbs a job that writes more than expected.
 func TestOvercommitWithinTheQuotaPublishesNormally(t *testing.T) {
 	c, be, custom, _ := pressured(t)
-	c.Builtins.BudgetGiB = 1
+	c.Space.BudgetGiB = 1
 	be.totalBytes = 80 * gib
 
 	c.notePressure(context.Background())
@@ -90,7 +90,7 @@ func TestRelieveEvictsIdleCustomMastersOnceJobsOutgrowAdmission(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m, be := m2L(t)
 			be.totalBytes = tc.free
-			c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m, reservations: map[string]cachevolumes.Slot{}}
+			c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Space: m, reservations: map[string]cachevolumes.Slot{}}
 			c.reservations["11111111-1111-4111-8111-111111111111"] = cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111"}, State: "allocated"}
 			b := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{Root: c.Root, SizeGB: 20, FreeBytesContext: c.freeBytesContext}}
 			if err := b.Init(); err != nil {

@@ -671,6 +671,64 @@ STUB
     [[ "$output" == *"stale: "*"/sites/ber1/bird.conf"* ]]
 }
 
+@test "the Mac minis the site's egress names go out from its block of the site's own prefix, and everything else from the WAN address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'
+    machines='    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade'
+    # the named minis first, so their translation wins over the segment's
+    [[ "$output" == *"$snat"$'\n'"$machines"* ]]
+    # the management segment and the standby keep the WAN address
+    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
+    # without nodes every Mac mini moves, and the storage node, in the
+    # cluster under the WAN address, does not
+    jq '.management.edge.wan.egress |= del(.nodes)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/allminis.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/allminis.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109 } snat ip to 95.130.119.16-95.130.119.31 persistent'* ]]
+    [[ "$output" != *"10.10.0.11 "* ]]
+    [[ "$output" != *"10.10.0.11,"* ]]
+    # without an egress the machines all go out from the WAN address
+    jq '.management.edge.wan |= del(.egress)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/noegress.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/noegress.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"snat"* ]]
+    [[ "$output" == *"$machines"* ]]
+}
+
+@test "an egress outside the site's announced prefixes, or naming something that is not a Mac mini, is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/badegress.json"
+    jq '.management.edge.wan.egress.prefix = "95.130.118.16/28"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'95.130.118.16/28' is not inside an IPv4 prefix management.edge.wan.bgp announces"* ]]
+    jq '.management.edge.wan.egress.prefix = "95.130.119.17/28"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an IPv4 network with its prefix length"* ]]
+    jq '.management.edge.wan.egress.prefix = "95.130.118.0/23"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan |= del(.bgp)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan.egress.nodes = ["ber1-store-a"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'ber1-store-a' is not a Mac mini on the machines segment"* ]]
+    run fleet_edge_check "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "a prefix's range runs from its network address to its last address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    [ "$(fleet_prefix_range 95.130.119.16/28)" = "95.130.119.16-95.130.119.31" ]
+    [ "$(fleet_prefix_range 95.130.119.0/24)" = "95.130.119.0-95.130.119.255" ]
+    [ "$(fleet_prefix_range 95.130.119.7/32)" = "95.130.119.7-95.130.119.7" ]
+}
+
 @test "the edges' VLANs are tagged only on the ports facing an edge's data links and on the ISL" {
     for tor in ber1-tor-a ber1-tor-b; do
         run fleet_render "$SITE_FILE" "$tor"
@@ -1033,7 +1091,8 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"ber1-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.10.0.2/24 peer_address=10.255.255.2 uplinks="* ]]
     [[ "$output" == *"ber1-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.10.0.3/24 peer_address=10.255.255.1 uplinks="* ]]
-    [[ "$output" != *"10.10.0.1"* ]]
+    # the gateway itself, not a machine address it is a prefix of
+    [[ ! "$output" =~ 10\.10\.0\.1([^0-9]|$) ]]
     for edge in ber1-edge-a ber1-edge-b; do
         run fleet_edge_keepalived "$SITE_FILE" "$edge"
         [ "$status" -eq 0 ]

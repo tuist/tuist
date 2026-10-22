@@ -10,3 +10,5 @@ Run Atlas on your infrastructure with the [self-hosting guide](/docs/self-hostin
 [Connect your Claude or ChatGPT account](/docs/ai-accounts) in your account settings.
 
 Connect other tool servers through Atlas with the [MCPs guide](/docs/mcps).
+
+Build repeatable processes with the [Automation guide](/docs/automation): publish versioned workflows, review exact approvals, and monitor their executions on web and mobile.

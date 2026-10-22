@@ -312,9 +312,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/vcs-connection`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)`.
     func disconnectProjectRepository(_ input: Operations.disconnectProjectRepository.Input) async throws -> Operations.disconnectProjectRepository.Output
-    /// Exchange a CI provider OIDC token for a Tuist access token.
+    /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    /// Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -666,7 +666,7 @@ public protocol APIProtocol: Sendable {
     func listWebhookDeliveryAttempts(_ input: Operations.listWebhookDeliveryAttempts.Input) async throws -> Operations.listWebhookDeliveryAttempts.Output
     /// Shows the usage of an organization
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// Returns the usage of the organization with the given identifier.
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
@@ -1947,9 +1947,9 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Exchange a CI provider OIDC token for a Tuist access token.
+    /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    /// Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -2861,7 +2861,7 @@ extension APIProtocol {
     }
     /// Shows the usage of an organization
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// Returns the usage of the organization with the given identifier.
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
@@ -6617,6 +6617,51 @@ public enum Components {
                 case status
             }
         }
+        /// The usage of one usage-based meter over a billing period, in the meter's unit, and what it is charged so far.
+        ///
+        /// - Remark: Generated from `#/components/schemas/OrganizationUsageMeter`.
+        public struct OrganizationUsageMeter: Codable, Hashable, Sendable {
+            /// The amount beyond the included allowance.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsageMeter/billable`.
+            public var billable: Swift.Int
+            /// What the billable amount is charged so far, in US cents. Only Pro accounts are charged for it; other plans report 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsageMeter/charge_cents`.
+            public var charge_cents: Swift.Int
+            /// The amount included in every billing period at no cost.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsageMeter/included`.
+            public var included: Swift.Int
+            /// The amount metered so far in the period. For cache meters, traffic served from a Tuist Runners cache region counts at half.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsageMeter/used`.
+            public var used: Swift.Int
+            /// Creates a new `OrganizationUsageMeter`.
+            ///
+            /// - Parameters:
+            ///   - billable: The amount beyond the included allowance.
+            ///   - charge_cents: What the billable amount is charged so far, in US cents. Only Pro accounts are charged for it; other plans report 0.
+            ///   - included: The amount included in every billing period at no cost.
+            ///   - used: The amount metered so far in the period. For cache meters, traffic served from a Tuist Runners cache region counts at half.
+            public init(
+                billable: Swift.Int,
+                charge_cents: Swift.Int,
+                included: Swift.Int,
+                used: Swift.Int
+            ) {
+                self.billable = billable
+                self.charge_cents = charge_cents
+                self.included = included
+                self.used = used
+            }
+            public enum CodingKeys: String, CodingKey {
+                case billable
+                case charge_cents
+                case included
+                case used
+            }
+        }
         /// This response confirms that the upload has been completed successfully.
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadCompletion`.
@@ -7723,18 +7768,28 @@ public enum Components {
         public typealias TestCasesIndexPageSize = Swift.Int
         /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest`.
         public struct OIDCTokenExchangeRequest: Codable, Hashable, Sendable {
-            /// The OIDC JWT token from the CI provider.
+            /// Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest/account_handle`.
+            public var account_handle: Swift.String?
+            /// The OIDC JWT token from a supported CI or workload identity provider.
             ///
             /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest/token`.
             public var token: Swift.String
             /// Creates a new `OIDCTokenExchangeRequest`.
             ///
             /// - Parameters:
-            ///   - token: The OIDC JWT token from the CI provider.
-            public init(token: Swift.String) {
+            ///   - account_handle: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+            ///   - token: The OIDC JWT token from a supported CI or workload identity provider.
+            public init(
+                account_handle: Swift.String? = nil,
+                token: Swift.String
+            ) {
+                self.account_handle = account_handle
                 self.token = token
             }
             public enum CodingKeys: String, CodingKey {
+                case account_handle
                 case token
             }
         }
@@ -8719,23 +8774,95 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPage`.
         public typealias RunsIndexPage = Swift.Int
-        /// The usage of an organization.
+        /// The usage of an organization over its current billing period. `cache_egress` is in bytes, `cache_requests` in requests, and `passing_test_cases` in test cases; test cases run on Tuist Runners are not counted. Charges are in US cents.
         ///
         /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
         public struct OrganizationUsage: Codable, Hashable, Sendable {
-            /// The number of remote cache hits in the current month
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/cache_egress`.
+            public var cache_egress: Components.Schemas.OrganizationUsageMeter
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/cache_requests`.
+            public var cache_requests: Components.Schemas.OrganizationUsageMeter
+            /// Deprecated. No longer computed and always 0.
             ///
             /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_remote_cache_hits`.
+            @available(*, deprecated)
             public var current_month_remote_cache_hits: Swift.Double
+            /// The sum of the cache, test case, and runner charges so far in the period, in US cents, before any prepaid credit.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/estimated_charge_cents`.
+            public var estimated_charge_cents: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/passing_test_cases`.
+            public var passing_test_cases: Components.Schemas.OrganizationUsageMeter
+            /// The current billing period: the subscription's billing cycle, or the calendar month for an organization without a subscription.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/period`.
+            public struct periodPayload: Codable, Hashable, Sendable {
+                /// The end of the period, exclusive.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationUsage/period/end`.
+                public var end: Foundation.Date
+                /// The start of the period, inclusive.
+                ///
+                /// - Remark: Generated from `#/components/schemas/OrganizationUsage/period/start`.
+                public var start: Foundation.Date
+                /// Creates a new `periodPayload`.
+                ///
+                /// - Parameters:
+                ///   - end: The end of the period, exclusive.
+                ///   - start: The start of the period, inclusive.
+                public init(
+                    end: Foundation.Date,
+                    start: Foundation.Date
+                ) {
+                    self.end = end
+                    self.start = start
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case end
+                    case start
+                }
+            }
+            /// The current billing period: the subscription's billing cycle, or the calendar month for an organization without a subscription.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/period`.
+            public var period: Components.Schemas.OrganizationUsage.periodPayload
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsage/runner_minutes`.
+            public var runner_minutes: Components.Schemas.OrganizationUsageRunnerMinutes
             /// Creates a new `OrganizationUsage`.
             ///
             /// - Parameters:
-            ///   - current_month_remote_cache_hits: The number of remote cache hits in the current month
-            public init(current_month_remote_cache_hits: Swift.Double) {
+            ///   - cache_egress:
+            ///   - cache_requests:
+            ///   - current_month_remote_cache_hits: Deprecated. No longer computed and always 0.
+            ///   - estimated_charge_cents: The sum of the cache, test case, and runner charges so far in the period, in US cents, before any prepaid credit.
+            ///   - passing_test_cases:
+            ///   - period: The current billing period: the subscription's billing cycle, or the calendar month for an organization without a subscription.
+            ///   - runner_minutes:
+            public init(
+                cache_egress: Components.Schemas.OrganizationUsageMeter,
+                cache_requests: Components.Schemas.OrganizationUsageMeter,
+                current_month_remote_cache_hits: Swift.Double,
+                estimated_charge_cents: Swift.Int,
+                passing_test_cases: Components.Schemas.OrganizationUsageMeter,
+                period: Components.Schemas.OrganizationUsage.periodPayload,
+                runner_minutes: Components.Schemas.OrganizationUsageRunnerMinutes
+            ) {
+                self.cache_egress = cache_egress
+                self.cache_requests = cache_requests
                 self.current_month_remote_cache_hits = current_month_remote_cache_hits
+                self.estimated_charge_cents = estimated_charge_cents
+                self.passing_test_cases = passing_test_cases
+                self.period = period
+                self.runner_minutes = runner_minutes
             }
             public enum CodingKeys: String, CodingKey {
+                case cache_egress
+                case cache_requests
                 case current_month_remote_cache_hits
+                case estimated_charge_cents
+                case passing_test_cases
+                case period
+                case runner_minutes
             }
         }
         /// The URL to download the artifact from the cache.
@@ -17005,6 +17132,43 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsIndexPage`.
         public typealias TestCaseRunsIndexPage = Swift.Int
+        /// The Tuist Runners usage over a billing period and what it is charged so far.
+        ///
+        /// - Remark: Generated from `#/components/schemas/OrganizationUsageRunnerMinutes`.
+        public struct OrganizationUsageRunnerMinutes: Codable, Hashable, Sendable {
+            /// The charge so far for the runner usage beyond the included minutes, in US cents. Usage covered by a runner trial and platforms without a rate are not charged.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsageRunnerMinutes/charge_cents`.
+            public var charge_cents: Swift.Int
+            /// The runner minutes included in every billing period at no cost.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsageRunnerMinutes/included`.
+            public var included: Swift.Int
+            /// The whole runner minutes used so far in the period, across every platform.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OrganizationUsageRunnerMinutes/used`.
+            public var used: Swift.Int
+            /// Creates a new `OrganizationUsageRunnerMinutes`.
+            ///
+            /// - Parameters:
+            ///   - charge_cents: The charge so far for the runner usage beyond the included minutes, in US cents. Usage covered by a runner trial and platforms without a rate are not charged.
+            ///   - included: The runner minutes included in every billing period at no cost.
+            ///   - used: The whole runner minutes used so far in the period, across every platform.
+            public init(
+                charge_cents: Swift.Int,
+                included: Swift.Int,
+                used: Swift.Int
+            ) {
+                self.charge_cents = charge_cents
+                self.included = included
+                self.used = used
+            }
+            public enum CodingKeys: String, CodingKey {
+                case charge_cents
+                case included
+                case used
+            }
+        }
         /// The page number for offset pagination. Defaults to the first page when no cursor is supplied. Omit when using `after` or `before`.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPage`.
@@ -47217,9 +47381,9 @@ public enum Operations {
             }
         }
     }
-    /// Exchange a CI provider OIDC token for a Tuist access token.
+    /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    /// Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -47244,18 +47408,28 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The OIDC JWT token from the CI provider.
+                    /// Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json/account_handle`.
+                    public var account_handle: Swift.String?
+                    /// The OIDC JWT token from a supported CI or workload identity provider.
                     ///
                     /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json/token`.
                     public var token: Swift.String
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - token: The OIDC JWT token from the CI provider.
-                    public init(token: Swift.String) {
+                    ///   - account_handle: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+                    ///   - token: The OIDC JWT token from a supported CI or workload identity provider.
+                    public init(
+                        account_handle: Swift.String? = nil,
+                        token: Swift.String
+                    ) {
+                        self.account_handle = account_handle
                         self.token = token
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case account_handle
                         case token
                     }
                 }
@@ -47383,7 +47557,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Unsupported CI provider or missing repository claim
+            /// Unsupported provider or missing identity claims
             ///
             /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)/responses/400`.
             ///
@@ -47485,7 +47659,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// No projects linked to the repository
+            /// No repository-linked projects or ambiguous repository account
             ///
             /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)/responses/403`.
             ///
@@ -78800,7 +78974,7 @@ public enum Operations {
     }
     /// Shows the usage of an organization
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// Returns the usage of the organization with the given identifier.
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.

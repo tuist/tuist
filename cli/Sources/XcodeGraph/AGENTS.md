@@ -8,6 +8,9 @@ This directory embeds `tuist/XcodeGraph` into this repository as a local Swift p
 - `Sources/XcodeGraphMapper` - Mapping from XcodeProj models into XcodeGraph models.
 - `cli/Tests/XcodeGraphTests`, `cli/Tests/XcodeMetadataTests`, and `cli/Tests/XcodeGraphMapperTests` - Graph package tests in the root generated workspace. Native package mapping tests cover explicit dynamic hints, embedding roles, and unchanged legacy serialized values.
 
+## Source Identity
+- `SourceFile.contentHashIsPlaceholder` distinguishes script-generated declaration fingerprints from actual file-content checksums. Missing/nil preserves legacy decoding and normal-source encoding; keep existing initializer signatures and hashing inputs unchanged. Generated accessor checksums are not placeholders.
+
 ## Scheme Build Actions
 - `BuildAction.buildFor` stores per-target purpose overrides: an absent key enables all five purposes, while an explicit empty set enables none.
 - Mapping duplicate Xcode scheme build entries unions their purposes and retains one target reference in first-occurrence order.
