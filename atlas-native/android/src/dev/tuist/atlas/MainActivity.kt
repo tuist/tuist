@@ -9,6 +9,8 @@ import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.MenuItem
+import android.view.View
+import android.view.ViewTreeObserver
 import android.widget.EditText
 import android.widget.Toast
 import android.window.OnBackInvokedCallback
@@ -16,6 +18,11 @@ import android.window.OnBackInvokedDispatcher
 
 class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
+    private lateinit var appearance: AtlasAppearance
+    private var baseDark = false
+    private var recreating = false
+    private var themeRoot: View? = null
+    private var themeLayout: ViewTreeObserver.OnGlobalLayoutListener? = null
     private var settings: AtlasAIAccountsScreen? = null
     private var accounts: AtlasAIAccountsModel? = null
     private var profile: AtlasProfileModel? = null
@@ -43,12 +50,24 @@ class MainActivity : Activity() {
         val businesses: MutableMap<String, AtlasBusinessModel>,
         val tab: String,
         val presence: AtlasPresenceModel?,
+        val appearance: AtlasAppearance,
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val retained = lastNonConfigurationInstance as? Retained
+        appearance = retained?.appearance ?: AtlasAppearance(applicationContext)
+        baseDark = appearance.dark
+        setTheme(
+            if (appearance.mode == "system") {
+                R.style.AtlasTheme
+            } else if (baseDark) {
+                android.R.style.Theme_Material_NoActionBar
+            } else {
+                android.R.style.Theme_Material_Light_NoActionBar
+            },
+        )
         super.onCreate(savedInstanceState)
         title = getString(R.string.app_name)
-        val retained = lastNonConfigurationInstance as? Retained
         authentication = retained?.authentication ?: AtlasAuthentication(this)
         accounts = retained?.accounts
         profile = retained?.profile
@@ -65,11 +84,12 @@ class MainActivity : Activity() {
     }
 
     override fun onRetainNonConfigurationInstance(): Any =
-        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab, presence)
+        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab, presence, appearance)
 
     override fun onStart() {
         super.onStart()
         authentication.listener = { render() }
+        appearance.listener = { appearanceChanged() }
         render()
         presence?.setActive(authentication.server != null)
     }
@@ -77,6 +97,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         presence?.setActive(false)
         authentication.listener = null
+        appearance.listener = null
         super.onStop()
     }
 
@@ -92,11 +113,36 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         closeScreen(cancelPending = !isChangingConfigurations)
         unregisterBack?.invoke()
+        themeLayout?.let { themeRoot?.viewTreeObserver?.removeOnGlobalLayoutListener(it) }
         if (!isChangingConfigurations) {
             clearModels()
             authentication.close()
+            appearance.close()
         }
         super.onDestroy()
+    }
+
+    override fun onContentChanged() {
+        super.onContentChanged()
+        themeLayout?.let { themeRoot?.viewTreeObserver?.removeOnGlobalLayoutListener(it) }
+        val root = findViewById<View>(android.R.id.content)
+        themeRoot = root
+        val listener = ViewTreeObserver.OnGlobalLayoutListener { appearance.apply(this, root) }
+        themeLayout = listener
+        root.viewTreeObserver.addOnGlobalLayoutListener(listener)
+        appearance.apply(this, root)
+    }
+
+    private fun appearanceChanged() {
+        if (baseDark != appearance.dark) {
+            if (!recreating) {
+                recreating = true
+                recreate()
+            }
+            return
+        }
+        settings?.appearanceChanged()
+        themeRoot?.let { appearance.apply(this, it) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -112,6 +158,8 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
+        appearance.configure(authentication.server)
+        if (recreating) return
         authentication.authorizationURL?.let { url ->
             authentication.authorizationURL = null
             openBrowser(Uri.parse(url))
@@ -198,6 +246,7 @@ class MainActivity : Activity() {
                         }
                     settings = screen
                     screen.profile(identity, ::updateBack)
+                    screen.appearance(appearance)
                     screen.view
                 }
                 else -> {
@@ -218,6 +267,7 @@ class MainActivity : Activity() {
 
     private fun selectTab(value: String) {
         if (value == tab || value !in tabIds || businesses[tab]?.saving == true) return
+        appearance.showingSettings = false
         closeScreen()
         tab = value
         showHome()
@@ -312,13 +362,13 @@ class MainActivity : Activity() {
 
     private fun updateBack() {
         if (tab == "profile" && settings != null) {
-            presence?.show(if (accounts?.page == "settings") "profile" else null)
+            presence?.show(if (settings?.isDetail != true) "profile" else null)
         }
         val canUp =
-            people != null || timeOff != null || (tab == "profile" && accounts?.page != "settings") ||
+            people != null || timeOff != null || (tab == "profile" && settings?.isDetail == true) ||
                 (business != null && businesses[tab]?.canBack == true) || (workspace != null && navigation?.canBack == true)
         actionBar?.setDisplayHomeAsUpEnabled(canUp)
-        home?.fullScreen(businesses[tab]?.draft != null || (tab == "profile" && accounts?.page != "settings"))
+        home?.fullScreen(businesses[tab]?.draft != null || (tab == "profile" && settings?.isDetail == true))
         unregisterBack?.invoke()
         unregisterBack = null
         if (Build.VERSION.SDK_INT >= 33 && authentication.server != null && (canUp || tab != "tasks")) {

@@ -98,6 +98,13 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - Finance is manual invoice bookkeeping, not bank administration or payments. Imported/linked invoices are read-only even for finance writers. Monthly charts use the server's unpaginated, unfiltered summary and keep currencies separate. Use Swift Charts on iOS and accessible platform Canvas plus exact textual values on Android; do not call invoice totals cashflow or balances.
 - Profile follows Tuist iOS's grouped identity/email/version/sign-out layout, adding the selected server URL, authenticated server version, and existing Claude/ChatGPT settings. Display the server-reported application version, never a protocol constant or invented revision. Profile does not grant identity or server configuration writes.
 
+## Server-controlled appearance
+
+- `auth/src/themes.rs` owns optional credential-free catalog fetch/validation under `/api/native/themes`, plus bundled Atlas defaults. Unsupported/invalid/unreachable catalogs must never affect OAuth state or block the workspace. Newer clients work with older servers, including their authenticated dynamic route returning 401. See [the versioned server contract](../atlas/lib/atlas_web/controllers/AGENTS.md). Keep all three production Rust Once source lists aligned.
+- Swift `AtlasAppearance` and Kotlin `AtlasAppearance` cache only validated catalogs and theme/appearance preferences per canonical selected server origin, using a worker independent of the credential coordinator. Refresh on foreground with a five-minute minimum interval; reject late results after server changes. Retain an unavailable theme ID but render the current server default, then bundled Atlas. Sign-out restores unthemed login. Profile → Appearance selects Server default or a published theme and System/Light/Dark locally, never a server-side user setting.
+- Appearance is local-only: clear Profile's viewing location on entry, just as AI-account child screens do. Location-free presence must not report a same-page hint or place a banner over native navigation.
+- Preserve platform controls, hierarchy, semantic status colors, Dynamic Type/font scaling, 44pt/48dp targets and native navigation. iOS keeps system row surfaces/labels/chrome; custom canvas/tint and app-owned preview/action styling follow HIG color and accessibility guidance. Increased contrast drops custom iOS styling. Server tokens cannot download fonts, inject CSS, resize native controls or replace navigation. Avoid a universal screen/state framework for theming.
+
 ## AI account settings
 
 - iOS opens native AI settings from Profile using SwiftUI Form, NavigationLink, SecureField, and confirmation dialogs. Android uses the platform Toolbar, wrapping two-line list rows, a dedicated secure-token screen, and AlertDialog for destructive confirmation. Mobile apps exclude catalog settings destinations from Browse; the shared catalog/CLI keep the existing `/settings/llm-providers` web destination.
@@ -142,6 +149,7 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - `mise run prepare:rust` materializes locked third-party sources in ignored `.once/vendor`.
   Build/test tasks depend on it; run it before invoking Once directly on a clean checkout.
   Run vendor preparation serially, not concurrently with builds that read that directory.
+  Vendoring uses HTTP/1.1 to avoid repeated crates.io HTTP/2 framing failures on macOS runners.
   Once 0.68.2 does not yet include the source-materialization fix in tuist/once#390;
   keep this required workaround until a published Once version includes that fix.
   The Android task exposes API-26 NDK clang and LLVM tools to Cargo build scripts through
