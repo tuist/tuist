@@ -45,6 +45,12 @@ omitting it preserves generic browser login, including self-hosted providers.
   server/transport failure. Native adapters persist rotated credentials before
   exposing a signed-in state. Authenticated API calls restore through the same coordinator to avoid concurrent refresh-token reuse. Both native adapters persist rotated credentials before making an API request, including when that request subsequently fails. iOS queues requests/sign-out on the main-actor coordinator; Android uses its existing single worker and drains pending login cancellation before shutdown.
 
+## TLS policy
+
+`certificate_trust.rs` is embedded locally and byte-synchronized with the CAS verifier by the shared Go tests. Keep Rustls/WebPKI pins qualified, deny blocked anchors and preserve normal certificate/hostname and handshake-signature verification. HTTP uses the single preconfigured protected client; presence must pass the explicit protected WSS connector. A TLS failure publishes only `secure_connection_failed` and stops that reconnect loop; never format credential-bearing requests/errors or retry through another transport. Keep native image loading separate to preserve OS roots.
+
+`certificate_trust_tests.rs` covers real policy DER, ordinary/private-CA controls, production HTTP/WSS accepted-key differentials and opt-in public controls (`TUIST_TRUST_LIVE=1`). Both production and incident-root-added controls require typed policy-specific failures. Declare policy source and PEM fixtures in the relevant Once targets; source tests are not shipped-artifact qualification.
+
 ## Build and test
 
 The root Once graph has independent host, iOS and Android Cargo dependency targets,

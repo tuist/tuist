@@ -814,16 +814,30 @@ private object AccountLogos {
                 val bitmap =
                     runCatching {
                         val encoded = URLEncoder.encode(domain, "UTF-8")
-                        val http =
-                            URI(
-                                "https://www.google.com/s2/favicons?domain=$encoded&sz=128",
-                            ).toURL().openConnection() as HttpURLConnection
+                        var http =
+                            AtlasCertificateTrust.openConnection(
+                                URI("https://www.google.com/s2/favicons?domain=$encoded&sz=128").toURL(),
+                            )
                         connection.set(http)
                         try {
                             if (cancelled.get()) return@runCatching null
                             val deadline = android.os.SystemClock.elapsedRealtime() + 10_000
-                            http.connectTimeout = 3000
-                            http.readTimeout = 3000
+                            for (hop in 0..5) {
+                                if (cancelled.get() || android.os.SystemClock.elapsedRealtime() >= deadline) return@runCatching null
+                                http.connectTimeout = 3000
+                                http.readTimeout = 3000
+                                if (http.responseCode !in listOf(301, 302, 303, 307, 308)) break
+                                if (hop == 5) return@runCatching null
+                                val location = http.getHeaderField("Location") ?: return@runCatching null
+                                val next =
+                                    http.url
+                                        .toURI()
+                                        .resolve(location)
+                                        .toURL()
+                                http.disconnect()
+                                http = AtlasCertificateTrust.openConnection(next)
+                                connection.set(http)
+                            }
                             if (http.responseCode != 200) return@runCatching null
                             val data = ByteArray(256 * 1024 + 1)
                             var size = 0
