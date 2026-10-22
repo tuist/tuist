@@ -247,7 +247,7 @@ A node finds peers in three ways:
 
 1. **Static seeds** from `KURA_PEERS`. Static config is immutable for the process lifetime, so it carries **platform-stable peers only** (the managed regions' public peer gateways); volatile membership lives in the dynamic layer below.
 2. **Control-plane dynamic membership** (`src/mesh_heartbeat.rs`): enrolled self-hosted nodes send a mesh heartbeat every ~60s (cadence server-advertised) whose response carries the current peer list; managed pods fetch the same view read-only when `KURA_MESH_PEERS_SYNC` is set, with serving gated on the first successful fetch (a pod booting blind would accept writes without enqueuing replication for peers it cannot see). Additions **and removals** propagate at heartbeat cadence with no restart; a failed heartbeat keeps the last-known view, so a degraded control plane can never shrink the mesh.
-3. **DNS-based discovery** via `KURA_DISCOVERY_DNS_NAME`, which resolves to the addresses of the other pods (typical when running as a Kubernetes `StatefulSet` behind a headless service).
+3. **DNS-based discovery** via `KURA_DISCOVERY_DNS_NAME`, which resolves to the addresses of the other pods (typical when running as a Kubernetes `StatefulSet` behind a headless service). A failed lookup reuses the name's last answer for up to five minutes, so one dropped query cannot empty the membership view; the status probe below still removes an address that stopped answering.
 
 A `spawn_membership_task` loop polls each candidate's `GET /_internal/status` every two seconds. Only peers that respond with the same `tenant_id` and a different `node_url` are admitted as members. The local node never lists itself.
 
