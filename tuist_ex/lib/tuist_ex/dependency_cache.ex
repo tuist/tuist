@@ -87,6 +87,7 @@ defmodule TuistEx.DependencyCache do
 
             {pending, _support} =
               Enum.reduce(dependencies, {[], %{}}, fn dependency, {pending, support} ->
+                status = dependency.status
                 dependency = check_dependency(dependency, options)
 
                 cond do
@@ -102,8 +103,12 @@ defmodule TuistEx.DependencyCache do
 
                     {pending, support}
 
+                  dependency.status == status and selected?(dependency, options) and
+                      batchable_bypass?(dependency, dependencies_by_app, options) ->
+                    {[{dependency, "custom_compiler"} | pending], support}
+
                   selected?(dependency, options) ->
-                    compile_dependencies(Enum.reverse(pending))
+                    compile_pending(pending, reporter)
                     context = capture_context(options)
 
                     observation =
@@ -115,17 +120,71 @@ defmodule TuistEx.DependencyCache do
                   local_chain?(dependency, dependencies) ->
                     {pending, support}
 
+                  dependency.status != status or not is_nil(Compiler.builder(dependency, options)) ->
+                    compile_pending(pending, reporter)
+                    compile_dependencies([dependency])
+                    {[], %{}}
+
                   true ->
-                    {[dependency | pending], support}
+                    {[{dependency, nil} | pending], support}
                 end
               end)
 
-            compile_dependencies(Enum.reverse(pending))
+            compile_pending(pending, reporter)
             Mix.Dep.load_and_cache()
           end
         )
       end
     )
+  end
+
+  defp batchable_bypass?(dependency, dependencies, options) do
+    chain = [dependency | closure(dependency, dependencies, MapSet.new())]
+
+    if Enum.all?(chain, & &1.scm.fetchable?()) and
+         Enum.all?(chain, &is_nil(Compiler.builder(&1, options))) and
+         not Enum.any?(Code.compiler_options()[:tracers] || [], &(&1 != CompileProfile)) do
+      if not Enum.all?(chain, &Compiler.supported_manager?(&1, nil)),
+        do: throw(:custom_compiler)
+
+      Enum.each(chain, &structural_model(&1, options))
+    end
+
+    false
+  rescue
+    _ -> false
+  catch
+    :custom_compiler -> true
+    _, _ -> false
+  end
+
+  defp compile_pending([], _reporter), do: :ok
+
+  defp compile_pending(pending, reporter) do
+    pending = Enum.reverse(pending)
+    dependencies = Enum.map(pending, &elem(&1, 0))
+    started = now()
+
+    # Tiny bypass batches cost more to boot in worker VMs than to compile here.
+    if length(dependencies) < 4 and Enum.any?(pending, &(not is_nil(elem(&1, 1)))) do
+      Enum.each(dependencies, &compile_dependencies([&1]))
+    else
+      compile_dependencies(dependencies)
+    end
+
+    Report.debug(
+      "tuist cache: compiled #{length(dependencies)} deferred dependencies in #{now() - started}ms"
+    )
+
+    for {dependency, reason} <- pending, not is_nil(reason) do
+      # Mix owns the batch timing; no per-application duration was measured.
+      CompileReporter.record_cache(
+        reporter,
+        observation(dependency, "bypass", reason, "", 0, nil)
+      )
+    end
+
+    :ok
   end
 
   defp prefetch_requests(key, dependency, dependencies, options) do

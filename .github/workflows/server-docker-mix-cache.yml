@@ -109,7 +109,7 @@ jobs:
             echo 'Compare only samples with the same compiler configuration. Deterministic mode is opt-in, not the SDK default.'
             echo 'Seed is separate. Input keys include this run ID and attempt so reruns cannot reuse a previous seed.'
             echo 'Remote samples start with an empty local artifact store; no Mix snapshot volume is attached.'
-            echo 'Four Erlang schedulers; three dependency workers configured, but selected cache misses/bypasses compile serially.'
+            echo 'Four Erlang schedulers; three dependency workers configured. Cache misses remain serial; consecutive structural bypasses may use workers.'
             echo 'Downloads/source reset are outside the timers. Native download caches remain shared across samples.'
             echo 'RPC read durations exclude local staging; inspect complete process times, coverage and degraded flags.'
             echo 'Missing seeded dependencies, including key drift or bypasses, fail after all samples are recorded.'

@@ -1223,6 +1223,119 @@ defmodule TuistEx.DependencyCacheTest do
              result["dependency_cache"]
   end
 
+  @tag wall_clock: true
+  test "structurally bypassed selected dependencies retain worker batching and compiler failures",
+       %{
+         project: project,
+         dir: dir
+       } do
+    [first | _] = bypass_upstreams!(dir, true)
+    mixfile = Path.join(project, "mix.exs")
+    File.write!(mixfile, String.replace(File.read!(mixfile), "dependencies: [:dep_probe], ", ""))
+    result = run!(project, [{"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "2"}])
+    assert result["value"] == 1
+    assert result["output"] =~ "mix deps.compile running across 2 OS processes"
+    assert length(result["dependency_cache"]) == 5
+
+    assert Enum.all?(
+             result["dependency_cache"],
+             &(&1["outcome"] == "bypass" and &1["reason"] == "custom_compiler" and
+                 &1["duration_ms"] == 0)
+           )
+
+    File.write!(Path.join(first, "lib/probe.ex"), "not valid elixir (")
+    commit!(first)
+    {output, status} = mix(project, ["deps.update", "batch_first"])
+    assert status == 0, output
+    File.rm_rf!(Path.join(project, "_build"))
+    File.rm!(Path.join(project, "result.json"))
+    {output, status} = run(project, [{"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "2"}])
+    assert status != 0
+    assert output =~ "mix deps.compile running across 2 OS processes"
+    refute File.exists?(Path.join(project, "result.json"))
+    refute File.exists?(Path.join(dir, "cache"))
+  end
+
+  @tag wall_clock: true
+  test "unselected builders repair missing outputs outside worker batches", %{
+    project: project,
+    dir: dir
+  } do
+    native_fixture!(project, dir)
+    bypass_upstreams!(dir, false)
+    package = Path.join(dir, "package/mix.exs")
+
+    File.write!(
+      package,
+      String.replace(
+        File.read!(package),
+        "IO.puts(\"NATIVE PROBE BUILD\")",
+        ~s{if File.regular?(Path.join(Mix.Project.compile_path(), "Elixir.DepProbe.beam")), do: throw(:skip_native)\nIO.puts("NATIVE PROBE BUILD")}
+      )
+    )
+
+    File.write!(
+      package,
+      String.replace(
+        File.read!(package),
+        "{:ok, []}\n  end",
+        "{:ok, []}\n  catch\n    :skip_native -> {:noop, []}\n  end"
+      )
+    )
+
+    commit!(Path.join(dir, "package"))
+    mixfile = Path.join(project, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(
+        File.read!(mixfile),
+        "dependencies: [:dep_probe]",
+        "dependencies: [:batch_first]"
+      )
+    )
+
+    env = [{"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "2"}]
+    assert run!(project, env)["value"] == 7
+    File.rm!(Path.join(project, "_build/dev/lib/dep_probe/priv/probe"))
+
+    for app <- ~w(batch_first batch_second batch_third batch_fourth),
+        do: File.rm_rf!(Path.join(project, "_build/dev/lib/#{app}"))
+
+    result = run!(project, env)
+    assert result["value"] == 7
+    assert result["output"] =~ "NATIVE PROBE BUILD"
+    assert result["output"] =~ "mix deps.compile running across 2 OS processes"
+
+    local = Path.join(project, "local_probe")
+    File.mkdir_p!(Path.join(local, "lib"))
+
+    File.write!(
+      Path.join(local, "mix.exs"),
+      "defmodule LocalProbe.MixProject do\nuse Mix.Project\ndef project, do: [app: :local_probe, version: \"0.1.0\"]\nend"
+    )
+
+    File.write!(Path.join(local, "lib/probe.ex"), "defmodule LocalProbe, do: def(value, do: 1)")
+    source = File.read!(package)
+    source = String.replace(source, "deps: [", "deps: [{:local_probe, path: #{inspect(local)}}, ")
+
+    source =
+      String.replace(
+        source,
+        "IO.puts(\"NATIVE PROBE BUILD\")",
+        "1 = LocalProbe.value()\nIO.puts(\"NATIVE PROBE BUILD\")"
+      )
+
+    File.write!(package, source)
+    commit!(Path.join(dir, "package"))
+    {output, status} = mix(project, ["deps.update", "dep_probe"])
+    assert status == 0, output
+    File.rm_rf!(Path.join(project, "_build"))
+    result = run!(project, env)
+    assert result["value"] == 7
+    assert result["output"] =~ "Generated local_probe app"
+  end
+
   test "application defaults do not prevent publication or change warm restore keys", %{
     project: project,
     dir: dir
@@ -2132,6 +2245,38 @@ defmodule TuistEx.DependencyCacheTest do
     {_output, status} = run(project)
     assert status != 0
     assert length(File.ls!(Path.join(dir, "cache"))) == 1
+  end
+
+  defp bypass_upstreams!(dir, aliases?) do
+    repos =
+      for app <- [:batch_first, :batch_second, :batch_third, :batch_fourth] do
+        repo = Path.join(dir, Atom.to_string(app))
+        File.mkdir_p!(Path.join(repo, "lib"))
+        aliases = if aliases?, do: ~s(aliases: ["compile.all": ["compile.all"]],), else: ""
+
+        File.write!(
+          Path.join(repo, "mix.exs"),
+          "defmodule #{Macro.camelize(Atom.to_string(app))}.MixProject do\nuse Mix.Project\ndef project, do: [app: #{inspect(app)}, version: \"0.1.0\", #{aliases} deps: []]\nend"
+        )
+
+        File.write!(
+          Path.join(repo, "lib/probe.ex"),
+          "defmodule #{Macro.camelize(Atom.to_string(app))}, do: def(value, do: 1)"
+        )
+
+        git!(repo, ["init", "--quiet"])
+        commit!(repo)
+        {app, repo}
+      end
+
+    package = Path.join(dir, "package/mix.exs")
+
+    deps =
+      Enum.map_join(repos, ", ", fn {app, repo} -> "{#{inspect(app)}, git: #{inspect(repo)}}" end)
+
+    File.write!(package, String.replace(File.read!(package), "deps: []", "deps: [#{deps}]"))
+    commit!(Path.join(dir, "package"))
+    Enum.map(repos, &elem(&1, 1))
   end
 
   defp native_fixture!(project, dir) do
