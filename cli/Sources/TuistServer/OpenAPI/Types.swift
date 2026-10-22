@@ -11036,7 +11036,7 @@ public enum Components {
                     public var unmeasured_copies: Swift.Int
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/used_bytes`.
                     public var used_bytes: Swift.Int?
-                    /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                    /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                     ///
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/volume_bytes`.
                     public var volume_bytes: Swift.Int?
@@ -11055,7 +11055,7 @@ public enum Components {
                     ///   - unmeasured_capacity_copies:
                     ///   - unmeasured_copies:
                     ///   - used_bytes:
-                    ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                    ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                     public init(
                         architecture: Swift.String,
                         capacity_bytes: Swift.Int? = nil,
@@ -12168,7 +12168,7 @@ public enum Components {
             public var unmeasured_copies: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/used_bytes`.
             public var used_bytes: Swift.Int?
-            /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+            /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/volume_bytes`.
             public var volume_bytes: Swift.Int?
@@ -12187,7 +12187,7 @@ public enum Components {
             ///   - unmeasured_capacity_copies:
             ///   - unmeasured_copies:
             ///   - used_bytes:
-            ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+            ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
             public init(
                 architecture: Swift.String,
                 capacity_bytes: Swift.Int? = nil,
@@ -18326,7 +18326,7 @@ public enum Components {
                 public var unmeasured_copies: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/used_bytes`.
                 public var used_bytes: Swift.Int?
-                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/volume_bytes`.
                 public var volume_bytes: Swift.Int?
@@ -18345,7 +18345,7 @@ public enum Components {
                 ///   - unmeasured_capacity_copies:
                 ///   - unmeasured_copies:
                 ///   - used_bytes:
-                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                 public init(
                     architecture: Swift.String,
                     capacity_bytes: Swift.Int? = nil,
@@ -23995,7 +23995,7 @@ public enum Components {
                 public var unmeasured_copies: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/used_bytes`.
                 public var used_bytes: Swift.Int?
-                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/volume_bytes`.
                 public var volume_bytes: Swift.Int?
@@ -24014,7 +24014,7 @@ public enum Components {
                 ///   - unmeasured_capacity_copies:
                 ///   - unmeasured_copies:
                 ///   - used_bytes:
-                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                 public init(
                     architecture: Swift.String,
                     capacity_bytes: Swift.Int? = nil,
@@ -45613,7 +45613,7 @@ public enum Operations {
                         public var unmeasured_copies: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/used_bytes`.
                         public var used_bytes: Swift.Int?
-                        /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                        /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/volume_bytes`.
                         public var volume_bytes: Swift.Int?
@@ -45632,7 +45632,7 @@ public enum Operations {
                         ///   - unmeasured_capacity_copies:
                         ///   - unmeasured_copies:
                         ///   - used_bytes:
-                        ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                        ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                         public init(
                             architecture: Swift.String,
                             capacity_bytes: Swift.Int? = nil,
@@ -58214,7 +58214,7 @@ public enum Operations {
                                 public var unmeasured_copies: Swift.Int
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/used_bytes`.
                                 public var used_bytes: Swift.Int?
-                                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                                 ///
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/volume_bytes`.
                                 public var volume_bytes: Swift.Int?
@@ -58233,7 +58233,7 @@ public enum Operations {
                                 ///   - unmeasured_capacity_copies:
                                 ///   - unmeasured_copies:
                                 ///   - used_bytes:
-                                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                                 public init(
                                     architecture: Swift.String,
                                     capacity_bytes: Swift.Int? = nil,
@@ -107130,7 +107130,7 @@ public enum Operations {
                             public var unmeasured_copies: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/used_bytes`.
                             public var used_bytes: Swift.Int?
-                            /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                            /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/volume_bytes`.
                             public var volume_bytes: Swift.Int?
@@ -107149,7 +107149,7 @@ public enum Operations {
                             ///   - unmeasured_capacity_copies:
                             ///   - unmeasured_copies:
                             ///   - used_bytes:
-                            ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                            ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets.
                             public init(
                                 architecture: Swift.String,
                                 capacity_bytes: Swift.Int? = nil,

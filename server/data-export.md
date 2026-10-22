@@ -529,8 +529,7 @@ The archive contains everything needed to understand the account's complete data
 - **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
   provider, provider instance, immutable scope ID, optional numeric repository/project ID,
   repository or pipeline display name, user-chosen key, platform (Linux or macOS), architecture,
-  execution UID, generation, published head use UUID, a legacy built-in storage name
-  column that is no longer read (null for every remaining volume),
+  execution UID, generation, published head use UUID,
   a legacy additional writer branch list that is no longer read (empty for every volume),
   the repository's default branch as last reported by GitHub (nullable),
   the capacity in bytes the latest job that may save requested for the volume (nullable),
@@ -549,12 +548,10 @@ The archive contains everything needed to understand the account's complete data
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
   account ID. Daily cleanup removes history 90 days after acknowledged physical
-  deletion; unacknowledged resources remain tracked. A legacy `superseded_at` column
-  is no longer read (null for every remaining use).
+  deletion; unacknowledged resources remain tracked.
 - **Size history** (`runner_cache_volume_measurements`, PostgreSQL): append-only
   observations linked to a use, containing logical filesystem used/capacity
-  bytes, observation timestamp, a deletion acknowledgement flag, and a legacy `retired`
-  flag that is no longer read (false for every remaining observation).
+  bytes, observation timestamp and a deletion acknowledgement flag.
   The first report and changes in size or capacity create entries; identical
   heartbeat reports do not. Unknown measurements remain null. Acknowledged
   removal records zero retained bytes and capacity, without rewriting earlier
