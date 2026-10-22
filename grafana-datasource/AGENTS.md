@@ -53,6 +53,15 @@ only — they are intentionally not part of the generated CLI client.
   Go verifier, not release-number ordering. Refresh the Go entries in `mise.lock`
   with `mise lock go` whenever changing the SDK pin; CI installs in locked mode.
 
+## Certificate trust
+
+- `pkg/plugin/certificate_trust.go` independently embeds the twelve-key SPKI deny. The API factory clones the existing default transport/native roots and TLS settings, keeps ordinary verification/original callbacks, and denies keys across complete verified paths (anchors included) and every supplied peer certificate. Refuse custom TLS dialers or disabled verification rather than silently bypassing the policy. Retain the qualified Go compiler pin too.
+- Supplied-but-unused blocked certificates are deliberately refused, as in the Rust clients. A self-hosted server sending a redundant blocked cross-sign/root must repair its served chain; do not add an unprotected alternate transport. Apple/Android native loaders only inspect their evaluated paths, so this strictness is an availability distinction.
+- Every HTTPS redirect and HTTPS proxy connection uses the protected verifier, including resumed sessions. Refuse downgrade after HTTPS, preserve the normal redirect limit and credential behavior, and leave explicitly configured HTTP endpoints under their existing semantics, not as a TLS-failure fallback.
+- API failures expose fixed TLS/timeout/cancellation categories and status codes, never request URLs, response bodies or tokens. Preserve typed causes for classification. Health errors must not mislabel certificate failures as bad tokens.
+- Focused tests: `TUIST_TRUST_LIVE=1 go test ./pkg/plugin -run TestCertificateTrust -timeout 5m` with genuine Go 1.26.10. Live public controls qualify the combined native verifier/root store; accepted private leaf/intermediate/root and redirect/proxy/resumption differentials prove application enforcement. Real DER tests cover all twelve keys. No host trust changes or compromised private keys.
+- Backend builds/unit tests are not execution inside Grafana, catalog publication, other OS/root-store qualification or a safe running-plugin replacement. Keep owner release/drain/rollback gates independent; never restart active Grafana/alerting instances just to activate a source patch.
+
 ## Releasing / publishing
 
 - Releases follow the repo convention: `.github/workflows/grafana-datasource-release.yml`
