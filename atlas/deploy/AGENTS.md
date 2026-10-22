@@ -12,6 +12,39 @@
 - `demo.md` describes the isolated public read-only demo: standalone chart plus `values-demo.yaml`, dedicated database and SELECT-only serving role, separate migration credentials, fictional release seeds, and DNS/PostgreSQL-only egress. Never layer the managed production values or mount production credentials into it.
 - Leave scheduler sizing to Erlang's processor and container quota detection unless the operator supplies `ERL_FLAGS`. Compose accepts the override in `.env`; Helm accepts it through `env.ERL_FLAGS`.
 
+## Push notifications
+
+Push delivery is optional and needs only server-side credentials; native builds and
+tests never receive them. Configure the application Secret (1Password/External
+Secrets for the managed deployment; nothing is provisioned by this code change):
+
+- `ATLAS_APNS_TEAM_ID` (`U6LC622NKF`), `ATLAS_APNS_KEY_ID`, and `ATLAS_APNS_PRIVATE_KEY`:
+  an APNs token-auth `.p8` key from the Apple Developer account with the Apple Push
+  Notifications service enabled. One key serves sandbox and production; the stored
+  environment of each registration chooses the host. The topic is fixed to
+  `dev.tuist.atlas`, whose App ID needs the Push Notifications capability and a
+  regenerated ad-hoc profile.
+- `ATLAS_FCM_SERVICE_ACCOUNT_JSON`: the full JSON key of a Firebase project service
+  account limited to Firebase Cloud Messaging sending (a role granting only
+  `cloudmessaging.messages.create`; verify the predefined role name in the Google
+  Cloud console rather than granting project editor). Use the Firebase project
+  registered for Android package `dev.tuist.atlas`.
+
+Each provider is all-or-nothing. A partial or malformed set fails boot rather than
+silently disabling delivery, so add all values in one change. Unset providers make
+`GET /api/native/profile` report the platform unavailable and registrations return
+503. Egress must reach `api.push.apple.com:443` and `api.sandbox.push.apple.com:443`
+(HTTP/2), `fcm.googleapis.com:443`, and `oauth2.googleapis.com:443`; restricted
+egress policies such as the demo's must stay closed. Self-hosted operators can only
+deliver to apps signed with their own APNs key and Firebase project; the Tuist-built
+apps accept pushes only from Tuist's credentials, so self-hosted servers normally
+leave these unset.
+
+Verify after deployment by enabling notifications in the app's Profile and calling
+the `send_test_push_notification` MCP tool, which queues the generic test alert for
+the caller's own devices only. Rotate keys by replacing the Secret values and
+restarting; cached provider tokens are per node and expire within an hour.
+
 ## Native app links
 
 Only hosted `atlas.tuist.dev` should configure verified identities: the apps
