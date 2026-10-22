@@ -566,9 +566,9 @@ spec:
           lifecycle:
             preStop:
               exec:
-                # Give the ingress time to stop routing new traffic before the
-                # release shuts down — avoids 502s during a rolling deploy.
-                command: ["sh", "-c", "sleep 10"]
+                # Drain while endpoints stop routing here: the release answers with
+                # `Connection: close` once the file exists (TuistWeb.Draining).
+                command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
       {{- with .Values.server.seedAccountCredentials.secretName }}
