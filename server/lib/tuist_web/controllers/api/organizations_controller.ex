@@ -6,6 +6,8 @@ defmodule TuistWeb.API.OrganizationsController do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
+  alias Tuist.Runners.Allowance
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Organization
   alias TuistWeb.API.Schemas.OrganizationMember
@@ -360,9 +362,40 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
       true ->
-        json(conn, %{current_month_remote_cache_hits: 0})
+        json(conn, usage_response(organization.account))
     end
   end
+
+  defp usage_response(account) do
+    {period_start, period_end} = period = hd(Billing.recent_billing_periods(account, 1))
+    %{cache: cache, tests: tests} = UsagePricing.period_breakdown(account, period)
+    runners = Allowance.period_breakdown(account, period)
+
+    %{
+      current_month_remote_cache_hits: 0,
+      period: %{start: iso8601(period_start), end: iso8601(period_end)},
+      cache_egress: meter(cache.egress),
+      cache_requests: meter(cache.requests),
+      passing_test_cases: %{
+        used: tests.passed,
+        included: tests.included,
+        billable: tests.billable,
+        charge_cents: tests.charge.amount
+      },
+      runner_minutes: %{
+        used: runners.minutes,
+        included: runners.free_minutes,
+        charge_cents: runners.billed.amount
+      },
+      estimated_charge_cents: cache.charge.amount + tests.charge.amount + runners.billed.amount
+    }
+  end
+
+  defp meter(receipt) do
+    %{used: receipt.metered, included: receipt.included, billable: receipt.billable, charge_cents: receipt.charge.amount}
+  end
+
+  defp iso8601(datetime), do: datetime |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
   operation(:update,
     summary: "Updates an organization",
