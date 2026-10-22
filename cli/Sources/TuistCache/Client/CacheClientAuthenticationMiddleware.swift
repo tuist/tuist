@@ -5,10 +5,7 @@ import TuistHTTP
 import TuistServer
 
 struct CacheClientAuthenticationMiddleware: ClientMiddleware {
-    private let authenticationURL: URL
-    private let serverAuthenticationController: ServerAuthenticationControlling
-    private let cacheTokenStore: CacheTokenStoring
-    private let fullHandle: String?
+    private let credentialProvider: CacheCredentialProvider
 
     init(
         authenticationURL: URL,
@@ -16,10 +13,12 @@ struct CacheClientAuthenticationMiddleware: ClientMiddleware {
         cacheTokenStore: CacheTokenStoring,
         fullHandle: String?
     ) {
-        self.authenticationURL = authenticationURL
-        self.serverAuthenticationController = serverAuthenticationController
-        self.cacheTokenStore = cacheTokenStore
-        self.fullHandle = fullHandle
+        credentialProvider = CacheCredentialProvider(
+            authenticationURL: authenticationURL,
+            fullHandle: fullHandle,
+            serverAuthenticationController: serverAuthenticationController,
+            cacheTokenStore: cacheTokenStore
+        )
     }
 
     func intercept(
@@ -31,30 +30,13 @@ struct CacheClientAuthenticationMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
 
-        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: authenticationURL) else {
+        guard let credential = try await credentialProvider.credential() else {
             throw ClientAuthenticationError.notAuthenticated
-        }
-
-        // Prefer a token the cache node can verify itself, falling back to the
-        // credential we already hold when the server cannot mint one.
-        //
-        // Only callers that name the project they are caching for take this
-        // path. The scope is what keeps the token small enough to send as a
-        // header, so exchanging without one would risk a token carrying every
-        // project an account-wide credential reaches.
-        var value = token.value
-        if let fullHandle,
-           let cacheToken = try await cacheTokenStore.cacheToken(
-               authenticationURL: authenticationURL,
-               fullHandle: fullHandle
-           )
-        {
-            value = cacheToken
         }
 
         request.headerFields.append(
             .init(
-                name: .authorization, value: "Bearer \(value)"
+                name: .authorization, value: "Bearer \(credential)"
             )
         )
 
