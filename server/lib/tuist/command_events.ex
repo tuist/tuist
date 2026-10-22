@@ -361,21 +361,6 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    counted_from = Account |> Repo.get!(account_id) |> usage_counted_from(date)
-
-    project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
-
-    ClickHouseRepo.one(
-      from(c in Event,
-        where: c.project_id in ^project_ids,
-        where: c.ran_at >= ^counted_from,
-        where: c.remote_cache_hits_count > 0 or c.remote_test_hits_count > 0,
-        select: %{remote_cache_hits_count: count(c.id)}
-      )
-    )
-  end
-
   @doc """
   The cache counting window shared by monthly usage and Air notifications.
   A mid-month free-tier reset moves its start forward until the next month.

@@ -28,7 +28,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
 
   test "cache and runner thresholds notify independently and deduplicate independently" do
     user = AccountsFixtures.user_fixture()
-    Accounts.update_account_current_month_usage(user.account.id, %{remote_cache_hits_count: 0, cache_requests: 800_000})
+    Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 800_000})
     now = DateTime.utc_now()
     stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 80 * 60_000 end)
 
@@ -36,7 +36,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert Repo.aggregate(AirUsageNotification, :count) == 2
 
-    Accounts.update_account_current_month_usage(user.account.id, %{remote_cache_hits_count: 0, cache_requests: 1_000_000})
+    Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 1_000_000})
     stub(RunnerBilling, :compute_milliseconds, fn _, _, _ -> 100 * 60_000 end)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
@@ -65,7 +65,7 @@ defmodule Tuist.Billing.AirRunnerUsageNotificationsTest do
 
   test "active runner trials skip runner notifications without suppressing cache warnings" do
     user = AccountsFixtures.user_fixture()
-    Accounts.update_account_current_month_usage(user.account.id, %{remote_cache_hits_count: 0, cache_requests: 800_000})
+    Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 800_000})
     user.account |> change(runner_trial_started_at: DateTime.truncate(DateTime.utc_now(), :second)) |> Repo.update!()
     reject(RunnerBilling, :compute_milliseconds, 3)
 

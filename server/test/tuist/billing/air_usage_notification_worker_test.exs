@@ -50,7 +50,7 @@ defmodule Tuist.Billing.Workers.AirUsageNotificationWorkerTest do
   end
 
   test "skips stale warnings once the account reaches 100%", %{user: user, notification: notification} do
-    Accounts.update_account_current_month_usage(user.account.id, %{remote_cache_hits_count: 0, cache_requests: 1_000_000})
+    Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 1_000_000})
     reject(UserNotifier, :deliver_air_usage_notification, 3)
     assert :ok = perform_job(AirUsageNotificationWorker, %{notification_id: notification.id})
   end
@@ -95,7 +95,7 @@ defmodule Tuist.Billing.Workers.AirUsageNotificationWorkerTest do
     user: user,
     notification: notification
   } do
-    Accounts.update_account_current_month_usage(user.account.id, %{remote_cache_hits_count: 0, cache_requests: 950_000})
+    Accounts.update_account_current_month_usage(user.account.id, %{cache_requests: 950_000})
 
     expect(UserNotifier, :deliver_air_usage_notification, fn _, _, delivered ->
       assert delivered.usage == 950_000
@@ -148,7 +148,7 @@ defmodule Tuist.Billing.Workers.AirUsageNotificationWorkerTest do
   end
 
   defp set_cache_requests(account_id, requests) do
-    Accounts.update_account_current_month_usage(account_id, %{remote_cache_hits_count: 0, cache_requests: requests})
+    Accounts.update_account_current_month_usage(account_id, %{cache_requests: requests})
   end
 
   defp complete_job(notification) do

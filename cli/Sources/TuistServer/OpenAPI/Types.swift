@@ -666,7 +666,7 @@ public protocol APIProtocol: Sendable {
     func listWebhookDeliveryAttempts(_ input: Operations.listWebhookDeliveryAttempts.Input) async throws -> Operations.listWebhookDeliveryAttempts.Output
     /// Shows the usage of an organization
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// Returns the usage of the organization with the given identifier.
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
@@ -2861,7 +2861,7 @@ extension APIProtocol {
     }
     /// Shows the usage of an organization
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// Returns the usage of the organization with the given identifier.
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
@@ -8733,14 +8733,15 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/OrganizationUsage`.
         public struct OrganizationUsage: Codable, Hashable, Sendable {
-            /// The number of remote cache hits in the current month
+            /// Deprecated. No longer computed and always 0.
             ///
             /// - Remark: Generated from `#/components/schemas/OrganizationUsage/current_month_remote_cache_hits`.
+            @available(*, deprecated)
             public var current_month_remote_cache_hits: Swift.Double
             /// Creates a new `OrganizationUsage`.
             ///
             /// - Parameters:
-            ///   - current_month_remote_cache_hits: The number of remote cache hits in the current month
+            ///   - current_month_remote_cache_hits: Deprecated. No longer computed and always 0.
             public init(current_month_remote_cache_hits: Swift.Double) {
                 self.current_month_remote_cache_hits = current_month_remote_cache_hits
             }
@@ -78820,7 +78821,7 @@ public enum Operations {
     }
     /// Shows the usage of an organization
     ///
-    /// Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)
+    /// Returns the usage of the organization with the given identifier.
     ///
     /// - Remark: HTTP `GET /api/organizations/{organization_name}/usage`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/usage/get(showOrganizationUsage)`.
