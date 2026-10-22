@@ -23,7 +23,7 @@ the server's Digital Asset Links document. Never publish ephemeral debug keys in
   separated for multiple keys. Keep server and CI configuration identical. A
   verification fingerprint only authorizes link handling; adding one does not
   make Android accept an incompatible APK update. See the server
-  [rollout runbook](../../../atlas/deploy/native-links.md).
+  [deployment guidance](../../../atlas/deploy/AGENTS.md#native-app-links).
 - Fetch secrets only into a restrictive temporary directory, pass passwords via
   files rather than command arguments, remove all material on every exit, and
   publish only after `apksigner verify` and fingerprint checks succeed.

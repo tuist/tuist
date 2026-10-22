@@ -10,4 +10,72 @@
 - `test-demo-release.sh [RELEASE_PATH]` exercises a built production release against its own disposable local PostgreSQL instance: migrations and seeds, SELECT-only server boot, anonymous curated pages with the navbar demo badge, and rejection of production database names, unseeded/non-demo datasets, owner/column-level/inherited write privileges, and integration credentials. It requires PostgreSQL command-line tools, curl, and Python, and never contacts existing databases or a cluster. Build production assets and `MIX_ENV=prod mix release --overwrite` first.
 - `demo.md` describes the isolated public read-only demo: standalone chart plus `values-demo.yaml`, dedicated database and SELECT-only serving role, separate migration credentials, fictional release seeds, and DNS/PostgreSQL-only egress. Never layer the managed production values or mount production credentials into it.
 - Leave scheduler sizing to Erlang's processor and container quota detection unless the operator supplies `ERL_FLAGS`. Compose accepts the override in `.env`; Helm accepts it through `env.ERL_FLAGS`.
-- `native-links.md` is the operator runbook for iOS universal links and Android App Links: Associated Domains on the Apple profile, the hosted `ATLAS_APPLE_APP_IDS`, stable Android release signing whose fingerprint matches `ATLAS_ANDROID_APP_LINK_SHA256` in both CI and the server, rotation order, and the post-deploy check that the edge serves the association files with 200 JSON and no redirect (existing Cloudflare rules already exempt `/.well-known`). Self-hosted and demo deployments leave both unset.
+
+## Native app links
+
+Only hosted `atlas.tuist.dev` should configure verified identities: the apps
+request that domain alone. Leave both identity lists unset on self-hosted and
+demo deployments; demo validation rejects them. Association files return 404
+until configured. Custom-scheme `/open` and header actions still work on HTTPS
+self-hosted servers without association setup.
+
+`AtlasWeb.NativeLinks.claimed_paths/0` defines the claimed pages; keep the native
+Android manifest synchronized. Exact pages and UUID-shaped records only, never
+entire hierarchies or `/commercial/finance`. See the native
+[link contract](../../atlas-native/README.md#object-navigation).
+
+### Apple
+
+1. Enable Associated Domains on App ID `U6LC622NKF.dev.tuist.atlas` and regenerate
+   the Atlas ad-hoc provisioning profile. Device signing refuses to publish
+   without it; Android and simulator publication remain independent.
+2. Set `ATLAS_APPLE_APP_IDS=U6LC622NKF.dev.tuist.atlas` in hosted values. Lists may
+   contain comma-separated `TEAMID.bundle.id` identities; malformed values stop
+   Atlas from booting.
+3. Check the origin and Apple's cached copy:
+
+   ```sh
+   curl -sS -D - https://atlas.tuist.dev/.well-known/apple-app-site-association
+   curl -sS https://app-site-association.cdn-apple.com/a/v1/atlas.tuist.dev
+   ```
+
+   Apple's CDN can take hours to refresh. Earlier device testing requires
+   developer mode and a development build using
+   `applinks:atlas.tuist.dev?mode=developer`.
+
+### Android
+
+1. Provision a stable private distribution key once, never a CI debug key.
+   Configure protected `atlas-mobile-previews` variables
+   `ATLAS_ANDROID_KEYSTORE_REF`, `ATLAS_ANDROID_KEYSTORE_PASSWORD_REF`,
+   `ATLAS_ANDROID_KEY_ALIAS`, and `ATLAS_ANDROID_APP_LINK_SHA256` as described in
+   [Android distribution](../../atlas-native/android/distribution/AGENTS.md).
+   Without a key reference, nightly Android publication is skipped; debug CI
+   artifacts remain available.
+2. Set the server's `ATLAS_ANDROID_APP_LINK_SHA256` to the same uppercase,
+   colon-separated 32-byte SHA-256 certificate fingerprint. Comma-separated
+   multiple fingerprints are supported. Signing refuses an APK whose certificate
+   is not in the configured list. Keep CI and server values identical.
+3. A trusted fingerprint only authorizes links, not APK update compatibility.
+   Changing keys requires a valid APK Signature Scheme v3 signing lineage
+   (`apksigner rotate` and `apksigner sign --lineage`) or uninstall/reinstall,
+   losing encrypted credentials. The current signing script does not configure a
+   lineage; add and verify rotation support before publishing a rotated key.
+   Publish the new fingerprint before its first build; retain the old one while
+   old installations remain. Debug-to-distribution installs also need uninstall.
+4. Check the deployed association and installed stable-key build:
+
+   ```sh
+   curl -sS -D - https://atlas.tuist.dev/.well-known/assetlinks.json
+   adb shell pm verify-app-links --re-verify dev.tuist.atlas
+   adb shell pm get-app-links dev.tuist.atlas
+   ```
+
+### Edge and device verification
+
+Association origins must return 200 `application/json`, without redirects or bot
+challenges. Existing Cloudflare `skip-sbfm-api-paths` exempts non-`tuist.dev`
+hosts and `/.well-known`; no additional rule is needed. Verify real edge responses
+after deployment. Local fixtures and disposable signing keys do not prove OS
+verification. Test installed apps and browser fallback on real devices; browser
+context and user preferences may keep even verified links in the browser.

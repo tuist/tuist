@@ -43,8 +43,53 @@ explicit **Open in Atlas** and browser fallback actions on the web. Native scree
 also offer **Open in browser** for richer web functionality. Automatic handoff
 requires an installed build and verified signing/domain setup; self-hosted
 instances use the server-bound custom scheme.
-See [Native object navigation](navigation.md) for supported paths, the protocol,
-lifecycle, security boundaries, platform research and simulator/emulator commands.
+The shared allowlist in `core/src/destinations.rs` defines six stable screen keys:
+`tasks`, `accounts`, `invoices`, `time-off`, `people`, and `profile`. Only the first
+three accept a record ID. Notifications should carry a `destination_url` using
+this grammar, without credentials, titles, API paths, or mutation actions:
+
+```text
+dev.tuist.atlas://navigate/<screen>[/<lowercase-uuid>]?server=<encoded-https-origin>
+https://atlas.tuist.dev/open/<screen>[/<lowercase-uuid>]
+```
+
+Hosted handoff also supports the ordinary pages `/tasks`,
+`/commercial/sales/accounts` and its UUID detail, `/people`, `/people/time-off`,
+and `/settings`. Matching is exact, not a claim on their descendants. The broader
+`/commercial/finance` dashboard stays in the browser; its header can explicitly
+open native invoices. Canonical share URLs always use `/open`, while the native
+browser escape opens a real web page. Account records have a browser detail;
+task and invoice records fall back to their collections.
+
+Links never select a server, initiate login, or grant access. A signed-out link
+waits for normal sign-in, then must match its HTTPS origin. Pending links are
+latest-wins and memory-only, retained across Android rotation but not process
+death or session end. Drafts, saves, and AI setup reject navigation with an
+explanation; finish or discard the work and reopen the link. Back returns to the
+native parent without replacing unrelated feature models.
+
+Queries and fragments on HTTPS links are ignored, never forwarded. Custom-scheme
+links require exactly one `server` query parameter. Credentials, encoded paths,
+unsupported routes, and noncanonical UUIDs are rejected. Server origins allow
+only HTTPS, an ASCII/punycode host, an optional port, and an empty/root path.
+Host case and default port 443 are equivalent; other ports must match.
+
+Agents use normal OS ingress on an already authenticated simulator/emulator:
+
+```sh
+xcrun simctl openurl booted \
+  'https://atlas.tuist.dev/open/tasks/123e4567-e89b-12d3-a456-426614174000'
+adb shell am start -W -a android.intent.action.VIEW \
+  -d 'dev.tuist.atlas://navigate/accounts?server=https%3A%2F%2Fatlas.tuist.dev%2F' \
+  dev.tuist.atlas
+```
+
+Installation, verified domain/signing setup, browser context, and user preferences
+control OS handoff. Same-domain browsing and typed URLs may stay in the browser;
+the explicit web action covers these cases. Custom schemes are not verified and
+can be registered by other apps. Fixture navigation tests do not prove live
+verification. Operator setup lives in the existing
+[deployment guidance](../atlas/deploy/AGENTS.md#native-app-links).
 
 ## Develop
 
