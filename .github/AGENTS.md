@@ -33,6 +33,11 @@ Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.
 
+`workflows/cache-dns.yml` plans `infra/cache-dns/zone.yaml` on pull requests and
+applies it on `main`, assuming roles from `infra/cache-dns/deploy-role.yaml`. The
+pull-request role can create change sets but never execute them, so a modified
+workflow on a branch still cannot change the zone.
+
 The runners-controller release publishes both the controller and cache-volume
 agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
