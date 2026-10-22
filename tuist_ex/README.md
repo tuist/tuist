@@ -193,6 +193,26 @@ non-deterministic dependencies with `exclude: [:dependency]`, or restrict select
 with `dependencies: [:dependency]` when you need an audited allowlist. This is not automatic hermetic
 input discovery; changing undeclared external inputs can still make a bundle stale.
 
+Deterministic key encoding does not make compiler output deterministic. On recent
+Elixir versions, consider reproducible compiler output when upstream BEAM bytes
+change between otherwise identical builds:
+
+```sh
+ERL_COMPILER_OPTIONS='[deterministic]' mix compile
+```
+
+Apply the same setting before SDK bootstrap and throughout cache seeding and
+consumption. Start with clean dependency build directories when changing compiler
+options; already-current outputs are not automatically rebuilt. If you already
+set `ERL_COMPILER_OPTIONS`, merge `deterministic` into your existing Erlang option
+list instead of replacing it. The SDK does not change this variable for you, and
+the exact value enters artifact keys. This stabilizes supported compiler metadata
+encoding; it does not guarantee byte-identical output for arbitrary generators,
+protocol consolidation, undeclared inputs or different checkout paths.
+`deterministic` also omits source/options from `module_info(:compile)`, so validate
+your coverage, debugging and source-discovery tooling before adopting it. Cache
+keys still include complete upstream BEAM bytes, without stripping metadata.
+
 Verified local snapshots are tried before the remote cache. Idle builds and
 builds fully served locally do not contact cache endpoints or resolve credentials.
 A compile lazily opens one remote session, closes it even on compiler failure,

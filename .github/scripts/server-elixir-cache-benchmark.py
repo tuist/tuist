@@ -170,6 +170,8 @@ def measure(root, results, env, index, mode, timeout, seeded_keys, seeded_apps=(
     sample["degraded"] = mode == "remote" and sample["degraded"]
     sample.update(
         mode=mode, index=index, status=status, process_wall_s=wall,
+        compilation=env.get("TUIST_ELIXIR_CACHE_BENCHMARK_COMPILATION", "default"),
+        erl_compiler_options=env.get("ERL_COMPILER_OPTIONS"),
         load_before=load_before, load_after=os.getloadavg(),
         compiled_apps=compiled_apps(log_file.read_text(errors="replace")), record_errors=errors,
         interrupted=interruption is not None,
@@ -223,6 +225,8 @@ def main():
         "commit": os.environ["GITHUB_SHA"], "platform": platform.platform(),
         "runner": os.environ.get("RUNNER_NAME"), "cpu_count": os.cpu_count(),
         "schedulers": 4, "dependency_workers": 3,
+        "compilation": env.get("TUIST_ELIXIR_CACHE_BENCHMARK_COMPILATION", "default"),
+        "erl_compiler_options": env.get("ERL_COMPILER_OPTIONS"),
         "endpoint": endpoint_origin(env.get("TUIST_CACHE_ENDPOINT")),
         "namespace": env["TUIST_ELIXIR_CACHE_BENCHMARK_RUN"], "lock_sha256": lock_hash,
     }

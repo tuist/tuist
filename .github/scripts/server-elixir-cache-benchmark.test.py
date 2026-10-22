@@ -108,6 +108,9 @@ class BenchmarkTest(unittest.TestCase):
             timeouts = self.run_fixture(setup_elapsed=100)
         self.assertTrue(all(timeout <= 100 for timeout in timeouts))
 
+    def test_deterministic_options_apply_to_and_label_every_sample(self):
+        self.run_fixture(compilation="deterministic")
+
     def test_seeded_misses_fail_after_preserving_all_comparisons(self):
         self.run_fixture(degraded="same-key", expected_error=RuntimeError)
 
@@ -139,7 +142,7 @@ class BenchmarkTest(unittest.TestCase):
         with self.assertRaisesRegex(KeyboardInterrupt, "SIGTERM"):
             benchmark.raise_interruption(signal.SIGTERM, None)
 
-    def run_fixture(self, *, interruption=None, lock_change=False, degraded=False, setup_elapsed=0, expected_error=None, expected_samples=5):
+    def run_fixture(self, *, interruption=None, lock_change=False, degraded=False, setup_elapsed=0, expected_error=None, expected_samples=5, compilation="default"):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             checkout = root / "checkout"
@@ -163,6 +166,8 @@ class BenchmarkTest(unittest.TestCase):
                     self.waits = 0
                     modes.append(self.mode)
                     assert env["TUIST_ELIXIR_CACHE_BENCHMARK_RUN"] == "123-2"
+                    assert env["TUIST_ELIXIR_CACHE_BENCHMARK_COMPILATION"] == compilation
+                    assert env["ERL_COMPILER_OPTIONS"] == ("[deterministic]" if compilation == "deterministic" else "")
                     assert not (server / "deps/package/generated").exists()
                     for package in ("server", "tuist_ex", "noora", "tuist_common"):
                         assert not (checkout / package / "_build").exists()
@@ -192,7 +197,7 @@ class BenchmarkTest(unittest.TestCase):
                     return 0
 
             handler = signal.getsignal(signal.SIGTERM)
-            with patch.dict(os.environ, GITHUB_ACTIONS="true", GITHUB_WORKSPACE=str(checkout), RUNNER_TEMP=str(temp), GITHUB_SHA="commit", GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="2", BENCH_JOB_STARTED=str(benchmark.time.time() - setup_elapsed)), patch.object(benchmark.subprocess, "Popen", FakeProcess), patch.object(benchmark.platform, "platform", return_value="test-linux"), patch.object(benchmark.os, "killpg") as killpg, patch("builtins.print"):
+            with patch.dict(os.environ, GITHUB_ACTIONS="true", GITHUB_WORKSPACE=str(checkout), RUNNER_TEMP=str(temp), GITHUB_SHA="commit", GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="2", TUIST_ELIXIR_CACHE_BENCHMARK_COMPILATION=compilation, ERL_COMPILER_OPTIONS="[deterministic]" if compilation == "deterministic" else "", BENCH_JOB_STARTED=str(benchmark.time.time() - setup_elapsed)), patch.object(benchmark.subprocess, "Popen", FakeProcess), patch.object(benchmark.platform, "platform", return_value="test-linux"), patch.object(benchmark.os, "killpg") as killpg, patch("builtins.print"):
                 if expected_error:
                     with self.assertRaises(expected_error):
                         benchmark.main()
@@ -204,6 +209,11 @@ class BenchmarkTest(unittest.TestCase):
             self.assertFalse((temp / "elixir-cache-benchmark/pristine-deps").exists())
             samples = json.loads((temp / "elixir-cache-benchmark/samples.json").read_text())
             self.assertEqual(len(samples), expected_samples)
+            metadata = json.loads((temp / "elixir-cache-benchmark/environment.json").read_text())
+            self.assertEqual(metadata["compilation"], compilation)
+            options = "[deterministic]" if compilation == "deterministic" else ""
+            self.assertEqual(metadata["erl_compiler_options"], options)
+            self.assertTrue(all(sample["compilation"] == compilation and sample["erl_compiler_options"] == options for sample in samples))
             if interruption is not None:
                 self.assertEqual(killpg.call_args_list, [call(123, signal.SIGTERM), call(123, signal.SIGKILL)])
                 self.assertTrue(samples[0]["interrupted"])

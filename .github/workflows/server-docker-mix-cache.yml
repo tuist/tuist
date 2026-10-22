@@ -15,6 +15,11 @@ on:
         type: choice
         options: [docker, elixir-remote]
         default: docker
+      compilation:
+        description: Elixir compiler configuration for every sample, including SDK bootstrap
+        type: choice
+        options: [default, deterministic]
+        default: default
 
 permissions:
   contents: read
@@ -73,9 +78,13 @@ jobs:
     env:
       MIX_ENV: dev
       ERL_FLAGS: "+S 4:4"
+      TUIST_ELIXIR_CACHE_BENCHMARK_COMPILATION: ${{ inputs.compilation || 'default' }}
     steps:
       - name: Start total benchmark budget
         run: echo "BENCH_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - name: Enable deterministic compilation for all samples
+        if: inputs.compilation == 'deterministic'
+        run: echo 'ERL_COMPILER_OPTIONS=[deterministic]' >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
@@ -96,6 +105,8 @@ jobs:
           {
             echo '## Full-server remote dependency-cache comparison'
             echo 'Fresh builds and pristine locked sources; SDK bootstrap and server compilation included.'
+            printf 'Compiler mode: %s; ERL_COMPILER_OPTIONS: %s\n' "$TUIST_ELIXIR_CACHE_BENCHMARK_COMPILATION" "${ERL_COMPILER_OPTIONS:-<unset>}"
+            echo 'Compare only samples with the same compiler configuration. Deterministic mode is opt-in, not the SDK default.'
             echo 'Seed is separate. Input keys include this run ID and attempt so reruns cannot reuse a previous seed.'
             echo 'Remote samples start with an empty local artifact store; no Mix snapshot volume is attached.'
             echo 'Four Erlang schedulers; three dependency workers configured, but selected cache misses/bypasses compile serially.'
@@ -112,7 +123,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: elixir-remote-cache-benchmark
+          name: elixir-remote-cache-benchmark-${{ inputs.compilation || 'default' }}
           path: |
             ${{ runner.temp }}/elixir-cache-benchmark/*.json
             ${{ runner.temp }}/elixir-cache-benchmark/*.log

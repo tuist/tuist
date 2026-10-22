@@ -96,6 +96,17 @@ must declare them as additional inputs. Regex configuration uses its source and
 options, never VM-local compiled references. Other opaque runtime values bypass
 caching. Updated key models invalidate older entries without a migration.
 
+Deterministic key encoding is separate from deterministic compiler output. If
+upstream BEAM metadata changes between otherwise identical builds on recent
+Elixir versions, consider setting `ERL_COMPILER_OPTIONS='[deterministic]'` before
+SDK bootstrap, seeding and cache consumption. Merge it with any existing compiler
+options and rebuild dependency outputs once when changing the setting. The SDK
+does not set it automatically; its exact value remains part of the key. Complete
+upstream bytes are still hashed, not normalized or stripped. This is not a
+cross-checkout or arbitrary-builder reproducibility guarantee. The compiler option
+also omits source/options from `module_info(:compile)`, so validate coverage,
+debugging and source-discovery tools before adopting it.
+
 Lexer and parser outputs are treated as derived files only when they are absent
 from the locked Git tree or Hex package file manifest. Shipped `.erl` files and
 opaque directory/submodule contents remain ordinary inputs; regenerated shipped

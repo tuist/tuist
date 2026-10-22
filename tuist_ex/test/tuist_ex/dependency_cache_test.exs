@@ -64,8 +64,17 @@ defmodule TuistEx.DependencyCacheTest do
     %{dir: dir, project: project}
   end
 
-  for {bootstrap, partitions} <- [{:legacy, "2"}, {:ordinary, "2"}, {:ordinary, "1"}] do
+  for {bootstrap, partitions} <- [
+        {:legacy, "2"},
+        {:ordinary, "2"},
+        {:ordinary, "1"},
+        {:deterministic, "3"}
+      ] do
     @tag timeout: 300_000, bootstrap: true
+    if bootstrap == :deterministic do
+      @tag deterministic_bootstrap: true
+    end
+
     test "the #{bootstrap} compile alias restores with #{partitions} dependency workers", %{
       project: project,
       dir: dir
@@ -73,12 +82,24 @@ defmodule TuistEx.DependencyCacheTest do
       package = Mix.Project.project_file() |> Path.dirname() |> Path.expand()
       mixfile = Path.join(project, "mix.exs")
 
+      if unquote(bootstrap) == :deterministic do
+        # Include the transport's freshly bootstrapped BEAMs in the consumer key.
+        probe = Path.join(dir, "package/mix.exs")
+
+        File.write!(
+          probe,
+          String.replace(File.read!(probe), "deps: []", ~s(deps: [{:grpc, "~> 0.11"}]))
+        )
+
+        commit!(Path.join(dir, "package"))
+      end
+
       compile_alias =
         case unquote(bootstrap) do
           :legacy ->
             "&Code.eval_string(File.read!(#{inspect(Path.join(package, "compile.exs"))}), args: &1)"
 
-          :ordinary ->
+          bootstrap when bootstrap in [:ordinary, :deterministic] ->
             inspect([
               "deps.compile tuist_ex --include-children",
               "deps.loadpaths --no-compile --no-deps-check",
@@ -94,12 +115,19 @@ defmodule TuistEx.DependencyCacheTest do
         )
 
       compile_args =
-        if unquote(bootstrap) == :ordinary,
+        if unquote(bootstrap) in [:ordinary, :deterministic],
           do: ["compile", "--warnings-as-errors"],
           else: ["compile"]
 
       File.write!(mixfile, contents)
-      run_mix = &mix(project, &1, [{"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", unquote(partitions)}])
+      env = [{"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", unquote(partitions)}]
+
+      env =
+        if unquote(bootstrap) == :deterministic,
+          do: [{"ERL_COMPILER_OPTIONS", "[deterministic]"} | env],
+          else: env
+
+      run_mix = &mix(project, &1, env)
       {output, status} = run_mix.(["deps.get"])
       assert status == 0, output
       {first, status} = run_mix.(compile_args)
@@ -107,7 +135,23 @@ defmodule TuistEx.DependencyCacheTest do
       assert first =~ "Generated dep_probe app"
       assert [_snapshot] = File.ls!(Path.join(dir, "cache"))
       File.rm_rf!(Path.join(project, "_build"))
-      {second, status} = run_mix.(compile_args)
+
+      {second, status} =
+        if unquote(bootstrap) == :deterministic do
+          mix(
+            project,
+            compile_args,
+            List.keyreplace(
+              env,
+              "MIX_OS_DEPS_COMPILE_PARTITION_COUNT",
+              0,
+              {"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "1"}
+            )
+          )
+        else
+          run_mix.(compile_args)
+        end
+
       assert status == 0, second
       refute second =~ "Generated dep_probe app"
 
