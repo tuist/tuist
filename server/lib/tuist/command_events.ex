@@ -361,21 +361,6 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    counted_from = Account |> Repo.get!(account_id) |> usage_counted_from(date)
-
-    project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
-
-    ClickHouseRepo.one(
-      from(c in Event,
-        where: c.project_id in ^project_ids,
-        where: c.ran_at >= ^counted_from,
-        where: c.remote_cache_hits_count > 0 or c.remote_test_hits_count > 0,
-        select: %{remote_cache_hits_count: count(c.id)}
-      )
-    )
-  end
-
   @doc """
   The cache counting window shared by monthly usage and Air notifications.
   A mid-month free-tier reset moves its start forward until the next month.
@@ -418,37 +403,6 @@ defmodule Tuist.CommandEvents do
             where: p.id in ^project_ids and not is_nil(a.customer_id),
             distinct: a.customer_id,
             select: a.customer_id
-          )
-        )
-    end
-  end
-
-  def remote_cache_hits_count_for_customer(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
-    from(p in Project,
-      join: a in Account,
-      on: p.account_id == a.id,
-      where: a.customer_id == ^customer_id,
-      select: p.id
-    )
-    |> Repo.all()
-    |> case do
-      [] ->
-        0
-
-      project_ids ->
-        ClickHouseRepo.one(
-          from(e in Event,
-            where:
-              e.ran_at >= ^period_start and e.ran_at < ^period_end and
-                e.project_id in ^project_ids,
-            select:
-              sum(
-                fragment(
-                  "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END",
-                  e.remote_cache_target_hits,
-                  e.remote_test_target_hits
-                )
-              )
           )
         )
     end

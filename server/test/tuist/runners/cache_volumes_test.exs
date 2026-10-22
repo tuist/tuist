@@ -1,6 +1,7 @@
 defmodule Tuist.Runners.CacheVolumesTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query, only: [from: 2]
   import Mimic
 
   alias Tuist.Environment
@@ -10,6 +11,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Measurement
+  alias Tuist.Runners.CacheVolumes.Query
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
@@ -107,13 +109,13 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert Repo.get!(Volume, volume.id).platform == "linux"
   end
 
-  test "macOS identities are separate while existing Linux UUIDs and built-in heads survive", %{
+  test "macOS identities are separate while existing Linux UUIDs and other volumes' heads survive", %{
     job: job,
     account: account
   } do
     {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs())
-    builtin = VolumeHeads.reserved_tuist_cache()
-    assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, builtin)
+    linux_name = CacheVolumes.storage_name(Repo.get!(Volume, Repo.get!(Usage, linux.id).volume_id))
+    assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, linux_name)
     {:ok, mac} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs(), :platform, "macos"))
     refute mac.scope == linux.scope
     assert length(CacheVolumes.list(account.id).volumes) == 2
@@ -121,7 +123,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert mac_volume.platform == "macos"
     assert String.starts_with?(CacheVolumes.storage_name(mac_volume), "macos-")
     assert VolumeHeads.valid_storage_volume_name?(CacheVolumes.storage_name(mac_volume))
-    refute VolumeHeads.valid_volume_name?(CacheVolumes.storage_name(mac_volume))
     {:ok, again} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     assert again.id == linux.id
     assert {:ok, _} = CacheVolumes.report("node", mac.id, report())
@@ -136,7 +137,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
                "content_digest" => String.duplicate("c", 64)
              })
 
-    assert VolumeHeads.get_head(account.id, builtin).generation == 1
+    assert VolumeHeads.get_head(account.id, linux_name).generation == 1
   end
 
   test "allocation derives macOS from the executed session, ignoring guest platform", %{account: account, job: job} do
@@ -325,13 +326,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
   end
 
-  test "custom Linux names never become valid macOS dispatch names", %{job: job, account: account} do
-    {:ok, _} = CacheVolumes.allocate_for_job(job, identity(), attrs())
-    name = CacheVolumes.storage_name(volume(account))
-    assert VolumeHeads.valid_storage_volume_name?(name)
-    refute VolumeHeads.valid_volume_name?(name)
-  end
-
   test "only one concurrent base can publish through the shared macOS HEAD", %{job: job, account: account} do
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
     {:ok, stale} = CacheVolumes.allocate_for_job(job, identity(), attrs("stale"))
@@ -449,7 +443,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
                generation: 1,
                image_digest: image_digest,
                content_digest: content_digest,
-               volume_bytes: 20_000_000_000
+               volume_bytes: 20_000_000_000,
+               head_size_bytes: 1024
              }
            ] = CacheVolumes.recent_macos_heads(["other-node", "node"], since, 8)
 
@@ -750,7 +745,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert is_nil(volume(account).head_id)
   end
 
-  defp report_size(node, id, size, capacity \\ 2048),
+  defp report_size(node, id, size, capacity \\ 20_000_000_000),
     do:
       CacheVolumes.report(
         node,
@@ -765,10 +760,10 @@ defmodule Tuist.Runners.CacheVolumesTest do
     {:ok, full} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     {:ok, running} = CacheVolumes.allocate_for_job(job, identity(), attrs("running"))
     complete(job)
-    publish_report("node", full.id, %{"size_bytes" => 1639, "capacity_bytes" => 2048})
+    publish_report("node", full.id, %{"size_bytes" => 16_000_000_000, "capacity_bytes" => 20_000_000_000})
     {:ok, filled} = CacheVolumes.allocate_for_job(job, identity(), attrs("filled"))
     assert filled.parent_id == full.id
-    assert {:ok, %{action: "hold"}} = report_size("node", filled.id, 2028)
+    assert {:ok, %{action: "hold"}} = report_size("node", filled.id, 19_800_000_000)
 
     {:ok, fresh} = CacheVolumes.allocate_for_job(job, identity(), attrs("fresh"))
 
@@ -783,14 +778,17 @@ defmodule Tuist.Runners.CacheVolumesTest do
   test "a nearly full saved snapshot keeps chaining warm while its clones have room", %{job: job} do
     complete(job)
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("job-0"))
-    publish_report("node", first.id, %{"size_bytes" => 1741, "capacity_bytes" => 2048})
+    publish_report("node", first.id, %{"size_bytes" => 17_400_000_000, "capacity_bytes" => 20_000_000_000})
 
     Enum.reduce(1..4, first, fn n, parent ->
       {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs("job-#{n}"))
       assert use.parent_id == parent.id
       assert use.base_generation > 0
       assert use.scope == first.scope
-      assert {:ok, %{action: "keep"}} = publish_report("node", use.id, %{"size_bytes" => 1741, "capacity_bytes" => 2048})
+
+      assert {:ok, %{action: "keep"}} =
+               publish_report("node", use.id, %{"size_bytes" => 17_400_000_000, "capacity_bytes" => 20_000_000_000})
+
       use
     end)
   end
@@ -798,9 +796,9 @@ defmodule Tuist.Runners.CacheVolumesTest do
   test "a saved snapshot below the fill limit stays the parent even when a clone ran out of space", %{job: job} do
     {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job)
-    publish_report("node", saved.id, %{"size_bytes" => 1638, "capacity_bytes" => 2048})
+    publish_report("node", saved.id, %{"size_bytes" => 15_990_000_000, "capacity_bytes" => 20_000_000_000})
     {:ok, filled} = CacheVolumes.allocate_for_job(job, identity(), attrs("filled"))
-    report_size("node", filled.id, 2048)
+    report_size("node", filled.id, 20_000_000_000)
 
     {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
 
@@ -811,9 +809,9 @@ defmodule Tuist.Runners.CacheVolumesTest do
   test "a clone that stayed below the out-of-space limit keeps the saved snapshot", %{job: job} do
     {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job)
-    publish_report("node", saved.id, %{"size_bytes" => 1900, "capacity_bytes" => 2048})
+    publish_report("node", saved.id, %{"size_bytes" => 19_000_000_000, "capacity_bytes" => 20_000_000_000})
     {:ok, roomy} = CacheVolumes.allocate_for_job(job, identity(), attrs("roomy"))
-    report_size("node", roomy.id, 2027)
+    report_size("node", roomy.id, 19_790_000_000)
 
     {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
 
@@ -828,6 +826,205 @@ defmodule Tuist.Runners.CacheVolumesTest do
     {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
 
     assert next.parent_id == saved.id
+  end
+
+  describe "volume sizes" do
+    defp gb(n), do: n * 1_000_000_000
+
+    defp sized(pod, bytes, extra \\ %{}),
+      do: pod |> attrs() |> Map.merge(%{requested_volume_bytes: bytes, max_volume_bytes: gb(100)}) |> Map.merge(extra)
+
+    defp saved_volume(account), do: Repo.get!(Volume, volume(account).id)
+
+    defp uses(account),
+      do:
+        Repo.aggregate(
+          from(u in Usage, join: v in Volume, on: v.id == u.volume_id, where: v.account_id == ^account.id),
+          :count
+        )
+
+    test "without a request a volume starts at 20 GB and keeps a grown capacity", %{job: job} do
+      complete(job)
+
+      assert {:ok, %{volume_bytes: 20_000_000_000, head_size_bytes: nil} = first} =
+               CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+
+      publish_report("node", first.id)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000} = grown} =
+               CacheVolumes.allocate_for_job(job, identity(), sized("grown", gb(50)))
+
+      assert grown.parent_id == first.id
+      publish_report("node", grown.id, %{"size_bytes" => 4096})
+
+      assert {:ok, %{volume_bytes: 50_000_000_000, head_size_bytes: 4096} = next} =
+               CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("next"), :max_volume_bytes, gb(100)))
+
+      assert next.parent_id == grown.id
+      assert {:error, :capacity} = CacheVolumes.allocate_for_job(job, identity(), attrs("legacy-host"))
+      assert Repo.get!(Usage, next.id).volume_bytes == gb(50)
+    end
+
+    test "a smaller request waits for the volume to start empty and is shown as pending", %{job: job, account: account} do
+      complete(job)
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+      publish_report("node", first.id)
+
+      assert {:ok, %{volume_bytes: 20_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), sized("small", gb(5)))
+
+      assert saved_volume(account).requested_volume_bytes == gb(5)
+      id = volume(account).id
+
+      assert {:ok, %{volume_bytes: 20_000_000_000, pending_volume_bytes: 5_000_000_000}} =
+               Query.run(:show, account.id, %{"volume_id" => id})
+
+      CacheVolumes.delete(account.id, id)
+
+      assert {:ok, %{volume_bytes: 5_000_000_000, parent_id: nil}} =
+               CacheVolumes.allocate_for_job(job, identity(), sized("cleared", gb(5)))
+
+      assert {:ok, %{volume_bytes: 5_000_000_000, pending_volume_bytes: nil}} =
+               Query.run(:show, account.id, %{"volume_id" => id})
+    end
+
+    test "new volumes take the requested size", %{job: job, account: account} do
+      assert {:ok, %{volume_bytes: 5_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("a", gb(5)) | key: "small"})
+
+      assert {:ok, %{volume_bytes: 50_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("b", gb(50)) | key: "large"})
+
+      assert Repo.get_by!(Volume, account_id: account.id, key: "large").requested_volume_bytes == gb(50)
+
+      assert {:ok, %{volume_bytes: 100_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("c", gb(100)) | key: "largest"})
+    end
+
+    test "invalid requests are no request", %{job: job} do
+      for {bytes, n} <- Enum.with_index([1_500_000_000, 0, gb(101), "50", -gb(1)]) do
+        assert {:ok, %{volume_bytes: 20_000_000_000}} =
+                 CacheVolumes.allocate_for_job(job, identity(), %{sized("invalid-#{n}", bytes) | key: "invalid-#{n}"})
+      end
+    end
+
+    test "managed volumes start at their own default and honor requests like any volume", %{job: job, account: account} do
+      complete(job)
+
+      assert {:ok, %{volume_bytes: 30_000_000_000} = first} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("xcode", nil) | key: "tuist-xcode"})
+
+      assert {:ok, %{volume_bytes: 20_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("module", nil) | key: "tuist-module"})
+
+      publish_report("node", first.id)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000} = grown} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("grown", gb(50)) | key: "tuist-xcode"})
+
+      assert grown.parent_id == first.id
+      publish_report("node", grown.id)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000} = next} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("smaller", gb(10)) | key: "tuist-xcode"})
+
+      assert next.parent_id == grown.id
+      xcode = Repo.get_by!(Volume, account_id: account.id, key: "tuist-xcode")
+      assert xcode.requested_volume_bytes == gb(10)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000, pending_volume_bytes: 10_000_000_000}} =
+               Query.run(:show, account.id, %{"volume_id" => xcode.id})
+
+      assert {:ok, %{volume_bytes: 50_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("gradle", gb(50)) | key: "tuist-gradle"})
+
+      assert {:ok, %{volume_bytes: 50_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{
+                 sized("other-module", gb(50), %{uid: 1002})
+                 | key: "tuist-module"
+               })
+    end
+
+    test "a capacity above the host maximum allocates nothing", %{job: job, account: account} do
+      assert {:error, :capacity} =
+               CacheVolumes.allocate_for_job(job, identity(), sized("small-host", gb(50), %{max_volume_bytes: gb(20)}))
+
+      assert CacheVolumes.list(account.id).volumes == []
+      assert uses(account) == 0
+
+      assert {:error, :capacity} =
+               CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("legacy"), :requested_volume_bytes, gb(33)))
+
+      assert {:ok, %{volume_bytes: 32_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("legacy"), :requested_volume_bytes, gb(32)))
+
+      assert {:ok, %{volume_bytes: 100_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{
+                 sized("large-host", gb(100), %{max_volume_bytes: gb(100)})
+                 | key: "other"
+               })
+    end
+
+    test "a refused allocation leaves a full volume's reset undone", %{job: job, account: account} do
+      complete(job)
+      {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs("saved"))
+      publish_report("node", saved.id, %{"size_bytes" => gb(19), "capacity_bytes" => gb(20)})
+      {:ok, filled} = CacheVolumes.allocate_for_job(job, identity(), attrs("filled"))
+      report_size("node", filled.id, 19_900_000_000, gb(20))
+      before = saved_volume(account)
+      count = uses(account)
+
+      assert {:error, :capacity} =
+               CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("refused"), :max_volume_bytes, gb(10)))
+
+      assert Map.take(saved_volume(account), [:generation, :head_id]) == Map.take(before, [:generation, :head_id])
+      assert VolumeHeads.get_head(account.id, CacheVolumes.storage_name(before))
+      assert uses(account) == count
+    end
+
+    test "a pull request gets the larger copy without changing the volume's size", %{job: job, account: account} do
+      complete(job)
+      {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs("saved"))
+      publish_report("node", saved.id)
+
+      assert {:ok, %{can_publish: false, volume_bytes: 50_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, %{identity() | trusted: false}, sized("pr", gb(50)))
+
+      assert is_nil(saved_volume(account).requested_volume_bytes)
+      assert {:ok, %{volume_bytes: 20_000_000_000}} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+    end
+
+    test "the full-volume reset measures the saved head against the job's capacity", %{job: job, account: account} do
+      complete(job)
+      {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs("saved"))
+      publish_report("node", saved.id, %{"size_bytes" => gb(19), "capacity_bytes" => gb(20)})
+      {:ok, filled} = CacheVolumes.allocate_for_job(job, identity(), attrs("filled"))
+      report_size("node", filled.id, 19_900_000_000, gb(20))
+
+      assert {:ok, %{volume_bytes: 50_000_000_000, head_size_bytes: 19_000_000_000} = grown} =
+               CacheVolumes.allocate_for_job(job, identity(), sized("grown", gb(50)))
+
+      assert grown.parent_id == saved.id
+
+      assert {:ok, %{volume_bytes: 20_000_000_000, parent_id: nil, base_generation: 0, head_size_bytes: nil}} =
+               CacheVolumes.allocate_for_job(job, identity(), attrs("reset"))
+
+      assert is_nil(saved_volume(account).head_id)
+    end
+
+    test "the nearly full warning uses the capacity the next job gets", %{job: job, account: account} do
+      complete(job)
+      {:ok, saved} = CacheVolumes.allocate_for_job(job, identity(), attrs("saved"))
+      publish_report("node", saved.id, %{"size_bytes" => gb(17), "capacity_bytes" => gb(20)})
+      volume = saved_volume(account)
+      stats = CacheVolumes.statistics([volume.id])[volume.id]
+      assert CacheVolumes.full?(stats.saved_bytes, CacheVolumes.next_volume_bytes(volume, stats.head_volume_bytes))
+
+      CacheVolumes.allocate_for_job(job, identity(), sized("grown", gb(50)))
+      volume = saved_volume(account)
+      assert CacheVolumes.volume_bytes(volume, stats.head_volume_bytes) == gb(20)
+      refute CacheVolumes.full?(stats.saved_bytes, CacheVolumes.next_volume_bytes(volume, stats.head_volume_bytes))
+    end
   end
 
   test "statistics report the saved snapshot's size separately from retained copies", %{job: job, account: account} do
@@ -985,7 +1182,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
 
     assert {:ok, _} = CacheVolumes.allocate_for_job(job, identity(), %{attrs() | key: "cache-1"})
-    assert {:error, :capacity} = CacheVolumes.allocate_for_job(job, identity(), %{attrs() | key: "cache-9"})
+    assert {:error, :volume_limit} = CacheVolumes.allocate_for_job(job, identity(), %{attrs() | key: "cache-9"})
   end
 
   test "history cleanup removes only old acknowledged deletions", %{job: job, account: account} do
@@ -1819,6 +2016,30 @@ defmodule Tuist.Runners.CacheVolumesTest do
                CacheVolumes.image("other-node", cold.id, %{"operation" => "download", "generation" => 1})
     end
 
+    test "a use seeded on a host without the HEAD still uploads the host's next master", %{params: params} do
+      stub(Runners, :volume_master_upload_url, fn _, _, _, _ -> {:ok, "https://storage/upload", "checksum"} end)
+      stub(Runners, :track_volume_master_upload, fn _, _, _, _ -> :ok end)
+      {:ok, first} = CacheVolumes.allocate_checkout(params)
+
+      publish = %{
+        "operation" => "publish",
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => String.duplicate("c", 64)
+      }
+
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", first.id, publish)
+      {:ok, seeded} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "seeded-uid"})
+      assert seeded.base_generation == 1
+      CacheVolumes.report("mac-node", seeded.id, Map.put(report("active", false), "warm", false))
+
+      assert {:ok, %{upload_url: "https://storage/upload"}} =
+               CacheVolumes.image("mac-node", seeded.id, %{
+                 publish
+                 | "operation" => "upload",
+                   "content_digest" => String.duplicate("d", 64)
+               })
+    end
+
     test "the host publishes its master once, under a use whose job is already gone", %{params: params} do
       {:ok, checkout} = CacheVolumes.allocate_checkout(params)
       assert {:ok, %{action: "delete"}} = CacheVolumes.report("mac-node", checkout.id, report())
@@ -1900,6 +2121,343 @@ defmodule Tuist.Runners.CacheVolumesTest do
     test "the reserved name cannot be requested as a custom volume", %{params: params} do
       assert {:error, :unavailable} = CacheVolumes.allocate(Map.put(params, "key", "checkout"))
       assert {:ok, _} = CacheVolumes.allocate(Map.put(params, "key", "checkouts"))
+    end
+
+    test "a default-branch job may start a master", %{params: params} do
+      assert {:ok, %{default_branch_job: true, may_start_master: true}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "a same-repository branch job starts the first master, and only a default-branch job moves it", %{
+      job: job,
+      params: params
+    } do
+      stub_checkout_run(job, %{"head_branch" => "feature", "event" => "push"})
+      assert {:ok, branch} = CacheVolumes.allocate_checkout(params)
+      assert {branch.default_branch_job, branch.may_start_master, branch.base_generation} == {false, true, 0}
+
+      assert {:ok, %{generation: 1}} = CacheVolumes.image("mac-node", branch.id, checkout_publish("b"))
+
+      assert {:ok, %{base_generation: 1} = next} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "next-uid"})
+      assert {:error, :conflict} = CacheVolumes.image("mac-node", next.id, checkout_publish("d"))
+
+      stub_checkout_run(job, %{"head_branch" => "main", "event" => "push"})
+      assert {:ok, main} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "main-uid"})
+      assert {:ok, %{generation: 2}} = CacheVolumes.image("mac-node", main.id, checkout_publish("e"))
+    end
+
+    test "a fork's pull request never starts a master, even when every branch saves", %{job: job, params: params} do
+      stub_checkout_run(job, %{
+        "head_branch" => "feature",
+        "event" => "pull_request",
+        "head_repository" => %{"id" => 456},
+        "pull_requests" => [%{"head" => %{"repo" => %{"id" => 456}, "ref" => "feature"}}]
+      })
+
+      assert {:ok, %{may_start_master: false} = fork} = CacheVolumes.allocate_checkout(params)
+      assert {:error, :conflict} = CacheVolumes.image("mac-node", fork.id, checkout_publish("b"))
+    end
+
+    test "a same-repository pull request may start a master", %{job: job, params: params} do
+      stub_checkout_run(job, %{
+        "head_branch" => "feature",
+        "event" => "pull_request",
+        "pull_requests" => [%{"head" => %{"repo" => %{"id" => 123}, "ref" => "feature"}}]
+      })
+
+      assert {:ok, %{may_start_master: true}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "pull_request_target never starts a master", %{job: job, params: params} do
+      stub_checkout_run(job, %{"head_branch" => "feature", "event" => "pull_request_target"})
+      assert {:ok, %{may_start_master: false}} = CacheVolumes.allocate_checkout(params)
+    end
+
+    test "a profile that saves only listed branches lets only those start a master", %{
+      account: account,
+      job: job,
+      params: params
+    } do
+      profile =
+        Repo.insert!(%Profile{
+          account_id: account.id,
+          name: "mac",
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14,
+          cache_writer_all_branches: false,
+          cache_writer_branches: ["release/*"]
+        })
+
+      WorkflowJob
+      |> Repo.get!(job.workflow_job_id)
+      |> Ecto.Changeset.change(requested_dispatch_label: Profile.dispatch_label(profile))
+      |> Repo.update!()
+
+      stub_checkout_run(job, %{"head_branch" => "feature", "event" => "push"})
+      assert {:ok, %{may_start_master: false}} = CacheVolumes.allocate_checkout(params)
+
+      stub_checkout_run(job, %{"head_branch" => "release/1.0", "event" => "push"})
+      assert {:ok, %{may_start_master: true}} = CacheVolumes.allocate_checkout(%{params | "pod_uid" => "release-uid"})
+    end
+  end
+
+  defp stub_checkout_run(job, run) do
+    stub(GitHubClient, :get_workflow_run, fn _ ->
+      {:ok,
+       Map.merge(
+         %{
+           "id" => job.workflow_run_id,
+           "run_attempt" => job.run_attempt,
+           "repository" => %{"id" => 123},
+           "head_repository" => %{"id" => 123}
+         },
+         run
+       )}
+    end)
+  end
+
+  defp checkout_publish(digit) do
+    %{
+      "operation" => "publish",
+      "image_digest" => String.duplicate(digit, 40),
+      "content_digest" => String.duplicate(digit, 64)
+    }
+  end
+
+  describe "a use that started empty although its volume has a saved head" do
+    setup do
+      stub(Runners, :volume_master_upload_url, fn _, _, _, _ -> {:ok, "https://1.1.1.1/upload", "checksum"} end)
+      stub(Runners, :track_volume_master_upload, fn _, _, _, _ -> :ok end)
+      :ok
+    end
+
+    defp mac_attrs(pod, key), do: Map.put(%{attrs(pod) | key: key}, :platform, "macos")
+
+    defp saved_head(job, key, size) do
+      {:ok, head} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("head", key))
+      if is_nil(Repo.get_by(JobCompletion, workflow_job_id: job.workflow_job_id)), do: complete(job)
+      assert {:ok, %{action: "keep"}} = publish_report("node", head.id, %{"size_bytes" => size})
+      head
+    end
+
+    defp finished(id, size, warm \\ false),
+      do: CacheVolumes.report("node", id, Map.merge(report(), %{"size_bytes" => size, "warm" => warm}))
+
+    defp image(id, operation) do
+      CacheVolumes.image("node", id, %{
+        "operation" => operation,
+        "image_digest" => :sha |> :crypto.hash(id) |> Base.encode16(case: :lower),
+        "content_digest" => :sha256 |> :crypto.hash(id) |> Base.encode16(case: :lower)
+      })
+    end
+
+    test "replaces it only with at least twice its size and 1 GB more", %{job: job} do
+      for {key, head_size, size, replaces?} <- [
+            {"tiny-head", 80_000_000, 15_000_000_000, true},
+            {"double", 1_000_000_000, 2_000_000_000, true},
+            {"less-than-double", 1_000_000_000, 1_999_999_999, false},
+            {"less-than-1-gb-more", 300_000_000, 1_299_999_999, false},
+            {"exactly-1-gb-more", 300_000_000, 1_300_000_000, true},
+            {"smaller", 9_000_000_000, 4_900_000_000, false},
+            {"same", 4_622_692_352, 4_625_457_152, false}
+          ] do
+        saved_head(job, key, head_size)
+        {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", key))
+        assert cold.base_generation == 1
+
+        if replaces? do
+          assert {:ok, %{action: "seal", cold_publish: true}} = finished(cold.id, size), key
+          assert {:ok, %{upload_url: _}} = image(cold.id, "upload"), key
+          assert {:ok, %{generation: 2}} = image(cold.id, "publish"), key
+        else
+          assert {:ok, decision} = finished(cold.id, size)
+          assert decision == %{action: "seal"}, key
+          assert {:error, :conflict} = image(cold.id, "upload"), key
+        end
+      end
+    end
+
+    test "a warm use is not held to the rule", %{job: job} do
+      saved_head(job, "warm", 9_000_000_000)
+      {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("warm", "warm"))
+      assert {:ok, decision} = finished(warm.id, 1_000_000, true)
+      assert decision == %{action: "seal"}
+      assert {:ok, %{upload_url: _}} = image(warm.id, "upload")
+    end
+
+    test "an unknown size never replaces the saved head", %{job: job} do
+      saved_head(job, "unknown-head", nil)
+      {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", "unknown-head"))
+      assert {:ok, decision} = finished(cold.id, 15_000_000_000)
+      assert decision == %{action: "seal"}
+      assert {:error, :conflict} = image(cold.id, "upload")
+
+      saved_head(job, "unknown-use", 80_000_000)
+      {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", "unknown-use"))
+      assert {:ok, decision} = finished(cold.id, nil)
+      assert decision == %{action: "seal"}
+      assert {:error, :conflict} = image(cold.id, "upload")
+    end
+
+    test "only the head it started from can be replaced", %{job: job} do
+      saved_head(job, "advanced", 80_000_000)
+      {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", "advanced"))
+      {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("warm", "advanced"))
+      assert {:ok, %{action: "keep"}} = publish_report("node", warm.id, %{"size_bytes" => 100_000_000})
+
+      assert {:ok, decision} = finished(cold.id, 15_000_000_000)
+      assert decision == %{action: "seal"}
+      assert {:error, :conflict} = image(cold.id, "upload")
+    end
+
+    test "races a warm use of the same base through the head's compare-and-swap", %{job: job, account: account} do
+      saved_head(job, "race", 80_000_000)
+      {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("cold", "race"))
+      {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), mac_attrs("warm", "race"))
+      assert {:ok, %{action: "seal", cold_publish: true}} = finished(cold.id, 15_000_000_000)
+      assert {:ok, %{action: "seal"}} = finished(warm.id, 100_000_000, true)
+      assert {:ok, %{upload_url: _}} = image(cold.id, "upload")
+      assert {:ok, %{upload_url: _}} = image(warm.id, "upload")
+
+      assert {:ok, %{generation: 2}} = image(cold.id, "publish")
+      assert {:ok, %{conflict: true}} = image(warm.id, "publish")
+      assert Repo.get!(Usage, warm.id).status == "discarded"
+      volume = Repo.get!(Volume, Repo.get!(Usage, cold.id).volume_id)
+      assert volume.head_id == cold.id
+      assert %{generation: 2} = VolumeHeads.get_head(account.id, CacheVolumes.storage_name(volume))
+    end
+  end
+
+  describe "multipart master uploads" do
+    @md5 Base.encode64(:crypto.hash(:md5, "part"))
+
+    setup %{job: job} do
+      {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      complete(job)
+
+      params = %{
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => String.duplicate("c", 64),
+        "upload_id" => "upload-1"
+      }
+
+      %{use: use, params: params}
+    end
+
+    defp multipart(id, operation, params, extra \\ %{}),
+      do: CacheVolumes.image("node", id, params |> Map.merge(extra) |> Map.put("operation", operation))
+
+    defp sums(numbers), do: Enum.map(numbers, &%{"part_number" => &1, "content_md5" => @md5})
+
+    test "a host uploads its master in parts, completes it and publishes it", %{use: use, params: params} do
+      expect(Runners, :start_volume_master_upload, fn _, _, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", _ ->
+        {:ok, "upload-1"}
+      end)
+
+      expect(Runners, :volume_master_part_urls, fn _, _, _, _, "upload-1", [{1, @md5}, {2, @md5}] ->
+        {:ok, [%{part_number: 1, url: "https://1.1.1.1/1"}, %{part_number: 2, url: "https://1.1.1.1/2"}]}
+      end)
+
+      expect(Runners, :complete_volume_master_upload, fn _, _, _, _, "upload-1", parts ->
+        assert parts == [{1, ~s("a")}, {2, ~s("b")}]
+        :ok
+      end)
+
+      assert {:ok, %{upload_id: "upload-1"}} = multipart(use.id, "upload", params, %{"multipart" => true})
+
+      assert {:ok, %{parts: [%{part_number: 1}, %{part_number: 2}]}} =
+               multipart(use.id, "upload_parts", params, %{"parts" => sums([1, 2])})
+
+      parts = [%{"part_number" => 2, "etag" => ~s("b")}, %{"part_number" => 1, "etag" => ~s("a")}]
+      assert {:ok, %{}} = multipart(use.id, "complete", params, %{"parts" => parts})
+      assert {:ok, %{generation: 1}} = multipart(use.id, "publish", params)
+    end
+
+    test "a host that does not ask for parts, or storage that cannot take them, gets one PUT", %{
+      use: use,
+      params: params
+    } do
+      stub(Runners, :volume_master_upload_url, fn _, _, _, _ -> {:ok, "https://1.1.1.1/upload", "checksum"} end)
+      stub(Runners, :track_volume_master_upload, fn _, _, _, _ -> :ok end)
+      # Only the request that asks for parts may start a multipart upload.
+      expect(Runners, :start_volume_master_upload, fn _, _, _, _ -> :unsupported end)
+      assert {:ok, %{upload_url: "https://1.1.1.1/upload"}} = multipart(use.id, "upload", params)
+
+      assert {:ok, %{upload_url: "https://1.1.1.1/upload"}} =
+               multipart(use.id, "upload", params, %{"multipart" => true})
+    end
+
+    test "part links and completion stop once another job advanced the lineage", %{
+      use: use,
+      params: params,
+      job: job
+    } do
+      {:ok, other} = CacheVolumes.allocate_for_job(job, identity(), attrs("other"))
+      assert {:ok, %{action: "keep"}} = publish_report("node", other.id)
+      reject(&Runners.volume_master_part_urls/6)
+      reject(&Runners.complete_volume_master_upload/6)
+
+      assert {:error, :conflict} = multipart(use.id, "upload_parts", params, %{"parts" => sums([1])})
+
+      assert {:error, :conflict} =
+               multipart(use.id, "complete", params, %{"parts" => [%{"part_number" => 1, "etag" => "e"}]})
+    end
+
+    test "malformed part requests are refused", %{use: use, params: params} do
+      reject(&Runners.volume_master_part_urls/6)
+      reject(&Runners.complete_volume_master_upload/6)
+
+      for parts <- [
+            [],
+            sums([0]),
+            sums([10_001]),
+            sums([1, 1]),
+            sums(1..65),
+            [%{"part_number" => 1}],
+            [%{"part_number" => 1, "content_md5" => "not-base64-md5"}],
+            [%{"part_number" => "1", "content_md5" => @md5}],
+            nil
+          ] do
+        assert {:error, :invalid_request} = multipart(use.id, "upload_parts", params, %{"parts" => parts})
+      end
+
+      for parts <- [
+            [],
+            [%{"part_number" => 1}],
+            [%{"part_number" => 1, "etag" => ""}],
+            [%{"part_number" => 1, "etag" => "a"}, %{"part_number" => 1, "etag" => "b"}],
+            nil
+          ] do
+        assert {:error, :invalid_request} = multipart(use.id, "complete", params, %{"parts" => parts})
+      end
+
+      assert {:error, :invalid_request} =
+               multipart(use.id, "upload_parts", Map.delete(params, "upload_id"), %{"parts" => sums([1])})
+    end
+
+    test "storage failures are unavailable, so the host retries them", %{use: use, params: params} do
+      stub(Runners, :start_volume_master_upload, fn _, _, _, _ -> :error end)
+      stub(Runners, :volume_master_part_urls, fn _, _, _, _, _, _ -> :error end)
+      stub(Runners, :complete_volume_master_upload, fn _, _, _, _, _, _ -> :error end)
+
+      assert {:error, :unavailable} = multipart(use.id, "upload", params, %{"multipart" => true})
+      assert {:error, :unavailable} = multipart(use.id, "upload_parts", params, %{"parts" => sums([1])})
+
+      assert {:error, :unavailable} =
+               multipart(use.id, "complete", params, %{"parts" => [%{"part_number" => 1, "etag" => "e"}]})
+    end
+
+    test "the host that started an upload can abort it, even after a conflict", %{
+      use: use,
+      params: params,
+      job: job
+    } do
+      {:ok, other} = CacheVolumes.allocate_for_job(job, identity(), attrs("other"))
+      assert {:ok, %{action: "keep"}} = publish_report("node", other.id)
+      expect(Runners, :abort_volume_master_upload, fn _, _, _, _, "upload-1" -> :ok end)
+
+      assert {:ok, %{}} = multipart(use.id, "abort", params)
+      assert {:error, :not_found} = CacheVolumes.image("other-node", use.id, Map.put(params, "operation", "abort"))
     end
   end
 end

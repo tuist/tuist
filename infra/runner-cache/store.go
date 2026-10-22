@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -32,14 +34,39 @@ type Identity struct {
 	// host-built master of its volume's clear Generation and is never published.
 	Kind       string `json:"kind,omitempty"`
 	Generation int64  `json:"generation,omitempty"`
-	// VolumeBytes is the size the server allocated the volume at. Zero from a
+	// ManagedKey is set by the host from the request when the key names a
+	// Tuist-managed cache (see ManagedKey), never by the server or a guest.
+	ManagedKey string `json:"managed_key,omitempty"`
+	// VolumeBytes is the capacity the server chose for this use. Zero from a
 	// server that predates per-volume sizes.
 	VolumeBytes int64 `json:"volume_bytes"`
+	// HeadSizeBytes is the measured used bytes of the saved head, or zero when
+	// unknown.
+	HeadSizeBytes int64 `json:"head_size_bytes"`
 }
 
-// MaxVolumeBytes bounds the size a server may allocate a volume at, so a
-// host can admit and restore any volume it is handed.
-const MaxVolumeBytes = 32_000_000_000
+// DefaultMaxVolumeBytes is the largest volume a host accepts when its agent
+// configures no maximum.
+const DefaultMaxVolumeBytes = 32_000_000_000
+
+// RequestedVolumeBytes is a guest's requested capacity when it is a whole
+// number of decimal GB from 1 to 100, else zero.
+func RequestedVolumeBytes(bytes int64) int64 {
+	if bytes < 1_000_000_000 || bytes > 100_000_000_000 || bytes%1_000_000_000 != 0 {
+		return 0
+	}
+	return bytes
+}
+
+// RequestedSize is the capacity a guest requested. It decodes any JSON value
+// and keeps only a valid size, so a malformed one never fails the request.
+type RequestedSize int64
+
+func (r *RequestedSize) UnmarshalJSON(data []byte) error {
+	bytes, _ := strconv.ParseInt(string(data), 10, 64)
+	*r = RequestedSize(RequestedVolumeBytes(bytes))
+	return nil
+}
 
 // VolumeSize is the size the volume's image is created at: the allocated size,
 // or defaultBytes when the server did not send one.
@@ -48,6 +75,35 @@ func (i Identity) VolumeSize(defaultBytes int64) int64 {
 		return i.VolumeBytes
 	}
 	return defaultBytes
+}
+
+// UnmeasuredVolumeBytes is what a job without a measured head is expected to
+// write. GrowthBytes is the least a job is expected to add to its head.
+const (
+	UnmeasuredVolumeBytes = 5_000_000_000
+	GrowthBytes           = 2_000_000_000
+)
+
+// ExpectedBytes is the space a job's copy is admitted with: the head's used
+// bytes plus half again (at least GrowthBytes), else UnmeasuredVolumeBytes,
+// never more than the volume. The image keeps its full capacity, so a job can
+// write past this into space nothing reserved. The server's placement
+// (`Tuist.Runners.CacheVolumes`, `reserved_bytes`) mirrors this; keep them in step.
+func (i Identity) ExpectedBytes(defaultBytes int64) int64 {
+	expected := int64(UnmeasuredVolumeBytes)
+	if i.HeadSizeBytes > 0 {
+		expected = i.HeadSizeBytes + max(GrowthBytes, i.HeadSizeBytes/2)
+	}
+	return min(i.VolumeSize(defaultBytes), expected)
+}
+
+// RestoreBytes is the free space restoring the head needs: its archive beside
+// the expanded image, twice its used bytes, or twice the volume when unknown.
+func (i Identity) RestoreBytes(defaultBytes int64) int64 {
+	if i.HeadSizeBytes > 0 {
+		return 2 * i.HeadSizeBytes
+	}
+	return 2 * i.VolumeSize(defaultBytes)
 }
 
 const KindCheckout = "checkout"
@@ -69,6 +125,12 @@ type Slot struct {
 	// MountedGeneration is the older generation a branch was cloned from because
 	// its base was not on the host, or 0.
 	MountedGeneration int64 `json:"mounted_generation,omitempty"`
+	// PublishCold is set for one seal when the server lets a branch that started
+	// empty replace its lineage's HEAD (the "publish" decision).
+	PublishCold bool `json:"-"`
+	// Discard is set once the branch is being deleted: a pass that finds its loop
+	// device still held by another mount deletes it again instead of sealing it.
+	Discard bool `json:"discard,omitempty"`
 }
 
 // Backend owns storage operations and must make every operation restart-safe.
@@ -90,6 +152,8 @@ type Store struct {
 	path     string
 	backend  Backend
 	MaxSlots int
+	// MaxVolumeBytes is the largest volume this host accepts.
+	MaxVolumeBytes int64
 }
 
 func Open(path string, backend Backend) (*Store, error) {
@@ -106,7 +170,7 @@ func Open(path string, backend Backend) (*Store, error) {
 			return nil, err
 		}
 	}
-	return &Store{root: root, path: path, backend: backend, MaxSlots: 100, locks: map[string]*leaseLock{}}, nil
+	return &Store{root: root, path: path, backend: backend, MaxSlots: 100, MaxVolumeBytes: DefaultMaxVolumeBytes, locks: map[string]*leaseLock{}}, nil
 }
 func (s *Store) Close() error { return s.root.Close() }
 
@@ -146,15 +210,16 @@ func (s *Store) slots() ([]Slot, error) {
 		if err = json.Unmarshal(b, &slot); err != nil {
 			return nil, err
 		}
-		if !valid(slot.Identity, slot.PodName, slot.PodUID) || name != slot.ID+".json" {
+		// A lease journaled under a larger host maximum stays readable.
+		if !valid(slot.Identity, slot.PodName, slot.PodUID, math.MaxInt64) || name != slot.ID+".json" {
 			return nil, errors.New("invalid cache journal")
 		}
 		slots = append(slots, slot)
 	}
 	return slots, nil
 }
-func valid(identity Identity, pod, uid string) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= MaxVolumeBytes && validHead(identity) && validKind(identity)
+func valid(identity Identity, pod, uid string, maxVolumeBytes int64) bool {
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && identity.VolumeBytes >= 0 && identity.VolumeBytes <= maxVolumeBytes && identity.HeadSizeBytes >= 0 && validHead(identity) && validKind(identity)
 }
 func validKind(identity Identity) bool {
 	switch identity.Kind {
@@ -226,7 +291,7 @@ func (s *Store) lock(id string) func() {
 	}
 }
 func (s *Store) Acquire(ctx context.Context, identity Identity, pod, uid string) (bool, error) {
-	if !valid(identity, pod, uid) {
+	if !valid(identity, pod, uid, s.MaxVolumeBytes) {
 		return false, errors.New("invalid identity")
 	}
 	unlock := s.lock(identity.ID)
@@ -366,11 +431,10 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	}
 	// An incomplete allocation can never become a published snapshot.
 	if slot.State == "allocated" && done {
-		if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
+		if err = s.discard(&slot); err != nil {
 			return err
 		}
-		slot.State = "deleted"
-		if err = s.save(slot); err != nil {
+		if err = s.save(slot); err != nil || slot.State != "deleted" {
 			return err
 		}
 	}
@@ -386,26 +450,31 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	if !done {
 		return s.save(slot)
 	}
+	if slot.Discard && (action == "seal" || action == "publish") {
+		action = "delete"
+	}
 	switch action {
-	case "seal":
+	case "seal", "publish":
 		if slot.State != "active" || !slot.CanPublish {
 			return errors.New("invalid seal decision")
 		}
-		if err = s.backend.Seal(slot, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
-			if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
+		sealed := slot
+		sealed.PublishCold = action == "publish"
+		if err = s.backend.Seal(sealed, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
+			if err = s.discard(&slot); err != nil {
 				return err
 			}
-			slot.State = "deleted"
+		} else if errors.Is(err, ErrReleasePending) {
+			// Verified; it publishes once the other mount releases its loop device.
 		} else if err != nil {
 			return err
 		} else {
 			slot.State = "sealed"
 		}
 	case "delete":
-		if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
+		if err = s.discard(&slot); err != nil {
 			return err
 		}
-		slot.State = "deleted"
 	case "forget":
 		if slot.State != "deleted" {
 			return errors.New("cannot forget live storage")
@@ -414,7 +483,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	case "keep":
 		if slot.State == "sealed" {
 			if keeper, ok := s.backend.(interface{ Keep(Slot, string) error }); ok {
-				if err = keeper.Keep(slot, s.activePath(slot)); err != nil {
+				if err = keeper.Keep(slot, s.activePath(slot)); err != nil && !errors.Is(err, ErrReleasePending) {
 					return err
 				}
 			}
@@ -424,6 +493,19 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		return errors.New("invalid cache decision")
 	}
 	return s.save(slot)
+}
+
+// discard deletes the slot's branch. While another mount still holds its loop
+// device the slot keeps its state, marked for a later pass to delete.
+func (s *Store) discard(slot *Slot) error {
+	slot.Discard = true
+	if err := s.backend.Delete(*slot, s.activePath(*slot)); errors.Is(err, ErrReleasePending) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	slot.State = "deleted"
+	return nil
 }
 
 // Clean scratch files only after both pod teardown fences and after all block

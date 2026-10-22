@@ -16,8 +16,17 @@ case "$gradle_home" in
   *) gradle_home="$PWD/$gradle_home" ;;
 esac
 
+arguments=(--key tuist-gradle --path "$gradle_home/caches" --path "$gradle_home/wrapper")
+size=${TUIST_GRADLE_CACHE_SIZE:-}
+if [ -n "$size" ]; then
+  case "$("$client" -h 2>&1 || true)" in
+    *-size*) arguments+=(--size "$size") ;;
+    *) echo "::warning::This runner image does not support the size input yet; the Gradle cache keeps its current size." ;;
+  esac
+fi
+
 status=0
-"$client" --key tuist-gradle --path "$gradle_home/caches" --path "$gradle_home/wrapper" || status=$?
+"$client" "${arguments[@]}" || status=$?
 if [ "$status" != 0 ]; then
   echo "::warning::Could not attach the Gradle cache (tuist-cache-volume exited $status); the job runs with an empty one."
   exit 0

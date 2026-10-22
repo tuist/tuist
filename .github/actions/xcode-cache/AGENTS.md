@@ -8,6 +8,10 @@ The Buildkite and GitLab entry points for the same caches are in `ci/runner-cach
 - Keep the action a thin wrapper. The runner image's `tuist-runner-cache`
   (`infra/runner-image/`) owns activation, the xcconfig chaining and the env
   contract; the action only appends what it prints to `$GITHUB_ENV`.
+- The optional `size` input reaches the helper as `--size` only when
+  `tuist-runner-cache -h` lists it; an older image warns and activates at the
+  current size. The server sizes the volume and the helper derives the cache's
+  limit from the capacity it attached at.
 - Never fail the job: a missing helper is a no-op, exit 3 and any other failure
   warn. Never turn on `COMPILATION_CACHE_ENABLE_CACHING`.
 - Keep the distribution self-contained: `action.yml`, `activate.sh`, README,

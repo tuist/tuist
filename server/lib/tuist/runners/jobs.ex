@@ -183,7 +183,7 @@ defmodule Tuist.Runners.Jobs do
     project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
-    TestRun
+    TestRun.query()
     |> where([test], test.project_id in ^project_ids)
     |> where([test], test.status != "in_progress")
     |> ci_scope(buildkite_job)

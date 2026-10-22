@@ -196,6 +196,7 @@ defmodule Tuist do
       Authorization,
       Guardian,
       OIDC,
+      OIDC.JWKSCache,
       Authorization.Checks,
       Billing,
       Billing.Entitlements,
@@ -208,6 +209,7 @@ defmodule Tuist do
       AppBuilds.AppBuild,
       Projects,
       Projects.Project,
+      Accounts.OIDCTrustPolicy,
       Projects.Workers.CleanProjectWorker,
       Apple,
       Xcode,
@@ -300,7 +302,6 @@ defmodule Tuist do
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
       Runners.CacheVolumes,
-      Runners.CacheVolumes.Builtin,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,
       Runners.Analytics,

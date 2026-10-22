@@ -14,7 +14,18 @@ defmodule Tuist.Runners.CacheVolumes.Schemas do
       used_bytes: integer(true),
       capacity_bytes: integer(true),
       unmeasured_copies: integer(),
-      unmeasured_capacity_copies: integer()
+      unmeasured_capacity_copies: integer(),
+      volume_bytes: %Schema{
+        type: :integer,
+        nullable: true,
+        description:
+          "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+      },
+      pending_volume_bytes: %Schema{
+        type: :integer,
+        nullable: true,
+        description: "A smaller requested capacity in bytes that applies once the volume is next cleared or expires."
+      }
     })
   end
 

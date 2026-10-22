@@ -35,28 +35,35 @@ type CustomVolumes struct {
 	Root, URL, Node, Namespace, ServiceAccount string
 	Kube                                       kubernetes.Interface
 	Tart                                       *tart.Client
-	Builtins                                   *VolumeManager
+	Space                                      *CacheSpace
 	Checkouts                                  *cachevolumes.Checkouts
 	Store                                      *cachevolumes.Store
 	HTTP                                       *http.Client
 	Running                                    func(context.Context, string) (bool, error)
-	shareMu                                    sync.Mutex
-	reservations                               map[string]cachevolumes.Slot
-	prefetch                                   atomic.Pointer[customPrefetcher]
-	tokenMu                                    sync.Mutex
-	tokenValue                                 string
-	tokenUntil                                 time.Time
-	checkoutReserved                           uint64
-	checkoutMu                                 sync.Mutex
-	checkoutJobs                               map[string]cachevolumes.CheckoutTask
-	// spare cancels the running background prefetch; guarded by Builtins.mu.
+	// MaxVolumeBytes is the largest volume this host accepts; zero is
+	// cachevolumes.DefaultMaxVolumeBytes.
+	MaxVolumeBytes   int64
+	shareMu          sync.Mutex
+	reservations     map[string]cachevolumes.Slot
+	prefetch         atomic.Pointer[customPrefetcher]
+	tokenMu          sync.Mutex
+	tokenValue       string
+	tokenUntil       time.Time
+	checkoutReserved uint64
+	checkoutMu       sync.Mutex
+	checkoutJobs     map[string]cachevolumes.CheckoutTask
+	// spare cancels the running background prefetch; guarded by Space.mu.
 	spare context.CancelCauseFunc
+	// spareScope is the scope that prefetch restores; guarded by Space.mu.
+	spareScope string
+	// images is the backend run() serves; nil until then.
+	images *cachevolumes.APFSImages
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
 	c.shareMu.Lock()
 	defer c.shareMu.Unlock()
-	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	mounted, err := c.Space.backend.isMounted(c.Space.Root)
 	if err != nil || !mounted {
 		return "", errors.New("cache filesystem unavailable")
 	}
@@ -72,6 +79,13 @@ func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
 		return "", err
 	}
 	return path, os.Chmod(path, 0777)
+}
+
+func (c *CustomVolumes) maxVolumeBytes() int64 {
+	if c.MaxVolumeBytes > 0 {
+		return c.MaxVolumeBytes
+	}
+	return cachevolumes.DefaultMaxVolumeBytes
 }
 
 func (c *CustomVolumes) token(ctx context.Context) (string, error) {
@@ -134,32 +148,30 @@ func (c *CustomVolumes) Start(ctx context.Context) error {
 }
 
 func (c *CustomVolumes) run(ctx context.Context) error {
-	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	mounted, err := c.Space.backend.isMounted(c.Space.Root)
 	if err != nil || !mounted {
 		return errors.New("cache filesystem unavailable")
 	}
+	// The timeout bounds metadata requests; archive transfers use masterDownloadClient and end on a stall instead.
 	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
-		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000,
-		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, DownloadClient: masterDownloadClient, MaxBytes: cachevolumes.MaxVolumeBytes, Token: c.token},
+		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000, MaxVolumeBytes: c.maxVolumeBytes(),
+		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, ObjectClient: masterDownloadClient, MaxBytes: c.maxVolumeBytes(), Token: c.token, Log: customCacheLog()},
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 		Displace:         c.displaceSpare,
-	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection}
+		Log:              customCacheLog(),
+	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection, Grow: growCustomImage}
 	if c.Checkouts != nil {
 		backend.Seed = c.Checkouts.Seed
 		c.Checkouts.Room = c.reserveCheckout
 		c.Checkouts.Observe = observeCustomCache
 		c.Checkouts.Log = slog.New(logr.ToSlogHandler(log.FromContext(ctx)))
 		// Checkout images are larger than custom ones, so their archives get their own bound.
-		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Token: c.token}
+		c.Checkouts.Transfer = &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, ObjectClient: masterDownloadClient, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Token: c.token, Log: customCacheLog()}
 	}
 	// A superseded master stays mountable until its successor is downloaded here.
 	backend.Replace = func(next cachevolumes.Identity) bool { return c.prefetch.Load().start(next, false) != nil }
-	c.Builtins.mu.Lock()
-	c.Builtins.CustomReserved = c.reservedBytes
-	c.Builtins.DisplaceCustom = c.displaceSpareLocked
-	c.Builtins.mu.Unlock()
 	if err := os.MkdirAll(c.Root, 0700); err != nil {
 		return err
 	}
@@ -179,7 +191,11 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		return err
 	}
 	defer store.Close()
+	store.MaxVolumeBytes = c.maxVolumeBytes()
 	c.Store = store
+	c.images = backend
+	// Pressure eviction takes the masters of lineages a job holds or is cloning last.
+	backend.InUse = store.InUse
 	if c.Checkouts != nil {
 		// Pressure eviction never takes a master a job holds or is cloning.
 		c.Checkouts.InUse = store.InUse
@@ -192,7 +208,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		if requested {
 			return backend.Prefetch(ctx, slot)
 		}
-		return c.prefetchSpare(ctx, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
+		return c.prefetchSpare(ctx, slot.Scope, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
 	}, backend.HasMaster)
 	c.prefetch.Store(prefetch)
 	var builds sync.WaitGroup
@@ -256,6 +272,7 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			}
 			reconcile()
 		case <-requests:
+			c.notePressure(ctx)
 			listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 			pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
 			stop()
@@ -315,19 +332,15 @@ func (c *CustomVolumes) freeBytesContext(ctx context.Context, _ string) (uint64,
 }
 
 func (c *CustomVolumes) freeBytesLocked() (uint64, error) {
-	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	mounted, err := c.Space.backend.isMounted(c.Space.Root)
 	if err != nil || !mounted {
 		return 0, errors.New("cache filesystem unavailable")
 	}
-	free, err := c.Builtins.availableBytes()
+	free, err := c.Space.availableBytes()
 	if err != nil {
 		return 0, err
 	}
-	reserved := uint64(len(c.Builtins.reserved)) * c.Builtins.capBytes()
-	reserved += c.reservedBytes() + c.checkoutReserved
-	if c.Builtins.converging != nil {
-		reserved += c.Builtins.converging.remaining()
-	}
+	reserved := c.reservedBytes() + c.checkoutReserved
 	if free <= reserved {
 		return 0, nil
 	}
@@ -368,13 +381,20 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	var result struct {
-		Action string `json:"action"`
+		Action      string `json:"action"`
+		ColdPublish bool   `json:"cold_publish"`
 	}
 	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil, "mounted_generation": mountedGeneration(slot)}, &result)
+	// Only an explicit server decision lets a branch that started empty replace
+	// the saved version; a plain seal keeps withholding it.
+	if result.Action == "seal" && result.ColdPublish {
+		return "publish", err
+	}
 	return result.Action, err
 }
 
 func (c *CustomVolumes) reconcile(ctx context.Context) error {
+	c.relieve(ctx)
 	if err := c.refreshReservations(ctx); err != nil {
 		return err
 	}
@@ -450,9 +470,10 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var input struct {
-			Key      string `json:"key"`
-			UID      int    `json:"uid"`
-			Checkout bool   `json:"checkout"`
+			Key       string                     `json:"key"`
+			UID       int                        `json:"uid"`
+			Checkout  bool                       `json:"checkout"`
+			Requested cachevolumes.RequestedSize `json:"requested_volume_bytes"`
 		}
 		err = json.NewDecoder(io.LimitReader(file, 4096)).Decode(&input)
 		file.Close()
@@ -490,7 +511,11 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 			continue
 		}
 		var identity cachevolumes.Identity
-		body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID}
+		body := map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "key": input.Key, "architecture": "arm64", "uid": input.UID, "max_volume_bytes": c.maxVolumeBytes()}
+		// RequestedSize drops an invalid size, so it never fails the request.
+		if input.Requested > 0 {
+			body["requested_volume_bytes"] = int64(input.Requested)
+		}
 		status, err := c.request(acquireCtx, "authorize", body, &identity)
 		// 425 means GitHub has not yet reported which job this runner executes.
 		for status == http.StatusTooEarly {
@@ -504,12 +529,20 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 				break
 			}
 		}
+		// 507: the volume is larger than this host's maximum.
+		if status == http.StatusInsufficientStorage {
+			err = cachevolumes.ErrCapacity
+		}
 		// The reserved checkout name is only ever allocated through the checkout path.
 		identity.Kind, identity.Generation = "", 0
+		identity.ManagedKey = cachevolumes.ManagedKey(input.Key)
 		response := map[string]any{"error": "unavailable", "reason": "denied"}
 		if errors.Is(err, cachevolumes.ErrExecutionPending) {
 			response["reason"] = "execution_pending"
 			log.FromContext(ctx).Info("custom cache volume not authorized in time: GitHub has not reported the job running on this pod; job continues cold", "pod", pod.Name)
+		} else if errors.Is(err, cachevolumes.ErrCapacity) {
+			response["reason"] = "capacity"
+			log.FromContext(ctx).Info("custom cache volume larger than this host holds; job continues cold", "pod", pod.Name)
 		} else if err != nil {
 			log.FromContext(ctx).Info("custom cache volume not authorized; job continues cold", "pod", pod.Name, "error", err.Error())
 		} else {
@@ -523,8 +556,9 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 					c.prefetch.Load().start(identity, true)
 				}
 				response["reason"] = cachevolumes.Result(err)
+				subject := cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity, PodName: pod.Name})
 				log.FromContext(ctx).Info("custom cache volume unavailable; job continues cold",
-					"pod", pod.Name, "use", identity.ID, "generation", identity.BaseGeneration, "reason", response["reason"], "error", err.Error())
+					append(subject.Fields(), "reason", response["reason"], "error", err.Error())...)
 			}
 		}
 		cancel()
@@ -566,8 +600,8 @@ func (c *CustomVolumes) guard(ctx context.Context) (func(), error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if c.Builtins.mu.TryLock() {
-			return c.Builtins.mu.Unlock, nil
+		if c.Space.mu.TryLock() {
+			return c.Space.mu.Unlock, nil
 		}
 		select {
 		case <-ctx.Done():

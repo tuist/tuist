@@ -4,6 +4,7 @@ This directory holds Phoenix configuration for the server.
 
 ## Responsibilities
 - Environment-specific configuration (dev, test, prod).
+- The test ingestion connection permits ordinary views inside the ClickHouse sandbox with `throw_on_unsupported_query_inside_transaction: 0`. Their MergeTree sources still participate in the transaction and roll back; do not treat ordinary views as transaction-owning storage engines or change production consistency settings to accommodate tests.
 - Boruta uses `Tuist.OAuth.AuthoritativeCache` with upstream Ecto adapters: authoritative database reads, ignored fills and no-op invalidations. Every OAuth consumer must first run the authoritative-reading compatibility release (#14040); ordinary overlap and rollback are supported only with authoritative-reading binaries. Follow the [upgrade and rollback sequence](../lib/tuist/oauth/AGENTS.md) and deploy/observe this removal before changing membership.
 - Runtime config and endpoint settings.
 - `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` enables reporting-only network trust for every supported project/account on a self-hosted instance. Parse only exact `true` into the startup application configuration; default false, keep hosted denial, and require replica restarts for changes. There is no dashboard/project policy or allowlist.

@@ -2,1139 +2,74 @@ package podagent
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// Cache volumes for the macOS runner fleet, one per (account, volume).
-//
-// A VolumeManager owns the lifecycle of cache masters kept as sparse APFS disk
-// images under a single quota-bounded runner-cache root, keyed by account and
-// volume. A job's volume is its repository's; a job with no repository uses
-// ReservedTuistCacheVolume. The model is "materialize after dispatch":
-//
-//   - A warm-pool VM boots GENERIC — an empty, writable directory is attached
-//     as a virtio-fs share at the cache root. No account data, no prediction.
-//   - The server stamps the pod's `tuist.dev/runner-account` and
-//     `tuist.dev/runner-cache-volume` labels when it claims a job. The
-//     reconciler then calls Materialize, which APFS-clonefiles that volume's
-//     master IMAGE into the VM's branch (instant, CoW) and the guest is
-//     signalled to attach it and proceed warm.
-//   - On job end Finalize promotes the branch image back to that volume's
-//     master (job succeeded AND the cache changed) or discards it.
-//
-// The cache is a disk image rather than a directory tree because the share
-// between host and guest is virtio-fs, which cannot carry a macOS cache
-// faithfully: copying a versioned framework bundle onto it fails to set
-// extended attributes on the bundle's symlinks (surfacing as ELOOP), and the
-// CLI's artifact signatures live in xattrs. With an image, exactly one regular
-// file crosses virtio-fs and the filesystem inside it is real APFS, so
-// symlinks, xattrs, ownership and inode semantics are native. The guest
-// attaches with `-owners off`, which also makes the host/guest uid split
-// irrelevant — the only permission the host has to settle is the mode of the
-// image file itself.
-//
-// Because the account is materialized only after dispatch commits (the server
-// stamps the trigger label only once a claim fully succeeds), one account's
-// cache does not reach a VM that runs another account's job — the cross-account
-// exposure and single-account-per-host problems of a predict-at-boot model are
-// avoided. Finalize additionally refuses to promote a branch whose materialized
-// SourceAccount differs from the account the job ran, as defense in depth
-// against a stale label. Masters are disposable: deleting one costs at most a
-// single cold job for that account on that host.
-//
-// The host disk is fenced in layers: the runner-cache root is its own quota-
-// bounded APFS volume (provisioned at host bootstrap), admission reserves the
-// worst-case growth of every branch that has a job, and watermark eviction
-// keeps free space above a low mark. Every space pressure degrades a job to
-// the cold path; running the host out of disk is prevented by construction.
-//
-// This control flow is identical to the eventual macOS 26 hot-plug model
-// (VZXHCIController runtime attach): only the device swaps — an image on a
-// virtio-fs share today, a hot-attached block device once tart exposes the API.
+// customRootName holds the custom cache volumes, their journal and the checkout masters.
+const customRootName = "custom"
 
-// ReservedTuistCacheVolume is the account-wide volume, used by jobs with no
-// repository. Masters are keyed (account_id, volume_name) on disk.
-const ReservedTuistCacheVolume = "tuist-cache"
-
-// A repository's volume is "repo-" plus the first 16 hex characters of the
-// SHA-256 of its lowercased name, as the server derives it at claim.
-const (
-	repositoryVolumePrefix  = "repo-"
-	repositoryVolumeHashLen = 16
-)
-
-// isVolumeName reports whether name is a volume the server can stamp. It
-// becomes a directory name and part of a Node label key.
-func isVolumeName(name string) bool {
-	if name == ReservedTuistCacheVolume {
-		return true
-	}
-	hash, ok := strings.CutPrefix(name, repositoryVolumePrefix)
-	if !ok || len(hash) != repositoryVolumeHashLen {
-		return false
-	}
-	for _, r := range hash {
-		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
-			return false
-		}
-	}
-	return true
-}
-
-// cacheHomeSubdir is the single top-level directory the Tuist CLI writes under
-// its cache home (TUIST_XDG_CACHE_HOME/tuist/...), which the guest points at
-// the mounted image. The host only sees it when it reads an image's inventory
-// through a read-only attach.
-const cacheHomeSubdir = "tuist"
-
-// masterImageName / masterGenerationName are the account's promoted cache image
-// and the sidecar recording the HEAD generation that image corresponds to. The
-// generation is the fast-forward version marker: a promote is accepted only if it
-// builds on the current generation, and convergence adopts a HEAD only when it is
-// newer, so the local master's generation is the single value both compare
-// against.
-const (
-	masterImageName      = "master.sparseimage"
-	masterGenerationName = "master.generation"
-)
-
-// branchImageName is the cache image inside a VM's branch share — the only
-// thing that crosses virtio-fs. The guest attaches it by this name.
-const branchImageName = "cache.sparseimage"
-
-// casStoreDir is the Xcode compilation-cache (CAS) store, folded INTO the cache
-// image as a top-level directory beside `tuist/` rather than carried as its own
-// image. The guest points COMPILATION_CACHE_CAS_PATH at it and llcas mmaps its
-// store — which works because it lives on the attached block-device APFS image,
-// not the virtio-fs share (mmap over virtio-fs SIGBUSes). Folding it in means it
-// rides the binary cache's whole lifecycle — clone, promote, fast-forward HEAD,
-// convergence — with no separate promote gate of its own. Named with Xcode's own
-// `.noindex` suffix so Spotlight (mds) never indexes a multi-GB, high-file-count
-// store.
-const casStoreDir = "CompilationCache.noindex"
-
-// casLinePrefix namespaces the CAS store's per-file inventory lines. Each regular
-// file under the store contributes one `~cas/<relpath>\t<size>` line, so the
-// digest is a real content identity for the store, not a proxy. Two properties
-// matter, and a total-byte proxy delivered neither:
-//   - Change detection: llcas grows partly by APPENDING to fixed files, so entry
-//     NAMES alone miss growth; the per-file SIZE catches it, so a compile-only
-//     job (binary cache clean, CAS grown) still registers as dirty and promotes.
-//   - Collision resistance: this digest is also the immutable object KEY a
-//     promote uploads under and a converging host verifies against. A total-size
-//     proxy let two branches with different contents but the same total collide
-//     on one key — the rejected writer could overwrite the accepted image and the
-//     size-only host check could not detect it. Per-file (name, size) closes that:
-//     llcas record files are content-addressed (name IS a hash) and the append
-//     files are distinguished by size, so distinct stores yield distinct digests.
-//
-// The `~` prefix (0x7E) sorts these lines AFTER the alphanumeric binary entry
-// names under LC_ALL=C, matching the guest, and each line must be byte-identical
-// to the guest's `find … -exec stat` output — including a REAL tab between the
-// relpath and the size. BSD stat does NOT expand `\t` in its format string, so
-// the guest builds the separator with $(printf '\t'); TestInventoryDigestMatchesGuestPipeline
-// runs the real shell pipeline to guard this byte-for-byte.
-const casLinePrefix = "~cas"
-
-// materializedMarker is a host-written sentinel dropped in the branch once the
-// host has materialized (or decided cold-path) for a VM. It is the ONLY signal
-// that the branch was host-materialized, and it stays host-authoritative: the
-// guest writes only inside the image, never this dotfile. That keeps restart
-// recovery from marking an idle branch materialized and skipping its real
-// materialization.
-const materializedMarker = ".host-materialized"
-
-// volumeBackend abstracts the macOS-specific operations the manager needs so
-// its lifecycle logic (admission, LRU, promote/discard, paths) is testable off
-// a Mac. The real implementation lives in volume_darwin.go (clonefile via
-// `cp -c`, statfs via `df`, images via `hdiutil`); tests inject a fake.
+// volumeBackend is the filesystem probes the cache space needs; tests inject a fake.
 type volumeBackend interface {
-	// clonePath CoW-clones the file at src to dst (APFS clonefile: instant, no
-	// byte copy). dst must not exist; its parent must.
-	clonePath(src, dst string) error
-	// freeBytes reports the free space on the filesystem holding root
-	// (statfs). Ground truth for admission and watermarks: per-file sizes
-	// cannot be summed because CoW clones share blocks.
 	freeBytes(root string) (uint64, error)
-	// capacityBytes reports the size of the filesystem holding root: the quota
-	// of the runner-cache volume, which bounds how large a master this host can
-	// keep at all.
+	// capacityBytes is the runner-cache volume's quota.
 	capacityBytes(root string) (uint64, error)
-	// usedBytes reports what the volume holding root takes on disk. An APFS
-	// volume reports its own usage, not its container's, so this is what a
-	// budget below the volume's quota is measured against.
+	// usedBytes is the APFS volume's own usage, not its container's.
 	usedBytes(root string) (uint64, error)
-	// allocatedBytes reports the disk space the file at path occupies, which is
-	// what deleting it can return (less any blocks a CoW clone still shares).
 	allocatedBytes(path string) (uint64, error)
-	// isMounted reports whether root is an actually-mounted volume rather than
-	// a stale/absent mountpoint on the boot filesystem. freeBytes cannot tell
-	// the two apart — df against a bare mountpoint dir happily reports the boot
-	// volume's free space — so this is a distinct mount-point check.
+	// isMounted tells a mounted volume from a bare mountpoint on the boot disk, which df cannot.
 	isMounted(root string) (bool, error)
-	// createImage creates an empty sparse APFS disk image of at most sizeGiB
-	// at path. Sparse: the file costs megabytes until written. Used for both
-	// the binary cache image and an account's first CAS master on a host.
-	createImage(path string, sizeGiB int) error
-	// growImage raises a detached image's capacity to sizeGiB when it is below
-	// that, and never lowers it. A master created before the cap was raised keeps
-	// its old capacity until it is grown.
-	growImage(path string, sizeGiB int) error
-	// imageInventoryDigest attaches the image read-only and returns the
-	// inventory digest of the cache home inside it. Used to verify a downloaded
-	// HEAD image matches its advertised digest before adopting it.
-	imageInventoryDigest(path string) (string, error)
 }
 
-// VolumeOutcome is the terminal disposition of a branch, for observability.
-type VolumeOutcome string
-
-const (
-	// VolumeOutcomePromoted: branch became the account's new master.
-	VolumeOutcomePromoted VolumeOutcome = "promoted"
-	// VolumeOutcomeDiscarded: branch dropped (clean/read-only job, or a
-	// crashed job with no marker, or a never-dispatched warm VM).
-	VolumeOutcomeDiscarded VolumeOutcome = "discarded"
-	// VolumeOutcomeNone: no volume was attached for this VM (feature off, or
-	// admission declined). The job ran on the status-quo cold path.
-	VolumeOutcomeNone VolumeOutcome = "none"
-)
-
-// VolumeAttachment records what AllocateBranch prepared for a VM so
-// Materialize and Finalize can act on it. The zero value (Attached false)
-// means the VM booted without a volume — the cold path — and both are no-ops.
-type VolumeAttachment struct {
-	// Attached is false when the feature is off or admission declined.
-	Attached bool
-	// VolumeName is the volume the branch materializes from and promotes into,
-	// set from the pod's volume label at materialize.
-	VolumeName string
-	// BranchPath is the per-VM branch directory shared into the VM. It holds
-	// exactly one file: the branch cache image.
-	BranchPath string
-	// SourceAccount is the account whose master was materialized into the
-	// branch, learned from the pod label at dispatch. Empty until Materialize
-	// runs (or if the VM is never dispatched).
-	SourceAccount string
-	// Materialized is true once the account's master has been clonefiled into
-	// the branch (or determined absent — a cold first job). Guards against
-	// re-materializing on repeated reconciles.
-	Materialized bool
-	// PromotedGeneration is the HEAD generation the server accepted for this
-	// job's fast-forward, relayed by the guest into the status share at promote.
-	// Zero means the guest did not promote or the server rejected the bump (the
-	// job built on a stale base); the host then discards the branch rather than
-	// moving its local master off the accepted lineage.
-	PromotedGeneration int
-}
-
-// VolumeManager manages cache-volume master images under a single quota-bounded
-// runner-cache root. Safe for concurrent use.
-type VolumeManager struct {
-	// Root is the runner-cache root — a dedicated quota-bounded APFS volume
-	// provisioned at host bootstrap. Empty disables the whole feature: every
-	// method no-ops and every VM boots on the cold path.
+// CacheSpace is the quota-bounded APFS volume every runner cache on the host shares.
+type CacheSpace struct {
+	// Root is the runner-cache volume's mount point; empty disables runner caches.
 	Root string
 
-	// CapGiB is the provisioned size of a cache image and the worst-case
-	// growth admission reserves per live branch. The image is sparse, so this
-	// is a ceiling rather than an allocation; the APFS volume's own quota is
-	// the real aggregate ceiling.
-	CapGiB int
-
-	// BudgetGiB, when > 0, is the space every cache on the volume may take
-	// together, below the volume's quota. Admission, convergence and the
-	// evictor measure free space and capacity against it, so it changes with a
-	// restart, while the quota is fixed when the volume is created. 0 leaves
-	// the quota as the bound.
+	// BudgetGiB, when > 0, is what every cache on the volume may take together, below its quota.
 	BudgetGiB int
 
-	// CASGiB is the CAS's FOOTPRINT allowance WITHIN the shared cache image (the
-	// CAS is folded in as a subdir, not its own image). It sets the CAS's share of
-	// the CapGiB cap, and the binary cache gets the rest minus a filesystem
-	// reserve, so the two pruners never over-commit the one image. The guest is
-	// staged all of it as COMPILATION_CACHE_LIMIT_SIZE, which already covers both
-	// generations a store keeps. Zero disables
-	// the CAS entirely: the compilation cache is not persisted across VMs (it stays
-	// VM-local, dying with the VM), and the binary cache gets the full budget.
-	CASGiB int
-
-	// LowWatermarkFraction is the free-space fraction the background evictor
-	// keeps the quota volume above by dropping whole masters LRU.
-	LowWatermarkFraction float64
-
-	// HostDiskSpace bounds cache growth by physical host headroom in addition
-	// to the APFS quota. Tests with an injected backend can supply a probe.
 	HostDiskSpace func() (hostdisk.Stats, error)
+
+	// Running reports whether a Tart VM is running; the leftover sweep keeps a running VM's share.
+	Running func(ctx context.Context, vm string) (bool, error)
 
 	backend volumeBackend
 
-	// mu serializes disk-mutating operations and the branch reservations. Every
-	// master mutation is a fast CoW clone + rename (promote and converge both
-	// whole-image REPLACE, gated by generation), so a single lock is sufficient at
-	// the 2-VMs-per-host concurrency of this fleet.
+	// mu serializes admission: reservations are recorded under it, never downloads or image creation.
 	mu sync.Mutex
 
-	// reserved holds the branch directories admission has reserved CapGiB for:
-	// branches materialized and not yet finalized. A warm standby's branch is
-	// not in it, because it writes nothing until it has a job.
-	reserved       map[string]bool
-	CustomReserved func() uint64
-	// DisplaceCustom cancels a background custom-volume prefetch so its space
-	// stops counting in CustomReserved. Called with mu held.
-	DisplaceCustom func() bool
-
-	// converging is the space the in-flight convergence download still needs, or
-	// nil. Admission counts it, so a job admitted mid-download is not promised
-	// space the download is about to write into.
-	converging *convergeReservation
-
-	// retained is the set of branch dirs (keyed by VM name) that belong to
-	// VMs still running after a kubelet restart. ReattachBranch adds to it
-	// during state recovery; the startup SweepBranches keeps exactly these
-	// and reaps the rest, so a restart never pulls a mounted cache image out
-	// from under a live job.
-	retained map[string]bool
-
-	// ReconcileInterval is how often the background watermark evictor +
-	// observability sampler runs. Defaults to 5m.
 	ReconcileInterval time.Duration
 
-	// mountCheckInterval / mountCheckAttempts bound the startup wait for the
-	// runner-cache root to become a mounted volume (auto-mount can lag a host
-	// reboot). Zero values default to 10s and 12 attempts (~2m). Injectable so
-	// tests don't wait real seconds.
 	mountCheckInterval time.Duration
 	mountCheckAttempts int
-
-	// now is injectable for tests; defaults to time.Now.
-	now func() time.Time
 }
 
-// NewVolumeManager builds a manager. root == "" returns a disabled manager
-// whose methods all no-op. A nil backend defaults to the platform backend
-// (macOS clonefile/df/hdiutil); tests inject a fake.
-func NewVolumeManager(root string, capGiB int, backend volumeBackend) *VolumeManager {
-	if capGiB <= 0 {
-		capGiB = 20
-	}
+// NewCacheSpace returns a disabled space for an empty root, and the platform backend for a nil one.
+func NewCacheSpace(root string, backend volumeBackend) *CacheSpace {
 	var hostSpace func() (hostdisk.Stats, error)
 	if backend == nil {
 		backend = newVolumeBackend()
 		hostSpace = func() (hostdisk.Stats, error) { return hostdisk.Root("/") }
 	}
-	return &VolumeManager{
-		Root:                 root,
-		CapGiB:               capGiB,
-		LowWatermarkFraction: 0.20,
-		backend:              backend,
-		HostDiskSpace:        hostSpace,
-		now:                  time.Now,
-	}
+	return &CacheSpace{Root: root, backend: backend, HostDiskSpace: hostSpace}
 }
 
-// Enabled reports whether the feature is active on this host.
-func (m *VolumeManager) Enabled() bool { return m != nil && m.Root != "" }
+func (m *CacheSpace) Enabled() bool { return m != nil && m.Root != "" }
 
-func (m *VolumeManager) capBytes() uint64 { return uint64(m.CapGiB) * 1024 * 1024 * 1024 }
-
-// casEnabled reports whether the folded CAS store is served for this feature.
-// The host uses it only to signal the guest (via a status-share marker) to point
-// the compiler at the store; the store itself is just a directory inside the
-// cache image, so there is no separate image to manage.
-func (m *VolumeManager) casEnabled() bool { return m.Enabled() && m.CASGiB > 0 }
-
-// volumeDir is <root>/<account>/<volume> — the master image and its generation
-// sidecar live here, and eviction drops the whole directory.
-func (m *VolumeManager) volumeDir(account, volume string) string {
-	return filepath.Join(m.Root, account, volume)
-}
-
-// masterImage is <root>/<account>/<volume>/master.sparseimage.
-func (m *VolumeManager) masterImage(account, volume string) string {
-	return filepath.Join(m.volumeDir(account, volume), masterImageName)
-}
-
-// masterGenerationPath is the sidecar recording the HEAD generation the master
-// image corresponds to (see masterGenerationName).
-func (m *VolumeManager) masterGenerationPath(account, volume string) string {
-	return filepath.Join(m.volumeDir(account, volume), masterGenerationName)
-}
-
-// branchDir is <root>/branches/<vm>. Branches are per-VM and account-agnostic
-// until Materialize — they live under a single top-level dir, not per account.
-func (m *VolumeManager) branchDir(vm string) string {
-	return filepath.Join(m.Root, "branches", vm)
-}
-
-func (m *VolumeManager) branchesRoot() string { return filepath.Join(m.Root, "branches") }
-
-// BranchImage is the cache image inside a VM's branch share — the path the
-// guest attaches.
-func (m *VolumeManager) BranchImage(att VolumeAttachment) string {
-	return filepath.Join(att.BranchPath, branchImageName)
-}
-
-// ConvergeStagingDir is scratch on the runner-cache volume where a HEAD image for
-// (account, volume) is downloaded before InstallMaster replaces the local master
-// with it — on the same volume as the masters so the clone stays a same-volume
-// CoW op. Keyed by the volume rather than by a VM so a download that yields to a
-// job resumes from the bytes it already has.
-func (m *VolumeManager) ConvergeStagingDir(account, volume string) string {
-	return filepath.Join(m.Root, convergeDirName, account, volume)
-}
-
-// convergeDirName is the top-level scratch dir for convergence downloads. It
-// sits beside the account dirs under Root, so master scanning skips it by name.
-const convergeDirName = "_converge"
-
-// AllocateBranch prepares an empty per-VM branch directory for a booting warm-
-// pool VM. It clones nothing, predicts nothing and reserves nothing: the branch
-// gets its image later from Materialize, once dispatch has bound the VM to an
-// account, and that is where admission runs. When the feature is off or the
-// root is not mounted, it returns an un-attached zero value and the VM boots on
-// the cold path.
-func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, error) {
-	if !m.Enabled() {
-		return VolumeAttachment{}, nil
-	}
-	if volume == "" {
-		volume = ReservedTuistCacheVolume
-	}
-
-	// Never allocate against an unmounted root. If a stale mountpoint dir lingers
-	// on the boot filesystem, freeBytes (df) reports the BOOT volume's free space,
-	// so admission would pass and the branch dir + its clonefiled cache image would
-	// land on the boot disk — defeating the quota fence and risking host ENOSPC. An
-	// absent path would otherwise error per allocation rather than cold-fall-back
-	// cleanly. The one-shot startup wait cannot catch a volume that vanishes later,
-	// so gate every allocation here. Either way, decline to the cold path.
-	if mounted, err := m.backend.isMounted(m.Root); err != nil || !mounted {
-		RecordVolumeRootMounted(false)
-		log.Log.WithName("cache-volumes").Error(err,
-			"runner-cache root is not a mounted volume; VM boots on the cold path (allocation skipped so cache images are not written to the boot disk)",
-			"vm", vm, "root", m.Root)
-		return VolumeAttachment{}, nil
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	branch := m.branchDir(vm)
-	if err := os.RemoveAll(branch); err != nil {
-		return VolumeAttachment{}, fmt.Errorf("clear stale branch dir: %w", err)
-	}
-	// 0o777 so the guest's unprivileged runner user can attach the image
-	// read-write over the virtio-fs share (the host relaxes the status share
-	// the same way).
-	if err := os.MkdirAll(branch, 0o777); err != nil {
-		return VolumeAttachment{}, fmt.Errorf("mkdir branch dir: %w", err)
-	}
-	if err := os.Chmod(branch, 0o777); err != nil {
-		return VolumeAttachment{}, fmt.Errorf("chmod branch dir: %w", err)
-	}
-
-	return VolumeAttachment{
-		Attached:   true,
-		VolumeName: volume,
-		BranchPath: branch,
-	}, nil
-}
-
-// MaterializeSource is where a branch's image came from.
-type MaterializeSource string
-
-const (
-	MaterializedWarm MaterializeSource = "warm"
-	// MaterializedSeeded: a clone of the account's ReservedTuistCacheVolume
-	// master, for a repository volume with no master on this host.
-	MaterializedSeeded MaterializeSource = "seeded"
-	MaterializedCold   MaterializeSource = "cold"
-)
-
-// masterKey names one master: <root>/<account>/<volume>.
-type masterKey struct {
-	account string
-	volume  string
-}
-
-// Materialize clonefiles the master of the given account and the attachment's
-// volume into the VM's branch, making the branch a warm, private CoW copy of
-// that cache. It is called once, after the server has stamped the pod's account
-// and volume labels. A repository volume with no master here is seeded from the
-// account's ReservedTuistCacheVolume master when there is one; otherwise the job
-// runs cold and Finalize promotes its writes into the volume's first master.
-//
-// Every path leaves an image at the branch: the guest is already pointed at the
-// share and cannot attach what isn't there, and a missing image kills the job
-// on its first cache write. So a clone failure or an absent master falls back to
-// creating an EMPTY image and running cold — cold costs warmth, no image costs
-// the job. The one exception is an admission decline (errAdmissionDeclined):
-// the branch then gets no image, and the guest's failed attach sends it to its
-// local cold cache without writing to the volume at all.
-//
-// Returns baseGeneration: the generation of the local master the branch was
-// cloned from, captured under the same lock as the clone so a background converge
-// cannot advance it out from under the value. This is the base the job builds on
-// — the guest sends it at promote and the server's fast-forward accepts the bump
-// only if HEAD is still at it. A cold or seeded branch has base 0.
-func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (source MaterializeSource, baseGeneration int, err error) {
-	if !m.Enabled() || !att.Attached || account == "" {
-		return MaterializedCold, 0, nil
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	source, from := m.materializeSourceLocked(account, att.VolumeName)
-	if err := m.reserveLocked(att, from); err != nil {
-		return MaterializedCold, 0, err
-	}
-
-	// The CAS store is folded into the cache image (casStoreDir), so it is cloned
-	// into the branch as part of the one image below — no separate CAS clone.
-
-	dest := m.BranchImage(att)
-	if source == MaterializedCold {
-		// No master to clone: the guest warms from the remote cache and Finalize
-		// promotes the result into the volume's first master.
-		return MaterializedCold, 0, m.createBranchImageLocked(dest)
-	}
-
-	if source == MaterializedWarm {
-		if baseGeneration, err = m.masterGenerationLocked(from.account, from.volume); err != nil {
-			return MaterializedCold, 0, err
-		}
-	}
-
-	// Clone beside the destination and rename, so a clone that fails partway
-	// never leaves a torn image the guest could attach.
-	master := m.masterImage(from.account, from.volume)
-	tmp := dest + ".materialize.tmp"
-	_ = os.Remove(tmp)
-	if err := m.backend.clonePath(master, tmp); err != nil {
-		_ = os.Remove(tmp)
-		return MaterializedCold, 0, joinFallback(fmt.Errorf("clone master image into branch: %w", err), m.createBranchImageLocked(dest))
-	}
-	_ = os.Remove(dest)
-	if err := os.Rename(tmp, dest); err != nil {
-		_ = os.Remove(tmp)
-		return MaterializedCold, 0, joinFallback(fmt.Errorf("swap materialized image into place: %w", err), m.createBranchImageLocked(dest))
-	}
-	if err := chmodImageGuestWritable(dest); err != nil {
-		return MaterializedCold, 0, fmt.Errorf("make materialized image guest-writable: %w", err)
-	}
-	// Mark the master used so LRU tracks materialization, not just promotion —
-	// a volume whose jobs keep landing here stays hot. A seed source is not
-	// marked, so it ages out.
-	if source == MaterializedWarm {
-		_ = os.Chtimes(master, m.now(), m.now())
-	}
-	return source, baseGeneration, nil
-}
-
-// materializeSourceLocked picks the master a branch for (account, volume) is
-// cloned from: the volume's own, else for a repository volume the account's
-// ReservedTuistCacheVolume master, else none.
-func (m *VolumeManager) materializeSourceLocked(account, volume string) (MaterializeSource, masterKey) {
-	own := masterKey{account: account, volume: volume}
-	if m.hasMasterLocked(own) {
-		return MaterializedWarm, own
-	}
-	if volume != ReservedTuistCacheVolume {
-		seed := masterKey{account: account, volume: ReservedTuistCacheVolume}
-		if m.hasMasterLocked(seed) {
-			return MaterializedSeeded, seed
-		}
-	}
-	return MaterializedCold, masterKey{}
-}
-
-func (m *VolumeManager) hasMasterLocked(key masterKey) bool {
-	_, err := os.Stat(m.masterImage(key.account, key.volume))
-	return err == nil
-}
-
-// reserveLocked is admission: it reserves CapGiB for this branch AND for every
-// other reserved branch's worst-case remaining growth. statfs free already
-// reflects what reserved branches have written; reserving CapGiB per branch keeps
-// enough headroom that all of them reaching the cap cannot ENOSPC the volume. If
-// it doesn't fit, it evicts LRU masters other than keep, the master about to be
-// cloned; if it still doesn't, it declines with errAdmissionDeclined. Reserving
-// an already-reserved branch again is a no-op.
-func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) error {
-	if m.reserved[att.BranchPath] {
-		return nil
-	}
-	want := m.admissionBytesLocked()
-	// A background custom prefetch gives its space back before a job evicts a master.
-	if m.DisplaceCustom != nil {
-		if free, err := m.availableBytes(); err == nil && free < want && m.DisplaceCustom() {
-			want = m.admissionBytesLocked()
-		}
-	}
-	free, err := m.admitBesideConvergenceLocked(want, keep)
-	if errors.Is(err, errNoRoom) && m.dropConvergeStagingLocked() {
-		free, err = m.ensureFreeLocked(want, keep)
-	}
-	if errors.Is(err, errNoRoom) {
-		// Surfaced so a host wedged under disk pressure does not look identical to
-		// one where the feature is simply idle.
-		RecordVolumeAdmissionDeclined()
-		log.Log.WithName("cache-volumes").Info(
-			"admission declined a cache volume: runner-cache root has no room even after evicting every other master; job falls back to the cold path",
-			"branch", att.BranchPath, "want_bytes", want, "free_bytes", free, "reserved_branches", len(m.reserved), "cap_gib", m.CapGiB)
-		return errAdmissionDeclined
-	}
-	if err != nil {
-		return err
-	}
-	if m.reserved == nil {
-		m.reserved = map[string]bool{}
-	}
-	m.reserved[att.BranchPath] = true
-	return nil
-}
-
-// admissionBytesLocked is what admitting one more branch needs: a cap for it
-// and every reserved branch, plus what custom volumes hold.
-func (m *VolumeManager) admissionBytesLocked() uint64 {
-	want := m.capBytes() * uint64(len(m.reserved)+1)
-	if m.CustomReserved != nil {
-		want += m.CustomReserved()
-	}
-	return want
-}
-
-// dropConvergeStagingLocked is admission's last resort before declining a job:
-// a partial convergence download, in flight or paused, is removed and the job
-// takes its space. A refresh can take the volume below the watermark while it
-// runs (see PrepareConvergeSpace), so on a host that pauses downloads for jobs
-// the partial is often still there when one lands. Reports whether anything
-// was removed; the download starts over later.
-func (m *VolumeManager) dropConvergeStagingLocked() bool {
-	if m.converging != nil {
-		m.converging.cancel(errConvergeDisplaced)
-		m.converging = nil
-	}
-	staging := filepath.Join(m.Root, convergeDirName)
-	entries, err := os.ReadDir(staging)
-	if err != nil || len(entries) == 0 {
-		return false
-	}
-	if err := os.RemoveAll(staging); err != nil {
-		return false
-	}
-	log.Log.WithName("cache-volumes").Info("admission dropped a partial convergence download to make room for a job")
-	return true
-}
-
-// admitBesideConvergenceLocked makes room for want bytes of branch growth and
-// for the bytes an in-flight convergence download has not written yet. A job
-// outranks a download: when both do not fit, the download is cancelled and
-// the job is admitted against the space without it. A job's download (one that
-// may evict) keeps its bytes by evicting LRU masters first, as it would have
-// for itself; a prefetch evicts nothing to stay.
-func (m *VolumeManager) admitBesideConvergenceLocked(want uint64, keep masterKey) (uint64, error) {
-	r := m.converging
-	if r == nil || r.remaining() == 0 {
-		return m.ensureFreeLocked(want, keep)
-	}
-	outstanding := r.remaining()
-	if r.mayEvict {
-		if free, err := m.ensureFreeLocked(want+outstanding, keep); !errors.Is(err, errNoRoom) {
-			return free, err
-		}
-	}
-	free, err := m.ensureFreeLocked(want, keep)
-	if err != nil {
-		return free, err
-	}
-	if free < want+outstanding {
-		r.cancel(errConvergeDisplaced)
-		m.converging = nil
-	}
-	return free, nil
-}
-
-// createBranchImageLocked puts an empty, guest-writable cache image at dest,
-// replacing whatever is there.
-func (m *VolumeManager) createBranchImageLocked(dest string) error {
-	_ = os.Remove(dest)
-	if err := m.backend.createImage(dest, m.CapGiB); err != nil {
-		return fmt.Errorf("create empty cache image: %w", err)
-	}
-	return chmodImageGuestWritable(dest)
-}
-
-// chmodImageGuestWritable makes the image file writable by the guest's
-// unprivileged user, which is all the permission handling this design needs:
-// host and guest uids don't line up across virtio-fs, so mode is the only lever
-// and 0666 is uid-independent. Everything INSIDE the image is the guest's own
-// because it attaches with `-owners off`.
-func chmodImageGuestWritable(image string) error { return os.Chmod(image, 0o666) }
-
-// joinFallback reports the original failure, plus the fallback's own failure
-// when even that didn't work.
-func joinFallback(err, fallbackErr error) error {
-	if fallbackErr == nil {
-		return err
-	}
-	return errors.Join(err, fallbackErr)
-}
-
-// MasterGeneration returns the HEAD generation an account's on-disk master
-// corresponds to, or 0 when the account has no master here (or its generation was
-// never recorded). It is honored ONLY when the master image itself exists: a
-// generation beside a missing master must read 0 so a promote/converge treats the
-// host as behind and rebuilds, rather than skipping on a stranded marker.
-//
-// This is the fast-forward version marker. Convergence adopts a HEAD only when
-// head.Generation > this; a promote installs its branch only when the accepted
-// generation exceeds this. Both comparisons are against the same monotonic
-// counter the server assigns, so the local master and the HEAD stay on one scale.
-// MasterInstalledAt reports when the (account, volume) master was last installed,
-// by a promote or a convergence: the mtime of its generation sidecar, which only
-// InstallMaster writes. The image's own mtime is touched on every materialize
-// for LRU, so it says when the master was last used, not how old it is.
-func (m *VolumeManager) MasterInstalledAt(account, volume string) (time.Time, error) {
-	info, err := os.Stat(m.masterGenerationPath(account, volume))
-	if err != nil {
-		return time.Time{}, err
-	}
-	return info.ModTime(), nil
-}
-
-func (m *VolumeManager) MasterGeneration(account, volume string) (int, error) {
-	if volume == "" {
-		volume = ReservedTuistCacheVolume
-	}
-	if _, err := os.Stat(m.masterImage(account, volume)); err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, err
-	}
-	b, err := os.ReadFile(m.masterGenerationPath(account, volume))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, err
-	}
-	gen, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	if err != nil {
-		return 0, nil
-	}
-	return gen, nil
-}
-
-// ImageDigest returns the inventory digest of the cache inside an image — the
-// one place the host looks in. It attaches READ-ONLY, so it is safe to run
-// beside a concurrent reader and cannot mutate what it measures. Used to verify
-// a downloaded HEAD image matches its advertised digest before adoption.
-func (m *VolumeManager) ImageDigest(image string) (string, error) {
-	return m.backend.imageInventoryDigest(image)
-}
-
-// cacheInventorySubdirs mirror dispatch-poll.sh's cache_inventory so host and
-// guest compute the same digest over the cache subtrees whose entry-name churn
-// means the cache actually changed. Every CacheCategory the CLI persists is
-// here: the support-cache retention reclaims from all of them, and a category
-// left out would make a job whose only change is that reclaim report clean, so
-// the cleaned image would be discarded and the leak would outlive every job.
-var cacheInventorySubdirs = []string{
-	"Binaries", "EditProjects", "GenerationMetadata", "Manifests", "Plugins",
-	"ProjectDescriptionHelpers", "Projects", "Runs", "SelectiveTests",
-}
-
-// inventoryDigest hashes a cache image's content into the digest both the guest
-// and host compute, so a converging host can verify a downloaded master matches
-// its advertised HEAD. mountRoot is the image's mount point — the parent of the
-// `tuist` cache home AND the folded CAS store.
-//
-// It mirrors dispatch-poll.sh's cache_inventory EXACTLY: the sorted, dotfile-
-// filtered entry names under every cache subtree, plus one casLinePrefix line per
-// regular file in the folded CAS store (its content identity). Any drift between
-// the two makes every convergence digest-mismatch, so a change here must land in
-// both (guarded byte-for-byte by TestInventoryDigestMatchesGuestPipeline, which
-// runs the real shell pipeline).
-func inventoryDigest(mountRoot string) (string, error) {
-	var lines []string
-	cacheRoot := filepath.Join(mountRoot, cacheHomeSubdir)
-	for _, sub := range cacheInventorySubdirs {
-		entries, err := os.ReadDir(filepath.Join(cacheRoot, sub))
-		if err != nil {
-			continue // a missing subtree contributes no entries, like `ls` on a missing dir
-		}
-		for _, e := range entries {
-			// Skip dotfiles to match the guest's `ls -1` (no -a): os.ReadDir
-			// returns hidden entries (.DS_Store, in-flight .tmp*) that `ls -1`
-			// omits, so including them here would make the host digest disagree
-			// with the guest-reported one and abort every convergence.
-			if strings.HasPrefix(e.Name(), ".") {
-				continue
-			}
-			lines = append(lines, sub+"/"+e.Name())
-		}
-	}
-	// One line per regular file in the folded CAS store (see casLinePrefix): a
-	// content identity, not a size proxy, so the digest doubles as a safe
-	// immutable object key.
-	casLines, err := casInventoryLines(filepath.Join(mountRoot, casStoreDir))
-	if err != nil {
-		return "", err
-	}
-	lines = append(lines, casLines...)
-	// Byte order, matching the guest's `LC_ALL=C sort`. Go's sort.Strings is
-	// already byte-wise; the guest is the side that has to pin the locale.
-	sort.Strings(lines)
-	h := sha1.New()
-	for _, l := range lines {
-		_, _ = h.Write([]byte(l))
-		_, _ = h.Write([]byte("\n"))
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// casInventoryLines emits one `~cas/<relpath>\t<size>` line per regular file
-// under root (nil when root is absent), the CAS store's content identity for the
-// inventory digest. It must match the guest's `find <dir> -type f -not -path
-// '*/.*' -exec stat -f "%N<tab>%z"` output exactly: regular files only (no
-// symlinks, no directories), dot-paths excluded, logical st_size, a REAL tab
-// before the size.
-func casInventoryLines(root string) ([]string, error) {
-	var lines []string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		// Skip dotfiles by basename (.DS_Store, the .writable probe, in-flight
-		// .tmp), matching the guest's `find … ! -name '.*'`: they are asymmetric
-		// between the guest teardown and the host's read-only attach and would
-		// abort convergence. llcas's real store files are not dotfiles.
-		if strings.HasPrefix(filepath.Base(path), ".") {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		lines = append(lines, fmt.Sprintf("%s/%s\t%d", casLinePrefix, filepath.ToSlash(rel), info.Size()))
-		return nil
-	})
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	return lines, err
-}
-
-// InstallMaster replaces an account's local master with the whole image at src,
-// tagging it with generation, but ONLY when generation is newer than what the
-// host already holds — a fast-forward. src is a settled cache image (a promoted
-// branch, or a downloaded HEAD) living on the runner-cache volume, so the clone
-// stays a same-volume CoW op. Returns (installed, err): installed is false when
-// the host is already at or past generation (a stale or redundant fast-forward),
-// which is not an error.
-//
-// This is the whole of reconciliation under fast-forward last-writer-wins: no
-// per-object merge, no attach+ditto — just a CoW clone and an atomic swap, gated
-// by the monotonic generation. The generation compare-and-swap that prevents a
-// stale writer from clobbering a newer master lives in the server's HEAD bump;
-// this local gate only keeps the on-disk master from moving backwards.
-func (m *VolumeManager) InstallMaster(account, volume, src string, generation int) (bool, error) {
-	if !m.Enabled() {
-		return false, nil
-	}
-	if volume == "" {
-		volume = ReservedTuistCacheVolume
-	}
-	if generation <= 0 {
-		return false, nil
-	}
-	if _, err := os.Stat(src); err != nil {
-		return false, fmt.Errorf("master image missing: %w", err)
-	}
-	// A master from before the cap was raised, or from a host with a smaller one,
-	// has less room than the cap. Growing takes an attach and about a second, so it
-	// happens here, off the path a job waits on, and on src, which nothing else
-	// reads. One that cannot be grown is installed at the size it has.
-	if err := m.backend.growImage(src, m.CapGiB); err != nil {
-		log.Log.WithName("cache-volumes").Error(err, "grow cache image to the cap; installing it at its current size",
-			"account", account, "cap_gib", m.CapGiB)
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	current, err := m.masterGenerationLocked(account, volume)
-	if err != nil {
-		return false, err
-	}
-	if generation <= current {
-		return false, nil // already at or past this generation — nothing to do
-	}
-
-	if err := os.MkdirAll(m.volumeDir(account, volume), 0o755); err != nil {
-		return false, fmt.Errorf("mkdir volume dir: %w", err)
-	}
-	master := m.masterImage(account, volume)
-	staged := master + ".new"
-	_ = os.Remove(staged)
-	if err := m.backend.clonePath(src, staged); err != nil {
-		_ = os.Remove(staged)
-		return false, fmt.Errorf("clone image into staged master: %w", err)
-	}
-	// Rename the image first, generation sidecar second. A crash between the two
-	// leaves a fresh image under a stale/absent generation, which only makes the
-	// next convergence re-adopt; the reverse would claim a generation the image
-	// doesn't have and let the host skip a convergence it still needs.
-	if err := os.Rename(staged, master); err != nil {
-		_ = os.Remove(staged)
-		return false, fmt.Errorf("swap master image: %w", err)
-	}
-	if err := os.WriteFile(m.masterGenerationPath(account, volume), []byte(strconv.Itoa(generation)), 0o644); err != nil {
-		return false, fmt.Errorf("record master generation: %w", err)
-	}
-	_ = os.Chtimes(master, m.now(), m.now())
-	return true, nil
-}
-
-// masterGenerationLocked reads the local master's generation with mu already
-// held. Mirrors MasterGeneration but avoids re-locking from within a mutation.
-func (m *VolumeManager) masterGenerationLocked(account, volume string) (int, error) {
-	if _, err := os.Stat(m.masterImage(account, volume)); err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, err
-	}
-	b, err := os.ReadFile(m.masterGenerationPath(account, volume))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, err
-	}
-	gen, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	if err != nil {
-		return 0, nil
-	}
-	return gen, nil
-}
-
-// Finalize promotes or discards a branch after the job ends and releases its
-// reservation. Promotion is a whole-image replace and happens only when the job
-// succeeded, the guest reported the cache actually changed (dirty), the account
-// is known, that account matches the one the branch was materialized from, AND
-// the server ACCEPTED the HEAD fast-forward (PromotedGeneration > 0, parsed from
-// the guest-relayed "accepted <generation>" result). A read-only, failed,
-// crashed (no marker), never-dispatched, conflicted (409), or errored branch
-// discards.
-//
-// The SourceAccount == account guard is the defense-in-depth half of the
-// cross-account fix: the server only stamps the materialize-trigger label after
-// a dispatch commits, so in the normal path SourceAccount always equals the
-// account the job ran. If a stale label from a failed dispatch ever let a
-// branch materialized for account A reach a job the label now says is account
-// B, promoting into B's master would leak A's artifacts — so a mismatch
-// discards instead of promoting.
-//
-// The branch image is promoted as-is: the guest detaches before the host reads
-// it, so the file is a settled filesystem rather than a torn snapshot.
-
-// Finalize promotes or discards a branch after the job ends and releases its
-// reservation. Promotion is last-writer-wins and happens only when the job
-// succeeded, the guest reported the cache actually changed (dirty), the account
-// is known, AND that account matches the one the branch was materialized from.
-// A read-only, failed, crashed (no marker), or never-dispatched branch
-// discards.
-//
-// The SourceAccount == account guard is the defense-in-depth half of the
-// cross-account fix: the server only stamps the materialize-trigger label after
-// a dispatch commits, so in the normal path SourceAccount always equals the
-// account the job ran. If a stale label from a failed dispatch ever let a
-// branch materialized for account A reach a job the label now says is account
-// B, promoting into B's master would leak A's artifacts — so a mismatch
-// discards instead of promoting.
-//
-// The branch image is promoted as-is: the guest detaches before the host reads
-// it, so the file is a settled filesystem rather than a torn snapshot.
-func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSucceeded, dirty bool) (VolumeOutcome, error) {
-	if !m.Enabled() || !att.Attached {
-		return VolumeOutcomeNone, nil
-	}
-
-	// Release the branch reservation. Only the reservations need mu; the promote
-	// below does its own locking, so mu is not held across it.
-	m.mu.Lock()
-	delete(m.reserved, att.BranchPath)
-	m.mu.Unlock()
-
-	discard := func() (VolumeOutcome, error) {
-		_ = os.RemoveAll(att.BranchPath)
-		return VolumeOutcomeDiscarded, nil
-	}
-
-	// PromotedGeneration is the generation the SERVER accepted for this job's
-	// HEAD fast-forward (relayed by the guest). Zero means the guest never
-	// promoted or the server REJECTED the bump — the branch built on a stale base
-	// while another host advanced HEAD — so installing it locally would move this
-	// host's master off the accepted lineage. Discard it and let convergence bring
-	// the accepted HEAD instead.
-	if !jobSucceeded || !dirty || account == "" || att.SourceAccount != account || att.PromotedGeneration <= 0 {
-		return discard()
-	}
-	image := m.BranchImage(att)
-	if _, err := os.Stat(image); err != nil {
-		return discard()
-	}
-
-	// Install the promoted branch as this host's local master at the accepted
-	// generation — a whole-image replace, fast-forward-gated so it never moves the
-	// master backwards (a concurrent converge to a newer HEAD wins).
-	if _, err := m.InstallMaster(account, att.VolumeName, image, att.PromotedGeneration); err != nil {
-		_ = os.RemoveAll(att.BranchPath)
-		return "", err
-	}
-	_ = os.RemoveAll(att.BranchPath)
-	return VolumeOutcomePromoted, nil
-}
-
-// ReattachBranch reconstructs the attachment for a VM whose branch survived a
-// kubelet restart (its Tart VM is still running, with the branch image mounted)
-// and marks the branch to be preserved by the startup SweepBranches. Returns
-// (zero, false) when the feature is off or the branch is gone. The caller sets
-// SourceAccount from the Pod's runner-account label so the recovered job's
-// warm set still promotes into the right master on completion.
-func (m *VolumeManager) ReattachBranch(volume, vm string) (VolumeAttachment, bool) {
-	if !m.Enabled() {
-		return VolumeAttachment{}, false
-	}
-	if volume == "" {
-		volume = ReservedTuistCacheVolume
-	}
-	branch := m.branchDir(vm)
-	if _, err := os.Stat(branch); err != nil {
-		return VolumeAttachment{}, false
-	}
-
-	materialized := false
-	if _, err := os.Stat(filepath.Join(branch, materializedMarker)); err == nil {
-		materialized = true
-	}
-
-	m.mu.Lock()
-	if m.retained == nil {
-		m.retained = map[string]bool{}
-	}
-	m.retained[vm] = true
-	// A branch that was admitted has an image and a job still writing to it, so it
-	// keeps its reservation. A declined branch is marked materialized too, but has
-	// no image.
-	if _, err := os.Stat(filepath.Join(branch, branchImageName)); materialized && err == nil {
-		if m.reserved == nil {
-			m.reserved = map[string]bool{}
-		}
-		m.reserved[branch] = true
-	}
-	m.mu.Unlock()
-	return VolumeAttachment{
-		Attached:     true,
-		VolumeName:   volume,
-		BranchPath:   branch,
-		Materialized: materialized,
-	}, true
-}
-
-// MarkMaterialized drops the host-written materialization sentinel in a branch,
-// so a kubelet restart can tell a materialized branch from an idle VM's.
-// Best-effort: a write failure only means a recovered VM re-materializes, which
-// is safe.
-func (m *VolumeManager) MarkMaterialized(att VolumeAttachment) {
-	if !m.Enabled() || !att.Attached || att.BranchPath == "" {
-		return
-	}
-	_ = os.WriteFile(filepath.Join(att.BranchPath, materializedMarker), []byte("1"), 0o644)
-}
-
-// SweepBranches reaps per-VM branch directories on startup, keeping only those
-// ReattachBranch marked as belonging to a VM that survived the restart. Swept
-// branches are dead per-job scratch whose VM is gone (their Finalize can never
-// run) and would otherwise leak disk; retained branches still have their image
-// mounted by a live job, so removing them would corrupt that job's cache.
-// Reservations are dropped for every branch that did not survive, so admission
-// accounting matches what is actually still writing. No-op when the feature is
-// off.
-func (m *VolumeManager) SweepBranches() error {
-	if !m.Enabled() {
-		return nil
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	// A partial convergence download is only resumed by the in-memory queue that
-	// started it, which a restart empties.
-	_ = os.RemoveAll(filepath.Join(m.Root, convergeDirName))
-	entries, err := os.ReadDir(m.branchesRoot())
-	if err != nil {
-		if os.IsNotExist(err) {
-			m.reserved = nil
-			return nil
-		}
-		return err
-	}
-	for _, e := range entries {
-		if m.retained[e.Name()] {
-			continue
-		}
-		_ = os.RemoveAll(filepath.Join(m.branchesRoot(), e.Name()))
-	}
-	for branch := range m.reserved {
-		if !m.retained[filepath.Base(branch)] {
-			delete(m.reserved, branch)
-		}
-	}
-	return nil
-}
-
-// Start implements controller-runtime's manager.Runnable: sweeps stale
-// branches once, then on a ticker keeps free space above the low watermark by
-// evicting whole masters LRU and publishes the resident-count / free-bytes
-// gauges. No-op when the feature is off. Returns nil on context cancellation.
-func (m *VolumeManager) Start(ctx context.Context) error {
+// Start publishes the mount and free-space gauges and sweeps leftovers on every tick.
+func (m *CacheSpace) Start(ctx context.Context) error {
 	if !m.Enabled() {
 		return nil
 	}
 	RecordVolumeEnabled()
 	logger := log.FromContext(ctx).WithName("cache-volumes")
-
-	// The mount wait (AwaitMountedRoot) runs before state recovery in main, so by
-	// here the retained-branch set already reflects the mounted volume and the
-	// sweep can safely reap the rest. On a still-unmounted root SweepBranches is a
-	// no-op (its ReadDir hits ENOENT), so it can never delete a live branch.
-	if err := m.SweepBranches(); err != nil {
-		logger.Error(err, "sweep stale branches on startup")
-	}
 	interval := m.ReconcileInterval
 	if interval <= 0 {
 		interval = 5 * time.Minute
@@ -1146,18 +81,11 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 		}
 		RecordVolumeRootMounted(mounted)
 		if !mounted {
-			// Nothing to evict or measure against an unmounted root; keep the
-			// mounted gauge fresh so a volume that (re)appears — or vanishes —
-			// shows up on the next tick.
 			return
 		}
-		if evicted, err := m.EvictToWatermark(); err != nil {
-			logger.Error(err, "watermark eviction")
-		} else if evicted > 0 {
-			logger.Info("evicted cache masters under watermark", "count", evicted)
-		}
-		if count, free, err := m.Stats(); err == nil {
-			RecordVolumeResident(count, free)
+		m.sweepLeftovers(ctx)
+		if free, err := m.volumeFreeBytes(); err == nil {
+			RecordVolumeRootFree(free)
 		}
 	}
 	tick()
@@ -1173,21 +101,90 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 	}
 }
 
-// AwaitMountedRoot blocks until the runner-cache root is a mounted volume or a
-// bounded number of attempts elapse, publishing the enabled + root-mounted
-// gauges. It returns as soon as the mount is present (the healthy path returns
-// on the first attempt with a single stat), so it costs nothing on a host whose
-// volume auto-mounted normally. When the volume never appears it logs loudly and
-// returns rather than blocking forever — the ticker then keeps the gauge fresh
-// and per-job allocation keeps declining to the cold path until the host is
-// repaired.
-//
-// This MUST run before state recovery populates the retained-branch set: if the
-// wait ran after recovery, a volume that mounted DURING the wait would leave the
-// retained set empty (recovery saw no branches on the then-unmounted root) and
-// the startup sweep would then delete branches still mounted by surviving VMs.
-// No-op when the feature is off.
-func (m *VolumeManager) AwaitMountedRoot(ctx context.Context) {
+// sweepLeftovers removes the built-in cache's per-account masters, VM branches, download staging and report queue.
+func (m *CacheSpace) sweepLeftovers(ctx context.Context) {
+	entries, err := os.ReadDir(m.Root)
+	if err != nil {
+		return
+	}
+	logger := log.FromContext(ctx).WithName("cache-volumes")
+	before, usedErr := m.backend.usedBytes(m.Root)
+	var removed []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() || (name != "branches" && name != "_converge" && name != "usage-reports" && !isAccountID(name)) {
+			if name != customRootName && !strings.HasPrefix(name, ".") {
+				logger.V(1).Info("left an unknown entry on the runner-cache root", "name", name)
+			}
+			continue
+		}
+		path := filepath.Join(m.Root, name)
+		if name == "branches" {
+			removed = append(removed, m.sweepBranches(ctx, path)...)
+			continue
+		}
+		if err := os.RemoveAll(path); err != nil {
+			logger.Error(err, "remove leftover from the runner-cache root", "path", path)
+			continue
+		}
+		removed = append(removed, name)
+	}
+	if len(removed) == 0 {
+		return
+	}
+	fields := []any{"root", m.Root, "removed", removed}
+	if after, err := m.backend.usedBytes(m.Root); usedErr == nil && err == nil {
+		fields = append(fields, "freed_bytes", saturatingSub(before, after))
+	}
+	logger.Info("removed leftovers from the runner-cache root", fields...)
+}
+
+func isAccountID(name string) bool {
+	if name == "" || len(name) > 19 {
+		return false
+	}
+	for _, r := range name {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *CacheSpace) sweepBranches(ctx context.Context, dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var removed []string
+	kept := 0
+	for _, entry := range entries {
+		if m.vmRunning(ctx, entry.Name()) {
+			kept++
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {
+			kept++
+			continue
+		}
+		removed = append(removed, filepath.Join("branches", entry.Name()))
+	}
+	if kept == 0 && os.Remove(dir) == nil {
+		removed = append(removed, "branches")
+	}
+	return removed
+}
+
+func (m *CacheSpace) vmRunning(ctx context.Context, vm string) bool {
+	if m.Running == nil {
+		return true
+	}
+	running, err := m.Running(ctx, vm)
+	return err != nil || running
+}
+
+// AwaitMountedRoot waits, bounded, for the root to mount so the first Pods after a reboot get their share.
+func (m *CacheSpace) AwaitMountedRoot(ctx context.Context) {
 	if !m.Enabled() {
 		return
 	}
@@ -1211,11 +208,11 @@ func (m *VolumeManager) AwaitMountedRoot(ctx context.Context) {
 			return
 		}
 		if attempt >= attempts {
-			logger.Error(err, "runner-cache root is still not a mounted volume after all attempts; every job on this host will run on the cold path until the volume is mounted or the host is re-provisioned",
+			logger.Error(err, "runner-cache root is still not a mounted volume after all attempts; jobs on this host run without cache volumes until it is mounted or the host is re-provisioned",
 				"root", m.Root, "attempts", attempts)
 			return
 		}
-		logger.Error(err, "runner-cache root is set but not a mounted volume; retrying (feature enabled, jobs run cold meanwhile)",
+		logger.Error(err, "runner-cache root is set but not a mounted volume; retrying",
 			"root", m.Root, "attempt", attempt, "max_attempts", attempts, "retry_in", interval.String())
 		select {
 		case <-ctx.Done():
@@ -1225,422 +222,9 @@ func (m *VolumeManager) AwaitMountedRoot(ctx context.Context) {
 	}
 }
 
-// Stats reports the resident master count and the volume's free bytes within
-// its budget.
-func (m *VolumeManager) Stats() (residentCount int, freeBytes uint64, err error) {
-	if !m.Enabled() {
-		return 0, 0, nil
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	masters, err := m.allMastersLocked()
-	if err != nil {
-		return 0, 0, err
-	}
-	free, err := m.volumeFreeBytes()
-	if err != nil {
-		return len(masters), 0, err
-	}
-	return len(masters), free, nil
-}
-
-// cacheMasterNodeLabelPrefix advertises one resident cache master per Node
-// label, mirroring how golden base VMs are advertised. The suffix is
-// `<account id>` for a ReservedTuistCacheVolume master and
-// `<account id>.<volume>` for a repository's: the master's directory names, as
-// the server stamped them on the pod. The longest name is 54 characters.
-const cacheMasterNodeLabelPrefix = "tuist.dev/cache-master-"
-
-// repositoryVolumesNodeLabel tells the server this host reads the Pod's volume
-// label, so it may stamp a repository volume on jobs dispatched here. A host
-// without it gets ReservedTuistCacheVolume.
-const repositoryVolumesNodeLabel = "tuist.dev/cache-volumes-per-repository"
-
-func cacheMasterNodeLabel(key masterKey) string {
-	if key.volume == ReservedTuistCacheVolume {
-		return cacheMasterNodeLabelPrefix + key.account
-	}
-	return cacheMasterNodeLabelPrefix + key.account + "." + key.volume
-}
-
-// CacheMasterNodeLabels returns the Node labels advertising which (account,
-// volume) cache masters are resident on this host, for the node maintainer to
-// publish.
-//
-// The server prefers handing a polling node a queued job whose volume's master
-// is already here, so the job materializes warm instead of cold. It cannot see
-// this host's disk, and the alternative was for it to model residency from its
-// own dispatch history plus the admission arithmetic. That model could not see
-// an admission decline under disk pressure, a background watermark eviction, or
-// a reprovisioned host, and it had to assume how many masters survive rather
-// than know. This reports what is actually on disk.
-//
-// Driven off the same directory scan as eviction, so the labels self-heal
-// across kubelet restarts with no shared in-memory state, and the maintainer's
-// prune of unowned `tuist.dev/*` labels retires an evicted master's label on the
-// next heartbeat for free.
-func (m *VolumeManager) CacheMasterNodeLabels() (map[string]string, error) {
-	labels := map[string]string{}
-	if !m.Enabled() {
-		return labels, nil
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	masters, err := m.allMastersLocked()
-	if err != nil {
-		return nil, err
-	}
-
-	labels[repositoryVolumesNodeLabel] = "true"
-	for _, master := range masters {
-		// A directory name that is not an account id or a volume cannot have come
-		// from Materialize. Skip it rather than emit a label that might be
-		// invalid: one bad key fails the whole Node update, which would take the
-		// advertisement for every other master down with it.
-		if !isAccountID(master.key.account) || !isVolumeName(master.key.volume) {
-			continue
-		}
-		labels[cacheMasterNodeLabel(master.key)] = "true"
-	}
-	return labels, nil
-}
-
-func isAccountID(name string) bool {
-	if name == "" || len(name) > 19 {
-		return false
-	}
-	for _, r := range name {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// EvictToWatermark drops whole masters LRU until free space is back above the
-// low watermark. Called on the reconcile tick.
-func (m *VolumeManager) EvictToWatermark() (evicted int, err error) {
-	if !m.Enabled() {
-		return 0, nil
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	free, err := m.availableBytes()
-	if err != nil {
-		return 0, err
-	}
-	target := m.lowWatermarkBytes()
-	// A refresh in flight returns its master's bytes when it installs, so the
-	// space it is borrowing is not a reason to evict other masters.
-	settled := func(free uint64) uint64 {
-		if m.converging == nil {
-			return free
-		}
-		return free + m.refreshCreditLocked(m.converging.key)
-	}
-	if settled(free) >= target {
-		return 0, nil
-	}
-	masters, err := m.mastersByLRULocked()
-	if err != nil {
-		return 0, err
-	}
-	for _, mm := range masters {
-		if settled(free) >= target {
-			break
-		}
-		if err := os.RemoveAll(mm.path); err != nil {
-			continue
-		}
-		evicted++
-		f, ferr := m.availableBytes()
-		if ferr != nil {
-			return evicted, ferr
-		}
-		free = f
-	}
-	return evicted, nil
-}
-
-// lowWatermarkBytes is the absolute free-space floor the evictor maintains.
-func (m *VolumeManager) lowWatermarkBytes() uint64 {
-	frac := m.LowWatermarkFraction
-	if frac <= 0 {
-		frac = 0.20
-	}
-	return m.capBytes() + uint64(float64(m.capBytes())*frac)
-}
-
-var errNoRoom = errors.New("runner-cache root has no room for a cache volume")
-
-// errMasterTooLargeToKeep: the master is larger than the runner-cache volume can
-// hold while keeping the watermark free, so the evictor would drop it as soon as
-// it was installed.
-var errMasterTooLargeToKeep = errors.New("cache master is larger than this host can keep")
-
-// errNoRoomToConverge: the download would take the volume below the space the
-// watermark and admission need, and the convergence may not evict for it.
-var errNoRoomToConverge = errors.New("runner-cache root has no room to download this master")
-
-// errConvergeDisplaced: a job was admitted into the space a convergence download
-// had reserved. Jobs outrank downloads, so the download stops and its partial
-// image is dropped to give the space back.
-var errConvergeDisplaced = errors.New("a job needed the space this download reserved")
-
-// convergeReservation is the space a convergence download still needs: the
-// bytes it has not written yet. Bytes already written show up in free space,
-// so admission counts only what is outstanding.
-type convergeReservation struct {
-	m           *VolumeManager
-	outstanding atomic.Int64
-	// mayEvict mirrors PrepareConvergeSpace: whether LRU masters may be
-	// evicted to keep this reservation when a job is admitted.
-	mayEvict bool
-	cancel   context.CancelCauseFunc
-	// key is the volume being converged, whose resident master the install
-	// replaces (see refreshCreditLocked).
-	key masterKey
-}
-
-// Wrote records bytes the download has written.
-func (r *convergeReservation) Wrote(n int) {
-	if r != nil {
-		r.outstanding.Add(-int64(n))
-	}
-}
-
-// Release ends the reservation once the download stops writing.
-func (r *convergeReservation) Release() {
-	if r == nil {
-		return
-	}
-	r.m.mu.Lock()
-	defer r.m.mu.Unlock()
-	if r.m.converging == r {
-		r.m.converging = nil
-	}
-}
-
-func (r *convergeReservation) remaining() uint64 {
-	if n := r.outstanding.Load(); n > 0 {
-		return uint64(n)
-	}
-	return 0
-}
-
-// PrepareConvergeSpace makes room for the remaining bytes of a total-byte HEAD
-// image before its download continues, declines one this host could not keep,
-// and reserves the remaining bytes against later admissions. It must run before
-// any byte lands: a download that fills the volume fails, and it takes the space
-// admitted jobs are growing into with it.
-//
-// Room means the download still leaves what the evictor keeps free, or what
-// admission needs for every reserved branch plus one more, whichever is larger,
-// so neither drops the master the moment it is installed. With mayEvict, LRU
-// masters other than key are evicted for it, as admission does for a job; a
-// prefetch for a volume that has not run here passes false and only uses space
-// that is already free.
-//
-// A job admitted while the download runs counts the reservation too (see
-// reserveLocked), and cancel is how admission stops the download when the job
-// and the download do not both fit. The caller must Release the reservation.
-func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uint64, mayEvict bool, cancel context.CancelCauseFunc) (*convergeReservation, error) {
-	capacity, err := m.volumeCapacityBytes()
-	if err != nil {
-		return nil, err
-	}
-	watermark := m.lowWatermarkBytes()
-	if capacity <= watermark || total > capacity-watermark {
-		return nil, errMasterTooLargeToKeep
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	custom := uint64(0)
-	if m.CustomReserved != nil {
-		custom = m.CustomReserved()
-	}
-	headroom := watermark
-	if admission := m.capBytes()*uint64(len(m.reserved)+1) + custom; admission > headroom {
-		headroom = admission
-	}
-	// Two states must fit. While it downloads, the transfer must leave every
-	// admitted job the growth it was promised. Once installed, the replaced
-	// master's bytes come back, and the host must then have the headroom, or
-	// the new master would be the evictor's first victim. Requiring the headroom
-	// on top of both images at once would refuse every refresh of a master
-	// larger than a third of what the watermark leaves (22 GiB on an M2-L).
-	want := remaining + m.capBytes()*uint64(len(m.reserved)) + custom
-	if afterInstall := saturatingSub(remaining+headroom, m.refreshCreditLocked(key)); afterInstall > want {
-		want = afterInstall
-	}
-	if !mayEvict {
-		free, err := m.availableBytes()
-		if err != nil {
-			return nil, err
-		}
-		if free < want {
-			return nil, errNoRoomToConverge
-		}
-	} else if _, err := m.ensureFreeLocked(want, key); err != nil {
-		if errors.Is(err, errNoRoom) {
-			return nil, errNoRoomToConverge
-		}
-		return nil, err
-	}
-
-	r := &convergeReservation{m: m, mayEvict: mayEvict, cancel: cancel, key: key}
-	r.outstanding.Store(int64(remaining))
-	m.converging = r
-	return r, nil
-}
-
-// refreshCreditLocked is the space installing a new master for key returns by
-// replacing the resident one: its allocated bytes. None while any job holds a
-// branch, because a branch cloned from the master shares its blocks and
-// deleting the master frees nothing of them.
-func (m *VolumeManager) refreshCreditLocked(key masterKey) uint64 {
-	if len(m.reserved) > 0 {
-		return 0
-	}
-	bytes, err := m.backend.allocatedBytes(m.masterImage(key.account, key.volume))
-	if err != nil {
-		return 0
-	}
-	return bytes
-}
-
 func saturatingSub(a, b uint64) uint64 {
 	if b >= a {
 		return 0
 	}
 	return a - b
-}
-
-// HasMaster reports whether the (account, volume) master is resident.
-func (m *VolumeManager) HasMaster(account, volume string) bool {
-	if !m.Enabled() {
-		return false
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.hasMasterLocked(masterKey{account: account, volume: volume})
-}
-
-// jobsRunning is how many branches are materialized for a job and not yet
-// finalized: VMs that are running a job rather than waiting for one.
-func (m *VolumeManager) jobsRunning() int {
-	if !m.Enabled() {
-		return 0
-	}
-	return m.reservedBranches()
-}
-
-var errAdmissionDeclined = errors.New("cache volume admission declined")
-
-func (m *VolumeManager) reservedBranches() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return len(m.reserved)
-}
-
-// ensureFreeLocked makes sure at least want bytes are free, evicting LRU
-// masters other than keep as needed. Returns errNoRoom when even a
-// fully-evicted root cannot fit the request (caller declines to the cold path). The returned free-bytes
-// value is the space available after any eviction, so the caller can log why a
-// decline happened without a second statfs.
-func (m *VolumeManager) ensureFreeLocked(want uint64, keep masterKey) (uint64, error) {
-	free, err := m.availableBytes()
-	if err != nil {
-		return 0, err
-	}
-	if free >= want {
-		return free, nil
-	}
-	masters, err := m.mastersByLRULocked()
-	if err != nil {
-		return free, err
-	}
-	for _, mm := range masters {
-		if free >= want {
-			return free, nil
-		}
-		if mm.key == keep {
-			continue
-		}
-		if err := os.RemoveAll(mm.path); err != nil {
-			continue
-		}
-		f, ferr := m.availableBytes()
-		if ferr != nil {
-			return free, ferr
-		}
-		free = f
-	}
-	if free < want {
-		return free, errNoRoom
-	}
-	return free, nil
-}
-
-type masterEntry struct {
-	key     masterKey
-	path    string
-	modTime time.Time
-}
-
-// mastersByLRULocked lists every master (all volumes) oldest-mtime first —
-// the eviction order.
-func (m *VolumeManager) mastersByLRULocked() ([]masterEntry, error) {
-	all, err := m.allMastersLocked()
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(all, func(i, j int) bool { return all[i].modTime.Before(all[j].modTime) })
-	return all, nil
-}
-
-// allMastersLocked scans <root>/<account>/<volume>/master.sparseimage. Accounts
-// are directory names; the branches dir (per-VM scratch) and the convergence
-// scratch dir are skipped. Eviction drops the whole <account>/<volume> dir, so
-// the entry path is that dir, while LRU order comes from the image's mtime.
-func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
-	accounts, err := os.ReadDir(m.Root)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var out []masterEntry
-	for _, acct := range accounts {
-		if !acct.IsDir() || acct.Name() == "branches" || acct.Name() == convergeDirName {
-			continue
-		}
-		volumes, err := os.ReadDir(filepath.Join(m.Root, acct.Name()))
-		if err != nil {
-			continue
-		}
-		for _, vol := range volumes {
-			if !vol.IsDir() {
-				continue
-			}
-			// The CAS is folded into the cache image, so a volume is a master iff
-			// it holds master.sparseimage — the one image carries both caches, and
-			// LRU orders by its mtime.
-			info, err := os.Stat(m.masterImage(acct.Name(), vol.Name()))
-			if err != nil {
-				continue
-			}
-			out = append(out, masterEntry{
-				key:     masterKey{account: acct.Name(), volume: vol.Name()},
-				path:    m.volumeDir(acct.Name(), vol.Name()),
-				modTime: info.ModTime(),
-			})
-		}
-	}
-	return out, nil
 }

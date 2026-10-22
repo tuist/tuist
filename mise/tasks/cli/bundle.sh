@@ -184,6 +184,11 @@ build_cas_plugin() {
         # Run rust from the crate dir so mise resolves the toolchain version
         # from cas-plugin/mise.toml (the single source of truth).
         cd "$TUIST_DIR/cas-plugin" || exit 1
+        # `tuist-cas-proxy --version` reports the release the workflow stamped.
+        RELEASE_VERSION=$(sed -n 's/^let releaseVersion = "\(.*\)"$/\1/p' "$TUIST_DIR/cli/Sources/tuist/ReleaseVersion.swift")
+        if [ -n "$RELEASE_VERSION" ] && [ "$RELEASE_VERSION" != "x.y.z" ]; then
+            export TUIST_CAS_RELEASE_VERSION="$RELEASE_VERSION"
+        fi
         rustup target add aarch64-apple-darwin x86_64-apple-darwin
         cargo build --release --lib --bin tuist-cas-proxy --target aarch64-apple-darwin --target-dir "$CAS_TARGET_DIR"
         cargo build --release --lib --bin tuist-cas-proxy --target x86_64-apple-darwin --target-dir "$CAS_TARGET_DIR"

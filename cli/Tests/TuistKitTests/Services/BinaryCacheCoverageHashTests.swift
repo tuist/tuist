@@ -12,8 +12,8 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistKit
 
-/// The binary-cache keys a project gets with coverage off must stay those of releases without the option, so
-/// turning the option on is the only thing that invalidates a warm cache.
+/// Coverage-off adds no instrumentation dimension. Frozen keys use the current artifact format, whose
+/// intentional version bumps invalidate products independently of the coverage option.
 struct BinaryCacheCoverageHashTests {
     private let repositoryPath = try! AbsolutePath(validating: "/repo")
     private let packagePath = try! AbsolutePath(validating: "/repo/Tuist/.build/checkouts/Package")
@@ -89,16 +89,16 @@ struct BinaryCacheCoverageHashTests {
         given(try #require(XcodeController.mocked)).selectedVersion().willReturn(.init(xcodeVersion, 0, 0))
     }
 
-    /// Recorded with coverage off; a change here means every customer's binary cache misses after upgrading.
+    /// Recorded with coverage off and artifact format 9; update only for intentional key or format changes.
     @Test(.withMockedEnvironment(), .withMockedSwiftVersionProvider, .withMockedXcodeController)
-    func coverageOff_keepsTheKeysOfReleasesWithoutTheOption() async throws {
+    func coverageOff_preservesFrozenKeysWithinTheCurrentArtifactFormat() async throws {
         try stub()
 
         let got = try await hashes(coverage: .off)
 
         #expect(got == [
-            "Core": "ceafb5423020ce457a5efed57bd038cc",
-            "Package": "e3b181a20f9b2385ff59a132981b2d4a",
+            "Core": "2362f1db6fc67a06aaa6bff6644a8c92",
+            "Package": "d839920538bdb6057db22620a09eb152",
         ])
     }
 

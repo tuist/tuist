@@ -93,38 +93,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert html =~ "request_delete"
   end
 
-  test "built-in volumes are named after the caches they hold" do
-    assigns = assigns(true)
-
-    volume = %{
-      assigns.selected
-      | builtin_name: "tuist-cache",
-        key: "tuist-cache",
-        platform: "macos",
-        architecture: "arm64"
-    }
-
-    data = assigns.data.result
-    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :retained_capacity_bytes, 20_000_000_000))
-    data = %{data | volumes: [volume], stats: stats}
-    assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
-    detail = render_component(&RunnerVolumesLive.render/1, assigns)
-    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Xcode and module caches"
-    assert detail =~ "macOS"
-    assert detail =~ "20.0 GB"
-    refute detail =~ "Automatic"
-    badges = detail |> Floki.parse_document!() |> Floki.find(".noora-badge") |> Floki.text()
-    assert badges =~ "macOS"
-    refute badges =~ "Custom"
-    refute detail =~ "phx-click=\"request_delete\""
-    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
-    cell = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child")
-    assert Floki.text(cell) =~ "Xcode and module caches"
-    refute inventory =~ "tuist-cache"
-    assert inventory =~ "20.0 GB"
-    assert inventory =~ "/runners/volumes/#{volume.id}"
-  end
-
   test "the managed Gradle cache is named after its tool, and other keys stay as they are" do
     assigns = assigns(true)
     gradle = %{assigns.selected | key: "tuist-gradle"}
@@ -505,18 +473,79 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
   end
 
-  test "detail warns when the saved snapshot is too full to reuse" do
+  test "detail warns when the saved snapshot is too full for the capacity the next job gets" do
     assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate()}
     data = assigns.data.result
-    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+    saved = %{saved_bytes: 17_000_000_000, saved_capacity_bytes: 20_000_000_000, head_volume_bytes: 20_000_000_000}
+    full = Map.update!(data.stats, volume.id, &Map.merge(&1, saved))
+    full_data = %{data | stats: full, volumes: [volume]}
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: volume, data: AsyncResult.ok(full_data)})
 
     assert html =~ ~s(id="volume-full-alert")
     assert html =~ "This volume is almost full"
+    assert html =~ "17.0 GB of 20.0 GB"
 
-    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    grown = %{volume | requested_volume_bytes: 50_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: grown,
+          data: AsyncResult.ok(%{full_data | volumes: [grown]})
+      })
+
     refute html =~ ~s(id="volume-full-alert")
+
+    roomy = Map.update!(data.stats, volume.id, &Map.merge(&1, %{saved | saved_bytes: 10_000_000_000}))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: roomy, volumes: [volume]})
+      })
+
+    refute html =~ ~s(id="volume-full-alert")
+  end
+
+  test "detail shows the volume's capacity and a smaller size pending until the next clear" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate(), requested_volume_bytes: 5_000_000_000}
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :head_volume_bytes, 50_000_000_000))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    capacity = html |> Floki.parse_document!() |> Floki.find("#volume-capacity") |> Floki.text()
+    assert capacity =~ "50.0 GB"
+    assert html =~ ~s(id="volume-pending-size-alert")
+    assert html =~ "Saved at 50.0 GB. New contents will use 5.0 GB after the next clear."
+
+    larger = %{volume | requested_volume_bytes: 100_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: larger,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [larger]})
+      })
+
+    refute html =~ ~s(id="volume-pending-size-alert")
+
+    inventory =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: nil,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    assert inventory =~ "50.0 GB"
   end
 
   test "reader sees metrics but no mutation controls" do

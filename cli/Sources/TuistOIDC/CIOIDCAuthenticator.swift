@@ -9,6 +9,7 @@ public protocol CIOIDCAuthenticating {
 
 enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
     case unsupportedCIEnvironment
+    case emptyOIDCToken
     case missingGitHubActionsOIDCPermissions
     case gitHubActionsOIDCTokenRequestFailed(statusCode: Int, body: String)
     case missingCircleCIOIDCToken
@@ -17,7 +18,9 @@ enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unsupportedCIEnvironment:
-            return "OIDC authentication is not supported in this environment. OIDC authentication is supported in the following CI providers: GitHub Actions, CircleCI, Bitrise."
+            return "OIDC authentication is not supported in this environment. Use GitHub Actions, CircleCI, Bitrise, or supply a workload identity token through TUIST_OIDC_TOKEN."
+        case .emptyOIDCToken:
+            return "TUIST_OIDC_TOKEN is empty. Fetch an OIDC token with audience 'tuist' from your workload identity provider."
         case .missingGitHubActionsOIDCPermissions:
             return "GitHub Actions OIDC token request variables not set. Ensure your workflow has 'permissions: id-token: write' set."
         case let .gitHubActionsOIDCTokenRequestFailed(statusCode, body):
@@ -43,6 +46,14 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
     }
 
     public func fetchOIDCToken() async throws -> String {
+        if let token = Environment.current.variables["TUIST_OIDC_TOKEN"] {
+            let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedToken.isEmpty else {
+                throw CIOIDCAuthenticatorError.emptyOIDCToken
+            }
+            return trimmedToken
+        }
+
         if isGitHubActionsEnvironment {
             return try await fetchGitHubActionsOIDCToken()
         }

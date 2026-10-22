@@ -33,6 +33,7 @@ struct AtlasBusinessEditor: View {
                 if saving { Section { ProgressView("Saving…") } }
             }
             .disabled(saving)
+            .modifier(AtlasThemedContent())
             .navigationTitle("\(editing == nil ? "New" : "Edit") \(model.resource.singular.lowercased())")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -54,6 +55,7 @@ struct AtlasBusinessEditor: View {
                 Button("Discard changes", role: .destructive) { dismiss() }
             }
         }
+        .protectsAtlasNavigation()
     }
 
     private var taskFields: some View {

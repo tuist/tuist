@@ -17,6 +17,13 @@ defmodule TuistWeb.RunnerCacheVolumesController do
         |> put_status(425)
         |> json(%{error: "job execution pending"})
 
+      # The capacity chosen for the job's copy exceeds what the host holds.
+      {:error, :capacity} ->
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> put_status(507)
+        |> json(%{error: "capacity"})
+
       _ ->
         conn |> put_status(:forbidden) |> json(%{error: "cache volume unavailable"})
     end
@@ -68,6 +75,7 @@ defmodule TuistWeb.RunnerCacheVolumesController do
       conn |> put_resp_header("cache-control", "no-store") |> json(result)
     else
       {:error, reason} when reason in [:conflict, :not_found] -> send_resp(conn, :conflict, "")
+      {:error, :unavailable} -> send_resp(conn, :service_unavailable, "")
       _ -> send_resp(conn, :forbidden, "")
     end
   end

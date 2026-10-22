@@ -8,9 +8,16 @@ and `gitlab/`. The GitHub actions live in `../../.github/actions/<cache>/`.
   `tuist-runner-cache` (`infra/runner-image/`): run `activate <cache>` and export
   the `NAME=VALUE` lines it prints. Activation, trust and saving stay in the
   image and the server. Those two differ only by name; the test enforces it.
+  An optional size (`BUILDKITE_PLUGIN_<CACHE>_CACHE_SIZE` from the plugin's
+  `size`, GitLab `TUIST_<CACHE>_CACHE_SIZE`) is passed as `--size` only when
+  `tuist-runner-cache -h` lists `--size`; otherwise they warn and activate
+  without it.
 - Gradle entry points call `tuist-cache-volume` with key `tuist-gradle` for
   `$GRADLE_USER_HOME/{caches,wrapper}` and install the same cleanup init script
   as `.github/actions/gradle-cache/setup.sh`; the test compares them byte for byte.
+  An optional size (`BUILDKITE_PLUGIN_GRADLE_CACHE_SIZE` from the plugin's
+  `size`, GitLab `TUIST_GRADLE_CACHE_SIZE`) is passed as `--size` only when
+  `tuist-cache-volume -h` lists `-size`; otherwise they warn and attach without it.
 - Both providers keep exports only if the entry point runs in the build's shell:
   Buildkite sources the plugin hook, GitLab runs `before_script` and `script`
   in one shell. So never `exit`, never enable errexit, and never fail the job
