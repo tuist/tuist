@@ -28,7 +28,7 @@ class SettingsPreviewActivity : Activity() {
                 accounts,
                 { uri -> startActivity(Intent(Intent.ACTION_VIEW, uri)) },
                 { if (!screen.back()) finish() },
-                {},
+                signOut = {},
             )
         setContentView(screen.view)
         if (Build.VERSION.SDK_INT >= 33) {

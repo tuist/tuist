@@ -443,8 +443,12 @@ picks the lend up rather than bootstrapping over it.
 1. The lender creates the lease (`spec.phase: Offered`) with the host's
    address, serial, site, SSH user, edges (`sshIngressAllowCIDRs`), the host
    key it pinned and its sizing. Until the borrower accepts, the host keeps
-   serving the lender, but the lender pushes no drift to it: a host lent by
-   hand runs the borrower's runtime already.
+   serving the lender, but the lender pushes nothing to it: no drift, and no
+   bootstrap even for a new Machine, since the host may run the borrower's
+   runtime already (lent by hand, or mid-handover). On 2026-10-20 a Machine
+   replaced mid-handover bootstrapped ber1-runner-b01 with production's
+   runtime and took it out of staging's cluster. So a new host is
+   bootstrapped before it is lent.
 2. The borrower accepts a host listed in its `--rack-lease-hosts` by minting a
    key of its own (`rack-lease-<host>-ssh`) and publishing the public half in
    `status.sshPublicKey`; any other host it refuses.
@@ -455,19 +459,37 @@ picks the lend up rather than bootstrapping over it.
    the borrower and authorizes the borrower's key, then sets `spec.phase: Lent`
    with the key's fingerprint.
 4. The borrower first drains the Node the host had in its cluster under the
-   lender's name, if any (`spec.previousNodeName`: a host lent by hand), then
-   pushes its runtime with `bootstrap.UpdateTartKubelet`: its own node
-   identity, Node name (`<rackFleet.name>-<host>`) and fleet label, its cache
-   volume server and a fresh tailnet login (`TailscaleForceReauth`), which
-   moves the host's device to the borrower's tags. From then on its drift loop
-   keeps the host converged, and `status.state` is Active.
+   lender's name, if any (`spec.previousNodeName`: a host lent by hand). It
+   does not wait for warm runners stranded there: polling for a job when that
+   Node's tart-kubelet stopped reporting over ten minutes ago
+   (`strandedRunners`). Their `vm-cleanup` finalizer waits for a tart-kubelet
+   that is gone, and they had no job. It waits for a runner that had claimed
+   one, which may still be running it in its VM, and says so. It then pushes
+   its runtime with `bootstrap.UpdateTartKubelet` as a takeover
+   (`PerHost.TakeOver`): its own node identity, Node name
+   (`<rackFleet.name>-<host>`) and fleet label, its cache volume server, a
+   fresh tailnet login, which moves the host's device to the borrower's tags,
+   and none of the cache-volume usage reports tart-kubelet queued for the
+   lender's server, which the borrower's would answer 425 for good. Then it
+   deletes the old Node and lets the stranded runners go, whose VMs the new
+   tart-kubelet's orphan collector reaps. From then on its drift loop keeps
+   the host converged, and `status.state` is Active. The lease's status is one
+   write per reconcile, not the CAPI patch helper's separate one for
+   conditions: a reconcile reading it between the two saw the host taken over
+   with no runtime stamped and pushed it all again.
 
 **Returning** (clearing `lendTo`) runs Returning, Released, Reclaimed. The
 lender sets `spec.phase: Returning`; the borrower cordons its Node, waits for
 its jobs, revokes the identity, deletes the Node and reports Released. Only
 then does the lender take the runtime back: it removes the borrower's key and
-moves the marker home, marks the Machine not bootstrapped, deletes the lease,
-and bootstrap pushes its own runtime with a fresh tailnet login. A borrower
+moves the marker home, deletes the tailnet devices the host ran as in both
+envs (each takeover logs it in as a new device, and the old one would keep
+the name its next login wants, leaving it `<name>-1`, which no egress Service
+addresses), marks the Machine not bootstrapped, deletes the lease, and
+bootstrap pushes its own runtime as a takeover. The devices go through the
+rack's tailnet API (`--rack-linux-tailscale-secret-name`); one it cannot
+delete is named in a `TailnetCleanupFailed` event for a person and never holds
+the return. A borrower
 that stops listing the host releases it the same way, and the lender takes it
 back. `tuist.dev/reclaim-runtime=true` on the RackHost takes it back without
 the borrower, for one that is gone; whatever it ran on the host is lost.
@@ -1872,7 +1894,7 @@ site's other hosts, since AMT is reached through it. `PowerReachable` (and
 `capt_racklinuxhost_power_reachable`) says whether the host could be powered on
 that way now: AMT activated, a link on the management port, and the last read
 through an edge (`status.amt.lastPowerRead`, hourly while the host is on the
-tailnet) answered. AMT reports no address while it sees no link, so the
+tailnet, a minute after a read that failed) answered. AMT reports no address while it sees no link, so the
 operator falls back to the static one it gave it (`status.amt.assignedAddress`).
 Nothing powers on an edge while no edge is up: the edges need the firmware's
 Restore On AC Power Loss (see `infra/rack-nodes/AGENTS.md`). The annotation
@@ -2509,6 +2531,32 @@ the public path; the value is a `{unit, value}` pair whose unit is a free-form
 string, so the bare number would advertise 5 Mbps for a box reported as
 "5 Gbps"; and every field is nullable, so an absent bandwidth block is an
 ordinary answer that resolves to zero.
+
+## sshd stays reachable on Linux hosts
+
+Every repair the operator makes to a Linux host (kubelet config, private-network
+membership, Kata, containerd quota) arrives over SSH, and kubelet stays Ready
+when sshd is down, so a host without sshd silently stops converging. Ubuntu 24.04
+socket-activates sshd: once ssh.service starts five times within 10s it fails
+with `start-limit-hit`, ssh.socket fails with `service-start-limit-hit`, and
+nothing listens on `:22` until someone runs `systemctl reset-failed`. Package
+upgrades and a temporarily broken `sshd_config` under internet scanner traffic
+both get there.
+
+`internal/sshd` holds `10-tuist-no-start-limit.conf` drop-ins for both units:
+`StartLimitIntervalSec=0` on each, plus `RestartSec=5s` on the service so a
+failing sshd retries every 5s instead of spinning. On the SSH-bootstrapped
+hosts, `sshStartLimitDropIns` (`controllers/linux/linux_cloudinit.go`) writes
+them: the self-join writes them, and the kubelet config re-push writes them and
+runs `systemctl daemon-reload`. Their content is part of
+`desiredKubeletConfigHash`, so changing them rolls to every Ready node. A rack
+Linux host's install writes them into the installed system
+(`internal/rackinstall`), and its converge keeps them in the `units` group,
+which the node agent loads with `systemctl daemon-reload`; they are in the
+converge's hash, so changing them rolls to every rack host. Neither the re-push
+nor the converge restarts sshd, because both run over the session sshd serves.
+A host whose `:22` is already dead cannot receive them. Recover it out of band
+with `systemctl reset-failed ssh.service ssh.socket && systemctl start ssh.socket`.
 
 ## Node memory governance
 
@@ -3261,6 +3309,5 @@ pick it up:
 scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 ```
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

@@ -124,16 +124,19 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
           "type" => "string",
           "description" => "The label workflows reference in runs-on to run jobs on this profile."
         },
-        "cache_writer_default_branch" => %{
+        "cache_writer_all_branches" => %{
           "type" => "boolean",
           "description" =>
-            "Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes."
+            "Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save."
+        },
+        "cache_writer_default_branch" => %{
+          "type" => "boolean",
+          "description" => "Whether jobs on each repository's default branch save custom cache volume changes."
         },
         "cache_writer_branches" => %{
           "type" => "array",
           "items" => %{"type" => "string"},
-          "description" =>
-            "Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes."
+          "description" => "Additional branch names or * patterns whose jobs save custom cache volume changes."
         },
         "inserted_at" => %{"type" => "string"},
         "updated_at" => %{"type" => "string"}
@@ -147,6 +150,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "xcode_version",
         "protected",
         "runs_on_label",
+        "cache_writer_all_branches",
         "cache_writer_default_branch",
         "cache_writer_branches",
         "inserted_at",
@@ -264,6 +268,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
       xcode_version: profile.xcode_version,
       protected: profile.protected,
       runs_on_label: Profile.dispatch_label(profile),
+      cache_writer_all_branches: profile.cache_writer_all_branches,
       cache_writer_default_branch: profile.cache_writer_default_branch,
       cache_writer_branches: profile.cache_writer_branches || [],
       inserted_at: Formatter.iso8601(profile.inserted_at),
@@ -284,6 +289,11 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
 
   def cache_writer_properties do
     %{
+      "cache_writer_all_branches" => %{
+        "type" => "boolean",
+        "description" =>
+          "Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save."
+      },
       "cache_writer_default_branch" => %{
         "type" => "boolean",
         "description" => "Whether jobs on each repository's default branch save. Defaults to true."
@@ -724,6 +734,7 @@ defmodule Tuist.MCP.Components.Tools.CreateRunnerProfile do
         "vcpus",
         "memory_gb",
         "xcode_version",
+        "cache_writer_all_branches",
         "cache_writer_default_branch",
         "cache_writer_branches"
       ])
@@ -775,7 +786,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
   @impl EMCP.Tool
   def description,
     do:
-      ~s(Update a runner profile's machine shape, Xcode version, or which GitHub Actions jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. Jobs on each repository's default branch save unless cache_writer_default_branch is false. cache_writer_branches replaces the additional branch names or * patterns that save, for example ["release/*"] or ["*"] for every branch. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
+      ~s(Update a runner profile's machine shape, Xcode version, or which jobs save custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Pass vcpus and memory_gb together, picking a shape from get_runner_catalog. By default every successful job from the repository saves; fork pull requests, pull_request_target jobs and GitLab merge requests from forks never do. Set cache_writer_all_branches to false to save only from the default branch, unless cache_writer_default_branch is false, and from cache_writer_branches, which replaces the additional branch names or * patterns that save, for example ["release/*"]. Narrowing the policy discards pending saves it no longer allows. Requires account administration or the account:runners:write scope.)
 
   @impl EMCP.Tool
   def call(conn, arguments) do
@@ -784,6 +795,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateRunnerProfile do
         "vcpus",
         "memory_gb",
         "xcode_version",
+        "cache_writer_all_branches",
         "cache_writer_default_branch",
         "cache_writer_branches"
       ])

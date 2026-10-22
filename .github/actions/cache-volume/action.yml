@@ -5,11 +5,15 @@ branding:
   color: purple
 inputs:
   key:
-    description: Stable volume name, shared across jobs and branches in this repository. Not a content hash; do not include lockfile or tool-version hashes.
+    description: Stable volume name, shared across jobs and branches in this repository. Not a content hash; do not include lockfile or tool-version hashes. Keys starting with tuist- are reserved.
     required: true
   path:
-    description: Directory to retain. Supports absolute paths, workspace-relative paths, and ~/.
+    description: Directories to retain, one per line. Supports absolute paths, workspace-relative paths, and ~/. Several paths share one volume.
     required: true
+  size:
+    description: Volume capacity, a whole number of GB from 1gb to 100gb, such as 50gb. New volumes start at 20gb when omitted.
+    required: false
+    default: ""
 outputs:
   cache-hit:
     description: Whether the job attached a previously committed snapshot.
@@ -22,5 +26,6 @@ runs:
       env:
         TUIST_VOLUME_KEY: ${{ inputs.key }}
         TUIST_VOLUME_PATH: ${{ inputs.path }}
+        TUIST_VOLUME_SIZE: ${{ inputs.size }}
         TUIST_ACTION_PATH: ${{ github.action_path }}
       run: bash "$TUIST_ACTION_PATH/attach.sh"

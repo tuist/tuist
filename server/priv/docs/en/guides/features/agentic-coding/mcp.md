@@ -351,7 +351,7 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Test runs reported as `nextest` are not listed. | `account_handle`, `project_handle` |
+| `list_cargo_builds` | List Cargo builds for a project, newest first. Filter by `git_branch`, `status`, `is_ci`, or `command`. Individual test runs are available through the test tools, not this build listing. | `account_handle`, `project_handle` |
 | `get_cargo_build` | Get build metadata and aggregate cache counters, including hits, task misses, and hit rate. | `account_handle`, `project_handle`, `build_id` |
 
 #### Mix builds

@@ -24,8 +24,11 @@ ready for independent installation.
   can still call an explicitly configured external model provider. Remote
   model HTTP requests are not remote code execution.
 - `Atlas.Agents.Sessions` wraps native runs and operations with persisted
-  session records. Streaming Slack callers use `with_session/4` and transient
-  Condukt sessions. Telemetry persists their audit trail.
+  session records. Slack callers use `with_session/4`; `Runner.with_reply_stream/5`
+  owns their transient Condukt sessions. Local-mode replies buffer the native
+  model/tool run through Req's Plug adapter because ReqLLM's Finch streaming
+  bypasses that adapter. External-provider replies stream incrementally.
+  Telemetry persists both modes' audit trail.
 
 ## Call-site inventory
 
@@ -47,7 +50,7 @@ Paths in this table are relative to `lib/atlas/`. All are native execution.
 | `support_inbox/agents/classifier_agent.ex` | Audited structured classification with inline support-thread and transaction queries. |
 | `memory/{edge_classifier,bulletin_synthesizer}.ex` | Audited classification/synthesis from supplied memory data; no tools. |
 | `engineering/errors/agents/summary_agent.ex` | Audited structured operation over a bounded error snapshot; no domain tools. |
-| `slack/{conversation_agent,conversation_responder}.ex` | Native streaming with inline account/content, search, memory, and MCP tools. Account/systems investigator subagents are native sessions with explicit tool lists, not coding agents. |
+| `slack/{conversation_agent,conversation_responder}.ex` | Native runs with inline account/content, search, memory, and MCP tools; buffered model delivery in local mode, incremental streaming for external providers. Account/systems investigator subagents are native sessions with explicit tool lists, not coding agents. |
 | `slack/mcp_tools.ex`, `memory/tools.ex`, `slack/url_content.ex` | Tool definitions, not remote runtimes. Atlas MCP calls run in-process with caller claims; optional proxy/provider calls retain their own transport and authorization. |
 
 `Atlas.LLMs.RunnerTest` checks compiled production Condukt callbacks and the

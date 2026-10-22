@@ -18,7 +18,7 @@ func newAPFS(t *testing.T) (*APFSImages, *testTransfer) {
 			t.Fatal(size)
 		}
 		return os.WriteFile(path, []byte("cold APFS"), 0600)
-	}, Verify: func(string) error { return nil }}
+	}, Verify: func(string) (int64, error) { return 1 << 40, nil }}
 	b.Run = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		if name != "cp" || args[0] != "-c" {
 			t.Fatalf("unexpected %s %v", name, args)
@@ -43,34 +43,37 @@ func apfsPath(t *testing.T, b *APFSImages, slot Slot) string {
 	return path
 }
 
-func TestAPFSAdmissionBudgetsOneImageForEveryAttach(t *testing.T) {
+func TestAPFSAdmitsWhatTheJobIsExpectedToWrite(t *testing.T) {
 	for _, tc := range []struct {
-		name         string
-		free         uint64
-		warm         bool
-		wantCapacity bool
+		name string
+		head int64
+		warm bool
+		free uint64
+		fits bool
 	}{
-		{name: "cold image fits", free: 20_000_000_000},
-		{name: "cold image does not fit", free: 19_999_999_999, wantCapacity: true},
-		{name: "warm attach fits in one image", free: 20_000_000_000, warm: true},
-		{name: "warm attach does not fit", free: 19_999_999_999, warm: true, wantCapacity: true},
+		{name: "empty start fits its default", free: 5_000_000_000, fits: true},
+		{name: "empty start does not fit", free: 4_999_999_999},
+		{name: "small head fits its growth margin", head: 700_000_000, warm: true, free: 2_700_000_000, fits: true},
+		{name: "small head does not fit", head: 700_000_000, warm: true, free: 2_699_999_999},
+		{name: "large head fits half again", head: 10_000_000_000, warm: true, free: 15_000_000_000, fits: true},
+		{name: "large head does not fit", head: 10_000_000_000, warm: true, free: 14_999_999_999},
+		{name: "head near the capacity needs the capacity", head: 18_000_000_000, warm: true, free: 20_000_000_000, fits: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b, _ := newAPFS(t)
 			b.FreeBytes = func(string) (uint64, error) { return tc.free, nil }
 			slot := Slot{Identity: identity(first), PodUID: "pod"}
 			if tc.warm {
-				slot.BaseGeneration = 1
-				slot.ImageDigest = strings.Repeat("b", 40)
-				slot.ContentDigest = strings.Repeat("c", 64)
+				slot = warmSlot(first, "pod")
 			}
+			slot.VolumeBytes, slot.HeadSizeBytes = 20_000_000_000, tc.head
+
 			err := b.Attach(context.Background(), slot, apfsPath(t, b, slot))
-			if tc.wantCapacity {
-				if !errors.Is(err, ErrCapacity) {
-					t.Fatalf("expected capacity rejection, got %v", err)
-				}
-			} else if err != nil {
-				t.Fatal(err)
+			if tc.fits && err != nil {
+				t.Fatalf("refused with %d bytes free: %v", tc.free, err)
+			}
+			if !tc.fits && !errors.Is(err, ErrCapacity) {
+				t.Fatalf("admitted with %d bytes free: %v", tc.free, err)
 			}
 		})
 	}
@@ -163,7 +166,7 @@ func TestAPFSNoPublicationWithoutCleanDetach(t *testing.T) {
 				detached(t, path, "other")
 			case "failed verification":
 				detached(t, path, slot.ID)
-				b.Verify = func(string) error { return errors.New("disk failure") }
+				b.Verify = func(string) (int64, error) { return 0, errors.New("disk failure") }
 			case "interrupted verification":
 				detached(t, path, slot.ID)
 				_ = os.WriteFile(b.image(slot)+".checking", nil, 0600)
@@ -411,5 +414,119 @@ func TestAPFSSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
 	}
 	if !b.HasMaster(wanted.Identity) || !b.HasMaster(resident.Identity) {
 		t.Fatal("speculative prefetch did not install beside the resident master")
+	}
+}
+
+// A download keeps its archive beside the restored image, so a prefetch is
+// admitted with room for both at the volume's own size.
+func TestAPFSPrefetchAdmissionFollowsVolumeSize(t *testing.T) {
+	b, _ := newAPFS(t)
+	remote := &cancelTransfer{ready: true}
+	b.Transfer = remote
+	slot := func(generation, size int64) Slot {
+		s := Slot{Identity: identity(first)}
+		s.BaseGeneration = generation
+		s.VolumeBytes = size
+		s.ImageDigest = strings.Repeat("b", 40)
+		s.ContentDigest = strings.Repeat("c", 64)
+		return s
+	}
+	free := uint64(25_000_000_000)
+	b.FreeBytes = func(string) (uint64, error) { return free, nil }
+	if err := b.PrefetchSpare(context.Background(), slot(1, 10_000_000_000)); err != nil {
+		t.Fatalf("a 10 GB volume's prefetch needs 20 GB, not a fixed 40 GB: %v", err)
+	}
+	free = 60_000_000_000
+	if err := b.PrefetchSpare(context.Background(), slot(2, 50_000_000_000)); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("a 50 GB volume's prefetch ignored its archive headroom: %v", err)
+	}
+	var reclaimed uint64
+	b.Reclaim = func(_ context.Context, minimum uint64) error {
+		reclaimed, free = minimum, minimum
+		return nil
+	}
+	if err := b.Prefetch(context.Background(), slot(2, 50_000_000_000)); err != nil {
+		t.Fatal(err)
+	}
+	if reclaimed != 100_000_000_000 || remote.downloads != 2 {
+		t.Fatalf("requested prefetch reclaimed %d bytes for a 50 GB volume", reclaimed)
+	}
+}
+
+func TestAPFSCheckoutSeedsFromTheHostMasterAndNeverFormats(t *testing.T) {
+	b, _ := newAPFS(t)
+	b.Create = func(context.Context, string, int64) error { t.Fatal("a checkout must never start empty"); return nil }
+	b.Seed = func(_ context.Context, slot Slot, dst string) error {
+		if slot.Kind != KindCheckout || slot.Generation != 3 {
+			t.Fatalf("unexpected seed request %+v", slot.Identity)
+		}
+		return os.WriteFile(dst, []byte("checkout"), 0600)
+	}
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	slot.Kind, slot.Generation = KindCheckout, 3
+	path := apfsPath(t, b, slot)
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(path, "cache.sparseimage")); err != nil || string(data) != "checkout" {
+		t.Fatalf("exposed %q, %v", data, err)
+	}
+}
+
+func TestAPFSCheckoutWithoutSeedFailsInsteadOfFormatting(t *testing.T) {
+	b, _ := newAPFS(t)
+	b.Create = func(context.Context, string, int64) error { t.Fatal("a checkout must never start empty"); return nil }
+	slot := Slot{Identity: identity(first), PodUID: "pod"}
+	slot.Kind = KindCheckout
+	if err := b.Attach(context.Background(), slot, apfsPath(t, b, slot)); err == nil {
+		t.Fatal("expected an error without a seed")
+	}
+}
+
+func TestCheckoutIdentitiesNeverPublishOrCarryHeads(t *testing.T) {
+	checkout := identity(first)
+	checkout.Kind, checkout.CanPublish = KindCheckout, false
+	if !valid(checkout, "pod", "uid", DefaultMaxVolumeBytes) {
+		t.Fatal("a checkout identity is valid")
+	}
+	publishing := checkout
+	publishing.CanPublish = true
+	headed := checkout
+	headed.BaseGeneration, headed.ImageDigest, headed.ContentDigest = 1, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	unknown := identity(first)
+	unknown.Kind = "other"
+	custom := identity(first)
+	custom.Generation = 2
+	for _, invalid := range []Identity{publishing, headed, unknown, custom} {
+		if valid(invalid, "pod", "uid", DefaultMaxVolumeBytes) {
+			t.Fatalf("accepted %+v", invalid)
+		}
+	}
+}
+
+func TestAPFSCheckoutCloneAdmitsOnItsGrowthBudget(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		free         uint64
+		wantCapacity bool
+	}{
+		{name: "growth budget fits", free: CheckoutGrowthBytes},
+		{name: "growth budget does not fit", free: CheckoutGrowthBytes - 1, wantCapacity: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b, _ := newAPFS(t)
+			b.FreeBytes = func(string) (uint64, error) { return tc.free, nil }
+			b.Seed = func(_ context.Context, _ Slot, dst string) error { return os.WriteFile(dst, []byte("checkout"), 0600) }
+			slot := Slot{Identity: identity(first), PodUID: "pod"}
+			slot.Kind, slot.Generation = KindCheckout, 3
+			err := b.Attach(context.Background(), slot, apfsPath(t, b, slot))
+			if tc.wantCapacity {
+				if !errors.Is(err, ErrCapacity) {
+					t.Fatalf("expected capacity rejection, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

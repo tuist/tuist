@@ -107,6 +107,20 @@ jobs:
       - name: Test the fleet configuration
         run: mise run rack:fleet-test
 
+      # A BIRD configuration that does not parse would leave the edges'
+      # BGP container restarting, with the site's prefixes unannounced. Parsed
+      # by the BIRD the edge image installs, on the image's Alpine.
+      - name: The edges' BIRD configurations parse
+        run: |
+          set -euo pipefail
+          alpine="$(sed -n 's/^ARG ALPINE_VERSION=//p' infra/rack-switch-fleet/edge/Dockerfile)"
+          for conf in infra/helm/rack-edge/sites/*/bird.conf; do
+            [ -e "$conf" ] || continue
+            docker run --rm -v "$PWD/$conf:/bird.conf:ro" "alpine:$alpine" \
+              sh -ec 'apk add --no-cache -q bird2 && bird -p -c /bird.conf'
+            echo "parses: $conf"
+          done
+
       # The console bring-up had no tests at all, and it is the one that runs
       # first at a new site, on a machine that is not the one it was written on.
       - name: Test the console bring-up

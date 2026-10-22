@@ -10,20 +10,21 @@ import TuistServer
 struct RunnerProfileCommandTests {
     private static let profile = """
     {"id":1,"name":"ci","platform":"macos","vcpus":6,"memory_gb":14,"xcode_version":"26.5","protected":false,
-     "runs_on_label":"tuist-ci","cache_writer_default_branch":true,"cache_writer_branches":["develop","release/*"],
+     "runs_on_label":"tuist-ci","cache_writer_all_branches":false,"cache_writer_default_branch":true,"cache_writer_branches":["develop","release/*"],
      "inserted_at":"2026-10-15T10:00:00Z","updated_at":"2026-10-15T10:00:00Z"}
     """
 
     @Test func parsesUpdateOptionsAndKeepsOmittedOnes() throws {
         let command = try RunnerProfileUpdateCommand.parse([
             "ci", "--save-cache-from", "develop", "--save-cache-from", "release/*",
-            "--no-save-cache-from-default-branch", "--vcpus", "12", "--memory-gb", "28",
+            "--no-save-cache-from-all-branches", "--no-save-cache-from-default-branch", "--vcpus", "12", "--memory-gb", "28",
             "--account", "acme", "--json",
         ])
         #expect(command.name == "ci")
         #expect(command.vcpus == 12)
         #expect(command.memoryGB == 28)
         #expect(command.cacheOptions.branches == ["develop", "release/*"])
+        #expect(command.cacheOptions.saveCacheFromAllBranches == false)
         #expect(command.cacheOptions.saveCacheFromDefaultBranch == false)
         #expect(command.options.account == "acme")
         #expect(command.options.json)
@@ -117,6 +118,7 @@ struct RunnerProfileCommandTests {
             vcpus: .value(6),
             memoryGB: .value(14),
             xcodeVersion: .value("26.5"),
+            saveCacheFromAllBranches: .value(false),
             saveCacheFromDefaultBranch: .value(nil),
             saveCacheFromBranches: .value(["develop", "release/*"])
         ).willReturn(response)
@@ -132,6 +134,7 @@ struct RunnerProfileCommandTests {
             vcpus: 6,
             memoryGB: 14,
             xcodeVersion: "26.5",
+            saveCacheFromAllBranches: false,
             saveCacheFromDefaultBranch: nil,
             saveCacheFromBranches: ["develop", "release/*"],
             account: "acme",

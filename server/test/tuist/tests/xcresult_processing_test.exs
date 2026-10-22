@@ -21,6 +21,14 @@ defmodule Tuist.Tests.XcresultProcessingTest do
     %{account: account, project: project}
   end
 
+  test "base_test_attrs preserves the case-sensitive upload ID separately from the canonical run" do
+    source_id = String.upcase(UUIDv7.generate())
+    run_id = UUIDv7.generate()
+    attrs = XcresultProcessing.base_test_attrs(%{"test_run_id" => run_id, "source_test_run_id" => source_id})
+    assert attrs.id == run_id
+    assert attrs.source_test_run_id == source_id
+  end
+
   test "async processing carries actor provenance while old jobs retain defaults", %{account: account, project: project} do
     legacy = %{"test_run_id" => UUIDv7.generate(), "project_id" => project.id, "account_id" => account.id}
 

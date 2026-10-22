@@ -71,12 +71,25 @@ components:
           type: string
           x-struct:
           x-validate:
+        elixir_version:
+          description: Optional Mix client runtime metadata.
+          maxLength: 128
+          type: string
+          x-struct:
+          x-validate:
         execution_mode:
           description: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
           enum:
             - parallel
             - serial
           type: string
+          x-struct:
+          x-validate:
+        shard_report_revision:
+          description: Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
+          maximum: 4294967295
+          minimum: 0
+          type: integer
           x-struct:
           x-validate:
         git_object_format:
@@ -132,6 +145,33 @@ components:
           description: The zero-based shard index for this test result.
           nullable: true
           type: integer
+          x-struct:
+          x-validate:
+        custom_metadata:
+          description: Optional client metadata accepted for wire compatibility; not persisted on test runs.
+          properties:
+            tags:
+              items:
+                maxLength: 50
+                pattern: ^[a-zA-Z0-9_-]+$
+                type: string
+                x-struct:
+                x-validate:
+              maxItems: 50
+              type: array
+              x-struct:
+              x-validate:
+            values:
+              additionalProperties:
+                maxLength: 500
+                type: string
+                x-struct:
+                x-validate:
+              maxProperties: 20
+              type: object
+              x-struct:
+              x-validate:
+          type: object
           x-struct:
           x-validate:
         only_test_identifiers:
@@ -262,9 +302,22 @@ components:
           type: object
           x-struct:
           x-validate:
+        shard_attempt:
+          description: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
+          maximum: 4294967295
+          minimum: 0
+          type: integer
+          x-struct:
+          x-validate:
         git_dirty:
           description: "Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's."
           type: boolean
+          x-struct:
+          x-validate:
+        otp_version:
+          description: Optional Mix client runtime metadata.
+          maxLength: 128
+          type: string
           x-struct:
           x-validate:
         history_source:
@@ -335,6 +388,12 @@ components:
           x-validate:
         gradle_build_id:
           description: The UUID of an associated Gradle build.
+          type: string
+          x-struct:
+          x-validate:
+        mix_env:
+          description: Optional Mix client environment metadata.
+          maxLength: 128
           type: string
           x-struct:
           x-validate:
@@ -2315,6 +2374,8 @@ components:
     RunsBuild:
       description: Represents a single build run.
       properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
         duration:
           description: The duration of the build run in milliseconds
           type: integer
@@ -4617,6 +4678,12 @@ components:
                     type: string
                     x-struct:
                     x-validate:
+                  pending_volume_bytes:
+                    description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
                   platform:
                     nullable: false
                     type: string
@@ -4647,18 +4714,26 @@ components:
                     type: integer
                     x-struct:
                     x-validate:
+                  volume_bytes:
+                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
                 required:
                   - architecture
                   - capacity_bytes
                   - id
                   - key
                   - last_used_at
+                  - pending_volume_bytes
                   - platform
                   - provider
                   - repository
                   - unmeasured_capacity_copies
                   - unmeasured_copies
                   - used_bytes
+                  - volume_bytes
                 title: RunnerVolume
                 type: object
                 x-struct:
@@ -5329,6 +5404,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        pending_volume_bytes:
+          description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
         platform:
           nullable: false
           type: string
@@ -5359,18 +5440,26 @@ components:
           type: integer
           x-struct:
           x-validate:
+        volume_bytes:
+          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
       required:
         - architecture
         - capacity_bytes
         - id
         - key
         - last_used_at
+        - pending_volume_bytes
         - platform
         - provider
         - repository
         - unmeasured_capacity_copies
         - unmeasured_copies
         - used_bytes
+        - volume_bytes
       title: RunnerVolume
       type: object
       x-struct:
@@ -6958,6 +7047,8 @@ components:
     RunsTest:
       description: Represents a single test run.
       properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
         duration:
           description: The duration of the test run in milliseconds
           type: integer
@@ -6977,6 +7068,8 @@ components:
           description: The test case runs created by this test run, with their identifiers.
           items:
             properties:
+              actor:
+                $ref: '#/components/schemas/ReportActor'
               arguments:
                 description: The argument variants (for parameterized tests).
                 items:
@@ -7191,6 +7284,8 @@ components:
         test_run_url: https://tuist.dev/my-account/my-project/tests/test-runs/123e4567-e89b-12d3-a456-426614174000
         url: https://tuist.dev/my-account/my-project/runs/123e4567-e89b-12d3-a456-426614174000
       properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
         id:
           description: The unique identifier of the command event.
           format: uuid
@@ -9707,6 +9802,12 @@ components:
               type: string
               x-struct:
               x-validate:
+            pending_volume_bytes:
+              description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
             platform:
               nullable: false
               type: string
@@ -9737,18 +9838,26 @@ components:
               type: integer
               x-struct:
               x-validate:
+            volume_bytes:
+              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
           required:
             - architecture
             - capacity_bytes
             - id
             - key
             - last_used_at
+            - pending_volume_bytes
             - platform
             - provider
             - repository
             - unmeasured_capacity_copies
             - unmeasured_copies
             - used_bytes
+            - volume_bytes
           title: RunnerVolume
           type: object
           x-struct:
@@ -10080,6 +10189,8 @@ components:
     Run:
       description: The schema for a Tuist run.
       properties:
+        actor:
+          $ref: '#/components/schemas/ReportActor'
         cacheable_targets:
           description: Cacheable targets of the run
           items:
@@ -11771,8 +11882,13 @@ components:
       x-validate:
     RunnerProfile:
       properties:
+        cache_writer_all_branches:
+          description: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+          type: boolean
+          x-struct:
+          x-validate:
         cache_writer_branches:
-          description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+          description: Additional branch names or * patterns whose jobs save custom cache volume changes.
           items:
             type: string
             x-struct:
@@ -11781,7 +11897,7 @@ components:
           x-struct:
           x-validate:
         cache_writer_default_branch:
-          description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+          description: Whether jobs on each repository's default branch save custom cache volume changes.
           type: boolean
           x-struct:
           x-validate:
@@ -11840,6 +11956,7 @@ components:
         - memory_gb
         - protected
         - runs_on_label
+        - cache_writer_all_branches
         - cache_writer_default_branch
         - cache_writer_branches
         - inserted_at
@@ -13957,6 +14074,12 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              pending_volume_bytes:
+                description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
               platform:
                 nullable: false
                 type: string
@@ -13987,18 +14110,26 @@ components:
                 type: integer
                 x-struct:
                 x-validate:
+              volume_bytes:
+                description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
             required:
               - architecture
               - capacity_bytes
               - id
               - key
               - last_used_at
+              - pending_volume_bytes
               - platform
               - provider
               - repository
               - unmeasured_capacity_copies
               - unmeasured_copies
               - used_bytes
+              - volume_bytes
             title: RunnerVolume
             type: object
             x-struct:
@@ -16214,8 +16345,13 @@ paths:
                   profiles:
                     items:
                       properties:
+                        cache_writer_all_branches:
+                          description: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                          type: boolean
+                          x-struct:
+                          x-validate:
                         cache_writer_branches:
-                          description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                          description: Additional branch names or * patterns whose jobs save custom cache volume changes.
                           items:
                             type: string
                             x-struct:
@@ -16224,7 +16360,7 @@ paths:
                           x-struct:
                           x-validate:
                         cache_writer_default_branch:
-                          description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                          description: Whether jobs on each repository's default branch save custom cache volume changes.
                           type: boolean
                           x-struct:
                           x-validate:
@@ -16283,6 +16419,7 @@ paths:
                         - memory_gb
                         - protected
                         - runs_on_label
+                        - cache_writer_all_branches
                         - cache_writer_default_branch
                         - cache_writer_branches
                         - inserted_at
@@ -16354,6 +16491,11 @@ paths:
           application/json:
             schema:
               properties:
+                cache_writer_all_branches:
+                  description: Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 cache_writer_branches:
                   description: Additional branch names or * patterns that save. An empty list removes them.
                   items:
@@ -16411,8 +16553,13 @@ paths:
             application/json:
               schema:
                 properties:
+                  cache_writer_all_branches:
+                    description: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   cache_writer_branches:
-                    description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                    description: Additional branch names or * patterns whose jobs save custom cache volume changes.
                     items:
                       type: string
                       x-struct:
@@ -16421,7 +16568,7 @@ paths:
                     x-struct:
                     x-validate:
                   cache_writer_default_branch:
-                    description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                    description: Whether jobs on each repository's default branch save custom cache volume changes.
                     type: boolean
                     x-struct:
                     x-validate:
@@ -16480,6 +16627,7 @@ paths:
                   - memory_gb
                   - protected
                   - runs_on_label
+                  - cache_writer_all_branches
                   - cache_writer_default_branch
                   - cache_writer_branches
                   - inserted_at
@@ -16960,12 +17108,25 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                elixir_version:
+                  description: Optional Mix client runtime metadata.
+                  maxLength: 128
+                  type: string
+                  x-struct:
+                  x-validate:
                 execution_mode:
                   description: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
                   enum:
                     - parallel
                     - serial
                   type: string
+                  x-struct:
+                  x-validate:
+                shard_report_revision:
+                  description: Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
+                  maximum: 4294967295
+                  minimum: 0
+                  type: integer
                   x-struct:
                   x-validate:
                 git_object_format:
@@ -17021,6 +17182,33 @@ paths:
                   description: The zero-based shard index for this test result.
                   nullable: true
                   type: integer
+                  x-struct:
+                  x-validate:
+                custom_metadata:
+                  description: Optional client metadata accepted for wire compatibility; not persisted on test runs.
+                  properties:
+                    tags:
+                      items:
+                        maxLength: 50
+                        pattern: ^[a-zA-Z0-9_-]+$
+                        type: string
+                        x-struct:
+                        x-validate:
+                      maxItems: 50
+                      type: array
+                      x-struct:
+                      x-validate:
+                    values:
+                      additionalProperties:
+                        maxLength: 500
+                        type: string
+                        x-struct:
+                        x-validate:
+                      maxProperties: 20
+                      type: object
+                      x-struct:
+                      x-validate:
+                  type: object
                   x-struct:
                   x-validate:
                 only_test_identifiers:
@@ -17151,9 +17339,22 @@ paths:
                   type: object
                   x-struct:
                   x-validate:
+                shard_attempt:
+                  description: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
+                  maximum: 4294967295
+                  minimum: 0
+                  type: integer
+                  x-struct:
+                  x-validate:
                 git_dirty:
                   description: "Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's."
                   type: boolean
+                  x-struct:
+                  x-validate:
+                otp_version:
+                  description: Optional Mix client runtime metadata.
+                  maxLength: 128
+                  type: string
                   x-struct:
                   x-validate:
                 history_source:
@@ -17224,6 +17425,12 @@ paths:
                   x-validate:
                 gradle_build_id:
                   description: The UUID of an associated Gradle build.
+                  type: string
+                  x-struct:
+                  x-validate:
+                mix_env:
+                  description: Optional Mix client environment metadata.
+                  maxLength: 128
                   type: string
                   x-struct:
                   x-validate:
@@ -17681,7 +17888,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The test run could not be scheduled for processing
+          description: The shard plan is not visible yet or the test run could not be scheduled for processing
       summary: Create a new test run.
       tags:
         - Tests
@@ -20863,6 +21070,12 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  pending_volume_bytes:
+                    description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
                   platform:
                     nullable: false
                     type: string
@@ -20893,18 +21106,26 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  volume_bytes:
+                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
                 required:
                   - architecture
                   - capacity_bytes
                   - id
                   - key
                   - last_used_at
+                  - pending_volume_bytes
                   - platform
                   - provider
                   - repository
                   - unmeasured_capacity_copies
                   - unmeasured_copies
                   - used_bytes
+                  - volume_bytes
                 title: RunnerVolume
                 type: object
                 x-struct:
@@ -23960,7 +24181,7 @@ paths:
                   x-struct:
                   x-validate:
                 dependency_cache:
-                  description: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                  description: Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                   items:
                     properties:
                       dependency:
@@ -23970,12 +24191,14 @@ paths:
                         x-struct:
                         x-validate:
                       duration_ms:
+                        description: Lookup/compilation duration, or validation time for up-to-date local reuse.
                         maximum: 4294967295
                         minimum: 0
                         type: integer
                         x-struct:
                         x-validate:
                       key:
+                        description: Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
                         pattern: ^([a-f0-9]{64})?$
                         type: string
                         x-struct:
@@ -24023,6 +24246,7 @@ paths:
                           - unmodeled_input
                           - inputs_changed
                           - store_failed
+                          - up_to_date
                         type: string
                         x-struct:
                         x-validate:
@@ -24449,6 +24673,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   id:
                     description: The build ID.
                     format: uuid
@@ -25705,6 +25931,12 @@ paths:
                               type: string
                               x-struct:
                               x-validate:
+                            pending_volume_bytes:
+                              description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
                             platform:
                               nullable: false
                               type: string
@@ -25735,18 +25967,26 @@ paths:
                               type: integer
                               x-struct:
                               x-validate:
+                            volume_bytes:
+                              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
                           required:
                             - architecture
                             - capacity_bytes
                             - id
                             - key
                             - last_used_at
+                            - pending_volume_bytes
                             - platform
                             - provider
                             - repository
                             - unmeasured_capacity_copies
                             - unmeasured_copies
                             - used_bytes
+                            - volume_bytes
                           title: RunnerVolume
                           type: object
                           x-struct:
@@ -36428,7 +36668,7 @@ paths:
         - Runners
     patch:
       callbacks: {}
-      description: "Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows."
+      description: "Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows."
       operationId: updateRunnerProfile
       parameters:
         - description: The account handle.
@@ -36452,6 +36692,11 @@ paths:
           application/json:
             schema:
               properties:
+                cache_writer_all_branches:
+                  description: Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 cache_writer_branches:
                   description: Additional branch names or * patterns that save. An empty list removes them.
                   items:
@@ -36492,8 +36737,13 @@ paths:
             application/json:
               schema:
                 properties:
+                  cache_writer_all_branches:
+                    description: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   cache_writer_branches:
-                    description: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                    description: Additional branch names or * patterns whose jobs save custom cache volume changes.
                     items:
                       type: string
                       x-struct:
@@ -36502,7 +36752,7 @@ paths:
                     x-struct:
                     x-validate:
                   cache_writer_default_branch:
-                    description: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                    description: Whether jobs on each repository's default branch save custom cache volume changes.
                     type: boolean
                     x-struct:
                     x-validate:
@@ -36561,6 +36811,7 @@ paths:
                   - memory_gb
                   - protected
                   - runs_on_label
+                  - cache_writer_all_branches
                   - cache_writer_default_branch
                   - cache_writer_branches
                   - inserted_at
@@ -42944,6 +43195,12 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        pending_volume_bytes:
+                          description: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
                         platform:
                           nullable: false
                           type: string
@@ -42974,18 +43231,26 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        volume_bytes:
+                          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
                       required:
                         - architecture
                         - capacity_bytes
                         - id
                         - key
                         - last_used_at
+                        - pending_volume_bytes
                         - platform
                         - provider
                         - repository
                         - unmeasured_capacity_copies
                         - unmeasured_copies
                         - used_bytes
+                        - volume_bytes
                       title: RunnerVolume
                       type: object
                       x-struct:
@@ -46808,6 +47073,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  actor:
+                    $ref: '#/components/schemas/ReportActor'
                   id:
                     description: The build ID.
                     format: uuid

@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/tailnet"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
@@ -346,7 +347,7 @@ func TestReturnReclaimsTheRuntimeOnceReleased(t *testing.T) {
 	setLeaseStatus(t, borrower, "mini-01", func(s *infrav1.RackHostLeaseStatus) { s.State = infrav1.LeaseReleased })
 
 	gate := lend(t, r, machine)
-	if gate.stop || !gate.forceReauth {
+	if gate.stop || !gate.takeOver {
 		t.Fatalf("gate = %+v, want bootstrap to run with a fresh tailnet login", gate)
 	}
 	if len(h.calls) != 2 || h.calls[1].owner != "production" || h.calls[1].key != "" {
@@ -513,7 +514,7 @@ func TestReclaimAnnotationTakesBackAHostOwnedElsewhere(t *testing.T) {
 	conditions.MarkFalse(machine, BootstrappedCondition, "RuntimeOwnedElsewhere", clusterv1.ConditionSeverityWarning, "staging")
 	r, h := newLendingReconciler(t, newBorrowerCluster(t), rackHost("mini-01"), machine)
 
-	if gate := lend(t, r, machine); gate.forceReauth || len(h.calls) != 0 {
+	if gate := lend(t, r, machine); gate.takeOver || len(h.calls) != 0 {
 		t.Fatalf("gate = %+v, handovers = %+v without the annotation", gate, h.calls)
 	}
 
@@ -523,7 +524,7 @@ func TestReclaimAnnotationTakesBackAHostOwnedElsewhere(t *testing.T) {
 		t.Fatal(err)
 	}
 	gate := lend(t, r, machine)
-	if !gate.forceReauth || len(h.calls) != 1 || h.calls[0].owner != "production" || h.calls[0].key != "" {
+	if !gate.takeOver || len(h.calls) != 1 || h.calls[0].owner != "production" || h.calls[0].key != "" {
 		t.Fatalf("gate = %+v, handovers = %+v, want the runtime taken back", gate, h.calls)
 	}
 }
@@ -654,4 +655,114 @@ func TestLendWaitsForABorrowerThatCannotTakeALease(t *testing.T) {
 	if len(h.calls) != 0 {
 		t.Fatalf("handovers = %+v", h.calls)
 	}
+}
+
+// A host on its way to another env may run that env's runtime already (lent
+// by hand, or mid-handover), so a new Machine for it must not bootstrap this
+// env's over it: on 2026-10-20 that took ber1-runner-b01 out of staging's
+// cluster mid-handover. A host is bootstrapped before it is lent, and again
+// once it is back.
+func TestLendNeverBootstrapsAHostOnItsWayToAnotherEnv(t *testing.T) {
+	borrower := newBorrowerCluster(t)
+	machine := rackMachine("ber1-0")
+	r, _ := newLendingReconciler(t, borrower, lendingHost(), machine,
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-0"}}, runnerPodOn("job-1", "ber1-0"))
+
+	if gate := lend(t, r, machine); !gate.skipBootstrap {
+		t.Fatalf("gate = %+v while offered, want no bootstrap", gate)
+	}
+	setLeaseStatus(t, borrower, "mini-01", func(s *infrav1.RackHostLeaseStatus) {
+		s.State = infrav1.LeaseAccepted
+		s.SSHPublicKey = leaseKey(t)
+	})
+	if gate := lend(t, r, machine); !gate.stop {
+		t.Fatalf("gate = %+v while draining, want the host left alone", gate)
+	}
+
+	own := rackMachine("ber1-0")
+	r2, _ := newLendingReconciler(t, newBorrowerCluster(t), rackHost("mini-01"), own)
+	if gate := lend(t, r2, own); gate.skipBootstrap {
+		t.Fatalf("gate = %+v for a host nobody lends, want bootstrap allowed", gate)
+	}
+}
+
+// fakeTailnet is the tailnet API the lender clears a returned host's devices
+// with.
+type fakeTailnet struct {
+	devices []tailnet.Device
+	deleted []string
+}
+
+func (f *fakeTailnet) Devices(context.Context) ([]tailnet.Device, error) { return f.devices, nil }
+
+func (f *fakeTailnet) DeleteDevice(_ context.Context, nodeID string) error {
+	f.deleted = append(f.deleted, nodeID)
+	return nil
+}
+
+// Each takeover logs the host in afresh, which leaves the previous owner's
+// device in the tailnet under the name the next login wants: production's
+// re-login would come back as `<machine>-1` and its egress Service would find
+// nothing. Taking the host back clears both envs' devices for it first.
+func TestReclaimClearsTheHostsDevicesFromBothEnvs(t *testing.T) {
+	borrower := newBorrowerCluster(t)
+	machine := bootstrappedMachine("ber1-0")
+	r, _ := newLendingReconciler(t, borrower, lendingHost(), machine)
+	tn := &fakeTailnet{devices: []tailnet.Device{
+		{NodeID: "lender", Name: "ber1-0.taild6d7bb.ts.net"},
+		{NodeID: "lender-dup", Name: "ber1-0-1.taild6d7bb.ts.net"},
+		{NodeID: "borrower", Name: "tuist-staging-rack-fleet-mini-01.taild6d7bb.ts.net"},
+		{NodeID: "neighbour", Name: "ber1-01.taild6d7bb.ts.net"},
+		{NodeID: "other", Name: "ber1-1.taild6d7bb.ts.net"},
+	}}
+	r.Tailnet = tn
+	lend(t, r, machine)
+	setLeaseStatus(t, borrower, "mini-01", func(s *infrav1.RackHostLeaseStatus) {
+		s.State = infrav1.LeaseAccepted
+		s.SSHPublicKey = leaseKey(t)
+		s.Node = "tuist-staging-rack-fleet-mini-01"
+	})
+	lend(t, r, machine)
+	returnHost(t, r, "mini-01")
+	lend(t, r, machine)
+	setLeaseStatus(t, borrower, "mini-01", func(s *infrav1.RackHostLeaseStatus) { s.State = infrav1.LeaseReleased })
+
+	if gate := lend(t, r, machine); gate.stop || !gate.takeOver {
+		t.Fatalf("gate = %+v, want the reclaim to go ahead", gate)
+	}
+	if got := strings.Join(tn.deleted, ","); got != "lender,lender-dup,borrower" {
+		t.Fatalf("deleted %q, want both envs' devices for the host and nothing else", got)
+	}
+}
+
+// A tailnet API that cannot delete the devices (its OAuth client scoped to
+// other tags) costs a suffixed name, never the return.
+func TestReclaimGoesAheadWhenTheDevicesCannotBeCleared(t *testing.T) {
+	borrower := newBorrowerCluster(t)
+	machine := bootstrappedMachine("ber1-0")
+	r, h := newLendingReconciler(t, borrower, lendingHost(), machine)
+	r.Tailnet = failingTailnet{}
+	lend(t, r, machine)
+	setLeaseStatus(t, borrower, "mini-01", func(s *infrav1.RackHostLeaseStatus) {
+		s.State = infrav1.LeaseAccepted
+		s.SSHPublicKey = leaseKey(t)
+	})
+	lend(t, r, machine)
+	returnHost(t, r, "mini-01")
+	lend(t, r, machine)
+	setLeaseStatus(t, borrower, "mini-01", func(s *infrav1.RackHostLeaseStatus) { s.State = infrav1.LeaseReleased })
+
+	if gate := lend(t, r, machine); gate.stop || !gate.takeOver || len(h.calls) != 2 {
+		t.Fatalf("gate = %+v, handovers = %d; want the host taken back regardless", gate, len(h.calls))
+	}
+}
+
+type failingTailnet struct{}
+
+func (failingTailnet) Devices(context.Context) ([]tailnet.Device, error) {
+	return []tailnet.Device{{NodeID: "n1", Name: "ber1-0.taild6d7bb.ts.net"}}, nil
+}
+
+func (failingTailnet) DeleteDevice(context.Context, string) error {
+	return errors.New("403: the OAuth client cannot manage devices with these tags")
 }

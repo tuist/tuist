@@ -26,10 +26,11 @@ pdcAgent:
   # Staging serves one dashboard; a brief tunnel gap here is acceptable, so
   # it stays at one replica rather than paying for three.
   replicas: 1
-  # Pin the tunnel to the CNPG read-only service. Without this the agent
-  # permits any destination reachable from its pod, not just Postgres.
+  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
+    - tuist-tuist-clickhouse.tuist-staging.svc.cluster.local:8123
 
 capi:
   ovhPrivateNetwork:
@@ -266,11 +267,10 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6UUkLlKoN51ecznSpfuCBI"
-      # Usage-based pricing meters, reported only for accounts with the
-      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Usage-based pricing meters: the Prices cache and test insights usage
+      # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by
-      # `Tuist.Billing.UsageMeterProvisioning`. A subscription only carries
-      # them once its account is switched, which the flag still gates.
+      # `Tuist.Billing.UsageMeterProvisioning`.
       usage_meters:
         cache_egress_megabytes: "price_1UIT1jLlKoN51eczc3MgZRX0"
         cache_requests: "price_1UIT1lLlKoN51eczkmyTm9on"
@@ -369,10 +369,6 @@ clickhouse:
   # Keep the shared application-user memory guard active outside production so
   # query and ingestion retry behavior is covered during rollout.
   maxMemoryUsageForUserBytes: "4294967296"
-  # The in-cluster ClickHouse is staging's system of record (spec #73).
-  # Every workload reads and writes it through TUIST_CLICKHOUSE_URL, and
-  # ClickHouse Cloud receives nothing.
-  #
   # One ClickHouse replica on the AX42-1 in the `clickhouse` pool, with its
   # data on that node's XFS `/data`, and one Keeper on the general pool.
   # Deliberately not a highly-available shape: what staging proves is the
@@ -382,10 +378,6 @@ clickhouse:
   # The volume is sized well under the 441 GB `/data` offers, because the
   # staging dataset is a few GiB and the headroom is more useful as page
   # cache than as a reservation nothing fills.
-  #
-  # Going back to `external` does not copy anything back: rows written since
-  # the switch exist only on the in-cluster server.
-  mode: managed
   managed:
     enabled: true
     persistence:
@@ -852,6 +844,9 @@ macosFleet:
 # MachineDeployment stays at zero, so a host released from it goes back to
 # the `tuist-pool-` pool.
 runnersFleet:
+  # Custom volumes, and the checkout volumes built on them, as on canary and production.
+  customCacheVolumes:
+    enabled: true
   enabled: true
   hostCount: 0
   # Pre-ordered Mac mini pool. Operator orders Mac minis in the
@@ -1030,6 +1025,8 @@ rackFleet:
   joiningNodes: []
   runners:
     enabled: true
+    # ber1-runner-b01 runs macOS 27 and Tart 2.41.1.
+    stackedImages: true
     # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
     # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
     guestShapes:

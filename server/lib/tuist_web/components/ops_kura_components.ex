@@ -152,6 +152,9 @@ defmodule TuistWeb.OpsKuraComponents do
       <:col :let={wave} label="Soak-eligible">
         <.text_cell label={to_string(wave.soak_eligible)} />
       </:col>
+      <:col :let={wave} label="Held">
+        <.text_cell label={to_string(wave.held)} />
+      </:col>
       <:empty_state>
         <.table_empty_state
           icon="chart_column"

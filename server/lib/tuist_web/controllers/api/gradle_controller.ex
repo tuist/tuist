@@ -11,6 +11,7 @@ defmodule TuistWeb.API.GradleController do
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.Plugs.GradleReportPublishingPlug
+  alias TuistWeb.Plugs.ReportActorPlug
 
   plug(GradleReportPublishingPlug, :preflight when action == :create_build)
 
@@ -21,7 +22,7 @@ defmodule TuistWeb.API.GradleController do
 
   plug(TuistWeb.Plugs.LoaderPlug when action != :create_build)
   plug(GradleReportPublishingPlug when action == :create_build)
-  plug(TuistWeb.Plugs.ReportActorPlug when action == :create_build)
+  plug(ReportActorPlug when action == :create_build)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create_build)
 
   tags ["Gradle"]
@@ -241,7 +242,8 @@ defmodule TuistWeb.API.GradleController do
          %Schema{
            type: :object,
            properties: %{
-             id: %Schema{type: :string, format: :uuid, description: "The build ID."}
+             id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor
            },
            required: [:id]
          }},
@@ -258,7 +260,7 @@ defmodule TuistWeb.API.GradleController do
 
         conn
         |> put_status(:created)
-        |> json(%{id: build_id})
+        |> json(%{id: build_id, actor: ReportActorPlug.actor(conn)})
 
       {:error, _reason} ->
         conn

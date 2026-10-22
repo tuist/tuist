@@ -204,11 +204,12 @@ render_edge() {
   local -a files=(mgmt-path.sh dnsmasq.conf dhcp.sh dnsmasq-machines.conf tailnet-routes.sh)
   local node
   while IFS=$'\t' read -r node _; do files+=("keepalived-$node.conf"); done < <(fleet_edge_members "$(site_file)")
-  for file in "$dir"/keepalived-*.conf; do
+  jq -e '.management.edge.wan.bgp' "$(site_file)" >/dev/null 2>&1 && files+=(bird.conf)
+  for file in "$dir"/keepalived-*.conf "$dir/bird.conf"; do
     [ -e "$file" ] || continue
     case " ${files[*]} " in *" $(basename "$file") "*) continue;; esac
     if (( check )); then
-      echo "stale: ${file#"$FLEET_ROOT"/} belongs to an edge the site no longer has" >&2
+      echo "stale: ${file#"$FLEET_ROOT"/} belongs to an edge or a WAN announcement the site no longer has" >&2
       status=1
     else
       rm -f "$file"
@@ -222,6 +223,7 @@ render_edge() {
       dhcp.sh) fleet_edge_dhcp_run "$(site_file)" > "$rendered";;
       dnsmasq-machines.conf) fleet_edge_machines_dhcp "$(site_file)" > "$rendered";;
       tailnet-routes.sh) fleet_edge_routes "$(site_file)" > "$rendered";;
+      bird.conf) fleet_edge_bgp "$(site_file)" > "$rendered";;
       keepalived-*.conf)
         node="${file#keepalived-}"
         fleet_edge_keepalived "$(site_file)" "${node%.conf}" > "$rendered";;

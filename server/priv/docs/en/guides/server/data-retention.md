@@ -24,7 +24,7 @@ These windows define how long artifact files remain available on the hosted Tuis
 | Build archives | 7 days | 30 days | 30 days |
 | Run artifacts, including result bundles and session archives | 7 days | 30 days | 30 days |
 | Test run attachments | 30 days | 30 days | 30 days |
-| Shard bundles, including nextest archives | 7 days | 14 days | 30 days |
+| Shard bundles | 7 days | 14 days | 30 days |
 
 The active account plan determines the hosted retention window. If an account does not have an active subscription, Tuist uses the Air retention window. Some artifact types use shorter windows because they are expected to be regenerated.
 

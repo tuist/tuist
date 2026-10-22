@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/tailnet"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
@@ -42,10 +44,15 @@ type lendingGate struct {
 	// skipDrift: keep the host as it is without pushing config. A host lent
 	// by hand runs the borrower's runtime, which a push would pull back.
 	skipDrift bool
-	// forceReauth: the next bootstrap logs the host into the tailnet afresh,
-	// taking it back from the borrower's tags.
-	forceReauth bool
-	result      ctrl.Result
+	// skipBootstrap: do not bootstrap the host either, even for a new
+	// Machine. It may run the borrower's runtime already, and a bootstrap
+	// would take it out of the borrower's cluster mid-handover. A host is
+	// bootstrapped before it is lent and again once it is back.
+	skipBootstrap bool
+	// takeOver: the next bootstrap takes the host back from the borrower
+	// (bootstrap.Config.TakeOver).
+	takeOver bool
+	result   ctrl.Result
 }
 
 const (
@@ -54,6 +61,12 @@ const (
 )
 
 func (r *RackAppleSiliconMachineReconciler) reconcileLending(ctx context.Context, oc *osUpdateContext) (lendingGate, error) {
+	gate, err := r.lendingStep(ctx, oc)
+	gate.skipBootstrap = gate.skipDrift && !gate.takeOver
+	return gate, err
+}
+
+func (r *RackAppleSiliconMachineReconciler) lendingStep(ctx context.Context, oc *osUpdateContext) (lendingGate, error) {
 	machine, host, sshKey, knownFingerprint := oc.machine, oc.host, oc.sshKey, oc.knownFingerprint
 	want := host.Spec.LendTo
 	rec := host.Status.Lease
@@ -69,7 +82,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileLending(ctx context.Context
 		return r.reclaimOrphan(ctx, machine, host, sshKey, knownFingerprint)
 	}
 	if rec != nil && rec.State == infrav1.LendingReclaimed {
-		return lendingGate{skipDrift: true, forceReauth: true}, nil
+		return lendingGate{skipDrift: true, takeOver: true}, nil
 	}
 	if rec != nil && (rec.Borrower != want || rec.State == infrav1.LendingReturning) {
 		return r.returnLentHost(ctx, machine, host, sshKey, knownFingerprint)
@@ -111,7 +124,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileLending(ctx context.Context
 	if state == "" && lease.Spec.Phase == infrav1.LeaseLent && lease.Spec.GrantedKeyFingerprint != "" {
 		// The record was lost while the lease stayed: the host is lent.
 		if err := r.recordLending(ctx, host, &infrav1.RackHostLending{
-			Borrower: want, State: infrav1.LendingLent, KeyFingerprint: lease.Spec.GrantedKeyFingerprint,
+			Borrower: want, State: infrav1.LendingLent, KeyFingerprint: lease.Spec.GrantedKeyFingerprint, BorrowerNode: lease.Status.Node,
 		}); err != nil {
 			return lendingGate{}, err
 		}
@@ -185,7 +198,7 @@ func (r *RackAppleSiliconMachineReconciler) handOverToBorrower(
 	}); err != nil {
 		return lendingGate{}, err
 	}
-	if err := r.recordLending(ctx, host, &infrav1.RackHostLending{Borrower: want, State: infrav1.LendingLent, KeyFingerprint: fingerprint}); err != nil {
+	if err := r.recordLending(ctx, host, &infrav1.RackHostLending{Borrower: want, State: infrav1.LendingLent, KeyFingerprint: fingerprint, BorrowerNode: lease.Status.Node}); err != nil {
 		return lendingGate{}, err
 	}
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Lent", "Handed %s's runtime to %s", host.Name, want)
@@ -302,6 +315,17 @@ func (r *RackAppleSiliconMachineReconciler) reclaim(
 	if err := r.handOver(ctx, machine, host, sshKey, knownFingerprint, r.Env, ""); err != nil {
 		return lendingGate{stop: true, result: ctrl.Result{RequeueAfter: lendingRequeue}}, nil
 	}
+	borrowerNode := rec.BorrowerNode
+	if borrowerNode == "" && lease != nil {
+		borrowerNode = lease.Status.Node
+	}
+	// A device left behind costs a suffixed name, which a person can fix; it
+	// must not hold the host's return.
+	if err := r.clearHostDevices(ctx, machine, machine.Name, borrowerNode); err != nil {
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "TailnetCleanupFailed",
+			"Could not clear %s's tailnet devices %s and %s before taking it back: %v. Delete them in the Tailscale admin console, or the host comes back under a suffixed name.",
+			host.Name, machine.Name, borrowerNode, err)
+	}
 	next := *rec
 	next.State = infrav1.LendingReclaimed
 	next.KeyFingerprint = ""
@@ -317,7 +341,7 @@ func (r *RackAppleSiliconMachineReconciler) reclaim(
 		}
 	}
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Reclaimed", "Took %s's runtime back from %s", host.Name, rec.Borrower)
-	return lendingGate{skipDrift: true, forceReauth: true}, nil
+	return lendingGate{skipDrift: true, takeOver: true}, nil
 }
 
 // finishReclaim ends the record of a returned host once bootstrap pushed this
@@ -519,5 +543,56 @@ func (r *RackAppleSiliconMachineReconciler) reclaimOrphan(
 	conditions.MarkFalse(machine, BootstrappedCondition, "Reclaimed", clusterv1.ConditionSeverityInfo,
 		"took %s back from the env that owned its runtime; bootstrapping this env's runtime", host.Name)
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Reclaimed", "Took %s's runtime back", host.Name)
-	return lendingGate{forceReauth: true}, nil
+	return lendingGate{takeOver: true}, nil
+}
+
+// TailnetDevices lists and deletes tailnet devices: the tailnet API client the
+// rack's Linux hosts are kept with.
+type TailnetDevices interface {
+	Devices(ctx context.Context) ([]tailnet.Device, error)
+	DeleteDevice(ctx context.Context, nodeID string) error
+}
+
+// clearHostDevices deletes the devices a returned host left under the names
+// it ran as: this env's, from before it was lent, and the borrower's. Every
+// takeover logs the host in afresh as a new device, so without this the
+// bootstrap that follows would come back as `<name>-1`, which nothing
+// addresses. Without a tailnet API, it says which to delete by hand.
+func (r *RackAppleSiliconMachineReconciler) clearHostDevices(ctx context.Context, machine *infrav1.RackAppleSiliconMachine, names ...string) error {
+	if r.Tailnet == nil {
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "TailnetCleanupSkipped",
+			"No tailnet API to clear the devices named %v: delete them in the Tailscale admin console, or this host comes back under a suffixed name", names)
+		return nil
+	}
+	devices, err := r.Tailnet.Devices(ctx)
+	if err != nil {
+		return fmt.Errorf("list tailnet devices: %w", err)
+	}
+	for _, device := range devices {
+		if !deviceNamedAfter(device.ShortName(), names) {
+			continue
+		}
+		if err := r.Tailnet.DeleteDevice(ctx, device.NodeID); err != nil {
+			return fmt.Errorf("delete tailnet device %s (%s): %w", device.ShortName(), device.NodeID, err)
+		}
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "TailnetDeviceDeleted", "Deleted tailnet device %s, which %s ran as", device.ShortName(), machine.Spec.Host)
+	}
+	return nil
+}
+
+// deviceNamedAfter reports a device named one of names, or one of them with
+// the `-<n>` Tailscale appends when a name is taken.
+func deviceNamedAfter(short string, names []string) bool {
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		if short == name {
+			return true
+		}
+		if suffix, ok := strings.CutPrefix(short, name+"-"); ok && suffix != "" && strings.Trim(suffix, "0123456789") == "" {
+			return true
+		}
+	}
+	return false
 }

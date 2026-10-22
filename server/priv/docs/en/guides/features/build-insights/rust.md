@@ -42,7 +42,7 @@ Tuist doesn't measure build scripts separately or show a build Timeline. A large
 
 ## Read cache measurements {#cache-measurements}
 
-`tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. There is no separate tool to install; project and server settings come from `tuist.toml`. Unsupported compilations run normally.
+`tuist cargo` includes an experimental compilation cache implemented in the Tuist CLI. Follow the <.localized_link href="/guides/features/cache/rust">Rust cache guide</.localized_link> for setup, remote reads and writes through Kura, supported compilations, and troubleshooting.
 
 Open **Cargo Cache** in the project sidebar to track cache hit rates and recorded transfer, latency, and throughput measurements across builds. Filter by date or environment, switch between daily trends and individual-build hit rates, or open a recent build to inspect its cache activity. Builds without cache measurements remain unavailable rather than counting as zero.
 
@@ -60,9 +60,7 @@ If detailed records are missing or incomplete, the page shows a notice. The summ
 
 ### Builds that run tests {#builds-that-run-tests}
 
-`tuist cargo test` reports the duration of the whole command, including its tests. Use <.localized_link href="/guides/features/test-insights/rust">nextest Test Insights</.localized_link> to track individual test results. Nextest runs appear under **Tests**, not in build-duration charts.
-
-For <.localized_link href="/guides/features/test-sharding/rust">test sharding</.localized_link>, `tuist cargo test-build` reports the time spent compiling and archiving the tests.
+`tuist cargo test` reports the duration of the whole command, including its tests. It also reports individual test outcomes, including doctests, through <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link>. Individual test results appear under **Tests**; the command duration appears in build insights.
 
 ## Other compiler tools {#other-compiler-tools}
 

@@ -14,6 +14,8 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toolbar
@@ -24,6 +26,7 @@ class AtlasAIAccountsScreen(
     private val accounts: AtlasAIAccountsModel,
     private val openBrowser: (Uri) -> Unit,
     private val navigateUp: () -> Unit,
+    private val webPage: (() -> Unit)? = null,
     private val signOut: () -> Unit,
 ) {
     private val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -55,6 +58,9 @@ class AtlasAIAccountsScreen(
     private var dialog: AlertDialog? = null
     private var tokenField: EditText? = null
     private var showingTokenHelp = false
+    private var profile: AtlasProfileModel? = null
+    private var appearance: AtlasAppearance? = null
+    private var navigationChanged: () -> Unit = {}
     private val renderListener: () -> Unit = { render() }
 
     init {
@@ -67,11 +73,38 @@ class AtlasAIAccountsScreen(
         render()
     }
 
-    fun load() {
-        accounts.load()
+    fun profile(
+        model: AtlasProfileModel,
+        changed: () -> Unit,
+    ) {
+        profile = model
+        navigationChanged = changed
+        model.listener = renderListener
+        render()
     }
 
+    fun load() {
+        accounts.load()
+        profile?.load()
+    }
+
+    fun appearance(model: AtlasAppearance) {
+        appearance = model
+        render()
+    }
+
+    fun appearanceChanged() {
+        if (appearance?.showingSettings == true) render()
+    }
+
+    val isDetail: Boolean get() = appearance?.showingSettings == true || accounts.page != "settings"
+
     fun back(): Boolean {
+        if (appearance?.showingSettings == true) {
+            appearance?.showingSettings = false
+            render()
+            return true
+        }
         if (accounts.page == "settings") return false
         clearToken()
         scroll.scrollTo(0, 0)
@@ -86,6 +119,7 @@ class AtlasAIAccountsScreen(
         clearToken()
         dialog?.dismiss()
         if (accounts.listener === renderListener) accounts.listener = null
+        if (profile?.listener === renderListener) profile?.listener = null
         if (cancelPending) accounts.cancelLogin()
     }
 
@@ -94,16 +128,48 @@ class AtlasAIAccountsScreen(
         val focused = accounts.page == "claude" && tokenField?.hasFocus() == true
         val position = scroll.scrollY
         content.removeAllViews()
+        if (appearance?.showingSettings == true) {
+            activity.title = "Appearance"
+            renderAppearance()
+            scroll.post { if (!closed) scroll.scrollTo(0, position) }
+            navigationChanged()
+            return
+        }
         activity.title =
             when (accounts.page) {
                 "claude" -> "Claude"
                 "chatgpt" -> "ChatGPT"
-                else -> "Settings"
+                else -> if (profile != null) "Profile" else "Settings"
             }
+        toolbar.menu.clear()
+        if (accounts.page == "settings") toolbar.browserAction(webPage)
         when (accounts.page) {
             "settings" -> {
-                heading("Account")
-                row("Atlas server", Uri.parse(server).host ?: server)
+                val identity = profile
+                if (identity != null) {
+                    text(identity.name.ifBlank { "Atlas teammate" }).apply {
+                        textSize = 26f
+                        gravity = android.view.Gravity.CENTER
+                        if (Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
+                    }
+                    row("Email", identity.email.ifBlank { "Not loaded" })
+                } else {
+                    heading("Account")
+                }
+                row("Atlas server", if (identity != null) server else Uri.parse(server).host ?: server)
+                if (identity != null) {
+                    row("Server version", identity.version.ifBlank { if (identity.busy) "Loading…" else "Unavailable" })
+                    identity.error?.let { text(it) }
+                    button("Refresh profile", enabled = !identity.busy, primary = false) { identity.load() }
+                }
+                appearance?.let { appearance ->
+                    heading("Personalize")
+                    row("Appearance", appearance.theme?.getString("name") ?: "Atlas") {
+                        appearance.showingSettings = true
+                        scroll.scrollTo(0, 0)
+                        render()
+                    }
+                }
                 heading("AI accounts")
                 row("Claude", status("claude")) {
                     showingTokenHelp = false
@@ -117,7 +183,20 @@ class AtlasAIAccountsScreen(
                 }
                 text("These accounts will power sessions you start. Sessions aren’t available yet.")
                 heading("Session")
-                button("Sign out", primary = false) { signOut() }
+                button("Sign out", enabled = true, primary = false) {
+                    if (profile == null) {
+                        signOut()
+                    } else {
+                        dialog =
+                            AlertDialog
+                                .Builder(activity)
+                                .setTitle("Sign out of Atlas?")
+                                .setMessage("Your local session and unsaved drafts will be cleared.")
+                                .setPositiveButton("Sign out") { _, _ -> signOut() }
+                                .setNegativeButton("Cancel", null)
+                                .show()
+                    }
+                }
             }
             "claude" -> renderClaude()
             else -> renderChatGPT()
@@ -129,6 +208,58 @@ class AtlasAIAccountsScreen(
         }
         if (focused) tokenField?.requestFocus()
         scroll.post { if (!closed && !focused) scroll.scrollTo(0, position) }
+        navigationChanged()
+    }
+
+    private fun renderAppearance() {
+        val appearance = appearance ?: return
+        heading("Theme")
+        val choices = RadioGroup(activity)
+        val themes =
+            listOf(Triple("server-default", "Server default", "Chosen by your company")) +
+                appearance.themes.map { Triple(it.getString("id"), it.getString("name"), it.getString("description")) }
+        themes.forEach { (id, name, description) ->
+            choices.addView(
+                RadioButton(activity).apply {
+                    text = "$name\n$description"
+                    textSize = 16f
+                    minHeight = dp(72)
+                    setPadding(0, dp(8), 0, dp(8))
+                    isChecked = appearance.activeSelection == id
+                    setOnClickListener { appearance.chooseTheme(id) }
+                },
+            )
+        }
+        content.addView(choices)
+        heading("Appearance")
+        val modes = RadioGroup(activity)
+        AtlasAppearance.modes.forEach { mode ->
+            modes.addView(
+                RadioButton(activity).apply {
+                    text = mode.replaceFirstChar { it.uppercase() }
+                    minHeight = dp(48)
+                    isChecked = appearance.mode == mode
+                    setOnClickListener { appearance.chooseMode(mode) }
+                },
+            )
+        }
+        content.addView(modes)
+        text("Saved on this device for this server. Unavailable themes use the server default or original Atlas appearance.")
+        heading("Preview")
+        text("□  Review the launch plan\n     Today").apply {
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            val theme = appearance.theme
+            val palette = appearance.palette
+            if (palette != null) {
+                background =
+                    android.graphics.drawable.GradientDrawable().apply {
+                        setColor(AtlasAppearance.color(palette, "surface"))
+                        cornerRadius = (theme?.getDouble("card_radius") ?: 8.0).toFloat() * resources.displayMetrics.density
+                        setStroke(dp(1), AtlasAppearance.color(palette, "border"))
+                    }
+            }
+            contentDescription = "Theme preview: task card"
+        }
     }
 
     private fun renderChatGPT() {
@@ -302,6 +433,7 @@ class AtlasAIAccountsScreen(
         content.addView(
             Button(activity, null, if (primary) android.R.attr.buttonStyle else android.R.attr.borderlessButtonStyle).apply {
                 text = label
+                setTag(R.id.atlas_primary_action, primary)
                 isAllCaps = false
                 minHeight = dp(48)
                 isEnabled = enabled

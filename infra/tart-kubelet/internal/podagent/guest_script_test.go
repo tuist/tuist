@@ -169,10 +169,11 @@ func TestGuestPrunesEachCASStoreToItsOwnBudget(t *testing.T) {
 	}
 
 	script := guestShellScript(t, "prune_cas_stores teardown",
-		"cas_store_dirs", "cas_proxy_client", "allocated_bytes", "split_by_use", "cas_store_budgets", "prune_cas_stores")
+		"cas_store_root", "cas_store_dirs", "cas_proxy_client", "allocated_bytes", "split_by_use", "cas_store_budgets", "prune_cas_stores")
 	cmd := exec.Command("/bin/bash", "-c", script)
 	cmd.Env = append(os.Environ(),
 		"CACHE_MOUNT="+mount,
+		"CAS_STORE_ROOT=",
 		"CAS_STORE_DIR="+casStoreDir,
 		fmt.Sprintf("CAS_LIMIT_BYTES=%d", 40*mib),
 		"CAS_PROXY_SOCKET="+filepath.Join(t.TempDir(), "s.sock"),

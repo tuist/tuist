@@ -29,6 +29,45 @@ We follow [semantic versioning](https://semver.org/) to ensure predictable versi
 
 See the <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
 
+## OAuth upgrade and rollback boundary {#oauth-upgrade-and-rollback-boundary}
+
+The OAuth entity-cache removal requires a staged upgrade for existing installations. Before deploying a version that stops OAuth cache invalidations, first deploy the authoritative-reading compatibility release from [#14040](https://github.com/tuist/tuist/pull/14040) to **every OAuth reader and writer**. This compatibility stage first appears in the **1.355** release line: `ghcr.io/tuist/tuist:1.355.0-rc.1` contains it; production deployments should use a stable `1.355.x` release once promoted. Installations on 1.354 or earlier must complete this stage before upgrading to a later release containing the removal. Keep the 1.355 line compatibility-only: do not backport the invalidation removal into it.
+
+The original compatibility commit is also available as `ghcr.io/tuist/tuist:sha-c8e54471a425`. Another image is suitable as the compatibility stage only if it preserves authoritative reads **and retains legacy invalidations** while older consumers remain. Run that stage's normal database migrations before serving traffic, including the refresh-token lookup index.
+
+Check all web replicas, background workers, scheduled jobs and separately pinned processor images in each environment. Wait for the compatibility rollout to finish and verify that no cache-reading binaries remain before removing invalidations. Do not let a floating image tag skip this stage during an automated upgrade. Fresh installations without older consumers do not need an intermediate deployment.
+
+> [!WARNING]
+> **Keep an authoritative-reading rollback target**
+>
+> After invalidations are removed, an ordinary rolling rollback must target #14040 or another authoritative-reading version. Retained OAuth cache entries may be stale even after every no-invalidation process has stopped, and a restarted cache-reading replica can import them from peers.
+>
+> Rolling back further requires stopping and draining **all** no-invalidation OAuth consumers, then clearing or replacing **every** retained Boruta cache participant before starting any cache-reading consumer. Prevent retained participants from rejoining. Draining only ingress or restarting only web replicas is insufficient; coordinate this recovery with your Tuist support contact rather than clearing caches or rolling back database migrations automatically.
+
+## Multi-replica clustering {#multi-replica-clustering}
+
+Supported multi-replica web deployments require Erlang clustering for cross-replica Phoenix PubSub and Oban PG notifications, not as an authority for authentication. The chart rejects multiple replicas, including an autoscaler that can grow beyond one replica, when `server.cluster.enabled` is false. Previously accepted unclustered deployments must plan this upgrade rather than bypassing the guard. Complete the <.localized_link href="/guides/server/self-host/server#oauth-upgrade-and-rollback-boundary">OAuth upgrade sequence</.localized_link>, including the invalidation removal, before changing membership.
+
+Create a private cookie Secret in the release namespace using your secret manager, then configure its name and key:
+
+```yaml
+server:
+  replicaCount: 2
+  cluster:
+    enabled: true
+    distributionPort: 9100
+    cookieExistingSecret: tuist-server-cluster
+    cookieExistingSecretKey: release-cookie
+```
+
+The cookie must be high-entropy and shared by all participating web replicas. Never use the cookie embedded in a published image: possession of a distribution cookie grants remote execution on its nodes. Distributed release startup now refuses a missing private `RELEASE_COOKIE` or an invalid port, including explicitly configured `RELEASE_DISTRIBUTION=name` or `sname` without DNS discovery. Non-chart deployments must also configure `TUIST_CLUSTER_DNS_SERVICE`, `TUIST_CLUSTER_APP_NAME` and the pod IP/node name consistently. Discovery currently uses IPv4 A records.
+
+With ordinary server-connected `helm upgrade`, leaving `cookieExistingSecret` empty creates a cookie Secret and reuses its current value on later upgrades. Offline `helm template`, Argo CD and other GitOps renderers without live Secret lookup cannot preserve that generated value; they must use `cookieExistingSecret` backed by a separately managed, stable Secret. Do not change the cookie key to rotate a live cluster implicitly. Cookie rotation needs a coordinated migration/restart of every participant; updating a Secret alone does not update existing processes.
+
+The first rollout from image-baked cookies forms separate old/new membership islands until all web replicas use the private Secret. Plan a migration window for realtime updates. Subsequent rolling deployments form mixed-version clusters, so qualify PubSub, Oban notifications and peer replacement across the actual old/new versions. These notifications are not durable delivery guarantees. Keep an authoritative-reading rollback image and preserve the same private cookie when rolling back a compatible version.
+
+Allow EPMD (TCP 4369) and the configured distribution port only between trusted server peers, never from tenant workloads or the public network. Verify actual ingress/egress isolation in your environment; rendering a NetworkPolicy does not prove enforcement or backend reachability. A two-replica canary under continuous load must pass joining, rolling replacement and failure/recovery before promotion. DNS is used to discover peers, not to disconnect healthy nodes on a transient failed or partial answer; real node loss and OTP partition prevention still apply. libcluster may still log a successful "disconnected" operation for the retention callback without closing a connection; establish actual membership from node-up/down events or `Node.list()`, not that log line alone.
+
 ## Continuous deployment {#continuous-deployment}
 
 We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> for the recommended pinning strategy.
@@ -79,13 +118,17 @@ This is an **instance-wide runtime configuration**, not a dashboard or per-proje
 
 ### Configure the clients {#network-trusted-client-configuration}
 
-Configure the self-hosted server URL and project on each client and explicitly opt in in the environment used by the reporting command, Gradle daemon, or Xcode scheme post-action:
+Keep credential-free publishing disabled during a rolling upgrade until the server and clients include the required safeguards: Gradle must treat unreadable credential directories and ancestors as errors, and unsigned Swift/Gradle build bodies must omit Git origins before serialization. Upgrading only the server cannot fix an older client's credential-absence decision or prevent a credential-bearing origin from being transmitted or logged by that client. Ordinary authenticated older clients remain supported. Clients using an older server without credential-free publishing support must still authenticate; a client opt-in cannot enable the server feature.
 
-```sh
-TUIST_NETWORK_TRUSTED_PUBLISHING=true
-```
+**Upgrade the server before credential-free clients.** Deploy discovery support to every relevant replica before upgrading clients that previously used the legacy opt-in. Upgrading a client first, or rolling the server back to a version without discovery, stops credential-free publishing even if the older server accepts legacy unsigned requests. Authenticate during that transition or finish the server upgrade; restoring the old client flag does not bypass discovery. Configure the final server URL directly, because discovery does not follow redirects.
 
-The server variable allows unsigned reports on the instance; the client variable chooses that publishing mode when credentials are genuinely absent. They are separate controls. No project administrator action in the dashboard is required. For Gradle, you can instead check in `buildInsights.networkTrustedPublishing = true`. For Elixir, `tuist: [network_trusted_publishing: true]` is also supported. Present credentials are still used; blank, corrupt, rejected, or failed-refresh credentials are errors, not permission to publish anonymously. Swift records a rejected refresh in the shared credential file so later authenticated and opted-in commands fail immediately; login/logout clears that marker, and Gradle/Elixir respect it too.
+Configure the self-hosted server URL and project on each client. No client-side opt-in is required: when credentials are genuinely absent, compatible clients discover the instance policy through `GET /.well-known/tuist.json` and automatically select restricted, credential-free reporting only when `network_trusted_report_publishing` is `true`.
+
+Discovery sends no report payload, credentials, or actor claim, does not follow redirects, and is not persisted across commands or builds. Older servers without discovery, disabled instances, malformed responses, and discovery failures do not permit unsigned publication. The report endpoint still enforces the policy on every submission, so discovery cannot grant access after publishing is disabled. During a rolling server upgrade, unsigned reporting may be unavailable until all relevant replicas support discovery and have the same configuration.
+
+The former `TUIST_NETWORK_TRUSTED_PUBLISHING` environment variable and Gradle/Elixir client settings are no longer needed or consulted. Gradle retains its deprecated property so existing build scripts still compile. No project administrator action in the dashboard is required. Present credentials are still used; blank, corrupt, rejected, or failed-refresh credentials never grant permission to publish anonymously. Elixir can retain an authenticated fallback to stored credentials or supplied OIDC, but fails if neither authenticates. Swift records a rejected refresh in the shared credential file so later commands fail immediately; login/logout clears that marker, and Gradle/Elixir respect it too.
+
+Keep tools sharing a credential directory on compatible versions. Older tools can delete credentials that newer clients intentionally preserve: for example, CLI 4.213.0 deletes rejected-refresh credentials, and Gradle 0.16.2 deletes corrupt credential files. If another tool removes the file, a newer client cannot distinguish that from deliberate sign-out and may select unsigned reporting on an enabled instance. Upgrade all credential writers to versions with credential-preservation safeguards before enabling the policy; do not mix legacy writers with newer clients against the same credential directory.
 
 | Client | Credential-free reporting path | Intentional limitations |
 | --- | --- | --- |
@@ -94,7 +137,7 @@ The server variable allows unsigned reports on the instance; the client variable
 | Elixir | `mix tuist.compile` and `mix tuist.test` POST structured JSON | No privileged coverage/history references; shards and artifact endpoints still require credentials |
 | Bazel | `tuist bazel setup` generates BES-only configuration for an explicit `TUIST_BAZEL_BES_BACKEND=grpcs://bes.example:443` | No remote cache, downloader, credential helper, or artifact reads; test reports contain target-level outcomes, not JUnit testcase detail |
 
-For Bazel, deploy a compatible Kura node with its authentication engine connected to the self-hosted control plane. Its per-stream publishing decision is uncached, grants no cache access, and is checked again when completed invocation telemetry reaches the server. After a server replica restarts with publishing disabled, it rejects queued unsigned invocations too. A no-auth Kura node is not sufficient. Regenerate the BES-only configuration after enabling or disabling the client opt-in; previously generated authenticated cache options are not automatically converted by ordinary Bazel invocations.
+For Bazel, upgrade Kura as well as the control plane and deploy a compatible node with its authentication engine connected. The HTTP discovery manifest does not probe the configured BES endpoint's capabilities; an older Kura node may reject reporting-only streams even when HTTP discovery succeeds. Its per-stream publishing decision is uncached, grants no cache access, and is checked again when completed invocation telemetry reaches the server. After a server replica restarts with publishing disabled, it rejects queued unsigned invocations too. A no-auth Kura node is not sufficient. Rerun `tuist bazel setup` after changing credentials or the instance policy; previously generated authenticated cache options are not automatically converted by ordinary Bazel invocations.
 
 > [!WARNING]
 > Anyone who can reach a supported project's publishing endpoint on an enabled instance can submit telemetry, consume its quota, and claim an actor identifier. This applies to every account/project, not just a selected project. Reporting responses can also reveal whether an account/project handle exists and its build system, including private projects. An actor claim is visibly unverified and never establishes identity. Do not enable this policy on an internet-accessible deployment without a separate enforced network boundary. Invalid supplied credentials are rejected, not downgraded.
@@ -105,7 +148,7 @@ The server generates report IDs; repeat submissions may produce duplicate report
 
 ### Disable credential-free publishing {#disable-network-trusted-publishing}
 
-Set `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false` (or remove it) and restart or redeploy **every relevant server replica** to stop credential-free publishing across the instance. During a rolling deployment, replicas still running with the old setting can continue accepting unsigned reports until replaced; block publishing at the private ingress first if immediate revocation is required. Bazel's uncached control-plane checks and queued analytics ingestion observe each replica's startup configuration. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to restore credential-required behavior on clients; the explicit environment opt-out overrides Gradle and Elixir configuration. Existing reports remain subject to ordinary project visibility and retention. To suppress the claimed actor independently, set `TUIST_ACTOR_ID=""` (for Bazel, regenerate `.bazelrc.tuist` with that environment or use `--build_metadata=TUIST_ACTOR_ID=` per invocation); this does not remove verified credential identity. Do not delete rejected credentials as an automatic fallback: sign in again or explicitly sign out/remove them as a deliberate recovery action.
+Set `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=false` (or remove it) and restart or redeploy **every relevant server replica** to stop credential-free publishing across the instance. During a rolling deployment, replicas still running with the old setting can continue accepting unsigned reports until replaced; block publishing at the private ingress first if immediate revocation is required. Bazel's uncached control-plane checks and queued analytics ingestion observe each replica's startup configuration. Clients without credentials stop publishing when discovery or report submission observes the disabled policy. The former client opt-in/opt-out setting no longer controls publication. Existing reports remain subject to ordinary project visibility and retention. To suppress the claimed actor independently, set `TUIST_ACTOR_ID=""` (for Bazel, regenerate `.bazelrc.tuist` with that environment or use `--build_metadata=TUIST_ACTOR_ID=` per invocation); this does not remove verified credential identity. Do not delete rejected credentials as an automatic fallback: sign in again or explicitly sign out/remove them as a deliberate recovery action.
 
 ## Runtime requirements {#runtime-requirements}
 

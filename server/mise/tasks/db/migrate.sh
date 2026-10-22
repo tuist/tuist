@@ -10,6 +10,7 @@ calls="Mix.Tasks.Ecto.Migrate.run([]); Mix.Tasks.Ecto.Migrations.run([])"
 # which slows down the migrations that follow.
 if [ "${1:-}" = "--create" ]; then
   calls="Mix.Tasks.Ecto.Create.run([]); ${calls}"
+  shift
 fi
 
 # A migration that takes the VM down (rather than raising) can leave Mix
@@ -19,7 +20,9 @@ fi
 output="$(mktemp)"
 trap 'rm -f "${output}"' EXIT
 
-mix run --no-start -e "${calls}" | tee "${output}" | awk '/^Repo: /{listing=1} !listing {print; fflush()}'
+# Shards pass --no-compile --no-deps-check after downloading the exact build.
+# Ordinary development and seed jobs keep Mix's compilation and checks enabled.
+mix run "$@" --no-start -e "${calls}" | tee "${output}" | awk '/^Repo: /{listing=1} !listing {print; fflush()}'
 
 if ! grep -E '^\s+Status\s+Migration ID' "${output}" > /dev/null; then
   echo "The migration status was not listed after migrating." >&2

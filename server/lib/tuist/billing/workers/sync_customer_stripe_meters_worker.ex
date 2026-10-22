@@ -18,7 +18,6 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Workers.SyncCustomerStripeMeterWorker
-  alias Tuist.FeatureFlags
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -55,10 +54,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
 
     {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
 
-    meter_opts = [
-      include_qa: FunWithFlags.enabled?(:qa_billing_enabled, for: account),
-      usage_based_pricing: FeatureFlags.usage_based_pricing_enabled?(account)
-    ]
+    meter_opts = [include_qa: FunWithFlags.enabled?(:qa_billing_enabled, for: account)]
 
     day = {period_start, period_end}
 

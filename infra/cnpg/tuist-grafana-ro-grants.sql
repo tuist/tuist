@@ -1,7 +1,8 @@
 -- Per-column privileges for the `tuist_grafana_ro` role.
 --
--- This role backs the Grafana "Tuist Product Usage" dashboard, which reaches
--- CNPG over the PDC tunnel (see infra/helm/tuist/templates/pdc-agent.yaml). Its
+-- This role backs the Grafana "Tuist Product Usage" dashboard and the
+-- "Runner cache volume warm rate low" alert rule, which reach CNPG over the
+-- PDC tunnel (see infra/helm/tuist/templates/pdc-agent.yaml). Its
 -- password lives in Grafana Cloud, so it is the one database credential we hand
 -- to a third party — it gets the narrowest grant set that still renders the
 -- dashboard, and nothing else.
@@ -66,6 +67,12 @@ GRANT SELECT (project_id, inserted_at, git_ref) ON :"tuist_schema".bundles TO tu
 -- roles / users_roles: organization member counts.
 GRANT SELECT (id, resource_id, resource_type) ON :"tuist_schema".roles TO tuist_grafana_ro;
 GRANT SELECT (user_id, role_id) ON :"tuist_schema".users_roles TO tuist_grafana_ro;
+
+-- runner cache volumes: the warm-rate alert rule (warm share of uses with a
+-- saved copy, per platform, excluding test keys). Excludes account_id,
+-- repository, pod_name and node_name.
+GRANT SELECT (volume_id, base_generation, warm, attached_at) ON :"tuist_schema".runner_cache_volume_uses TO tuist_grafana_ro;
+GRANT SELECT (id, key, platform) ON :"tuist_schema".runner_cache_volumes TO tuist_grafana_ro;
 
 -- Defense in depth: no writes, and no privileges on tables added in future
 -- migrations (the opposite of pg_read_all_data, which would pick them up

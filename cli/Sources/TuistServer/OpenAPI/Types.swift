@@ -796,7 +796,7 @@ public protocol APIProtocol: Sendable {
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -3178,7 +3178,7 @@ extension APIProtocol {
     }
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -4322,6 +4322,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage_storage_key`.
             public var xcode_coverage_storage_key: Swift.String?
+            /// Optional Mix client runtime metadata.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/elixir_version`.
+            public var elixir_version: Swift.String?
             /// Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/execution_mode`.
@@ -4333,6 +4337,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/execution_mode`.
             public var execution_mode: Components.Schemas.TestParams.execution_modePayload?
+            /// Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/shard_report_revision`.
+            public var shard_report_revision: Swift.Int?
             /// The repository's Git object format.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_object_format`.
@@ -4386,6 +4394,53 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/shard_index`.
             public var shard_index: Swift.Int?
+            /// Optional client metadata accepted for wire compatibility; not persisted on test runs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata`.
+            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata/tags`.
+                public var tags: [Swift.String]?
+                /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata/values`.
+                public struct valuesPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `valuesPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata/values`.
+                public var values: Components.Schemas.TestParams.custom_metadataPayload.valuesPayload?
+                /// Creates a new `custom_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - tags:
+                ///   - values:
+                public init(
+                    tags: [Swift.String]? = nil,
+                    values: Components.Schemas.TestParams.custom_metadataPayload.valuesPayload? = nil
+                ) {
+                    self.tags = tags
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case tags
+                    case values
+                }
+            }
+            /// Optional client metadata accepted for wire compatibility; not persisted on test runs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/custom_metadata`.
+            public var custom_metadata: Components.Schemas.TestParams.custom_metadataPayload?
             /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/only_test_identifiers`.
@@ -4551,10 +4606,18 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_evidence`.
             public var coverage_evidence: Components.Schemas.TestParams.coverage_evidencePayload?
+            /// Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/shard_attempt`.
+            public var shard_attempt: Swift.Int?
             /// Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_dirty`.
             public var git_dirty: Swift.Bool?
+            /// Optional Mix client runtime metadata.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/otp_version`.
+            public var otp_version: Swift.String?
             /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/history_source`.
@@ -4619,6 +4682,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/gradle_build_id`.
             public var gradle_build_id: Swift.String?
+            /// Optional Mix client environment metadata.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/mix_env`.
+            public var mix_env: Swift.String?
             /// Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/coverage_enabled`.
@@ -5216,7 +5283,9 @@ public enum Components {
             /// - Parameters:
             ///   - git_branch: The git branch.
             ///   - xcode_coverage_storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+            ///   - elixir_version: Optional Mix client runtime metadata.
             ///   - execution_mode: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+            ///   - shard_report_revision: Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
             ///   - git_object_format: The repository's Git object format.
             ///   - scheme: The scheme used for the test run.
             ///   - merge_base_sha: The merge base between the run's commit and the base branch, when the client could resolve it.
@@ -5226,9 +5295,12 @@ public enum Components {
             ///   - is_pull_request: Whether the run was for a pull or merge request.
             ///   - status: The status of the test run.
             ///   - shard_index: The zero-based shard index for this test result.
+            ///   - custom_metadata: Optional client metadata accepted for wire compatibility; not persisted on test runs.
             ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
             ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+            ///   - shard_attempt: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
             ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
+            ///   - otp_version: Optional Mix client runtime metadata.
             ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///   - coverage:
             ///   - build_run_id: The UUID of an associated build run.
@@ -5241,6 +5313,7 @@ public enum Components {
             ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
             ///   - pull_request_number: The pull or merge request number, when known.
             ///   - gradle_build_id: The UUID of an associated Gradle build.
+            ///   - mix_env: Optional Mix client environment metadata.
             ///   - coverage_enabled: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
             ///   - stress_new_tests:
             ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
@@ -5259,7 +5332,9 @@ public enum Components {
             public init(
                 git_branch: Swift.String? = nil,
                 xcode_coverage_storage_key: Swift.String? = nil,
+                elixir_version: Swift.String? = nil,
                 execution_mode: Components.Schemas.TestParams.execution_modePayload? = nil,
+                shard_report_revision: Swift.Int? = nil,
                 git_object_format: Components.Schemas.TestParams.git_object_formatPayload? = nil,
                 scheme: Swift.String? = nil,
                 merge_base_sha: Swift.String? = nil,
@@ -5269,9 +5344,12 @@ public enum Components {
                 is_pull_request: Swift.Bool? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 shard_index: Swift.Int? = nil,
+                custom_metadata: Components.Schemas.TestParams.custom_metadataPayload? = nil,
                 only_test_identifiers: [Swift.String]? = nil,
                 coverage_evidence: Components.Schemas.TestParams.coverage_evidencePayload? = nil,
+                shard_attempt: Swift.Int? = nil,
                 git_dirty: Swift.Bool? = nil,
+                otp_version: Swift.String? = nil,
                 history_source: Components.Schemas.TestParams.history_sourcePayload? = nil,
                 coverage: Components.Schemas.Coverage? = nil,
                 build_run_id: Swift.String? = nil,
@@ -5284,6 +5362,7 @@ public enum Components {
                 ci_project_handle: Swift.String? = nil,
                 pull_request_number: Swift.Int? = nil,
                 gradle_build_id: Swift.String? = nil,
+                mix_env: Swift.String? = nil,
                 coverage_enabled: Swift.Bool? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 xcode_coverage_partial: Swift.Bool? = nil,
@@ -5302,7 +5381,9 @@ public enum Components {
             ) {
                 self.git_branch = git_branch
                 self.xcode_coverage_storage_key = xcode_coverage_storage_key
+                self.elixir_version = elixir_version
                 self.execution_mode = execution_mode
+                self.shard_report_revision = shard_report_revision
                 self.git_object_format = git_object_format
                 self.scheme = scheme
                 self.merge_base_sha = merge_base_sha
@@ -5312,9 +5393,12 @@ public enum Components {
                 self.is_pull_request = is_pull_request
                 self.status = status
                 self.shard_index = shard_index
+                self.custom_metadata = custom_metadata
                 self.only_test_identifiers = only_test_identifiers
                 self.coverage_evidence = coverage_evidence
+                self.shard_attempt = shard_attempt
                 self.git_dirty = git_dirty
+                self.otp_version = otp_version
                 self.history_source = history_source
                 self.coverage = coverage
                 self.build_run_id = build_run_id
@@ -5327,6 +5411,7 @@ public enum Components {
                 self.ci_project_handle = ci_project_handle
                 self.pull_request_number = pull_request_number
                 self.gradle_build_id = gradle_build_id
+                self.mix_env = mix_env
                 self.coverage_enabled = coverage_enabled
                 self.stress_new_tests = stress_new_tests
                 self.xcode_coverage_partial = xcode_coverage_partial
@@ -5346,7 +5431,9 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case git_branch
                 case xcode_coverage_storage_key
+                case elixir_version
                 case execution_mode
+                case shard_report_revision
                 case git_object_format
                 case scheme
                 case merge_base_sha
@@ -5356,9 +5443,12 @@ public enum Components {
                 case is_pull_request
                 case status
                 case shard_index
+                case custom_metadata
                 case only_test_identifiers
                 case coverage_evidence
+                case shard_attempt
                 case git_dirty
+                case otp_version
                 case history_source
                 case coverage
                 case build_run_id
@@ -5371,6 +5461,7 @@ public enum Components {
                 case ci_project_handle
                 case pull_request_number
                 case gradle_build_id
+                case mix_env
                 case coverage_enabled
                 case stress_new_tests
                 case xcode_coverage_partial
@@ -7558,6 +7649,8 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsBuild`.
         public struct RunsBuild: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/actor`.
+            public var actor: Components.Schemas.ReportActor?
             /// The duration of the build run in milliseconds
             ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/duration`.
@@ -7600,6 +7693,7 @@ public enum Components {
             /// Creates a new `RunsBuild`.
             ///
             /// - Parameters:
+            ///   - actor:
             ///   - duration: The duration of the build run in milliseconds
             ///   - id: The unique identifier of the build run
             ///   - project_id: The ID of the Tuist project associated with this build run
@@ -7607,6 +7701,7 @@ public enum Components {
             ///   - _type: The type of the run, which is 'build' in this case
             ///   - url: The URL to access the build run
             public init(
+                actor: Components.Schemas.ReportActor? = nil,
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
@@ -7614,6 +7709,7 @@ public enum Components {
                 _type: Components.Schemas.RunsBuild._typePayload,
                 url: Swift.String
             ) {
+                self.actor = actor
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
@@ -7622,6 +7718,7 @@ public enum Components {
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case actor
                 case duration
                 case id
                 case project_id
@@ -10806,6 +10903,10 @@ public enum Components {
                     public var key: Swift.String
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/last_used_at`.
                     public var last_used_at: Foundation.Date?
+                    /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/pending_volume_bytes`.
+                    public var pending_volume_bytes: Swift.Int?
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/platform`.
                     public var platform: Swift.String
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/provider`.
@@ -10818,6 +10919,10 @@ public enum Components {
                     public var unmeasured_copies: Swift.Int
                     /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/used_bytes`.
                     public var used_bytes: Swift.Int?
+                    /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/volume_bytes`.
+                    public var volume_bytes: Swift.Int?
                     /// Creates a new `volumePayload`.
                     ///
                     /// - Parameters:
@@ -10826,36 +10931,42 @@ public enum Components {
                     ///   - id:
                     ///   - key:
                     ///   - last_used_at:
+                    ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                     ///   - platform:
                     ///   - provider:
                     ///   - repository:
                     ///   - unmeasured_capacity_copies:
                     ///   - unmeasured_copies:
                     ///   - used_bytes:
+                    ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                     public init(
                         architecture: Swift.String,
                         capacity_bytes: Swift.Int? = nil,
                         id: Swift.String,
                         key: Swift.String,
                         last_used_at: Foundation.Date? = nil,
+                        pending_volume_bytes: Swift.Int? = nil,
                         platform: Swift.String,
                         provider: Swift.String,
                         repository: Swift.String,
                         unmeasured_capacity_copies: Swift.Int,
                         unmeasured_copies: Swift.Int,
-                        used_bytes: Swift.Int? = nil
+                        used_bytes: Swift.Int? = nil,
+                        volume_bytes: Swift.Int? = nil
                     ) {
                         self.architecture = architecture
                         self.capacity_bytes = capacity_bytes
                         self.id = id
                         self.key = key
                         self.last_used_at = last_used_at
+                        self.pending_volume_bytes = pending_volume_bytes
                         self.platform = platform
                         self.provider = provider
                         self.repository = repository
                         self.unmeasured_capacity_copies = unmeasured_capacity_copies
                         self.unmeasured_copies = unmeasured_copies
                         self.used_bytes = used_bytes
+                        self.volume_bytes = volume_bytes
                     }
                     public enum CodingKeys: String, CodingKey {
                         case architecture
@@ -10863,12 +10974,14 @@ public enum Components {
                         case id
                         case key
                         case last_used_at
+                        case pending_volume_bytes
                         case platform
                         case provider
                         case repository
                         case unmeasured_capacity_copies
                         case unmeasured_copies
                         case used_bytes
+                        case volume_bytes
                     }
                     public init(from decoder: any Decoder) throws {
                         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -10891,6 +11004,10 @@ public enum Components {
                         self.last_used_at = try container.decodeIfPresent(
                             Foundation.Date.self,
                             forKey: .last_used_at
+                        )
+                        self.pending_volume_bytes = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .pending_volume_bytes
                         )
                         self.platform = try container.decode(
                             Swift.String.self,
@@ -10916,18 +11033,24 @@ public enum Components {
                             Swift.Int.self,
                             forKey: .used_bytes
                         )
+                        self.volume_bytes = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .volume_bytes
+                        )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
                             "architecture",
                             "capacity_bytes",
                             "id",
                             "key",
                             "last_used_at",
+                            "pending_volume_bytes",
                             "platform",
                             "provider",
                             "repository",
                             "unmeasured_capacity_copies",
                             "unmeasured_copies",
-                            "used_bytes"
+                            "used_bytes",
+                            "volume_bytes"
                         ])
                     }
                 }
@@ -11912,6 +12035,10 @@ public enum Components {
             public var key: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/last_used_at`.
             public var last_used_at: Foundation.Date?
+            /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/pending_volume_bytes`.
+            public var pending_volume_bytes: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/platform`.
             public var platform: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/provider`.
@@ -11924,6 +12051,10 @@ public enum Components {
             public var unmeasured_copies: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunnerVolume/used_bytes`.
             public var used_bytes: Swift.Int?
+            /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/volume_bytes`.
+            public var volume_bytes: Swift.Int?
             /// Creates a new `RunnerVolume`.
             ///
             /// - Parameters:
@@ -11932,36 +12063,42 @@ public enum Components {
             ///   - id:
             ///   - key:
             ///   - last_used_at:
+            ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
             ///   - platform:
             ///   - provider:
             ///   - repository:
             ///   - unmeasured_capacity_copies:
             ///   - unmeasured_copies:
             ///   - used_bytes:
+            ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
             public init(
                 architecture: Swift.String,
                 capacity_bytes: Swift.Int? = nil,
                 id: Swift.String,
                 key: Swift.String,
                 last_used_at: Foundation.Date? = nil,
+                pending_volume_bytes: Swift.Int? = nil,
                 platform: Swift.String,
                 provider: Swift.String,
                 repository: Swift.String,
                 unmeasured_capacity_copies: Swift.Int,
                 unmeasured_copies: Swift.Int,
-                used_bytes: Swift.Int? = nil
+                used_bytes: Swift.Int? = nil,
+                volume_bytes: Swift.Int? = nil
             ) {
                 self.architecture = architecture
                 self.capacity_bytes = capacity_bytes
                 self.id = id
                 self.key = key
                 self.last_used_at = last_used_at
+                self.pending_volume_bytes = pending_volume_bytes
                 self.platform = platform
                 self.provider = provider
                 self.repository = repository
                 self.unmeasured_capacity_copies = unmeasured_capacity_copies
                 self.unmeasured_copies = unmeasured_copies
                 self.used_bytes = used_bytes
+                self.volume_bytes = volume_bytes
             }
             public enum CodingKeys: String, CodingKey {
                 case architecture
@@ -11969,12 +12106,14 @@ public enum Components {
                 case id
                 case key
                 case last_used_at
+                case pending_volume_bytes
                 case platform
                 case provider
                 case repository
                 case unmeasured_capacity_copies
                 case unmeasured_copies
                 case used_bytes
+                case volume_bytes
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -11997,6 +12136,10 @@ public enum Components {
                 self.last_used_at = try container.decodeIfPresent(
                     Foundation.Date.self,
                     forKey: .last_used_at
+                )
+                self.pending_volume_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .pending_volume_bytes
                 )
                 self.platform = try container.decode(
                     Swift.String.self,
@@ -12022,18 +12165,24 @@ public enum Components {
                     Swift.Int.self,
                     forKey: .used_bytes
                 )
+                self.volume_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .volume_bytes
+                )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                     "architecture",
                     "capacity_bytes",
                     "id",
                     "key",
                     "last_used_at",
+                    "pending_volume_bytes",
                     "platform",
                     "provider",
                     "repository",
                     "unmeasured_capacity_copies",
                     "unmeasured_copies",
-                    "used_bytes"
+                    "used_bytes",
+                    "volume_bytes"
                 ])
             }
         }
@@ -14267,6 +14416,8 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsTest`.
         public struct RunsTest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunsTest/actor`.
+            public var actor: Components.Schemas.ReportActor?
             /// The duration of the test run in milliseconds
             ///
             /// - Remark: Generated from `#/components/schemas/RunsTest/duration`.
@@ -14281,6 +14432,8 @@ public enum Components {
             public var project_id: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload`.
             public struct test_case_runsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/actor`.
+                public var actor: Components.Schemas.ReportActor?
                 /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/argumentsPayload`.
                 public struct argumentsPayloadPayload: Codable, Hashable, Sendable {
                     /// The UUID of the argument.
@@ -14335,18 +14488,21 @@ public enum Components {
                 /// Creates a new `test_case_runsPayloadPayload`.
                 ///
                 /// - Parameters:
+                ///   - actor:
                 ///   - arguments: The argument variants (for parameterized tests).
                 ///   - id: The UUID of the test case run.
                 ///   - module_name: The module name of the test case.
                 ///   - name: The name of the test case.
                 ///   - suite_name: The suite name of the test case.
                 public init(
+                    actor: Components.Schemas.ReportActor? = nil,
                     arguments: Components.Schemas.RunsTest.test_case_runsPayloadPayload.argumentsPayload? = nil,
                     id: Swift.String,
                     module_name: Swift.String,
                     name: Swift.String,
                     suite_name: Swift.String
                 ) {
+                    self.actor = actor
                     self.arguments = arguments
                     self.id = id
                     self.module_name = module_name
@@ -14354,6 +14510,7 @@ public enum Components {
                     self.suite_name = suite_name
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case actor
                     case arguments
                     case id
                     case module_name
@@ -14386,6 +14543,7 @@ public enum Components {
             /// Creates a new `RunsTest`.
             ///
             /// - Parameters:
+            ///   - actor:
             ///   - duration: The duration of the test run in milliseconds
             ///   - id: The unique identifier of the test run
             ///   - project_id: The ID of the Tuist project associated with this test run
@@ -14393,6 +14551,7 @@ public enum Components {
             ///   - _type: The type of the run, which is 'test' in this case
             ///   - url: The URL to access the test run
             public init(
+                actor: Components.Schemas.ReportActor? = nil,
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
@@ -14400,6 +14559,7 @@ public enum Components {
                 _type: Components.Schemas.RunsTest._typePayload,
                 url: Swift.String
             ) {
+                self.actor = actor
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
@@ -14408,6 +14568,7 @@ public enum Components {
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case actor
                 case duration
                 case id
                 case project_id
@@ -14583,6 +14744,8 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEvent`.
         public struct CommandEvent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CommandEvent/actor`.
+            public var actor: Components.Schemas.ReportActor?
             /// The unique identifier of the command event.
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEvent/id`.
@@ -14606,18 +14769,21 @@ public enum Components {
             /// Creates a new `CommandEvent`.
             ///
             /// - Parameters:
+            ///   - actor:
             ///   - id: The unique identifier of the command event.
             ///   - name: The name of the command
             ///   - project_id: The project identifier
             ///   - test_run_url: The URL to the test run, if available
             ///   - url: The URL to the command event
             public init(
+                actor: Components.Schemas.ReportActor? = nil,
                 id: Swift.String,
                 name: Swift.String,
                 project_id: Swift.Int,
                 test_run_url: Swift.String? = nil,
                 url: Swift.String
             ) {
+                self.actor = actor
                 self.id = id
                 self.name = name
                 self.project_id = project_id
@@ -14625,6 +14791,7 @@ public enum Components {
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case actor
                 case id
                 case name
                 case project_id
@@ -17989,6 +18156,10 @@ public enum Components {
                 public var key: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/last_used_at`.
                 public var last_used_at: Foundation.Date?
+                /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/pending_volume_bytes`.
+                public var pending_volume_bytes: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/platform`.
                 public var platform: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/provider`.
@@ -18001,6 +18172,10 @@ public enum Components {
                 public var unmeasured_copies: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/used_bytes`.
                 public var used_bytes: Swift.Int?
+                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/volume_bytes`.
+                public var volume_bytes: Swift.Int?
                 /// Creates a new `volumePayload`.
                 ///
                 /// - Parameters:
@@ -18009,36 +18184,42 @@ public enum Components {
                 ///   - id:
                 ///   - key:
                 ///   - last_used_at:
+                ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                 ///   - platform:
                 ///   - provider:
                 ///   - repository:
                 ///   - unmeasured_capacity_copies:
                 ///   - unmeasured_copies:
                 ///   - used_bytes:
+                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                 public init(
                     architecture: Swift.String,
                     capacity_bytes: Swift.Int? = nil,
                     id: Swift.String,
                     key: Swift.String,
                     last_used_at: Foundation.Date? = nil,
+                    pending_volume_bytes: Swift.Int? = nil,
                     platform: Swift.String,
                     provider: Swift.String,
                     repository: Swift.String,
                     unmeasured_capacity_copies: Swift.Int,
                     unmeasured_copies: Swift.Int,
-                    used_bytes: Swift.Int? = nil
+                    used_bytes: Swift.Int? = nil,
+                    volume_bytes: Swift.Int? = nil
                 ) {
                     self.architecture = architecture
                     self.capacity_bytes = capacity_bytes
                     self.id = id
                     self.key = key
                     self.last_used_at = last_used_at
+                    self.pending_volume_bytes = pending_volume_bytes
                     self.platform = platform
                     self.provider = provider
                     self.repository = repository
                     self.unmeasured_capacity_copies = unmeasured_capacity_copies
                     self.unmeasured_copies = unmeasured_copies
                     self.used_bytes = used_bytes
+                    self.volume_bytes = volume_bytes
                 }
                 public enum CodingKeys: String, CodingKey {
                     case architecture
@@ -18046,12 +18227,14 @@ public enum Components {
                     case id
                     case key
                     case last_used_at
+                    case pending_volume_bytes
                     case platform
                     case provider
                     case repository
                     case unmeasured_capacity_copies
                     case unmeasured_copies
                     case used_bytes
+                    case volume_bytes
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -18074,6 +18257,10 @@ public enum Components {
                     self.last_used_at = try container.decodeIfPresent(
                         Foundation.Date.self,
                         forKey: .last_used_at
+                    )
+                    self.pending_volume_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .pending_volume_bytes
                     )
                     self.platform = try container.decode(
                         Swift.String.self,
@@ -18099,18 +18286,24 @@ public enum Components {
                         Swift.Int.self,
                         forKey: .used_bytes
                     )
+                    self.volume_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .volume_bytes
+                    )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "architecture",
                         "capacity_bytes",
                         "id",
                         "key",
                         "last_used_at",
+                        "pending_volume_bytes",
                         "platform",
                         "provider",
                         "repository",
                         "unmeasured_capacity_copies",
                         "unmeasured_copies",
-                        "used_bytes"
+                        "used_bytes",
+                        "volume_bytes"
                     ])
                 }
             }
@@ -18532,6 +18725,8 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/Run`.
         public struct Run: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Run/actor`.
+            public var actor: Components.Schemas.ReportActor?
             /// Cacheable targets of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/cacheable_targets`.
@@ -18638,6 +18833,7 @@ public enum Components {
             /// Creates a new `Run`.
             ///
             /// - Parameters:
+            ///   - actor:
             ///   - cacheable_targets: Cacheable targets of the run
             ///   - command_arguments: Arguments passed to the command
             ///   - duration: Duration of the run
@@ -18663,6 +18859,7 @@ public enum Components {
             ///   - tuist_version: Version of Tuist used
             ///   - url: URL to the run
             public init(
+                actor: Components.Schemas.ReportActor? = nil,
                 cacheable_targets: [Swift.String]? = nil,
                 command_arguments: [Swift.String],
                 duration: Swift.Double,
@@ -18688,6 +18885,7 @@ public enum Components {
                 tuist_version: Swift.String,
                 url: Swift.String
             ) {
+                self.actor = actor
                 self.cacheable_targets = cacheable_targets
                 self.command_arguments = command_arguments
                 self.duration = duration
@@ -18714,6 +18912,7 @@ public enum Components {
                 self.url = url
             }
             public enum CodingKeys: String, CodingKey {
+                case actor
                 case cacheable_targets
                 case command_arguments
                 case duration
@@ -20630,11 +20829,15 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/RunnerProfile`.
         public struct RunnerProfile: Codable, Hashable, Sendable {
-            /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+            /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_all_branches`.
+            public var cache_writer_all_branches: Swift.Bool
+            /// Additional branch names or * patterns whose jobs save custom cache volume changes.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_branches`.
             public var cache_writer_branches: [Swift.String]
-            /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+            /// Whether jobs on each repository's default branch save custom cache volume changes.
             ///
             /// - Remark: Generated from `#/components/schemas/RunnerProfile/cache_writer_default_branch`.
             public var cache_writer_default_branch: Swift.Bool
@@ -20668,8 +20871,9 @@ public enum Components {
             /// Creates a new `RunnerProfile`.
             ///
             /// - Parameters:
-            ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-            ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+            ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+            ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+            ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
             ///   - id:
             ///   - inserted_at:
             ///   - memory_gb:
@@ -20681,6 +20885,7 @@ public enum Components {
             ///   - vcpus:
             ///   - xcode_version:
             public init(
+                cache_writer_all_branches: Swift.Bool,
                 cache_writer_branches: [Swift.String],
                 cache_writer_default_branch: Swift.Bool,
                 id: Swift.Int,
@@ -20694,6 +20899,7 @@ public enum Components {
                 vcpus: Swift.Int,
                 xcode_version: Swift.String? = nil
             ) {
+                self.cache_writer_all_branches = cache_writer_all_branches
                 self.cache_writer_branches = cache_writer_branches
                 self.cache_writer_default_branch = cache_writer_default_branch
                 self.id = id
@@ -20708,6 +20914,7 @@ public enum Components {
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
+                case cache_writer_all_branches
                 case cache_writer_branches
                 case cache_writer_default_branch
                 case id
@@ -23618,6 +23825,10 @@ public enum Components {
                 public var key: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/last_used_at`.
                 public var last_used_at: Foundation.Date?
+                /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/pending_volume_bytes`.
+                public var pending_volume_bytes: Swift.Int?
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/platform`.
                 public var platform: Swift.String
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/provider`.
@@ -23630,6 +23841,10 @@ public enum Components {
                 public var unmeasured_copies: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/used_bytes`.
                 public var used_bytes: Swift.Int?
+                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/volume_bytes`.
+                public var volume_bytes: Swift.Int?
                 /// Creates a new `volumesPayloadPayload`.
                 ///
                 /// - Parameters:
@@ -23638,36 +23853,42 @@ public enum Components {
                 ///   - id:
                 ///   - key:
                 ///   - last_used_at:
+                ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                 ///   - platform:
                 ///   - provider:
                 ///   - repository:
                 ///   - unmeasured_capacity_copies:
                 ///   - unmeasured_copies:
                 ///   - used_bytes:
+                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                 public init(
                     architecture: Swift.String,
                     capacity_bytes: Swift.Int? = nil,
                     id: Swift.String,
                     key: Swift.String,
                     last_used_at: Foundation.Date? = nil,
+                    pending_volume_bytes: Swift.Int? = nil,
                     platform: Swift.String,
                     provider: Swift.String,
                     repository: Swift.String,
                     unmeasured_capacity_copies: Swift.Int,
                     unmeasured_copies: Swift.Int,
-                    used_bytes: Swift.Int? = nil
+                    used_bytes: Swift.Int? = nil,
+                    volume_bytes: Swift.Int? = nil
                 ) {
                     self.architecture = architecture
                     self.capacity_bytes = capacity_bytes
                     self.id = id
                     self.key = key
                     self.last_used_at = last_used_at
+                    self.pending_volume_bytes = pending_volume_bytes
                     self.platform = platform
                     self.provider = provider
                     self.repository = repository
                     self.unmeasured_capacity_copies = unmeasured_capacity_copies
                     self.unmeasured_copies = unmeasured_copies
                     self.used_bytes = used_bytes
+                    self.volume_bytes = volume_bytes
                 }
                 public enum CodingKeys: String, CodingKey {
                     case architecture
@@ -23675,12 +23896,14 @@ public enum Components {
                     case id
                     case key
                     case last_used_at
+                    case pending_volume_bytes
                     case platform
                     case provider
                     case repository
                     case unmeasured_capacity_copies
                     case unmeasured_copies
                     case used_bytes
+                    case volume_bytes
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -23703,6 +23926,10 @@ public enum Components {
                     self.last_used_at = try container.decodeIfPresent(
                         Foundation.Date.self,
                         forKey: .last_used_at
+                    )
+                    self.pending_volume_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .pending_volume_bytes
                     )
                     self.platform = try container.decode(
                         Swift.String.self,
@@ -23728,18 +23955,24 @@ public enum Components {
                         Swift.Int.self,
                         forKey: .used_bytes
                     )
+                    self.volume_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .volume_bytes
+                    )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "architecture",
                         "capacity_bytes",
                         "id",
                         "key",
                         "last_used_at",
+                        "pending_volume_bytes",
                         "platform",
                         "provider",
                         "repository",
                         "unmeasured_capacity_copies",
                         "unmeasured_copies",
-                        "used_bytes"
+                        "used_bytes",
+                        "volume_bytes"
                     ])
                 }
             }
@@ -31123,11 +31356,15 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload`.
                         public struct profilesPayloadPayload: Codable, Hashable, Sendable {
-                            /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                            /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_all_branches`.
+                            public var cache_writer_all_branches: Swift.Bool
+                            /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_branches`.
                             public var cache_writer_branches: [Swift.String]
-                            /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                            /// Whether jobs on each repository's default branch save custom cache volume changes.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/GET/responses/200/content/json/profilesPayload/cache_writer_default_branch`.
                             public var cache_writer_default_branch: Swift.Bool
@@ -31161,8 +31398,9 @@ public enum Operations {
                             /// Creates a new `profilesPayloadPayload`.
                             ///
                             /// - Parameters:
-                            ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                            ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                            ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                            ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                            ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                             ///   - id:
                             ///   - inserted_at:
                             ///   - memory_gb:
@@ -31174,6 +31412,7 @@ public enum Operations {
                             ///   - vcpus:
                             ///   - xcode_version:
                             public init(
+                                cache_writer_all_branches: Swift.Bool,
                                 cache_writer_branches: [Swift.String],
                                 cache_writer_default_branch: Swift.Bool,
                                 id: Swift.Int,
@@ -31187,6 +31426,7 @@ public enum Operations {
                                 vcpus: Swift.Int,
                                 xcode_version: Swift.String? = nil
                             ) {
+                                self.cache_writer_all_branches = cache_writer_all_branches
                                 self.cache_writer_branches = cache_writer_branches
                                 self.cache_writer_default_branch = cache_writer_default_branch
                                 self.id = id
@@ -31201,6 +31441,7 @@ public enum Operations {
                                 self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case cache_writer_all_branches
                                 case cache_writer_branches
                                 case cache_writer_default_branch
                                 case id
@@ -31532,6 +31773,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/cache_writer_all_branches`.
+                    public var cache_writer_all_branches: Swift.Bool?
                     /// Additional branch names or * patterns that save. An empty list removes them.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/requestBody/json/cache_writer_branches`.
@@ -31566,6 +31811,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - cache_writer_all_branches: Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
                     ///   - cache_writer_branches: Additional branch names or * patterns that save. An empty list removes them.
                     ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save. Defaults to true.
                     ///   - memory_gb: Memory in GB of an available shape for the platform.
@@ -31574,6 +31820,7 @@ public enum Operations {
                     ///   - vcpus: vCPUs of an available shape for the platform.
                     ///   - xcode_version: An available Xcode version, for example 26.5. Required for macOS profiles.
                     public init(
+                        cache_writer_all_branches: Swift.Bool? = nil,
                         cache_writer_branches: [Swift.String]? = nil,
                         cache_writer_default_branch: Swift.Bool? = nil,
                         memory_gb: Swift.Int,
@@ -31582,6 +31829,7 @@ public enum Operations {
                         vcpus: Swift.Int,
                         xcode_version: Swift.String? = nil
                     ) {
+                        self.cache_writer_all_branches = cache_writer_all_branches
                         self.cache_writer_branches = cache_writer_branches
                         self.cache_writer_default_branch = cache_writer_default_branch
                         self.memory_gb = memory_gb
@@ -31591,6 +31839,7 @@ public enum Operations {
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case cache_writer_all_branches
                         case cache_writer_branches
                         case cache_writer_default_branch
                         case memory_gb
@@ -31626,11 +31875,15 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_all_branches`.
+                        public var cache_writer_all_branches: Swift.Bool
+                        /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_branches`.
                         public var cache_writer_branches: [Swift.String]
-                        /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        /// Whether jobs on each repository's default branch save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/POST/responses/201/content/json/cache_writer_default_branch`.
                         public var cache_writer_default_branch: Swift.Bool
@@ -31664,8 +31917,9 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                        ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                        ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - memory_gb:
@@ -31677,6 +31931,7 @@ public enum Operations {
                         ///   - vcpus:
                         ///   - xcode_version:
                         public init(
+                            cache_writer_all_branches: Swift.Bool,
                             cache_writer_branches: [Swift.String],
                             cache_writer_default_branch: Swift.Bool,
                             id: Swift.Int,
@@ -31690,6 +31945,7 @@ public enum Operations {
                             vcpus: Swift.Int,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.cache_writer_all_branches = cache_writer_all_branches
                             self.cache_writer_branches = cache_writer_branches
                             self.cache_writer_default_branch = cache_writer_default_branch
                             self.id = id
@@ -31704,6 +31960,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case cache_writer_all_branches
                             case cache_writer_branches
                             case cache_writer_default_branch
                             case id
@@ -33389,6 +33646,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage_storage_key`.
                     public var xcode_coverage_storage_key: Swift.String?
+                    /// Optional Mix client runtime metadata.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/elixir_version`.
+                    public var elixir_version: Swift.String?
                     /// Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/execution_mode`.
@@ -33400,6 +33661,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/execution_mode`.
                     public var execution_mode: Operations.createTest.Input.Body.jsonPayload.execution_modePayload?
+                    /// Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_report_revision`.
+                    public var shard_report_revision: Swift.Int?
                     /// The repository's Git object format.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_object_format`.
@@ -33453,6 +33718,53 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_index`.
                     public var shard_index: Swift.Int?
+                    /// Optional client metadata accepted for wire compatibility; not persisted on test runs.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata`.
+                    public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata/tags`.
+                        public var tags: [Swift.String]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata/values`.
+                        public struct valuesPayload: Codable, Hashable, Sendable {
+                            /// A container of undocumented properties.
+                            public var additionalProperties: [String: Swift.String]
+                            /// Creates a new `valuesPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - additionalProperties: A container of undocumented properties.
+                            public init(additionalProperties: [String: Swift.String] = .init()) {
+                                self.additionalProperties = additionalProperties
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                            }
+                            public func encode(to encoder: any Encoder) throws {
+                                try encoder.encodeAdditionalProperties(additionalProperties)
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata/values`.
+                        public var values: Operations.createTest.Input.Body.jsonPayload.custom_metadataPayload.valuesPayload?
+                        /// Creates a new `custom_metadataPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - tags:
+                        ///   - values:
+                        public init(
+                            tags: [Swift.String]? = nil,
+                            values: Operations.createTest.Input.Body.jsonPayload.custom_metadataPayload.valuesPayload? = nil
+                        ) {
+                            self.tags = tags
+                            self.values = values
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case tags
+                            case values
+                        }
+                    }
+                    /// Optional client metadata accepted for wire compatibility; not persisted on test runs.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/custom_metadata`.
+                    public var custom_metadata: Operations.createTest.Input.Body.jsonPayload.custom_metadataPayload?
                     /// The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/only_test_identifiers`.
@@ -33618,10 +33930,18 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_evidence`.
                     public var coverage_evidence: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload?
+                    /// Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_attempt`.
+                    public var shard_attempt: Swift.Int?
                     /// Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_dirty`.
                     public var git_dirty: Swift.Bool?
+                    /// Optional Mix client runtime metadata.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/otp_version`.
+                    public var otp_version: Swift.String?
                     /// Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/history_source`.
@@ -33686,6 +34006,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
+                    /// Optional Mix client environment metadata.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/mix_env`.
+                    public var mix_env: Swift.String?
                     /// Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/coverage_enabled`.
@@ -34283,7 +34607,9 @@ public enum Operations {
                     /// - Parameters:
                     ///   - git_branch: The git branch.
                     ///   - xcode_coverage_storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+                    ///   - elixir_version: Optional Mix client runtime metadata.
                     ///   - execution_mode: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
+                    ///   - shard_report_revision: Monotonic correction revision within a shard attempt. Processing and its parsed result use the same revision. Defaults to zero.
                     ///   - git_object_format: The repository's Git object format.
                     ///   - scheme: The scheme used for the test run.
                     ///   - merge_base_sha: The merge base between the run's commit and the base branch, when the client could resolve it.
@@ -34293,9 +34619,12 @@ public enum Operations {
                     ///   - is_pull_request: Whether the run was for a pull or merge request.
                     ///   - status: The status of the test run.
                     ///   - shard_index: The zero-based shard index for this test result.
+                    ///   - custom_metadata: Optional client metadata accepted for wire compatibility; not persisted on test runs.
                     ///   - only_test_identifiers: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
                     ///   - coverage_evidence: Which files each test of the run executed, as the run's test processes recorded it (TestCoverageAttribution): what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.
+                    ///   - shard_attempt: Monotonic execution attempt for this shard. Increase when rerunning it; retries of the same upload keep it unchanged. Defaults to zero.
                     ///   - git_dirty: Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's.
+                    ///   - otp_version: Optional Mix client runtime metadata.
                     ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///   - coverage:
                     ///   - build_run_id: The UUID of an associated build run.
@@ -34308,6 +34637,7 @@ public enum Operations {
                     ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
                     ///   - pull_request_number: The pull or merge request number, when known.
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
+                    ///   - mix_env: Optional Mix client environment metadata.
                     ///   - coverage_enabled: Whether the run was set up to collect code coverage, even if selective testing skipped every test and nothing was measured. Only runs set up to collect coverage say what a commit's coverage skipped; omit it when unknown.
                     ///   - stress_new_tests:
                     ///   - xcode_coverage_partial: With `xcode_coverage_storage_key`: whether the run left tests out on purpose.
@@ -34326,7 +34656,9 @@ public enum Operations {
                     public init(
                         git_branch: Swift.String? = nil,
                         xcode_coverage_storage_key: Swift.String? = nil,
+                        elixir_version: Swift.String? = nil,
                         execution_mode: Operations.createTest.Input.Body.jsonPayload.execution_modePayload? = nil,
+                        shard_report_revision: Swift.Int? = nil,
                         git_object_format: Operations.createTest.Input.Body.jsonPayload.git_object_formatPayload? = nil,
                         scheme: Swift.String? = nil,
                         merge_base_sha: Swift.String? = nil,
@@ -34336,9 +34668,12 @@ public enum Operations {
                         is_pull_request: Swift.Bool? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         shard_index: Swift.Int? = nil,
+                        custom_metadata: Operations.createTest.Input.Body.jsonPayload.custom_metadataPayload? = nil,
                         only_test_identifiers: [Swift.String]? = nil,
                         coverage_evidence: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? = nil,
+                        shard_attempt: Swift.Int? = nil,
                         git_dirty: Swift.Bool? = nil,
+                        otp_version: Swift.String? = nil,
                         history_source: Operations.createTest.Input.Body.jsonPayload.history_sourcePayload? = nil,
                         coverage: Components.Schemas.Coverage? = nil,
                         build_run_id: Swift.String? = nil,
@@ -34351,6 +34686,7 @@ public enum Operations {
                         ci_project_handle: Swift.String? = nil,
                         pull_request_number: Swift.Int? = nil,
                         gradle_build_id: Swift.String? = nil,
+                        mix_env: Swift.String? = nil,
                         coverage_enabled: Swift.Bool? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         xcode_coverage_partial: Swift.Bool? = nil,
@@ -34369,7 +34705,9 @@ public enum Operations {
                     ) {
                         self.git_branch = git_branch
                         self.xcode_coverage_storage_key = xcode_coverage_storage_key
+                        self.elixir_version = elixir_version
                         self.execution_mode = execution_mode
+                        self.shard_report_revision = shard_report_revision
                         self.git_object_format = git_object_format
                         self.scheme = scheme
                         self.merge_base_sha = merge_base_sha
@@ -34379,9 +34717,12 @@ public enum Operations {
                         self.is_pull_request = is_pull_request
                         self.status = status
                         self.shard_index = shard_index
+                        self.custom_metadata = custom_metadata
                         self.only_test_identifiers = only_test_identifiers
                         self.coverage_evidence = coverage_evidence
+                        self.shard_attempt = shard_attempt
                         self.git_dirty = git_dirty
+                        self.otp_version = otp_version
                         self.history_source = history_source
                         self.coverage = coverage
                         self.build_run_id = build_run_id
@@ -34394,6 +34735,7 @@ public enum Operations {
                         self.ci_project_handle = ci_project_handle
                         self.pull_request_number = pull_request_number
                         self.gradle_build_id = gradle_build_id
+                        self.mix_env = mix_env
                         self.coverage_enabled = coverage_enabled
                         self.stress_new_tests = stress_new_tests
                         self.xcode_coverage_partial = xcode_coverage_partial
@@ -34413,7 +34755,9 @@ public enum Operations {
                     public enum CodingKeys: String, CodingKey {
                         case git_branch
                         case xcode_coverage_storage_key
+                        case elixir_version
                         case execution_mode
+                        case shard_report_revision
                         case git_object_format
                         case scheme
                         case merge_base_sha
@@ -34423,9 +34767,12 @@ public enum Operations {
                         case is_pull_request
                         case status
                         case shard_index
+                        case custom_metadata
                         case only_test_identifiers
                         case coverage_evidence
+                        case shard_attempt
                         case git_dirty
+                        case otp_version
                         case history_source
                         case coverage
                         case build_run_id
@@ -34438,6 +34785,7 @@ public enum Operations {
                         case ci_project_handle
                         case pull_request_number
                         case gradle_build_id
+                        case mix_env
                         case coverage_enabled
                         case stress_new_tests
                         case xcode_coverage_partial
@@ -34840,7 +35188,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The test run could not be scheduled for processing
+            /// The shard plan is not visible yet or the test run could not be scheduled for processing
             ///
             /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)/responses/503`.
             ///
@@ -45095,6 +45443,10 @@ public enum Operations {
                         public var key: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/last_used_at`.
                         public var last_used_at: Foundation.Date?
+                        /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/pending_volume_bytes`.
+                        public var pending_volume_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/platform`.
                         public var platform: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/provider`.
@@ -45107,6 +45459,10 @@ public enum Operations {
                         public var unmeasured_copies: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/used_bytes`.
                         public var used_bytes: Swift.Int?
+                        /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/volume_bytes`.
+                        public var volume_bytes: Swift.Int?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -45115,36 +45471,42 @@ public enum Operations {
                         ///   - id:
                         ///   - key:
                         ///   - last_used_at:
+                        ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                         ///   - platform:
                         ///   - provider:
                         ///   - repository:
                         ///   - unmeasured_capacity_copies:
                         ///   - unmeasured_copies:
                         ///   - used_bytes:
+                        ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                         public init(
                             architecture: Swift.String,
                             capacity_bytes: Swift.Int? = nil,
                             id: Swift.String,
                             key: Swift.String,
                             last_used_at: Foundation.Date? = nil,
+                            pending_volume_bytes: Swift.Int? = nil,
                             platform: Swift.String,
                             provider: Swift.String,
                             repository: Swift.String,
                             unmeasured_capacity_copies: Swift.Int,
                             unmeasured_copies: Swift.Int,
-                            used_bytes: Swift.Int? = nil
+                            used_bytes: Swift.Int? = nil,
+                            volume_bytes: Swift.Int? = nil
                         ) {
                             self.architecture = architecture
                             self.capacity_bytes = capacity_bytes
                             self.id = id
                             self.key = key
                             self.last_used_at = last_used_at
+                            self.pending_volume_bytes = pending_volume_bytes
                             self.platform = platform
                             self.provider = provider
                             self.repository = repository
                             self.unmeasured_capacity_copies = unmeasured_capacity_copies
                             self.unmeasured_copies = unmeasured_copies
                             self.used_bytes = used_bytes
+                            self.volume_bytes = volume_bytes
                         }
                         public enum CodingKeys: String, CodingKey {
                             case architecture
@@ -45152,12 +45514,14 @@ public enum Operations {
                             case id
                             case key
                             case last_used_at
+                            case pending_volume_bytes
                             case platform
                             case provider
                             case repository
                             case unmeasured_capacity_copies
                             case unmeasured_copies
                             case used_bytes
+                            case volume_bytes
                         }
                         public init(from decoder: any Decoder) throws {
                             let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -45180,6 +45544,10 @@ public enum Operations {
                             self.last_used_at = try container.decodeIfPresent(
                                 Foundation.Date.self,
                                 forKey: .last_used_at
+                            )
+                            self.pending_volume_bytes = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .pending_volume_bytes
                             )
                             self.platform = try container.decode(
                                 Swift.String.self,
@@ -45205,18 +45573,24 @@ public enum Operations {
                                 Swift.Int.self,
                                 forKey: .used_bytes
                             )
+                            self.volume_bytes = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .volume_bytes
+                            )
                             try decoder.ensureNoAdditionalProperties(knownKeys: [
                                 "architecture",
                                 "capacity_bytes",
                                 "id",
                                 "key",
                                 "last_used_at",
+                                "pending_volume_bytes",
                                 "platform",
                                 "provider",
                                 "repository",
                                 "unmeasured_capacity_copies",
                                 "unmeasured_copies",
-                                "used_bytes"
+                                "used_bytes",
+                                "volume_bytes"
                             ])
                         }
                     }
@@ -53853,8 +54227,12 @@ public enum Operations {
                     public struct dependency_cachePayloadPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/dependency`.
                         public var dependency: Swift.String
+                        /// Lookup/compilation duration, or validation time for up-to-date local reuse.
+                        ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/duration_ms`.
                         public var duration_ms: Swift.Int
+                        /// Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
+                        ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/key`.
                         public var key: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/outcome`.
@@ -53894,6 +54272,7 @@ public enum Operations {
                             case unmodeled_input = "unmodeled_input"
                             case inputs_changed = "inputs_changed"
                             case store_failed = "store_failed"
+                            case up_to_date = "up_to_date"
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cachePayload/reason`.
                         public var reason: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload.reasonPayload?
@@ -53924,8 +54303,8 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - dependency:
-                        ///   - duration_ms:
-                        ///   - key:
+                        ///   - duration_ms: Lookup/compilation duration, or validation time for up-to-date local reuse.
+                        ///   - key: Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass.
                         ///   - outcome:
                         ///   - read_bytes: Successful read bytes. Remote CAS payload bytes or local artifact and manifest copy bytes, identified by read_source.
                         ///   - read_duration_us: Successful client transfer or local restore duration in microseconds. Local restores include verification and installation; remote transfers exclude installation.
@@ -53977,11 +54356,11 @@ public enum Operations {
                             case write_source
                         }
                     }
-                    /// Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    /// Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cache`.
                     public typealias dependency_cachePayload = [Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayloadPayload]
-                    /// Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    /// Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/dependency_cache`.
                     public var dependency_cache: Operations.createMixBuild.Input.Body.jsonPayload.dependency_cachePayload?
@@ -54417,7 +54796,7 @@ public enum Operations {
                     ///   - ci_run_id: The CI run identifier.
                     ///   - contract_version: Version of the client-server analytics contract the caller was built against.
                     ///   - custom_metadata: Custom metadata for the build run.
-                    ///   - dependency_cache: Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.
+                    ///   - dependency_cache: Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.
                     ///   - diagnostics: Compile-time diagnostics emitted during the build.
                     ///   - duration_ms: Total compile duration in milliseconds.
                     ///   - elixir_version: The Elixir version used to compile (e.g., "1.20.2").
@@ -54535,6 +54914,8 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/responses/201/content/json/actor`.
+                        public var actor: Components.Schemas.ReportActor?
                         /// The build ID.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/responses/201/content/json/id`.
@@ -54542,11 +54923,17 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - actor:
                         ///   - id: The build ID.
-                        public init(id: Swift.String) {
+                        public init(
+                            actor: Components.Schemas.ReportActor? = nil,
+                            id: Swift.String
+                        ) {
+                            self.actor = actor
                             self.id = id
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case actor
                             case id
                         }
                     }
@@ -57652,6 +58039,10 @@ public enum Operations {
                                 public var key: Swift.String
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/last_used_at`.
                                 public var last_used_at: Foundation.Date?
+                                /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/pending_volume_bytes`.
+                                public var pending_volume_bytes: Swift.Int?
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/platform`.
                                 public var platform: Swift.String
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/provider`.
@@ -57664,6 +58055,10 @@ public enum Operations {
                                 public var unmeasured_copies: Swift.Int
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/used_bytes`.
                                 public var used_bytes: Swift.Int?
+                                /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/volume_bytes`.
+                                public var volume_bytes: Swift.Int?
                                 /// Creates a new `volumePayload`.
                                 ///
                                 /// - Parameters:
@@ -57672,36 +58067,42 @@ public enum Operations {
                                 ///   - id:
                                 ///   - key:
                                 ///   - last_used_at:
+                                ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                                 ///   - platform:
                                 ///   - provider:
                                 ///   - repository:
                                 ///   - unmeasured_capacity_copies:
                                 ///   - unmeasured_copies:
                                 ///   - used_bytes:
+                                ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                                 public init(
                                     architecture: Swift.String,
                                     capacity_bytes: Swift.Int? = nil,
                                     id: Swift.String,
                                     key: Swift.String,
                                     last_used_at: Foundation.Date? = nil,
+                                    pending_volume_bytes: Swift.Int? = nil,
                                     platform: Swift.String,
                                     provider: Swift.String,
                                     repository: Swift.String,
                                     unmeasured_capacity_copies: Swift.Int,
                                     unmeasured_copies: Swift.Int,
-                                    used_bytes: Swift.Int? = nil
+                                    used_bytes: Swift.Int? = nil,
+                                    volume_bytes: Swift.Int? = nil
                                 ) {
                                     self.architecture = architecture
                                     self.capacity_bytes = capacity_bytes
                                     self.id = id
                                     self.key = key
                                     self.last_used_at = last_used_at
+                                    self.pending_volume_bytes = pending_volume_bytes
                                     self.platform = platform
                                     self.provider = provider
                                     self.repository = repository
                                     self.unmeasured_capacity_copies = unmeasured_capacity_copies
                                     self.unmeasured_copies = unmeasured_copies
                                     self.used_bytes = used_bytes
+                                    self.volume_bytes = volume_bytes
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case architecture
@@ -57709,12 +58110,14 @@ public enum Operations {
                                     case id
                                     case key
                                     case last_used_at
+                                    case pending_volume_bytes
                                     case platform
                                     case provider
                                     case repository
                                     case unmeasured_capacity_copies
                                     case unmeasured_copies
                                     case used_bytes
+                                    case volume_bytes
                                 }
                                 public init(from decoder: any Decoder) throws {
                                     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -57737,6 +58140,10 @@ public enum Operations {
                                     self.last_used_at = try container.decodeIfPresent(
                                         Foundation.Date.self,
                                         forKey: .last_used_at
+                                    )
+                                    self.pending_volume_bytes = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .pending_volume_bytes
                                     )
                                     self.platform = try container.decode(
                                         Swift.String.self,
@@ -57762,18 +58169,24 @@ public enum Operations {
                                         Swift.Int.self,
                                         forKey: .used_bytes
                                     )
+                                    self.volume_bytes = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .volume_bytes
+                                    )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                                         "architecture",
                                         "capacity_bytes",
                                         "id",
                                         "key",
                                         "last_used_at",
+                                        "pending_volume_bytes",
                                         "platform",
                                         "provider",
                                         "repository",
                                         "unmeasured_capacity_copies",
                                         "unmeasured_copies",
-                                        "used_bytes"
+                                        "used_bytes",
+                                        "volume_bytes"
                                     ])
                                 }
                             }
@@ -88153,7 +88566,7 @@ public enum Operations {
     }
     /// Update a runner profile.
     ///
-    /// Changes the profile's machine shape, Xcode version, or which GitHub Actions jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
+    /// Changes the profile's machine shape, Xcode version, or which jobs save its custom cache volume changes. Omitted fields keep their value; the name and platform can't change. Narrowing the cache saving policy discards pending saves it no longer allows.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/runners/profiles/{profile_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/profiles/{profile_name}/patch(updateRunnerProfile)`.
@@ -88200,6 +88613,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_all_branches`.
+                    public var cache_writer_all_branches: Swift.Bool?
                     /// Additional branch names or * patterns that save. An empty list removes them.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/requestBody/json/cache_writer_branches`.
@@ -88223,18 +88640,21 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - cache_writer_all_branches: Whether every successful job from the repository saves. Defaults to true. When false, only the default branch and the additional branches save.
                     ///   - cache_writer_branches: Additional branch names or * patterns that save. An empty list removes them.
                     ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save. Defaults to true.
                     ///   - memory_gb: Memory in GB of an available shape for the platform.
                     ///   - vcpus: vCPUs of an available shape for the platform.
                     ///   - xcode_version: An available Xcode version, for example 26.5. Required for macOS profiles.
                     public init(
+                        cache_writer_all_branches: Swift.Bool? = nil,
                         cache_writer_branches: [Swift.String]? = nil,
                         cache_writer_default_branch: Swift.Bool? = nil,
                         memory_gb: Swift.Int? = nil,
                         vcpus: Swift.Int? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
+                        self.cache_writer_all_branches = cache_writer_all_branches
                         self.cache_writer_branches = cache_writer_branches
                         self.cache_writer_default_branch = cache_writer_default_branch
                         self.memory_gb = memory_gb
@@ -88242,6 +88662,7 @@ public enum Operations {
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case cache_writer_all_branches
                         case cache_writer_branches
                         case cache_writer_default_branch
                         case memory_gb
@@ -88275,11 +88696,15 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
+                        /// Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_all_branches`.
+                        public var cache_writer_all_branches: Swift.Bool
+                        /// Additional branch names or * patterns whose jobs save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_branches`.
                         public var cache_writer_branches: [Swift.String]
-                        /// Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        /// Whether jobs on each repository's default branch save custom cache volume changes.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/profiles/{profile_name}/PATCH/responses/200/content/json/cache_writer_default_branch`.
                         public var cache_writer_default_branch: Swift.Bool
@@ -88313,8 +88738,9 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - cache_writer_branches: Additional branch names or * patterns whose GitHub Actions jobs save custom cache volume changes.
-                        ///   - cache_writer_default_branch: Whether GitHub Actions jobs on each repository's default branch save custom cache volume changes.
+                        ///   - cache_writer_all_branches: Whether every successful job from the repository saves custom cache volume changes. When false, only the default branch and the additional branches save.
+                        ///   - cache_writer_branches: Additional branch names or * patterns whose jobs save custom cache volume changes.
+                        ///   - cache_writer_default_branch: Whether jobs on each repository's default branch save custom cache volume changes.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - memory_gb:
@@ -88326,6 +88752,7 @@ public enum Operations {
                         ///   - vcpus:
                         ///   - xcode_version:
                         public init(
+                            cache_writer_all_branches: Swift.Bool,
                             cache_writer_branches: [Swift.String],
                             cache_writer_default_branch: Swift.Bool,
                             id: Swift.Int,
@@ -88339,6 +88766,7 @@ public enum Operations {
                             vcpus: Swift.Int,
                             xcode_version: Swift.String? = nil
                         ) {
+                            self.cache_writer_all_branches = cache_writer_all_branches
                             self.cache_writer_branches = cache_writer_branches
                             self.cache_writer_default_branch = cache_writer_default_branch
                             self.id = id
@@ -88353,6 +88781,7 @@ public enum Operations {
                             self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case cache_writer_all_branches
                             case cache_writer_branches
                             case cache_writer_default_branch
                             case id
@@ -106526,6 +106955,10 @@ public enum Operations {
                             public var key: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/last_used_at`.
                             public var last_used_at: Foundation.Date?
+                            /// A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/pending_volume_bytes`.
+                            public var pending_volume_bytes: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/platform`.
                             public var platform: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/provider`.
@@ -106538,6 +106971,10 @@ public enum Operations {
                             public var unmeasured_copies: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/used_bytes`.
                             public var used_bytes: Swift.Int?
+                            /// The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/volume_bytes`.
+                            public var volume_bytes: Swift.Int?
                             /// Creates a new `volumesPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -106546,36 +106983,42 @@ public enum Operations {
                             ///   - id:
                             ///   - key:
                             ///   - last_used_at:
+                            ///   - pending_volume_bytes: A smaller requested capacity in bytes that applies once the volume is next cleared or expires.
                             ///   - platform:
                             ///   - provider:
                             ///   - repository:
                             ///   - unmeasured_capacity_copies:
                             ///   - unmeasured_copies:
                             ///   - used_bytes:
+                            ///   - volume_bytes: The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume.
                             public init(
                                 architecture: Swift.String,
                                 capacity_bytes: Swift.Int? = nil,
                                 id: Swift.String,
                                 key: Swift.String,
                                 last_used_at: Foundation.Date? = nil,
+                                pending_volume_bytes: Swift.Int? = nil,
                                 platform: Swift.String,
                                 provider: Swift.String,
                                 repository: Swift.String,
                                 unmeasured_capacity_copies: Swift.Int,
                                 unmeasured_copies: Swift.Int,
-                                used_bytes: Swift.Int? = nil
+                                used_bytes: Swift.Int? = nil,
+                                volume_bytes: Swift.Int? = nil
                             ) {
                                 self.architecture = architecture
                                 self.capacity_bytes = capacity_bytes
                                 self.id = id
                                 self.key = key
                                 self.last_used_at = last_used_at
+                                self.pending_volume_bytes = pending_volume_bytes
                                 self.platform = platform
                                 self.provider = provider
                                 self.repository = repository
                                 self.unmeasured_capacity_copies = unmeasured_capacity_copies
                                 self.unmeasured_copies = unmeasured_copies
                                 self.used_bytes = used_bytes
+                                self.volume_bytes = volume_bytes
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case architecture
@@ -106583,12 +107026,14 @@ public enum Operations {
                                 case id
                                 case key
                                 case last_used_at
+                                case pending_volume_bytes
                                 case platform
                                 case provider
                                 case repository
                                 case unmeasured_capacity_copies
                                 case unmeasured_copies
                                 case used_bytes
+                                case volume_bytes
                             }
                             public init(from decoder: any Decoder) throws {
                                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -106611,6 +107056,10 @@ public enum Operations {
                                 self.last_used_at = try container.decodeIfPresent(
                                     Foundation.Date.self,
                                     forKey: .last_used_at
+                                )
+                                self.pending_volume_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .pending_volume_bytes
                                 )
                                 self.platform = try container.decode(
                                     Swift.String.self,
@@ -106636,18 +107085,24 @@ public enum Operations {
                                     Swift.Int.self,
                                     forKey: .used_bytes
                                 )
+                                self.volume_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .volume_bytes
+                                )
                                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                                     "architecture",
                                     "capacity_bytes",
                                     "id",
                                     "key",
                                     "last_used_at",
+                                    "pending_volume_bytes",
                                     "platform",
                                     "provider",
                                     "repository",
                                     "unmeasured_capacity_copies",
                                     "unmeasured_copies",
-                                    "used_bytes"
+                                    "used_bytes",
+                                    "volume_bytes"
                                 ])
                             }
                         }
@@ -116657,6 +117112,8 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/json/actor`.
+                        public var actor: Components.Schemas.ReportActor?
                         /// The build ID.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/json/id`.
@@ -116664,11 +117121,17 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - actor:
                         ///   - id: The build ID.
-                        public init(id: Swift.String) {
+                        public init(
+                            actor: Components.Schemas.ReportActor? = nil,
+                            id: Swift.String
+                        ) {
+                            self.actor = actor
                             self.id = id
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case actor
                             case id
                         }
                     }

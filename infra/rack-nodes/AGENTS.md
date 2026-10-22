@@ -373,6 +373,11 @@ carries the same guard.
   also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
   kernel, and the node's `panic_on_oops` turns that into a reboot every 70
   seconds;
+- `10-tuist-no-start-limit.conf` drop-ins for `ssh.service` and `ssh.socket`,
+  which the converge also keeps: five sshd starts within 10s otherwise leave
+  nothing listening on `:22`, and the operator reaches the host over SSH alone.
+  See "sshd stays reachable on Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md);
 - nothing for the management port (the i226-LM, the host's boot MAC). The
   converge keeps it up with no address, no IPv6 link-local and no ARP
   (`/etc/systemd/network/10-tuist-management.network`), because AMT shares the
@@ -1072,7 +1077,9 @@ is deleting the token Secret in the borrowing env (its next deploy makes a new
 one), storing the new kubeconfig under the same item, and waiting for ESO's
 five-minute refresh.
 
-**Lend a host** (remote):
+**Lend a host** (remote). Only a host production has bootstrapped: production
+does not bootstrap a host while it lends it, so a new one joins production
+first.
 
 1. In the borrowing env's values, add the host to `rackFleet.borrow.hosts` and
    deploy. A host not on that list is refused.
@@ -1086,9 +1093,11 @@ five-minute refresh.
 
 **Return it**: drop `lendTo` in production and deploy. The borrower drains its
 Node, so its running jobs finish, and releases the host; production then takes
-the runtime back and bootstraps its own (Returning, then Reclaimed). Remove the
-host from `rackFleet.borrow.hosts` afterwards. A borrower that is gone cannot
-release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
+the runtime back and bootstraps its own (Returning, then Reclaimed). It also
+deletes the tailnet devices the host ran as; if its tailnet API cannot, a
+`TailnetCleanupFailed` event names them for the Tailscale admin console.
+Remove the host from `rackFleet.borrow.hosts` afterwards. A borrower that is
+gone cannot release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
 in production takes it back without it (whatever the borrower ran there is
 lost), and remove the annotation once the host is back.
 
@@ -1147,11 +1156,12 @@ host's own listeners, its sibling guests and the tailnet: the VM egress
 firewall in `infra/macos-host-bootstrap` filters guest traffic before the host
 translates it, and `infra/tailscale/acls.json` has no catch-all grant. The
 `vm_isolation` job in `.github/workflows/runners-staging-smoke.yml` probes it
-from a VM on the host it lands on; run it on a host before lending it to an
-env, and after a change to either. The one rack target a guest reaches on
-purpose is the site's Kura gateway (`rackFleet.vmCacheGatewayCIDRs`). The
-probe's cluster DNS check fails on a host lent by hand, which has no route to
-the borrowing cluster's Service CIDR.
+from a VM on the host it lands on (`environment` picks staging's or canary's
+runners); run it on a host before lending it to an env, and after a change to
+either. The one rack target a guest reaches on purpose is the site's Kura
+gateway (`rackFleet.vmCacheGatewayCIDRs`). The probe's cluster DNS check fails
+on a host lent by hand, which has no route to the borrowing cluster's Service
+CIDR.
 
 ## Tests
 

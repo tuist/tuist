@@ -40,13 +40,14 @@ jobs:
 
 The standalone action release is part of the launch, with immutable version
 tags and an advancing `v1` tag. Pin its release commit for production. Use one
-key/path pair per action, before any tool populates that directory. Absolute,
+key per action, with one or more paths (one per line), before any tool
+populates those directories. Absolute,
 relative and `~/` paths work. Existing nonempty directories cause an error.
 `cache-hit` is `true` when attached from a published snapshot, otherwise `false`.
 Do not restore an archive into the same path. A missing agent or failed attachment
 warns and creates ordinary job-local directories. Acquisition waits at most 30 seconds;
-the host has a 25-second budget for authorization and restoration. Expired
-restores are cancelled and remain ineligible for publication. Errors after attachment may
+the host has a 25-second budget for authorization and local work, and never
+downloads inside it. Expired attaches are cancelled and remain ineligible for publication. Errors after attachment may
 fail the build. No workflow OIDC permission or privileged container is required.
 
 Keys allow 1–200 ASCII letters, digits, dots, underscores, slashes and hyphens,
@@ -74,10 +75,13 @@ The filesystem-specific implementation lives in `../runner-cache/local.go`:
   filesystem) holds immutable masters and sparse, 20 decimal GB ext4 images.
   Host-local branches use `cp --reflink=always`, the Linux equivalent of APFS
   `clonefile`. Unsupported or cross-filesystem clones fail; no full-copy fallback.
-- A warm master is cloned locally. A host without the assigned version downloads
-  it through a presigned URL, checks its SHA-256, restores it sparsely, and clones
-  it. A failed restoration falls back to ordinary job-local directories through
-  the existing client. It never advertises a hit from corrupt data.
+- A warm master is cloned locally. A host without the assigned version clones
+  the newest older version of the volume it holds, else starts an empty ext4
+  image (`cache-hit: false`) that is not saved over the existing version unless
+  the server's cold-publish size rule allows it. Either way the agent then
+  downloads the assigned version in the background through a presigned URL,
+  checks its SHA-256 and restores it sparsely, so the host's next job is warm.
+  It never advertises a hit from corrupt data.
 - Archives hold only the image's data: the agent walks the extents the host
   filesystem reports with `SEEK_DATA`/`SEEK_HOLE`, drops zero chunks, and stores
   each remaining run with its offset in a zstd stream. Saving and restoring
@@ -124,7 +128,9 @@ tools already installed by fleet bootstrap, checks free space, and installs the
 persistent systemd mount without restarting kubelet or repartitioning disks.
 Retries retain existing contents and reject size mismatches, foreign mounts,
 symlinks, and nonempty unprovisioned paths. Failure leaves the agent unready;
-the host cannot advertise volume readiness. Disabling provisioning never deletes
+the host cannot advertise volume readiness. Each reconcile also labels the Node
+`tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
+master and removes the labels of evicted ones. Disabling provisioning never deletes
 the backing file or unmounts existing storage. Runner scheduling prefers ready
 hosts but does not require them; jobs on other hosts fall back to ordinary
 directories. If unprovisioned hosts have accumulated pod directories, drain those
@@ -186,7 +192,7 @@ logical volume capacity, and a 40 GB free-space reserve.
 
 A cold machine can restore accepted images from the existing object storage.
 Losing a host loses unpublished changes, not the last accepted remote master.
-This version restores on demand; it does not yet prewarm arbitrary custom keys
+This version restores after a miss; it does not yet prewarm arbitrary custom keys
 or steer by a particular cached key, because keys are first declared inside jobs.
 Host/journal loss still requires operator reconciliation of usage records. Never
 infer successful erasure from Node NotReady or a timeout. Clearing increments a
@@ -376,18 +382,26 @@ For acquisition failures and cold fallback, compare non-success results against
 all `operation="acquire"` attempts. An acquisition timeout does not mean a failed
 job. A warm snapshot also does not mean its image was already on this host.
 
-After a timed-out warm acquisition, one background prefetch per node may restore
-that immutable master for later jobs. It has a two-minute deadline, no queue, and
-the same filesystem reserve. It never creates a private image, mounts into a job,
-or publishes the cold job's changes. The original restoration is still cancelled;
-the separate background attempt can incur another download. Foreground acquisition
-remains bounded to 25 seconds on the host and 30 seconds on the client. A newer
+An attach never downloads. When a warm acquisition mounted an older version,
+started empty or timed out, one background prefetch per node restores the
+assigned immutable master for later jobs. It has a two-minute deadline, no queue,
+and the same filesystem reserve; an interrupted download resumes on the next
+attempt. It never creates a private image, mounts into a job, or publishes the
+cold job's changes. Foreground acquisition remains bounded to 25 seconds on the
+host and 30 seconds on the client. A newer
 HEAD or a clear can make the prefetched generation obsolete; normal generation
 selection and maintenance prevent it from being served as the new HEAD.
 
-This favors warming hosts after an observed miss over predicting cache keys in the
-scheduler. It preserves ordinary placement and does not replicate every volume to
-every host. The `prefetch` results and subsequent `attach{source="local"}` observations
+This warms hosts after an observed miss and does not replicate every volume to
+every host. Dispatch separately prefers handing a polling host a queued job whose
+predicted custom volumes the host's Node labels advertise (see
+`Tuist.Runners.VolumeAffinities`), within the same 30-second starvation bound as
+the built-in volume. Both that preference and the macOS Pod placement preference
+apply only while the job's volumes fit the host's cache room: tart-kubelet
+labels each macOS Node `tuist.dev/cache-volume-capacity-gib`, and the server
+subtracts the allocated and predicted volumes of every job whose runner session
+is still open there. A job that does not fit loses the preference and is still
+dispatched as usual. The `prefetch` results and subsequent `attach{source="local"}` observations
 should determine whether its bounded extra bandwidth earns enough later hits.
 
 Publishing a generation supersedes every other host's replica of that volume.
@@ -406,3 +420,48 @@ queued-out refresh, or a HEAD that is already local, falls back to removing the
 replica. A refreshed replica keeps its previous last-use time so unused volumes
 stop being refreshed after a day. Watch `operation="refresh"` results against
 `attach{source="local"}`.
+
+## Cached checkouts
+
+Linux jobs get a per-repository `checkout` volume, as macOS jobs do, unless their
+runner profile turns cached checkouts off. It is built by the same shared
+populator as on macOS
+(`../runner-cache/checkout.go`, `Ext4CheckoutImages`). The agent:
+
+- answers `POST /checkout` (15 s) for the live runner pod at the caller's
+  address: it allocates through the server's `/checkout`, then, when it holds a
+  master for the volume's clear generation, admits and mounts a reflink clone at
+  `pods/<uid>/<scope>` like a custom volume, with the tree in `checkout/` owned
+  by the job's UID. Without a master it answers `cold`, ends the use, and
+  restores the volume's HEAD in the background when there is one. It has four
+  request slots of its own and answers `busy` past them.
+- takes `POST /checkout-export` once per granted pod: a tar the runner streams
+  after its job, unpacked by `cachevolumes.ReceiveCheckoutExport` into
+  `checkouts/.incoming/<uid>` and verified again by the build (`git index-pack
+  --strict`, LFS SHA-256, the host writes the tree and index). A master only
+  starts from, and only advances to, a default-branch commit with all its LFS
+  objects; other exports only add objects. A master that advanced is published
+  as the volume's HEAD.
+- bounds what exports hold: each entry is admitted above the job reserve,
+  exports waiting for a build hold at most one maximal export (30 GB) per host,
+  a newer export displaces builds still waiting for room, sparse entries are
+  refused, and nothing is written that the stream did not
+  carry. It checks the pod before taking one of two intake slots, so a busy
+  host keeps the pod's grant.
+- keeps masters under `<root>/checkouts`, on the dedicated filesystem. Builds
+  reserve room above the job reserve and that room is held back from what job
+  admission sees as free. Jobs that need room evict custom-volume masters, then
+  checkout masters, before they are refused. Masters are evicted after seven
+  days without a clone, on clear, or under pressure; pressure never takes a
+  master a job holds or is cloning (`Store.InUse`), since its blocks are shared.
+- needs git and the git-lfs the agent image pins (v3.8.0, checksum-verified at
+  build, version-checked at start, run from `/usr/local/bin`). Without them it logs
+  "cached checkouts unavailable on this host" every 10 minutes, reports
+  `tuist_runner_cached_checkouts_ready 0`, and answers `denied`, so runners
+  export nothing.
+
+Everything a job writes under its workspace lands in its clone, on the cache
+filesystem rather than the pod's work volume. A clone is therefore admitted only
+while free space covers the whole checkout image (60 GB), as the reserve covers
+one custom volume. It never evicts anything for that room: without it the job
+checks out as usual.

@@ -3,15 +3,48 @@ package podagent
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
+	"fmt"
+	"strconv"
 
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// customCapacity is the size of a volume the server allocated without one.
 const customCapacity = 20_000_000_000
+
+// customExpectedBytes is what a job's copy is admitted with and, while its VM
+// runs, what its growth is reserved up to (Identity.ExpectedBytes). runner-cache
+// admits the same bytes; if they disagree, the second check rejects what the
+// first admitted.
+func customExpectedBytes(slot cachevolumes.Slot) uint64 {
+	return uint64(slot.ExpectedBytes(customCapacity))
+}
+
+// CacheCapacityNodeLabel advertises the cache disk capacity in whole GiB. The
+// server subtracts the volumes of the jobs it placed here, attached or not yet,
+// and prefers this host for a job only while its volumes fit: admission reserves
+// what each volume is expected to write (customExpectedBytes), and a second job
+// that cannot get it runs cold.
+const CacheCapacityNodeLabel = "tuist.dev/cache-volume-capacity-gib"
+
+// CapacityNodeLabels returns the label advertising the cache disk's capacity
+// within its budget, or none while the cache filesystem is not mounted.
+func (c *CustomVolumes) CapacityNodeLabels() (map[string]string, error) {
+	labels := map[string]string{}
+	mounted, err := c.Builtins.backend.isMounted(c.Builtins.Root)
+	if err != nil || !mounted {
+		return labels, err
+	}
+	capacity, err := c.Builtins.volumeCapacityBytes()
+	if err != nil {
+		return nil, err
+	}
+	labels[CacheCapacityNodeLabel] = strconv.FormatUint(capacity>>30, 10)
+	return labels, nil
+}
 
 // Custom masters are reclaimed by the shared backend first. If that is not
 // enough, unused built-in masters and convergence staging share the same disk
@@ -31,6 +64,14 @@ func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
 	if errors.Is(err, errNoRoom) && c.Builtins.dropConvergeStagingLocked() {
 		_, err = c.Builtins.ensureFreeLocked(want, masterKey{})
 	}
+	// Idle checkout copies are rebuilt from the next jobs' exports, so they go before
+	// a job loses its volume.
+	if errors.Is(err, errNoRoom) && c.Checkouts.Evict(func() bool {
+		free, freeErr := c.freeBytesLocked()
+		return freeErr == nil && free >= minimum
+	}) {
+		_, err = c.Builtins.ensureFreeLocked(want, masterKey{})
+	}
 	if errors.Is(err, errNoRoom) {
 		return cachevolumes.ErrCapacity
 	}
@@ -41,28 +82,38 @@ func (c *CustomVolumes) reclaim(ctx context.Context, minimum uint64) error {
 // includes allocated blocks; only running writers need additional headroom.
 func (c *CustomVolumes) reservedBytes() uint64 {
 	var total uint64
-	for id, slot := range c.reservations {
-		// Only a restore retains both an archive and an expanded master.
+	for _, slot := range c.reservations {
+		// A clone reports the master's shared blocks as allocated; reserve its budget.
+		if slot.Kind == cachevolumes.KindCheckout {
+			total += cachevolumes.CheckoutGrowthBytes
+			continue
+		}
 		if slot.State != "active" {
 			total += customAdmissionBytes(slot)
 			continue
 		}
-		allocated, err := c.Builtins.backend.allocatedBytes(filepath.Join(c.Root, "images", id+".img"))
+		allocated, err := c.Builtins.backend.allocatedBytes(cachevolumes.APFSBranchFile(c.Root, slot))
 		if err != nil {
 			allocated = 0
 		}
-		if allocated < customCapacity {
-			total += customCapacity - allocated
+		if size := customExpectedBytes(slot); allocated < size {
+			total += size - allocated
 		}
 	}
 	return total
 }
 
+// A job clones a local master or starts empty, so it needs what it is expected
+// to write. Only a prefetch downloads, keeping its archive beside the restored image:
+// twice the head's used bytes, or twice the volume when that is unknown.
 func customAdmissionBytes(slot cachevolumes.Slot) uint64 {
-	if slot.BaseGeneration > 0 {
-		return 2 * customCapacity
+	if slot.Kind == cachevolumes.KindCheckout {
+		return cachevolumes.CheckoutGrowthBytes
 	}
-	return customCapacity
+	if slot.ID == cachevolumes.PrefetchReservation {
+		return uint64(slot.RestoreBytes(customCapacity))
+	}
+	return customExpectedBytes(slot)
 }
 
 func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (func(bool), error) {
@@ -74,6 +125,11 @@ func (c *CustomVolumes) reserve(ctx context.Context, slot cachevolumes.Slot) (fu
 	free, err := c.freeBytesLocked()
 	if err != nil {
 		return nil, err
+	}
+	if free < customAdmissionBytes(slot) && slot.ID != cachevolumes.PrefetchReservation && c.displaceSpareLocked(cachevolumes.SubjectOf(slot).ForFields()...) {
+		if free, err = c.freeBytesLocked(); err != nil {
+			return nil, err
+		}
 	}
 	if free < customAdmissionBytes(slot) {
 		return nil, cachevolumes.ErrCapacity
@@ -118,7 +174,7 @@ func (c *CustomVolumes) refreshReservations(ctx context.Context) error {
 		if slot.State == "deleted" {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(c.Root, "images", slot.ID+".img")); os.IsNotExist(err) {
+		if !cachevolumes.APFSHasBranch(c.Root, slot) {
 			continue
 		}
 		vm := VMNameForPod(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: c.Namespace, Name: slot.PodName}})
@@ -155,4 +211,98 @@ func (c *CustomVolumes) refreshReservations(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+var errSpareDisplaced = errors.New("background prefetch gave way to a job")
+
+// prefetchSpare runs a download the server listed for this host so that job
+// admission can cancel it (displaceSpareLocked). The prefetcher runs one
+// download at a time, so at most one is registered.
+func (c *CustomVolumes) prefetchSpare(ctx context.Context, scope string, run func(context.Context) error) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	c.Builtins.mu.Lock()
+	c.spare, c.spareScope = cancel, scope
+	c.Builtins.mu.Unlock()
+	defer func() {
+		c.Builtins.mu.Lock()
+		c.spare, c.spareScope = nil, ""
+		c.Builtins.mu.Unlock()
+	}()
+	err := run(ctx)
+	if err != nil && errors.Is(context.Cause(ctx), errSpareDisplaced) {
+		return fmt.Errorf("%w: %w", errSpareDisplaced, context.Canceled)
+	}
+	return err
+}
+
+func (c *CustomVolumes) displaceSpare(ctx context.Context) bool {
+	release, err := c.guard(ctx)
+	if err != nil {
+		return false
+	}
+	defer release()
+	return c.displaceSpareLocked(cachevolumes.SubjectFrom(ctx).ForFields()...)
+}
+
+// displaceSpareLocked cancels a background prefetch and drops its reservation,
+// so built-in and custom job admission spend that space before evicting a
+// master. Bytes it already downloaded stay until it unwinds; free space already
+// reflects them. forFields name what the room is for. Requires Builtins.mu.
+func (c *CustomVolumes) displaceSpareLocked(forFields ...any) bool {
+	if c.spare == nil {
+		return false
+	}
+	c.spare(errSpareDisplaced)
+	scope := c.spareScope
+	c.spare, c.spareScope = nil, ""
+	delete(c.reservations, cachevolumes.PrefetchReservation)
+	log.Log.WithName("custom-cache-volumes").Info("admission cancelled a background prefetch to make room for a job", append([]any{"scope", scope}, forFields...)...)
+	return true
+}
+
+// customPressureBytes is how close to the cache filesystem's hard limit
+// (hardFreeBytes) running branches are withheld from publication.
+const customPressureBytes = 2_000_000_000
+
+// Admission reserves what a job is expected to write, not its capacity, so jobs
+// can write past their reservations. Between the admission budget and the APFS
+// quota they only crowd out later admissions, and relieve gives the space back.
+// Near the quota a write may fail on the host without the guest noticing, so
+// notePressure withholds every running branch from publication.
+func (c *CustomVolumes) notePressure(ctx context.Context) {
+	if c.images == nil {
+		return
+	}
+	free, err := c.Builtins.hardFreeBytes()
+	if err != nil || free >= customPressureBytes {
+		return
+	}
+	release, err := c.guard(ctx)
+	if err != nil {
+		return
+	}
+	defer release()
+	for id, slot := range c.reservations {
+		if id == cachevolumes.PrefetchReservation || slot.Kind == cachevolumes.KindCheckout {
+			continue
+		}
+		if err := c.images.MarkPressure(slot); err != nil {
+			log.FromContext(ctx).Error(err, "withhold custom cache branch under disk pressure", "use", id)
+		}
+	}
+}
+
+// relieve evicts idle custom masters once running jobs have written past what
+// admission left free, so later jobs are admitted again within the budget.
+func (c *CustomVolumes) relieve(ctx context.Context) {
+	if c.images == nil {
+		return
+	}
+	evicted, err := c.images.Relieve(ctx, 1)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "relieve custom cache pressure")
+	} else if evicted > 0 {
+		log.FromContext(ctx).Info("jobs outgrew their cache reservations; evicted idle custom masters", "count", evicted)
+	}
 }

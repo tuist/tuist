@@ -3,6 +3,8 @@ set -euo pipefail
 umask 077
 
 cd "$(dirname "$0")/../.."
+source ios/distribution/keychain.sh
+source ios/distribution/associated-domains.sh
 app_source="$PWD/.once/out/AtlasIOSDevice/Atlas.app"
 plist=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }
@@ -12,7 +14,7 @@ test -d "$app_source" || fail "Run mise run build:ios-device first"
 tmp=$(mktemp -d)
 keychain="$tmp/signing.keychain-db"
 cleanup() {
-    security delete-keychain "$keychain" >/dev/null 2>&1 || true
+    delete_signing_keychain "$keychain" || true
     rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -29,12 +31,14 @@ application_id="U6LC622NKF.dev.tuist.atlas"
 expires=$(plutil -extract ExpirationDate raw "$tmp/profile.plist")
 [[ $(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$expires" +%s) -gt $(date +%s) ]] || fail "The Atlas provisioning profile has expired"
 
+plutil -extract Entitlements xml1 -o "$tmp/entitlements.plist" "$tmp/profile.plist"
+plutil -replace keychain-access-groups -json "[\"$application_id\"]" "$tmp/entitlements.plist"
+configure_associated_domains "$tmp/profile.plist" "$tmp/entitlements.plist"
+
 op read "op://tuist/Distribution Certificate/distribution.p12" --out-file "$tmp/certificate.p12"
 certificate_password=$(op read "op://tuist/Distribution Certificate/password")
 keychain_password=$(uuidgen)
-security create-keychain -p "$keychain_password" "$keychain"
-security set-keychain-settings -lut 3600 "$keychain"
-security unlock-keychain -p "$keychain_password" "$keychain"
+create_signing_keychain "$keychain" "$keychain_password"
 security import "$tmp/certificate.p12" -k "$keychain" -P "$certificate_password" -T /usr/bin/codesign >/dev/null
 unset certificate_password
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
@@ -47,8 +51,6 @@ app="$tmp/Payload/Atlas.app"
 [[ "$("$plist" -c 'Print :CFBundleIdentifier' "$app/Info.plist")" = dev.tuist.atlas ]] || fail "Expected the production Atlas app"
 xcrun vtool -show-build "$app/Atlas" | grep -Eq 'platform IOS$' || fail "Expected an iOS device build"
 cp "$tmp/profile.mobileprovision" "$app/embedded.mobileprovision"
-plutil -extract Entitlements xml1 -o "$tmp/entitlements.plist" "$tmp/profile.plist"
-plutil -replace keychain-access-groups -json "[\"$application_id\"]" "$tmp/entitlements.plist"
 # Keep nightly versions increasing without putting delivery metadata in cached outputs.
 "$plist" -c "Set :CFBundleVersion $(date +%s)" "$app/Info.plist"
 

@@ -1422,7 +1422,7 @@ msgid "Tuist version"
 msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:161
-#: lib/tuist_web/helpers/test_labels.ex:67
+#: lib/tuist_web/helpers/test_labels.ex:71
 #: lib/tuist_web/live/once_test_run_live.html.heex:92
 #: lib/tuist_web/live/once_test_run_live.html.heex:120
 #: lib/tuist_web/live/once_test_run_live.html.heex:128
@@ -2668,4 +2668,9 @@ msgstr ""
 #: lib/tuist_web/live/test_runs_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Reported name"
+msgstr ""
+
+#: lib/tuist_web/live/coverage_detail_live.ex:338
+#, elixir-autogen, elixir-format
+msgid "Measured"
 msgstr ""

@@ -685,6 +685,7 @@ defmodule TuistWeb.Router do
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
     get "/once", WellKnownController, :once_discovery, metadata: %{robots_txt: false}
+    get "/tuist.json", WellKnownController, :tuist_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -1088,12 +1089,10 @@ defmodule TuistWeb.Router do
 
     post "/runners/dispatch", RunnersController, :dispatch
     post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
+    post "/runners/cache-volumes/checkout", RunnerCacheVolumesController, :checkout
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
-    post "/runners/volume-head", RunnersController, :report_volume_head
-    post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
     get "/runners/cache-masters", RunnerCacheMastersController, :index
-    post "/runners/cache-masters/usage", RunnerCacheMastersController, :report_usage
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect

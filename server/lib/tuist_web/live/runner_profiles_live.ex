@@ -63,8 +63,10 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_xcode_version, profile.xcode_version)
+         |> assign(:form_cache_writer_all_branches, profile.cache_writer_all_branches)
          |> assign(:form_cache_writer_default_branch, profile.cache_writer_default_branch)
          |> assign(:form_cache_writer_branches, profile.cache_writer_branches || [])
+         |> assign(:form_cached_checkouts, profile.cached_checkouts)
          |> assign(:form_cache_branch_value, "")
          |> assign(:form_cache_branch_error, nil)
          |> assign(:form_cache_saving_expanded, false)
@@ -131,6 +133,14 @@ defmodule TuistWeb.RunnerProfilesLive do
     {:noreply, update(socket, :form_cache_writer_default_branch, &(not &1))}
   end
 
+  def handle_event("toggle_cached_checkouts", _params, socket) do
+    {:noreply, update(socket, :form_cached_checkouts, &(not &1))}
+  end
+
+  def handle_event("toggle_cache_writer_all_branches", _params, socket) do
+    {:noreply, update(socket, :form_cache_writer_all_branches, &(not &1))}
+  end
+
   def handle_event("select_platform", params, socket) do
     case shape_key_from_params(params) do
       platform when platform in ["linux", "macos"] ->
@@ -178,6 +188,7 @@ defmodule TuistWeb.RunnerProfilesLive do
       "platform" => assigns.form_platform,
       "vcpus" => assigns.form_vcpus,
       "memory_gb" => assigns.form_memory_gb,
+      "cache_writer_all_branches" => assigns.form_cache_writer_all_branches,
       "cache_writer_default_branch" => assigns.form_cache_writer_default_branch,
       "cache_writer_branches" => assigns.form_cache_writer_branches
     }
@@ -187,6 +198,8 @@ defmodule TuistWeb.RunnerProfilesLive do
         "macos" -> Map.put(attrs, "xcode_version", assigns.form_xcode_version)
         _ -> attrs
       end
+
+    attrs = Map.put(attrs, "cached_checkouts", assigns.form_cached_checkouts)
 
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
   end
@@ -302,8 +315,10 @@ defmodule TuistWeb.RunnerProfilesLive do
     socket
     |> assign(:form_mode, :new)
     |> assign(:form_name, "")
+    |> assign(:form_cache_writer_all_branches, true)
     |> assign(:form_cache_writer_default_branch, true)
     |> assign(:form_cache_writer_branches, [])
+    |> assign(:form_cached_checkouts, true)
     |> assign(:form_cache_branch_input, 0)
     |> assign(:form_cache_branch_value, "")
     |> assign(:form_cache_branch_error, nil)
@@ -381,7 +396,9 @@ defmodule TuistWeb.RunnerProfilesLive do
   @doc """
   Summary of the branches being edited, shown on the collapsed section.
   """
-  def cache_saving_summary(default_branch?, branches) do
+  def cache_saving_summary(true, _default_branch?, _branches), do: dgettext("dashboard_runners", "Any branch")
+
+  def cache_saving_summary(false, default_branch?, branches) do
     labels = if default_branch?, do: [dgettext("dashboard_runners", "Default branch") | branches], else: branches
 
     cond do

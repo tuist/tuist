@@ -2,8 +2,10 @@ package macos
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
@@ -11,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // LeaseCordonAnnotation marks a cordon a lease placed, valued with the env the
@@ -96,4 +99,81 @@ func leaseKeyFingerprint(key string) string {
 		return ""
 	}
 	return ssh.FingerprintSHA256(pub)
+}
+
+// What tart-kubelet publishes on a runner Pod (the runners-controller's
+// guestHeartbeatStateAnnotation): `polling` while the guest waits for a job,
+// `claimed` once it has one. And the finalizer it holds a runner Pod with
+// until it has deleted the Pod's VM.
+const (
+	runnerHeartbeatStateAnnotation = "tuist.dev/runner-heartbeat-state"
+	runnerHeartbeatPolling         = "polling"
+	vmCleanupFinalizer             = "tart-kubelet.tuist.dev/vm-cleanup"
+)
+
+// deadNodeGrace is how long a Node's tart-kubelet has to have stopped
+// reporting before its Pods count as stranded: past a restart, a drift push
+// and the node-monitor grace.
+const deadNodeGrace = 10 * time.Minute
+
+// strandedRunners returns the warm runners on a Node whose tart-kubelet is
+// gone: polling for a job, with no job, when the Node stopped reporting more
+// than deadNodeGrace ago. Nothing can finish them, since their finalizer waits
+// for that tart-kubelet, and nothing is lost when they go. A runner that had
+// claimed a job is not one: its VM may still be running the job.
+func strandedRunners(ctx context.Context, c client.Client, nodeName string, now time.Time) (map[string]*corev1.Pod, error) {
+	node := &corev1.Node{}
+	if err := c.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
+		return nil, client.IgnoreNotFound(err)
+	}
+	if !nodeGoneSince(node, now.Add(-deadNodeGrace)) {
+		return nil, nil
+	}
+	pods := &corev1.PodList{}
+	if err := c.List(ctx, pods); err != nil {
+		return nil, err
+	}
+	stranded := map[string]*corev1.Pod{}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.Spec.NodeName == nodeName && pod.Annotations[runnerHeartbeatStateAnnotation] == runnerHeartbeatPolling {
+			stranded[pod.Namespace+"/"+pod.Name] = pod
+		}
+	}
+	return stranded, nil
+}
+
+// nodeGoneSince reports a Node that is not Ready and last heard from before.
+func nodeGoneSince(node *corev1.Node, before time.Time) bool {
+	for _, cond := range node.Status.Conditions {
+		if cond.Type != corev1.NodeReady {
+			continue
+		}
+		if cond.Status == corev1.ConditionTrue {
+			return false
+		}
+		heard := cond.LastHeartbeatTime.Time
+		if heard.IsZero() {
+			heard = cond.LastTransitionTime.Time
+		}
+		return !heard.IsZero() && heard.Before(before)
+	}
+	return false
+}
+
+// releaseStrandedRunners lets go of stranded runner Pods once the host has a
+// tart-kubelet again, whose orphan-VM collector deletes their VMs.
+func releaseStrandedRunners(ctx context.Context, c client.Client, pods map[string]*corev1.Pod) error {
+	for _, pod := range pods {
+		base := pod.DeepCopy()
+		if controllerutil.RemoveFinalizer(pod, vmCleanupFinalizer) {
+			if err := c.Patch(ctx, pod, client.MergeFrom(base)); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("release stranded runner %s/%s: %w", pod.Namespace, pod.Name, err)
+			}
+		}
+		if err := c.Delete(ctx, pod, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete stranded runner %s/%s: %w", pod.Namespace, pod.Name, err)
+		}
+	}
+	return nil
 }
