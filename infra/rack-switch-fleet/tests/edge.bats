@@ -675,9 +675,9 @@ STUB
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    snat='    oifname "wan0" ip saddr { 10.10.0.101 } snat ip to 95.130.119.16-95.130.119.31 persistent'
+    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'
     machines='    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade'
-    # the named mini first, so its translation wins over the segment's
+    # the named minis first, so their translation wins over the segment's
     [[ "$output" == *"$snat"$'\n'"$machines"* ]]
     # the management segment and the standby keep the WAN address
     [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
