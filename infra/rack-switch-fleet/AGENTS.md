@@ -1088,7 +1088,8 @@ installer's software reproduces that.
 
 The rack's only way to the internet is its upstream's handoff, a static
 address with no DHCP: Cogent's `149.6.170.31/31` behind `149.6.170.30`, and
-`2001:978:2:b::4:11/127` behind `::4:10`, one public IPv4 address in all.
+`2001:978:2:b::4:11/127` behind `::4:10`, the upstream's addresses, over which
+the site announces prefixes of its own (below).
 `management.edge.wan` names the VLAN it rides (4001, `carried_by: edges`), the
 addresses and the gateways.
 
@@ -1146,6 +1147,22 @@ addresses and the gateways.
   cluster network" in `infra/rack-nodes/AGENTS.md`). The edges' SSH, kubelets
   and boot server are reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
   no room for the machines.
+- **The site's own prefixes.** `management.edge.wan.bgp` names the site's AS
+  (`asn`, AS218377), the upstream's (`peer_asn`, Cogent's AS174) and the
+  prefixes it announces (`95.130.119.0/24` and `2a11:83c0::/29`, registered to
+  Tuist GmbH with RIPE route objects and ROAs for AS218377). `render` writes
+  `bird.conf` (`fleet_edge_bgp`), and the static pod runs BIRD on both edges
+  with it: one session per family to the WAN gateways, bound to the WAN
+  addresses and `direct`, so only the master has sessions and they move with
+  keepalived. A failover drops the sessions; the new master's connect within
+  seconds, and graceful restart asks the upstream to keep the routes
+  meanwhile. Each prefix is a blackhole in BIRD's own table and nothing BIRD
+  learns goes into the node's routes, so the default through the WAN stays
+  keepalived's and announcing changes nothing the rack sends: the machines
+  are still translated onto the WAN address. Of what the upstream sends, only
+  a default route is kept. `birdc -s /run/bird/bird.ctl show protocols` in
+  the pod's `bgp` container shows the sessions. CI parses every site's
+  `bird.conf` with the BIRD the edge image installs.
 
 ### Cold boot
 
