@@ -52,7 +52,7 @@ func TestHostFloorAppliesToBuiltinCustomAndConvergence(t *testing.T) {
 		t.Fatalf("built-in consumed host reserve: %v", err)
 	}
 	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
-	if _, err := c.reserve(context.Background(), cachevolumes.Slot{}); !errors.Is(err, cachevolumes.ErrCapacity) {
+	if _, err := c.reserve(context.Background(), cachevolumes.Slot{Identity: cachevolumes.Identity{HeadSizeBytes: customCapacity}}); !errors.Is(err, cachevolumes.ErrCapacity) {
 		t.Fatalf("custom consumed host reserve: %v", err)
 	}
 	if _, err := m.PrepareConvergeSpace(masterKey{}, 20*gib, 20*gib, false, func(error) {}); !errors.Is(err, errNoRoomToConverge) {
@@ -101,7 +101,7 @@ func TestCustomAttachReclaimsBuiltinMastersAndPreservesWriters(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	id := cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1}
+	id := cachevolumes.Identity{ID: "11111111-1111-4111-8111-111111111111", Scope: strings.Repeat("a", 64), Account: 1, HeadSizeBytes: customCapacity}
 	if _, err := store.Acquire(context.Background(), id, "job", "uid"); err != nil {
 		t.Fatal("cold attach should reclaim the oldest built-in master", err)
 	}
@@ -179,5 +179,26 @@ func TestCacheBudgetAboveTheQuotaLeavesTheQuota(t *testing.T) {
 	}
 	if capacity, err := m.volumeCapacityBytes(); err != nil || capacity != 240*gib {
 		t.Fatalf("capacity = %d, %v; want the 240 GiB quota", capacity, err)
+	}
+}
+
+func TestCapacityNodeLabelsAdvertiseTheBudgetedCacheDisk(t *testing.T) {
+	m, be := newTestManager(t, 512)
+	m.BudgetGiB = 240
+	c := &CustomVolumes{Root: filepath.Join(m.Root, "custom"), Builtins: m}
+
+	labels, err := c.CapacityNodeLabels()
+	if err != nil || len(labels) != 1 || labels[CacheCapacityNodeLabel] != "240" {
+		t.Fatalf("labels = %v, %v; want %s=240", labels, err, CacheCapacityNodeLabel)
+	}
+
+	m.BudgetGiB = 0
+	if labels, _ = c.CapacityNodeLabels(); labels[CacheCapacityNodeLabel] != "512" {
+		t.Fatalf("labels = %v, want the quota without a budget", labels)
+	}
+
+	be.notMounted = true
+	if labels, err = c.CapacityNodeLabels(); err != nil || len(labels) != 0 {
+		t.Fatalf("labels = %v, %v; want none while unmounted", labels, err)
 	}
 }

@@ -69,6 +69,7 @@ struct AtlasTimeOffView: View {
                 }
             } else if model.busy { ProgressView("Loading holidays…") }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle(title)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "time-off") } }
         .disabled(model.busy)
@@ -149,6 +150,7 @@ private struct AtlasHolidayForm: View {
                 }.frame(minHeight: 44).disabled(model.busy)
                 if model.busy { ProgressView("Saving holiday…") }
             }
+            .modifier(AtlasThemedContent())
             .environment(\.calendar, AtlasHolidayDates.calendar)
             .navigationTitle(editing == nil ? "Request holiday" : "Edit request")
             .toolbar {

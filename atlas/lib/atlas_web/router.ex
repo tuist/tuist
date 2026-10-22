@@ -190,6 +190,12 @@ defmodule AtlasWeb.Router do
   end
 
   scope "/api/native", AtlasWeb do
+    pipe_through :api
+
+    get "/themes", NativeThemesController, :index
+  end
+
+  scope "/api/native", AtlasWeb do
     pipe_through :native
 
     get "/profile", NativeController, :profile

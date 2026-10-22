@@ -38,6 +38,7 @@ struct AtlasWorkspaceView<Profile: View>: View {
                              holidayRequest: holidayRequest, businessRequest: businessRequest)
             .tabItem { Label("Browse", systemImage: "square.grid.2x2") }.tag("browse")
             NavigationStack { settings().onAppear { presence?.show(resource: "profile") } }
+                .id(navigation.revisions["profile"])
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }.tag("profile")
         }
     }
@@ -109,6 +110,7 @@ private struct AtlasBrowsePage: View {
                 }
             }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle(group?.title ?? "Browse")
         .searchable(text: $query, prompt: "Find a feature")
         .autocorrectionDisabled().textInputAutocapitalization(.never)

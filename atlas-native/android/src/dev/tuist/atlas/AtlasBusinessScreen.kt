@@ -346,7 +346,7 @@ class AtlasBusinessScreen(
                 val sorted = months.sortedBy { it.month }
                 content.addView(
                     HorizontalScrollView(activity).apply {
-                        addView(InvoiceChart(activity, sorted), ViewGroup.LayoutParams(-2, dp(208)))
+                        addView(AtlasInvoiceChart(activity, sorted), ViewGroup.LayoutParams(-2, dp(208)))
                     },
                     ViewGroup.LayoutParams(-1, -2),
                 )
@@ -782,6 +782,7 @@ class AtlasBusinessScreen(
         content.addView(
             Button(activity).apply {
                 text = label
+                setTag(R.id.atlas_primary_action, !row)
                 isAllCaps = false
                 textSize = 16f
                 minHeight = dp(if (row) 72 else 48)
@@ -894,20 +895,29 @@ private object AccountLogos {
     }
 }
 
-private class InvoiceChart(
+class AtlasInvoiceChart(
     context: Context,
     private val months: List<AtlasBusinessModel.Month>,
 ) : View(context) {
     private val density = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val colors = context.obtainStyledAttributes(intArrayOf(android.R.attr.textColorPrimary, android.R.attr.colorAccent))
-    private val foreground = colors.getColor(0, 0xff303030.toInt())
-    private val accent = colors.getColor(1, 0xff087caa.toInt())
+    private var foreground = colors.getColor(0, 0xff303030.toInt())
+    private var accent = colors.getColor(1, 0xff087caa.toInt())
 
     init {
         colors.recycle()
         minimumWidth = (maxOf(3, months.size) * 96 * density * maxOf(1f, resources.configuration.fontScale)).toInt()
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+
+    fun setTheme(
+        foreground: Int,
+        accent: Int,
+    ) {
+        this.foreground = foreground
+        this.accent = accent
+        invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {

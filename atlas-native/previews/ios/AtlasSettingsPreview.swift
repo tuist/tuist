@@ -10,6 +10,15 @@ struct AtlasSettingsPreview: App {
     @StateObject private var business = AtlasBusinessPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
     @StateObject private var navigation = AtlasNavigation()
+    @StateObject private var appearance = AtlasAppearance(request: { action in
+        if action["operation"] as? String == "themes" {
+            if ProcessInfo.processInfo.arguments.contains("--old-server") { throw CancellationError() }
+            let url = Bundle.main.url(forResource: "native_themes", withExtension: "json")!
+            let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+            return try await AtlasAppearance.bridge(["operation": "validate_themes", "catalog": catalog])
+        }
+        return try await AtlasAppearance.bridge(action)
+    })
     @StateObject private var accounts = AtlasAIAccounts { request in
         let response: String
         switch request["action"] as? String {
@@ -34,13 +43,18 @@ struct AtlasSettingsPreview: App {
         return Data(response.utf8)
     }
 
+    private var previewServer: URL {
+        URL(string: ProcessInfo.processInfo.arguments.contains("--old-server")
+            ? "https://legacy.example.org" : "https://atlas.example.org")!
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("--workspace") {
                     AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request, presence: presence.model,
                                        navigation: navigation) {
-                        AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts,
+                        AtlasSettingsView(server: previewServer, accounts: accounts,
                                           signOut: {}, profileRequest: business.request)
                     }
                 } else {
@@ -51,13 +65,13 @@ struct AtlasSettingsPreview: App {
                                 request: holidays.request
                             )
                         } else {
-                            AtlasSettingsView(server: URL(string: "https://atlas.example.org")!, accounts: accounts, signOut: {})
+                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {})
                         }
                     }
                 }
             }
             .environment(\.atlasNavigation, navigation)
-            .environment(\.atlasServer, URL(string: "https://atlas.example.org")!)
+            .environment(\.atlasServer, previewServer)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background { backgrounded = true }
                 if phase == .active, backgrounded {
@@ -65,7 +79,7 @@ struct AtlasSettingsPreview: App {
                     let arguments = ProcessInfo.processInfo.arguments
                     if let index = arguments.firstIndex(of: "--resume-destination"), arguments.indices.contains(index + 1),
                        let url = URL(string: arguments[index + 1]) {
-                        navigation.receive(url, server: URL(string: "https://atlas.example.org")!)
+                        navigation.receive(url, server: previewServer)
                     }
                 }
             }
@@ -73,7 +87,7 @@ struct AtlasSettingsPreview: App {
                 let arguments = ProcessInfo.processInfo.arguments
                 if let index = arguments.firstIndex(of: "--destination"), arguments.indices.contains(index + 1),
                    let url = URL(string: arguments[index + 1]) {
-                    navigation.receive(url, server: URL(string: "https://atlas.example.org")!)
+                    navigation.receive(url, server: previewServer)
                 }
             }
             .alert("Atlas link", isPresented: Binding(
@@ -93,8 +107,15 @@ struct AtlasSettingsPreview: App {
             } message: {
                 Text(openedURL?.absoluteString ?? "")
             }
-            .tint(AtlasSettingsStyle.tint)
-            .preferredColorScheme(ProcessInfo.processInfo.arguments.contains("--dark") ? .dark : .light)
+            .modifier(AtlasThemeScope(appearance: appearance, server: previewServer))
+            .task {
+                await appearance.configure(server: previewServer)
+                if !ProcessInfo.processInfo.arguments.contains("--keep-appearance") {
+                    appearance.choose(theme: "server-default")
+                    appearance.choose(mode: .system)
+                }
+            }
+            .preferredColorScheme(appearance.mode.scheme ?? (ProcessInfo.processInfo.arguments.contains("--dark") ? .dark : .light))
             .dynamicTypeSize(ProcessInfo.processInfo.arguments.contains("--large-text") ? .accessibility2 : .large)
         }
     }
@@ -132,7 +153,7 @@ private final class AtlasPresencePreviewData: ObservableObject {
         try! JSONSerialization.data(withJSONObject: [
             "sequence": sequence, "location": location,
             "people": [
-                ["id": "online", "name": "Alex Morgan", "email": "alex@example.org", "online": true, "here": true],
+                ["id": "online", "name": "Alex Morgan", "email": "alex@example.org", "online": true, "here": !location.isEmpty],
                 ["id": "offline", "name": "Sam Rivera", "email": "sam@example.org", "online": false, "here": false]
             ]
         ])

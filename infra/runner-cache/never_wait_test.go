@@ -2,6 +2,7 @@ package cachevolumes
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -26,7 +27,7 @@ func TestAPFSStartsEmptyInsteadOfDownloadingWhenNoCopyIsLocal(t *testing.T) {
 	if remote.downloads != 0 {
 		t.Fatal("downloaded inside the job's budget")
 	}
-	if data, _ := os.ReadFile(b.image(slot)); string(data) != "cold APFS" {
+	if data, _ := os.ReadFile(filepath.Join(apfsPath(t, b, slot), SharedImageName)); string(data) != "cold APFS" {
 		t.Fatalf("attached %q, want an empty image", data)
 	}
 	if !b.Cold(slot) || b.MountedGeneration(slot) != 0 {
@@ -179,5 +180,83 @@ func TestPrefetchLeavesNoStagingBehind(t *testing.T) {
 	staged, _ := filepath.Glob(filepath.Join(b.Root, "staging", "*"))
 	if len(staged) != 0 {
 		t.Fatal("left downloads behind:", staged)
+	}
+}
+
+func TestAPFSPublishesAnEmptyStartTheServerLetReplaceItsHead(t *testing.T) {
+	b, remote := newAPFS(t)
+	slot := warmSlot(first, "pod")
+	path := apfsPath(t, b, slot)
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	detached(t, path, slot.ID)
+	slot.PublishCold = true
+
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal("withheld an empty start the server let replace its head:", err)
+	}
+	if remote.uploads != 1 {
+		t.Fatalf("uploads = %d, want 1", remote.uploads)
+	}
+	if masters, _ := filepath.Glob(filepath.Join(b.Root, "masters", slot.Scope, "*.img")); len(masters) != 1 {
+		t.Fatal("the accepted branch did not become a master")
+	}
+}
+
+func TestStorePublishesAnEmptyStartOnlyWhenTheServerSaysPublish(t *testing.T) {
+	for _, tc := range []struct {
+		action, state string
+		uploads       int
+	}{
+		{action: "seal", state: "deleted"},
+		{action: "publish", state: "sealed", uploads: 1},
+	} {
+		t.Run(tc.action, func(t *testing.T) {
+			b, remote := newAPFS(t)
+			store, err := Open(b.Root, b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			slot := warmSlot(first, "pod")
+			if _, err := store.Acquire(context.Background(), slot.Identity, "job", "pod"); err != nil {
+				t.Fatal(err)
+			}
+			detached(t, store.activePath(slot), slot.ID)
+			finished := func(string, string) (bool, error) { return true, nil }
+			if err := store.Reconcile(finished, func(Slot, bool) (string, error) { return tc.action, nil }); err != nil {
+				t.Fatal(err)
+			}
+			slots, err := store.Snapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(slots) != 1 || slots[0].State != tc.state || remote.uploads != tc.uploads {
+				t.Fatalf("journal = %+v, uploads = %d", slots, remote.uploads)
+			}
+		})
+	}
+}
+
+func TestAPFSStillWithholdsAFullEmptyStartTheServerLetPublish(t *testing.T) {
+	b, remote := newAPFS(t)
+	slot := warmSlot(first, "pod")
+	path := apfsPath(t, b, slot)
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	detached(t, path, slot.ID)
+	usage, _ := json.Marshal(map[string]any{"id": slot.ID, "used_bytes": 19_900_000_000, "capacity_bytes": 20_000_000_000})
+	if err := os.WriteFile(filepath.Join(path, ".usage"), usage, 0644); err != nil {
+		t.Fatal(err)
+	}
+	slot.PublishCold = true
+
+	if err := b.Seal(slot, path); !errors.Is(err, ErrFull) {
+		t.Fatal("published a full empty start:", err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("uploaded a full empty start")
 	}
 }

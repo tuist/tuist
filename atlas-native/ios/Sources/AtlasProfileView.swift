@@ -49,6 +49,14 @@ struct AtlasSettingsView: View {
                 }
             }
             Section {
+                NavigationLink {
+                    AtlasAppearanceView().onAppear { presence?.show() }
+                } label: {
+                    Label("Appearance", systemImage: "paintpalette")
+                }
+                .accessibilityIdentifier("profile-appearance")
+            }
+            Section {
                 accountLink(.claude) { AtlasClaudeAccountView(accounts: accounts) }
                 accountLink(.chatgpt) { AtlasChatGPTAccountView(accounts: accounts) }
             } header: {
@@ -71,7 +79,7 @@ struct AtlasSettingsView: View {
         }
         .navigationTitle(profileRequest == nil ? "Settings" : "Profile")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "profile") } }
-        .tint(AtlasSettingsStyle.tint)
+        .modifier(AtlasThemedContent())
         .onAppear { presence?.show(resource: "profile") }
         .task { await accounts.load(); await loadProfile() }
         .refreshable { await accounts.load(); await loadProfile() }

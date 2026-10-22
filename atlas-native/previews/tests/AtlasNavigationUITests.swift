@@ -74,6 +74,23 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Browse"].waitForExistence(timeout: 5))
     }
 
+    @MainActor func testProfileLinkReturnsFromAppearanceWithoutResettingTheme() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--resume-destination", "https://atlas.example.org/open/profile"]
+        app.launch()
+        defer { app.terminate() }
+        XCUIDevice.shared.orientation = .portrait
+        app.tabBars.buttons["Profile"].tap()
+        try app.visibleElement("profile-appearance").tap()
+        try app.visibleElement("theme-pulse").tap()
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Open in browser"].exists)
+        try app.visibleElement("profile-appearance").tap()
+        XCTAssertEqual(try app.visibleElement("theme-pulse").value as? String, "Selected")
+    }
+
     @MainActor func testCrossServerLinkShowsExplanationWithoutNavigating() {
         let app = launch(path: "accounts", server: "other.example.org")
         defer { app.terminate() }

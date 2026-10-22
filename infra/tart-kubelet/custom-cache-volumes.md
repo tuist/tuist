@@ -35,8 +35,9 @@ checksums, HTTP transfers, HEAD publication, and idle master reclamation. Linux
 continues using its ext4 backend. macOS adds APFS images to that same lifecycle,
 with a 20 decimal GB capacity and the existing server's seven-day idle expiry.
 
-The host creates a private branch inode and exposes a hard link through a
-per-VM virtio-fs share. The guest mounts that image as APFS, preserving symlinks
+The host creates a private branch image and, while the VM runs, moves its only
+name into a per-VM virtio-fs share; it takes the name back once the VM has
+stopped. The guest mounts that image as APFS, preserving symlinks
 and xattrs, and the common client symlinks the requested directories into it.
 Each job has a distinct branch. Host masters and infrastructure credentials
 never enter the share. The mailbox carries key and execution UID only; the host
@@ -48,7 +49,11 @@ forced detach and abrupt shutdown produce no eligible marker. The host waits
 for API Pod absence **and** a stopped Tart process before inspecting the image.
 It attaches the disk device with `hdiutil -readonly -nomount -noautofsck`, checks
 the raw APFS partition with `fsck_apfs -n` without mounting its filesystem in the
-host kernel, persists a verification guard, uploads the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
+host kernel, and reads the container's `Capacity In Use By Volumes` from
+`diskutil apfs list` on that unmounted container. An image holding clearly less
+than the guest measured before detaching is poisoned (result `incomplete`): it
+passes fsck but mounts as an older state of the volume, empty for a new one.
+It then persists a verification guard, uploads the compressed image, then uses the same clear-epoch lock and HEAD CAS as Linux.
 Only an accepted image becomes a local master. A failed upload retries without
 reformatting or consuming another verification; a crash during verification
 poisons the branch. Expired or cleared generations cannot publish later.
@@ -60,7 +65,7 @@ before the successful detach. These measurements do not authorize disk admission
 They are logical filesystem bytes, not unique physical allocation or billing
 measurements. APFS shares
 extents. Both backends use real free space and local master eviction. Admission
-reserves only the remaining growth (capacity minus allocated blocks) of running
+reserves only the remaining growth (expected size minus allocated blocks) of running
 custom guests alongside built-in reservations on the same bounded filesystem.
 Stopped guests reserve no extra growth while publication retries. A short shared
 lock records admission before creation; downloads and image creation run outside
@@ -76,16 +81,41 @@ smaller than its capacity is extended with `hdiutil resize -imageonly` before th
 guest sees it, never shrunk, and the guest grows the APFS container after
 attaching; a copy that cannot grow attaches warm at its saved size.
 
-Cold creation reserves one image of its capacity. A warm attach reserves the
-larger of its capacity and twice the head's measured used bytes
-(`head_size_bytes`). Restoration and prefetch reserve twice the head's used
-bytes for the archive and expanded image. Without a known head size, warm
-attaches and prefetches reserve twice the capacity. Applying that restore budget
-to cold creation incorrectly rejects an empty custom volume on an 80 GiB host
-with a 30 GiB built-in reservation and roughly 29 GiB of resident cache data,
-even though a 20 GB image fits. Both the backend's eviction/admission check and
-the host's in-flight reservation use the cold budget. Genuine capacity pressure
-still falls back, and warm restoration still requires its larger budget.
+A job never downloads, so its attach reserves what it is expected to write
+(`Identity.ExpectedBytes`), not its capacity: the head's measured used bytes
+(`head_size_bytes`) plus half again, at least 2 GB, or 5 GB when no head size
+is known, never more than the capacity. The image stays sparse at its full
+capacity. Restoration and prefetch reserve twice the head's used bytes for the
+archive and expanded image, or twice the capacity without a known head size.
+The backend's eviction/admission check and the host's in-flight reservation use
+the same number. Genuine capacity pressure still falls back to a cold job.
+
+Admission overcommits: a job can write past its reservation, up to its
+capacity, and nothing stops it. The safeguard is the gap between the admission
+budget (`--runner-cache-budget-gib`) and the cache volume's APFS quota, which is
+where writes actually fail. Admission and the 15% host floor only bound what is
+admitted; the quota bounds what is written. Keep the budget well below the quota
+on every host that runs custom volumes.
+
+- Past the budget but below the quota, writes succeed. Later jobs on the host
+  are refused (`capacity`) and run cold, and each reconcile evicts idle custom
+  masters, least recently used first and never one a job holds, until the
+  reservations fit again (`LocalImages.Relieve`). The built-in evictor does the
+  same for built-in masters on its own tick.
+- With under 2 GB left below the quota, or on the host's disk, tart-kubelet
+  marks every running custom branch `.pressure` (checked every second), and
+  `Seal` withholds it (`ErrPressure`, result `pressure`). A write that failed on
+  the host may not reach the guest, and fsck does not check file contents, so
+  such a branch is never published.
+- At the quota, writes to the guests' images fail. Jobs on the host see I/O or
+  out-of-space errors on their cache paths while the guest still reports free
+  space, and can fail, including a neighbour that stayed within its
+  reservation. The quota keeps the cache off the system and VM disks.
+
+A host whose quota equals its budget (disks under 1 TiB, and hosts whose volume
+predates the half-disk quota) has no gap, so only the pressure guard and
+eviction stand between an overshooting job and failed writes. A job never waits
+for room.
 
 GitHub Actions, Buildkite and GitLab use the same installed client. macOS
 supports native commands and GitLab's shell executor. GitHub container jobs and
@@ -262,7 +292,10 @@ but a macOS job never waits for a download. It clones its base master, or the
 newest older master of its lineage, and otherwise starts from an empty image
 marked `.cold`. That branch reports a miss, its master is queued for background
 download ahead of any speculative prefetch, and sealing withholds it
-(`ErrWithheld`) so an empty start never replaces the saved version. Admission
+(`ErrWithheld`) unless the server allows it to replace the saved version: the
+report response then carries `cold_publish: true` beside `seal`, which only
+happens when the branch used at least twice the saved head's bytes and at
+least 1 GB more. Admission
 therefore needs one image of free space for every attach. Cancellation reaches
 APFS creation/cloning and admission waits; an expired response cannot trigger a
 guest mount. The unavailable response carries a bounded

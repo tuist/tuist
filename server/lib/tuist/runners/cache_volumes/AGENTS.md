@@ -18,11 +18,18 @@ these schemas persist volume identities and per-job uses.
   the cache signing grant still follows trust. The dashboard names the volumes
   "Xcode cache" and "Module cache" and keeps listing built-in volumes from
   earlier jobs.
-- `recent_job_scopes/3` predicts a queued job's custom volumes for dispatch
-  affinity and for the macOS Pod placement preferences in the scaling signals: the lineage scopes jobs of the same repository, workflow name and job
-  name attached since a cutoff. It starts from the account's volumes so the uses
-  `(volume_id, inserted_at)` index applies; `VolumeAffinities` caches it per
-  account and repository.
+- `recent_job_volumes/3` predicts a queued job's custom volumes for dispatch
+  affinity and for the macOS Pod placement preferences in the scaling signals:
+  the volumes jobs of the same repository, workflow name and job name attached
+  since a cutoff, each with the cache disk room a host reserves for it (what it
+  is expected to write, as runner-cache's `Identity.ExpectedBytes` computes it
+  from the capacity and the saved head's size, or the checkout growth
+  reservation; keep the two in step). It starts from the account's
+  volumes so the uses `(volume_id, inserted_at)` index applies;
+  `VolumeAffinities` caches it per account and repository.
+  `allocated_reserved_bytes/2` is the same room for the volumes running jobs
+  already allocated, which `VolumeAffinities` subtracts from a host's advertised
+  capacity so affinity never prefers a host that cannot fit a job's volumes.
 - A report's `mounted_generation` records the older saved generation a macOS host
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
@@ -66,8 +73,7 @@ these schemas persist volume identities and per-job uses.
 - Allocation picks each use's capacity (`runner_cache_volume_uses.volume_bytes`).
   The host sends `requested_volume_bytes` (whole GB, 1 to 100; anything else is no
   request) and `max_volume_bytes` (absent: 32 GB). Managed keys keep their fixed
-  size and ignore requests; `tuist-gradle` is not managed. Requests above 20 GB
-  are capped to 20 GB unless `:runner_custom_volume_sizes` is on for the account.
+  size and ignore requests; `tuist-gradle` is not managed.
   With a saved head the capacity is the larger of the lineage capacity (the head
   use's `volume_bytes`, else the key default) and the request; without one it is
   the request or 20 GB. A capacity above the host maximum rolls back and answers
@@ -152,7 +158,7 @@ these schemas persist volume identities and per-job uses.
 - Allocation resolves execution binding and platform in one session query. Apply
   the platform rollout flag to that same result, including pending (425) sessions.
 
-- The writer policy is the job's runner profile, resolved from `requested_dispatch_label` (`runs-on`, the Buildkite queue or the GitLab tag), for every provider. A missing profile or a legacy pool label applies a new `%Profile{}`'s policy. On a profile, `cache_writer_all_branches` (default true) lets every job with a writer branch save (plus legacy `writer_default_branch` uses). When false, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Buildkite writer branches are webhook/schedule builds without a tag whose pull request repository, if any, is the pipeline's (`Buildkite.same_repository?/2`), captured with the identity; GitLab writer branches are push/schedule/web branch pipelines of the project (`Identity.gitlab_writer_branch/1`), never merge request pipelines, which the job token can't tell apart from forks. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to a new profile's policy) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Built-in policies are unchanged. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
+- The writer policy is the job's runner profile, resolved from `requested_dispatch_label` (`runs-on`, the Buildkite queue or the GitLab tag), for every provider. A missing profile or a legacy pool label applies a new `%Profile{}`'s policy. On a profile, `cache_writer_all_branches` (default true) lets every job with a writer branch save (plus legacy `writer_default_branch` uses). When false, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Buildkite writer branches are webhook/schedule builds without a tag whose pull request repository, if any, is the pipeline's (`Buildkite.same_repository?/2`), captured with the identity; GitLab writer branches are push/schedule/web branch pipelines of the project (`Identity.gitlab_writer_branch/1`), plus merge request pipelines (`refs/merge-requests/N/{head,merge,train}`, source `merge_request_event`) whose merge request, read with the connection's optional `api_token`, has the project as both target and source; they write under the source branch. Without a token or on a failed lookup they stay read-only. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to a new profile's policy) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Built-in policies are unchanged. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
 
 - There is no per-job save intent. Allocation ignores the `commit` field older agents still send; their explicit modes target the removed `authorize-commit` route and fail as unsupported before allocating. `runner_cache_volume_uses.commit_mode` is no longer read.
 
@@ -168,7 +174,12 @@ these schemas persist volume identities and per-job uses.
   `recent_macos_heads` skips checkout volumes; a host restores their HEAD itself.
   `default_branch_job` is the resolved identity's `trusted` (same repository,
   default branch, push/schedule/dispatch), so a fork's branch named like the
-  default branch never qualifies. `volume_key` (sha256 of the volume id) lets
+  default branch never qualifies. `may_start_master` is `writer_allowed?/3` for the
+  job's profile (a new `%Profile{}` without one): a job with a writer branch that
+  profile saves from may start the lineage's first master, so forks and
+  pull_request_target never do. `checkout_publish` enforces the same: a use
+  without `writer_default_branch` publishes only from `base_generation` 0 and
+  only with a `writer_branch`. `volume_key` (sha256 of the volume id) lets
   hosts drop a cleared volume's copies, and a checkout `download` only needs the
   current lineage, so a restore outlives the job that asked for it.
   A job also needs its runner profile's `cached_checkouts` (default true; a job on

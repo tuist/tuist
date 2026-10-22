@@ -442,7 +442,9 @@ type Config struct {
 	// fixed when the volume is created: half the disk, or the budget when that
 	// is larger, on a disk of 1 TiB or more, and the budget on a smaller one.
 	// It is the filesystem-enforced bound that keeps even a buggy reconciler
-	// from taking the disk the golden clones need. A budget within an
+	// from taking the disk the golden clones need. The gap between the quota
+	// and the budget is what absorbs custom cache volume jobs that write more
+	// than admission reserved for them. A budget within an
 	// existing volume's quota applies with the next host-config push.
 	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
 	RunnerCacheVolumeGiB      int
