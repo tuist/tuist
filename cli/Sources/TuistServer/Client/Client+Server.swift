@@ -5,6 +5,53 @@ import TuistHTTP
 extension Client {
     @TaskLocal public static var additionalMiddlewares: [any ClientMiddleware] = []
 
+    /// Non-GET operations the server treats as idempotent, so a request whose response was lost can be sent again.
+    static let idempotentServerOperationIDs: Set<String> = [
+        "authenticate",
+        "cleanCache",
+        "clearRunnerVolume",
+        "completeAnalyticsArtifactsUploads",
+        "completeAnalyticsArtifactsUploadsProject",
+        "completeCommitCoverage",
+        "connectProjectRepository",
+        "createCoverageUpload",
+        "createRunnerShellSession",
+        "createStressPlan",
+        "exchangeOIDCToken",
+        "findMissingCommitListings",
+        "findMissingCommits",
+        "generateAnalyticsArtifactMultipartUploadURL",
+        "generateAnalyticsArtifactMultipartUploadURLProject",
+        "generateBuildsMultipartUploadURL",
+        "generateCacheArtifactMultipartUploadURL",
+        "generatePreviewsMultipartUploadURL",
+        "generateShardUploadURL",
+        "getCacheToken",
+        "startAnalyticsArtifactMultipartUpload",
+        "startAnalyticsArtifactMultipartUploadProject",
+        "startBuildsMultipartUpload",
+        "startCacheArtifactMultipartUpload",
+        "startShardUpload",
+        "updateOrganization",
+        "updateOrganization (2)",
+        "updateOrganizationMember",
+        "updateProject",
+        "updateRunnerProfile",
+        "uploadCacheActionItem",
+        "uploadCommitListing",
+        "uploadCommits",
+        "uploadPreviewIcon",
+    ]
+
+    /// `createTest` answers 503 both before writing, when a shard plan is not visible yet (with `Retry-After`), and
+    /// after creating the run, when its processing could not be scheduled.
+    private static var serverRetryMiddleware: RetryMiddleware {
+        RetryMiddleware(
+            idempotentOperationIDs: idempotentServerOperationIDs,
+            operationIDsAnsweringServiceUnavailableAfterWriting: ["createTest"]
+        )
+    }
+
     /// Tuist client for authenticated sessions
     public static func authenticated(
         serverURL: URL, authenticationURL: URL? = nil, networkTrustedReports: Bool = false,
@@ -14,7 +61,7 @@ extension Client {
             serverURL: serverURL,
             transport: TuistURLSessionTransport(),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
-                RetryMiddleware(),
+                serverRetryMiddleware,
                 RequestIdMiddleware(),
                 ServerClientFeatureFlagsHeadersMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
@@ -49,7 +96,7 @@ extension Client {
             serverURL: serverURL,
             transport: TuistURLSessionTransport(),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
-                RetryMiddleware(),
+                serverRetryMiddleware,
                 RequestIdMiddleware(),
                 ServerClientFeatureFlagsHeadersMiddleware(),
                 VerboseLoggingMiddleware(),

@@ -666,7 +666,7 @@ struct REAPICacheClientTests {
         }
     }
 
-    @Test(arguments: [RPCError.Code.unavailable, .permissionDenied])
+    @Test(arguments: [RPCError.Code.unavailable, .internalError, .unknown, .cancelled, .permissionDenied])
     func retriesPreserveTheServerError(code: RPCError.Code) async throws {
         let state = WireCache()
         let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
@@ -687,7 +687,73 @@ struct REAPICacheClientTests {
             let error = await #expect(throws: RPCError.self) { try await client.actionResult(for: digest) }
             #expect(error?.code == code)
             #expect(error?.message == "Injected server failure")
-            #expect(await state.actionQueries[digest] == (code == .unavailable ? 3 : 1))
+            #expect(await state.actionQueries[digest] == (code == .permissionDenied ? 1 : 3))
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [RPCError.Code.internalError, .unknown, .cancelled])
+    func retriesAPresenceCheckThatFailsInTransit(code: RPCError.Code) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        await state.planMissingFailures([RPCError(code: code, message: "Injected stream failure")])
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let data = Data("blob".utf8)
+            let path = directory.appending(component: "blob").url
+            try data.write(to: path)
+
+            let upload = try await client.uploadAvailableBlobs([REAPI.digest(data): path])
+
+            #expect(upload.available == [REAPI.digest(data)])
+            #expect(upload.failures.isEmpty)
+            #expect(await state.missingQueries == 2)
+        }
+    }
+
+    @Test func doesNotRetryALookupTheCallerCancelled() async throws {
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireActions(state: state, delay: .seconds(5))])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let lookup = Task { try await client.actionResult(for: REAPI.digest(Data("action".utf8))) }
+            defer { lookup.cancel() }
+            let deadline = ContinuousClock.now + .seconds(5)
+            while await state.lookupKinds.isEmpty {
+                try #require(ContinuousClock.now < deadline)
+                try await Task.sleep(for: .milliseconds(10))
+            }
+
+            let cancelledAt = ContinuousClock.now
+            lookup.cancel()
+
+            do {
+                _ = try await lookup.value
+                Issue.record("A cancelled lookup must not finish successfully")
+            } catch {
+                // The transport reports a cancelled unary call as UNKNOWN caused by the cancellation.
+                #expect(error is CancellationError || (error as? RPCError)?.cause is CancellationError)
+            }
+            #expect(ContinuousClock.now - cancelledAt < .seconds(2))
+            #expect(await state.lookupKinds.count == 1)
         }
     }
 
@@ -1854,6 +1920,7 @@ private actor WireCache {
 private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceProtocol {
     let state: WireCache
     var failure: RPCError?
+    var delay: Duration = .zero
     func getActionResult(
         request: ServerRequest<Build_Bazel_Remote_Execution_V2_GetActionResultRequest>,
         context _: ServerContext
@@ -1863,6 +1930,7 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
         #expect(request.message.instanceName == "project")
         #expect(request.message.digestFunction == .sha256)
         await state.recordLookup(Array(request.metadata[stringValues: "x-tuist-lookup"]).first)
+        try await Task.sleep(for: delay)
         let result = try await state.lookup(request.message.actionDigest)
         if let failure { throw failure }
         guard let result else { throw RPCError(

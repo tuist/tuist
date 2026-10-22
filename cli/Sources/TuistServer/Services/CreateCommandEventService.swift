@@ -40,27 +40,21 @@
         }
     }
 
+    /// Sends the event once through the server client, whose `RetryMiddleware` replays it only when the server never
+    /// received it: replaying an event whose response was lost would record the run twice.
     public struct CreateCommandEventService: CreateCommandEventServicing {
-        private let retryProvider: RetryProviding
-
-        public init(
-            retryProvider: RetryProviding = RetryProvider()
-        ) {
-            self.retryProvider = retryProvider
-        }
+        public init() {}
 
         public func createCommandEvent(
             commandEvent: CommandEvent,
             projectId: String,
             serverURL: URL
         ) async throws -> ServerCommandEvent {
-            try await retryProvider.runWithRetries {
-                try await sendCreateCommandEvent(
-                    commandEvent: commandEvent,
-                    projectId: projectId,
-                    serverURL: serverURL
-                )
-            }
+            try await sendCreateCommandEvent(
+                commandEvent: commandEvent,
+                projectId: projectId,
+                serverURL: serverURL
+            )
         }
 
         private func sendCreateCommandEvent(

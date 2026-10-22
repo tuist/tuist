@@ -8,7 +8,14 @@ public struct RetryMiddleware: ClientMiddleware {
     private let retryableRequestMethods: Set<String>?
     private let retriesTransportErrors: Bool
     private let retriesUnforwardedCacheRequests: Bool
+    private let idempotentOperationIDs: Set<String>
+    private let operationIDsAnsweringServiceUnavailableAfterWriting: Set<String>
 
+    /// GET and HEAD requests, and the operations in `idempotentOperationIDs`, are replayed after any transport
+    /// error and after 408, 429 and 5xx responses. Every other request may already have changed state on the
+    /// server when its response is lost, so it is replayed only after a failure that shows the server never
+    /// processed it: a connection that could not be established, or a 429 or 503 response.
+    ///
     /// - Parameters:
     ///   - retriesTransportErrors: When `true` (the default) a thrown transport error,
     ///     including a timeout, is retried. A caller on a fail-fast path passes `false` so a
@@ -17,12 +24,17 @@ public struct RetryMiddleware: ClientMiddleware {
     ///   - retriesUnforwardedCacheRequests: Opts otherwise excluded request methods into
     ///     retries after the activation gateway confirms it never forwarded the request.
     ///     Requires a re-iterable body and does not retry transport or ordinary upload failures.
+    ///   - idempotentOperationIDs: Non-GET operations the server treats as idempotent.
+    ///   - operationIDsAnsweringServiceUnavailableAfterWriting: Non-idempotent operations that can answer 503
+    ///     after committing a write. Their 503 is replayed only when it carries `Retry-After`.
     public init(
         maxRetries: Int? = nil,
         baseDelayMilliseconds: UInt64? = nil,
         retryableRequestMethods: Set<String>? = nil,
         retriesTransportErrors: Bool = true,
-        retriesUnforwardedCacheRequests: Bool = false
+        retriesUnforwardedCacheRequests: Bool = false,
+        idempotentOperationIDs: Set<String> = [],
+        operationIDsAnsweringServiceUnavailableAfterWriting: Set<String> = []
     ) {
         retryPolicy = HTTPRetryPolicy(
             maximumRetryCount: maxRetries,
@@ -31,13 +43,15 @@ public struct RetryMiddleware: ClientMiddleware {
         self.retryableRequestMethods = retryableRequestMethods
         self.retriesTransportErrors = retriesTransportErrors
         self.retriesUnforwardedCacheRequests = retriesUnforwardedCacheRequests
+        self.idempotentOperationIDs = idempotentOperationIDs
+        self.operationIDsAnsweringServiceUnavailableAfterWriting = operationIDsAnsweringServiceUnavailableAfterWriting
     }
 
     public func intercept(
         _ request: HTTPRequest,
         body: HTTPBody?,
         baseURL: URL,
-        operationID _: String,
+        operationID: String,
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         if let retryableRequestMethods,
@@ -73,6 +87,7 @@ public struct RetryMiddleware: ClientMiddleware {
             bodyData = nil
         }
 
+        let idempotent = [.get, .head].contains(request.method) || idempotentOperationIDs.contains(operationID)
         for retry in 0 ..< retryPolicy.maximumRetryCount {
             let replayBody = bodyData.map { HTTPBody($0) }
             var delay = retryPolicy.delay(for: retry)
@@ -81,7 +96,7 @@ public struct RetryMiddleware: ClientMiddleware {
                 if let error = Self.authorizationThrottledError(for: response) {
                     throw error
                 }
-                guard Self.isRetryableStatusCode(response.status.code) else {
+                guard isRetryable(response, idempotent: idempotent, operationID: operationID) else {
                     return (response, responseBody)
                 }
                 delay = Self.retryDelay(for: response, policyDelay: delay)
@@ -93,9 +108,7 @@ public struct RetryMiddleware: ClientMiddleware {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                if !retriesTransportErrors {
-                    throw error
-                }
+                try rethrowUnlessReplayable(error, idempotent: idempotent)
                 Logger.current.debug(
                     "HTTP request failed for \(request.method.rawValue) \(request.path ?? ""): \(error.localizedDescription), retrying (\(retry + 1)/\(retryPolicy.maximumRetryCount))..."
                 )
@@ -105,11 +118,56 @@ public struct RetryMiddleware: ClientMiddleware {
 
         try Task<Never, Never>.checkCancellation()
         let replayBody = bodyData.map { HTTPBody($0) }
-        return try await next(request, replayBody, baseURL)
+        do {
+            return try await next(request, replayBody, baseURL)
+        } catch {
+            throw Self.credentialAcquisitionError(in: error)?.underlyingError ?? error
+        }
     }
 
-    private static func isRetryableStatusCode(_ statusCode: Int) -> Bool {
-        statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
+    private func isRetryable(_ response: HTTPResponse, idempotent: Bool, operationID: String) -> Bool {
+        let statusCode = response.status.code
+        if idempotent {
+            return statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
+        }
+        if statusCode == 503, operationIDsAnsweringServiceUnavailableAfterWriting.contains(operationID) {
+            return response.headerFields[HTTPField.Name("Retry-After")!] != nil
+        }
+        return statusCode == 429 || statusCode == 503
+    }
+
+    private func rethrowUnlessReplayable(_ error: any Error, idempotent: Bool) throws {
+        if let credentialError = Self.credentialAcquisitionError(in: error) {
+            guard retriesTransportErrors, Self.isConnectionEstablishmentFailure(credentialError.underlyingError)
+            else { throw credentialError.underlyingError }
+        } else if !retriesTransportErrors || !(idempotent || Self.isConnectionEstablishmentFailure(error)) {
+            throw error
+        }
+    }
+
+    private static func credentialAcquisitionError(in error: any Error) -> CredentialAcquisitionError? {
+        if let error = error as? CredentialAcquisitionError { return error }
+        return (error as? ClientError)?.underlyingError as? CredentialAcquisitionError
+    }
+
+    /// Whether `error` shows the request never reached the server because no connection to it could be set up.
+    private static func isConnectionEstablishmentFailure(_ error: any Error) -> Bool {
+        switch error {
+        case let error as ClientError:
+            return isConnectionEstablishmentFailure(error.underlyingError)
+        case let error as CredentialAcquisitionError:
+            return isConnectionEstablishmentFailure(error.underlyingError)
+        case let error as URLError:
+            return [
+                .cannotConnectToHost,
+                .cannotFindHost,
+                .dnsLookupFailed,
+                .notConnectedToInternet,
+                .secureConnectionFailed,
+            ].contains(error.code)
+        default:
+            return false
+        }
     }
 
     private static func authorizationThrottledError(for response: HTTPResponse) -> AuthorizationThrottledError? {

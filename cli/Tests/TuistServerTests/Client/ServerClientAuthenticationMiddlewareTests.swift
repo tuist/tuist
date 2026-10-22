@@ -2,6 +2,7 @@ import Foundation
 import HTTPTypes
 import Mockable
 import OpenAPIRuntime
+import Synchronization
 import Testing
 import TuistHTTP
 import TuistSupport
@@ -316,8 +317,8 @@ struct ServerClientAuthenticationMiddlewareTests {
         )
         .willThrow(error)
 
-        // When / Then
-        await #expect(throws: error, performing: {
+        // When
+        let thrown = await #expect(throws: CredentialAcquisitionError.self, performing: {
             try await subject.intercept(
                 request,
                 body: nil,
@@ -327,6 +328,9 @@ struct ServerClientAuthenticationMiddlewareTests {
                 (response, nil)
             }
         })
+
+        // Then
+        #expect(thrown?.underlyingError as? RefreshAuthTokenServiceError == error)
     }
 
     @Test func returns_unauthorized_response_without_retrying() async throws {
@@ -367,5 +371,90 @@ struct ServerClientAuthenticationMiddlewareTests {
                 forceInProcessLock: .any
             )
             .called(0)
+    }
+
+    @Test func does_not_replay_a_request_whose_credential_refresh_failed_ambiguously() async throws {
+        // Given
+        let url = URL(string: "https://test.tuist.dev")!
+        let refreshes = CallCounter()
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(url),
+            refreshIfNeeded: .value(true)
+        )
+        .willProduce { _, _ in
+            _ = refreshes.next()
+            throw URLError(.networkConnectionLost)
+        }
+        let transport = ProjectsTransport()
+        let client = Client(
+            serverURL: url,
+            transport: transport,
+            middlewares: [RetryMiddleware(maxRetries: 4, baseDelayMilliseconds: 0), subject]
+        )
+
+        // When
+        let error = await #expect(throws: ClientError.self) {
+            _ = try await client.listProjects(.init())
+        }
+
+        // Then
+        #expect((error?.underlyingError as? URLError)?.code == .networkConnectionLost)
+        #expect(transport.requests.withLock { $0 } == 0)
+        #expect(refreshes.count == 1)
+    }
+
+    @Test func replays_a_request_whose_credential_refresh_could_not_connect() async throws {
+        // Given
+        let url = URL(string: "https://test.tuist.dev")!
+        let refreshes = CallCounter()
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(url),
+            refreshIfNeeded: .value(true)
+        )
+        .willProduce { _, _ in
+            guard refreshes.next() > 1 else { throw URLError(.cannotConnectToHost) }
+            return .project("project-token")
+        }
+        let transport = ProjectsTransport()
+        let client = Client(
+            serverURL: url,
+            transport: transport,
+            middlewares: [RetryMiddleware(maxRetries: 4, baseDelayMilliseconds: 0), subject]
+        )
+
+        // When
+        _ = try await client.listProjects(.init()).ok
+
+        // Then
+        #expect(transport.requests.withLock { $0 } == 1)
+        #expect(refreshes.count == 2)
+    }
+}
+
+private final class CallCounter: Sendable {
+    private let calls = Mutex(0)
+
+    var count: Int {
+        calls.withLock { $0 }
+    }
+
+    func next() -> Int {
+        calls.withLock { $0 += 1; return $0 }
+    }
+}
+
+private final class ProjectsTransport: ClientTransport, Sendable {
+    let requests = Mutex(0)
+
+    func send(
+        _: HTTPRequest,
+        body _: HTTPBody?,
+        baseURL _: URL,
+        operationID _: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        requests.withLock { $0 += 1 }
+        var response = HTTPResponse(status: .ok)
+        response.headerFields[.contentType] = "application/json"
+        return (response, HTTPBody(#"{"projects":[]}"#))
     }
 }
