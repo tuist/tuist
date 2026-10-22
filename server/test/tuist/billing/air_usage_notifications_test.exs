@@ -141,11 +141,10 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
     assert Repo.aggregate(AirUsageNotification, :count) == 3
   end
 
-  test "warns about the cache allowances and never about remote cache hits" do
+  test "warns about the cache allowances" do
     user = AccountsFixtures.user_fixture()
 
     Accounts.update_account_current_month_usage(user.account.id, %{
-      remote_cache_hits_count: 500,
       cache_egress_megabytes: 85_000,
       cache_requests: 100_000
     })
@@ -169,6 +168,6 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
   end
 
   defp set_cache_requests(account_id, requests) do
-    Accounts.update_account_current_month_usage(account_id, %{remote_cache_hits_count: 0, cache_requests: requests})
+    Accounts.update_account_current_month_usage(account_id, %{cache_requests: requests})
   end
 end

@@ -8,11 +8,8 @@ defmodule Tuist.Atlas do
 
   def customer_context(account_handle) when is_binary(account_handle) and account_handle != "" do
     case Accounts.get_account_by_handle(account_handle) do
-      %Account{} = account ->
-        {:ok,
-         %{
-           current_month_remote_cache_hits: account.current_month_remote_cache_hits_count
-         }}
+      %Account{} ->
+        {:ok, %{current_month_remote_cache_hits: 0}}
 
       nil ->
         {:error, :not_found}

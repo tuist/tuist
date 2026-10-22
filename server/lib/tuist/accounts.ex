@@ -661,9 +661,6 @@ defmodule Tuist.Accounts do
     oauth2_user_info_url = Keyword.get(opts, :oauth2_user_info_url)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
-    current_month_remote_cache_hits_count =
-      Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
-
     Multi.new()
     |> Multi.insert(
       :organization,
@@ -689,7 +686,6 @@ defmodule Tuist.Accounts do
         Account.create_changeset(%Account{}, %{
           organization_id: organization_id,
           name: name,
-          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
           billing_email: user_email,
           customer_id:
             Keyword.get(
@@ -991,7 +987,6 @@ defmodule Tuist.Accounts do
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: handle,
-            current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
             current_month_remote_cache_hits_count_updated_at:
               Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
             customer_id: customer_id,
@@ -1103,14 +1098,9 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_account_current_month_usage(
-        account_id,
-        %{remote_cache_hits_count: remote_cache_hits_count} = usage,
-        opts \\ []
-      ) do
+  def update_account_current_month_usage(account_id, usage, opts \\ []) do
     %Account{id: account_id}
     |> Account.billing_changeset(%{
-      current_month_remote_cache_hits_count: remote_cache_hits_count,
       current_month_cache_egress_megabytes: Map.get(usage, :cache_egress_megabytes, 0),
       current_month_cache_requests: Map.get(usage, :cache_requests, 0),
       current_month_remote_cache_hits_count_updated_at: Keyword.get(opts, :updated_at, NaiveDateTime.utc_now())
@@ -1119,17 +1109,14 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  The account's usage since its free tier last started counting: remote cache
-  hits, which the organizations API and Atlas report, and metered cache egress
-  and requests, which gate an Air account.
+  The account's metered cache egress and requests since its free tier last
+  started counting, which gate an Air account.
   """
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
     counted_from = Account |> Repo.get!(account_id) |> CommandEvents.usage_counted_from(date)
     cache = UsagePricing.metered_cache_usage(account_id, counted_from, date)
 
-    account_id
-    |> CommandEvents.account_month_usage(date)
-    |> Map.merge(%{cache_egress_megabytes: cache.egress_megabytes, cache_requests: cache.requests})
+    %{cache_egress_megabytes: cache.egress_megabytes, cache_requests: cache.requests}
   end
 
   def list_accounts_with_usage_not_updated_today(attrs \\ %{}) do

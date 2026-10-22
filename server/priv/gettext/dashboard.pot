@@ -2723,11 +2723,6 @@ msgstr ""
 msgid "Reset free tier"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:498
-#, elixir-autogen, elixir-format
-msgid "Runs this period"
-msgstr ""
-
 #: lib/tuist_web/live/ops_account_live.html.heex:513
 #, elixir-autogen, elixir-format
 msgid "This account is over its free tier and cannot reach the cache until it upgrades or the free tier is reset. Enforcement runs once a day, so an account can read as over the limit for up to a day before it is actually cut off."
