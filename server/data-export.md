@@ -130,6 +130,7 @@ operations; retain them until an administrator removes them.
 
 ### Projects & Development
 - Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
+- Workload OIDC trust policies (`account_oidc_trust_policies`, PostgreSQL): account-owned display name, exact issuer URL, JWKS URL, expected audience, required identity claims (a JSON object containing string, integer or boolean values), and creation/update timestamps. Each policy grants CI access to all current and future projects owned by its account; there is no project-grant association table. Policies remain until removed or the account is deleted. Deleting or transferring a project does not remove the reusable identity; access follows current account ownership, including for already-issued account-wide tokens. Export policies by `account_id`. Identity tokens and verified token claims are processed transiently and are not stored; public signing keys are cached for up to 15 minutes. Issued Tuist JWTs follow the existing one-hour access-token lifetime and are not revoked by removing a policy.
 - Command events (CLI usage, build data, performance metrics)
 - Cache events and cache action items
 - Test cases and test execution results

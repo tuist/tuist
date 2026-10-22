@@ -30,7 +30,7 @@ public enum LoginCommandServiceEvent: CustomStringConvertible {
         case .waitForAuthentication:
             "Press CTRL + C once to cancel the process."
         case .oidcAuthenticating:
-            "Detected CI environment, authenticating with OIDC..."
+            "Authenticating with OIDC..."
         case .completed:
             "Successfully logged in."
         }
@@ -96,7 +96,7 @@ public struct LoginCommandService: LoginCommandServicing {
                 password: password,
                 serverURL: resolvedServerURL
             )
-        } else if Environment.current.isCI {
+        } else if Environment.current.isCI || Environment.current.variables["TUIST_OIDC_TOKEN"] != nil {
             try await authenticateWithCIOIDC(serverURL: resolvedServerURL, onEvent: onEvent)
         } else {
             try await authenticateWithBrowserLogin(serverURL: resolvedServerURL, onEvent: onEvent)

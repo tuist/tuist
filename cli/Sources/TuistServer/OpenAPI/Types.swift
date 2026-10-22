@@ -312,9 +312,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/vcs-connection`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/vcs-connection/delete(disconnectProjectRepository)`.
     func disconnectProjectRepository(_ input: Operations.disconnectProjectRepository.Input) async throws -> Operations.disconnectProjectRepository.Output
-    /// Exchange a CI provider OIDC token for a Tuist access token.
+    /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    /// Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -1947,9 +1947,9 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Exchange a CI provider OIDC token for a Tuist access token.
+    /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    /// Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -7723,18 +7723,28 @@ public enum Components {
         public typealias TestCasesIndexPageSize = Swift.Int
         /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest`.
         public struct OIDCTokenExchangeRequest: Codable, Hashable, Sendable {
-            /// The OIDC JWT token from the CI provider.
+            /// Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+            ///
+            /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest/account_handle`.
+            public var account_handle: Swift.String?
+            /// The OIDC JWT token from a supported CI or workload identity provider.
             ///
             /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeRequest/token`.
             public var token: Swift.String
             /// Creates a new `OIDCTokenExchangeRequest`.
             ///
             /// - Parameters:
-            ///   - token: The OIDC JWT token from the CI provider.
-            public init(token: Swift.String) {
+            ///   - account_handle: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+            ///   - token: The OIDC JWT token from a supported CI or workload identity provider.
+            public init(
+                account_handle: Swift.String? = nil,
+                token: Swift.String
+            ) {
+                self.account_handle = account_handle
                 self.token = token
             }
             public enum CodingKeys: String, CodingKey {
+                case account_handle
                 case token
             }
         }
@@ -47217,9 +47227,9 @@ public enum Operations {
             }
         }
     }
-    /// Exchange a CI provider OIDC token for a Tuist access token.
+    /// Exchange an OIDC identity token for a Tuist access token.
     ///
-    /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+    /// Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     /// for a short-lived Tuist access token.
     ///
     ///
@@ -47244,18 +47254,28 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The OIDC JWT token from the CI provider.
+                    /// Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json/account_handle`.
+                    public var account_handle: Swift.String?
+                    /// The OIDC JWT token from a supported CI or workload identity provider.
                     ///
                     /// - Remark: Generated from `#/paths/api/auth/oidc/token/POST/requestBody/json/token`.
                     public var token: Swift.String
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - token: The OIDC JWT token from the CI provider.
-                    public init(token: Swift.String) {
+                    ///   - account_handle: Required target Tuist account for custom workload identity providers. A matching account trust policy grants CI access to all current and future projects in that account.
+                    ///   - token: The OIDC JWT token from a supported CI or workload identity provider.
+                    public init(
+                        account_handle: Swift.String? = nil,
+                        token: Swift.String
+                    ) {
+                        self.account_handle = account_handle
                         self.token = token
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case account_handle
                         case token
                     }
                 }
@@ -47383,7 +47403,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Unsupported CI provider or missing repository claim
+            /// Unsupported provider or missing identity claims
             ///
             /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)/responses/400`.
             ///
@@ -47485,7 +47505,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// No projects linked to the repository
+            /// No repository-linked projects or ambiguous repository account
             ///
             /// - Remark: Generated from `#/paths//api/auth/oidc/token/post(exchangeOIDCToken)/responses/403`.
             ///
