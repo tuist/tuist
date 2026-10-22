@@ -190,6 +190,21 @@ paired release, machine-wide fixed CLI/artifact floor and safe per-process warm
 replacement remain owner gates. The new proxy self-reports policy/PID at startup,
 which is observability, not attestation. See [detailed evidence and limits](RUST-CLIENTS.md).
 
+## Grafana client follow-up, 2026-10-22
+
+The independent Grafana backend now embeds all twelve keys, beyond the qualified
+Go SDK's eight intermediate denies. It preserves native roots and normal TLS,
+then checks complete verified chains/anchors and supplied peers, including
+resumption. API redirects and both legs of HTTPS CONNECT use the protected
+transport; no downgrade/fallback is permitted. TLS/health errors retain useful
+fixed categories without exposing URLs or response bodies. All-package race
+tests, real DER, accepted-chain and redirect/proxy/resumption controls pass.
+Twelve live negatives are explicitly attributed to Go's native verifier, not the
+new callback; unrelated HTTPS succeeds. Local host/Linux backend builds pass,
+not execution inside Grafana or publication. Signed artifacts, corporate/other
+OS stores and safe owner process replacement remain open. See [evidence and
+availability distinctions](GRAFANA-CLIENT.md).
+
 ## Validation and limits
 
 - The standalone Go policy/store/guard suite passes with actual **Go 1.26.10**.

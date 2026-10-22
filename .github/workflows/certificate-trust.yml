@@ -43,6 +43,7 @@ on:
       - android/app/src/main/java/dev/tuist/app/data/network/CertificateTrust.kt
       - android/app/src/test/java/dev/tuist/app/data/network/CertificateTrustTest.kt
       - android/app/src/androidTest/java/dev/tuist/app/data/network/CertificateTrustDeviceTest.kt
+      - grafana-datasource/pkg/plugin/**
       - gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt
       - gradle/src/test/kotlin/dev/tuist/gradle/CertificateTrust*Test.kt
   push:

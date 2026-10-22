@@ -16,6 +16,8 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
   proxy replacement gates are in `RUST-CLIENTS.md`: only the proxy performs CAS
   remote TLS, and older pinned CLIs can downgrade it. Preserve each transport's
   original native/bundled roots; do not unify stores merely to share a client.
+  `GRAFANA-CLIENT.md` records the independent Go backend's full twelve-key callback,
+  native-versus-application attribution and exact artifact/runtime limits.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight
   intermediate-key controls; Go 1.27.1 fails. Qualify replacement SDKs by actual
   behavior and update the explicit CI/test allowlist, not numeric ordering.

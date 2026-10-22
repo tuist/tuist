@@ -84,6 +84,7 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		"../../atlas-native/auth/src/certificate_trust.rs",
 		"../../atlas-native/ios/Sources/AtlasCertificateTrust.swift",
 		"../../atlas-native/android/src/dev/tuist/atlas/AtlasCertificateTrust.kt",
+		"../../grafana-datasource/pkg/plugin/certificate_trust.go",
 		"../../gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt",
 		"../../android/app/src/main/java/dev/tuist/app/data/network/CertificateTrust.kt",
 	} {
@@ -185,6 +186,35 @@ func TestRustClientPolicyAndFactoryWiring(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestGrafanaClientFactoryWiring(t *testing.T) {
+	client := read(t, "../../grafana-datasource/pkg/plugin/client.go")
+	for _, required := range []string{"certificateTrustTransport(base, nil)", "Transport: transport", "CheckRedirect: secureRedirect"} {
+		if !bytes.Contains(client, []byte(required)) {
+			t.Fatalf("missing protected Grafana factory wiring: %s", required)
+		}
+	}
+	paths, err := filepath.Glob("../../grafana-datasource/pkg/plugin/*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		source := read(t, path)
+		clients += bytes.Count(source, []byte("http.Client{"))
+		for _, forbidden := range []string{"http.DefaultClient", "http.Get(", "http.Post(", "http.NewClient("} {
+			if bytes.Contains(source, []byte(forbidden)) {
+				t.Fatalf("unprotected Grafana HTTP helper in %s", path)
+			}
+		}
+	}
+	if clients != 1 {
+		t.Fatal("review new independent Grafana HTTP factories")
 	}
 }
 
