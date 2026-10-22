@@ -5,6 +5,7 @@ defmodule AtlasWeb.NativeController do
   alias Atlas.Audit
   alias Atlas.Finance.Invoices
   alias Atlas.Native
+  alias Atlas.Push
   alias Atlas.Tasks
   alias Atlas.Users
 
@@ -24,7 +25,8 @@ defmodule AtlasWeb.NativeController do
 
     json(conn, %{
       server_version: to_string(Application.spec(:atlas, :vsn)),
-      user: %{name: user.name || "", email: user.email}
+      user: %{name: user.name || "", email: user.email},
+      push_notifications: Push.capabilities()
     })
   end
 

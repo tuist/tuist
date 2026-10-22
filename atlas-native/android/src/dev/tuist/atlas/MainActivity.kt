@@ -19,6 +19,7 @@ import android.window.OnBackInvokedDispatcher
 class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
     private lateinit var appearance: AtlasAppearance
+    private lateinit var notifications: AtlasPushNotifications
     private var baseDark = false
     private var recreating = false
     private var themeRoot: View? = null
@@ -42,6 +43,7 @@ class MainActivity : Activity() {
     private var unregisterBack: (() -> Unit)? = null
     private lateinit var router: AtlasDestinationRouter
     private var linkDialog: AlertDialog? = null
+    private val authListener: () -> Unit = { render() }
 
     private data class Retained(
         val authentication: AtlasAuthentication,
@@ -54,6 +56,7 @@ class MainActivity : Activity() {
         val presence: AtlasPresenceModel?,
         val router: AtlasDestinationRouter,
         val appearance: AtlasAppearance,
+        val notifications: AtlasPushNotifications,
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,7 +74,8 @@ class MainActivity : Activity() {
         )
         super.onCreate(savedInstanceState)
         title = getString(R.string.app_name)
-        authentication = retained?.authentication ?: AtlasAuthentication(this)
+        authentication = retained?.authentication ?: (application as AtlasApplication).authentication
+        notifications = retained?.notifications ?: AtlasPushNotifications(applicationContext, authentication)
         accounts = retained?.accounts
         profile = retained?.profile
         holidays = retained?.holidays
@@ -92,20 +96,23 @@ class MainActivity : Activity() {
     }
 
     override fun onRetainNonConfigurationInstance(): Any =
-        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab, presence, router, appearance)
+        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab, presence, router, appearance, notifications)
 
     override fun onStart() {
         super.onStart()
-        authentication.listener = { render() }
+        authentication.listener = authListener
         appearance.listener = { appearanceChanged() }
+        notifications.listener = { settings?.notificationsChanged() }
         render()
+        notifications.refresh()
         presence?.setActive(authentication.server != null)
     }
 
     override fun onStop() {
         presence?.setActive(false)
-        authentication.listener = null
+        if (authentication.listener === authListener) authentication.listener = null
         appearance.listener = null
+        notifications.listener = null
         super.onStop()
     }
 
@@ -125,7 +132,6 @@ class MainActivity : Activity() {
         themeLayout?.let { themeRoot?.viewTreeObserver?.removeOnGlobalLayoutListener(it) }
         if (!isChangingConfigurations) {
             clearModels()
-            authentication.close()
             appearance.close()
         }
         super.onDestroy()
@@ -245,6 +251,7 @@ class MainActivity : Activity() {
 
     private fun render() {
         appearance.configure(authentication.server)
+        notifications.configure(authentication.server)
         if (recreating) return
         authentication.authorizationURL?.let { url ->
             authentication.authorizationURL = null
@@ -308,6 +315,7 @@ class MainActivity : Activity() {
                     val screen =
                         AtlasWorkspaceScreen(this, catalog, Uri.parse(server).host.orEmpty(), { section ->
                             when (section.screen) {
+                                "automation" -> startActivity(Intent(this, AtlasAutomationActivity::class.java))
                                 "people" -> showPeople()
                                 "time-off" -> showTimeOff(section.title)
                                 "tasks", "accounts", "invoices" -> selectTab(section.screen)
@@ -330,12 +338,25 @@ class MainActivity : Activity() {
                                 navigation = null
                                 tab = "tasks"
                                 router.reset()
-                                authentication.signOut()
+                                notifications.disable { authentication.signOut() }
                             }
                         }
                     settings = screen
                     screen.profile(identity, ::updateBack)
                     screen.appearance(appearance)
+                    screen.notifications(
+                        status = {
+                            notifications.message
+                                ?: if (notifications.busy) {
+                                    "Updating…"
+                                } else if (notifications.enabled) {
+                                    "On"
+                                } else {
+                                    "Off"
+                                }
+                        },
+                        toggle = ::toggleNotifications,
+                    )
                     screen.view
                 }
                 else -> {
@@ -360,6 +381,32 @@ class MainActivity : Activity() {
         updateBack()
         business?.load()
         settings?.load()
+    }
+
+    private fun toggleNotifications() {
+        if (notifications.busy) return
+        if (!notifications.available) {
+            notifications.enable()
+        } else if (notifications.enabled) {
+            notifications.disable()
+        } else if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 71)
+        } else {
+            notifications.enable()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 71 && grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            notifications.enable()
+        }
     }
 
     private fun selectTab(value: String) {

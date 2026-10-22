@@ -2770,16 +2770,21 @@ and the file together.
 
 All five are production only. The warm-rate rule reads Postgres (see its
 section); the other four read Loki (`grafanacloud-logs`), because the metric
-that carries the same fields cannot be rated.
+that carries the same fields undercounts.
 `tuist_runner_cache_volume_operations_total` (macOS hosts and the Linux
 `agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
-removed and only a plain `sum` stored, so `rate()` and `increase()` over it
-return an empty result, as with the Oban counters in **Ingestion jobs being
-discarded**. The aggregated sum also goes down whenever an agent restarts, so
-it cannot stand in for a counter either. Moving these rules to the metric needs
-the metric's aggregation rule changed to keep counter semantics first (see
-`README.md`, *Metrics aggregated downstream of this chart*), and it would
-still lack `kind`, `use` and the refusal messages the rules read.
+removed. Until 2026-10-22 16:50 UTC it stored only a plain `sum`, so `rate()`
+and `increase()` over it returned an empty result, as with the Oban counters
+in **Ingestion jobs being discarded**. It now has an exact `sum:counter` rule
+and rates, but both agents create each `(operation, source, result)` series
+on its first increment, and that first increment is never counted (see
+`README.md`, *Metrics aggregated downstream of this chart*). Compared with the
+host logs over 17:20 to 18:20 UTC that day, the metric read 12 to 31% low on
+successes and showed neither of the hour's two isolated failures. A rule on it
+would miss exactly the first failures of a new breakage. Moving a rule to the
+metric needs the alerting series initialized to 0 in both agents, then a
+side-by-side comparison with the Loki rule. The metric also lacks `kind`, `use`
+and the macOS refusal lines that never become a cache phase.
 
 The host logs used:
 
@@ -4148,15 +4153,28 @@ the body. Releases older than that answer first, which turns a steady fraction o
 an account's duplicate uploads into 502s while Kura's own request metrics count
 them as successes.
 
-`upstream` is the instance's HTTP backend (`kura-kura-<instance>-http`), which
-identifies the account.
+A 502 on a `-grpc` upstream whose controller error line is
+`recv() failed (104: Connection reset by peer) while reading response header from upstream`
+(upstream `grpc://<pod ip>:4001`) is Kura resetting the gateway gRPC
+connections the controller had open. It shows up as `ByteStream/Write` uploads
+from one Bazel client that hang for about a second and then fail together
+across dozens of connections, while requests a millisecond later succeed. The
+cause is not yet known. Kura logs each failed connection on the gateway gRPC
+listener at warn as `public HTTP connection failed`, with the HTTP/2 cause, the
+peer and the connection age:
+`{cluster="tuist-production", namespace="kura", service_name="kura"} |= "public HTTP connection failed"`.
+
+`upstream` is the instance's backend, which identifies the account:
+`kura-kura-<instance>-http` for the HTTP lane (pod port 4000) and
+`kura-kura-<instance>-grpc` for gateway gRPC (pod port 4001).
 
 - 503 and 504 are excluded. They come from draining pods, capacity shedding and
   upstream timeouts, arrive in bursts of thousands, and the Kura 5xx rule covers
   what Kura produces.
 - The pending period is what separates sustained breakage from a burst: one
   burst stays in the 15-minute window for three 5-minute evaluations and never
-  reaches the fourth.
+  reaches the fourth. Bursts repeating over 8 minutes or more, such as one CI
+  job's upload phase, keep the count up for four evaluations and fire.
 - The source is the access log because the controllers were not scraped. Every
   line except 2xx and 404 is kept; those two are sampled at 10%. The dedicated
   `kura-ingress-nginx` scrape in `values.yaml` now exports

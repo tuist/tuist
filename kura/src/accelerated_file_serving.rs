@@ -91,6 +91,16 @@ pub(crate) fn bind_public_listener(address: SocketAddr) -> std::io::Result<TcpLi
     socket.listen(PUBLIC_LISTEN_BACKLOG)
 }
 
+// The gateway gRPC port is reached only through the regional ingress, which
+// does not drop upstream connections on its own, so a connection error there
+// is Kura's to explain. The co-hosted port also serves clients that disconnect
+// at will.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionErrorLog {
+    Debug,
+    Warn,
+}
+
 pub async fn serve_public_http(
     listener: TcpListener,
     router: Router,
@@ -98,6 +108,7 @@ pub async fn serve_public_http(
     config: AcceleratedFileServingConfig,
     mut shutdown_rx: watch::Receiver<bool>,
     configure_http2: Http2BuilderConfig,
+    connection_error_log: ConnectionErrorLog,
 ) -> Result<(), String> {
     let semaphore = Arc::new(Semaphore::new(config.max_concurrent));
     let address = listener
@@ -117,7 +128,7 @@ pub async fn serve_public_http(
     loop {
         tokio::select! {
             result = listener.accept() => {
-                let (stream, _) = match result {
+                let (stream, peer) = match result {
                     Ok(stream) => stream,
                     Err(error) => {
                         tracing::warn!("public HTTP accept failed: {error}");
@@ -138,7 +149,7 @@ pub async fn serve_public_http(
                 tokio::spawn(
                     async move {
                         if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2, accepted_at, shutdown).await {
-                            tracing::debug!("public HTTP connection failed: {error}");
+                            log_connection_error(connection_error_log, address, peer, accepted_at.elapsed(), &error);
                         }
                     }
                     .in_current_span(),
@@ -388,9 +399,36 @@ where
     connection.as_mut().graceful_shutdown();
     match tokio::time::timeout(CONNECTION_MAX_AGE_GRACE, connection).await {
         Ok(result) => result.map_err(std::io::Error::other),
-        // Grace expired with streams still open; dropping the connection
-        // severs it.
-        Err(_) => Ok(()),
+        // Dropping the connection severs the streams still open on it.
+        Err(_) => Err(std::io::Error::other(format!(
+            "severed with streams still open {}s after graceful shutdown",
+            CONNECTION_MAX_AGE_GRACE.as_secs()
+        ))),
+    }
+}
+
+fn log_connection_error(
+    log: ConnectionErrorLog,
+    listener: std::net::SocketAddr,
+    peer: std::net::SocketAddr,
+    age: Duration,
+    error: &std::io::Error,
+) {
+    let error = crate::analytics::error_cause_chain(error);
+    let connection_age_ms = u64::try_from(age.as_millis()).unwrap_or(u64::MAX);
+    match log {
+        ConnectionErrorLog::Debug => tracing::debug!(
+            %listener,
+            %peer,
+            connection_age_ms,
+            "public HTTP connection failed: {error}"
+        ),
+        ConnectionErrorLog::Warn => tracing::warn!(
+            %listener,
+            %peer,
+            connection_age_ms,
+            "public HTTP connection failed: {error}"
+        ),
     }
 }
 
@@ -2714,5 +2752,102 @@ mod tests {
             client_result.is_ok(),
             "client should see a clean GOAWAY close: {client_result:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn warn_listener_reports_connection_errors_with_their_cause() {
+        use std::{
+            io,
+            sync::{Arc, Mutex},
+            time::Duration,
+        };
+
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        #[derive(Clone, Default)]
+        struct Capture(Arc<Mutex<Vec<u8>>>);
+
+        impl io::Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                self.0
+                    .lock()
+                    .expect("capture lock")
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let capture = Capture::default();
+        let writer = capture.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::DEBUG)
+            .with_writer(move || writer.clone())
+            .finish();
+        let _subscriber = tracing::subscriber::set_default(subscriber);
+
+        let context = crate::test_support::test_context(|_| {}).await;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+        let server = tokio::spawn(super::serve_public_http(
+            listener,
+            axum::Router::new(),
+            context.state.clone(),
+            crate::config::AcceleratedFileServingConfig {
+                enabled: false,
+                ..context.state.config.accelerated_file_serving.clone()
+            },
+            shutdown_rx,
+            |_| {},
+            super::ConnectionErrorLog::Warn,
+        ));
+
+        // The HTTP/2 preface and an empty SETTINGS, then a DATA frame on
+        // stream 0, which the server must treat as a connection error.
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+        stream
+            .write_all(&[0, 0, 0, 0x4, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+        stream
+            .write_all(&[0, 0, 1, 0x0, 0, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+        let mut received = Vec::new();
+        let _ = tokio::time::timeout(Duration::from_secs(5), stream.read_to_end(&mut received))
+            .await;
+
+        let logged = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let output =
+                    String::from_utf8_lossy(&capture.0.lock().expect("capture lock")).into_owned();
+                if output.contains("public HTTP connection failed") {
+                    return output;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the broken connection should be logged");
+        server.abort();
+
+        let line = logged
+            .lines()
+            .find(|line| line.contains("public HTTP connection failed"))
+            .unwrap();
+        assert!(line.contains(" WARN "), "{line}");
+        assert!(line.contains(&format!("listener={addr}")), "{line}");
+        assert!(line.contains("peer=127.0.0.1:"), "{line}");
+        assert!(line.contains("connection_age_ms="), "{line}");
+        assert!(line.contains("PROTOCOL_ERROR"), "{line}");
     }
 }

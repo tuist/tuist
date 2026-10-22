@@ -123,7 +123,7 @@ func (c *CustomVolumes) request(ctx context.Context, operation string, body any,
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
-	response, err := c.HTTP.Do(req)
+	response, err := cachevolumes.DoServer(c.HTTP, req, customCacheLog())
 	if err != nil {
 		return 0, err
 	}

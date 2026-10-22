@@ -11,11 +11,9 @@ import (
 // Publishing a generation makes every other host's master of that lineage
 // stale. Removing it leaves the next job there to start from an older copy or empty. A recently used stale master is instead refreshed in the
 // background: the newer master is restored first, and the stale one is removed
-// afterwards whether or not the refresh succeeded.
-const (
-	refreshBudget = 5 * time.Minute
-	refreshQueue  = 64
-)
+// afterwards whether or not the refresh succeeded. A refresh has no deadline:
+// its download ends when it stalls or runs out of attempts (HTTPTransfer).
+const refreshQueue = 64
 
 type refreshJob struct {
 	master string
@@ -78,16 +76,14 @@ func (b *LocalImages) refreshMasters() {
 }
 
 func (b *LocalImages) refreshMaster(job refreshJob) {
-	ctx, cancel := context.WithTimeout(context.Background(), refreshBudget)
 	done := b.Observe.For(job.next).Start("refresh", "remote")
-	ctx = WithSubject(ctx, SubjectOf(job.next))
+	ctx := WithSubject(context.Background(), SubjectOf(job.next))
 	b.refresh.active.Store(job.stale.Scope, struct{}{})
 	err := b.reserve(ctx)
 	if err == nil {
 		err = b.restoreRefresh(ctx, job)
 	}
 	b.refresh.active.Delete(job.stale.Scope)
-	cancel()
 	done(err)
 	unlock := b.lock(job.stale.Scope)
 	defer unlock()

@@ -5,6 +5,7 @@ struct AtlasWorkspaceView<Profile: View>: View {
     let businessRequest: ([String: Any]) async throws -> Data
     var presence: AtlasPresence?
     @ObservedObject var navigation: AtlasNavigation
+    var automation: AtlasAuthentication?
     @ViewBuilder var settings: () -> Profile
     @Environment(\.scenePhase) private var scenePhase
 
@@ -35,7 +36,7 @@ struct AtlasWorkspaceView<Profile: View>: View {
                     .tag(resource.rawValue)
             }
             AtlasBrowseStack(screen: navigation.destinations["browse"]?.screen, revision: navigation.revisions["browse"],
-                             holidayRequest: holidayRequest, businessRequest: businessRequest)
+                             holidayRequest: holidayRequest, businessRequest: businessRequest, automation: automation)
             .tabItem { Label("Browse", systemImage: "square.grid.2x2") }.tag("browse")
             NavigationStack { settings().onAppear { presence?.show(resource: "profile") } }
                 .id(navigation.revisions["profile"])
@@ -50,20 +51,22 @@ private struct AtlasBrowseStack: View {
     @State private var path: [String]
     let screen: String?
     let revision: UUID?
+    let automation: AtlasAuthentication?
     @Environment(\.atlasPresence) private var presence
 
     init(screen: String?, revision: UUID?, holidayRequest: @escaping ([String: Any]) async throws -> Data,
-         businessRequest: @escaping ([String: Any]) async throws -> Data) {
+         businessRequest: @escaping ([String: Any]) async throws -> Data, automation: AtlasAuthentication? = nil) {
         self.screen = screen
         self.revision = revision
         self.holidayRequest = holidayRequest
         self.businessRequest = businessRequest
+        self.automation = automation
         _path = State(initialValue: screen.map { ["time-off", "people"].contains($0) ? [$0] : [] } ?? [])
     }
 
     var body: some View {
         NavigationStack(path: $path) {
-            AtlasBrowsePage(group: nil, holidayRequest: holidayRequest, businessRequest: businessRequest)
+            AtlasBrowsePage(group: nil, holidayRequest: holidayRequest, businessRequest: businessRequest, automation: automation)
                 .navigationDestination(for: String.self) { screen in
                     if screen == "time-off" {
                         AtlasTimeOffView(title: AtlasCatalog().sections.first { $0.screen == "time-off" }?.title ?? "Time off",
@@ -82,6 +85,7 @@ private struct AtlasBrowsePage: View {
     let group: AtlasGroup?
     let holidayRequest: ([String: Any]) async throws -> Data
     let businessRequest: ([String: Any]) async throws -> Data
+    var automation: AtlasAuthentication?
     private let catalog = AtlasCatalog()
     @State private var query = ""
     @Environment(\.atlasPresence) private var presence
@@ -95,7 +99,8 @@ private struct AtlasBrowsePage: View {
                 Section(group?.title ?? "Workspace") {
                     ForEach(catalog.children(of: group?.id)) { child in
                         NavigationLink {
-                            AtlasBrowsePage(group: child, holidayRequest: holidayRequest, businessRequest: businessRequest)
+                            AtlasBrowsePage(group: child, holidayRequest: holidayRequest,
+                                            businessRequest: businessRequest, automation: automation)
                         } label: {
                             Label(child.title, systemImage: icon(child.id)).frame(minHeight: 44)
                         }.accessibilityIdentifier("workspace-group-\(child.id)")
@@ -119,7 +124,9 @@ private struct AtlasBrowsePage: View {
 
     private func destination(_ section: AtlasSection, searching: Bool = false) -> some View {
         NavigationLink {
-            if section.screen == "people", let presence {
+            if section.screen == "automation", let automation {
+                AtlasAutomationView(authentication: automation).onAppear { presence?.show() }
+            } else if section.screen == "people", let presence {
                 AtlasPeopleView(presence: presence)
             } else if section.screen == "time-off" {
                 AtlasTimeOffView(title: section.title, request: holidayRequest)

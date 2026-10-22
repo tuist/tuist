@@ -6,6 +6,7 @@ defmodule TuistWeb.API.AuthControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.DeviceCode
+  alias Tuist.Authentication.RefreshReplays
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.RateLimit.Auth
@@ -352,6 +353,79 @@ defmodule TuistWeb.API.AuthControllerTest do
              }
     end
 
+    test "returns the same working tokens when a spent refresh token is replayed within the window", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+
+      # When
+      first = refresh(conn, refresh_token)
+      replay = refresh(build_conn(), refresh_token)
+
+      # Then
+      assert %{"access_token" => access_token, "refresh_token" => new_refresh_token} = first
+      assert replay == first
+      assert Tuist.Authentication.authenticated_subject(access_token).id == user.id
+
+      assert %{"refresh_token" => rotated_refresh_token} = refresh(build_conn(), new_refresh_token)
+      refute rotated_refresh_token == new_refresh_token
+    end
+
+    test "rejects a spent refresh token replayed after the window", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      assert %{"access_token" => _} = refresh(conn, refresh_token)
+
+      after_window = DateTime.add(DateTime.utc_now(), RefreshReplays.window_seconds() + 1, :second)
+      stub(Tuist.Time, :utc_now, fn -> after_window end)
+
+      # When
+      conn =
+        build_conn()
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      # Then
+      assert json_response(conn, :unauthorized) == %{"message" => "The refresh token is expired or invalid"}
+    end
+
+    test "doesn't replay one refresh token's response for another", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      other_refresh_token = refresh_token_fixture(user)
+
+      # When
+      first = refresh(conn, refresh_token)
+      other = refresh(build_conn(), other_refresh_token)
+
+      # Then
+      refute other["access_token"] == first["access_token"]
+      refute other["refresh_token"] == first["refresh_token"]
+      assert refresh(build_conn(), refresh_token) == first
+    end
+
+    test "concurrent exchanges of the same refresh token mint a single pair" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+
+      # When
+      responses =
+        1..4
+        |> Enum.map(fn _ -> Task.async(fn -> refresh(build_conn(), refresh_token) end) end)
+        |> Task.await_many()
+
+      # Then
+      assert responses |> Enum.uniq() |> length() == 1
+
+      assert %{rows: [[1]]} =
+               Repo.query!("SELECT count(*) FROM guardian_tokens WHERE sub = $1 AND typ = 'refresh'", [
+                 to_string(user.id)
+               ])
+    end
+
     test "handles token_expired error", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -551,5 +625,19 @@ defmodule TuistWeb.API.AuthControllerTest do
       {:ok, fetched_user} = Accounts.get_user_by_email(email)
       assert fetched_user.email == email
     end
+  end
+
+  defp refresh_token_fixture(user) do
+    {:ok, refresh_token, _claims} =
+      Tuist.Authentication.encode_and_sign(user, %{}, token_type: :refresh, ttl: {4, :weeks})
+
+    refresh_token
+  end
+
+  defp refresh(conn, refresh_token) do
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+    |> json_response(:ok)
   end
 end

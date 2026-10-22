@@ -3,11 +3,14 @@ import Config
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
 alias Atlas.LLMs.ChatGPT
+alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
+
+config :atlas, :automation_trace_url_template, System.get_env("ATLAS_AUTOMATION_TRACE_URL_TEMPLATE")
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
 # release tarball), so guard the require to keep prod boots clean.
@@ -156,6 +159,10 @@ if native_themes = System.get_env("ATLAS_NATIVE_THEME_CATALOG") do
 
   config :atlas, :native_theme_catalog, catalog
 end
+
+# Server-only push provider credentials. Unset providers make their platform
+# unavailable; partial or malformed credentials fail the boot.
+config :atlas, Atlas.Push, Config.parse!(System.get_env())
 
 config :atlas, :gtm_email,
   from_name: System.get_env("ATLAS_GTM_EMAIL_FROM_NAME", "Tuist"),

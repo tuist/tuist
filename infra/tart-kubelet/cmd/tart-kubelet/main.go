@@ -451,6 +451,12 @@ func main() {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
 	}
+	if gcCollector != nil {
+		// A host holding a pool's previous runner image pulls the current
+		// one before the GC reaps the previous one, so the release costs
+		// it the overlay rather than the whole image.
+		gcCollector.Goldens = reconciler
+	}
 
 	// Publish which golden base VMs this host holds as
 	// `tuist.dev/golden-<hash>` Node labels so the runners-controller can
@@ -480,10 +486,12 @@ func main() {
 	prewarmGate := nodeagent.NewPrewarmGate()
 	prewarmGate.FreshDisk = hostDisk.Fresh
 	if err := mgr.Add(&podagent.Prewarmer{
-		K8s:     mgr.GetAPIReader(),
-		Goldens: reconciler,
-		Gate:    prewarmGate,
-		Fleet:   nodeLabels["tuist.dev/fleet"],
+		K8s:           mgr.GetAPIReader(),
+		Goldens:       reconciler,
+		Gate:          prewarmGate,
+		Fleet:         nodeLabels["tuist.dev/fleet"],
+		NodeName:      nodeName,
+		StageInterval: time.Minute,
 		DiskFree: func() (float64, error) {
 			st, err := hostdisk.Root("/")
 			if err != nil {

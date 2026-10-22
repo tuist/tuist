@@ -60,6 +60,15 @@ independent workqueues:
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
+  A tier that cannot be funded in full is split proportionally to cost,
+  and the whole Pods the rounding leaves go one per pool per round to the
+  pools with the largest target (which includes the hourly peak), then by
+  name (`grantRemainder`). Every rack image keeps a one-Pod floor, and
+  without this one queued job past capacity rounded every floor to zero:
+  all images went cold for one job, and the freed slots sat unassigned.
+  Now only as many floors yield as the load needs, least recently used
+  image first.
+
   **Cross-pool preemption** (`controllers/preemption.go`). The cooldown
   damps a pool's own oscillation, but it must not hold idle runners
   while a sibling's queued jobs cannot be placed. When a pool is inside
@@ -238,7 +247,10 @@ independent workqueues:
     allocator's cross-pool reclaim already arranges it.
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
-    (2m), the RunnerPool reconciler taints one eligible host
+    (2m), or past `idleHostReservationGrace` (30s) when the best
+    candidate holds only idle runners and no seat in flight (draining it
+    waits on no job, and with a warm runner per rack image every host of a
+    quiet fleet can hold one), the RunnerPool reconciler taints one eligible host
     `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
     the fewest running jobs and, among those, one already holding the
     pool's golden image. Every runner Pod
@@ -364,6 +376,11 @@ independent workqueues:
   before its first poll, makes the job it was created for wait for a
   replacement to pull the new image. It runs that job on the old image
   and exits like any single-shot runner.
+
+  An image change moves the replaced image to `status.previousImage`.
+  tart-kubelet reads it to pull the new image on hosts that hold the old
+  one before its GC reaps the old golden, so a release costs those hosts
+  the overlay rather than the whole image (see `../tart-kubelet/AGENTS.md`).
 
   `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
   retirement signal. The controller does not apply or clear it. The

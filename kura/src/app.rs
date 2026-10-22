@@ -561,6 +561,7 @@ async fn initialize_and_serve(
                     grpc_serving_config,
                     grpc_shutdown_rx,
                     configure_http_builder,
+                    accelerated_file_serving::ConnectionErrorLog::Warn,
                 )
                 .await
                 {
@@ -589,6 +590,7 @@ async fn initialize_and_serve(
         state.config.accelerated_file_serving.clone(),
         public_shutdown_rx,
         configure_http_builder,
+        accelerated_file_serving::ConnectionErrorLog::Debug,
     )
     .await
     .map_err(|error| format!("server error: {error}"))?;
@@ -2034,6 +2036,7 @@ mod tests {
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         // HTTP cache surface answers on the co-hosted port.
@@ -2131,6 +2134,7 @@ mod tests {
             gateway_grpc_serving_config(&state.config),
             shutdown_rx,
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         let http = reqwest::Client::new()
@@ -2290,6 +2294,7 @@ mod tests {
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         let endpoint = format!("http://{addr}");
