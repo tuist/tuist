@@ -57,6 +57,26 @@ fn card_events_require_a_current_server_supplied_action_and_live_selection() {
     assert!(execute(event(SECOND, "evidence", "show_evidence")).is_err());
     assert!(execute(event(FIRST, "missing", "show_evidence")).is_err());
     assert!(execute(event(FIRST, "evidence", "execute_tool")).is_err());
+    model.state.lock().unwrap().active = false;
+    assert!(execute(event(FIRST, "evidence", "show_evidence")).is_err());
+    {
+        let mut state = model.state.lock().unwrap();
+        state.active = true;
+        state.snapshot.needs_session = true;
+    }
+    assert!(execute(event(FIRST, "evidence", "show_evidence")).is_err());
+    {
+        let mut state = model.state.lock().unwrap();
+        state.snapshot.needs_session = false;
+        state.snapshot.messages[0].tool_status = Some("running".into());
+    }
+    assert!(execute(event(FIRST, "evidence", "show_evidence")).is_err());
+    {
+        let mut state = model.state.lock().unwrap();
+        state.snapshot.messages[0].tool_status = Some("succeeded".into());
+        state.snapshot.messages[0].component = None;
+    }
+    assert!(execute(event(FIRST, "evidence", "show_evidence")).is_err());
     {
         let mut state = model.state.lock().unwrap();
         state.snapshot.messages.clear();
