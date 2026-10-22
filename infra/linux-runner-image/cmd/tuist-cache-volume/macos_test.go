@@ -373,7 +373,6 @@ func TestMacCheckoutDetachesWhenTheTreeCannotMove(t *testing.T) {
 	data, _ := json.Marshal(response)
 	respondMac(t, share, data)
 	makeShare(t, share, response.Directory)
-	t.Cleanup(func() { _ = os.Chmod(parent, 0755) })
 	var detached []string
 	state := filepath.Join(t.TempDir(), "state.json")
 	result := checkoutMacAt(context.Background(), workspace, share, state, func(args ...string) error {
@@ -381,7 +380,8 @@ func TestMacCheckoutDetachesWhenTheTreeCannotMove(t *testing.T) {
 			detached = args
 			return nil
 		}
-		return os.Chmod(args[len(args)-1], 0555)
+		// A volume that vanishes under the move fails it for any user, root included.
+		return os.RemoveAll(args[len(args)-1])
 	})
 	if result != "unavailable (layout)" {
 		t.Fatal(result)
