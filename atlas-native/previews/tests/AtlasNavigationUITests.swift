@@ -45,6 +45,27 @@ final class AtlasNavigationUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Tasks"].waitForExistence(timeout: 5))
     }
 
+    @MainActor func testRevokedRecordAccessClearsCachedListAndAllowsRetry() {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--deep-links", "--revoke-record-access", "--resume-destination",
+                               "https://atlas.example.org/open/tasks/\(recordID)"]
+        app.launch()
+        defer { app.terminate() }
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.staticTexts["Review onboarding"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(app.staticTexts["Record unavailable"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Your Atlas role does not allow this action."].exists)
+        XCTAssertFalse(app.buttons["Edit"].exists)
+        app.buttons["navigation-retry"].tap()
+        XCTAssertTrue(app.staticTexts["Record unavailable"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.staticTexts["Access required"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Review onboarding"].exists)
+        XCTAssertFalse(app.buttons["business-create"].exists)
+    }
+
     @MainActor func testTimeOffLinkHasNativeBackToBrowse() {
         let app = launch(path: "time-off")
         defer { app.terminate() }

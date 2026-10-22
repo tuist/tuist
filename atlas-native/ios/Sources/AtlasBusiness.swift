@@ -158,24 +158,40 @@ final class AtlasBusiness: ObservableObject {
     }
 
     func record(id: String) async throws -> AtlasBusinessRecord {
-        let response: AtlasBusinessMutation = try await call(["action": "show", "id": id])
-        try Task.checkCancellation()
-        guard response.item.id == id else {
-            throw AtlasAuthenticationError(kind: "invalid_response", message: "Atlas returned an invalid response. Try again.")
+        do {
+            let response: AtlasBusinessMutation = try await call(["action": "show", "id": id])
+            try Task.checkCancellation()
+            guard response.item.id == id else {
+                throw AtlasAuthenticationError(kind: "invalid_response", message: "Atlas returned an invalid response. Try again.")
+            }
+            records[id] = response.item
+            forbidden = false
+            return response.item
+        } catch {
+            try Task.checkCancellation()
+            if (error as? AtlasAuthenticationError)?.kind == "forbidden" {
+                generation += 1
+                busy = mutating
+                loading = false
+                report(error)
+            }
+            throw error
         }
-        records[id] = response.item
-        return response.item
     }
 
     func show(_ item: AtlasBusinessRecord) async {
         guard !busy else { return }
         records[item.id] = records[item.id] ?? item
+        let identity = generation
         busy = true
-        defer { busy = false }
+        defer { if identity == generation { busy = false } }
         do {
             let response: AtlasBusinessMutation = try await call(["action": "show", "id": item.id])
+            guard identity == generation, !Task.isCancelled else { return }
             records[item.id] = response.item
-        } catch is CancellationError {} catch { report(error) }
+        } catch is CancellationError {} catch {
+            if identity == generation, !Task.isCancelled { report(error) }
+        }
     }
 
     func save(fields: [String: String], editing: AtlasBusinessRecord?) async -> Bool {

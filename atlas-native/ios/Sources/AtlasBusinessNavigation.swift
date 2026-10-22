@@ -37,12 +37,7 @@ struct AtlasLinkedBusinessDetail: View {
 
     var body: some View {
         Group {
-            if model.forbidden {
-                ContentUnavailableView("Access required", systemImage: "lock",
-                                       description: Text("Ask an Atlas administrator for access."))
-            } else if let item {
-                AtlasBusinessDetail(model: model, original: item, reloadOnAppear: false)
-            } else if let error {
+            if let error {
                 ContentUnavailableView {
                     Label("Record unavailable", systemImage: "exclamationmark.triangle")
                         .accessibilityIdentifier("destination-\(model.resource.rawValue)-\(id)-unavailable")
@@ -50,6 +45,11 @@ struct AtlasLinkedBusinessDetail: View {
                     Button("Retry") { self.error = nil; attempt += 1 }
                         .accessibilityIdentifier("navigation-retry")
                 }
+            } else if model.forbidden {
+                ContentUnavailableView("Access required", systemImage: "lock",
+                                       description: Text("Ask an Atlas administrator for access."))
+            } else if let item {
+                AtlasBusinessDetail(model: model, original: item, reloadOnAppear: false)
             } else {
                 ProgressView("Loading record").accessibilityIdentifier("navigation-loading")
             }
