@@ -96,10 +96,18 @@ workflow code runs in the guest. Never expose host credentials or masters.
   is about to need (`podagent.Prewarmer.stage`, `internal/podagent/stage.go`):
   for each pool of its fleet it served in the last 24 hours (it held the
   golden of the image the pool ran then), the pool's current image and the
-  one it moves to next, when the host lacks them. The next image comes from ConfigMaps labelled
+  one it moves to next, when the host lacks them. The next image comes from
+  ConfigMaps labelled
   `tuist.dev/upcoming-runner-images=true`, keyed `<xcode>.<variant>`, which
   the `announce` job of `runner-image-release.yml` writes into canary and
-  production before it dispatches the deploy that moves the pools. A pool is
+  production. A deploy holds each pool on its current image until every
+  Ready, schedulable Node holding the current image's golden label also
+  holds the new one (`.github/scripts/runner-image-staging-gate.sh`, run by
+  `server-deployment.yml` before the chart upgrade), and `announce` waits for
+  the same before it dispatches the release's deploy. Both give up an hour
+  after the announcement (`tuist.dev/runner-image-announced-at`), and a
+  release dispatched with `skip_staging` moves the pools at once
+  (`tuist.dev/runner-image-staging: skip`). A pool is
   matched by its `tuist.dev/xcode-version` and `tuist.dev/runner-image-variant`
   (`standalone` or `stacked`) labels, which the chart renders only on catalog
   pools that follow releases; an entry outside the pool's repository is
@@ -108,7 +116,8 @@ workflow code runs in the guest. Never expose host credentials or masters.
   and skips an image the rack's image cache is still fetching until the next
   pass. A Pod of another image that arrives during a staged pull waits for it,
   since a host pulls one golden at a time. Following a pool to its new image
-  also covers a deploy that moves pools before the hosts staged them.
+  also covers a pool moved before its hosts staged it (the timeout or a
+  skip). A host that never served a pool still pulls on its first Pod.
   `tart_kubelet_golden_staged_total{result}` counts what staging did; the
   pools' materialized and reused counts show whether Pods still pull.
   Evidence: in the week to 2026-10-22 ber1-runner-b03 to b09 each pulled 24
