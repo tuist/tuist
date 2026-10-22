@@ -412,3 +412,74 @@ func TestLinuxLocalImagesGrowsAWarmCopyOnline(t *testing.T) {
 		t.Fatal("growth changed the master", info, err)
 	}
 }
+
+// Kubelet keeps a copy of the volume mount under the pod's subPath mount until a
+// retry after the agent's unmount. A verified branch waits for that copy to go
+// and then publishes; it is never discarded for it.
+func TestLinuxLocalImagesWaitsForALingeringMountBeforePublishing(t *testing.T) {
+	cache := os.Getenv("CACHE_VOLUME_E2E_ROOT")
+	if cache == "" {
+		t.Skip("requires an isolated reflink filesystem and loop/mount privileges")
+	}
+	root, err := os.MkdirTemp(cache, "lingering-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(root)
+	remote := &diskTransfer{archive: filepath.Join(t.TempDir(), "remote.image")}
+	b := &LocalImages{Root: root, SizeGB: 1, MinFreeBytes: 64 << 20, Transfer: remote, Mount: Mount, Unmount: Unmount, MeasureFS: MeasureFS, FreeBytes: FreeBytes}
+	if err := b.Probe(); err != nil {
+		t.Fatal(err)
+	}
+	slot := Slot{Identity: identity(first), PodUID: "job"}
+	path := filepath.Join(root, "job")
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(slot, path)
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	afterMarker(t, path)
+	if err := os.WriteFile(filepath.Join(path, "payload"), []byte("job output"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	subPath := filepath.Join(root, "subpath")
+	if err := os.Mkdir(subPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount(path, subPath, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(subPath, unix.MNT_DETACH)
+
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) {
+		t.Fatal("expected to wait for the other mount:", err)
+	}
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) {
+		t.Fatal("expected to keep waiting:", err)
+	}
+	if remote.generation != 0 {
+		t.Fatal("published while another mount held the image")
+	}
+	if err := unix.Unmount(subPath, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	warm := slot
+	warm.ID, warm.PodUID = second, "next"
+	warm.BaseGeneration, warm.ContentDigest = remote.generation, remote.content
+	warmPath := filepath.Join(root, "next")
+	if err := os.Mkdir(warmPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer b.Delete(warm, warmPath)
+	if err := b.Attach(context.Background(), warm, warmPath); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(warmPath, "payload")); err != nil || string(data) != "job output" {
+		t.Fatal("the published branch lost the job's writes", string(data), err)
+	}
+}

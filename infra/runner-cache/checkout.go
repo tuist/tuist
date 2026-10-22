@@ -887,7 +887,7 @@ func (c *Checkouts) baseEnv() []string {
 	}
 }
 
-// gitEnv configures git-lfs for one command without touching the master's
+// gitEnv configures git-lfs and git for one command without touching the master's
 // .git/config, which guests receive. The tree belongs to the job's user while the
 // host runs git as another, which git otherwise refuses.
 func (c *Checkouts) gitEnv() []string {
@@ -900,6 +900,9 @@ func (c *Checkouts) gitEnv() []string {
 		{"filter.lfs.smudge", "git-lfs smudge -- %f"},
 		{"filter.lfs.process", "git-lfs filter-process"},
 		{"filter.lfs.required", "true"},
+		// A detached repack keeps working in the mounted master, which then
+		// cannot be unmounted.
+		{"gc.autoDetach", "false"},
 	}
 	env := append(c.baseEnv(), "GIT_CONFIG_COUNT="+strconv.Itoa(len(settings)))
 	for i, setting := range settings {

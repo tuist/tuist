@@ -128,6 +128,9 @@ type Slot struct {
 	// PublishCold is set for one seal when the server lets a branch that started
 	// empty replace its lineage's HEAD (the "publish" decision).
 	PublishCold bool `json:"-"`
+	// Discard is set once the branch is being deleted: a pass that finds its loop
+	// device still held by another mount deletes it again instead of sealing it.
+	Discard bool `json:"discard,omitempty"`
 }
 
 // Backend owns storage operations and must make every operation restart-safe.
@@ -428,11 +431,10 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	}
 	// An incomplete allocation can never become a published snapshot.
 	if slot.State == "allocated" && done {
-		if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
+		if err = s.discard(&slot); err != nil {
 			return err
 		}
-		slot.State = "deleted"
-		if err = s.save(slot); err != nil {
+		if err = s.save(slot); err != nil || slot.State != "deleted" {
 			return err
 		}
 	}
@@ -448,6 +450,9 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	if !done {
 		return s.save(slot)
 	}
+	if slot.Discard && (action == "seal" || action == "publish") {
+		action = "delete"
+	}
 	switch action {
 	case "seal", "publish":
 		if slot.State != "active" || !slot.CanPublish {
@@ -456,20 +461,20 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		sealed := slot
 		sealed.PublishCold = action == "publish"
 		if err = s.backend.Seal(sealed, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
-			if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
+			if err = s.discard(&slot); err != nil {
 				return err
 			}
-			slot.State = "deleted"
+		} else if errors.Is(err, ErrReleasePending) {
+			// Verified; it publishes once the other mount releases its loop device.
 		} else if err != nil {
 			return err
 		} else {
 			slot.State = "sealed"
 		}
 	case "delete":
-		if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
+		if err = s.discard(&slot); err != nil {
 			return err
 		}
-		slot.State = "deleted"
 	case "forget":
 		if slot.State != "deleted" {
 			return errors.New("cannot forget live storage")
@@ -478,7 +483,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	case "keep":
 		if slot.State == "sealed" {
 			if keeper, ok := s.backend.(interface{ Keep(Slot, string) error }); ok {
-				if err = keeper.Keep(slot, s.activePath(slot)); err != nil {
+				if err = keeper.Keep(slot, s.activePath(slot)); err != nil && !errors.Is(err, ErrReleasePending) {
 					return err
 				}
 			}
@@ -488,6 +493,19 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		return errors.New("invalid cache decision")
 	}
 	return s.save(slot)
+}
+
+// discard deletes the slot's branch. While another mount still holds its loop
+// device the slot keeps its state, marked for a later pass to delete.
+func (s *Store) discard(slot *Slot) error {
+	slot.Discard = true
+	if err := s.backend.Delete(*slot, s.activePath(*slot)); errors.Is(err, ErrReleasePending) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	slot.State = "deleted"
+	return nil
 }
 
 // Clean scratch files only after both pod teardown fences and after all block

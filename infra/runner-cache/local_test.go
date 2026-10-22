@@ -209,6 +209,45 @@ func TestDeferredLoopDetachCannotPublishOrDeleteAnImage(t *testing.T) {
 	}
 }
 
+// Kubelet unmounts a pod's subPath mounts only on its next retry after the agent
+// unmounts the volume, so the loop device often outlives the agent's unmount by
+// up to half a minute. The verified branch waits for it instead of being discarded.
+func TestLingeringLoopReferenceDelaysPublicationWithoutDiscardingTheBranch(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, path)
+	lingering := true
+	run := b.Run
+	b.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if lingering && name == "losetup" && args[0] == "--json" {
+			return []byte(`{"loopdevices":[{"name":"/dev/loop17"}]}`), nil
+		}
+		return run(ctx, name, args...)
+	}
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) || errors.Is(err, ErrPoisoned) {
+		t.Fatal(err)
+	}
+	b.Check = func(string, string) error { t.Fatal("rechecked an unmounted filesystem"); return nil }
+	b.MeasureFS = func(string) (int64, int64, error) { return 0, 0, errors.New("volume not mounted") }
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) {
+		t.Fatal(err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("uploaded while another mount held the image")
+	}
+	lingering = false
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if remote.uploads != 1 {
+		t.Fatal(remote.uploads)
+	}
+}
+
 func TestRefusesLegacyJournalInsteadOfTreatingRBDLeaseAsLocal(t *testing.T) {
 	b, _ := newLocal(t)
 	os.Remove(filepath.Join(b.Root, ".backend"))
