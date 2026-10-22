@@ -293,27 +293,27 @@
   },
   {
     "annotations": {
-      "description": "Only {{ $values.C.Value | humanizePercentage }} of the {{ $values.B.Value }} macOS volume attaches in the last two hours whose lineage had a saved copy started warm (from the host's master or an older generation); the rest attached cold. Baseline is 91 to 100%. Cold starts are slower builds, and a cold job's save is withheld so it cannot replace a good head. Linux is not covered: none of its 5,737 uses with a saved copy attached cold from 2026-10-20 to 10-22.\n\nFirst query (Loki, grafanacloud-logs): sum by (instance, source) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"attach\"` |= `\"result\":\"success\"` | json source=\"source\", kind=\"kind\" | kind!=\"checkout\" [2h])) to see whether the cold attaches concentrate on some hosts. Per account, the server records it as runner_cache_volume_uses.warm = false with base_generation > 0.\n\nLikely causes:\n- Masters evicted on the hosts jobs land on: look for `\"operation\":\"evict\"` and host disk pressure.\n- Placement sends an account's jobs to hosts that hold none of its masters (a new rack host per job, or a fleet change).\n- Prefetch is not keeping up: `\"operation\":\"prefetch\"` with result capacity or timeout.\n\nThe rule counts lines, not volumes, so the e2e reuse keys are included; they add about two attaches an hour.",
+      "description": "Only {{ $values.C.Value | humanizePercentage }} of the {{ $values.B.Value }} {{ $labels.platform }} cache volume uses attached in the last two hours whose lineage had a saved copy started warm; the rest attached cold. Read from Postgres (runner_cache_volume_uses.warm with base_generation > 0), excluding the e2e-reuse-* keys, the runners-acceptance-probe key and checkout volumes. The normal minimum from 2026-10-17 to 10-22 was 86% on macOS and 95% on Linux. Cold starts are slower builds, and a cold job's save is withheld so it cannot replace a good head.\n\nFirst query (Loki, grafanacloud-logs), macOS: sum by (instance, source) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"attach\"` |= `\"result\":\"success\"` | json source=\"source\", kind=\"kind\" | kind!=\"checkout\" [2h])) to see whether the cold attaches (source cold) concentrate on some hosts. Per account, query runner_cache_volume_uses joined to runner_cache_volumes on the ops read-only role (the Grafana role cannot read account_id).\n\nLikely causes:\n- Masters evicted on the hosts jobs land on: look for `\"operation\":\"evict\"` and host disk pressure.\n- Placement sends an account's jobs to hosts that hold none of its masters (a new rack host per job, or a fleet change).\n- Prefetch is not keeping up: `\"operation\":\"prefetch\"` with result capacity or timeout.",
       "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#runner-cache-volume-warm-rate-low",
-      "summary": "Only {{ $values.C.Value | humanizePercentage }} of macOS cache volume attaches with a saved copy started warm in the last 2 hours ({{ $values.B.Value }} attaches)"
+      "summary": "Only {{ $values.C.Value | humanizePercentage }} of {{ $labels.platform }} cache volume uses with a saved copy started warm in the last 2 hours ({{ $values.B.Value }} uses)"
     },
     "condition": "D",
     "data": [
       {
-        "datasourceUid": "grafanacloud-logs",
+        "datasourceUid": "afscyehfnzg8wf",
         "model": {
           "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
+            "type": "grafana-postgresql-datasource",
+            "uid": "afscyehfnzg8wf"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"attach\"` |= `\"result\":\"success\"` | json source=\"source\", kind=\"kind\" | kind!=`checkout` | source=~`local|older` [2h])) or vector(0)",
+          "format": "table",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
-          "queryType": "instant",
+          "rawQuery": true,
+          "rawSql": "SELECT v.platform AS platform, count(*) FILTER (WHERE u.warm) AS value FROM runner_cache_volume_uses u JOIN runner_cache_volumes v ON v.id = u.volume_id WHERE u.attached_at >= now() - interval '2 hours' AND u.base_generation > 0 AND u.warm IS NOT NULL AND v.key NOT LIKE 'e2e-reuse-%' AND v.key NOT IN ('runners-acceptance-probe', 'checkout') GROUP BY v.platform",
           "refId": "A"
         },
-        "queryType": "instant",
         "refId": "A",
         "relativeTimeRange": {
           "from": 7200,
@@ -321,20 +321,20 @@
         }
       },
       {
-        "datasourceUid": "grafanacloud-logs",
+        "datasourceUid": "afscyehfnzg8wf",
         "model": {
           "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
+            "type": "grafana-postgresql-datasource",
+            "uid": "afscyehfnzg8wf"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"attach\"` |= `\"result\":\"success\"` | json source=\"source\", kind=\"kind\" | kind!=`checkout` | source=~`local|older|cold` [2h]))",
+          "format": "table",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
-          "queryType": "instant",
+          "rawQuery": true,
+          "rawSql": "SELECT v.platform AS platform, count(*) AS value FROM runner_cache_volume_uses u JOIN runner_cache_volumes v ON v.id = u.volume_id WHERE u.attached_at >= now() - interval '2 hours' AND u.base_generation > 0 AND u.warm IS NOT NULL AND v.key NOT LIKE 'e2e-reuse-%' AND v.key NOT IN ('runners-acceptance-probe', 'checkout') GROUP BY v.platform",
           "refId": "B"
         },
-        "queryType": "instant",
         "refId": "B",
         "relativeTimeRange": {
           "from": 7200,
@@ -368,7 +368,7 @@
             "type": "__expr__",
             "uid": "__expr__"
           },
-          "expression": "$C < 0.85 && $B >= 50",
+          "expression": "$C < 0.8 && $B >= 50",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
           "refId": "D",

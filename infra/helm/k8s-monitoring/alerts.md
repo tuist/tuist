@@ -2768,8 +2768,9 @@ and the file together.
 | Runner cache volume warm rate low | `runner-cache-volume-warm-rate-low` | policy tree (`#notifications`) |
 | Runner cache volume saves incomplete | `runner-cache-volume-saves-incomplete` | policy tree (`#notifications`) |
 
-All five are production only and read Loki (`grafanacloud-logs`), because the
-metric that carries the same fields cannot be rated.
+All five are production only. The warm-rate rule reads Postgres (see its
+section); the other four read Loki (`grafanacloud-logs`), because the metric
+that carries the same fields cannot be rated.
 `tuist_runner_cache_volume_operations_total` (macOS hosts and the Linux
 `agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
 removed and only a plain `sum` stored, so `rate()` and `increase()` over it
@@ -2796,9 +2797,9 @@ backtests below count lines where a rule counts uses. The macOS publish path
 does not retry, so the two agree there; the Linux one retried a failing
 publish every 30 seconds, which overstates its line counts.
 
-**Cost.** The macOS stream is about 32 MB an hour and each rule query scans its
-whole window, so the group scans roughly 85 GB of logs a day at five-minute
-evaluation, against about 2,600 GB a day of queries the stack already ran in
+**Cost.** The macOS stream is about 32 MB an hour and each Loki query scans its
+whole window: five and a half hours of it per evaluation across the four Loki
+rules, so roughly 50 GB of logs a day at five-minute evaluation, against about 2,600 GB a day of queries the stack already ran in
 October 2026. Do not move the group to one-minute evaluation without
 shortening the windows.
 
@@ -6581,30 +6582,44 @@ about 21:00.
 
 ### Runner cache volume warm rate low
 
-macOS only. Among volume attaches in the last two hours whose lineage had a
-saved copy (`source` `local`, `older` or `cold`; `empty` means there was none,
-and checkout volumes are excluded), the share that started warm (`local` or
-`older`):
+Per platform, among cache volume uses attached in the last two hours whose
+lineage had a saved copy (`base_generation > 0`), the share the host reported
+as warm (`runner_cache_volume_uses.warm`). It reads the **Tuist Production
+DB** datasource (`afscyehfnzg8wf`) rather than Loki because only the server
+knows the volume key, so it can leave out the `e2e-reuse-*` keys (15% of their
+macOS uses started cold from 10-20 to 10-22), the `runners-acceptance-probe` key and checkout
+volumes (key `checkout`).
 
-- Condition: `$A / $B < 0.85 && $B >= 50`; pending period 15 minutes;
+```sql
+-- A: warm uses; B is the same with count(*)
+SELECT v.platform AS platform, count(*) FILTER (WHERE u.warm) AS value
+FROM runner_cache_volume_uses u JOIN runner_cache_volumes v ON v.id = u.volume_id
+WHERE u.attached_at >= now() - interval '2 hours' AND u.base_generation > 0
+  AND u.warm IS NOT NULL AND v.key NOT LIKE 'e2e-reuse-%'
+  AND v.key NOT IN ('runners-acceptance-probe', 'checkout')
+GROUP BY v.platform
+```
+
+- Condition: `$A / $B < 0.8 && $B >= 50`; pending period 15 minutes;
   severity warning; policy tree (`#notifications`)
-- The host's `warm` flag is what the server stores as
-  `runner_cache_volume_uses.warm`, and both show the same dip. The server
-  could exclude the `e2e-reuse-*` keys and the acceptance probe, which
-  the logs cannot name, but the Grafana Postgres role (`tuist_grafana_ro`)
-  has no grant on those tables. The e2e keys add about two macOS attaches an
-  hour (15% of them cold), which moves a two-hour ratio by well under a point,
-  and the probe has no production volume uses.
-- Linux is not covered: none of its 5,737 uses with a saved copy attached cold
-  from 2026-10-20 to 10-22.
+- The datasource connects as `tuist_grafana_ro`, which needs the column grants
+  on `runner_cache_volume_uses (volume_id, base_generation, warm, attached_at)`
+  and `runner_cache_volumes (id, key, platform)` in
+  `Tuist.Release.grafana_read_columns`. `Tuist.Release.migrate/0` applies them
+  on every deploy. None of these columns hold secrets or account identity; the
+  role still cannot read `account_id`, `repository` or `pod_name`.
 
-Backtest, two-hour window, hours named by their end, 2026-10-20 to 10-22:
-the normal minimum above 50 attaches is 91.5%. On 10-21 it read 87.5% at
-10:00, 81.6% at 11:00, 79.4% at 12:00, 78.5% at 13:00 and 86.9% at 14:00, so it
-fires from about 11:00 to 13:30. That morning managed caches had just moved
-onto custom volumes and macOS volume use grew sevenfold. The Postgres view of
-the same hours (`warm = false` with `base_generation > 0`, hourly) read 78 to
-85%.
+Backtest, two-hour window evaluated hourly, hours named by their end,
+2026-10-17 to 10-22, at least 50 uses:
+
+- Linux never went below 95%.
+- macOS's normal minimum was 86.3% (10-21 20:00), with 86.9 to 88.3% at 22:00
+  and 23:00 on 10-20 and 19:00 on 10-21.
+- On 10-21 macOS read 90.0% at 09:00, 83.0% at 10:00, 73.4% at 11:00, 71.3% at
+  12:00, 71.1% at 13:00 and 82.1% at 14:00, so it fires from about 11:00 to
+  13:30. That morning managed caches had just moved onto custom volumes and
+  macOS volume use grew sevenfold. 85% would also catch 10:00 and 14:00, but
+  sits a point and a half under the normal minimum.
 
 ### Runner cache volume saves incomplete
 

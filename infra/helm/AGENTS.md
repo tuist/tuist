@@ -106,9 +106,11 @@ runs the mixed-version latency expression through promtool.
   Keep unavailable service separate from the 30-minute redundancy warning, and keep
   the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
 - `k8s-monitoring/runner-cache-volume-alert-rules.json` records the live
-  **Runner cache volumes** group (five Loki rules, five-minute evaluation),
-  provisioned separately from Helm; `alerts.md` holds the backtests. They read
-  host logs because `tuist_runner_cache_volume_operations_total` is aggregated
+  **Runner cache volumes** group (four Loki rules and one Postgres rule,
+  five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
+  the backtests. The warm-rate rule reads the production database as
+  `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
+  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` is aggregated
   to a plain sum by Adaptive Metrics and cannot be rated. Keep the macOS
   queries line-filtered and the windows short: that stream carries the runner
   logs and each evaluation scans the whole window.
