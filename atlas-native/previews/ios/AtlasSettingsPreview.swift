@@ -4,9 +4,12 @@ import SwiftUI
 @main
 struct AtlasSettingsPreview: App {
     @State private var openedURL: URL?
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var backgrounded = false
     @StateObject private var holidays = AtlasTimeOffPreviewData()
     @StateObject private var business = AtlasBusinessPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
+    @StateObject private var navigation = AtlasNavigation()
     @StateObject private var appearance = AtlasAppearance(request: { action in
         if action["operation"] as? String == "themes" {
             if ProcessInfo.processInfo.arguments.contains("--old-server") { throw CancellationError() }
@@ -49,7 +52,8 @@ struct AtlasSettingsPreview: App {
         WindowGroup {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("--workspace") {
-                    AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request, presence: presence.model) {
+                    AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request, presence: presence.model,
+                                       navigation: navigation) {
                         AtlasSettingsView(server: previewServer, accounts: accounts,
                                           signOut: {}, profileRequest: business.request)
                     }
@@ -66,6 +70,32 @@ struct AtlasSettingsPreview: App {
                     }
                 }
             }
+            .environment(\.atlasNavigation, navigation)
+            .environment(\.atlasServer, previewServer)
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { backgrounded = true }
+                if phase == .active, backgrounded {
+                    backgrounded = false
+                    let arguments = ProcessInfo.processInfo.arguments
+                    if let index = arguments.firstIndex(of: "--resume-destination"), arguments.indices.contains(index + 1),
+                       let url = URL(string: arguments[index + 1]) {
+                        navigation.receive(url, server: previewServer)
+                    }
+                }
+            }
+            .task {
+                let arguments = ProcessInfo.processInfo.arguments
+                if let index = arguments.firstIndex(of: "--destination"), arguments.indices.contains(index + 1),
+                   let url = URL(string: arguments[index + 1]) {
+                    navigation.receive(url, server: previewServer)
+                }
+            }
+            .alert("Atlas link", isPresented: Binding(
+                get: { navigation.message != nil && !navigation.hasVisibleProtectedWork },
+                set: { if !$0 { navigation.message = nil } }
+            )) {
+                Button("OK") { navigation.message = nil }
+            } message: { Text(navigation.message ?? "") }
             .environment(\.openURL, OpenURLAction { url in
                 openedURL = url
                 return .handled

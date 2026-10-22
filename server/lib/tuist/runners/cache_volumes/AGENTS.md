@@ -9,15 +9,14 @@ these schemas persist volume identities and per-job uses.
   from any node: hosts prefetch a macOS custom HEAD (`recent_macos_heads/3`,
   listed by `VolumePrefetch`) under the use that published it.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
-  (30 GB) and `tuist-module` (20 GB) custom volumes, which ignore requested
-  sizes and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
-  attach. Dispatch sends `automatic_caches: false` and
-  `managed_cache_volumes: true`, stamps the untrusted label so the host creates
-  no built-in image for the job, reserves no room for one and never promotes,
-  and omits its HEAD;
-  the cache signing grant still follows trust. The dashboard names the volumes
-  "Xcode cache" and "Module cache" and keeps listing built-in volumes from
-  earlier jobs.
+  (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
+  requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
+  attach. Dispatch still sends `automatic_caches: false` and
+  `managed_cache_volumes: true` for runner images that read them, and stamps
+  only the account label; the cache signing grant follows trust. The dashboard
+  names the volumes "Xcode cache" and "Module cache". There is no built-in
+  per-account cache volume: HEADs, orphans and `runner-volume-masters` objects
+  belong to custom volumes only.
 - `recent_job_volumes/3` predicts a queued job's custom volumes for dispatch
   affinity and for the macOS Pod placement preferences in the scaling signals:
   the volumes jobs of the same repository, workflow name and job name attached
@@ -30,7 +29,7 @@ these schemas persist volume identities and per-job uses.
   `allocated_reserved_bytes/2` is the same room for the volumes running jobs
   already allocated, which `VolumeAffinities` subtracts from a host's advertised
   capacity so affinity never prefers a host that cannot fit a job's volumes.
-- A report's `mounted_generation` records the older saved generation a macOS host
+- A report's `mounted_generation` records the older saved generation a host
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
   "Older copy" dashboard badge and the API status description.
@@ -72,13 +71,12 @@ these schemas persist volume identities and per-job uses.
 
 - Allocation picks each use's capacity (`runner_cache_volume_uses.volume_bytes`).
   The host sends `requested_volume_bytes` (whole GB, 1 to 100; anything else is no
-  request) and `max_volume_bytes` (absent: 32 GB). Managed keys keep their fixed
-  size and ignore requests; `tuist-gradle` is not managed. Requests above 20 GB
-  are capped to 20 GB unless `:runner_custom_volume_sizes` is on for the account.
+  request) and `max_volume_bytes` (absent: 32 GB). Each key has a default capacity
+  (`default_volume_bytes/1`): 30 GB for `tuist-xcode`, 20 GB for every other key.
   With a saved head the capacity is the larger of the lineage capacity (the head
   use's `volume_bytes`, else the key default) and the request; without one it is
-  the request or 20 GB. A capacity above the host maximum rolls back and answers
-  507 `capacity`. Uses that may publish record their request on the volume
+  the request or the key default. A capacity above the host maximum rolls back and
+  answers 507 `capacity`. Uses that may publish record their request on the volume
   (`requested_volume_bytes`); a smaller one is the pending size shown until the
   volume next starts empty. Allocations and prefetch listings send `volume_bytes`
   and the head use's measured `head_size_bytes`.
@@ -131,10 +129,10 @@ these schemas persist volume identities and per-job uses.
   A refreshed master keeps authorizing through the use that first installed
   it, so do not add use-age checks to `retain` or this `download`; a use pruned
   from history only costs that host one remote restore.
-- `linux-<scope>` and `macos-<scope>` names are valid for custom storage only.
-  Keep macOS dispatch validation restricted to built-in repository/account caches;
-  custom attachment uses the separate authenticated host agent. Export includes
-  image digests/generation fields.
+- `linux-<scope>` and `macos-<scope>` are the only valid storage names
+  (`VolumeHeads.valid_storage_volume_name?/1`); attachment and publication go
+  through the separately authenticated host agent. Export includes image
+  digests/generation fields.
 - `Schemas` owns the shared OpenAPI/MCP contracts inside the Tuist boundary.
   Keep `CacheVolumes`, `Query` and `Schemas` exported from `Tuist`; MCP must not
   depend on `TuistWeb`. Validate with the Boundary compiler, which dev skips.
@@ -146,20 +144,14 @@ these schemas persist volume identities and per-job uses.
 - macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
-- `Builtin` ingests automatic macOS Tuist/Xcode cache measurements through the
-  host-audience endpoint. Resolve job/account/repository from the executed session
-  on the authenticated node. `builtin_name` selects the existing storage identity;
-  never run the custom allocation, image, clear or seven-day expiry protocol on it.
-  Rows use the same inventory, job history and analytics without a UI type label.
-- Built-in measurements describe mounted images and the current canonical saved
-  image. `superseded_at` / measurement `retired` withdraw an older canonical
-  observation; they are not physical deletion acknowledgements. Keep them distinct
-  from `deleted_at` / `deleted`. Superseded telemetry expires after 90 days.
+- `runner_cache_volumes.builtin_name`, `runner_cache_volume_uses.superseded_at` and
+  `runner_cache_volume_measurements.retired` are legacy columns of the removed
+  built-in volume. No schema reads them; drop them in a follow-up migration.
 
 - Allocation resolves execution binding and platform in one session query. Apply
   the platform rollout flag to that same result, including pending (425) sessions.
 
-- The writer policy is the job's runner profile, resolved from `requested_dispatch_label` (`runs-on`, the Buildkite queue or the GitLab tag), for every provider. A missing profile or a legacy pool label applies a new `%Profile{}`'s policy. On a profile, `cache_writer_all_branches` (default true) lets every job with a writer branch save (plus legacy `writer_default_branch` uses). When false, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Buildkite writer branches are webhook/schedule builds without a tag whose pull request repository, if any, is the pipeline's (`Buildkite.same_repository?/2`), captured with the identity; GitLab writer branches are push/schedule/web branch pipelines of the project (`Identity.gitlab_writer_branch/1`), plus merge request pipelines (`refs/merge-requests/N/{head,merge,train}`, source `merge_request_event`) whose merge request, read with the connection's optional `api_token`, has the project as both target and source; they write under the source branch. Without a token or on a failed lookup they stay read-only. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to a new profile's policy) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Built-in policies are unchanged. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
+- The writer policy is the job's runner profile, resolved from `requested_dispatch_label` (`runs-on`, the Buildkite queue or the GitLab tag), for every provider. A missing profile or a legacy pool label applies a new `%Profile{}`'s policy. On a profile, `cache_writer_all_branches` (default true) lets every job with a writer branch save (plus legacy `writer_default_branch` uses). When false, `cache_writer_default_branch` (default true) lets `trusted` jobs save, and `cache_writer_branches` (NULL when empty, served as []) adds branches: same-repository push/schedule/dispatch runs and verified PR heads match exact names or `*` patterns (`Profile.cache_writer_branch?/2`); push/dispatch head_branch may be a tag. Buildkite writer branches are webhook/schedule builds without a tag whose pull request repository, if any, is the pipeline's (`Buildkite.same_repository?/2`), captured with the identity; GitLab writer branches are push/schedule/web branch pipelines of the project (`Identity.gitlab_writer_branch/1`), plus merge request pipelines (`refs/merge-requests/N/{head,merge,train}`, source `merge_request_event`) whose merge request, read with the connection's optional `api_token`, has the project as both target and source; they write under the source branch. Without a token or on a failed lookup they stay read-only. Forks and pull_request_target never qualify. Lock the profile FOR SHARE before the volume at allocation and record `writer_profile_id`, `writer_branch` and `writer_default_branch`. Profile updates and deletes re-evaluate pending grants against the new policy (deletion falls back to a new profile's policy) and revoke under the volume locks in the profile row's transaction. Commit false always disables publication. Volumes record GitHub's `default_branch`. `runner_cache_volumes.writer_branches` is no longer read.
 
 - There is no per-job save intent. Allocation ignores the `commit` field older agents still send; their explicit modes target the removed `authorize-commit` route and fail as unsupported before allocating. `runner_cache_volume_uses.commit_mode` is no longer read.
 

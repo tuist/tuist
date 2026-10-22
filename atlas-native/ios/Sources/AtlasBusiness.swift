@@ -131,6 +131,7 @@ final class AtlasBusiness: ObservableObject {
     @Published private(set) var records: [String: AtlasBusinessRecord] = [:]
     @Published private(set) var busy = false
     @Published private(set) var loading = false
+    @Published private(set) var mutating = false
     @Published private(set) var nextPageFailed = false
     @Published private(set) var filters: [String: String] = [:]
     @Published private(set) var options = AtlasBusinessOptions()
@@ -199,15 +200,41 @@ final class AtlasBusiness: ObservableObject {
         }
     }
 
+    func record(id: String) async throws -> AtlasBusinessRecord {
+        do {
+            let response: AtlasBusinessMutation = try await call(["action": "show", "id": id])
+            try Task.checkCancellation()
+            guard response.item.id == id else {
+                throw AtlasAuthenticationError(kind: "invalid_response", message: "Atlas returned an invalid response. Try again.")
+            }
+            records[id] = response.item
+            forbidden = false
+            return response.item
+        } catch {
+            try Task.checkCancellation()
+            if (error as? AtlasAuthenticationError)?.kind == "forbidden" {
+                generation += 1
+                busy = mutating
+                loading = false
+                report(error)
+            }
+            throw error
+        }
+    }
+
     func show(_ item: AtlasBusinessRecord) async {
         guard !busy else { return }
         records[item.id] = records[item.id] ?? item
+        let identity = generation
         busy = true
-        defer { busy = false }
+        defer { if identity == generation { busy = false } }
         do {
             let response: AtlasBusinessMutation = try await call(["action": "show", "id": item.id])
+            guard identity == generation, !Task.isCancelled else { return }
             records[item.id] = response.item
-        } catch is CancellationError {} catch { report(error) }
+        } catch is CancellationError {} catch {
+            if identity == generation, !Task.isCancelled { report(error) }
+        }
     }
 
     func save(fields: [String: String], editing: AtlasBusinessRecord?) async -> Bool {
@@ -227,8 +254,9 @@ final class AtlasBusiness: ObservableObject {
     private func mutate(_ action: [String: Any]) async -> Bool {
         guard !busy else { return false }
         busy = true
+        mutating = true
         errorMessage = nil
-        defer { busy = false }
+        defer { busy = false; mutating = false }
         do {
             if action["action"] as? String == "delete" {
                 var input = action

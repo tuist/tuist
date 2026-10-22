@@ -3,6 +3,7 @@ import Testing
 
 @MainActor
 struct AtlasBusinessTests {
+    private let recordID = "123e4567-e89b-12d3-a456-426614174000"
     private let item = """
     {"id":"example","fields":{"title":"Follow up","status":"open","assignee_name":"Taylor"},
     "can_edit":true,"can_delete":true}
@@ -189,6 +190,89 @@ struct AtlasBusinessTests {
         summary = "Updated summary"
         await model.show(record)
         #expect(model.records[record.id]?.details?.fields["overview_summary"] == "Updated summary")
+    }
+
+}
+
+extension AtlasBusinessTests {
+    @Test func forbiddenRecordLookupRevokesCachedDataAndCanRecover() async throws {
+        var denied = false
+        let item = """
+        {"id":"\(recordID)","fields":{"title":"Cached task"},"can_edit":true,"can_delete":true}
+        """
+        let model = AtlasBusiness(resource: .tasks) { action in
+            if action["action"] as? String == "show" {
+                if denied { throw AtlasAuthenticationError(kind: "forbidden", message: "Access revoked") }
+                return Data("{\"item\":\(item)}".utf8)
+            }
+            return Data("""
+            {"items":[\(item)],"page":1,"total_pages":1,"total_count":1,"can_write":true,"summary":[],
+            "options":{"users":[{"id":"user","name":"Taylor"}],"accounts":[],"segments":[],"statuses":[],"deal_stages":[]}}
+            """.utf8)
+        }
+        await model.load()
+        #expect(model.page != nil && !model.records.isEmpty && !model.options.users.isEmpty)
+        denied = true
+        do { _ = try await model.record(id: recordID); Issue.record("Forbidden lookup succeeded") } catch {
+            #expect((error as? AtlasAuthenticationError)?.kind == "forbidden")
+        }
+        #expect(model.forbidden && model.page == nil && model.records.isEmpty)
+        #expect(model.options.users.isEmpty)
+        denied = false
+        _ = try await model.record(id: recordID)
+        #expect(!model.forbidden && model.records[recordID] != nil)
+    }
+
+    @Test(arguments: ["list", "show"])
+    func forbiddenRecordLookupInvalidatesOlderReads(action pendingAction: String) async throws {
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Never>?
+        var holdRead = false
+        let page = try response(ids: [recordID], page: 1)
+        let model = AtlasBusiness(resource: .tasks) { action in
+            if action["id"] as? String == "denied" {
+                throw AtlasAuthenticationError(kind: "forbidden", message: "Access revoked")
+            }
+            if holdRead, action["action"] as? String == pendingAction {
+                return await withCheckedContinuation { finish = $0; started.continuation.yield(()) }
+            }
+            return page
+        }
+        await model.load()
+        let cached = try #require(model.page?.items.first)
+        holdRead = true
+        let older = Task {
+            if pendingAction == "list" { await model.load() } else { await model.show(cached) }
+        }
+        for await _ in started.stream { break }
+        do { _ = try await model.record(id: "denied"); Issue.record("Forbidden lookup succeeded") } catch {
+            #expect((error as? AtlasAuthenticationError)?.kind == "forbidden")
+        }
+        #expect(model.forbidden && !model.busy && !model.loading)
+        let detail = Data("""
+        {"item":{"id":"\(recordID)","fields":{},"can_edit":true,"can_delete":true}}
+        """.utf8)
+        finish?.resume(returning: pendingAction == "list" ? page : detail)
+        await older.value
+        #expect(model.forbidden && model.page == nil && model.records.isEmpty)
+    }
+
+    @Test func cancelledRecordFailureCannotRevokeNewerListResults() async throws {
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Error>?
+        let model = AtlasBusiness(resource: .tasks) { action in
+            if action["action"] as? String == "show" {
+                return try await withCheckedThrowingContinuation { finish = $0; started.continuation.yield(()) }
+            }
+            return try response(ids: [recordID], page: 1)
+        }
+        let lookup = Task { try await model.record(id: recordID) }
+        for await _ in started.stream { break }
+        lookup.cancel()
+        await model.load()
+        finish?.resume(throwing: AtlasAuthenticationError(kind: "forbidden", message: "Old error"))
+        do { _ = try await lookup.value; Issue.record("Cancelled lookup succeeded") } catch is CancellationError {}
+        #expect(!model.forbidden && model.page != nil && model.records[recordID] != nil)
     }
 
     private func response(ids: [String], page: Int) throws -> Data {

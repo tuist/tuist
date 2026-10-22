@@ -36,6 +36,8 @@ defmodule Tuist.RunnersTest do
 
   setup :verify_on_exit!
 
+  @volume "macos-" <> String.duplicate("a", 64)
+
   # The SA name and the Pod name are the same by construction (the
   # runners-controller's podtemplate stamps both with the same name),
   # so the test fixture just uses one string everywhere.
@@ -311,19 +313,6 @@ defmodule Tuist.RunnersTest do
       }
     end
 
-    # A macOS host whose tart-kubelet advertises, or does not advertise, that it
-    # reads the Pod's cache volume label.
-    defp stub_mac_node(node_name, repository_volumes: repository_volumes) do
-      labels =
-        if repository_volumes,
-          do: %{"tuist.dev/cache-volumes-per-repository" => "true"},
-          else: %{"tuist.dev/runtime" => "tart"}
-
-      stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
-      stub(K8sClient, :get_node, fn ^node_name -> {:ok, %{"metadata" => %{"labels" => labels}}} end)
-    end
-
     # Stub every collaborator `dispatch_for_sa/2` touches except the
     # JIT mint, whose `labels` the caller asserts on. The PG-backed
     # `RunnerSessions.open/1` and `Accounts.get_account_by_id/1` run
@@ -532,9 +521,8 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
-    test "a macOS job keeps its grant but never touches the built-in volume" do
+    test "stamps the account and untrusted labels on a macOS Pod once the dispatch commits" do
       account = account_fixture()
-      assert {:ok, 1} = VolumeHeads.bump_head(account.id, "node-1", String.duplicate("a", 40), 0, "tuist-cache")
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid)
@@ -546,11 +534,12 @@ defmodule Tuist.RunnersTest do
         {:ok, %{}}
       end)
 
+      account_label = Integer.to_string(account.id)
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == "signed-grant-token"
-      assert result.volume_head == nil
-      # The host neither materializes nor promotes the built-in volume for it.
-      assert_receive {:patched, %{"tuist.dev/runner-cache-untrusted" => "true"}}
+      refute Map.has_key?(result, :volume_head)
+      assert_receive {:patched, %{"tuist.dev/runner-account" => ^account_label} = labels}
+      assert labels == %{"tuist.dev/runner-account" => account_label, "tuist.dev/runner-cache-untrusted" => "true"}
     end
 
     test "includes the minted cache signing grant in the dispatch result" do
@@ -563,85 +552,13 @@ defmodule Tuist.RunnersTest do
         "signed-grant-token"
       end)
 
-      assert {:ok, %{cache_signing_grant: "signed-grant-token"}} =
+      assert {:ok, %{cache_signing_grant: "signed-grant-token"} = result} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      refute Map.has_key?(result, :volume_head)
     end
 
-    test "stamps the job's repository volume in the same patch as the account label" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default", repository: "Acme/CLI")
-      test_pid = self()
-      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
-      stub_mac_node("mac-07", repository_volumes: true)
-      stub(CacheGrant, :mint, fn _account_id -> nil end)
-
-      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
-        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
-        {:ok, %{}}
-      end)
-
-      account_label = Integer.to_string(account.id)
-      assert {:ok, _result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-
-      assert_receive {:patched,
-                      %{
-                        "tuist.dev/runner-account" => ^account_label,
-                        "tuist.dev/runner-cache-volume" => "repo-eae044a4c27633ea"
-                      }}
-    end
-
-    test "stamps the account volume for a job with no repository" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default", repository: "")
-      test_pid = self()
-      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
-      stub_mac_node("mac-07", repository_volumes: true)
-
-      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
-        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
-        {:ok, %{}}
-      end)
-
-      assert {:ok, _result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-volume" => "tuist-cache"}}
-    end
-
-    test "keeps every job on the account volume until repository volumes are enabled" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default", repository: "acme/cli")
-      test_pid = self()
-      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
-      stub_mac_node("mac-07", repository_volumes: true)
-      stub(FeatureFlags, :runner_cache_volumes_per_repository_enabled?, fn -> false end)
-      stub(CacheGrant, :mint, fn _account_id -> nil end)
-
-      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
-        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
-        {:ok, %{}}
-      end)
-
-      assert {:ok, _result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-volume" => "tuist-cache"}}
-    end
-
-    test "keeps a job on the account volume when its host does not read volume labels" do
-      account = account_fixture()
-      candidate = candidate_with_label(account, "tuist-default", repository: "acme/cli")
-      test_pid = self()
-      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
-      stub_mac_node("mac-07", repository_volumes: false)
-      stub(CacheGrant, :mint, fn _account_id -> nil end)
-
-      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
-        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
-        {:ok, %{}}
-      end)
-
-      assert {:ok, _result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
-      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-volume" => "tuist-cache"}}
-    end
-
-    test "excludes an untrusted fork job from the cache (no grant, no HEAD, untrusted label)" do
+    test "withholds the cache signing grant from an untrusted fork job" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
@@ -657,13 +574,12 @@ defmodule Tuist.RunnersTest do
         {:ok, %{}}
       end)
 
-      # An untrusted job must never get a grant nor a volume HEAD.
       reject(&CacheGrant.mint/1)
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
-      assert result.volume_head == nil
-      assert_receive {:patched, %{"tuist.dev/runner-cache-untrusted" => "true"}}
+      refute Map.has_key?(result, :volume_head)
+      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-untrusted" => "true"}}
     end
 
     test "treats a job as untrusted (cold) when the workflow-run lookup fails, fail-closed" do
@@ -676,7 +592,7 @@ defmodule Tuist.RunnersTest do
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
-      assert result.volume_head == nil
+      refute Map.has_key?(result, :volume_head)
     end
 
     test "threads the polling node's identity into the residency lookup" do
@@ -711,9 +627,9 @@ defmodule Tuist.RunnersTest do
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
       stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
 
-      # A macOS host with cache volumes off (or a kubelet that does not
-      # advertise yet) publishes no cache-master labels. The platform gate alone
-      # cannot tell that apart from a host full of masters, so residency has to:
+      # A macOS host with cache volumes off publishes no cache volume labels.
+      # The platform gate alone cannot tell that apart from a host full of
+      # masters, so residency has to:
       # nothing is resident, nothing is reordered, the head goes out.
       stub(K8sClient, :get_node, fn "mac-07" ->
         {:ok, %{"metadata" => %{"labels" => %{"tuist.dev/runtime" => "tart"}}}}
@@ -768,7 +684,7 @@ defmodule Tuist.RunnersTest do
       refute_receive {:affinity, _, _}, 50
     end
 
-    test "reports an untrusted job's placement as untrusted, not as a warm one" do
+    test "reports an untrusted job's placement by its residency" do
       handler_id = make_ref()
       on_exit(fn -> :telemetry.detach(handler_id) end)
       test_pid = self()
@@ -786,10 +702,6 @@ defmodule Tuist.RunnersTest do
       stub_dispatch_path(account, candidate, self(), node_name: "mac-07")
 
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      # The account's master is resident here, so scoring prefers it — but the
-      # host skips materialize for a fork, so the job runs cold regardless.
-      # Counting it as `resident` would overstate warm placements against the
-      # host's warm/cold counter.
       stub(VolumeAffinities, :select_candidate, fn [c], _node, _opts -> {c, :resident} end)
 
       stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repo} ->
@@ -798,7 +710,7 @@ defmodule Tuist.RunnersTest do
 
       assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
 
-      assert_receive {:affinity, %{outcome: "untrusted"}}, 500
+      assert_receive {:affinity, %{outcome: "resident"}}, 500
     end
 
     test "emits no affinity outcome for a volumeless fleet" do
@@ -1202,50 +1114,13 @@ defmodule Tuist.RunnersTest do
     end
   end
 
-  describe "volume_owner_for_sa/2" do
-    defp pod_with_labels(labels) do
-      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, %{"metadata" => %{"labels" => labels}}} end)
-    end
-
-    test "resolves the account and the cache volume from a trusted pod's labels" do
-      pod_with_labels(%{"tuist.dev/runner-account" => "42", "tuist.dev/runner-cache-volume" => "repo-eae044a4c27633ea"})
-
-      assert {:ok, %{account_id: 42, volume_name: "repo-eae044a4c27633ea"}} =
-               Runners.volume_owner_for_sa("tuist-runners", "pod-1")
-    end
-
-    test "resolves the account volume for a pod stamped without a volume" do
-      pod_with_labels(%{"tuist.dev/runner-account" => "42"})
-
-      assert {:ok, %{account_id: 42, volume_name: "tuist-cache"}} = Runners.volume_owner_for_sa("tuist-runners", "pod-1")
-    end
-
-    test "rejects a volume label that is not a volume name" do
-      pod_with_labels(%{"tuist.dev/runner-account" => "42", "tuist.dev/runner-cache-volume" => "repo-../../x"})
-
-      assert {:error, :account_unresolved} = Runners.volume_owner_for_sa("tuist-runners", "pod-1")
-    end
-
-    test "rejects an untrusted (fork) pod so it cannot advance a shared HEAD" do
-      pod_with_labels(%{"tuist.dev/runner-account" => "42", "tuist.dev/runner-cache-untrusted" => "true"})
-
-      assert {:error, :cache_untrusted} = Runners.volume_owner_for_sa("tuist-runners", "pod-1")
-    end
-
-    test "returns :account_unresolved when the account label is absent" do
-      pod_with_labels(%{})
-
-      assert {:error, :account_unresolved} = Runners.volume_owner_for_sa("tuist-runners", "pod-1")
-    end
-  end
-
-  describe "report_volume_head/7" do
+  describe "report_volume_head/6" do
     test "fast-forwards the HEAD for a valid hex digest built on the current base" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
 
-      assert {:ok, 1} = Runners.report_volume_head(account.id, "tuist-cache", "node-1", digest, 0)
-      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", digest, 0)
+      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id, @volume)
     end
 
     test "stores the reported content digest on the HEAD and clears it when the next promote reports none" do
@@ -1253,15 +1128,15 @@ defmodule Tuist.RunnersTest do
       digest = String.duplicate("a", 40)
       content_digest = String.duplicate("d", 64)
 
-      assert {:ok, 1} = Runners.report_volume_head(account.id, "tuist-cache", "node-1", digest, 0, nil, content_digest)
-      assert %{generation: 1, content_digest: ^content_digest} = VolumeHeads.get_head(account.id)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", digest, 0, content_digest)
+      assert %{generation: 1, content_digest: ^content_digest} = VolumeHeads.get_head(account.id, @volume)
 
       # A promote from a runner image that predates the content hash publishes a
       # NEW object with no digest: the previous digest describes the old object
       # and must not survive onto the new HEAD, where hosts would verify the new
       # download against it and decline every convergence.
-      assert {:ok, 2} = Runners.report_volume_head(account.id, "tuist-cache", "node-2", String.duplicate("b", 40), 1)
-      assert %{generation: 2, content_digest: nil} = VolumeHeads.get_head(account.id)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, @volume, "node-2", String.duplicate("b", 40), 1)
+      assert %{generation: 2, content_digest: nil} = VolumeHeads.get_head(account.id, @volume)
     end
 
     test "reads a malformed content digest as unreported rather than rejecting the promote" do
@@ -1272,34 +1147,34 @@ defmodule Tuist.RunnersTest do
 
       for {bad, base_generation} <- Enum.with_index(bad_digests) do
         assert {:ok, _generation} =
-                 Runners.report_volume_head(account.id, "tuist-cache", "node-1", digest, base_generation, nil, bad)
+                 Runners.report_volume_head(account.id, @volume, "node-1", digest, base_generation, bad)
 
-        assert %{content_digest: nil} = VolumeHeads.get_head(account.id)
+        assert %{content_digest: nil} = VolumeHeads.get_head(account.id, @volume)
       end
     end
 
     test "rejects a digest with path characters (or non-hex) without bumping the HEAD" do
       account = account_fixture()
 
-      for bad <- ["../../etc/passwd", "tuist-cache/../x", "a/b", "", nil, String.duplicate("A", 40)] do
-        assert :error = Runners.report_volume_head(account.id, "tuist-cache", "node-1", bad, 0)
+      for bad <- ["../../etc/passwd", "x/../y", "a/b", "", nil, String.duplicate("A", 40)] do
+        assert :error = Runners.report_volume_head(account.id, @volume, "node-1", bad, 0)
       end
 
-      assert VolumeHeads.get_head(account.id) == nil
+      assert VolumeHeads.get_head(account.id, @volume) == nil
     end
 
     test "rejects a promote built on a stale base and leaves the HEAD untouched" do
       account = account_fixture()
       first = String.duplicate("a", 40)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", first, 0)
+      Runners.report_volume_head(account.id, @volume, "node-1", first, 0)
 
       # A job that built on generation 1 promotes after the HEAD already moved to 2.
       second = String.duplicate("b", 40)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-2", second, 1)
+      Runners.report_volume_head(account.id, @volume, "node-2", second, 1)
       stale = String.duplicate("c", 40)
 
-      assert :conflict = Runners.report_volume_head(account.id, "tuist-cache", "node-3", stale, 1)
-      assert %{generation: 2, tree_digest: ^second} = VolumeHeads.get_head(account.id)
+      assert :conflict = Runners.report_volume_head(account.id, @volume, "node-3", stale, 1)
+      assert %{generation: 2, tree_digest: ^second} = VolumeHeads.get_head(account.id, @volume)
     end
 
     test "schedules a delayed prune of the superseded master only once a digest changes" do
@@ -1308,11 +1183,11 @@ defmodule Tuist.RunnersTest do
       new = String.duplicate("b", 40)
 
       # First promote: nothing is superseded, so nothing to prune.
-      assert {:ok, 1} = Runners.report_volume_head(account.id, "tuist-cache", "node-1", old, 0)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", old, 0)
       refute_enqueued(worker: PruneVolumeMasterWorker)
 
       # A new digest supersedes the old object → schedule its delayed deletion.
-      assert {:ok, 2} = Runners.report_volume_head(account.id, "tuist-cache", "node-1", new, 1)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, @volume, "node-1", new, 1)
 
       assert_enqueued(
         worker: PruneVolumeMasterWorker,
@@ -1322,16 +1197,16 @@ defmodule Tuist.RunnersTest do
 
     test "records a rejected promote's upload as an orphan and schedules its reclaim" do
       account = account_fixture()
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", String.duplicate("a", 40), 0)
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
 
       # The guest uploaded its object before the compare-and-swap, so a rejected
       # promote leaves an orphan with no HEAD pointing at it. Record it and
       # schedule a delayed reclaim so it does not accumulate indefinitely — but do
       # NOT touch the superseded-master worker (this digest never superseded one).
       rejected = String.duplicate("c", 40)
-      assert :conflict = Runners.report_volume_head(account.id, "tuist-cache", "node-2", rejected, 0)
+      assert :conflict = Runners.report_volume_head(account.id, @volume, "node-2", rejected, 0)
 
-      assert VolumeMasterOrphans.exists?(account.id, rejected)
+      assert VolumeMasterOrphans.exists?(account.id, rejected, @volume)
 
       assert_enqueued(
         worker: PruneVolumeMasterOrphanWorker,
@@ -1343,18 +1218,18 @@ defmodule Tuist.RunnersTest do
 
     test "forgets an orphan once the same digest is later accepted as HEAD" do
       account = account_fixture()
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", String.duplicate("a", 40), 0)
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
 
       # A digest is rejected (recorded as orphan)…
       digest = String.duplicate("c", 40)
-      assert :conflict = Runners.report_volume_head(account.id, "tuist-cache", "node-2", digest, 0)
-      assert VolumeMasterOrphans.exists?(account.id, digest)
+      assert :conflict = Runners.report_volume_head(account.id, @volume, "node-2", digest, 0)
+      assert VolumeMasterOrphans.exists?(account.id, digest, @volume)
 
       # …then a later job builds on the current base and commits that same
       # inventory. It is now the live HEAD, so it is no longer an orphan and the
       # scheduled reclaim must skip it.
-      assert {:ok, 2} = Runners.report_volume_head(account.id, "tuist-cache", "node-3", digest, 1)
-      refute VolumeMasterOrphans.exists?(account.id, digest)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, @volume, "node-3", digest, 1)
+      refute VolumeMasterOrphans.exists?(account.id, digest, @volume)
     end
 
     # Two jobs can end with the same entry names and sizes in images whose bytes
@@ -1369,17 +1244,17 @@ defmodule Tuist.RunnersTest do
       rejected_content = String.duplicate("2", 64)
       rejected = "#{tree}-#{rejected_content}"
 
-      assert {:ok, 1} = Runners.report_volume_head(account.id, "tuist-cache", "node-1", tree, 0, nil, live_content)
-      assert :conflict = Runners.report_volume_head(account.id, "tuist-cache", "node-2", tree, 0, nil, rejected_content)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", tree, 0, live_content)
+      assert :conflict = Runners.report_volume_head(account.id, @volume, "node-2", tree, 0, rejected_content)
 
-      assert VolumeMasterOrphans.exists?(account.id, rejected)
-      refute VolumeMasterOrphans.exists?(account.id, "#{tree}-#{live_content}")
+      assert VolumeMasterOrphans.exists?(account.id, rejected, @volume)
+      refute VolumeMasterOrphans.exists?(account.id, "#{tree}-#{live_content}", @volume)
       assert_enqueued(worker: PruneVolumeMasterOrphanWorker, args: %{account_id: account.id, master_id: rejected})
 
-      rejected_key = "runner-volume-masters/#{account.id}/tuist-cache/#{rejected}.image"
+      rejected_key = "runner-volume-masters/#{account.id}/#{@volume}/#{rejected}.image"
       expect(Tuist.Storage, :delete_object, fn ^rejected_key, _actor -> :ok end)
 
-      assert :ok = Runners.prune_orphan_volume_master(account.id, "tuist-cache", rejected)
+      assert :ok = Runners.prune_orphan_volume_master(account.id, @volume, rejected)
     end
 
     test "prunes the previous image when a same-inventory image with different bytes supersedes it" do
@@ -1387,68 +1262,33 @@ defmodule Tuist.RunnersTest do
       tree = String.duplicate("a", 40)
       old_content = String.duplicate("1", 64)
 
-      assert {:ok, 1} = Runners.report_volume_head(account.id, "tuist-cache", "node-1", tree, 0, nil, old_content)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", tree, 0, old_content)
       refute_enqueued(worker: PruneVolumeMasterWorker)
 
       assert {:ok, 2} =
-               Runners.report_volume_head(account.id, "tuist-cache", "node-2", tree, 1, nil, String.duplicate("2", 64))
+               Runners.report_volume_head(account.id, @volume, "node-2", tree, 1, String.duplicate("2", 64))
 
       assert_enqueued(
         worker: PruneVolumeMasterWorker,
         args: %{account_id: account.id, master_id: "#{tree}-#{old_content}"}
       )
     end
-
-    test "lets a cold promote retire a HEAD a host reported unverifiable, and reclaims its object" do
-      account = account_fixture()
-      poisoned = String.duplicate("a", 40)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", poisoned, 0)
-
-      # A host downloaded the HEAD's object and proved its inventory is not the
-      # digest the HEAD advertises. Nothing in the fleet can adopt that generation,
-      # so this cold promote takes the lineage over instead of being rejected.
-      cold = String.duplicate("d", 40)
-      assert {:ok, 2} = Runners.report_volume_head(account.id, "tuist-cache", "node-2", cold, 0, poisoned)
-
-      # And the object nothing can use is now superseded, so it is reclaimed on the
-      # ordinary supersession path rather than lingering forever.
-      assert_enqueued(
-        worker: PruneVolumeMasterWorker,
-        args: %{account_id: account.id, master_id: poisoned}
-      )
-    end
-
-    test "ignores a malformed unverifiable digest rather than retiring on it" do
-      account = account_fixture()
-      digest = String.duplicate("a", 40)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", digest, 0)
-
-      # The value reaches a query, so it is validated like tree_digest. Anything
-      # that is not a runner inventory digest reads as no report at all, which
-      # leaves the HEAD standing — the conservative direction.
-      for bad <- ["", "not-a-digest", String.duplicate("a", 39), String.upcase(digest), nil, 42] do
-        assert :conflict =
-                 Runners.report_volume_head(account.id, "tuist-cache", "node-2", String.duplicate("e", 40), 0, bad)
-      end
-
-      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id)
-    end
   end
 
-  describe "cache volumes per repository" do
-    @volume_a "repo-eae044a4c27633ea"
-    @volume_b "repo-5f89da0438fa1b17"
+  describe "per-volume HEADs" do
+    @volume_a "macos-" <> String.duplicate("b", 64)
+    @volume_b "linux-" <> String.duplicate("c", 64)
 
     test "keeps an independent HEAD lineage per volume" do
       account = account_fixture()
-      assert {:ok, 1} = Runners.report_volume_head(account.id, "tuist-cache", "node-1", String.duplicate("a", 40), 0)
-      assert {:ok, 2} = Runners.report_volume_head(account.id, "tuist-cache", "node-1", String.duplicate("b", 40), 1)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("b", 40), 1)
 
       assert Runners.fast_forward_viable?(account.id, @volume_a, 0)
       assert {:ok, 1} = Runners.report_volume_head(account.id, @volume_a, "node-2", String.duplicate("c", 40), 0)
       refute Runners.fast_forward_viable?(account.id, @volume_a, 0)
 
-      assert %{generation: 2} = VolumeHeads.get_head(account.id, "tuist-cache")
+      assert %{generation: 2} = VolumeHeads.get_head(account.id, @volume)
       assert %{generation: 1} = VolumeHeads.get_head(account.id, @volume_a)
     end
 
@@ -1466,7 +1306,7 @@ defmodule Tuist.RunnersTest do
       rejected = String.duplicate("c", 40)
       assert :conflict = Runners.report_volume_head(account.id, @volume_a, "node-2", rejected, 0)
       assert VolumeMasterOrphans.exists?(account.id, rejected, @volume_a)
-      refute VolumeMasterOrphans.exists?(account.id, rejected, "tuist-cache")
+      refute VolumeMasterOrphans.exists?(account.id, rejected, @volume)
 
       assert_enqueued(
         worker: PruneVolumeMasterOrphanWorker,
@@ -1489,7 +1329,15 @@ defmodule Tuist.RunnersTest do
     test "rejects a volume that is not a volume name before any storage call" do
       reject(&Tuist.Storage.generate_upload_url/3)
 
-      for bad <- ["../x", "repo-", "repo-EAE044A4C27633EA", "", nil] do
+      for bad <- [
+            "../x",
+            "tuist-cache",
+            "repo-eae044a4c27633ea",
+            "macos-",
+            "macos-" <> String.duplicate("A", 64),
+            "",
+            nil
+          ] do
         assert :error = Runners.volume_master_upload_url(1, bad, String.duplicate("a", 40))
       end
     end
@@ -1526,42 +1374,42 @@ defmodule Tuist.RunnersTest do
     test "deletes the orphaned object and forgets the row" do
       account = account_fixture()
       # HEAD sits elsewhere; `digest` was rejected and recorded as an orphan.
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", String.duplicate("a", 40), 0)
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
       digest = String.duplicate("c", 40)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-2", digest, 0)
-      key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+      Runners.report_volume_head(account.id, @volume, "node-2", digest, 0)
+      key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}.image"
 
       expect(Tuist.Storage, :delete_object, fn ^key, actor ->
         assert actor.id == account.id
         :ok
       end)
 
-      assert :ok = Runners.prune_orphan_volume_master(account.id, "tuist-cache", digest)
-      refute VolumeMasterOrphans.exists?(account.id, digest)
+      assert :ok = Runners.prune_orphan_volume_master(account.id, @volume, digest)
+      refute VolumeMasterOrphans.exists?(account.id, digest, @volume)
     end
 
     test "skips deletion when the digest was accepted as HEAD (no longer an orphan)" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", digest, 0)
+      Runners.report_volume_head(account.id, @volume, "node-1", digest, 0)
 
       # It is the live HEAD and was never recorded as an orphan, so the reclaim is
       # a no-op that must never delete the object.
       reject(&Tuist.Storage.delete_object/2)
 
-      assert :ok = Runners.prune_orphan_volume_master(account.id, "tuist-cache", digest)
+      assert :ok = Runners.prune_orphan_volume_master(account.id, @volume, digest)
     end
 
     test "keeps the orphan row when the storage delete fails so a retry can reclaim it" do
       account = account_fixture()
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", String.duplicate("a", 40), 0)
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("a", 40), 0)
       digest = String.duplicate("c", 40)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-2", digest, 0)
+      Runners.report_volume_head(account.id, @volume, "node-2", digest, 0)
 
       expect(Tuist.Storage, :delete_object, fn _key, _actor -> {:error, :timeout} end)
 
-      assert {:error, :timeout} = Runners.prune_orphan_volume_master(account.id, "tuist-cache", digest)
-      assert VolumeMasterOrphans.exists?(account.id, digest)
+      assert {:error, :timeout} = Runners.prune_orphan_volume_master(account.id, @volume, digest)
+      assert VolumeMasterOrphans.exists?(account.id, digest, @volume)
     end
   end
 
@@ -1570,36 +1418,36 @@ defmodule Tuist.RunnersTest do
       account = account_fixture()
       digest = String.duplicate("a", 40)
       # HEAD sits at a different digest, so `digest` is genuinely superseded.
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", String.duplicate("b", 40), 0)
-      key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+      Runners.report_volume_head(account.id, @volume, "node-1", String.duplicate("b", 40), 0)
+      key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}.image"
 
       expect(Tuist.Storage, :delete_object, fn ^key, actor ->
         assert actor.id == account.id
         :ok
       end)
 
-      assert :ok = Runners.prune_superseded_volume_master(account.id, "tuist-cache", digest)
+      assert :ok = Runners.prune_superseded_volume_master(account.id, @volume, digest)
     end
 
     test "skips deletion when the digest is (again) the current HEAD (re-promoted)" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", digest, 0)
+      Runners.report_volume_head(account.id, @volume, "node-1", digest, 0)
 
       reject(&Tuist.Storage.delete_object/2)
 
-      assert :ok = Runners.prune_superseded_volume_master(account.id, "tuist-cache", digest)
+      assert :ok = Runners.prune_superseded_volume_master(account.id, @volume, digest)
     end
 
     test "skips deletion of the live master when it is keyed by its content digest" do
       account = account_fixture()
       tree = String.duplicate("a", 40)
       content = String.duplicate("1", 64)
-      Runners.report_volume_head(account.id, "tuist-cache", "node-1", tree, 0, nil, content)
+      Runners.report_volume_head(account.id, @volume, "node-1", tree, 0, content)
 
       reject(&Tuist.Storage.delete_object/2)
 
-      assert :ok = Runners.prune_superseded_volume_master(account.id, "tuist-cache", "#{tree}-#{content}")
+      assert :ok = Runners.prune_superseded_volume_master(account.id, @volume, "#{tree}-#{content}")
     end
   end
 
@@ -1607,7 +1455,7 @@ defmodule Tuist.RunnersTest do
     test "mints a content-addressed presigned PUT URL keyed by the inventory digest" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
-      expected_key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+      expected_key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}.image"
 
       expect(Tuist.Storage, :generate_upload_url, fn ^expected_key, actor, opts ->
         assert actor.id == account.id
@@ -1617,7 +1465,7 @@ defmodule Tuist.RunnersTest do
         "https://bucket.fly.storage.tigris.dev/#{expected_key}?X-Amz-Signature=abc"
       end)
 
-      assert {:ok, url, nil} = Runners.volume_master_upload_url(account.id, "tuist-cache", digest)
+      assert {:ok, url, nil} = Runners.volume_master_upload_url(account.id, @volume, digest)
       assert url =~ expected_key
     end
 
@@ -1638,27 +1486,27 @@ defmodule Tuist.RunnersTest do
       end)
 
       assert {:ok, _url, ^expected_checksum} =
-               Runners.volume_master_upload_url(account.id, "tuist-cache", digest, content_digest)
+               Runners.volume_master_upload_url(account.id, @volume, digest, content_digest)
     end
 
     test "keys the object by the content digest as well when one is reported" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
       content_digest = String.duplicate("ab", 32)
-      content_key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}-#{content_digest}.image"
-      inventory_key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+      content_key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}-#{content_digest}.image"
+      inventory_key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}.image"
 
       stub(Tuist.Storage, :generate_upload_url, fn key, _actor, _opts ->
         send(self(), {:upload_key, key})
         "https://bucket.fly.storage.tigris.dev/put?X-Amz-Signature=abc"
       end)
 
-      assert {:ok, _url, _checksum} = Runners.volume_master_upload_url(account.id, "tuist-cache", digest, content_digest)
+      assert {:ok, _url, _checksum} = Runners.volume_master_upload_url(account.id, @volume, digest, content_digest)
       assert_received {:upload_key, ^content_key}
 
       # A malformed digest reads as unreported, so the object keeps the
       # inventory-only key its HEAD row, carrying no content digest, points at.
-      assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, "tuist-cache", digest, "not-hex")
+      assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, @volume, digest, "not-hex")
       assert_received {:upload_key, ^inventory_key}
     end
 
@@ -1674,7 +1522,7 @@ defmodule Tuist.RunnersTest do
       # Malformed digests read as unreported — the PUT goes out bare, the
       # status quo — rather than failing the mint or signing garbage.
       for bad <- ["", "not-hex", String.duplicate("a", 63), String.upcase(String.duplicate("a", 64))] do
-        assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, "tuist-cache", digest, bad)
+        assert {:ok, _url, nil} = Runners.volume_master_upload_url(account.id, @volume, digest, bad)
       end
 
       # A well-formed digest against a provider whose presigned URLs cannot
@@ -1682,16 +1530,16 @@ defmodule Tuist.RunnersTest do
       stub(Tuist.Storage, :supports_signed_upload_headers?, fn _actor -> false end)
 
       assert {:ok, _url, nil} =
-               Runners.volume_master_upload_url(account.id, "tuist-cache", digest, String.duplicate("c", 64))
+               Runners.volume_master_upload_url(account.id, @volume, digest, String.duplicate("c", 64))
     end
 
     test "rejects a non-hex digest before any storage call (no traversal, no clobber)" do
       reject(&Tuist.Storage.generate_upload_url/3)
 
-      assert :error = Runners.volume_master_upload_url(1, "tuist-cache", "../../etc/passwd")
-      assert :error = Runners.volume_master_upload_url(1, "tuist-cache", "")
-      assert :error = Runners.volume_master_upload_url(1, "tuist-cache", String.duplicate("a", 39))
-      assert :error = Runners.volume_master_upload_url(1, "tuist-cache", String.upcase(String.duplicate("a", 40)))
+      assert :error = Runners.volume_master_upload_url(1, @volume, "../../etc/passwd")
+      assert :error = Runners.volume_master_upload_url(1, @volume, "")
+      assert :error = Runners.volume_master_upload_url(1, @volume, String.duplicate("a", 39))
+      assert :error = Runners.volume_master_upload_url(1, @volume, String.upcase(String.duplicate("a", 40)))
     end
 
     test "rejects a presigned URL that targets a non-public host (SSRF guard)" do
@@ -1702,12 +1550,12 @@ defmodule Tuist.RunnersTest do
         "http://169.254.169.254/runner-volume-masters/put"
       end)
 
-      assert :error = Runners.volume_master_upload_url(account.id, "tuist-cache", digest)
+      assert :error = Runners.volume_master_upload_url(account.id, @volume, digest)
     end
 
     test "errors when the account does not exist" do
       digest = String.duplicate("c", 40)
-      assert :error = Runners.volume_master_upload_url(-1, "tuist-cache", digest)
+      assert :error = Runners.volume_master_upload_url(-1, @volume, digest)
     end
   end
 
@@ -2066,7 +1914,7 @@ defmodule Tuist.RunnersTest do
         :matched
       end)
 
-      assert {:ok, %{credential: credential, cache_signing_grant: nil, volume_head: nil}} =
+      assert {:ok, %{credential: credential, cache_signing_grant: nil}} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
 
       assert credential.kind == :gitlab

@@ -5,10 +5,17 @@ struct AtlasBusinessView: View {
     @State private var query = ""
     @State private var creating = false
     @State private var listRevision = 0
+    private let loadList: Bool
     @Environment(\.atlasPresence) private var presence
 
-    init(resource: AtlasBusinessResource, request: @escaping ([String: Any]) async throws -> Data) {
+    init(resource: AtlasBusinessResource, loadList: Bool = true, request: @escaping ([String: Any]) async throws -> Data) {
+        self.loadList = loadList
         _model = StateObject(wrappedValue: AtlasBusiness(resource: resource, request: request))
+    }
+
+    init(model: AtlasBusiness, loadList: Bool) {
+        self.loadList = loadList
+        _model = StateObject(wrappedValue: model)
     }
 
     var body: some View {
@@ -19,6 +26,9 @@ struct AtlasBusinessView: View {
 
     private var list: some View {
         List {
+            Color.clear.frame(height: 0)
+                .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).listRowBackground(Color.clear)
+                .environment(\.defaultMinListRowHeight, 0).accessibilityHidden(true).id("business-start")
             if model.forbidden {
                 ContentUnavailableView("Access required", systemImage: "lock", description: Text("Ask an Atlas administrator for access."))
             } else if let page = model.page {
@@ -86,9 +96,13 @@ struct AtlasBusinessView: View {
             if value.isEmpty, !model.query.isEmpty { Task { await model.load(query: "") } }
         }
         .refreshable { await model.load(query: query) }
-        .task { if model.page == nil { await model.load() } }
+        .task(id: loadList) { if loadList, model.page == nil { await model.load() } }
+        .navigationDestination(for: AtlasRecordRoute.self) { route in
+            AtlasLinkedBusinessDetail(model: model, id: route.id).id(route.identity)
+        }
         .onAppear { presence?.show(resource: model.resource.rawValue) }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: model.resource.rawValue) }
             ToolbarItem(placement: .topBarTrailing) {
                 filterMenu.disabled(model.busy && !model.loading)
             }
@@ -245,6 +259,7 @@ struct AtlasAccountLogo: View {
 struct AtlasBusinessDetail: View {
     @ObservedObject var model: AtlasBusiness
     let original: AtlasBusinessRecord
+    var reloadOnAppear = true
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
     @State private var deleting = false
@@ -258,6 +273,7 @@ struct AtlasBusinessDetail: View {
             } else {
                 Section {
                     Text(item.title(for: model.resource)).font(.title2.bold()).textSelection(.enabled)
+                        .accessibilityIdentifier("destination-\(model.resource.rawValue)-\(item.id)")
                     ForEach(detailFields, id: \.0) { field, label in
                         if !item[field].isEmpty {
                             VStack(alignment: .leading, spacing: 4) {
@@ -268,7 +284,14 @@ struct AtlasBusinessDetail: View {
                     }
                 }
             }
-            if let message = model.errorMessage { Section { Text(message).foregroundStyle(.red) } }
+            if let message = model.errorMessage {
+                Section {
+                    Text(message).foregroundStyle(.red)
+                    if model.page == nil {
+                        Button("Retry loading options") { Task { await model.load() } }.disabled(model.busy)
+                    }
+                }
+            }
             if model.resource == .tasks, item["status"] == "open", item.canEdit {
                 Section {
                     Button("Mark complete", systemImage: "checkmark.circle") { Task { _ = await model.complete(item) } }
@@ -288,17 +311,20 @@ struct AtlasBusinessDetail: View {
         .modifier(AtlasThemedContent())
         .navigationTitle(model.resource.singular).navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: model.resource.rawValue, recordID: item.id) }
             ToolbarItem(placement: .topBarTrailing) {
-                if item.canEdit { Button("Edit") { editing = true }.disabled(model.busy) }
+                if item.canEdit { Button("Edit") { editing = true }.disabled(model.busy || model.page == nil) }
             }
         }
+        .protectsAtlasNavigation(model.mutating && !editing)
+        .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)
         .sheet(isPresented: $editing, onDismiss: { Task { await model.show(original) } }, content: {
             AtlasBusinessEditor(model: model, editing: item)
         })
         .confirmationDialog("Delete this \(model.resource.singular.lowercased())?", isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { Task { if await model.delete(item) { dismiss() } } }
         } message: { Text("This cannot be undone.") }
-        .task { await model.show(original) }
+        .task { if reloadOnAppear { await model.show(original) } }
         .refreshable { await model.show(original) }
         .onAppear { presence?.show(resource: model.resource.rawValue, id: original.id) }
         .onChange(of: model.forbidden) { _, denied in

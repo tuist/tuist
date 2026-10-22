@@ -78,6 +78,7 @@ struct AtlasSettingsView: View {
             }
         }
         .navigationTitle(profileRequest == nil ? "Settings" : "Profile")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "profile") } }
         .modifier(AtlasThemedContent())
         .onAppear { presence?.show(resource: "profile") }
         .task { await accounts.load(); await loadProfile() }

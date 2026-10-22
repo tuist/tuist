@@ -9,6 +9,7 @@ struct AtlasAccountDetailSections: View {
                 AtlasAccountLogo(item: item)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item["name"]).font(.title2.bold())
+                        .accessibilityIdentifier("destination-accounts-\(item.id)")
                     Text(item["primary_domain"]).font(.subheadline).foregroundStyle(.secondary)
                 }
             }.textSelection(.enabled)

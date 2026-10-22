@@ -384,7 +384,6 @@ abstract class TuistTestInsightsService :
         val project: Property<String>
         val useEnvironmentProxy: Property<Boolean>
         val actorId: Property<String>
-        val networkTrustedPublishing: Property<Boolean>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
         val gitBranch: Property<String>
@@ -508,8 +507,7 @@ abstract class TuistTestInsightsService :
             project = parameters.project.orNull,
             serverUrl = parameters.url.get(),
             projectDir = parameters.projectDir.asFile.get(),
-            httpClients = httpClients,
-            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
+            httpClients = httpClients
         )
     }
 
@@ -645,7 +643,6 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
             config.actorId?.let { parameters.actorId.set(it) }
-            parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             parameters.gitBranch.set(gitInfo.branch())
@@ -680,7 +677,6 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                 parameters.serverUrl.set(config.url)
                 config.project?.let { parameters.tuistProject.set(it) }
                 parameters.useEnvironmentProxy.set(config.network.proxy)
-                parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
                 parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             }
         } else {

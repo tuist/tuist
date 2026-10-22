@@ -5,3 +5,7 @@ requirements: [bash]
 configuration:
   type: object
   additionalProperties: false
+  properties:
+    size:
+      type: string
+      pattern: "^[0-9]+[gG][bB]$"

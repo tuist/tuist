@@ -3,6 +3,7 @@ import SwiftUI
 
 @MainActor
 final class AtlasBusinessPreviewData: ObservableObject {
+    private var recordAccessRevoked = false
     private var items: [String: [[String: Any]]] = [
         "tasks": [
             AtlasBusinessPreviewData.record(
@@ -98,6 +99,11 @@ final class AtlasBusinessPreviewData: ObservableObject {
                 ]))
             }
         }
+        if ProcessInfo.processInfo.arguments.contains("--deep-links") {
+            items["tasks", default: []].append(Self.record("123e4567-e89b-12d3-a456-426614174000", [
+                "title": "Deep-linked task beyond the first page", "description": "Opened directly by UUID.", "status": "open"
+            ]))
+        }
     }
 
     private static func record(_ id: String, _ fields: [String: String], writable: Bool = true) -> [String: Any] {
@@ -123,6 +129,11 @@ final class AtlasBusinessPreviewData: ObservableObject {
             throw AtlasAuthenticationError(kind: "forbidden", message: "Your Atlas role does not allow this action.")
         }
         let command = action["action"] as? String ?? "list"
+        if resource == "tasks", ProcessInfo.processInfo.arguments.contains("--revoke-record-access"),
+           recordAccessRevoked || (command == "show" && action["id"] as? String == "123e4567-e89b-12d3-a456-426614174000") {
+            recordAccessRevoked = true
+            throw AtlasAuthenticationError(kind: "forbidden", message: "Your Atlas role does not allow this action.")
+        }
         if command == "list" {
             let query = (action["query"] as? String ?? "").lowercased()
             let filters = action["filters"] as? [String: String] ?? [:]
@@ -194,7 +205,8 @@ final class AtlasBusinessPreviewData: ObservableObject {
         var rows = items[resource] ?? []
         let id = action["id"] as? String
         let index = rows.firstIndex { $0["id"] as? String == id }
-        if command == "show", let index {
+        if command == "show" {
+            guard let index else { throw AtlasAuthenticationError(kind: "unavailable", message: "This record could not be found.") }
             var item = rows[index]
             if resource == "accounts", id == "account-1" {
                 item["details"] = [

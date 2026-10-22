@@ -36,3 +36,22 @@ func TestPrefetchHasOneWorkerNoQueueAndItsOwnDeadline(t *testing.T) {
 		t.Fatal("unbounded prefetch")
 	}
 }
+
+func TestPrefetchSkipsAMasterAlreadyOnTheHost(t *testing.T) {
+	restored := make(chan cachevolumes.Slot, 1)
+	local := map[int64]bool{1: true}
+	p := &prefetcher{slots: make(chan struct{}, 1), budget: time.Second, local: func(identity cachevolumes.Identity) bool { return local[identity.BaseGeneration] }, restore: func(_ context.Context, slot cachevolumes.Slot) error {
+		restored <- slot
+		return nil
+	}}
+
+	if p.start(cachevolumes.Identity{BaseGeneration: 1}) {
+		t.Fatal("fetched a master the job cloned locally")
+	}
+	if !p.start(cachevolumes.Identity{BaseGeneration: 2}) {
+		t.Fatal("did not fetch the saved version a job attached without")
+	}
+	if slot := <-restored; slot.BaseGeneration != 2 {
+		t.Fatal(slot)
+	}
+}

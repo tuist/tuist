@@ -20,6 +20,12 @@ Invalid/missing path UUIDs return 404. Invalid fields return 422 with sanitized 
 
 Controller regressions live in `test/atlas_web/controllers/native_controller_test.exs`. These are backend endpoints; no new database, schema migration, or seed data is needed.
 
+## Native link endpoints
+
+`AtlasWeb.NativeLinksController` serves the app association files and the `/open` landing from the `:native_links` pipeline (secure headers only; no Accept negotiation, session, CSRF, or user lookup). Association files return 404 until `AtlasWeb.NativeLinks.Config` lists verified identities, and set public caching. The Android statement delegates `handle_all_urls` to the fixed `dev.tuist.atlas` package. `/open` validates `screen` and the optional UUID against `AtlasWeb.NativeLinks` and returns 404 otherwise, including encoded slashes and extra segments.
+
+Coverage lives in `test/atlas_web/native_links_test.exs` (allowlist, claimed paths, configuration parsing), `test/atlas_web/controllers/native_links_controller_test.exs` (association files, landing, host-header independence, demo denial), and `test/atlas_web/components/account_menu_test.exs` (header action across LiveView navigation and live patches within one LiveView). Tests stub `AtlasWeb.NativeLinks.Config` with Mimic rather than changing the application environment.
+
 ## Optional native themes
 
 `GET /api/native/themes` is the sole public native route. Its JSON contains `schema_version: 1`, a nonempty `revision` (128 UTF-8 bytes maximum), `default_theme_id` referencing a catalog entry, and 1–16 unique `themes`. Themes contain `id` (lowercase letters/digits and hyphen-separated segments, at most 64 bytes; `server-default` is reserved locally), `name` (80 bytes), `description` (160 bytes), `typography` (`standard`, `strong`, `rounded`), `button_radius` (0–24), `card_radius` (0–32), and complete `light` and `dark` palettes. Radii are logical native units, not CSS pixels.

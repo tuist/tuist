@@ -159,7 +159,7 @@ defmodule Tuist.ReleaseTest do
                ~s|ALTER DEFAULT PRIVILEGES IN SCHEMA "public" REVOKE ALL ON TABLES FROM "tuist_grafana_ro"|
     end
 
-    test "grants exactly the columns the dashboard reads" do
+    test "grants exactly the columns the dashboard and the alert rules read" do
       assert granted_columns(Enum.join(statements(), "\n"), ~s|"public"|) == %{
                "accounts" => Enum.sort(~w(id name billing_email organization_id current_month_remote_cache_hits_count
                     current_month_remote_cache_hits_count_updated_at)),
@@ -168,6 +168,8 @@ defmodule Tuist.ReleaseTest do
                "previews" => Enum.sort(~w(project_id inserted_at)),
                "projects" => Enum.sort(~w(id name account_id created_at build_system)),
                "roles" => Enum.sort(~w(id resource_id resource_type)),
+               "runner_cache_volume_uses" => Enum.sort(~w(volume_id base_generation warm attached_at)),
+               "runner_cache_volumes" => Enum.sort(~w(id key platform)),
                "subscriptions" => Enum.sort(~w(account_id status)),
                "users" => ["created_at"],
                "users_roles" => Enum.sort(~w(user_id role_id))

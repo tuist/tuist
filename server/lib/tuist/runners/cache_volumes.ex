@@ -10,9 +10,7 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   import Ecto.Query
 
-  alias Tuist.Accounts.Account
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
@@ -44,7 +42,7 @@ defmodule Tuist.Runners.CacheVolumes do
   @cold_publish_margin_bytes 1_000_000_000
 
   @volume_bytes 20_000_000_000
-  # Tuist sizes its managed volumes and ignores requested sizes for them.
+  # The capacity Tuist's managed volumes start at when no size is requested.
   @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000, "tuist-module" => 20_000_000_000}
   # The largest volume a host that does not advertise its maximum accepts.
   @legacy_max_volume_bytes 32_000_000_000
@@ -260,7 +258,7 @@ defmodule Tuist.Runners.CacheVolumes do
         Repo.one!(from(v in volume_query(job, identity, attrs), lock: "FOR UPDATE"))
 
       volume = expire_locked(volume, now)
-      requested = requested_volume_bytes(job, attrs)
+      requested = requested_volume_bytes(attrs)
       {volume, saved_head, volume_bytes} = size_locked(volume, requested, max_volume_bytes(attrs))
 
       head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
@@ -346,27 +344,14 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   defp allocation_volume_bytes(%{key: key, head_id: nil}, _saved_head, requested),
-    do: Map.get(@managed_volume_bytes, key) || requested || @volume_bytes
+    do: requested || default_volume_bytes(key)
 
   defp allocation_volume_bytes(%{key: key}, saved_head, requested),
-    do: Map.get(@managed_volume_bytes, key) || max(saved_volume_bytes(key, saved_head), requested || 0)
+    do: max(saved_volume_bytes(key, saved_head), requested || 0)
 
-  # Managed volumes size themselves. Sizes above the default need the account's
-  # flag; larger requests are capped to the default.
-  defp requested_volume_bytes(job, attrs) do
+  defp requested_volume_bytes(attrs) do
     requested = Map.get(attrs, :requested_volume_bytes)
-
-    cond do
-      Map.has_key?(@managed_volume_bytes, attrs.key) or not valid_requested_volume_bytes?(requested) ->
-        nil
-
-      requested > @volume_bytes and
-          not FeatureFlags.runner_custom_volume_sizes_enabled?(%Account{id: job.account_id}) ->
-        @volume_bytes
-
-      true ->
-        requested
-    end
+    if valid_requested_volume_bytes?(requested), do: requested
   end
 
   # Only a use that may publish records its request, so pull requests leave the
@@ -482,8 +467,7 @@ defmodule Tuist.Runners.CacheVolumes do
         on: j.workflow_job_id == u.workflow_job_id and j.account_id == v.account_id,
         where:
           is_nil(u.writer_profile_id) and u.can_publish and u.status not in ["published", "discarded"] and
-            v.account_id == ^account_id and is_nil(v.builtin_name) and
-            j.requested_dispatch_label == ^label,
+            v.account_id == ^account_id and j.requested_dispatch_label == ^label,
         select: u.id
       )
     )
@@ -506,7 +490,7 @@ defmodule Tuist.Runners.CacheVolumes do
         from(u in Usage,
           join: v in Volume,
           on: v.id == u.volume_id,
-          where: v.account_id == ^job.account_id and u.pod_uid == ^attrs.pod_uid and is_nil(v.builtin_name)
+          where: v.account_id == ^job.account_id and u.pod_uid == ^attrs.pod_uid
         ),
         :count
       )
@@ -516,7 +500,6 @@ defmodule Tuist.Runners.CacheVolumes do
 
   defp volume_query(job, identity, attrs) do
     from(v in Volume,
-      where: is_nil(v.builtin_name),
       where:
         v.account_id == ^job.account_id and v.provider == ^identity.provider and
           v.provider_instance == ^identity.provider_instance and v.scope_id == ^identity.scope_id and
@@ -544,7 +527,7 @@ defmodule Tuist.Runners.CacheVolumes do
       volumes =
         Repo.all(
           from(v in Volume,
-            where: is_nil(v.builtin_name) and is_nil(v.deleted_at) and v.last_used_at <= ^threshold,
+            where: is_nil(v.deleted_at) and v.last_used_at <= ^threshold,
             order_by: [asc: v.last_used_at, asc: v.id],
             limit: 500,
             lock: "FOR UPDATE SKIP LOCKED"
@@ -611,7 +594,6 @@ defmodule Tuist.Runners.CacheVolumes do
          %Usage{} = usage <- Repo.get_by(Usage, id: id, node_name: node) do
       Repo.transaction(fn ->
         volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
-        if volume.builtin_name, do: Repo.rollback(:unsupported)
         usage = Repo.get_by!(Usage, id: id, node_name: node)
         report_locked(volume, usage, params)
       end)
@@ -782,12 +764,10 @@ defmodule Tuist.Runners.CacheVolumes do
   The volume's capacity: the capacity its saved head was allocated at, or the
   capacity its next empty copy gets when nothing is saved. `head_volume_bytes`
   is the saved head use's `volume_bytes`; heads allocated before uses recorded
-  it have the key's default. `nil` for the built-in volume, which its hosts size.
+  it have the key's default.
   """
-  def volume_bytes(%Volume{builtin_name: name}, _head_volume_bytes) when is_binary(name), do: nil
-
   def volume_bytes(%Volume{head_id: nil, key: key} = volume, _head_volume_bytes),
-    do: Map.get(@managed_volume_bytes, key) || volume.requested_volume_bytes || @volume_bytes
+    do: volume.requested_volume_bytes || default_volume_bytes(key)
 
   def volume_bytes(%Volume{key: key}, head_volume_bytes), do: saved_volume_bytes(key, %{volume_bytes: head_volume_bytes})
 
@@ -806,8 +786,7 @@ defmodule Tuist.Runners.CacheVolumes do
   def next_volume_bytes(%Volume{} = volume, head_volume_bytes),
     do: max(volume_bytes(volume, head_volume_bytes), volume.requested_volume_bytes || 0)
 
-  defp saved_volume_bytes(key, saved_head),
-    do: Map.get(@managed_volume_bytes, key) || (saved_head && saved_head.volume_bytes) || @volume_bytes
+  defp saved_volume_bytes(key, saved_head), do: (saved_head && saved_head.volume_bytes) || default_volume_bytes(key)
 
   @doc """
   The custom volumes that jobs of `repository` attached since `since`, keyed by
@@ -826,8 +805,8 @@ defmodule Tuist.Runners.CacheVolumes do
       left_join: head in Usage,
       on: head.id == v.head_id,
       where:
-        v.account_id == ^account_id and v.repository == ^repository and is_nil(v.builtin_name) and
-          is_nil(v.deleted_at) and u.inserted_at >= ^since,
+        v.account_id == ^account_id and v.repository == ^repository and is_nil(v.deleted_at) and
+          u.inserted_at >= ^since,
       distinct: true,
       select: {j.workflow_name, j.job_name, v, head.volume_bytes, head.size_bytes}
     )
@@ -860,9 +839,7 @@ defmodule Tuist.Runners.CacheVolumes do
       on: v.id == u.volume_id,
       left_join: head in Usage,
       on: head.id == u.parent_id,
-      where:
-        u.node_name in ^node_names and is_nil(u.deleted_at) and u.workflow_job_id in ^workflow_job_ids and
-          is_nil(v.builtin_name),
+      where: u.node_name in ^node_names and is_nil(u.deleted_at) and u.workflow_job_id in ^workflow_job_ids,
       select: {u.node_name, u.workflow_job_id, v.id, v.key, u.volume_bytes, head.size_bytes}
     )
     |> Repo.all()
@@ -896,8 +873,8 @@ defmodule Tuist.Runners.CacheVolumes do
       join: v in Volume,
       on: v.id == u.volume_id,
       where:
-        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.builtin_name) and
-          is_nil(v.deleted_at) and v.key != ^@checkout_key,
+        u.node_name in ^node_names and u.inserted_at >= ^since and v.platform == "macos" and is_nil(v.deleted_at) and
+          v.key != ^@checkout_key,
       group_by: v.id,
       order_by: [desc: max(u.inserted_at)],
       limit: ^limit,
@@ -938,14 +915,13 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  # Reuse macOS HEAD arbitration, immutable objects, checksums and delayed
-  # reclamation. The custom-volume lock also serializes clearing with publication.
+  # HEAD arbitration, immutable objects, checksums and delayed reclamation live
+  # in `Runners`. The volume lock also serializes clearing with publication.
   def image(node, id, params) do
     with {:ok, id} <- Ecto.UUID.cast(id),
          %Usage{} = usage <- image_usage(id, node, params) do
       Repo.transaction(fn ->
         volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
-        if volume.builtin_name, do: Repo.rollback(:unsupported)
         usage = Repo.get!(Usage, id)
         volume = expire_locked(volume, DateTime.utc_now())
         image_action(volume, usage, params)
@@ -1120,7 +1096,6 @@ defmodule Tuist.Runners.CacheVolumes do
            usage.node_name,
            digest,
            usage.base_generation,
-           nil,
            content
          ) do
       {:ok, generation} ->
@@ -1171,7 +1146,6 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def delete(account_id, id) do
     mutate(account_id, id, fn volume ->
-      if volume.builtin_name, do: Repo.rollback(:unsupported)
       Runners.clear_volume_master(volume.account_id, storage_name(volume))
       [generation: volume.generation + 1, head_id: nil, deleted_at: DateTime.utc_now()]
     end)
@@ -1244,9 +1218,9 @@ defmodule Tuist.Runners.CacheVolumes do
             group_by: u.volume_id,
             select: %{
               volume_id: u.volume_id,
-              copies: filter(count(u.id), is_nil(coalesce(u.deleted_at, u.superseded_at))),
-              used_space: filter(sum(u.size_bytes), is_nil(coalesce(u.deleted_at, u.superseded_at))),
-              capacity: filter(sum(u.capacity_bytes), is_nil(coalesce(u.deleted_at, u.superseded_at)))
+              copies: filter(count(u.id), is_nil(u.deleted_at)),
+              used_space: filter(sum(u.size_bytes), is_nil(u.deleted_at)),
+              capacity: filter(sum(u.capacity_bytes), is_nil(u.deleted_at))
             }
           )
 
@@ -1300,15 +1274,12 @@ defmodule Tuist.Runners.CacheVolumes do
            head_volume_bytes: type(filter(max(u.volume_bytes), u.id == v.head_id), :integer),
            uses: filter(count(u.id), not is_nil(u.attached_at) and u.inserted_at >= ^since),
            hits: filter(count(u.id), u.warm == true and u.inserted_at >= ^since),
-           active: filter(count(u.id), is_nil(u.finished_at) and is_nil(coalesce(u.deleted_at, u.superseded_at))),
-           retained_bytes: type(filter(sum(u.size_bytes), is_nil(coalesce(u.deleted_at, u.superseded_at))), :integer),
-           retained_capacity_bytes:
-             type(filter(sum(u.capacity_bytes), is_nil(coalesce(u.deleted_at, u.superseded_at))), :integer),
-           unmeasured_copies:
-             filter(count(u.id), is_nil(coalesce(u.deleted_at, u.superseded_at)) and is_nil(u.size_bytes)),
-           unmeasured_capacity_copies:
-             filter(count(u.id), is_nil(coalesce(u.deleted_at, u.superseded_at)) and is_nil(u.capacity_bytes)),
-           retained_copies: filter(count(u.id), is_nil(coalesce(u.deleted_at, u.superseded_at))),
+           active: filter(count(u.id), is_nil(u.finished_at) and is_nil(u.deleted_at)),
+           retained_bytes: type(filter(sum(u.size_bytes), is_nil(u.deleted_at)), :integer),
+           retained_capacity_bytes: type(filter(sum(u.capacity_bytes), is_nil(u.deleted_at)), :integer),
+           unmeasured_copies: filter(count(u.id), is_nil(u.deleted_at) and is_nil(u.size_bytes)),
+           unmeasured_capacity_copies: filter(count(u.id), is_nil(u.deleted_at) and is_nil(u.capacity_bytes)),
+           retained_copies: filter(count(u.id), is_nil(u.deleted_at)),
            reported_at: max(u.last_reported_at),
            attach_ms: filter(avg(u.attach_ms), not is_nil(u.attached_at) and u.inserted_at >= ^since)
          }}
@@ -1323,7 +1294,7 @@ defmodule Tuist.Runners.CacheVolumes do
       from(u in Usage,
         join: v in Volume,
         on: v.id == u.volume_id,
-        where: v.account_id == ^account_id and (is_nil(u.deleted_at) and is_nil(u.superseded_at)),
+        where: v.account_id == ^account_id and is_nil(u.deleted_at),
         select: %{
           volumes: count(v.id, :distinct),
           retained_copies: count(u.id),
@@ -1351,11 +1322,11 @@ defmodule Tuist.Runners.CacheVolumes do
         """
         WITH measurements AS (
           SELECT m.id, m.usage_id, u.volume_id, m.observed_at,
-            CASE WHEN (m.deleted OR m.retired) THEN 0 ELSE COALESCE(m.size_bytes, 0) END AS used,
-            CASE WHEN (m.deleted OR m.retired) THEN 0 ELSE COALESCE(m.capacity_bytes, 0) END AS capacity,
-            CASE WHEN (m.deleted OR m.retired) THEN 0 ELSE 1 END AS copies,
-            CASE WHEN NOT (m.deleted OR m.retired) AND m.size_bytes IS NOT NULL THEN 1 ELSE 0 END AS measured_used,
-            CASE WHEN NOT (m.deleted OR m.retired) AND m.capacity_bytes IS NOT NULL THEN 1 ELSE 0 END AS measured_capacity
+            CASE WHEN m.deleted THEN 0 ELSE COALESCE(m.size_bytes, 0) END AS used,
+            CASE WHEN m.deleted THEN 0 ELSE COALESCE(m.capacity_bytes, 0) END AS capacity,
+            CASE WHEN m.deleted THEN 0 ELSE 1 END AS copies,
+            CASE WHEN NOT m.deleted AND m.size_bytes IS NOT NULL THEN 1 ELSE 0 END AS measured_used,
+            CASE WHEN NOT m.deleted AND m.capacity_bytes IS NOT NULL THEN 1 ELSE 0 END AS measured_capacity
           FROM runner_cache_volume_measurements m
           JOIN runner_cache_volume_uses u ON u.id = m.usage_id
           JOIN runner_cache_volumes v ON v.id = u.volume_id
@@ -1497,10 +1468,10 @@ defmodule Tuist.Runners.CacheVolumes do
     )
   end
 
-  # Cross-tenant maintenance: prune deleted copies and superseded built-in observations.
+  # Cross-tenant maintenance: prune deleted copies.
   def prune_history do
     threshold = DateTime.add(DateTime.utc_now(), -90 * 24 * 60 * 60)
-    Repo.delete_all(from(u in Usage, where: u.deleted_at < ^threshold or u.superseded_at < ^threshold))
+    Repo.delete_all(from(u in Usage, where: u.deleted_at < ^threshold))
     :ok
   end
 
