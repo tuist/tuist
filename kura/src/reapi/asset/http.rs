@@ -85,7 +85,8 @@ impl Default for OriginClient {
 
 impl OriginClient {
     fn new(policy: PublicResolver) -> Self {
-        let client = reqwest::Client::builder()
+        let client = crate::certificate_trust::client_builder()
+            .expect("failed to initialize asset downloader TLS")
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
             .dns_resolver(Arc::new(policy))

@@ -243,13 +243,20 @@ no image, helper release or installed process replacement is claimed. Other
 cache-volume/GitLab/host/poller/vendor transports remain open. See
 [runner scope and qualification](RUNNER-CLIENTS.md).
 
-Kura source review found a materially different reqwest 0.13 native-verifier
-boundary, including native extra anchors, Remote Asset, telemetry/Sentry and
-rotating explicit-anchor mTLS. Locked platform-verifier is 0.6.2. Neither a
-peer-only wrapper nor assuming peer CAs are private closes all twelve keys.
-Native constructed-chain enforcement, identity/provider/ALPN parity, Bazel
-integration and actual runtime tests remain open; no new Kura implementation or
-rollout is claimed. See [open Kura design](KURA-CLIENTS.md).
+Kura now implements the distinct reqwest 0.13 native-verifier boundary rather
+than inheriting Atlas's bundled-root semantics. The independent twelve-key
+policy covers Apple evaluated chains, Unix native/extra/explicit anchors,
+ordinary peer validation and inbound mTLS. All audited outbound factories,
+including separate auth, Sentry and blocking OTLP, use it; provider/PEM/SNI/ALPN
+and rotating identity snapshots are preserved. Local macOS Bazel tests include
+accepted-key differentials, actual HTTPS, h2/TLS1.2+1.3, separate-PKI HTTPS
+CONNECT, peer rotation/overlap, Sentry controls and private terminal auth errors
+with retained transient-EOF retry. Explicit public/PKCS1/SEC1 opt-ins pass.
+The standard JUnit Python report adapter was replaced with Rust and tests rerun.
+Linux native execution/current-head CI, main-relative four-axis stress and
+exact release/deployed integration remain required: this behavior change is
+not complete under Kura's resource policy. No publication or rollout is claimed.
+See [Kura implementation and qualification limits](KURA-CLIENTS.md).
 
 ## Validation and limits
 

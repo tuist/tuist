@@ -84,6 +84,7 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		"../../cli/Sources/TuistHTTP/CertificateTrust.swift",
 		"../../swifterpm/Sources/swifterpm/CertificateTrust.swift",
 		"../../cas-plugin/src/certificate_trust.rs",
+		"../../kura/src/certificate_trust.rs",
 		"../../atlas-native/auth/src/certificate_trust.rs",
 		"../../atlas-native/ios/Sources/AtlasCertificateTrust.swift",
 		"../../atlas-native/android/src/dev/tuist/atlas/AtlasCertificateTrust.kt",
@@ -125,6 +126,111 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		if !reflect.DeepEqual(expected, actual) {
 			t.Fatalf("OTP deny list differs from policy.json in %s", path)
 		}
+	}
+}
+
+func TestKuraPolicyAndFactoryWiring(t *testing.T) {
+	root := "../../kura/src"
+	rawExpected := map[string]int{
+		"certificate_trust.rs": 1, "peer_tls.rs": 1,
+		"serving_authority.rs": 1, "telemetry.rs": 1,
+	}
+	backendExpected := map[string]int{
+		"certificate_trust.rs": 1, "peer_tls.rs": 1,
+		"serving_authority.rs": 1, "telemetry.rs": 1,
+	}
+	constructors := regexp.MustCompile(`\b(?:Client|ClientBuilder)::(?:new|builder|default)\(`)
+	// Match the named test module, not the first cfg(test) item: auth/tuist.rs
+	// has test keys before its production factory. This is a bounded inventory
+	// guard, not a complete Rust alias/macro parser or handshake qualification.
+	testModule := regexp.MustCompile(`(?m)^#\[cfg\(test\)\]\s*\nmod tests\s*\{`)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".rs") || strings.HasSuffix(path, "_tests.rs") || entry.Name() == "tests.rs" || entry.Name() == "test_support.rs" {
+			return nil
+		}
+		source := read(t, path)
+		if location := testModule.FindIndex(source); location != nil {
+			// rustfmt puts the module's closing brace at column zero. An
+			// earlier unindented brace in a literal only shortens exclusion
+			// (fails closed). Always retain code after the test module.
+			end := regexp.MustCompile(`(?m)^}\s*$`).FindIndex(source[location[1]:])
+			if end == nil {
+				t.Fatalf("cannot bound Kura test module in %s", path)
+			}
+			source = append(append([]byte{}, source[:location[0]]...), source[location[1]+end[1]:]...)
+		}
+		name, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if regexp.MustCompile(`\b(?:Client|ClientBuilder)\s+as\s+`).Match(source) {
+			t.Fatalf("review aliased Kura client in %s", path)
+		}
+		if name != "certificate_trust.rs" && bytes.Contains(source, []byte("ClientConfig::builder")) {
+			t.Fatalf("unprotected Rustls client in %s", path)
+		}
+		if actual := len(constructors.FindAll(source, -1)); actual != rawExpected[name] {
+			t.Fatalf("Kura constructor inventory changed in %s: %d", path, actual)
+		}
+		if actual := bytes.Count(source, []byte(".tls_backend_preconfigured(")); actual != backendExpected[name] {
+			t.Fatalf("Kura protected backend inventory changed in %s: %d", path, actual)
+		}
+		for _, forbidden := range []string{"danger_accept_invalid_", "tls_backend_rustls(", "tls_backend_native(", "use_preconfigured_tls(", ".tls_certs_only(", ".tls_certs_merge(", ".add_root_certificate(", ".identity(", ".http1_only(", ".http2_prior_knowledge(", "reqwest::get(", "reqwest::blocking::get(", "ClientTlsConfig", ".tls_config(", "with_native_roots(", "hyper_rustls::", "TlsConnector"} {
+			if forbidden == ".identity(" && rawExpected[name] == 0 && !bytes.Contains(source, []byte("client_builder(")) {
+				continue // Unrelated domain objects also have identity() methods.
+			}
+			if bytes.Contains(source, []byte(forbidden)) {
+				t.Fatalf("Kura TLS bypass/ignored setting %s in %s", forbidden, path)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, required := range map[string][]string{
+		"auth/tuist.rs":              {"certificate_trust::client_builder()?", "certificate_trust::failure_category(error)"},
+		"control_plane_http.rs":      {"certificate_trust::client_builder()?"},
+		"enrollment.rs":              {"certificate_trust::client_builder()?"},
+		"registration.rs":            {"certificate_trust::client_builder()"},
+		"reapi/asset/http.rs":        {"certificate_trust::client_builder()", ".no_proxy()", "reqwest::redirect::Policy::none()"},
+		"peer_tls.rs":                {"certificate_trust::config(", "Roots::Explicit(", "Roots::Native(", "certificate_trust::client_auth_verifier(", "self.identity.load_full()"},
+		"telemetry.rs":               {"transport: Some(", "sentry_http_client_builder(options)", "ReqwestHttpTransport::with_client", "certificate_trust::native_config()?"},
+		"certificate_trust_apple.rs": {"set_trust_anchor_certificates_only(false)", "set_trust_ocsp_response", "set_trust_verify_date", "trust.evaluate_with_error()", ".certificate_at_index(index)"},
+	} {
+		source := read(t, filepath.Join(root, path))
+		for _, token := range required {
+			if !bytes.Contains(source, []byte(token)) {
+				t.Fatalf("missing Kura wiring %s in %s", token, path)
+			}
+		}
+	}
+	for _, name := range []string{"issuer-roots.pem", "distrusted-intermediates.pem"} {
+		if !bytes.Equal(read(t, "../../kura/test/certificate-trust/"+name), read(t, "../../infra/linux-runner-image/cmd/tuist-cache-volume/testdata/certificate-trust/"+name)) {
+			t.Fatalf("Kura fixture drift: %s", name)
+		}
+	}
+	var policy struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(policyJSON, &policy); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(read(t, filepath.Join(root, "certificate_trust.rs")), []byte(`pub const POLICY_ID: &str = "`+policy.ID+`";`)) {
+		t.Fatal("Kura policy marker differs")
+	}
+	lock := read(t, "../../kura/Cargo.lock")
+	for name, version := range map[string]string{"reqwest": "0.13.2", "rustls": "0.23.46", "rustls-platform-verifier": "0.6.2", "rustls-native-certs": "0.8.3", "rustls-webpki": "0.103.16", "security-framework": "3.7.0"} {
+		if !bytes.Contains(lock, []byte("name = \""+name+"\"\nversion = \""+version+"\"")) {
+			t.Fatalf("requalify Kura native TLS parity after updating %s", name)
+		}
+	}
+	otlp := regexp.MustCompile(`(?m)^opentelemetry-otlp\s*=.*$`).Find(read(t, "../../kura/Cargo.toml"))
+	if len(otlp) == 0 || bytes.Contains(otlp, []byte(`"tls`)) {
+		t.Fatal("Kura OTLP gRPC TLS requires an explicitly protected channel")
 	}
 }
 

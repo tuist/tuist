@@ -13,6 +13,25 @@ filter aligned. See `../infra/certificate-trust/README.md` for the progressive
 rollout and instance-pin gates; never use a root-only overlay to claim embedded
 Rust roots are remediated.
 
+## Native TLS key policy
+
+`src/certificate_trust.rs` and its Apple companion independently embed the
+incident key policy. Preserve native/enterprise roots for ordinary clients and
+explicit anchors for peer mTLS; do not reuse Atlas's bundled-root configuration.
+Native Apple validation stays authoritative before full evaluated-chain checks;
+Unix native roots are loaded per build and filtered before ordinary WebPKI
+validation. Keep the provider, identity PEM formats/order/last key, snapshot
+rotation, SNI, protocol versions and ALPN intact when using preconfigured TLS.
+Do not reset the backend or apply ignored reqwest root/identity/ALPN setters
+after the protected builder. All auth/control-plane/origin/Sentry/blocking OTLP/
+Kubernetes/peer factories and inbound peer authentication share this boundary.
+
+`//:certificate_trust_test` runs independent fixture tests without RocksDB; its
+public-network and existing-OpenSSL-3 fixture opt-ins are explicitly ignored by
+default. See [`../infra/certificate-trust/KURA-CLIENTS.md`](../infra/certificate-trust/KURA-CLIENTS.md)
+for commands and evidence limits. Local unit/handshake passes are not Linux
+execution, four-axis main-relative stress, release or rollout clearance.
+
 ## Key Boundaries
 - Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.
   See [the recovery runbook](../infra/kura-controller/serving-authority.md).

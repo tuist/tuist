@@ -37,6 +37,8 @@ reqwest = { version = "0.13.2", default-features = false, features = ["blocking"
 rocksdb = { version = "0.24.0", default-features = false, features = ["bindgen-runtime", "lz4"] }
 rustls = "0.23.46"
 rustls-pemfile = "2.2.0"
+rustls-native-certs = "=0.8.3"
+webpki = { package = "rustls-webpki", version = "=0.103.16" }
 rustix = { version = "1.1.4", features = ["fs", "param"] }
 sentry = { version = "0.47.0", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls", "tracing"] }
 serde = { version = "1.0.228", features = ["derive"] }
@@ -73,6 +75,11 @@ tikv-jemalloc-ctl = { version = "0.6.0", features = ["stats"] }
 # without the feature, so it stays off there.
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 sha2 = { version = "0.10.9", features = ["asm"] }
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+core-foundation = "=0.10.1"
+security-framework = "=3.7.0"
+security-framework-sys = "=2.17.0"
 
 [dev-dependencies]
 tempfile = "3.23.0"

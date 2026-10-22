@@ -35,6 +35,42 @@ rust_library(
     deps = all_crate_deps(normal = True),
 )
 
+# Qualify independent native/explicit TLS without compiling the storage engine.
+rust_junit_test(
+    name = "certificate_trust_test",
+    srcs = glob(["src/certificate_trust*.rs"]),
+    crate_root = "src/certificate_trust.rs",
+    crate_name = "certificate_trust",
+    compile_data = glob(["test/certificate-trust/*.pem"]),
+    aliases = aliases(),
+    edition = "2024",
+    rustc_flags = _DENY_WARNINGS,
+    size = "small",
+    deps = [
+        "@crates//:bytes",
+        "@crates//:http-body-util",
+        "@crates//:hyper",
+        "@crates//:hyper-util",
+        "@crates//:rcgen",
+        "@crates//:reqwest",
+        "@crates//:rustls",
+        "@crates//:rustls-native-certs",
+        "@crates//:rustls-webpki",
+        "@crates//:sha2",
+        "@crates//:tempfile",
+        "@crates//:tokio",
+        "@crates//:tokio-rustls",
+        "@crates//:tracing",
+    ] + select({
+        "@platforms//os:macos": [
+            "@crates//:core-foundation",
+            "@crates//:security-framework",
+            "@crates//:security-framework-sys",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
 rust_binary(
     name = "kura",
     srcs = ["src/main.rs"],
@@ -60,6 +96,7 @@ rust_junit_test(
 # module) run under `bazel test`.
 rust_junit_test(
     name = "kura_lib_test",
+    compile_data = glob(["test/certificate-trust/*.pem"]),
     aliases = aliases(),
     crate = ":kura_lib",
     edition = "2024",

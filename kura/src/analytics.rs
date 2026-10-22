@@ -237,9 +237,10 @@ impl Analytics {
             return Ok(None);
         };
 
-        let client = crate::control_plane_http::analytics_client_builder(config.request_timeout_ms)
-            .build()
-            .map_err(|error| format!("failed to build analytics client: {error}"))?;
+        let client =
+            crate::control_plane_http::analytics_client_builder(config.request_timeout_ms)?
+                .build()
+                .map_err(|error| format!("failed to build analytics client: {error}"))?;
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
         let (bazel_sender, bazel_receiver) = mpsc::channel(config.queue_capacity);
         let (network_bazel_sender, network_bazel_receiver) =

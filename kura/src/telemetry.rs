@@ -1,6 +1,9 @@
 use std::{
     collections::BTreeMap,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -197,8 +200,42 @@ fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
         environment: Some(config.otel_deployment_environment.clone().into()),
         release: Some(format!("kura@{VERSION}").into()),
         server_name: Some(config.otel_service_name.clone().into()),
+        transport: Some(Arc::new(|options: &ClientOptions| {
+            let client = sentry_http_client_builder(options)
+                .expect("failed to configure Sentry TLS trust")
+                .build()
+                .expect("failed to build Sentry HTTP client");
+            Arc::new(sentry::transports::ReqwestHttpTransport::with_client(
+                options, client,
+            )) as Arc<dyn sentry::Transport>
+        })),
         ..Default::default()
     }))
+}
+
+fn sentry_http_client_builder(options: &ClientOptions) -> Result<reqwest::ClientBuilder, String> {
+    if options.accept_invalid_certs {
+        tracing::warn!(
+            "Sentry invalid-certificate override ignored; native TLS verification is required"
+        );
+    }
+    let mut builder = crate::certificate_trust::client_builder()?;
+    // Defaults are applied before the TransportFactory runs. Preserve the SDK's
+    // explicit per-scheme proxies (including its HTTPS-to-HTTP proxy fallback).
+    for (https, url) in [(false, &options.http_proxy), (true, &options.https_proxy)] {
+        if let Some(url) = url {
+            let proxy = if https {
+                reqwest::Proxy::https(url.as_ref())
+            } else {
+                reqwest::Proxy::http(url.as_ref())
+            };
+            match proxy {
+                Ok(proxy) => builder = builder.proxy(proxy),
+                Err(_) => tracing::warn!("invalid Sentry proxy configuration ignored"),
+            }
+        }
+    }
+    Ok(builder)
 }
 
 fn build_tracer_provider(
@@ -288,18 +325,22 @@ fn export_timeout() -> Duration {
 // exporter crate does internally, and is required because `reqwest::blocking`
 // panics when constructed inside one.
 fn build_otlp_http_client() -> Result<reqwest::blocking::Client, String> {
-    std::thread::spawn(|| otlp_http_client_builder().build())
-        .join()
-        .map_err(|_| "OTLP HTTP client builder thread panicked".to_string())?
-        .map_err(|error| format!("failed to build OTLP HTTP client: {error}"))
+    std::thread::spawn(|| {
+        otlp_http_client_builder()?
+            .build()
+            .map_err(|_| "failed to build OTLP HTTP client".to_string())
+    })
+    .join()
+    .map_err(|_| "OTLP HTTP client builder thread panicked".to_string())?
 }
 
-fn otlp_http_client_builder() -> reqwest::blocking::ClientBuilder {
-    reqwest::blocking::Client::builder()
+fn otlp_http_client_builder() -> Result<reqwest::blocking::ClientBuilder, String> {
+    Ok(reqwest::blocking::Client::builder()
+        .tls_backend_preconfigured(crate::certificate_trust::native_config()?)
         .connect_timeout(Duration::from_secs(
             crate::control_plane_http::CONNECT_TIMEOUT_SECS,
         ))
-        .timeout(export_timeout())
+        .timeout(export_timeout()))
 }
 
 fn otlp_trace_exporter_config(endpoint: &str) -> Result<OtlpTraceExporterConfig, String> {
@@ -417,8 +458,118 @@ mod tests {
 
     use super::{
         OtlpTraceProtocol, export_timeout, otlp_http_client_builder, otlp_trace_exporter_config,
-        should_warn_about_parent_context_error,
+        sentry_http_client_builder, should_warn_about_parent_context_error,
     };
+
+    #[tokio::test]
+    async fn sentry_invalid_certificate_option_cannot_disable_native_verification() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let fixture = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let key =
+            rustls::pki_types::PrivateKeyDer::Pkcs8(fixture.signing_key.serialize_der().into());
+        let server = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(vec![fixture.cert.der().clone()], key)
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            if let Ok(mut tls) = tokio_rustls::TlsAcceptor::from(Arc::new(server))
+                .accept(stream)
+                .await
+            {
+                let mut bytes = [0; 1024];
+                let count = tls.read(&mut bytes).await.unwrap_or(0);
+                if count > 0 {
+                    tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                        .await
+                        .unwrap();
+                }
+                return count;
+            }
+            0
+        });
+        let options = sentry::ClientOptions {
+            accept_invalid_certs: true,
+            ..Default::default()
+        };
+        let client = sentry_http_client_builder(&options)
+            .unwrap()
+            .no_proxy()
+            .timeout(Duration::from_secs(3))
+            .build()
+            .unwrap();
+        let error = client
+            .get(format!("https://localhost:{}/", address.port()))
+            .send()
+            .await
+            .unwrap_err();
+        assert!(crate::certificate_trust::tls_failure(&error));
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), task)
+                .await
+                .unwrap()
+                .unwrap(),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn sentry_retains_defaulted_explicit_http_and_https_proxies() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        for https in [false, true] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let task = tokio::spawn(async move {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0; 4096];
+                let count = stream.read(&mut request).await.unwrap();
+                let request = String::from_utf8(request[..count].to_vec()).unwrap();
+                let response = if https {
+                    b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n".as_slice()
+                } else {
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".as_slice()
+                };
+                stream.write_all(response).await.unwrap();
+                request
+            });
+            let proxy = format!("http://{address}");
+            let options = sentry::ClientOptions {
+                http_proxy: (!https).then(|| proxy.clone().into()),
+                https_proxy: https.then(|| proxy.into()),
+                ..Default::default()
+            };
+            let client = sentry_http_client_builder(&options)
+                .unwrap()
+                .timeout(Duration::from_secs(3))
+                .build()
+                .unwrap();
+            let scheme = if https { "https" } else { "http" };
+            let result = client
+                .get(format!("{scheme}://not-resolved.invalid/event"))
+                .send()
+                .await;
+            if https {
+                assert!(result.is_err());
+            } else {
+                assert_eq!(result.unwrap().status(), reqwest::StatusCode::OK);
+            }
+            let request = tokio::time::timeout(Duration::from_secs(3), task)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(request.starts_with(if https {
+                "CONNECT not-resolved.invalid:443 "
+            } else {
+                "GET http://not-resolved.invalid/event "
+            }));
+        }
+    }
 
     struct StalledResolver;
 
@@ -437,6 +588,7 @@ mod tests {
     #[test]
     fn stalled_dns_fails_the_export_on_the_connect_budget() {
         let client = otlp_http_client_builder()
+            .unwrap()
             .no_proxy()
             .dns_resolver(Arc::new(StalledResolver))
             .build()

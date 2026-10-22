@@ -510,7 +510,11 @@ async fn flush_loop(state: SharedState) {
 }
 
 async fn delivery_loop(state: SharedState) {
-    let client = match crate::control_plane_http::client_builder().build() {
+    let client = match crate::control_plane_http::client_builder().and_then(|builder| {
+        builder
+            .build()
+            .map_err(|_| "failed to build usage HTTP client".to_string())
+    }) {
         Ok(client) => client,
         Err(error) => {
             warn!("failed to build usage delivery client: {error}");

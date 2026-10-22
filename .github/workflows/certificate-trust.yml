@@ -34,6 +34,11 @@ on:
       - cas-plugin/tests/fixtures/certificate-trust/**
       - cas-plugin/Cargo.toml
       - cas-plugin/Cargo.lock
+      - kura/src/**
+      - kura/test/certificate-trust/**
+      - kura/Cargo.toml
+      - kura/Cargo.lock
+      - kura/BUILD.bazel
       - atlas-native/auth/**
       - atlas-native/Cargo.lock
       - atlas-native/once.toml
