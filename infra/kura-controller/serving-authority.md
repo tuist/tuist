@@ -84,8 +84,10 @@ UID and host) reports the inherited holder as `exit_resume`; the controller
 grants it the next epoch with an `exit_resume` binding to the exited holder,
 and the runtime reopens its own marked volume only for that grant. If no such
 restart is ready 60 seconds after the exit was recorded, the controller
-promotes a ready standby on another host whose initial backfill completed. The
-old ordinal's volume then stays marked and needs the replica recovery below.
+promotes a ready standby on another host whose initial backfill completed. A
+process holding an inherited volume reports not ready until its exit resume
+installs, so after a promotion the old ordinal stays unready and marked and
+needs the replica recovery below.
 A current operator `primaryPromotion` request takes precedence. Host loss,
 partitions and interrupted handovers report no exit and keep the manual path.
 

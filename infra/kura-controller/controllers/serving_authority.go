@@ -87,6 +87,25 @@ type servingReport struct {
 	ExitResume           *servingHolder       `json:"exit_resume"`
 }
 
+// exitResumeCandidate returns the restarted process in the exited holder's own
+// pod. It reports itself unready until granted, so readiness is not required;
+// it must hold the writer lock and report the exact exited holder it inherited.
+func exitResumeCandidate(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus, grant servingGrant) (servingHolder, bool) {
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Name != grant.PodName || string(pod.UID) != grant.Holder.PodUID || pod.Spec.NodeName != grant.Holder.Host || pod.DeletionTimestamp != nil {
+			continue
+		}
+		sample, fresh := samples[pod.Name]
+		report := sample.ServingAuthority
+		identity := report.Identity
+		if fresh && sample.State == "serving" && sample.WriterLockOwned && report.Enabled && report.Capability == "positive-fence-v1" && identity.InstanceUID == string(instance.UID) && identity.PodUID == string(pod.UID) && identity.Host == pod.Spec.NodeName && identity.Incarnation != "" && identity.Incarnation != grant.Holder.Incarnation && report.ExitResume != nil && *report.ExitResume == grant.Holder {
+			return identity, true
+		}
+	}
+	return servingHolder{}, false
+}
+
 // verifiedHolderExit returns kubelet's attestation that the holder's container
 // terminated. The runtime writes its incarnation to the termination log at
 // start, so the terminated message names the exact process however it ended.
@@ -417,8 +436,7 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			}
 			// The restarted container in the holder's own pod keeps every write
 			// the exited process acknowledged, so it is preferred over the standby.
-			restarted, ready := holders[grant.PodName]
-			if ready && restarted.PodUID == grant.Holder.PodUID && restarted.Host == grant.Holder.Host && restarted.Incarnation != grant.Holder.Incarnation && report.ExitResume != nil && *report.ExitResume == grant.Holder {
+			if restarted, resumable := exitResumeCandidate(instance, pods.Items, samples, grant); resumable {
 				grant = servingGrant{Epoch: grant.Epoch + 1, Holder: restarted, PodName: grant.PodName, Phase: "Serving", ExpiresMS: now + 15000, LastHandover: grant.LastHandover,
 					Reason: "Restarted in place after kubelet-verified exit of the previous incarnation", FenceEvidence: grant.HolderExit.Evidence,
 					ExitResume: &exitResume{Epoch: grant.Epoch, Holder: grant.Holder}}

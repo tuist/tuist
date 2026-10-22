@@ -369,6 +369,14 @@ impl ServingAuthority {
     pub fn identity(&self) -> &Holder {
         &self.identity
     }
+    /// An inherited unclean volume serves nothing until its exit resume installs,
+    /// and after another holder is promoted it never will.
+    pub fn awaiting_exit_resume(&self) -> bool {
+        self.inherited
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
+    }
     /// kubelet reports this file as the terminated container's message however
     /// the process ended, naming the exact incarnation that no longer runs.
     fn attest_incarnation(&self, path: &std::path::Path) {
@@ -1031,6 +1039,7 @@ mod tests {
         a.install(grant(&a, 4)).unwrap();
         let b = restarted(&a, marker.clone());
         assert!(!b.peer_safe());
+        assert!(b.awaiting_exit_resume());
         assert_eq!(b.report()["exit_resume"]["incarnation"], "r");
 
         assert!(
@@ -1054,6 +1063,7 @@ mod tests {
         assert!(b.admit().unwrap().is_some());
         assert!(b.peer_safe());
         assert!(b.report()["exit_resume"].is_null());
+        assert!(!b.awaiting_exit_resume());
         let rewritten: Grant = serde_json::from_slice(&std::fs::read(&marker).unwrap()).unwrap();
         assert_eq!(
             rewritten.holder, b.identity,

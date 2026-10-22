@@ -588,6 +588,8 @@ func TestAuthorityRestartsAVerifiedExitedHolderInPlace(t *testing.T) {
 	if next := authorityStep(t, r); next.Phase != "Fencing" || next.Epoch != 1 {
 		t.Fatal(next)
 	}
+	// The restarted process reports itself unready until it is granted.
+	restarted.Ready = false
 	restarted.ServingAuthority.ExitResume = &previous
 	statuses["test-0"] = restarted
 	grant = authorityStep(t, r)
