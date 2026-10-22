@@ -19,7 +19,7 @@ ARG BUILDER_IMAGE=hexpm/elixir:1.20.2-erlang-29.0.3-debian-bookworm-20260623-sli
 ARG RUNNER_IMAGE=debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
 # Aube embeds WebPKI roots; Node's CA settings cannot patch its native binary.
-FROM rust:1.94-bookworm AS aube-builder
+FROM rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55 AS aube-builder
 COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /opt/tuist/certificate-trust/
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates cmake \
     && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
