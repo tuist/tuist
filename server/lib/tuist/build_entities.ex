@@ -934,7 +934,10 @@ defmodule Tuist.BuildEntities do
   (distinct units active in the cohort), `outcome_samples` (observations
   with an explicit success or failure), and `executions` (uncached success or
   failure observations, independent of timing availability). Daily entity
-  counts are not additive.
+  counts are not additive. Dashboard `execution_metrics_only: true` scopes
+  execution counts, recorded outcomes/failures and durations to native
+  execution evidence while retaining inventory membership. Defaults preserve
+  the public observation metrics.
 
   Resolves replacement rows before period/environment/branch filters, with
   whole-inventory query budgets. Compares equal current and previous windows.
@@ -1039,12 +1042,13 @@ defmodule Tuist.BuildEntities do
       if inventory? do
         source = "SELECT * FROM (#{latest_observations("")}) #{where([time_range() | filters])}"
 
+        outcomes = "status IN ('success', 'failure')"
+        executed = execution_evidence(duration_system)
+        outcomes = if duration_system, do: "#{outcomes} AND (#{executed})", else: outcomes
+
         select =
           metrics_select(duration_system) <>
-            """
-            , uniqExact(entity_id), countIf(status IN ('success', 'failure')),
-            countIf(status IN ('success', 'failure') AND cache_status NOT IN ('hit', 'hit_local', 'hit_remote'))
-            """
+            ", uniqExact(entity_id), countIf(#{outcomes}), countIf(#{executed})"
 
         {source, select, &inventory_metrics_from_row/1, empty_inventory_metrics(), @kind_scan_settings}
       else
@@ -1148,7 +1152,7 @@ defmodule Tuist.BuildEntities do
         {filters, filter_params} = observation_filters(opts)
 
         filters =
-          if Keyword.get(opts, :execution_durations_only, false),
+          if Keyword.get(opts, :execution_metrics_only, false),
             do: [execution_evidence(system) | filters],
             else: filters
 
@@ -1245,7 +1249,7 @@ defmodule Tuist.BuildEntities do
   end
 
   defp execution_duration_system(system, opts) do
-    if Keyword.get(opts, :execution_durations_only, false), do: system
+    if Keyword.get(opts, :execution_metrics_only, false), do: system
   end
 
   defp metrics_select(duration_system \\ nil) do
@@ -1256,7 +1260,7 @@ defmodule Tuist.BuildEntities do
     count() AS observations,
     countIf(cache_status IN (#{hit_statuses})) AS hits,
     countIf(cache_status = 'miss') AS misses,
-    countIf(status = 'failure') AS failures,
+    countIf(#{if condition, do: "(#{condition}) AND ", else: ""}status = 'failure') AS failures,
     #{if condition, do: "countIf(duration_ms IS NOT NULL AND (#{condition}))", else: "count(duration_ms)"} AS duration_samples,
     #{duration_aggregate("avg", condition)} AS avg_duration_ms,
     #{duration_aggregate("quantile", condition, "0.5")} AS p50_duration_ms,

@@ -54,7 +54,7 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1056
+#: lib/tuist_web/live/build_entity_live.ex:1053
 #: lib/tuist_web/live/build_entity_live.html.heex:277
 #: lib/tuist_web/live/xcode_builds_live.html.heex:456
 #, elixir-autogen, elixir-format
@@ -78,7 +78,7 @@ msgid "Avg. latency writing cache keys"
 msgstr ""
 
 #: lib/tuist_web/live/build_entity_live.ex:503
-#: lib/tuist_web/live/build_entity_live.ex:1180
+#: lib/tuist_web/live/build_entity_live.ex:1177
 #: lib/tuist_web/live/build_entity_live.html.heex:602
 #: lib/tuist_web/live/cargo_build_runs_live.ex:46
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:71
@@ -530,8 +530,8 @@ msgid "Entitlements"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:395
-#: lib/tuist_web/live/build_entity_live.ex:1113
-#: lib/tuist_web/live/build_entity_live.ex:1175
+#: lib/tuist_web/live/build_entity_live.ex:1110
+#: lib/tuist_web/live/build_entity_live.ex:1172
 #: lib/tuist_web/live/cargo_build_runs_live.ex:62
 #: lib/tuist_web/live/cargo_builds_live.html.heex:198
 #: lib/tuist_web/live/cargo_builds_live.html.heex:285
@@ -542,7 +542,7 @@ msgstr ""
 msgid "Environment"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:978
+#: lib/tuist_web/live/build_entity_live.ex:975
 #: lib/tuist_web/live/cargo_builds_live.html.heex:16
 #: lib/tuist_web/live/xcode_builds_live.html.heex:115
 #, elixir-autogen, elixir-format
@@ -581,7 +581,7 @@ msgstr ""
 #: lib/tuist_web/helpers/build_entity_labels.ex:93
 #: lib/tuist_web/helpers/cargo_cache.ex:66
 #: lib/tuist_web/live/build_entity_live.ex:517
-#: lib/tuist_web/live/build_entity_live.ex:1148
+#: lib/tuist_web/live/build_entity_live.ex:1145
 #: lib/tuist_web/live/build_entity_live.html.heex:438
 #: lib/tuist_web/live/build_entity_live.html.heex:582
 #: lib/tuist_web/live/build_run_live.ex:1243
@@ -984,7 +984,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:986
 #: lib/tuist_web/live/build_entity_live.ex:516
-#: lib/tuist_web/live/build_entity_live.ex:1147
+#: lib/tuist_web/live/build_entity_live.ex:1144
 #: lib/tuist_web/live/build_entity_live.html.heex:433
 #: lib/tuist_web/live/build_entity_live.html.heex:577
 #: lib/tuist_web/live/build_run_live.ex:1242
@@ -1207,8 +1207,8 @@ msgstr ""
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
 #: lib/tuist_web/live/bazel_invocation_live.ex:226
 #: lib/tuist_web/live/build_entity_live.ex:511
-#: lib/tuist_web/live/build_entity_live.ex:1112
-#: lib/tuist_web/live/build_entity_live.ex:1174
+#: lib/tuist_web/live/build_entity_live.ex:1109
+#: lib/tuist_web/live/build_entity_live.ex:1171
 #: lib/tuist_web/live/build_entity_live.html.heex:573
 #: lib/tuist_web/live/build_run_live.ex:1238
 #: lib/tuist_web/live/build_run_live.ex:1400
@@ -1706,21 +1706,21 @@ msgstr ""
 msgid "•"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1022
+#: lib/tuist_web/live/build_entity_live.ex:1019
 #: lib/tuist_web/live/cargo_builds_live.html.heex:68
 #: lib/tuist_web/live/xcode_builds_live.html.heex:184
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1017
+#: lib/tuist_web/live/build_entity_live.ex:1014
 #: lib/tuist_web/live/cargo_builds_live.html.heex:61
 #: lib/tuist_web/live/xcode_builds_live.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1007
+#: lib/tuist_web/live/build_entity_live.ex:1004
 #: lib/tuist_web/live/cargo_builds_live.html.heex:56
 #: lib/tuist_web/live/xcode_builds_live.html.heex:166
 #, elixir-autogen, elixir-format
@@ -1733,21 +1733,21 @@ msgstr ""
 msgid "Last 12 months"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:998
+#: lib/tuist_web/live/build_entity_live.ex:995
 #: lib/tuist_web/live/cargo_builds_live.html.heex:38
 #: lib/tuist_web/live/xcode_builds_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1004
+#: lib/tuist_web/live/build_entity_live.ex:1001
 #: lib/tuist_web/live/cargo_builds_live.html.heex:48
 #: lib/tuist_web/live/xcode_builds_live.html.heex:158
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1001
+#: lib/tuist_web/live/build_entity_live.ex:998
 #: lib/tuist_web/live/cargo_builds_live.html.heex:43
 #: lib/tuist_web/live/xcode_builds_live.html.heex:153
 #, elixir-autogen, elixir-format
@@ -2460,7 +2460,7 @@ msgstr ""
 msgid "Capability"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1181
+#: lib/tuist_web/live/build_entity_live.ex:1178
 #: lib/tuist_web/live/cargo_build_live.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Commit"
@@ -2503,7 +2503,7 @@ msgstr ""
 msgid "Local hit"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1103
+#: lib/tuist_web/live/build_entity_live.ex:1100
 #, elixir-autogen, elixir-format
 msgid "Measured durations"
 msgstr ""
@@ -2525,14 +2525,14 @@ msgstr ""
 msgid "Next"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1045
-#: lib/tuist_web/live/build_entity_live.ex:1049
+#: lib/tuist_web/live/build_entity_live.ex:1042
+#: lib/tuist_web/live/build_entity_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "No data in this period"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:961
-#: lib/tuist_web/live/build_entity_live.ex:1047
+#: lib/tuist_web/live/build_entity_live.ex:958
+#: lib/tuist_web/live/build_entity_live.ex:1044
 #, elixir-autogen, elixir-format
 msgid "No recorded durations"
 msgstr ""
@@ -2552,7 +2552,7 @@ msgstr ""
 #: lib/tuist_web/live/build_entity_live.ex:583
 #: lib/tuist_web/live/build_entity_live.ex:668
 #: lib/tuist_web/live/build_entity_live.ex:719
-#: lib/tuist_web/live/build_entity_live.ex:1149
+#: lib/tuist_web/live/build_entity_live.ex:1146
 #: lib/tuist_web/live/build_entity_live.html.heex:101
 #: lib/tuist_web/live/build_entity_live.html.heex:249
 #: lib/tuist_web/live/build_entity_live.html.heex:443
@@ -2563,9 +2563,9 @@ msgid "Not recorded"
 msgstr ""
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:34
-#: lib/tuist_web/live/build_entity_live.ex:1143
-#: lib/tuist_web/live/build_entity_live.ex:1144
-#: lib/tuist_web/live/build_entity_live.ex:1201
+#: lib/tuist_web/live/build_entity_live.ex:1140
+#: lib/tuist_web/live/build_entity_live.ex:1141
+#: lib/tuist_web/live/build_entity_live.ex:1198
 #, elixir-autogen, elixir-format
 msgid "Not reported"
 msgstr ""
@@ -2585,7 +2585,7 @@ msgstr ""
 msgid "Previous"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1177
+#: lib/tuist_web/live/build_entity_live.ex:1174
 #: lib/tuist_web/live/build_entity_live.html.heex:519
 #: lib/tuist_web/live/build_entity_live.html.heex:526
 #: lib/tuist_web/live/build_entity_live.html.heex:626
@@ -2608,7 +2608,7 @@ msgstr ""
 msgid "Root project"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:952
+#: lib/tuist_web/live/build_entity_live.ex:949
 #, elixir-autogen, elixir-format
 msgid "Showing the latest 10,000 measured durations since %{date}. Narrow the period or environment to see other observations."
 msgstr ""
@@ -2867,92 +2867,92 @@ msgid "Showing the first 500 compiler jobs"
 msgstr ""
 
 #: lib/tuist_web/live/build_entity_live.ex:473
-#: lib/tuist_web/live/build_entity_live.ex:883
+#: lib/tuist_web/live/build_entity_live.ex:880
 #, elixir-autogen, elixir-format
 msgid "Avg."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:893
+#: lib/tuist_web/live/build_entity_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "%{percentile} compilation duration"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:896
+#: lib/tuist_web/live/build_entity_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "%{percentile} execution duration"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:887
+#: lib/tuist_web/live/build_entity_live.ex:884
 #, elixir-autogen, elixir-format
 msgid "%{percentile} file compilation duration"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:765
+#: lib/tuist_web/live/build_entity_live.ex:762
 #, elixir-autogen, elixir-format
 msgid "Action executions"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:909
+#: lib/tuist_web/live/build_entity_live.ex:906
 #, elixir-autogen, elixir-format
 msgid "Each module contributes its containing file's measured compilation duration. Sibling modules share that measurement; their durations are not additive."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:775
+#: lib/tuist_web/live/build_entity_live.ex:772
 #, elixir-autogen, elixir-format
 msgid "Failed action executions"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:776
+#: lib/tuist_web/live/build_entity_live.ex:773
 #, elixir-autogen, elixir-format
 msgid "Failed compilations"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:774
+#: lib/tuist_web/live/build_entity_live.ex:771
 #, elixir-autogen, elixir-format
 msgid "Failed task executions"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:766
+#: lib/tuist_web/live/build_entity_live.ex:763
 #, elixir-autogen, elixir-format
 msgid "File compilations"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:767
+#: lib/tuist_web/live/build_entity_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "Module compilations"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:1048
+#: lib/tuist_web/live/build_entity_live.ex:1045
 #, elixir-autogen, elixir-format
 msgid "No recorded outcomes"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:764
+#: lib/tuist_web/live/build_entity_live.ex:761
 #, elixir-autogen, elixir-format
 msgid "Task executions"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:813
+#: lib/tuist_web/live/build_entity_live.ex:810
 #, elixir-autogen, elixir-format
 msgid "Module compilation records derived from compiled files, including those without measured timing. A file defining multiple modules contributes one record per module, not independent compilation work."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:809
+#: lib/tuist_web/live/build_entity_live.ex:806
 #, elixir-autogen, elixir-format
 msgid "Reported file compilations, including those without a measured duration."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:796
+#: lib/tuist_web/live/build_entity_live.ex:793
 #, elixir-autogen, elixir-format
 msgid "Task executions with a recorded success or failure. Cache hits, skipped, up-to-date and no-source tasks are excluded, regardless of timing availability."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:803
+#: lib/tuist_web/live/build_entity_live.ex:800
 #, elixir-autogen, elixir-format
 msgid "Uncached action executions with a recorded success or failure. Cached, skipped, cancelled and unknown outcomes are excluded, regardless of timing availability."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:789
+#: lib/tuist_web/live/build_entity_live.ex:786
 #, elixir-autogen, elixir-format
 msgid "BEP-reported action executions, not cache lookups. Reporting must publish all actions for complete execution coverage; missing timing remains unavailable."
 msgstr ""
@@ -2973,72 +2973,72 @@ msgstr ""
 msgid "Last status"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:862
+#: lib/tuist_web/live/build_entity_live.ex:859
 #, elixir-autogen, elixir-format
 msgid "Distinct actions with recorded activity during the selected period. The chart shows distinct actions per day, not a cumulative total."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:868
+#: lib/tuist_web/live/build_entity_live.ex:865
 #, elixir-autogen, elixir-format
 msgid "Distinct files with recorded activity during the selected period. The chart shows distinct files per day, not a cumulative total."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:874
+#: lib/tuist_web/live/build_entity_live.ex:871
 #, elixir-autogen, elixir-format
 msgid "Distinct modules with recorded activity during the selected period. The chart shows distinct modules per day, not a cumulative total."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:856
+#: lib/tuist_web/live/build_entity_live.ex:853
 #, elixir-autogen, elixir-format
 msgid "Distinct tasks with recorded activity during the selected period. The chart shows distinct tasks per day, not a cumulative total."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:930
+#: lib/tuist_web/live/build_entity_live.ex:927
 #, elixir-autogen, elixir-format
 msgid "Measured file compilation durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:834
+#: lib/tuist_web/live/build_entity_live.ex:831
 #, elixir-autogen, elixir-format
 msgid "Recorded action execution failures during the selected period. Unknown outcomes are not counted as successes or failures."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:840
+#: lib/tuist_web/live/build_entity_live.ex:837
 #, elixir-autogen, elixir-format
 msgid "Recorded file compilation failures during the selected period. Unknown outcomes are not counted as successes or failures."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:846
+#: lib/tuist_web/live/build_entity_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Recorded module compilation failures during the selected period. Unknown outcomes are not counted as successes or failures."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:828
+#: lib/tuist_web/live/build_entity_live.ex:825
 #, elixir-autogen, elixir-format
 msgid "Recorded task execution failures during the selected period. Unknown outcomes are not counted as successes or failures."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:923
+#: lib/tuist_web/live/build_entity_live.ex:920
 #, elixir-autogen, elixir-format
 msgid "Measured action durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:916
+#: lib/tuist_web/live/build_entity_live.ex:913
 #, elixir-autogen, elixir-format
 msgid "Measured task durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:890
+#: lib/tuist_web/live/build_entity_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "%{percentile} module build duration"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:773
+#: lib/tuist_web/live/build_entity_live.ex:770
 #, elixir-autogen, elixir-format
 msgid "Failed module builds"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:902
+#: lib/tuist_web/live/build_entity_live.ex:899
 #, elixir-autogen, elixir-format
 msgid "Measured compilation time for module builds, not total build time. Cache resolutions and modules without compilation work do not contribute timing samples."
 msgstr ""
@@ -3049,17 +3049,17 @@ msgid "Module build duration"
 msgstr ""
 
 #: lib/tuist_web/live/build_entity_live.ex:617
-#: lib/tuist_web/live/build_entity_live.ex:763
+#: lib/tuist_web/live/build_entity_live.ex:760
 #, elixir-autogen, elixir-format
 msgid "Module builds"
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:782
+#: lib/tuist_web/live/build_entity_live.ex:779
 #, elixir-autogen, elixir-format
 msgid "Module builds with recorded compilation work during the selected period. Module-cache resolutions and modules without compilation work are excluded."
 msgstr ""
 
-#: lib/tuist_web/live/build_entity_live.ex:820
+#: lib/tuist_web/live/build_entity_live.ex:817
 #, elixir-autogen, elixir-format
 msgid "Recorded module build failures during the selected period. Unknown outcomes are not counted as successes or failures."
 msgstr ""

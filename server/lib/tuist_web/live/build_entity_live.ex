@@ -186,7 +186,7 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp table_options(nil, params, _filters, _sort_by, _sort_order, inventory_sort),
     do: [
-      execution_durations_only: true,
+      execution_metrics_only: true,
       search: params["q"] || "",
       sort_by: inventory_sort,
       sort_order: selection(params, "order", ~w(asc), "desc")
@@ -229,7 +229,7 @@ defmodule TuistWeb.BuildEntityLive do
 
   defp load(socket, resource, project_id, nil, opts, reset?) do
     analytics_opts =
-      Keyword.take(opts, [:start_datetime, :end_datetime, :environment, :branch, :execution_durations_only])
+      Keyword.take(opts, [:start_datetime, :end_datetime, :environment, :branch, :execution_metrics_only])
 
     socket =
       maybe_load(socket, :analytics, {:inventory, resource.key, analytics_opts}, reset?, fn ->
@@ -746,10 +746,7 @@ defmodule TuistWeb.BuildEntityLive do
     """
   end
 
-  defp inventory_count_field(%{entity: nil, resource: %{system: :xcode}}, :observations), do: :duration_samples
-
-  defp inventory_count_field(%{entity: nil, resource: %{system: system}}, :observations)
-       when system in [:gradle, :once, :bazel], do: :executions
+  defp inventory_count_field(%{entity: nil}, :observations), do: :executions
 
   defp inventory_count_field(_assigns, metric), do: metric
 

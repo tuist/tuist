@@ -12,7 +12,7 @@ defmodule Tuist.BuildEntities.ExecutionScopeTest do
     BuildEntitiesFixtures.entity_fixture(project, :once_actions, duration_ms: 0, status: "failure")
     BuildEntitiesFixtures.entity_fixture(project, :once_actions, duration_ms: 0, cache_status: "hit")
     BuildEntitiesFixtures.entity_fixture(project, :once_actions, duration_ms: 0, status: "skipped")
-    opts = [execution_durations_only: true]
+    opts = [execution_metrics_only: true]
     assert BuildEntities.inventory_analytics(project.id, :once, "action").total.duration_samples == 4
     total = BuildEntities.inventory_analytics(project.id, :once, "action", opts).total
     assert total.duration_samples == 2
@@ -27,6 +27,28 @@ defmodule Tuist.BuildEntities.ExecutionScopeTest do
   end
 
   for resource <- BuildEntityResources.dashboard_resources() do
+    test "#{resource.key} cached outcomes do not become executed failure measurements" do
+      resource = BuildEntityResources.fetch!(unquote(resource.key))
+      project = ProjectsFixtures.project_fixture()
+      BuildEntitiesFixtures.entity_fixture(project, resource.key, cache_status: "hit", status: "success")
+      BuildEntitiesFixtures.entity_fixture(project, resource.key, cache_status: "hit_remote", status: "failure")
+      public = BuildEntities.inventory_analytics(project.id, resource.system, resource.kind).total
+      assert public.failures == 1
+      assert public.outcome_samples == 2
+      opts = [execution_metrics_only: true]
+      scoped = BuildEntities.inventory_analytics(project.id, resource.system, resource.kind, opts).total
+      assert scoped.entities == 1
+      assert scoped.observations == 2
+      assert scoped.executions == 0
+      assert scoped.failures == 0
+      assert scoped.outcome_samples == 0
+      assert scoped.duration_samples == 0
+      {rows, _meta} = BuildEntities.list(project.id, resource.system, resource.kind, opts)
+      assert [row] = rows
+      assert row.failures == 0
+      assert row.duration_samples == 0
+    end
+
     test "#{resource.key} execution-only reads preserve public history and native missing timing", _context do
       resource = BuildEntityResources.fetch!(unquote(resource.key))
       project = ProjectsFixtures.project_fixture()

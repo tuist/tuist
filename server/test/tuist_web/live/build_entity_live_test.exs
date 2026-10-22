@@ -45,6 +45,19 @@ defmodule TuistWeb.BuildEntityLiveTest do
   end
 
   for resource <- BuildEntityResources.dashboard_resources() do
+    test "#{resource.key} cache-only inventories have no executed outcomes", context do
+      resource = BuildEntityResources.fetch!(unquote(resource.key))
+      %{conn: conn, project: project, account: account} = context
+      project = project |> Ecto.Changeset.change(build_system: resource.system) |> Repo.update!()
+      BuildEntitiesFixtures.entity_fixture(project, resource.key, cache_status: "hit", status: "success")
+      BuildEntitiesFixtures.entity_fixture(project, resource.key, cache_status: "hit_remote", status: "failure")
+      {:ok, view, _html} = live(conn, "/#{account.name}/#{project.name}#{resource.path}")
+      render_async(view)
+      assert has_element?(view, "#build-entity-inventory tbody tr")
+      assert has_element?(view, "#inventory-observations [data-part=value]", "0")
+      assert has_element?(view, "#inventory-failures[data-empty=true]", "Not recorded")
+    end
+
     test "#{resource.key} have an inventory and independent overview/history page", context do
       resource = BuildEntityResources.fetch!(unquote(resource.key))
       %{conn: conn, project: project, account: account} = context
