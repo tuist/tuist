@@ -10,6 +10,7 @@ defmodule AtlasWeb.NativeThemesControllerTest do
     assert catalog["schema_version"] == 1
     assert catalog["default_theme_id"] == "pulse"
     assert Enum.map(catalog["themes"], & &1["id"]) == ~w(pulse berlin habibi amrit pelotas branik)
+    assert %{"name" => "Brigadeiro"} = Enum.find(catalog["themes"], &(&1["id"] == "pelotas"))
     assert {:ok, ^catalog} = NativeThemes.validate(catalog)
     assert get_resp_header(response, "cache-control") == ["public, max-age=300"]
   end
