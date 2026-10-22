@@ -34,6 +34,22 @@ workflow code runs in the guest. Never expose host credentials or masters.
   and the repository match. Evidence: on 2026-10-20 rack hosts held 13 to 21
   goldens, 1 or 2 of them current, because runner images are released several
   times a day and every catalog image shares one repository.
+- A release is followed, not re-pulled (`internal/podagent/follow.go`). While
+  a host holds the golden of a pool's `status.previousImage` (or of
+  `status.observedImage` before the runners-controller has seen the new
+  `spec.image`) and not the current one, the GC keeps the previous golden and
+  its cached image and pulls the current image in the background, one at a
+  time, through `ensureGolden`. The next pass after the pull reaps the
+  previous one as superseded. A stacked golden's base stays in Tart's content
+  store throughout, so the pull is only the overlay. Bounds: no follow under
+  disk pressure or below the prewarmer's 30% free floor, and a golden is kept
+  for its successor at most `defaultFollowTimeout` (2h). Evidence: after the
+  release of 2026-10-22 13:00 UTC the GC freed about 60 GiB per reaped golden
+  per rack host, and the next pull took 10 to 23 s on hosts that still held
+  the base against 9.5 to 12.8 minutes on hosts that did not. Every 6 vCPU
+  macOS pool keeps a warm floor, so the prewarmer below pulls every catalog
+  image onto a joining host (about 60 GiB each; the rack's disk plan in
+  `values-managed-production.yaml` allows for all of them).
 - `tart run` needs an Aqua session for the host user. `internal/tart/session.go`
   kicks loginwindow before each run when it is missing; on timeout the error
   names who holds `/dev/console`. `_mbsetupuser` (Setup Assistant from first
