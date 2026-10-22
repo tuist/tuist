@@ -77,6 +77,10 @@ class AtlasSecureStorage(
     }
 }
 
+object AtlasPushStorage {
+    fun key(origin: String): String = "push-registration:$origin"
+}
+
 class AuthFailure(
     val kind: String,
     message: String,
@@ -165,6 +169,12 @@ class AtlasAuthentication(
     }
 
     private fun discardSession(removeRegistration: Boolean = false) {
+        val origin = runCatching { storage.load("session")?.optJSONObject("registration")?.optString("server") }.getOrNull() ?: server
+        origin?.let {
+            val key = AtlasPushStorage.key(it)
+            runCatching { storage.load(key)?.let { saved -> storage.save(key, saved.put("enabled", false)) } }
+                .onFailure { runCatching { storage.delete(key) } }
+        }
         storage.delete("session")
         sessionIdentity += 1
         main.post { server = null }
@@ -216,6 +226,11 @@ class AtlasAuthentication(
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
     ) = operation("time_off", action, completion)
+
+    fun push(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) = operation("push", action, completion)
 
     fun business(
         action: JSONObject,

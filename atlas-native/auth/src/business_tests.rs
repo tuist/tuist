@@ -443,6 +443,30 @@ fn finance_overview_preserves_exact_values_and_only_belongs_to_invoices() {
 }
 
 #[test]
+fn profile_forwards_only_optional_push_capabilities_not_provider_configuration() {
+    let network = MockTransport::new(vec![json!({
+        "server_version":"0.7.2", "user":{"name":"Taylor","email":"taylor@example.org"},
+        "push_notifications":{"ios":true,"android":false,"private_key":"never-forward"}
+    })]);
+    let output = execute_using(
+        &network,
+        saved(),
+        Resource::Profile,
+        Action::List {
+            page: 1,
+            query: String::new(),
+            filters: BTreeMap::new(),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        output["push_notifications"],
+        json!({"ios":true,"android":false})
+    );
+    assert!(!output.to_string().contains("never-forward"));
+}
+
+#[test]
 fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
     let network = MockTransport::new(vec![
         json!({"server_version":"0.7.2","user":{"name":"Taylor","email":"taylor@example.org","token":"private"}}),
