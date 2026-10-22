@@ -390,18 +390,26 @@ public struct GitController: GitControlling {
         // PR branch tip) instead, since the merge commit doesn't exist on the remote.
         // On GitHub Actions, GITHUB_SHA is that merge commit: a workflow that checked out
         // another commit, such as the pull request's head, reports HEAD, since that commit's
-        // second parent, if it has one, is not the pull request.
+        // second parent, if it has one, is not the pull request. When HEAD is GITHUB_SHA, the
+        // pull request's head is read from the event payload, else from the merge commit's
+        // object: in a shallow clone, such as `actions/checkout`'s default depth of 1, the
+        // grafts hide HEAD's parents from `rev-parse HEAD^2`.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
             let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
-            let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
-                && (mergeCommit == nil || mergeCommit == head)
-            if isPullRequestMergeCheckout,
-               let secondParent = try? await capture(
-                   command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
-               ).trimmingCharacters(in: .whitespacesAndNewlines),
-               !secondParent.isEmpty
+            let isPullRequestRef = gitRef?.hasPrefix("refs/pull/") == true
+            if isPullRequestRef, let head, mergeCommit == head {
+                if let pullRequestHead = Self.githubPullRequestHeadSHA(eventPath: environment["GITHUB_EVENT_PATH"]) {
+                    commitSHA = pullRequestHead
+                } else {
+                    commitSHA = await secondParent(of: head, workingDirectory: workingDirectory) ?? head
+                }
+            } else if isPullRequestRef, mergeCommit == nil,
+                      let secondParent = try? await capture(
+                          command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
+                      ).trimmingCharacters(in: .whitespacesAndNewlines),
+                      !secondParent.isEmpty
             {
                 commitSHA = secondParent
             } else {
@@ -426,6 +434,28 @@ public struct GitController: GitControlling {
             baseBranch: baseBranch,
             pullRequestNumber: pullRequestNumber
         )
+    }
+
+    /// The pull request's head as GitHub Actions' event payload (`GITHUB_EVENT_PATH`) names it.
+    static func githubPullRequestHeadSHA(eventPath: String?) -> String? {
+        guard let eventPath,
+              let data = FileManager.default.contents(atPath: eventPath),
+              let event = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let pullRequest = event["pull_request"] as? [String: Any],
+              let head = pullRequest["head"] as? [String: Any],
+              let sha = head["sha"] as? String, !sha.isEmpty
+        else { return nil }
+        return sha
+    }
+
+    /// The second of a merge commit's two parents, as its commit object stores them.
+    private func secondParent(of sha: String, workingDirectory: AbsolutePath) async -> String? {
+        guard let raw = try? await capture(
+            command: "git", "-C", workingDirectory.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", sha
+        ),
+            let parents = GitHistoryParser.parseRawParents(raw)[sha], parents.count == 2
+        else { return nil }
+        return parents[1]
     }
 
     /// Some providers name a branch by its full ref, `refs/heads/main`.
