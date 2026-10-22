@@ -890,10 +890,14 @@ func TestConvergeLeavesARecentMasterInPlace(t *testing.T) {
 	}
 }
 
-type recordingCustomPrefetch struct{ identities []cachevolumes.Identity }
+type recordingCustomPrefetch struct {
+	identities []cachevolumes.Identity
+	reasons    []string
+}
 
-func (r *recordingCustomPrefetch) PrefetchMaster(identity cachevolumes.Identity) bool {
+func (r *recordingCustomPrefetch) PrefetchMaster(identity cachevolumes.Identity, reason string) bool {
 	r.identities = append(r.identities, identity)
+	r.reasons = append(r.reasons, reason)
 	return true
 }
 
@@ -904,6 +908,7 @@ func TestConvergeHandsCustomHeadsToTheCustomAgent(t *testing.T) {
 	source := &stubPrefetch{masters: []PrefetchMaster{{
 		Kind: "custom", ID: "11111111-1111-4111-8111-111111111111", AccountID: 42, Scope: scope, Generation: 3,
 		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64), VolumeBytes: 50_000_000_000, HeadSizeBytes: 4_000_000_000,
+		Reason: "prewarm",
 	}}}
 	custom := &recordingCustomPrefetch{}
 	w := newTestConvergeWorker(m)
@@ -915,8 +920,8 @@ func TestConvergeHandsCustomHeadsToTheCustomAgent(t *testing.T) {
 		ID: "11111111-1111-4111-8111-111111111111", Account: 42, Scope: scope, BaseGeneration: 3,
 		ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64), VolumeBytes: 50_000_000_000, HeadSizeBytes: 4_000_000_000,
 	}
-	if len(custom.identities) != 1 || custom.identities[0] != want {
-		t.Fatalf("custom prefetches = %+v", custom.identities)
+	if len(custom.identities) != 1 || custom.identities[0] != want || custom.reasons[0] != "prewarm" {
+		t.Fatalf("custom prefetches = %+v, reasons = %v", custom.identities, custom.reasons)
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()

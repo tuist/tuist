@@ -1146,6 +1146,21 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 	return b.prefetch(ctx, slot, false)
 }
 
+// PrefetchSpare restores a master like Prefetch, but only into free space above
+// the reserve: it never evicts a master or reclaims checkouts, so a speculative
+// download cannot push out masters jobs on this host still read. Its master of a
+// lineage no job used here is speculative until a job clones it.
+func (b *LocalImages) PrefetchSpare(ctx context.Context, slot Slot) error {
+	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
+		return errors.New("invalid prefetch identity")
+	}
+	ctx = WithSubject(ctx, SubjectOf(slot))
+	if err := b.reserveSpare(ctx, b.MinFreeBytes+uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
+		return err
+	}
+	return b.prefetch(ctx, slot, true)
+}
+
 // prefetch restores the slot's master in the background. A spare prefetch of a
 // lineage without a used copy here installs a speculative master, which pressure
 // eviction takes before the masters jobs used.

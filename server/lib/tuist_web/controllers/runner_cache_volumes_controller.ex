@@ -4,6 +4,7 @@ defmodule TuistWeb.RunnerCacheVolumesController do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.VolumePrefetch
 
   def authorize(conn, params) do
     with :ok <- authenticate(conn),
@@ -80,6 +81,35 @@ defmodule TuistWeb.RunnerCacheVolumesController do
   end
 
   def image(conn, _), do: send_resp(conn, :bad_request, "")
+
+  # The custom HEADs a Linux host should prefetch (`VolumePrefetch.for_node/2`).
+  def masters(conn, %{"node_name" => node}) when is_binary(node) and node != "" do
+    case authenticate(conn) do
+      :ok ->
+        masters =
+          Enum.map(VolumePrefetch.for_node(node, :linux), fn master ->
+            Map.take(master, [
+              :kind,
+              :id,
+              :account_id,
+              :scope,
+              :generation,
+              :image_digest,
+              :content_digest,
+              :volume_bytes,
+              :head_size_bytes,
+              :reason
+            ])
+          end)
+
+        conn |> put_resp_header("cache-control", "no-store") |> json(%{masters: masters})
+
+      _ ->
+        send_resp(conn, :forbidden, "")
+    end
+  end
+
+  def masters(conn, _), do: send_resp(conn, :bad_request, "")
 
   defp authenticate(conn) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),

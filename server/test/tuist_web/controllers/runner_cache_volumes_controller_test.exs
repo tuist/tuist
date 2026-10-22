@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.VolumePrefetch
   alias TuistWeb.RunnerCacheVolumesController, as: Controller
 
   defp conn do
@@ -135,5 +136,64 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     result = Controller.checkout(conn(), %{"node_name" => "node"})
     assert result.status == 403
     assert CacheVolumes.checkout_key() == "checkout"
+  end
+
+  test "the storage agent lists the Linux HEADs its node should prefetch" do
+    assert %{plug: Controller, plug_opts: :masters} =
+             Phoenix.Router.route_info(TuistWeb.Router, "GET", "/api/internal/runners/cache-volumes/masters", "localhost")
+
+    namespace = Application.get_env(:tuist, :runner_cache_volumes_namespace, Environment.runners_namespace())
+    name = Application.get_env(:tuist, :runner_cache_volumes_sa_name, "tuist-runner-cache-volumes")
+    stub(K8sClient, :create_controller_token_review, fn "agent-token" -> {:ok, %{namespace: namespace, name: name}} end)
+
+    expect(VolumePrefetch, :for_node, fn "linux-01", :linux ->
+      [
+        %{
+          kind: "custom",
+          id: "use",
+          account_id: 42,
+          scope: "scope",
+          generation: 2,
+          image_digest: "d",
+          content_digest: "c",
+          volume_bytes: 20_000_000_000,
+          head_size_bytes: 1_000_000_000,
+          reason: "prewarm",
+          extra: "dropped"
+        }
+      ]
+    end)
+
+    result = Controller.masters(conn(), %{"node_name" => "linux-01"})
+    assert result.status == 200
+    assert get_resp_header(result, "cache-control") == ["no-store"]
+
+    assert JSON.decode!(result.resp_body) == %{
+             "masters" => [
+               %{
+                 "kind" => "custom",
+                 "id" => "use",
+                 "account_id" => 42,
+                 "scope" => "scope",
+                 "generation" => 2,
+                 "image_digest" => "d",
+                 "content_digest" => "c",
+                 "volume_bytes" => 20_000_000_000,
+                 "head_size_bytes" => 1_000_000_000,
+                 "reason" => "prewarm"
+               }
+             ]
+           }
+
+    assert Controller.masters(conn(), %{}).status == 400
+  end
+
+  test "only the storage agent can list HEADs to prefetch" do
+    expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
+      {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+    end)
+
+    reject(&VolumePrefetch.for_node/2)
+    assert Controller.masters(conn(), %{"node_name" => "linux-01"}).status == 403
   end
 end

@@ -134,7 +134,7 @@ type ConvergeWorker struct {
 	Prefetch PrefetchSource
 	// Custom receives the custom-volume HEADs in the prefetch list. Nil drops them.
 	Custom interface {
-		PrefetchMaster(cachevolumes.Identity) bool
+		PrefetchMaster(cachevolumes.Identity, string) bool
 	}
 
 	// Zero values use the package defaults; injectable so tests don't wait real
@@ -436,7 +436,7 @@ func (w *ConvergeWorker) refreshPrefetch(ctx context.Context) bool {
 				w.Custom.PrefetchMaster(cachevolumes.Identity{
 					ID: master.ID, Account: master.AccountID, Scope: master.Scope, BaseGeneration: int64(master.Generation),
 					ImageDigest: master.ImageDigest, ContentDigest: master.ContentDigest, VolumeBytes: master.VolumeBytes, HeadSizeBytes: master.HeadSizeBytes,
-				})
+				}, master.Reason)
 			}
 			continue
 		}

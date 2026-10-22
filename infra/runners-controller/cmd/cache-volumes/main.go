@@ -280,7 +280,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, budget: 2 * time.Minute, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -296,6 +296,10 @@ func main() {
 	// Without git and git-lfs the worker logs why and retries; the host answers
 	// denied meanwhile, so runners export nothing.
 	go checkouts.Start(context.Background())
+	// Separate from the job prefetcher, so a missed master never waits behind a
+	// listed one: at most one download of each kind at a time.
+	listed := &listing{url: strings.TrimSuffix(*url, "/authorize") + "/masters", node: *node, tokenPath: *tokenPath, client: client, local: backend.HasMaster, restore: backend.PrefetchSpare, observe: metrics.observe, installed: metrics.installed, logger: metrics.logger, interval: 10 * time.Minute, budget: 10 * time.Minute}
+	go listed.run(context.Background())
 	go func() {
 		for {
 			start := time.Now()

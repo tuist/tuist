@@ -6621,6 +6621,38 @@ Backtest, two-hour window evaluated hourly, hours named by their end,
   macOS volume use grew sevenfold. 85% would also catch 10:00 and 14:00, but
   sits a point and a half under the normal minimum.
 
+#### First attaches after idle
+
+The rule is dominated by busy volumes, which stay warm on the hosts that just
+used them. The attaches that need prewarming (`prefetch_heads/3` in
+`CacheVolumes`) are a volume's first after six hours without one, mostly an
+account's first jobs of the day. This query reads them from the same
+datasource and columns, per platform and day:
+
+```sql
+WITH uses AS (
+  SELECT v.platform, u.warm, u.base_generation, u.attached_at,
+    lag(u.attached_at) OVER (PARTITION BY u.volume_id ORDER BY u.attached_at) AS previous_attached_at
+  FROM runner_cache_volume_uses u JOIN runner_cache_volumes v ON v.id = u.volume_id
+  WHERE u.attached_at >= now() - interval '15 days' AND v.key NOT LIKE 'e2e-reuse-%'
+    AND v.key NOT IN ('runners-acceptance-probe', 'checkout')
+)
+SELECT platform, date_trunc('day', attached_at)::date AS day,
+  count(*) FILTER (WHERE warm) AS warm, count(*) AS total
+FROM uses
+WHERE attached_at >= now() - interval '8 days' AND base_generation > 0 AND warm IS NOT NULL
+  AND (previous_attached_at IS NULL OR previous_attached_at <= attached_at - interval '6 hours')
+GROUP BY 1, 2 ORDER BY 1, 2
+```
+
+macOS read 4 of 15 warm on 2026-10-21 and 14 of 21 on 10-22, and Linux 25
+of 28 on 10-22, before prewarming. What prewarming downloads, per host and reason (Linux agents report
+`job`, `prewarm` and `recent`; macOS hosts also `refresh`):
+
+```promql
+sum by (instance, reason) (increase(tuist_runner_cache_volume_prefetched_bytes_total{env="production"}[1d]))
+```
+
 ### Runner cache volume saves incomplete
 
 macOS only: any save in the last hour that the host withheld as `incomplete`

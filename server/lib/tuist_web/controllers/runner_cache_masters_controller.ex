@@ -20,7 +20,7 @@ defmodule TuistWeb.RunnerCacheMastersController do
          {:ok, %{namespace: namespace, name: name}} <- K8sClient.create_runner_host_token_review(token),
          {:ok, node_name} <- VolumePrefetch.node_for_service_account(namespace, name) do
       masters =
-        Enum.map(VolumePrefetch.for_node(node_name), fn master ->
+        Enum.map(VolumePrefetch.for_node(node_name, :macos), fn master ->
           Map.take(master, [
             :kind,
             :id,
@@ -30,7 +30,8 @@ defmodule TuistWeb.RunnerCacheMastersController do
             :image_digest,
             :content_digest,
             :volume_bytes,
-            :head_size_bytes
+            :head_size_bytes,
+            :reason
           ])
         end)
 
