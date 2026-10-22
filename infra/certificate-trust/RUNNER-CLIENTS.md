@@ -30,11 +30,20 @@ Both suites pass on the **Darwin arm64 host**. Running the Linux image's source 
 
 The shared policy suite checks both policy arrays; byte-identical `main.go`, `certificate_trust.go`, `certificate_trust_test.go` and `certificate_trust_diagnostics_test.go` copies; protected HTTP/WSS factory wiring; log arguments; and fixture equality. Linux's separate pre-existing `main_test.go` is not mirrored. Read-only certificate CI is wired to watch and run both focused suites; no completed Linux CI run is claimed here. Existing owner Docker/Packer builds include these new files through their existing `cmd` build inputs; no new runtime policy file or host trust mutation is required.
 
-Source implementation: `50cda9fed5`. Host test logs: `/tmp/tuist-emudhra-audit/runner-shell-{macos,linux-source}-reviewed-live-race.log`. The final AST guard's focused tests pass in `runner-shell-final-ast-guards.log`; full post-guard shared-suite rerun is pending. Workflow lint passes in `runner-shell-final-actionlint.log` with the explicitly installed shellcheck on PATH. Earlier `*-actionlint.log` attempts that failed to resolve the mise shellcheck shim are not passing receipts. These are test receipts, not signed release attestations.
+Source implementation: `50cda9fed5`. Repeated from clean committed tree **`2819576aded5bf39a53e34211084379f5628f4f6`**: both host race/live suites pass (macOS-module package 23.474 s, Linux-module source package 5.212 s), and the complete shared policy suite including final AST guards passes in 59.635 s. Logs: `/tmp/tuist-emudhra-audit/runner-shell-committed-{runner-image,linux-runner-image}-live-race.log` and `runner-shell-committed-go-sync.log`. Workflow lint passes in `runner-shell-final-actionlint.log` with the explicitly installed shellcheck on PATH. Earlier actionlint attempts that failed to resolve the mise shellcheck shim are not passing receipts.
+
+Local candidates were built from that same clean tree using `-trimpath -ldflags='-s -w'`:
+
+| Candidate | SHA-256 | Build metadata |
+| --- | --- | --- |
+| Darwin arm64 | `b6a52796e44acab838e3ccf3329b85a9725ab0522414974a51c41d6127aa337f` | Go 1.26.10, CGO enabled as in the native owner build |
+| Linux amd64 | `d9e1135a85904da5b57f50b70f8556db60f8fe2648bb3a4f7d6f2ff37c21625f` | Go 1.26.10, CGO disabled as in the image builder |
+
+Both retain matching prior-compatibility `DefaultGODEBUG` metadata and contain all twelve policy strings. `/tmp/tuist-emudhra-audit/runner-shell/artifacts/` records hashes, architecture, SDK/build metadata, the manually captured source revision and an empty worktree-status receipt. The Go build metadata itself does not include a VCS revision. These binaries were built and inspected, **not executed as candidate artifacts**, signed, published or installed; their presence and strings are not runtime attestation.
 
 ## Remaining owner gates
 
-- Exact committed candidate binary hashes/build metadata and candidate execution, Linux runtime, older supported OS/native/corporate trust stores and HTTPS redirect-to-protected-target wire cases remain separate from the above source/host tests. Resumption is currently disabled; enabling it requires resumed wire qualification.
+- Candidate-artifact execution, Linux runtime, older supported OS/native/corporate trust stores and HTTPS redirect-to-protected-target wire cases remain separate from the above source/host tests and local build/metadata receipts. Resumption is currently disabled; enabling it requires resumed wire qualification.
 - Existing Linux/Packer build failures remain open. No new runner image, helper publication, installed process replacement or deployed default is claimed here.
 - Independently qualify `tuist-cache-volume`, `tuist-runner-cache`, GitLab's upstream cache downloader/archiver, host bootstrap/sensors/log shipper, MDM and other Go/vendor/subprocess clients. Their compiler pin alone covers the eight intermediate keys, not an application twelve-key callback.
 - Apply owner-authorized patched artifact floors and idle/warm replacement. Preserve active jobs, token isolation, warm capacity, APFS masters, cache volumes/PVCs, local stores and spools. Do not kill active shell/job processes merely to replace this binary, and retain a qualified patched rollback.
