@@ -14,11 +14,36 @@ The worker captures the existing shared report builder's buffer submissions in i
 
 After correcting the staged source or resource issue, an authorized operator may call `Tuist.OnceEvents.TestReportIngestor.retry_preparation(id)` to reset only a failed, payload-free preparation and requeue it. This operation cannot reset an uncertain write. Do not repeatedly reset without investigating the error and worker memory/timeout behavior.
 
+Infrastructure failures count too: a sustained database/ClickHouse outage can exhaust all eight attempts. There is no fixed outage tolerance: queue delays, retry backoff, recovery sweeps and the finite ten-minute job-uniqueness window affect the cadence. The durable attempt count, not a particular Oban job's attempt number, bounds preparation work. After restoring and checking the dependency, inspect representative failed jobs to distinguish an outage from invalid source or deterministic resource exhaustion. For a confirmed outage, an authorized operator can retry a **bounded, project-scoped batch** of `builder_failed` preparations. Deliberately bind `project_id`, `window_start` and `window_end` to the affected project and UTC **failure-update** window before evaluating this snippet in the matching release:
+
+```elixir
+import Ecto.Query
+alias Tuist.OnceEvents.Run
+alias Tuist.OnceEvents.TestReportIngestor
+alias Tuist.OnceEvents.TestReportPublication
+alias Tuist.Repo
+
+ids = Repo.all(
+  from p in TestReportPublication,
+    join: r in Run, on: r.id == p.id,
+    where: r.project_id == ^project_id,
+    where: p.state == "failed_preparation" and p.preparation_error == "builder_failed",
+    where: is_nil(p.payload) and p.updated_at >= ^window_start and p.updated_at < ^window_end,
+    order_by: [asc: p.updated_at, asc: p.id],
+    limit: 100,
+    select: p.id
+)
+
+Enum.map(ids, fn id -> {id, TestReportIngestor.retry_preparation(id)} end)
+```
+
+Record the selected IDs and every result, verify a sample reaches `published`, and watch queue/dependency pressure before deliberately selecting another batch. Do not automate repeated resets. This excludes permanent errors and killed-attempt `attempt_limit` cases, which need separate investigation; the retry function also rejects any changed state, payload or uncertain write.
+
 Existing idempotent historical flaky corrections and their PostgreSQL jobs commit with successful snapshot preparation, independently of this report's later publication. They may update older reports while the new report is uncertain. New-report rows and created-case webhooks remain captured/deferred; do not describe capture as deferring every historical side effect.
 
 Each chunk is marked in flight in PostgreSQL **before** sending it. An acknowledged write advances a durable checkpoint. Retries resume acknowledged prefixes without resending them. The parent report is written last. Publication completion and its follow-up job commit together. Deferred webhook enqueueing and its completion checkpoint are one PostgreSQL transaction; downstream webhook delivery and optional notifications are not exactly once.
 
-A three-minute soft budget, including preparation, is checked before starting each chunk. Exhaustion releases the owner between acknowledged chunks and snoozes the job, letting the next attempt resume its checkpoint with a fresh budget. This is a cooperative bound, not proof that GC, pool stalls or a remote call cannot exceed a deadline. The five-minute hard timeout is shorter than the six-minute claim lease. Lease expiry is not a rescheduling guarantee: a dead pod's executing Oban row can remain unique until the configured thirty-minute Lifeline rescue, delaying replacement work. A killed job between chunks can resume; a killed job with an in-flight chunk cannot safely assume whether ClickHouse accepted it. A write error, lost response, or expired in-flight owner moves the publication to `uncertain`. Only the driver's explicit pre-send pool checkout timeout clears the in-flight marker for an automatic retry; errors after sending are never classified by a transport message string. Automatic recovery does **not** resend that chunk. Even a short retry horizon cannot guarantee ClickHouse deduplication: its retention is count- as well as time-bounded. Tokens are defense in depth, not the correctness fence. The writer disables both the repo's generic transport retries and DBConnection checkout resends, and forces synchronous server inserts. No fleet-wide ClickHouse deduplication-window changes are required.
+A three-minute soft budget, including preparation, is checked before starting each chunk. Exhaustion releases the owner between acknowledged chunks and snoozes the job, letting the next attempt resume its checkpoint with a fresh budget. This is a cooperative bound, not proof that GC, pool stalls or a remote call cannot exceed a deadline. The five-minute hard timeout is shorter than the six-minute claim lease. Lease expiry is not a rescheduling guarantee. Existing unique jobs and recovery cadence can delay replacement, while a dead pod's original executing Oban row can remain until the configured thirty-minute Lifeline rescue. The ten-minute uniqueness window may allow another job before that rescue; database owner/checkpoint fencing, not uniqueness or Lifeline, prevents unsafe overlap. A killed job between chunks can resume; a killed job with an in-flight chunk cannot safely assume whether ClickHouse accepted it. A write error, lost response, or expired in-flight owner moves the publication to `uncertain`. Only the driver's explicit pre-send pool checkout timeout clears the in-flight marker for an automatic retry; errors after sending are never classified by a transport message string. Automatic recovery does **not** resend that chunk. Even a short retry horizon cannot guarantee ClickHouse deduplication: its retention is count- as well as time-bounded. Tokens are defense in depth, not the correctness fence. The writer disables both the repo's generic transport retries and DBConnection checkout resends, and forces synchronous server inserts. No fleet-wide ClickHouse deduplication-window changes are required.
 
 ## Detect and reconcile uncertain writes
 
