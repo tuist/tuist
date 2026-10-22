@@ -143,7 +143,7 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Master prefetch runs one download at a time from a bounded, deduplicated queue:
   masters a job asked for but did not get within its 25 seconds first, then the
   custom HEADs the server lists for the host class (free space only, no eviction),
-  in the server's order: `prewarm` (idle volumes an account uses day after day)
+  in the server's order: `prewarm` (idle volumes several workflow runs used this week)
   before `recent`. `tuist_runner_cache_volume_prefetched_bytes_total{reason}` adds
   the saved head's used bytes for each installed master (`job`, `refresh` for a
   newer HEAD of a local master, `prewarm`, `recent`; an unknown listing reason

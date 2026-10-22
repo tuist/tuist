@@ -29,9 +29,9 @@ defmodule Tuist.Runners.CacheVolumes do
   @retention_seconds 7 * 24 * 60 * 60
   @checkout_key "checkout"
   @prefetch_history_days 7
-  @prewarm_use_days 2
+  @prewarm_runs 2
   @prewarm_idle_seconds 4 * 60 * 60
-  @prewarm_limit 16
+  @prewarm_limit 32
   @recent_use_seconds 24 * 60 * 60
   @recent_limit 8
   @checkout_reserved_bytes 8_000_000_000
@@ -873,8 +873,8 @@ defmodule Tuist.Runners.CacheVolumes do
   then retains its master under (the use that published the HEAD), with the
   `reason` it is listed for:
 
-    * `"prewarm"`: used on at least two of the last seven days and not for four
-      hours. Its HEAD cannot change before its next job, so a host that
+    * `"prewarm"`: used by at least two workflow runs in the last seven days and
+      not for four hours, which leaves out keys a single run made for itself. Its HEAD cannot change before its next job, so a host that
       downloads it while the account is idle still holds the right copy when
       the account's next working day starts.
     * `"recent"`: used in the last day, and not listed to prewarm.
@@ -901,15 +901,14 @@ defmodule Tuist.Runners.CacheVolumes do
           select: %{
             volume: v,
             last_used_at: max(u.inserted_at),
-            use_days:
-              fragment("count(DISTINCT floor(extract(epoch FROM (?::timestamptz - ?)) / 86400))", ^now, u.inserted_at)
+            runs: count(u.workflow_run_id, :distinct)
           }
         )
       )
 
     {prewarm, rest} =
       Enum.split_with(candidates, fn candidate ->
-        candidate.use_days >= @prewarm_use_days and DateTime.compare(candidate.last_used_at, idle_since) != :gt
+        candidate.runs >= @prewarm_runs and DateTime.compare(candidate.last_used_at, idle_since) != :gt
       end)
 
     recent = Enum.filter(rest, &(DateTime.compare(&1.last_used_at, recent_since) != :lt))

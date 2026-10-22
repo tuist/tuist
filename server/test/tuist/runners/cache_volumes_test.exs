@@ -104,7 +104,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   end
 
   # Moves the volume's publishing use to the earliest of `hours` and adds a use by
-  # another job at each of the others.
+  # a job of another workflow run at each of the others.
   defp used_hours_ago(volume_id, now, hours) do
     [first | rest] =
       hours |> Enum.sort(:desc) |> Enum.map(&(now |> DateTime.add(-&1 * 60 * 60, :second) |> DateTime.truncate(:second)))
@@ -113,14 +113,14 @@ defmodule Tuist.Runners.CacheVolumesTest do
     Enum.each(rest, &insert_use(volume_id, &1))
   end
 
-  defp insert_use(volume_id, at) do
+  defp insert_use(volume_id, at, workflow_run_id \\ System.unique_integer([:positive])) do
     pod = "pod-#{System.unique_integer([:positive])}"
 
     Repo.insert!(%Usage{
       volume_id: volume_id,
       generation: Repo.get!(Volume, volume_id).generation,
       workflow_job_id: System.unique_integer([:positive]),
-      workflow_run_id: 1,
+      workflow_run_id: workflow_run_id,
       pod_name: pod,
       pod_uid: pod,
       node_name: "node",
@@ -507,11 +507,16 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert [] = CacheVolumes.macos_prefetch_heads(["node"], now)
   end
 
-  test "lists volumes used on two of the last seven days and idle for four hours to prewarm first", %{job: job} do
+  test "lists volumes two workflow runs used in the last week and idle for four hours to prewarm first", %{job: job} do
     now = DateTime.utc_now()
-    [daily, once, busy, yesterday, last_week] = published_mac_volumes(job, ~w(daily once busy yesterday last-week))
+
+    [daily, once, one_run, busy, yesterday, last_week] =
+      published_mac_volumes(job, ~w(daily once one-run busy yesterday last-week))
+
     used_hours_ago(daily, now, [5, 29])
     used_hours_ago(once, now, [5])
+    used_hours_ago(one_run, now, [29])
+    insert_use(one_run, now |> DateTime.add(-6 * 60 * 60, :second) |> DateTime.truncate(:second), job.workflow_run_id)
     used_hours_ago(busy, now, [1, 49])
     used_hours_ago(yesterday, now, [30, 54])
     used_hours_ago(last_week, now, [100, 150, 180])
@@ -521,7 +526,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
              {yesterday, "prewarm"},
              {last_week, "prewarm"},
              {busy, "recent"},
-             {once, "recent"}
+             {once, "recent"},
+             {one_run, "recent"}
            ]
 
     assert listed_volumes(["node"], DateTime.add(now, 2 * 24 * 60 * 60, :second)) == [

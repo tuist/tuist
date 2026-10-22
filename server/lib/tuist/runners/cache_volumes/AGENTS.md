@@ -8,18 +8,20 @@ these schemas persist volume identities and per-job uses.
   the allocation. Read-only image `retain` and `download` requests may name a use
   from any node: hosts prefetch a macOS custom HEAD (`macos_prefetch_heads/2`,
   listed by `VolumePrefetch`) under the use that published it.
-- `macos_prefetch_heads/2` lists, for every host of a class, first up to 16
-  `prewarm` HEADs (volumes used on at least two of the last seven days, counted
-  in 24-hour periods back from now, and unused for four hours) and then up to 8
-  `recent` HEADs (used in the last day). Each list takes the accounts in turn, most recently active
-  first. An idle volume's HEAD cannot change before its next job, so one
-  download per host covers the whole idle period, including a weekend. Hosts
-  download it only into free space, and the listing goes to every host of the
-  class because an account's first job of the day goes to whichever idle
-  runner polls first. A schedule learned per weekday and UTC hour covered none
-  of the customer first-of-day starts from 2026-10-08 to 10-22: start times
-  move by hours from day to day. The `reason` reaches the host's
-  `tuist_runner_cache_volume_prefetched_bytes_total` metric.
+- `macos_prefetch_heads/2` lists, for every host of a class, first up to 32
+  `prewarm` HEADs (volumes at least two workflow runs used in the last seven
+  days and unused for four hours) and then up to 8 `recent` HEADs (used in the
+  last day). Each list takes the accounts in turn, most recently active first,
+  and each account's volumes most recently used first. An idle volume's HEAD
+  cannot change before its next job, so one download per host covers the whole
+  idle period, including a weekend. Two runs leave out keys one run made for
+  itself (every `e2e-reuse-*` key). Hosts download only into free space, and
+  the listing goes to every host of the class because an account's first job
+  of the day goes to whichever idle runner polls first. A schedule learned per
+  weekday and UTC hour covered none of the customer first-of-day starts from
+  2026-10-08 to 10-22, whose start times move by hours from day to day. The
+  `reason` reaches the host's `tuist_runner_cache_volume_prefetched_bytes_total`
+  metric.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
   (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
   requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
