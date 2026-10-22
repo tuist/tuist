@@ -4169,15 +4169,31 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			corev1.EnvVar{Name: "POD_NODE_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}}},
 		)
 	}
-	applyNodeLocalDNS(instance, &template.Spec)
+	applyPodDNS(instance, &template.Spec)
 	return template
 }
 
-// applyNodeLocalDNS points the pods of a node-local instance at resolvers
-// their node can reach, since cluster DNS is not one of them. With no search
-// domains, ndots:1 sends every name straight to the nameservers as given.
-func applyNodeLocalDNS(instance *kurav1alpha1.KuraInstance, spec *corev1.PodSpec) {
+// clusterDNSOptions keep cluster DNS lookups short for pods outside the provider
+// that hosts CoreDNS, where every query crosses the internet. The peer discovery
+// name has four dots, so under the default ndots:5 it walks three search domains
+// first: eight queries per lookup instead of two. glibc fails the whole lookup
+// when one query exhausts its attempts; three two-second attempts survive more
+// loss than the default two five-second ones.
+var clusterDNSOptions = []corev1.PodDNSConfigOption{
+	{Name: "ndots", Value: ptr("2")},
+	{Name: "timeout", Value: ptr("2")},
+	{Name: "attempts", Value: ptr("3")},
+}
+
+// applyPodDNS points the pods of a node-local instance at resolvers their node
+// can reach, since cluster DNS is not one of them. With no search domains,
+// ndots:1 sends every name straight to the nameservers as given. Every other
+// instance keeps cluster DNS with clusterDNSOptions.
+func applyPodDNS(instance *kurav1alpha1.KuraInstance, spec *corev1.PodSpec) {
 	if instance.Spec.NodeLocalNetwork == nil {
+		spec.DNSConfig = &corev1.PodDNSConfig{
+			Options: append([]corev1.PodDNSConfigOption(nil), clusterDNSOptions...),
+		}
 		return
 	}
 	spec.DNSPolicy = corev1.DNSNone

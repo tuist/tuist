@@ -23,7 +23,13 @@ on:
     paths:
       - infra/runner-image/**
       - .github/workflows/runner-image-release.yml
+      - .github/scripts/runner-image-staging-gate*
   workflow_dispatch:
+    inputs:
+      skip_staging:
+        description: Move runner pools to the new images without waiting for hosts to pull them (an urgent fix)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -52,6 +58,26 @@ jobs:
           persist-credentials: false
       - run: bash infra/runner-image/tcc-report_test.sh
       - run: bash infra/runner-image/runner-caches_test.sh
+
+  test-staging-gate:
+    name: Test the runner image staging gate
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: bash .github/scripts/runner-image-staging-gate.test.sh
 
   plan:
     name: Plan runner image release
@@ -361,12 +387,123 @@ jobs:
           # action reads only this input, not GITHUB_TOKEN from env.
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
+  # Names this release's images to each cluster's macOS hosts, which pull the
+  # next image of each pool they serve in the background
+  # (infra/tart-kubelet/AGENTS.md), and waits until they hold it before the
+  # deploy below is dispatched. Deploys hold each pool on its current image
+  # until then (.github/scripts/runner-image-staging-gate.sh), so the first job
+  # of a new image on a host does not wait 6 to 7 minutes for the pull. Both
+  # give up an hour after the announcement, and `skip_staging` moves the pools
+  # at once. A failure here dispatches the deploy, which moves the pools.
+  announce:
+    name: Announce upcoming runner images (${{ matrix.environment }})
+    needs: [plan, release]
+    if: always() && needs.release.result == 'success'
+    runs-on: tuist-linux
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [canary, production]
+    environment:
+      name: server-k8s-${{ matrix.environment }}
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Write the upcoming runner images ConfigMap
+        id: announce
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          STAGING: ${{ inputs.skip_staging && 'skip' || 'wait' }}
+        # Keys are `<xcode>.<variant>`, as tart-kubelet looks them up from a
+        # RunnerPool's `tuist.dev/xcode-version` and
+        # `tuist.dev/runner-image-variant` labels; values are the image by the
+        # digest the deploy will resolve for the same tag.
+        run: |
+          set -euo pipefail
+          namespace="$(kubectl get runnerpools.tuist.dev -A -l tuist.dev/runner-image-variant \
+            -o jsonpath='{range .items[*]}{.metadata.namespace}{"\n"}{end}' | head -n1)"
+          if [ -z "$namespace" ]; then
+            echo "No RunnerPool follows the runner image catalog in ${{ matrix.environment }}."
+            exit 0
+          fi
+          args=()
+          digests='{}'
+          stacked_digests='{}'
+          for xcode in $(jq -r '.[]' infra/runner-image/profiles.json); do
+            tag="macos-${xcode//./-}-${VERSION}"
+            standalone="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "$tag")"
+            stacked="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "${tag}-stacked")"
+            args+=(--from-literal "${xcode}.standalone=ghcr.io/tuist/tuist-runner@${standalone}")
+            args+=(--from-literal "${xcode}.stacked=ghcr.io/tuist/tuist-runner@${stacked}")
+            digests="$(jq -c --arg xcode "$xcode" --arg digest "$standalone" '. + {($xcode): $digest}' <<< "$digests")"
+            stacked_digests="$(jq -c --arg xcode "$xcode" --arg digest "$stacked" '. + {($xcode): $digest}' <<< "$stacked_digests")"
+          done
+          kubectl create configmap tuist-upcoming-runner-images --namespace "$namespace" "${args[@]}" \
+            --dry-run=client -o yaml |
+            kubectl label --local -f - tuist.dev/upcoming-runner-images=true -o yaml |
+            kubectl annotate --local -f - \
+              "tuist.dev/runner-image-release=${VERSION}" \
+              "tuist.dev/runner-image-announced-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              "tuist.dev/runner-image-staging=${STAGING}" -o yaml |
+            kubectl apply --server-side --field-manager=runner-image-release --force-conflicts -f -
+          {
+            echo "digests=$digests"
+            echo "stacked-digests=$stacked_digests"
+          } >> "$GITHUB_OUTPUT"
+      - name: Wait for the hosts to stage the images
+        if: steps.announce.outputs.digests != ''
+        env:
+          DIGESTS: ${{ steps.announce.outputs.digests }}
+          STACKED_DIGESTS: ${{ steps.announce.outputs.stacked-digests }}
+        # The gate a deploy runs: it returns the release's digests once every
+        # host serving a pool holds the pool's new image, the hour since the
+        # announcement has passed, or the release skips staging.
+        run: |
+          set -euo pipefail
+          want="$(jq -cn --argjson digests "$DIGESTS" --argjson stacked "$STACKED_DIGESTS" '{digests: $digests, stacked: $stacked}')"
+          deadline=$(( $(date -u +%s) + 3660 ))
+          while :; do
+            if ! gated="$(.github/scripts/runner-image-staging-gate.sh "$DIGESTS" "$STACKED_DIGESTS")"; then
+              echo "::warning::Could not check which runner images the hosts have staged; deploying."
+              exit 0
+            fi
+            if [ "$gated" = "$want" ]; then
+              echo "The hosts serving every pool hold its new image."
+              exit 0
+            fi
+            if [ "$(date -u +%s)" -ge "$deadline" ]; then
+              echo "::warning::Hosts are still staging runner images after an hour; deploying."
+              exit 0
+            fi
+            sleep 60
+          done
+
   deploy:
     name: Deploy runner image
-    needs: release
+    needs: [release, announce]
     # The implicit success() also requires release's own skipped needs (the
     # re-tag job) to have succeeded, which would skip every deploy of a
-    # release that rebuilt all profiles.
+    # release that rebuilt all profiles. It waits for `announce`, which waits
+    # for the hosts to stage the images, and runs even if that failed: the
+    # deploy then moves the pools.
     if: always() && needs.release.result == 'success'
     runs-on: tuist-linux
     timeout-minutes: 5
