@@ -280,8 +280,8 @@ lint:
 <!-- -->
 :::
 
-- **Shared capacity.** All paths share the volume's 20 GB capacity and are
-  restored and saved together.
+- **Shared capacity.** All paths share the volume's capacity and are restored
+  and saved together.
 - **Group small, related directories.** Give a large or fast-changing directory
   its own volume.
 - **No nesting.** Paths in one volume must not contain each other.
@@ -372,12 +372,50 @@ saving from every branch.
 
 ## Capacity and retention {#capacity-and-retention}
 
-The Xcode cache holds up to **30 GB**. The module cache, the Gradle cache and
-each custom volume hold up to **20 GB**. All of them expire after **7 days
-without a job mount**, and the next job starts with an empty volume after
-expiry. Tuist prunes the Xcode and module caches to stay within their size, and
-the Gradle cache step has Gradle remove entries unused for seven days after
-every build.
+The Xcode cache starts at **30 GB**. The module cache, the Gradle cache and
+each custom volume start at **20 GB**. Set a size to give a cache or volume
+another capacity, a whole number of GB from `1gb` to `100gb`:
+
+::: code-group
+
+```yaml [GitHub Actions]
+- uses: tuist/xcode-cache@v1
+  with:
+    size: 50gb
+- uses: tuist/module-cache@v1
+  with:
+    size: 40gb
+```
+
+```yaml [Buildkite]
+plugins:
+  - tuist/xcode-cache#v1:
+      size: 50gb
+  - tuist/module-cache#v1:
+      size: 40gb
+```
+
+```yaml [GitLab CI]
+build:
+  variables:
+    TUIST_XCODE_CACHE_SIZE: 50gb
+    TUIST_MODULE_CACHE_SIZE: 40gb
+```
+<!-- -->
+:::
+
+The Gradle cache and custom volumes take the same `size` input
+(`TUIST_GRADLE_CACHE_SIZE` and `TUIST_VOLUME_SIZE` in GitLab CI, `--size` for
+`tuist-cache-volume`).
+A larger size grows the volume, keeping its contents, from its next job. A
+smaller one applies after the volume is next cleared or expires. When jobs ask
+for different sizes of one cache, the largest applies, so declare each size in
+one place.
+
+All of them expire after **7 days without a job mount**, and the next job
+starts with an empty volume after expiry. Tuist prunes the Xcode and module
+caches to fit their capacity, and the Gradle cache step has Gradle remove
+entries unused for seven days after every build.
 
 Custom volumes do not prune old dependencies: use your tool's cleanup settings
 to keep them small. Writes to a full volume can fail the job. When saved

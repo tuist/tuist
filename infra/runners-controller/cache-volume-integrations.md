@@ -148,6 +148,13 @@ and grows ext4 online after mounting it on the host; macOS extends the private
 sparse image with `hdiutil resize -imageonly` and the guest grows the APFS
 container after attaching. A copy that cannot grow attaches warm at its saved size.
 
+The managed `tuist-xcode` (30 GB by default) and `tuist-module` (20 GB) volumes
+follow the same rules. Their entry points send the size as `--size` to the
+runner image's `tuist-runner-cache`, which attaches the volume and then sets the
+cache's own limit (`COMPILATION_CACHE_LIMIT_SIZE`, `TUIST_CACHE_MAX_BYTES`) and
+the teardown compilation-cache prune from the capacity the guest measures on the
+mounted image, so a copy that could not grow is bounded at its saved size.
+
 Admission scales with the volume. Linux requires the `--min-free-gb` floor
 raised by however much the volume exceeds `--volume-gb`: with the defaults, the
 larger of 40 GB and the capacity plus 20 GB. macOS reserves the capacity for a

@@ -279,14 +279,23 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `tuist-xcode` at `MANAGED_XCODE_CACHE`, `tuist-module` at
   `MANAGED_MODULE_CACHE`), the environment pointing each cache there, and its own
   xcconfig bounding the compilation cache to `MANAGED_XCODE_CACHE_LIMIT_BYTES`.
-  `tuist-runner-cache activate` attaches the volume with `tuist-cache-volume`
-  once per job (`<cache>.attached`) before printing the environment, and exits 3
-  without exporting anything when the attach fails. At teardown, a job that used
+  `tuist-runner-cache activate <cache> [--size NGB]` attaches the volume with
+  `tuist-cache-volume`, passing the size, once per job (`<cache>.attached`)
+  before printing the environment, and exits 3 without exporting anything when
+  the attach fails. After the attach it reads the volume's capacity (`df` on the
+  path, which links into the mounted image) and rewrites `TUIST_CACHE_MAX_BYTES`
+  in `module.env` or `COMPILATION_CACHE_LIMIT_SIZE` in the xcconfig to the
+  capacity less max(2 GB, 20%), at most half of it: 24 GB at the default 30 GB,
+  16 GB at 20 GB. A path left as a local directory (the volume was unavailable)
+  keeps the staged limits of a default-sized volume. At teardown, a job that used
   the compilation cache drains its publications from that store (every job) and
   prunes it (successful jobs) through `CAS_STORE_ROOT` before
   `tuist-cache-volume --detach-all`; an undrained store withholds the job's
-  volumes. The server sizes `tuist-xcode` at 30 GB and `tuist-module` at 20 GB;
-  keep the limits under the 99% fill at which a volume is no longer saved.
+  volumes. The teardown prune bounds the store at the limit the xcconfig gave the
+  compiler (`managed_xcode_cache_limit`), so both follow the capacity the job
+  set with `size` (the server's defaults: 30 GB `tuist-xcode`, 20 GB
+  `tuist-module`). Keep the limits under the 99% fill at which a volume is no
+  longer saved.
   Only a job that **succeeded** promotes. The gate is `CACHE_PASSED`, which is
   `JOB_PASSED` (zero exit AND a job result of `succeeded`) for any job that
   reached the caches, not the runner's exit status. `run.sh` folds
