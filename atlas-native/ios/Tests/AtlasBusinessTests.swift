@@ -141,6 +141,56 @@ struct AtlasBusinessTests {
         #expect(!model.forbidden && model.errorMessage == nil && !model.busy)
     }
 
+    @Test func financeOverviewSurvivesPaginationButRefreshReplacesIt() async throws {
+        var cash = "123456789.13"
+        let model = AtlasBusiness(resource: .invoices) { action in
+            let page = action["page"] as? Int ?? 1
+            var payload = try #require(JSONSerialization.jsonObject(with: response(ids: ["invoice-\(page)"], page: page))
+                as? [String: Any])
+            if page == 1 {
+                payload["finance_overview"] = [
+                    "currency": "EUR", "as_of": "2026-10-22", "account_count": 3,
+                    "available_cash": cash, "monthly_burn": NSNull(), "runway_months": NSNull(),
+                    "fx_published_on": "2026-10-21", "excluded_currencies": [],
+                    "months": [["month": "2026-10", "income": "10.25", "expense": "27.50"]]
+                ]
+            }
+            return try JSONSerialization.data(withJSONObject: payload)
+        }
+        await model.load()
+        await model.loadMore()
+        #expect(model.page?.items.count == 2)
+        #expect(model.page?.financeOverview?.availableCash == "123456789.13")
+        #expect(model.page?.financeOverview?.months.first?.expense == "27.50")
+        #expect(model.page?.financeOverview?.monthlyBurn == nil)
+        cash = "900.01"
+        await model.load()
+        #expect(model.page?.financeOverview?.availableCash == "900.01")
+    }
+
+    @Test func accountDetailsSurviveListRefreshAndAreReplacedByAuthorizedDetailResponse() async throws {
+        var summary = "Authorized summary"
+        let model = AtlasBusiness(resource: .accounts) { action in
+            if action["action"] as? String != "show" { return try response(ids: ["account"], page: 1) }
+            return try JSONSerialization.data(withJSONObject: ["item": [
+                "id": "account", "can_edit": false, "can_delete": false, "fields": ["name": "Northstar"],
+                "details": [
+                    "fields": ["overview_summary": summary], "address": [:], "billing": [:], "signatory": [:],
+                    "children": [], "contacts": [], "terms": [], "invoices": [], "documents": [],
+                    "events": [], "outcomes": [], "service_levels": []
+                ]
+            ]])
+        }
+        await model.load()
+        let record = try #require(model.page?.items.first)
+        await model.show(record)
+        await model.load()
+        #expect(model.records[record.id]?.details?.fields["overview_summary"] == "Authorized summary")
+        summary = "Updated summary"
+        await model.show(record)
+        #expect(model.records[record.id]?.details?.fields["overview_summary"] == "Updated summary")
+    }
+
     private func response(ids: [String], page: Int) throws -> Data {
         try JSONSerialization.data(withJSONObject: [
             "items": ids.map { ["id": $0, "fields": ["title": $0], "can_edit": true, "can_delete": true] },

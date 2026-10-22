@@ -44,6 +44,8 @@ final class AtlasBusinessPreviewData: ObservableObject {
                     "status": "active",
                     "currency": "EUR",
                     "current_value": "24500",
+                    "contract_value": "24500",
+                    "contract_currency": "EUR",
                     "hosting": "cloud",
                 ]
             ),
@@ -153,7 +155,7 @@ final class AtlasBusinessPreviewData: ObservableObject {
                 ["month": "2026-10", "currency": "EUR", "amount": "1240.50"],
                 ["month": "2026-10", "currency": "USD", "amount": "180.00"],
             ] : []
-            return try JSONSerialization.data(withJSONObject: [
+            var result: [String: Any] = [
                 "items": rows, "page": page, "total_pages": max(1, (total + 24) / 25), "total_count": total, "can_write": true,
                 "summary": summary, "options": [
                     "users": [["id": "user-1", "name": "Taylor"], ["id": "user-2", "name": "Jordan"]],
@@ -167,12 +169,50 @@ final class AtlasBusinessPreviewData: ObservableObject {
                     ],
                     "deal_stages": ["poc", "discovery"],
                 ],
-            ])
+            ]
+            if resource == "invoices", page == 1, !ProcessInfo.processInfo.arguments.contains("--legacy-finance") {
+                let empty = ProcessInfo.processInfo.arguments.contains("--empty-finance")
+                let missingFX = ProcessInfo.processInfo.arguments.contains("--missing-finance-fx")
+                result["finance_overview"] = [
+                    "currency": "EUR", "as_of": "2026-10-22", "account_count": empty ? 0 : 3,
+                    "available_cash": empty || missingFX ? NSNull() : "120000.25",
+                    "monthly_burn": empty || missingFX ? NSNull() : "15000",
+                    "runway_months": empty || missingFX ? NSNull() : "8",
+                    "fx_published_on": "2026-10-21", "excluded_currencies": missingFX ? ["USD"] : [],
+                    "months": empty || missingFX ? [] : [
+                        ["month": "2026-05", "income": "23000", "expense": "32000"],
+                        ["month": "2026-06", "income": "26000", "expense": "40000"],
+                        ["month": "2026-07", "income": "21000", "expense": "37000"],
+                        ["month": "2026-08", "income": "25000", "expense": "38000"],
+                        ["month": "2026-09", "income": "30000", "expense": "42000"],
+                        ["month": "2026-10", "income": "18000.50", "expense": "27000.75"]
+                    ]
+                ]
+            }
+            return try JSONSerialization.data(withJSONObject: result)
         }
         var rows = items[resource] ?? []
         let id = action["id"] as? String
         let index = rows.firstIndex { $0["id"] as? String == id }
-        if command == "show", let index { return try JSONSerialization.data(withJSONObject: ["item": rows[index]]) }
+        if command == "show", let index {
+            var item = rows[index]
+            if resource == "accounts", id == "account-1" {
+                item["details"] = [
+                    "fields": ["overview_summary": "Growing customer evaluating cloud runners.", "handles": "northstar-production"],
+                    "address": ["city": "Berlin", "country": "DE"],
+                    "billing": ["email": "billing@northstar.example.org", "vat_id": "DE123456789"],
+                    "signatory": ["name": "Taylor Morgan", "title": "CTO"],
+                    "children": [],
+                    "contacts": [Self.record("contact-1", ["full_name": "Jordan Reed", "email": "jordan@northstar.example.org", "is_primary": "true"])],
+                    "terms": [Self.record("term-1", ["start_date": "2026-01-01", "payment": "yearly", "total": "24500", "currency": "EUR"])],
+                    "invoices": [Self.record("customer-invoice-1", ["number": "NS-2026-1", "due_date": "2026-11-01", "amount_value": "24500", "amount_currency": "EUR", "status": "scheduled"])],
+                    "documents": [Self.record("document-1", ["title": "Master service agreement", "status": "ready", "summary": "Annual agreement for cloud services."])],
+                    "events": [Self.record("event-1", ["title": "Runner evaluation", "body": "Agreed on success criteria.", "occurred_at": "2026-10-20T12:00:00Z", "author_name": "Taylor"])],
+                    "outcomes": [], "service_levels": []
+                ]
+            }
+            return try JSONSerialization.data(withJSONObject: ["item": item])
+        }
         if ProcessInfo.processInfo.arguments.contains("--fail-business-save") {
             throw AtlasAuthenticationError(kind: "server", message: "Preview save failed. Your changes are still here.")
         }

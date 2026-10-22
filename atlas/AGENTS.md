@@ -69,7 +69,7 @@ Do not add README entries for internal operational details such as env var names
 ## Native appearance catalog
 
 - `GET /api/native/themes` is public, instance-wide, credential-free appearance data, cached for five minutes. It must precede the authenticated dynamic native-resource route. It never returns identity, permissions, or customer data. Existing clients do not need to request it; newer clients must remain usable on older servers.
-- `Atlas.NativeThemes` validates the catalog and falls back to `priv/native_themes.json`. Operators can supply a complete JSON catalog with `ATLAS_NATIVE_THEME_CATALOG` (or `config :atlas, :native_theme_catalog, map`); invalid JSON/schema/colors safely preserve the bundled themes. The bundled default is Pulse, alongside Berlin, Habibi, Amrit, Pelotas, and Braník (`branik`). Change `revision` when publishing new values and keep IDs stable. No database or per-user server preference is involved.
+- `Atlas.NativeThemes` validates the catalog and falls back to `priv/native_themes.json`. Operators can supply a complete JSON catalog with `ATLAS_NATIVE_THEME_CATALOG` (or `config :atlas, :native_theme_catalog, map`); invalid JSON/schema/colors safely preserve the bundled themes. The bundled default is Pulse, alongside Berlin, Habibi, Amrit, Brigadeiro (stable ID `pelotas`), and Braník (`branik`). Change `revision` when publishing new values and keep IDs stable. No database or per-user server preference is involved.
 - The version-1 contract, token limits, contrast requirements, and native platform boundaries are documented in [the native HTTP contract](lib/atlas_web/controllers/AGENTS.md). No remote CSS, executable styles, images, fonts, URLs, or navigation definitions are accepted.
 
 ## AI accounts
@@ -150,6 +150,7 @@ Do not add README entries for internal operational details such as env var names
 ## Native API
 
 - Bearer-only `/api/native/tasks`, `/api/native/accounts`, and `/api/native/invoices` share string-field records and Flop page pagination through `Atlas.Native`. The native HTTP contract, permissions, audit context, and profile version source are documented in [the controller intent](lib/atlas_web/controllers/AGENTS.md). Native clients reuse the existing owner-scoped AI connection endpoints; the profile endpoint grants no settings or identity writes.
+- Read-only account detail and reporting-currency bank overview projections live under [native](lib/atlas/native/AGENTS.md). Document summaries additionally require `documents:read`; finance overview remains behind `finance:read`. They reuse existing domain queries without adding write permissions or changing the legacy invoice summary.
 
 ## Postal letters
 

@@ -29,6 +29,7 @@ struct AtlasBusinessRecord: Decodable, Identifiable {
     var fields: [String: String]
     let canEdit: Bool
     let canDelete: Bool
+    var details: AtlasAccountDetails?
     subscript(_ field: String) -> String { fields[field] ?? "" }
 
     func title(for resource: AtlasBusinessResource) -> String {
@@ -56,6 +57,47 @@ struct AtlasInvoiceMonth: Decodable, Identifiable {
     var id: String { "\(month)-\(currency)" }
 }
 
+struct AtlasAccountRelatedRecord: Decodable, Identifiable {
+    let id: String
+    let fields: [String: String]
+    subscript(_ field: String) -> String { fields[field] ?? "" }
+}
+
+struct AtlasAccountDetails: Decodable {
+    let fields: [String: String]
+    let address: [String: String]
+    let billing: [String: String]
+    let signatory: [String: String]
+    let children: [AtlasAccountRelatedRecord]
+    let contacts: [AtlasAccountRelatedRecord]
+    let terms: [AtlasAccountRelatedRecord]
+    let invoices: [AtlasAccountRelatedRecord]
+    let documents: [AtlasAccountRelatedRecord]
+    let events: [AtlasAccountRelatedRecord]
+    let outcomes: [AtlasAccountRelatedRecord]
+    let serviceLevels: [AtlasAccountRelatedRecord]
+}
+
+struct AtlasFinanceMonth: Decodable, Identifiable {
+    let month: String
+    let income: String
+    let expense: String
+    var id: String { month }
+    var date: Date? { AtlasHolidayDates.decode(month + "-01") }
+}
+
+struct AtlasFinanceOverview: Decodable {
+    let currency: String
+    let asOf: String
+    let accountCount: Int
+    let availableCash: String?
+    let monthlyBurn: String?
+    let runwayMonths: String?
+    let fxPublishedOn: String?
+    let excludedCurrencies: [String]
+    let months: [AtlasFinanceMonth]
+}
+
 struct AtlasBusinessPage: Decodable {
     let items: [AtlasBusinessRecord]
     let page: Int
@@ -64,6 +106,7 @@ struct AtlasBusinessPage: Decodable {
     let canWrite: Bool
     let options: AtlasBusinessOptions
     let summary: [AtlasInvoiceMonth]
+    var financeOverview: AtlasFinanceOverview?
 }
 
 private struct AtlasBusinessMutation: Decodable { let item: AtlasBusinessRecord }
@@ -213,7 +256,8 @@ final class AtlasBusiness: ObservableObject {
         var items = page.items.filter { $0.id != deletedID && $0.id != item?.id }
         if let item { items.insert(item, at: 0) }
         self.page = AtlasBusinessPage(items: items, page: page.page, totalPages: page.totalPages,
-                                      totalCount: page.totalCount, canWrite: page.canWrite, options: page.options, summary: page.summary)
+                                      totalCount: page.totalCount, canWrite: page.canWrite, options: page.options,
+                                      summary: page.summary, financeOverview: page.financeOverview)
     }
 
     private func requestPage(_ page: Int) async throws -> AtlasBusinessPage {
@@ -223,11 +267,15 @@ final class AtlasBusiness: ObservableObject {
     private func accept(_ response: AtlasBusinessPage, items: [AtlasBusinessRecord]? = nil) {
         page = AtlasBusinessPage(items: items ?? response.items, page: response.page, totalPages: response.totalPages,
                                  totalCount: response.totalCount, canWrite: response.canWrite,
-                                 options: response.options, summary: response.summary)
+                                 options: response.options, summary: response.summary,
+                                 financeOverview: response.page == 1 ? response.financeOverview : page?.financeOverview)
         options = response.options
         forbidden = false
         nextPageFailed = false
-        for item in response.items { records[item.id] = item }
+        for var item in response.items {
+            item.details = item.details ?? records[item.id]?.details
+            records[item.id] = item
+        }
     }
 
     private func call<Value: Decodable>(_ action: [String: Any]) async throws -> Value {

@@ -1,10 +1,10 @@
-import Charts
 import SwiftUI
 
 struct AtlasBusinessView: View {
     @StateObject private var model: AtlasBusiness
     @State private var query = ""
     @State private var creating = false
+    @State private var hasLoaded = false
     @Environment(\.atlasPresence) private var presence
 
     init(resource: AtlasBusinessResource, request: @escaping ([String: Any]) async throws -> Data) {
@@ -14,13 +14,10 @@ struct AtlasBusinessView: View {
     var body: some View {
         ScrollViewReader { proxy in
             list.onChange(of: model.page?.page) { _, page in
-                if page == 1 { proxy.scrollTo("business-start", anchor: .top) }
-            }
-            .onChange(of: model.filters) { _, _ in
-                if model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
-            }
-            .onChange(of: model.query) { _, _ in
-                if model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
+                if page == 1 {
+                    if hasLoaded { proxy.scrollTo("business-start", anchor: .top) }
+                    hasLoaded = true
+                }
             }
         }
     }
@@ -31,7 +28,7 @@ struct AtlasBusinessView: View {
                 ContentUnavailableView("Access required", systemImage: "lock", description: Text("Ask an Atlas administrator for access."))
             } else if let page = model.page {
                 if model.resource == .invoices {
-                    AtlasInvoiceChart(months: page.summary).id("business-start")
+                    AtlasFinanceOverviewView(overview: page.financeOverview).id("business-start")
                     Section {
                         Text("Manage manual invoices here. Imported invoices are read-only. No payments are made from this screen.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -209,6 +206,10 @@ private struct AtlasBusinessRow: View {
                           item["primary_domain"]]
                         .filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.subheadline).foregroundStyle(.secondary)
+                    if !item["contract_value"].isEmpty {
+                        Text(AtlasBusinessFormatting.money(item["contract_value"], currency: item["contract_currency"]))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 case .invoices:
                     Text(AtlasBusinessFormatting.money(item["total_amount_value"], currency: item["total_amount_currency"]))
                         .font(.subheadline).monospacedDigit()
@@ -221,7 +222,7 @@ private struct AtlasBusinessRow: View {
     }
 }
 
-private struct AtlasAccountLogo: View {
+struct AtlasAccountLogo: View {
     let item: AtlasBusinessRecord
 
     private var url: URL? {
@@ -254,15 +255,18 @@ struct AtlasBusinessDetail: View {
 
     var body: some View {
         List {
-            Section {
-                if model.resource == .accounts { AtlasAccountLogo(item: item) }
-                Text(item.title(for: model.resource)).font(.title2.bold()).textSelection(.enabled)
-                ForEach(detailFields, id: \.0) { field, label in
-                    if !item[field].isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(label).font(.caption).foregroundStyle(.secondary)
-                            Text(formatted(field)).textSelection(.enabled)
-                        }.padding(.vertical, 2)
+            if model.resource == .accounts {
+                AtlasAccountDetailSections(item: item)
+            } else {
+                Section {
+                    Text(item.title(for: model.resource)).font(.title2.bold()).textSelection(.enabled)
+                    ForEach(detailFields, id: \.0) { field, label in
+                        if !item[field].isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(label).font(.caption).foregroundStyle(.secondary)
+                                Text(formatted(field)).textSelection(.enabled)
+                            }.padding(.vertical, 2)
+                        }
                     }
                 }
             }
@@ -290,11 +294,14 @@ struct AtlasBusinessDetail: View {
                 if item.canEdit { Button("Edit") { editing = true }.disabled(model.busy) }
             }
         }
-        .sheet(isPresented: $editing) { AtlasBusinessEditor(model: model, editing: item) }
+        .sheet(isPresented: $editing, onDismiss: { Task { await model.show(original) } }, content: {
+            AtlasBusinessEditor(model: model, editing: item)
+        })
         .confirmationDialog("Delete this \(model.resource.singular.lowercased())?", isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { Task { if await model.delete(item) { dismiss() } } }
         } message: { Text("This cannot be undone.") }
         .task { await model.show(original) }
+        .refreshable { await model.show(original) }
         .onAppear { presence?.show(resource: model.resource.rawValue, id: original.id) }
         .onChange(of: model.forbidden) { _, denied in
             if denied { editing = false; dismiss() }
@@ -307,9 +314,7 @@ struct AtlasBusinessDetail: View {
             [("description", "Notes"), ("status", "Status"), ("assignee_name", "Assigned to"),
              ("account_name", "Account"), ("due_on", "Due date"), ("remind_at", "Reminder")]
         case .accounts:
-            [("description", "Notes"), ("primary_domain", "Domain"), ("segment", "Lifecycle"), ("status", "Status"),
-             ("deal_stage", "Deal stage"), ("current_value", "Value"), ("next_renewal_date", "Next renewal"),
-             ("legal_name", "Legal name"), ("url", "Website"), ("hosting", "Hosting"), ("plan_tier", "Plan")]
+            []
         case .invoices:
             [("invoice_number", "Invoice number"), ("invoice_date", "Invoice date"), ("due_date", "Due date"),
              ("total_amount_value", "Total"), ("status", "Review status")]
@@ -324,42 +329,5 @@ struct AtlasBusinessDetail: View {
         if field == "remind_at" { return AtlasBusinessFormatting.dateTime(item[field]) }
         if field.hasSuffix("_date") || field == "due_on" { return AtlasBusinessFormatting.date(item[field]) }
         return item[field]
-    }
-}
-
-private struct AtlasInvoiceChart: View {
-    let months: [AtlasInvoiceMonth]
-    @State private var currency = ""
-    private var currencies: [String] { Array(Set(months.map(\.currency))).sorted() }
-    private var selected: String { currencies.contains(currency) ? currency : currencies.first ?? "" }
-    private var values: [AtlasInvoiceMonth] { months.filter { $0.currency == selected }.sorted { $0.month < $1.month } }
-
-    var body: some View {
-        Section {
-            if months.isEmpty {
-                Text("No dated invoice totals yet.").foregroundStyle(.secondary)
-            } else {
-                if currencies.count > 1 {
-                    Picker("Currency", selection: Binding(get: { selected }, set: { currency = $0 })) {
-                        ForEach(currencies, id: \.self) { Text($0).tag($0) }
-                    }
-                }
-                Chart(values) { month in
-                    BarMark(x: .value("Month", month.month), y: .value("Invoice total", Double(month.amount) ?? 0))
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityLabel(month.month)
-                        .accessibilityValue(AtlasBusinessFormatting.money(month.amount, currency: selected))
-                }
-                .chartYAxisLabel(selected)
-                .frame(height: 190)
-                DisclosureGroup("Monthly values") {
-                    ForEach(values) { month in
-                        LabeledContent(month.month, value: AtlasBusinessFormatting.money(month.amount, currency: selected))
-                    }
-                }
-            }
-        } header: { Text("Monthly invoice totals") } footer: {
-            Text("All invoices, grouped by invoice date. Currencies are shown separately. These are not bank balances or cash flow.")
-        }
     }
 }
