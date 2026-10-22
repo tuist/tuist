@@ -2,16 +2,25 @@
 
 ## Latest remote result
 
-A subsequent remote-only laptop build restored **145 fetched applications** from
-production REAPI with an empty local artifact store. It took **155.330 s** wall
-clock, including cold SDK bootstrap and all 1,344 server files. The next disabled
-build took **344.771 s**. An earlier remote attempt took **433.606 s** because
-seeded keys unexpectedly missed; that result is retained, not discarded. These
-single samples under changing host load do not establish a stable speedup.
+The first completed colocated CI comparison restored **136 dependencies** in each
+remote sample, with total build times of **118.031 s and 133.388 s**, versus
+**142.758 s and 168.970 s** disabled. Seed cost was **239.324 s**. Nine changed
+keys still miss and 77 fetched dependencies compile; this is partial reuse, not a
+zero-compilation warm build. These are two samples per mode from commit
+`96b5334d5b`, before the adversarial-review fixes below, not medians or a stable
+speedup estimate.
 
-The CI comparison uses the runner's injected private Kura endpoint rather than
-the laptop's public route. See [Remote-only comparison](#remote-only-comparison)
-for the complete results, CI method and remaining limitations.
+A remote-only laptop build restored **145 fetched applications** from
+production REAPI with an empty local artifact store. It took **155.330 s** wall
+clock, including cold SDK bootstrap and all 1,344 server files. Disabled samples
+took **280.873 s and 344.771 s**; host load was lower around the successful remote
+samples and rose again for the slower disabled repeat. An earlier remote attempt
+took **433.606 s** because seeded keys unexpectedly missed; that result is
+retained, not discarded. These single samples do not establish a stable speedup.
+
+CI uses the runner's injected private Kura endpoint rather than the laptop's
+public route. See [Remote-only comparison](#remote-only-comparison) for all
+results, CI method and remaining limitations.
 
 ## Local-only investigation conclusion
 
@@ -260,24 +269,75 @@ seeded lookup is reliable.
 
 The manual **Server Cache Benchmarks** workflow accepts `benchmark=elixir-remote`.
 It runs the full server on `tuist-linux-large` (4 vCPU, 16 GiB), with OIDC cache
-authentication, four schedulers and three dependency workers. The runner injects
+authentication and four schedulers. Three dependency workers are configured, but
+selected cache misses/bypasses compile serially; the disabled build can use all
+three. This is actual product behavior, not equal compilation parallelism, and
+must not be compared directly with the laptop's single-worker results. The runner injects
 a private, in-cluster Kura endpoint; the workflow does not override it with the
 laptop's public endpoint. No Mix snapshot volume is attached.
 
 The driver seeds remote artifacts, then runs disabled, remote, remote, disabled,
-resetting source/build/local artifact state each time. It preserves raw JSON,
-compiled applications, environment and logs, and requires actual remote writes
-and hits with zero keyed local restores. Downloading dependencies and source
+resetting source/build/local artifact state each time. Seed/remote keys declare
+`TUIST_ELIXIR_CACHE_BENCHMARK_RUN` as an input, set to the GitHub run ID and
+attempt. This isolates reruns from previously populated keys without filtering
+dependencies or weakening their inputs. It preserves raw JSON, partition-prefixed
+compiled applications, sanitized environment metadata and logs, and requires
+actual remote writes and hits with zero keyed local restores. Partial coverage
+is marked degraded; misses for keys confirmed by the seed fail the comparison
+after all samples are recorded. Disabled samples must have no cache observations.
+Native download helpers and rebar plugin caches remain shared and may be warmed
+by the seed: a clean build/local artifact store is not a pristine machine. Downloading dependencies and source
 reset are outside the build timers; SDK bootstrap and server compilation remain
 inside. A completed-build marker is required in addition to exit status zero.
+The driver records started samples before launching them, writes checkpoints
+atomically, terminates only its child process group on timeout/SIGINT/SIGTERM,
+preserves incomplete/malformed records, and enforces a 50-minute total deadline
+below the job timeout. Per-sample waits remain capped at 20 minutes.
 
 The [first CI attempt](https://github.com/tuist/tuist/actions/runs/39802560723)
 passed lifecycle tests and reached the private-endpoint runner, but its lock
 safety check caught dependency upgrades by the generic setup action. No timed
 builds ran. The benchmark now restores the committed lock and checks out exactly
 its SCM revisions without resolving again, then verifies the lock is unchanged.
-The [replacement run](https://github.com/tuist/tuist/actions/runs/39805066453) has
-been dispatched; no colocated timings are available yet.
+The [replacement run](https://github.com/tuist/tuist/actions/runs/39805066453)
+completed successfully on commit `96b5334d5b`, before the adversarial cleanup and
+run-scoped seed changes. It verified the committed lock and compiled all 1,344
+server files in each of five samples:
+
+| CI sample, execution order | Bootstrap | Dependencies | Server compilation | Process wall |
+| --- | ---: | ---: | ---: | ---: |
+| Seed | 14.192 | 192.143 | 32.542 | 239.324 |
+| Disabled 1 | 14.795 | 96.249 | 31.284 | 142.758 |
+| Remote 1 | 14.039 | 67.681 | 35.837 | 118.031 |
+| Remote 2 | 17.867 | 78.321 | 36.666 | 133.388 |
+| Disabled 2 | 16.883 | 112.477 | 39.130 | 168.970 |
+
+Seed published 145 artifacts and restored none. Each remote sample has 136 keyed
+remote restores, 15 bootstrap/current observations, nine misses and 56 bypass
+observations, with zero keyed local hits. All nine missed keys differ from the
+seed's confirmed keys: the earlier eight Mint-dependent applications plus
+`protobuf_generate`. Bootstrap-dependent byte variation is a plausible cause
+for the additional miss, not yet established from retained CI BEAMs. The nine
+misses are not evidence of absent seeded artifacts. Both remote builds still
+compile 77 fetched applications: 15 bootstrap, 53 bypassed and nine misses.
+Disabled/seed builds compile all 213 fetched applications with outputs.
+
+The original artifact's `compiled_apps` arrays omit partition-prefixed output.
+Re-parsing its preserved logs with the corrected parser yields 218 application
+names (213 fetched) for seed/disabled and 82 (77 fetched) for remote. Counts include
+local applications/root separately; the original raw data has not been rewritten.
+The retrospective seed-key check finds zero seeded-key misses in both remote
+samples, while partial coverage is still degraded.
+
+Preparation took 64.640 / 74.931 s. Remote reads report an aggregate 1.397 / 1.572 s
+for 54,388,405 logical artifact bytes, across overlapping requests rather than a
+standalone elapsed download phase. Restore events total 10.563 / 12.720 s, bypass
+events 33.034 / 36.845 s, miss compilation 3.111 / 3.624 s and current observations
+0.105 / 0.123 s. Remaining orchestration outside events is 17.827 / 21.619 s.
+Co-location reduces network overhead, but remaining compilation and input
+modeling dominate. Host load ranges from about 3.1–4.9 after the initial seed on
+the four-vCPU runner. Two samples per mode do not establish a stable percentage.
+The later review optimizations have not had another full-server timing run.
 
 ## Remaining work
 
@@ -288,8 +348,9 @@ quiet/dedicated host before quantifying a stable speedup, including a fresh cold
 sample. Complete warm reuse additionally requires restoration before bootstrap
 and auditing the remaining builders and upstream contracts. Remote-only
 restoration with an empty local store is now measured on the laptop, but
-colocated CI results, repeatability and the first attempt's unexpected misses
-remain outstanding.
+repeatability, a timed rerun of the review fixes and the first laptop attempt's
+unexpected misses remain outstanding. The initial colocated CI comparison is
+recorded above.
 
 The focused fixture benchmarks remain useful for regressions and individual
 mechanisms, but their large relative speedups must not be presented as the
@@ -303,4 +364,8 @@ review. Formatting, compilation with warnings as errors, `mix hex.build`,
 `mix docs --warnings-as-errors` and `git diff --check` passed. These checks are
 separate from the measured server builds above. The CI benchmark driver's six
 Python tests, Docker-cache lifecycle shell tests, Elixir driver syntax/formatting
-and actionlint passed; the first CI attempt also passed the driver/lifecycle tests.
+and actionlint passed before the adversarial review; the first CI attempt also
+passed those driver/lifecycle tests. The review expanded the Python coverage to
+17 tests, including run scoping, seeded misses, partition output, lock mutation,
+timeouts/cancellation, forced termination, malformed records, total deadlines and
+credential-free endpoint metadata.
