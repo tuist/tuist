@@ -19,6 +19,12 @@ struct AtlasBusinessView: View {
                     hasLoaded = true
                 }
             }
+            .onChange(of: model.filters) { _, _ in
+                if hasLoaded, model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
+            }
+            .onChange(of: model.query) { _, _ in
+                if hasLoaded, model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
+            }
         }
     }
 
