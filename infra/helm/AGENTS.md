@@ -110,8 +110,9 @@ runs the mixed-version latency expression through promtool.
   five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
   the backtests. The warm-rate rule reads the production database as
   `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
-  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` is aggregated
-  to a plain sum by Adaptive Metrics and cannot be rated. Keep the macOS
+  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` undercounts:
+  its `sum:counter` Adaptive Metrics rule (2026-10-22) makes it rate-able, but
+  both agents create series on first increment, so isolated failures vanish. Keep the macOS
   queries line-filtered and the windows short: that stream carries the runner
   logs and each evaluation scans the whole window.
 - Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
