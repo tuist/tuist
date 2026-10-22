@@ -77,14 +77,17 @@ defmodule Tuist.Kura.RunnerCacheTest do
   end
 
   defp claimed_job(account, fleet_name, opts \\ []) do
-    claimed_at = DateTime.add(DateTime.utc_now(), -Keyword.get(opts, :days_ago, 0) * 86_400, :second)
+    claimed_at =
+      Keyword.get_lazy(opts, :claimed_at, fn ->
+        DateTime.add(DateTime.utc_now(), -Keyword.get(opts, :days_ago, 0) * 86_400, :second)
+      end)
 
     Repo.insert!(%WorkflowJob{
       workflow_job_id: System.unique_integer([:positive]),
       workflow_run_id: Keyword.get(opts, :workflow_run_id, 0),
       account_id: account.id,
       fleet_name: fleet_name,
-      status: "completed",
+      status: Keyword.get(opts, :status, "completed"),
       platform: Keyword.get(opts, :platform, "macos"),
       enqueued_at: claimed_at,
       claimed_at: claimed_at,
@@ -350,6 +353,82 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
     assert server_regions(account) == []
+  end
+
+  test "drains an active node the region no longer serves instead of tearing it down" do
+    account = account_with_profiles([:macos])
+    set_runner_availability([account.id])
+    assert :ok = RunnerCache.reconcile()
+    server = activate(account)
+    assert Kura.runner_cache_endpoint_url(account, :macos) == server.url
+
+    set_runner_availability([])
+    assert :ok = RunnerCache.reconcile()
+
+    assert %Server{status: :drain_pending, drain_started_at: %DateTime{}} = Repo.get!(Server, server.id)
+    assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert Repo.get!(Server, server.id).status == :drain_pending
+  end
+
+  test "tears down a drained node once no job claimed on the region's pools before the drain is in flight" do
+    account = account_with_profiles([:macos])
+    set_runner_availability([account.id])
+    assert :ok = RunnerCache.reconcile()
+    server = activate(account)
+    an_hour_ago = DateTime.add(DateTime.utc_now(), -3600, :second)
+    in_flight = claimed_job(account, @rented_macos_pool, status: "running", claimed_at: an_hour_ago)
+    claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago)
+    set_runner_availability([])
+    assert :ok = RunnerCache.reconcile()
+    drained_for(server, 20 * 60)
+    claimed_job(account, @rented_macos_pool, status: "claimed")
+
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.get!(Server, server.id).status == :drain_pending
+
+    Repo.update!(Ecto.Changeset.change(in_flight, status: "completed"))
+    assert :ok = RunnerCache.reconcile()
+
+    assert Repo.get!(Server, server.id).status == :destroying
+  end
+
+  test "tears down a drained node after six hours whatever is in flight" do
+    account = account_with_profiles([:macos])
+    set_runner_availability([account.id])
+    assert :ok = RunnerCache.reconcile()
+    server = activate(account)
+    claimed_job(account, @rented_macos_pool, status: "running", claimed_at: DateTime.add(DateTime.utc_now(), -7, :hour))
+    set_runner_availability([])
+    assert :ok = RunnerCache.reconcile()
+
+    drained_for(server, 5 * 3600)
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.get!(Server, server.id).status == :drain_pending
+
+    drained_for(server, 6 * 3600)
+    assert :ok = RunnerCache.reconcile()
+
+    assert Repo.get!(Server, server.id).status == :destroying
+  end
+
+  test "returns a draining node to service when the region serves the account again" do
+    account = account_with_profiles([:macos])
+    set_runner_availability([account.id])
+    assert :ok = RunnerCache.reconcile()
+    server = activate(account)
+    set_runner_availability([])
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.get!(Server, server.id).status == :drain_pending
+
+    set_runner_availability([account.id])
+    assert :ok = RunnerCache.reconcile()
+
+    assert %Server{status: :active, drain_started_at: nil} = Repo.get!(Server, server.id)
+    assert Repo.aggregate(from(s in Server, where: s.account_id == ^account.id), :count) == 1
+    assert Kura.runner_cache_endpoint_url(account, :macos) == server.url
   end
 
   test "tears down a region's node when its served platforms lose their profiles" do
@@ -680,6 +759,23 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert %Deployment{image_tag: "0.5.3", status: :pending} =
              Repo.get_by!(Deployment, kura_server_id: server.id, status: :pending)
+  end
+
+  defp activate(account) do
+    Server
+    |> Repo.get_by!(account_id: account.id, region: "scw-fr-par-runners")
+    |> Server.observation_changeset(%{
+      status: :active,
+      url: "https://#{account.id}.runners.example.com",
+      current_image_tag: "0.5.2",
+      last_ready_at: DateTime.truncate(DateTime.utc_now(), :second)
+    })
+    |> Repo.update!()
+  end
+
+  defp drained_for(server, seconds) do
+    drain_started_at = DateTime.utc_now() |> DateTime.add(-seconds, :second) |> DateTime.truncate(:second)
+    Repo.update_all(from(s in Server, where: s.id == ^server.id), set: [drain_started_at: drain_started_at])
   end
 
   defp open_deployment_count(server) do

@@ -1,5 +1,9 @@
 <main class="layout" data-part="account-layout" id="account-layout">
-  <AtlasWeb.AccountMenu.headerbar current_user={@current_user} account_settings? />
+  <AtlasWeb.AccountMenu.headerbar
+    current_user={@current_user}
+    current_path={@current_path}
+    account_settings?
+  />
   <div id="presence-visibility" phx-hook="Presence" phx-update="ignore"></div>
   <.line_divider />
   <section class="layout__main" data-part="account-main">

@@ -54,6 +54,10 @@ type CustomVolumes struct {
 	checkoutJobs     map[string]cachevolumes.CheckoutTask
 	// spare cancels the running background prefetch; guarded by Builtins.mu.
 	spare context.CancelCauseFunc
+	// spareScope is the scope that prefetch restores; guarded by Builtins.mu.
+	spareScope string
+	// images is the backend run() serves; nil until then.
+	images *cachevolumes.APFSImages
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -155,6 +159,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		FreeBytesContext: c.freeBytesContext,
 		Reclaim:          c.reclaim,
 		Displace:         c.displaceSpare,
+		Log:              customCacheLog(),
 	}, Reserve: c.reserve, Create: createCustomImage, Verify: verifyCustomImage, Detach: detachCustomInspection, Grow: growCustomImage}
 	if c.Checkouts != nil {
 		backend.Seed = c.Checkouts.Seed
@@ -191,6 +196,9 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	defer store.Close()
 	store.MaxVolumeBytes = c.maxVolumeBytes()
 	c.Store = store
+	c.images = backend
+	// Pressure eviction takes the masters of lineages a job holds or is cloning last.
+	backend.InUse = store.InUse
 	if c.Checkouts != nil {
 		// Pressure eviction never takes a master a job holds or is cloning.
 		c.Checkouts.InUse = store.InUse
@@ -203,7 +211,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		if requested {
 			return backend.Prefetch(ctx, slot)
 		}
-		return c.prefetchSpare(ctx, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
+		return c.prefetchSpare(ctx, slot.Scope, func(ctx context.Context) error { return backend.PrefetchSpare(ctx, slot) })
 	}, backend.HasMaster)
 	c.prefetch.Store(prefetch)
 	var builds sync.WaitGroup
@@ -267,6 +275,7 @@ func (c *CustomVolumes) serve(ctx context.Context, requests, reports <-chan time
 			}
 			reconcile()
 		case <-requests:
+			c.notePressure(ctx)
 			listCtx, stop := context.WithTimeout(ctx, 5*time.Second)
 			pods, err := c.Kube.CoreV1().Pods(c.Namespace).List(listCtx, metav1.ListOptions{FieldSelector: "spec.nodeName=" + c.Node})
 			stop()
@@ -379,13 +388,20 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	var result struct {
-		Action string `json:"action"`
+		Action      string `json:"action"`
+		ColdPublish bool   `json:"cold_publish"`
 	}
 	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil, "mounted_generation": mountedGeneration(slot)}, &result)
+	// Only an explicit server decision lets a branch that started empty replace
+	// the saved version; a plain seal keeps withholding it.
+	if result.Action == "seal" && result.ColdPublish {
+		return "publish", err
+	}
 	return result.Action, err
 }
 
 func (c *CustomVolumes) reconcile(ctx context.Context) error {
+	c.relieve(ctx)
 	if err := c.refreshReservations(ctx); err != nil {
 		return err
 	}
@@ -526,6 +542,7 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		// The reserved checkout name is only ever allocated through the checkout path.
 		identity.Kind, identity.Generation = "", 0
+		identity.ManagedKey = cachevolumes.ManagedKey(input.Key)
 		response := map[string]any{"error": "unavailable", "reason": "denied"}
 		if errors.Is(err, cachevolumes.ErrExecutionPending) {
 			response["reason"] = "execution_pending"
@@ -546,8 +563,9 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 					c.prefetch.Load().start(identity, true)
 				}
 				response["reason"] = cachevolumes.Result(err)
+				subject := cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity, PodName: pod.Name})
 				log.FromContext(ctx).Info("custom cache volume unavailable; job continues cold",
-					"pod", pod.Name, "use", identity.ID, "generation", identity.BaseGeneration, "reason", response["reason"], "error", err.Error())
+					append(subject.Fields(), "reason", response["reason"], "error", err.Error())...)
 			}
 		}
 		cancel()

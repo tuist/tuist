@@ -97,6 +97,30 @@ defmodule AtlasWeb.Router do
     get "/ready", HealthController, :ready
   end
 
+  # Native app association files and the /open landing are public. They use no
+  # Accept negotiation, session, CSRF, or user lookup: Apple's CDN and Android's
+  # verifier fetch the association files without them, and the files are 404 until
+  # the deployment configures verified app identities.
+  pipeline :native_links do
+    plug :put_secure_browser_headers
+  end
+
+  scope "/.well-known", AtlasWeb do
+    pipe_through :native_links
+
+    get "/apple-app-site-association", NativeLinksController, :apple_app_site_association
+    get "/assetlinks.json", NativeLinksController, :asset_links
+  end
+
+  # Public, credential-free landing for native links. It reads no session, user,
+  # or record, and never redirects to the custom scheme automatically.
+  scope "/open", AtlasWeb do
+    pipe_through :native_links
+
+    get "/:screen", NativeLinksController, :open
+    get "/:screen/:id", NativeLinksController, :open
+  end
+
   scope "/.well-known", AtlasWeb do
     pipe_through [:api]
 
@@ -163,6 +187,12 @@ defmodule AtlasWeb.Router do
     pipe_through [:api]
 
     post "/:project_id/envelope/", EnvelopeController, :create
+  end
+
+  scope "/api/native", AtlasWeb do
+    pipe_through :api
+
+    get "/themes", NativeThemesController, :index
   end
 
   scope "/api/native", AtlasWeb do

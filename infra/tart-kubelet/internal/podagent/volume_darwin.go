@@ -219,7 +219,7 @@ func PhysicalMemoryBytes() (uint64, error) {
 // allocatedBytes reports the blocks a sparse image actually occupies, not its
 // nominal size.
 func (darwinVolumeBackend) allocatedBytes(path string) (uint64, error) {
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return 0, err
 	}

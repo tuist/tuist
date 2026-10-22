@@ -4,6 +4,11 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
   alias Tuist.Projects.Project
 
+  @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
+  def immutable_shard_reports_enabled?(account) do
+    FunWithFlags.enabled?(:immutable_shard_reports, for: account) and not xcode_coverage_enabled?(account)
+  end
+
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account) do
     FunWithFlags.enabled?(:kura_positive_fence, for: account)
@@ -115,29 +120,6 @@ defmodule Tuist.FeatureFlags do
   """
   def usage_based_pricing_page_enabled?(nil), do: FunWithFlags.enabled?(:usage_based_pricing_page)
   def usage_based_pricing_page_enabled?(user), do: FunWithFlags.enabled?(:usage_based_pricing_page, for: user)
-
-  @doc """
-  Whether dispatch stamps a job's repository cache volume on its Pod. Canary and
-  production require an explicit `:runner_cache_volumes_per_repository` toggle,
-  so a deploy never starts stamping while replicas of the previous version are
-  still serving. Those replicas resolve every promote and upload URL under the
-  account's `tuist-cache` volume, so a repository-labelled Pod whose upload one
-  of them mints and whose promote a new replica accepts would publish a HEAD
-  pointing at an object under the other volume's prefix, which no host can then
-  download. Turn it on once the rollout is complete; the host side has its own
-  gate (`tuist.dev/cache-volumes-per-repository`).
-  """
-  def runner_cache_volumes_per_repository_enabled? do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_cache_volumes_per_repository)
-  end
-
-  @doc """
-  Whether the account's custom cache volumes honor sizes above 20 GB. Off, a
-  larger requested size is capped to 20 GB; smaller sizes are always honored.
-  """
-  def runner_custom_volume_sizes_enabled?(account) do
-    FunWithFlags.enabled?(:runner_custom_volume_sizes, for: account)
-  end
 
   @doc """
   Whether Kura runtime-image rollouts run through the rollout

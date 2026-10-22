@@ -38,15 +38,16 @@ private func resolvedCACertificatePath() -> String? {
 /// trust-augmenting delegate is used so a private CA is honored on top of the system
 /// root store. Otherwise the behavior is unchanged from before: HAR metrics delegate
 /// when available, or no delegate at all.
-private func tuistSessionDelegate() -> (URLSessionDelegate & URLSessionTaskDelegate)? {
+private func tuistSessionDelegate(followRedirects: Bool = true) -> (URLSessionDelegate & URLSessionTaskDelegate)? {
     #if canImport(Security)
         if let path = resolvedCACertificatePath(),
            let certificates = CACertificateLoader.load(from: path),
            !certificates.isEmpty
         {
-            return TuistURLSessionDelegate(additionalCertificates: certificates)
+            return TuistURLSessionDelegate(additionalCertificates: certificates, followRedirects: followRedirects)
         }
     #endif
+    if !followRedirects { return NoDiscoveryRedirects() }
     #if canImport(TuistHAR)
         return URLSessionMetricsDelegate.shared
     #else
@@ -54,8 +55,8 @@ private func tuistSessionDelegate() -> (URLSessionDelegate & URLSessionTaskDeleg
     #endif
 }
 
-private func makeURLSession(configuration: URLSessionConfiguration) -> URLSession {
-    if let delegate = tuistSessionDelegate() {
+private func makeURLSession(configuration: URLSessionConfiguration, followRedirects: Bool = true) -> URLSession {
+    if let delegate = tuistSessionDelegate(followRedirects: followRedirects) {
         return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
     }
     return URLSession(configuration: configuration)
@@ -184,7 +185,32 @@ func invalidateSharedTuistURLSession() {
     sharedTuistLargeTransferURLSession.invalidate()
 }
 
+private final class NoDiscoveryRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _: URLSession, task _: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+
+    #if canImport(TuistHAR)
+        func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+            URLSessionMetricsDelegate.shared.urlSession(session, task: task, didFinishCollecting: metrics)
+        }
+    #endif
+}
+
 extension URLSession {
+    public static var tuistDiscovery: URLSession {
+        let configuration = tuistURLSessionConfiguration()
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 10
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        configuration.urlCredentialStorage = nil
+        return makeURLSession(configuration: configuration, followRedirects: false)
+    }
+
     public static var tuistShared: URLSession {
         sharedTuistURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }

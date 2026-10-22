@@ -10,7 +10,7 @@ postinstall = "true"
 
 [tasks."prepare:rust"]
 description = "Materialize locked Rust sources for Once's per-crate build graph"
-run = "cargo vendor --quiet --locked .once/vendor > /dev/null"
+run = "CARGO_HTTP_MULTIPLEXING=false cargo vendor --quiet --locked .once/vendor > /dev/null"
 
 [tasks.check]
 depends = ["prepare:rust"]

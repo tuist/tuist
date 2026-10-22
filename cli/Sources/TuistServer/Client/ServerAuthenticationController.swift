@@ -277,7 +277,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             guard let token = try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL,
                 forceRefresh: false,
-                inBackground: ServerReportPublishingMode.enabled ? false : ServerAuthenticationConfig.current.backgroundRefresh,
+                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
                 locking: true
             ) else {
                 // An absent result is not memoized, so a fresh login is picked up
@@ -363,7 +363,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         try await authenticationTokenRefreshingIfNeeded(
             serverURL: serverURL,
             forceRefresh: true,
-            inBackground: ServerReportPublishingMode.enabled ? false : ServerAuthenticationConfig.current.backgroundRefresh,
+            inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
             locking: true
         )
     }

@@ -8,6 +8,10 @@ This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
 - Build/test metadata request schemas and Bazel webhook validation accept 64 total string values, retaining existing per-entry/body limits. Credential-free `GET /api/metadata/limits` advertises only 20 until the receivers-first rollout is complete and explicitly enabled; it must not authenticate clients or accept build data. See `server/docs/build-metadata.md`.
+- `WellKnownController.tuist_discovery/2` serves public, cookie-free `GET /.well-known/tuist.json` with the current instance-wide `network_trusted_report_publishing` boolean and `Cache-Control: no-store`. It reveals no account/project data, never enables hosted publishing, and is only client discovery: every report endpoint still enforces the authoritative policy and license.
+- Test-run detail metrics reuse the already-loaded and project-authorized run rather than looking it up again for its persisted reporting version.
+- Xcresult jobs carry the persisted run's `reporting_version` as a parser-work hint, so version-1 jobs skip unsupported coverage parsing. Never take it from client input or use a job hint instead of the persisted shard plan for ingestion behavior; absent hints retain legacy parser behavior.
+- Sharded test reporting maps `:shard_plan_not_visible` to HTTP 503 with `Retry-After: 1`, so the CLI can replay after replica lag for both legacy and immutable plans. Foreign-project plans remain non-retryable 4xx responses; do not turn all not-found/validation errors into retries.
 - `API.BuildEntityController` supplies additive native task/action/module/file controllers using shared resource descriptors and schemas. Authorize project build-read before domain queries, keep IDs scoped to project/system/kind, share bounded Params with MCP, and convert QueryLimitError to 503 rather than empty history. Existing ingestion and run-level controllers remain unchanged.
 - `LlmsTxtController` serves `/llms.txt` as the agent-facing index and `/llms-full.txt` as the complete English documentation Markdown export, including runtime CLI reference pages. Both are public plain-text responses cached for one hour.
 - `MarketingMarkdownController` serves landing-page guides and original legal documents at `/marketing-markdown[/<page>]`, plus full original static statements at `/marketing-markdown/source/<page>`, without sessions or language redirects. Unknown paths return uncacheable 404s; preserve on-premise forwarding and public marketing classification.
@@ -71,7 +75,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 
 - Shared Grafana build-health endpoints support Xcode, Gradle, Bazel, and Once. Reject other project build systems with a clear client error until an adapter exists; keep existing duration endpoints unchanged.
 
-- `RunnerCacheMastersController.report_usage` accepts only the per-machine
-  `tuist-runner-host` audience, derives the node from its ServiceAccount, and
-  delegates session/job binding to `CacheVolumes.Builtin`. Workflow tokens and
-  body-supplied account/node/repository fields cannot authorize these reports.
+- `RunnerCacheMastersController.index` accepts only the per-machine
+  `tuist-runner-host` audience and derives the node from its ServiceAccount; it
+  lists custom volume HEADs only. Workflow tokens and body-supplied node fields
+  cannot authorize it.

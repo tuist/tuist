@@ -186,8 +186,13 @@ One non-expiring namespace-wide Lease serializes all rebuilds, deliberately
 stricter than separate source/destination host limits. Controller restart retains
 ownership; a failed rebuild does not release its slot or escalate to another
 ordinal. Successful verification releases the slot. Investigate interrupted
-journals before any manual release. Resize, evacuation and automatic image
-replacement are excluded for activated instances.
+journals before any manual release. Evacuation and automatic image
+replacement are excluded for activated instances. A grown claim is applied
+standby-first: only a Ready, settled Serving grant with no handover or
+unfinished recovery lets the controller re-template the StatefulSet and rebuild
+a standby's volume. It never touches the holder's claim; that one waits until a
+planned handover revokes it. A destination larger than its source also gives the
+final retained repair room to converge on a full ring.
 Placement changes are reconciled during rebuilding. Only a replacement that is
 still unscheduled and has an obsolete node selector is recreated; its new claim
 is retained and the serving sibling is untouched.

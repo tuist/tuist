@@ -2088,6 +2088,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
+                    .target(name: "XCResultParser", condition: .when([.macos])),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
@@ -2238,6 +2240,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             }
         dependencies =

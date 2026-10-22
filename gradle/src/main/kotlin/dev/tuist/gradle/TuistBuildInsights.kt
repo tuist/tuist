@@ -157,7 +157,6 @@ abstract class TuistBuildInsightsService :
         val requestedTasks: ListProperty<String>
         val backgroundUpload: Property<Boolean>
         val actorId: Property<String>
-        val networkTrustedPublishing: Property<Boolean>
     }
 
     @get:Inject
@@ -332,8 +331,7 @@ abstract class TuistBuildInsightsService :
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = projectDir,
-            httpClients = httpClients,
-            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
+            httpClients = httpClients
         )
 
         val httpClient = TuistHttpClient(
@@ -365,7 +363,7 @@ abstract class TuistBuildInsightsService :
             startedAt = formatTimestamp(reportStartedAt),
             gradleVersion = parameters.gradleVersion.orNull,
             rootProjectName = parameters.rootProjectName.orNull,
-            requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
+            requestedTasks = parameters.requestedTasks.getOrElse(emptyList()),
             ciDetector = ciDetector,
             gitInfoProvider = reportGitInfoProvider(),
             customMetadata = executionTelemetry.cacheSavings.metadata(executionTelemetry.failures.metadata(buildCustomMetadata(
@@ -545,7 +543,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
             parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
             config.actorId?.let { parameters.actorId.set(it) }
-            parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
         }
 
         // A provider can have only one subscription. An operation-only service also

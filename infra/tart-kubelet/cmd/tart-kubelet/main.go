@@ -568,6 +568,14 @@ func main() {
 				}
 				return cachevolumes.MasterNodeLabels(customVolumes.Root)
 			}},
+			// The cache disk capacity, so placement never prefers this host for a job
+			// whose volumes its remaining room cannot hold.
+			{Name: "cache-volume-capacity", Labels: func(context.Context) (map[string]string, error) {
+				if customVolumes == nil {
+					return map[string]string{}, nil
+				}
+				return customVolumes.CapacityNodeLabels()
+			}},
 		},
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")

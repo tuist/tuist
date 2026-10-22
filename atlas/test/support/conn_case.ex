@@ -99,9 +99,8 @@ defmodule AtlasWeb.ConnCase do
   def assign_role_or_scopes(_user, :employee, nil), do: :ok
 
   def assign_role_or_scopes(user, :executive, _scopes) do
-    role = Roles.ensure_executive_role!()
-    %UserRole{} |> UserRole.changeset(%{user_id: user.id, role_id: role.id}) |> Atlas.Repo.insert!()
-    :ok
+    # Updating the shared builtin role can deadlock concurrent sandbox transactions.
+    assign_role_or_scopes(user, nil, Authorization.executive_scopes())
   end
 
   def assign_role_or_scopes(user, _role, scopes) when is_list(scopes) do

@@ -448,6 +448,10 @@ The platform chart's `preview-janitor` CronJob runs hourly inside the preview cl
 
 ## 9. Dedicated pentest cluster
 
+`tuist-pentest` has been retired and its manifest removed from
+`infra/k8s/clusters/`. Restore `cluster-pentest.yaml` from git history to run
+another assessment; the steps below still apply.
+
 `tuist-pentest` is a separate workload cluster for an authorized security
 assessment. It uses the existing `tuist-workloads` Hetzner project, not a new
 Hetzner project, but does not share Kubernetes resources with any other
@@ -485,6 +489,10 @@ wait for its managed infrastructure to disappear. Removing the source manifest
 first prevents a later management-cluster reconciliation from recreating it.
 Cluster retirement is deliberately manual because it permanently removes the
 control plane and any remaining persistent volumes.
+
+Then delete the `pentest.tuist.dev` record in Cloudflare. It was created by
+hand at bootstrap, so nothing removes it, and once Hetzner reassigns the
+released load-balancer IP, whoever receives it would serve that hostname.
 
 ## 10. Teardown
 

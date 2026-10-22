@@ -105,6 +105,15 @@ runs the mixed-version latency expression through promtool.
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
   Keep unavailable service separate from the 30-minute redundancy warning, and keep
   the ten-minute StatefulSet age gate: single-replica instances start at zero Ready.
+- `k8s-monitoring/runner-cache-volume-alert-rules.json` records the live
+  **Runner cache volumes** group (four Loki rules and one Postgres rule,
+  five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
+  the backtests. The warm-rate rule reads the production database as
+  `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
+  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` is aggregated
+  to a plain sum by Adaptive Metrics and cannot be rated. Keep the macOS
+  queries line-filtered and the windows short: that stream carries the runner
+  logs and each evaluation scans the whole window.
 - Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
 - The managed production overlay enables the browser RUM gateway; the chart default remains disabled. Roll back by disabling that production override, restoring the direct Alloy backend and `/collect` rewrite.
 - When filtering metrics, preserve every side of absence-based alerts. The

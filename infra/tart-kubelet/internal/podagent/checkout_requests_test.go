@@ -124,7 +124,7 @@ func checkoutGrantJSON(base int64) map[string]any {
 	grant := map[string]any{
 		"id": checkoutTestUse, "account_id": 1, "scope": checkoutTestScope, "uid": 501, "generation": 1, "can_publish": true,
 		"clone_url": "https://github.com/org/repo", "default_branch": "main", "commit": checkoutTestCommit, "default_branch_job": true,
-		"volume_key": strings.Repeat("d", 64),
+		"may_start_master": true, "volume_key": strings.Repeat("d", 64),
 	}
 	if base > 0 {
 		grant["base_generation"], grant["parent_id"] = base, "22222222-2222-4222-8222-222222222222"
@@ -205,7 +205,7 @@ func TestCheckoutColdHostRestoresTheHeadAndBuildsFromTheExport(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(export, "head"), []byte(checkoutTestCommit), 0644)
 	c.collectCheckout(string(pod.UID))
 	task, _ := checkouts.Pending(checkoutTestScope)
-	if task.Export != checkouts.Incoming(string(pod.UID)) || task.Use != checkoutTestUse || task.BaseGeneration != 1 {
+	if task.Export != checkouts.Incoming(string(pod.UID)) || task.Use != checkoutTestUse || task.BaseGeneration != 1 || !task.MayStartMaster {
 		t.Fatalf("the export did not replace the restore: %+v", task)
 	}
 	if _, err := os.Stat(filepath.Join(task.Export, "head")); err != nil {
