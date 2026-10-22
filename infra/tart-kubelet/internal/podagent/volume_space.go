@@ -4,9 +4,8 @@ import "errors"
 
 // availableBytes is the volume's free space within its budget, capped by the
 // host's physical free space above the golden-image reclaim floor. Running
-// cache reservations are subtracted by callers; Stats exposes the volume's
-// free space without the host floor.
-func (m *VolumeManager) availableBytes() (uint64, error) {
+// cache reservations are subtracted by callers.
+func (m *CacheSpace) availableBytes() (uint64, error) {
 	free, err := m.volumeFreeBytes()
 	if err != nil || m.HostDiskSpace == nil {
 		return free, err
@@ -22,11 +21,11 @@ func (m *VolumeManager) availableBytes() (uint64, error) {
 	return min(free, saturatingSub(host.FreeBytes, floor)), nil
 }
 
-func (m *VolumeManager) budgetBytes() uint64 { return uint64(m.BudgetGiB) * 1024 * 1024 * 1024 }
+func (m *CacheSpace) budgetBytes() uint64 { return uint64(m.BudgetGiB) * 1024 * 1024 * 1024 }
 
 // volumeFreeBytes is the volume's free space, less what it uses beyond
 // BudgetGiB.
-func (m *VolumeManager) volumeFreeBytes() (uint64, error) {
+func (m *CacheSpace) volumeFreeBytes() (uint64, error) {
 	free, err := m.backend.freeBytes(m.Root)
 	if err != nil || m.BudgetGiB <= 0 {
 		return free, err
@@ -39,7 +38,7 @@ func (m *VolumeManager) volumeFreeBytes() (uint64, error) {
 }
 
 // volumeCapacityBytes is the volume's quota, or BudgetGiB when that is lower.
-func (m *VolumeManager) volumeCapacityBytes() (uint64, error) {
+func (m *CacheSpace) volumeCapacityBytes() (uint64, error) {
 	capacity, err := m.backend.capacityBytes(m.Root)
 	if err != nil || m.BudgetGiB <= 0 {
 		return capacity, err
@@ -50,7 +49,7 @@ func (m *VolumeManager) volumeCapacityBytes() (uint64, error) {
 // hardFreeBytes is the space writes can take before they fail: the volume's
 // free space under its APFS quota, or the host's physical free space when that
 // is lower. Unlike availableBytes it ignores the budget and the host floor.
-func (m *VolumeManager) hardFreeBytes() (uint64, error) {
+func (m *CacheSpace) hardFreeBytes() (uint64, error) {
 	free, err := m.backend.freeBytes(m.Root)
 	if err != nil || m.HostDiskSpace == nil {
 		return free, err

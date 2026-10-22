@@ -196,9 +196,7 @@ type Config struct {
 	// TakeOver marks the push that takes a rack host's runtime over from
 	// another env. Tailscale logs in afresh (`--force-reauth`), so the device
 	// joins with this config's credential and tags rather than keeping the
-	// ones it has, and what the previous owner's server alone can answer is
-	// dropped: tart-kubelet's queued cache-volume usage reports (see
-	// dropPreviousOwnerState). Per host, set only on that one push.
+	// ones it has. Per host, set only on that one push.
 	TakeOver bool
 
 	// RuntimeOwner is the env whose operator pushes this config, checked
@@ -435,7 +433,7 @@ type Config struct {
 
 	// RunnerCacheVolumeGiB, when > 0, provisions a dedicated quota-bounded
 	// APFS volume (mounted at /Volumes/tuist-runner-cache) that holds the
-	// per-account cache-volume images, and passes `--runner-cache-root` and
+	// runner cache volumes, and passes `--runner-cache-root` and
 	// `--runner-cache-budget-gib` to tart-kubelet so the feature turns on.
 	// It is the budget: the space ALL cache volumes on the host may take
 	// together, which admission and eviction enforce. The volume's quota is
@@ -446,29 +444,11 @@ type Config struct {
 	// and the budget is what absorbs custom cache volume jobs that write more
 	// than admission reserved for them. A budget within an
 	// existing volume's quota applies with the next host-config push.
-	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
+	// 0 (default) leaves cache volumes off.
 	RunnerCacheVolumeGiB      int
 	CustomCacheURL            string
 	CustomCacheNamespace      string
 	CustomCacheServiceAccount string
-
-	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
-	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
-	// image is sparse so this is a ceiling, not an allocation; the
-	// RunnerCacheVolumeGiB budget above is the real aggregate bound. 0
-	// defaults to tart-kubelet's own default (20 GiB). Only meaningful when
-	// RunnerCacheVolumeGiB > 0.
-	CacheVolumeMasterCapGiB int
-
-	// CacheVolumeCASGiB is the Xcode compilation cache's FOOTPRINT allowance
-	// WITHIN each per-account cache image (folded in as a subdir), passed to
-	// tart-kubelet's --cache-volume-cas-gib. It is the CAS's share of
-	// CacheVolumeMasterCapGiB; the binary cache gets the rest minus a reserve.
-	// The compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE, which
-	// bounds one generation of a store that keeps two — so this is what the
-	// store should OCCUPY. 0 (default) leaves the compilation cache VM-local.
-	// Only meaningful when RunnerCacheVolumeGiB > 0.
-	CacheVolumeCASGiB int
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -509,9 +489,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	// After passwordless sudo, which the claim needs; before anything of the
 	// runtime.
 	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
-		return hk.Observed(), err
-	}
-	if err := dropPreviousOwnerState(ctx, client, cfg); err != nil {
 		return hk.Observed(), err
 	}
 	if err := EnableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
@@ -679,9 +656,6 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err
 	defer stop()
 
 	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
-		return hk.Observed(), err
-	}
-	if err := dropPreviousOwnerState(ctx, client, cfg); err != nil {
 		return hk.Observed(), err
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
@@ -1225,23 +1199,14 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.MinGoldensKept > defaultMinGoldensKept {
 		minGoldensKeptArg = fmt.Sprintf("\n    <string>--min-goldens-kept=%d</string>", cfg.MinGoldensKept)
 	}
-	// Turn on per-account cache volumes when the fleet provisioned
-	// a runner-cache volume. --runner-cache-root points at the auto-mounted
-	// quota volume; --cache-volume-cap-gib carries the per-master cap and
-	// --cache-volume-cas-gib the folded compilation-cache budget when the
-	// fleet overrides tart-kubelet's defaults.
+	// Turn on cache volumes when the fleet provisioned a runner-cache volume.
+	// --runner-cache-root points at the auto-mounted quota volume.
 	runnerCacheArg := ""
 	if cfg.RunnerCacheVolumeGiB > 0 {
 		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
 		runnerCacheArg += fmt.Sprintf("\n    <string>--runner-cache-budget-gib=%d</string>", cfg.RunnerCacheVolumeGiB)
 		if cfg.CustomCacheURL != "" {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
-		}
-		if cfg.CacheVolumeMasterCapGiB > 0 {
-			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
-		}
-		if cfg.CacheVolumeCASGiB > 0 {
-			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cas-gib=%d</string>", cfg.CacheVolumeCASGiB)
 		}
 	}
 	imageMirrorArgs := ""
@@ -2339,7 +2304,7 @@ const runnerCacheVolumeName = "tuist-runner-cache"
 const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
 
 // installRunnerCacheVolume provisions the quota-bounded APFS volume that holds
-// per-account cache-volume images. No-op when the fleet hasn't
+// the runner cache volumes. No-op when the fleet hasn't
 // opted in (RunnerCacheVolumeGiB == 0). Idempotent: it skips when the volume
 // is already mounted, so re-provisioning never grows/shrinks a live volume.
 //
@@ -2400,7 +2365,7 @@ if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
   echo "provisioned runner-cache volume $VOL (${QUOTA_GIB} GiB quota) at $MOUNT"
 fi
 # The volume is created and auto-mounted by root, but tart-kubelet runs as
-# $OWNER and must create per-account and per-branch directories under the root.
+# $OWNER and must create the cache volume directories under the root.
 # Without a runner-owned root, the very first branch allocation fails and every
 # job silently falls back to a cold cache. Enforce ownership on EVERY run — not
 # only at first provision — so a volume left root-owned by an earlier bootstrap

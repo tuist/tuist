@@ -596,6 +596,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 	}
+	if err := r.requestExitRecovery(ctx, instance, pods); err != nil {
+		return ctrl.Result{}, err
+	}
 	if inProgress, err := r.reconcileReplicaRecovery(ctx, instance, pods, samples, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {

@@ -42,7 +42,7 @@ Tuist reads `CI_JOB_TAGS` from each assignment and resolves the profile within t
 
 Jobs use GitLab's **shell executor** inside an isolated machine. Checkout, CI variables, `before_script`, `script`, `after_script`, artifacts and cancellation are handled by GitLab Runner. The pipeline's `image:` and `services:` settings do not configure this shell environment; use tools installed on the <.localized_link href="/guides/features/runners/profiles">runner image</.localized_link> or install them in your script.
 
-The reusable runner authentication token stays on the Tuist server. Machines receive credentials for their assigned job only. Automatic shared account caches and cache-signing grants are currently withheld for GitLab jobs. Custom Linux cache volumes verify job identity and save permission through GitLab’s API; overridable CI variables do not establish trust.
+The reusable runner authentication token stays on the Tuist server. Machines receive credentials for their assigned job only. Cache-signing grants are currently withheld for GitLab jobs. Custom Linux cache volumes verify job identity and save permission through GitLab’s API; overridable CI variables do not establish trust.
 
 GitLab marks a job as running, and starts its timeout, as soon as Tuist acquires it. While the jobs Tuist has already acquired use up your account's concurrency limit, further jobs stay pending in GitLab. An acquired job waits for a machine for up to its job timeout, at most 12 hours. If no machine becomes available by then, Tuist fails the assignment with `runner_system_failure`, and the retry policy above lets GitLab retry it. The same policy covers a lost runner machine.
 
