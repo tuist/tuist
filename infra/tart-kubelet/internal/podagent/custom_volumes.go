@@ -153,7 +153,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 		return errors.New("cache filesystem unavailable")
 	}
 	// The timeout bounds metadata requests; archive transfers use masterDownloadClient and end on a stall instead.
-	c.HTTP = &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	c.HTTP = cachevolumes.NewServerClient(6 * time.Minute)
 	backend := &cachevolumes.APFSImages{LocalImages: cachevolumes.LocalImages{
 		Observe: observeCustomCache, Root: c.Root, SizeGB: 20, MinFreeBytes: 40_000_000_000, MaxVolumeBytes: c.maxVolumeBytes(),
 		Transfer:         &cachevolumes.HTTPTransfer{URL: c.URL + "/image", Node: c.Node, Client: c.HTTP, ObjectClient: masterDownloadClient, MaxBytes: c.maxVolumeBytes(), Token: c.token, Log: customCacheLog()},
