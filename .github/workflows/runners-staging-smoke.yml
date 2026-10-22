@@ -73,7 +73,7 @@ on:
         type: string
         default: ""
       managed_cache_phase:
-        description: "seed: write a sentinel into both caches; verify: the sentinels survived"
+        description: "seed: write a sentinel into both caches; verify: the sentinels survived (and change both caches so they are saved)"
         type: choice
         options: [seed, verify]
         default: seed
@@ -410,6 +410,9 @@ jobs:
               ;;
             verify)
               echo "- Sentinels from run $(cat "$TUIST_COMPILATION_CACHE_CAS_PATH/sizes-smoke-sentinel") and $(cat "$TUIST_XDG_CACHE_HOME/sizes-smoke-sentinel")" >> "$GITHUB_STEP_SUMMARY"
+              # An unchanged volume is never saved, so a grown one would not keep its size.
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_COMPILATION_CACHE_CAS_PATH/sizes-smoke-verified"
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_XDG_CACHE_HOME/sizes-smoke-verified"
               ;;
           esac
           sync
