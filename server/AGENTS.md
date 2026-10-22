@@ -27,6 +27,14 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 - Previews (iOS app preview deployment)
 - Command Events (CLI analytics)
 
+## Horizontal Scaling
+
+- Every implementation must preserve horizontal scalability: requests and jobs must remain correct across multiple replicas, arbitrary request routing, rolling restarts and replica failure. Do not require sticky sessions or treat process memory, local files or ETS as authoritative shared state.
+- Node-local caches are allowed when disposable and their freshness/invalidation contract is explicit. Preserve bounded authentication staleness and strict privacy/privilege checks; do not replace caching with expensive work or database reads on every request without evaluating load.
+- Coordinate shared work through atomic operations in shared infrastructure, with explicit ownership, bounded waits and crash recovery. Prefer coordination independent of Erlang membership when possible. Cluster locks are only valid when discovery and partition behavior are part of the supported deployment contract. Verify actual provider semantics before relying on S3 conditional writes, Redis leases or database locks; expired owners must not release another owner's claim or overwrite its result.
+- Make retried work idempotent and persist required work before acknowledging it. Supervision and graceful shutdown do not make in-memory work durable.
+- Validate relevant cross-replica and failure scenarios, and consider cold starts, simultaneous cache expiry, CPU cost, database-pool pressure and shared-backend limits. Single-replica tests and warm-cache throughput alone do not establish horizontal scalability.
+
 ## Development Setup
 **Prerequisites**
 - PostgreSQL 16
