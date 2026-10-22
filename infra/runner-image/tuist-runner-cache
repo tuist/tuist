@@ -1,18 +1,17 @@
 #!/bin/bash
 # tuist-runner-cache activate <module|xcode>
 #
-# Turns on one of the runner's built-in caches for the rest of the job. On
+# Turns on one of the runner's managed caches for the rest of the job. On
 # success it prints the cache's environment as NAME=VALUE lines on stdout for
 # the calling CI integration to export to later steps; messages go to stderr.
 #
 # dispatch-poll.sh stages the caches in RUNNER_CACHES_DIR (stage_runner_caches):
-# `mode` says whether the account gets them automatically or through this
-# command, and `<cache>.env` holds each mounted cache's environment. Activating
-# leaves `<cache>.used`, which lets teardown promote the job's changes.
+# `mode` says the runner provides them, `<cache>.volume` names each cache's
+# volume and `<cache>.env` its environment. Activating leaves `<cache>.used`,
+# which tells teardown the job used the cache.
 #
-# Exit status: 0 when the cache is active, either automatically or because this
-# activated it; 3 when the runner could not mount it, so the job runs on an
-# empty cache; 2 on a usage error.
+# Exit status: 0 when the cache is active; 3 when the runner could not attach
+# it, so the job runs on an empty cache; 2 on a usage error.
 set -uo pipefail
 
 RUNNER_CACHES_DIR="${TUIST_RUNNER_CACHES_DIR:-/Users/runner/.tuist-runner-caches}"
@@ -31,10 +30,6 @@ case "${cache}" in
 esac
 
 case "$(cat "${RUNNER_CACHES_DIR}/mode" 2>/dev/null)" in
-  automatic)
-    echo "The ${label} is already enabled for every job on this runner." >&2
-    exit 0
-    ;;
   opt-in) ;;
   *)
     echo "This runner does not provide the ${label}; nothing to set up." >&2
