@@ -128,6 +128,65 @@ defmodule TuistEx.GitTest do
       assert {:ok, %{base_head_sha: nil}} = Git.history(repo, head, nil)
     end
 
+    test "reports the pull request's head from a depth-1 checkout of its merge ref", %{repo: repo} do
+      write!(repo, "a.ex", "a\n")
+      fork_point = commit!(repo, "base")
+      git!(repo, ["checkout", "--quiet", "-b", "feature"])
+      write!(repo, "feature.ex", "feature\n")
+      pull_request_head = commit!(repo, "feature")
+      git!(repo, ["checkout", "--quiet", "main"])
+      write!(repo, "main.ex", "main\n")
+      commit!(repo, "main")
+      git!(repo, ["merge", "--quiet", "--no-ff", "feature", "-m", "Merge feature into main"])
+      merge_commit = git!(repo, ["rev-parse", "HEAD"])
+      git!(repo, ["update-ref", "refs/pull/1/merge", merge_commit])
+      git!(repo, ["reset", "--quiet", "--hard", "HEAD^1"])
+      git!(repo, ["config", "uploadpack.allowFilter", "true"])
+
+      clone = repo <> "-clone"
+      on_exit(fn -> File.rm_rf!(clone) end)
+      File.mkdir_p!(clone)
+      git!(clone, ["init", "--quiet"])
+      git!(clone, ["remote", "add", "origin", "file://" <> repo])
+
+      git!(clone, [
+        "fetch",
+        "--quiet",
+        "--depth=1",
+        "origin",
+        "+refs/pull/1/merge:refs/remotes/pull/1/merge"
+      ])
+
+      git!(clone, ["checkout", "--quiet", "--detach", "refs/remotes/pull/1/merge"])
+
+      git = fn subcommand, args ->
+        case System.cmd("git", ["-C", clone, subcommand | args], stderr_to_stdout: true) do
+          {output, 0} -> String.trim(output)
+          _ -> nil
+        end
+      end
+
+      environment = &%{"GITHUB_REF" => "refs/pull/1/merge", "GITHUB_SHA" => merge_commit}[&1]
+      assert git.("rev-parse", ["HEAD^2"]) == nil
+      assert TuistEx.Analytics.Env.git_commit_sha(environment, git) == pull_request_head
+
+      assert {:ok, %{fallback_reason: reason, commits: commits}} =
+               Git.history(clone, pull_request_head, "main", %{remote_access: :base_head})
+
+      assert reason ==
+               "the base branch main is not in the checkout; #{String.slice(pull_request_head, 0, 12)} is not in the checkout"
+
+      refute Enum.any?(commits, &(&1.sha == pull_request_head))
+
+      assert {:ok, history} = Git.history(clone, pull_request_head, "main")
+      assert history.merge_base_sha == fork_point
+      assert history.fallback_reason == nil
+      assert Enum.find(history.commits, &(&1.sha == pull_request_head)).parents == [fork_point]
+
+      assert {:ok, %{files: files}} = Git.commit_files(clone, pull_request_head, 10)
+      assert Enum.map(files, & &1.path) == ["a.ex", "feature.ex"]
+    end
+
     test "reads only what the checkout has without remote access", %{repo: repo} do
       write!(repo, "a.ex", "a\n")
       commit!(repo, "base")

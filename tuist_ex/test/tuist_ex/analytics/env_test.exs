@@ -89,16 +89,31 @@ defmodule TuistEx.Analytics.EnvTest do
   test "reports a pull request's head rather than the merge commit its merge ref checks out" do
     git = fn second_parent ->
       fn
-        "rev-parse", ["HEAD^2"] -> second_parent
-        "rev-parse", ["HEAD"] -> "merge-commit"
+        "cat-file", ["-p", "HEAD"] ->
+          Enum.join(
+            ["tree t", "parent base" | List.wrap(second_parent && "parent #{second_parent}")] ++
+              ["author A <a@tuist.dev> 1700000000 +0000", "", "Merge", "parent message"],
+            "\n"
+          )
+
+        "rev-parse", ["HEAD"] ->
+          "merge-commit"
       end
     end
 
     pull_request = &%{"GITHUB_REF" => "refs/pull/7/merge"}[&1]
 
     assert Env.git_commit_sha(pull_request, git.("pull-request-head")) == "pull-request-head"
-    # A shallow checkout lacks the merge commit's parents.
+    # HEAD is not a merge commit.
     assert Env.git_commit_sha(pull_request, git.(nil)) == "merge-commit"
+
+    # HEAD's commit object cannot be read.
+    unreadable = fn
+      "cat-file", ["-p", "HEAD"] -> nil
+      "rev-parse", ["HEAD"] -> "merge-commit"
+    end
+
+    assert Env.git_commit_sha(pull_request, unreadable) == "merge-commit"
 
     assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/heads/main"}[&1], git.("x")) ==
              "merge-commit"

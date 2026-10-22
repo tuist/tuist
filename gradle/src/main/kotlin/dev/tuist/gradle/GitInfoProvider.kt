@@ -84,17 +84,22 @@ class ProcessGitInfoProvider(
 
     /**
      * On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit that exists only in
-     * the checkout, so the pull request's head, its second parent, is reported instead. A shallow
-     * checkout without that parent reports HEAD. On GitHub Actions, `GITHUB_SHA` is that merge
-     * commit: a workflow that checked out another commit, such as the pull request's head, reports
-     * HEAD, since that commit's second parent, if it has one, is not the pull request.
+     * the checkout, so the pull request's head, its second parent, is reported instead. The parent is
+     * read from the commit object: in a shallow checkout, such as `actions/checkout`'s default depth
+     * of 1, the grafts hide HEAD's parents from `rev-parse HEAD^2`. On GitHub Actions, `GITHUB_SHA` is
+     * that merge commit: a workflow that checked out another commit, such as the pull request's head,
+     * reports HEAD, since that commit's second parent, if it has one, is not the pull request.
      */
     override fun commitSha(): String? {
         val head = runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()?.takeIf(String::isNotBlank)
         val mergeCommit = environmentProvider("GITHUB_SHA")?.takeIf(String::isNotEmpty)
         if (ref()?.startsWith("refs/pull/") == true && (mergeCommit == null || mergeCommit == head)) {
-            runCatching { gitCommandRunner(listOf("rev-parse", "HEAD^2")) }.getOrNull()
-                ?.takeIf(String::isNotBlank)
+            runCatching { gitCommandRunner(listOf("cat-file", "-p", "HEAD")) }.getOrNull()
+                ?.lineSequence()
+                ?.takeWhile(String::isNotEmpty)
+                ?.filter { it.startsWith("parent ") }
+                ?.map { it.removePrefix("parent ").trim() }
+                ?.elementAtOrNull(1)
                 ?.let { return it }
         }
         return head
@@ -158,7 +163,7 @@ private fun runGitProcess(args: List<String>): String {
             .redirectError(ProcessBuilder.Redirect.DISCARD)
             .start()
     try {
-        val output = process.inputStream.bufferedReader().use { it.readLine()?.trim().orEmpty() }
+        val output = process.inputStream.bufferedReader().use { it.readText().trim() }
         val exitCode = process.waitFor()
         if (exitCode != 0) {
             throw RuntimeException("git ${args.first()} failed (exit code $exitCode)")

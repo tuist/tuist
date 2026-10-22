@@ -111,11 +111,13 @@ defmodule TuistEx.Analytics.Env do
 
   # On a pull request's merge ref (`refs/pull/N/merge`), HEAD is a merge commit
   # that exists only in the checkout, so the pull request's head, its second
-  # parent, is reported instead, as the command line tool does. A shallow
-  # checkout without that parent reports HEAD. On GitHub Actions, `GITHUB_SHA`
-  # is that merge commit: a workflow that checked out another commit, such as
-  # the pull request's head, reports HEAD, since that commit's second parent,
-  # if it has one, is not the pull request.
+  # parent, is reported instead, as the command line tool does. The parent is
+  # read from the commit object: in a shallow checkout, such as
+  # `actions/checkout`'s default depth of 1, the grafts hide HEAD's parents
+  # from `rev-parse HEAD^2`. On GitHub Actions, `GITHUB_SHA` is that merge
+  # commit: a workflow that checked out another commit, such as the pull
+  # request's head, reports HEAD, since that commit's second parent, if it has
+  # one, is not the pull request.
   def git_commit_sha(environment \\ &System.get_env/1, git \\ &git/2) do
     environment.("GIT_COMMIT") || head_or_pull_request_head(environment, git)
   end
@@ -126,10 +128,23 @@ defmodule TuistEx.Analytics.Env do
 
     if String.starts_with?(git_ref(environment) || "", "refs/pull/") and
          merge_commit in [nil, head] do
-      git.("rev-parse", ["HEAD^2"]) || head
+      second_parent(git.("cat-file", ["-p", "HEAD"])) || head
     else
       head
     end
+  end
+
+  defp second_parent(nil), do: nil
+
+  defp second_parent(commit_object) do
+    commit_object
+    |> String.split("\n")
+    |> Enum.take_while(&(&1 != ""))
+    |> Enum.flat_map(fn
+      "parent " <> sha -> [String.trim(sha)]
+      _ -> []
+    end)
+    |> Enum.at(1)
   end
 
   def git_ref(environment \\ &System.get_env/1),

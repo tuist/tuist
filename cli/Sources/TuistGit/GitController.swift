@@ -391,19 +391,22 @@ public struct GitController: GitControlling {
         // On GitHub Actions, GITHUB_SHA is that merge commit: a workflow that checked out
         // another commit, such as the pull request's head, reports HEAD, since that commit's
         // second parent, if it has one, is not the pull request.
+        // The parent is read from the commit object: in a shallow clone, such as
+        // `actions/checkout`'s default depth of 1, the grafts hide HEAD's parents from
+        // `rev-parse HEAD^2`, while the raw format prints them.
         let commitSHA: String?
         if await hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             let head = try? await currentCommitSHA(workingDirectory: workingDirectory)
             let mergeCommit = environment["GITHUB_SHA"].flatMap { $0.isEmpty ? nil : $0 }
             let isPullRequestMergeCheckout = gitRef?.hasPrefix("refs/pull/") == true
                 && (mergeCommit == nil || mergeCommit == head)
-            if isPullRequestMergeCheckout,
-               let secondParent = try? await capture(
-                   command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
-               ).trimmingCharacters(in: .whitespacesAndNewlines),
-               !secondParent.isEmpty
+            if isPullRequestMergeCheckout, let head,
+               let raw = try? await capture(
+                   command: "git", "-C", workingDirectory.pathString, "log", "--no-walk", "--no-decorate", "--format=raw", head
+               ),
+               let parents = GitHistoryParser.parseRawParents(raw)[head], parents.count >= 2
             {
-                commitSHA = secondParent
+                commitSHA = parents[1]
             } else {
                 commitSHA = head
             }

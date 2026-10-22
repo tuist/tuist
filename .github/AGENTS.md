@@ -333,8 +333,9 @@ evidence, main's full runs for every selective run and a pull request's own runs
 for its later pushes. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
-commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1
-checkout hides its parents, so the CLI can't resolve the head through `HEAD^2`).
+commit, on a pull request the pull request's head, which the CLI reads from the
+merge commit's object since the depth-1 checkout's grafts hide `HEAD^2` (a
+pinned CLI from before that fix reports the merge commit, `GITHUB_SHA`).
 `tuist-project-coverage-backfill.yml` is a dispatch-only
 full run of an earlier commit on main, tested with main's `mise.toml`. The
 selective runs upload coverage too; the server drops from their skips whatever a

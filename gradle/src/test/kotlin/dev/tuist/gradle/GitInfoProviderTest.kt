@@ -209,12 +209,16 @@ class GitInfoProviderTest {
         },
         gitCommandRunner = { args ->
             when (args) {
-                listOf("rev-parse", "HEAD^2") -> secondParent()
+                listOf("cat-file", "-p", "HEAD") -> rawMergeCommit(secondParent())
                 listOf("rev-parse", "HEAD") -> "merge-commit"
                 else -> throw RuntimeException("unexpected git ${args.joinToString(" ")}")
             }
         }
     )
+
+    private fun rawMergeCommit(secondParent: String) =
+        "tree t\nparent base\nparent $secondParent\nauthor A <a@tuist.dev> 1700000000 +0000\n" +
+            "committer A <a@tuist.dev> 1700000000 +0000\n\nMerge $secondParent into base\nparent message\n"
 
     @Test
     fun `commitSha is the pull request's head on a pull request merge checkout`() {
