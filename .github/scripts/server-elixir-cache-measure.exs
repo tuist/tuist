@@ -10,7 +10,12 @@ state = %{
 }
 
 Process.put(:bench_state, state)
-write = fn -> File.write!(result_path, JSON.encode!(Process.get(:bench_state))) end
+
+write = fn ->
+  temporary = result_path <> ".tmp"
+  File.write!(temporary, JSON.encode!(Process.get(:bench_state)))
+  File.rename!(temporary, result_path)
+end
 
 phase = fn name, action ->
   IO.puts("BENCH_PHASE #{name} START")

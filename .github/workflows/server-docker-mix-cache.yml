@@ -94,9 +94,12 @@ jobs:
           {
             echo '## Full-server remote dependency-cache comparison'
             echo 'Fresh builds and pristine locked sources; SDK bootstrap and server compilation included.'
-            echo 'Seed is separate. Remote samples start with an empty local artifact store; no Mix snapshot volume is attached.'
-            echo 'Four Erlang schedulers and three dependency compilation workers. Downloads/source reset are outside the timers.'
-            echo 'RPC read durations exclude local staging; inspect complete process times and actual remote-hit counts.'
+            echo 'Seed is separate. Input keys include this run ID and attempt so reruns cannot reuse a previous seed.'
+            echo 'Remote samples start with an empty local artifact store; no Mix snapshot volume is attached.'
+            echo 'Four Erlang schedulers; three dependency workers configured, but selected cache misses/bypasses compile serially.'
+            echo 'Downloads/source reset are outside the timers. Native download caches remain shared across samples.'
+            echo 'RPC read durations exclude local staging; inspect complete process times, coverage and degraded flags.'
+            echo 'Seeded-key misses fail the comparison after all samples are recorded. A 50-minute total budget preserves cleanup time.'
             echo '```json'
             if [ -f "$RUNNER_TEMP/elixir-cache-benchmark/samples.json" ]; then
               python3 -m json.tool "$RUNNER_TEMP/elixir-cache-benchmark/samples.json"
