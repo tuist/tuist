@@ -165,10 +165,16 @@ defmodule Tuist.DocsTest do
       assert migration_page.body =~ "localized_link"
     end
 
-    test "self-hosting documents the instance-wide reporting configuration and separate client opt-in" do
+    test "self-hosting documents instance-wide reporting configuration and automatic client discovery" do
       page = Docs.get_page("/en/guides/server/self-host/server")
       assert page.markdown =~ "TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true"
-      assert page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
+      assert page.markdown =~ "No client-side opt-in is required"
+      assert page.markdown =~ "GET /.well-known/tuist.json"
+      assert page.markdown =~ "does not follow redirects"
+      assert page.markdown =~ "Upgrade the server before credential-free clients"
+      assert page.markdown =~ "tools sharing a credential directory"
+      assert page.markdown =~ "discovery manifest does not probe"
+      refute page.markdown =~ "TUIST_NETWORK_TRUSTED_PUBLISHING=true"
       assert page.markdown =~ "all existing and newly created"
       assert page.markdown =~ "across every account on the instance"
       assert page.markdown =~ "reads the variable at startup"

@@ -6,6 +6,11 @@ defmodule TuistEx.Analytics.HTTPTest do
   alias TuistEx.Auth
   alias TuistEx.HTTP
 
+  setup do
+    stub(Auth, :reporting_token, fn options -> Auth.token(options) end)
+    :ok
+  end
+
   test "POSTs the payload to /api/projects/:acc/:proj/tests with a bearer token" do
     environment = fn
       "TUIST_URL" -> "https://tuist.example"

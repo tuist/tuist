@@ -24,6 +24,11 @@ class NetworkTrustedPublishingIntegrationTest {
         MockWebServer().use { server ->
             server.dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path == "/.well-known/tuist.json") {
+                        assertNull(request.getHeader("Authorization"))
+                        assertNull(request.getHeader("x-tuist-actor-id"))
+                        return MockResponse().setBody("{\"network_trusted_report_publishing\":true}")
+                    }
                     requests.add(request)
                     return MockResponse().setResponseCode(200).setBody("{\"id\":\"server-id\"}")
                 }
@@ -37,7 +42,6 @@ class NetworkTrustedPublishingIntegrationTest {
                     uploadInBackground = false
                     network { proxy = false }
                     buildCache { enabled = false }
-                    buildInsights { networkTrustedPublishing = true }
                 }
                 rootProject.name = 'network-tests'
             """.trimIndent())
@@ -90,6 +94,11 @@ class NetworkTrustedPublishingIntegrationTest {
         MockWebServer().use { server ->
             server.dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path == "/.well-known/tuist.json") {
+                        assertNull(request.getHeader("Authorization"))
+                        assertNull(request.getHeader("x-tuist-actor-id"))
+                        return MockResponse().setBody("{\"network_trusted_report_publishing\":true}")
+                    }
                     requests.add(request)
                     val response = if (requestCount.getAndIncrement() == 0) {
                         "{\"id\":\"server-assigned-id\"}"
@@ -108,7 +117,6 @@ class NetworkTrustedPublishingIntegrationTest {
                     uploadInBackground = false
                     network { proxy = false }
                     buildCache { enabled = false }
-                    buildInsights { networkTrustedPublishing = true }
                 }
                 rootProject.name = 'network-trusted'
             """.trimIndent())
