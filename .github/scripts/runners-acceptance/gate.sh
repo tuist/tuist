@@ -48,16 +48,17 @@ conclusion="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json concl
 jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")"
 jq -r '.jobs[] | "- \(.name): \(.conclusion // .status)"' <<< "${jobs}" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
-# Cache volume failures are reported but never block: the volume steps run with
-# continue-on-error, so they leave the run successful, and are re-raised here
-# as warnings. Every other layer's failure fails the gate.
+# Re-raises every layer's failure, cache volumes included, as an error. A cache
+# volume GitHub had not yet reported the job for leaves the run successful with
+# a `Cache volumes inconclusive` warning, re-raised here as a warning: a GitHub
+# webhook delay must not block a deploy.
 jq -r '.jobs[] | select(.conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${jobs}" |
   while IFS=$'\t' read -r job_id name; do
     gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" \
-      --jq '.[] | select(.annotation_level == "failure" and (.title // "") != "") | "\(.title)\t\(.message)"' |
-      while IFS=$'\t' read -r title message; do
+      --jq '.[] | select((.title // "") != "" and (.annotation_level == "failure" or .title == "Cache volumes inconclusive")) | "\(.annotation_level)\t\(.title)\t\(.message)"' |
+      while IFS=$'\t' read -r annotation_level title message; do
         level=error
-        [ "${title}" = "Cache volumes" ] && level=warning
+        [ "${annotation_level}" = failure ] || level=warning
         echo "::${level} title=${title} (${ENVIRONMENT})::${name}: ${message}"
         printf -- '- %s **%s** on %s: %s\n' "${level}" "${title}" "${name}" "${message}" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
       done
