@@ -133,6 +133,10 @@ Xcode passes `-cas-plugin-option <name>=<value>` flags to the plugin via `llcas_
 - `tuist-instance=<account/project>` - the instance this build routes to; takes precedence over `TUIST_CAS_ACCOUNT`/`TUIST_CAS_PROJECT`. `tuist-*` options are consumed here and never forwarded to the wrapped plugin.
 - `tuist-upload=false` - disables publishing for this build (`xcodeCache(upload: false)`); read hits are unaffected. Takes precedence over `TUIST_CAS_UPLOAD`. This is the carrier that reaches a ⌘B build (the per-machine proxy env can't express a per-project setting).
 
+## Command line
+
+Only a bare `tuist-cas-proxy` serves, because serving unlinks the socket path and binds its own. `--drain`, `--prune`, `version`/`--version`/`-V` and `help`/`--help`/`-h` exit without touching the socket, and any other argument exits 64 with usage. `tuist cache-proxy` execs the proxy with no arguments and configures it through the environment, so teach the binary a flag before the CLI passes one. A bare start exits 2 when the socket still accepts a connection; a socket left by an exited proxy refuses it and is replaced, which idle upgrades, bootouts and crash restarts rely on. `cli:bundle` stamps the release into `--version` through `TUIST_CAS_RELEASE_VERSION`; other builds report the crate version. See `tests/proxy_arguments.rs`.
+
 ## Development
 
 Proxy unit tests that open Apple's CAS must start with `run_in_cas_subprocess()` and return when it reports that the parent has run the test. The child runs exactly that test, holding a cross-process file lock until exit. The proxy's static handles and background workers then live only for one test; process exit releases their mappings, including on panic. Pure logic tests remain parallel, and race tests retain their internal concurrency. `open_cas` asserts isolation in unit-test builds so a new unguarded test fails before opening a store. Do not remove the lock file: concurrent runs must lock the same inode. A size limit alone is not a memory cap, and deleting a temporary directory does not release an open mapping.
