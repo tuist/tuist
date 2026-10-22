@@ -103,7 +103,8 @@ Resources:
                     iam:PassedToService: cloudformation.amazonaws.com
   # CloudFormation applies the zone stack as this role, so the workflow never
   # holds Route53, Logs, or IAM permissions itself. Record sets are absent on
-  # purpose: external-dns, cert-manager and the controller own them.
+  # purpose: external-dns, cert-manager and the controller own them. Only the
+  # two roles above may pass it, which is what limits who can use it.
   ExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -129,6 +130,7 @@ Resources:
                   - route53:ListHostedZones
                   - route53:ListHostedZonesByName
                   - route53:UpdateHostedZoneComment
+                  - route53:UpdateHostedZoneFeatures
                   - route53:ChangeTagsForResource
                   - route53:ListTagsForResource
                   - route53:CreateQueryLoggingConfig
@@ -146,10 +148,16 @@ Resources:
                   - logs:TagResource
                   - logs:UntagResource
                   - logs:ListTagsForResource
+                  - logs:GetDataProtectionPolicy
+                  - logs:DeleteDataProtectionPolicy
                 Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/route53/*'
+              # The resource handlers read these back after every create and
+              # update, whether or not the template sets them.
               - Effect: Allow
                 Action:
                   - logs:DescribeLogGroups
+                  - logs:DescribeIndexPolicies
+                  - ec2:DescribeVpcs
                   - logs:PutResourcePolicy
                   - logs:DeleteResourcePolicy
                   - logs:DescribeResourcePolicies
