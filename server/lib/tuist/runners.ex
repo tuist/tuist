@@ -221,59 +221,6 @@ defmodule Tuist.Runners do
   # covers a job: the download is used at materialize, the upload at job end.
   @volume_master_url_ttl_seconds 6 * 60 * 60
 
-  # The job's cache-volume HEAD for the dispatch response: the current
-  # generation + inventory digest, plus a presigned GET URL for the master object
-  # so a behind runner can converge its stale local master. The PUT URL is minted
-  # separately at promote time (volume_master_upload_url/4), keyed by the runner's
-  # new digest. Best-effort — any failure returns nil and the runner stays on its
-  # local master (the status quo).
-  defp volume_head_payload(account, volume_name) do
-    head = VolumeHeads.get_head(account.id, volume_name)
-
-    # Download URL for the CURRENT HEAD's content-addressed object, so a behind
-    # host converges by fetching exactly the bytes that produced the HEAD digest.
-    # No HEAD yet => nil => the host stays cold (status quo) and its first
-    # successful job establishes the HEAD. The upload URL is NOT handed out here
-    # anymore: the guest mints it at promote time keyed by its own new digest
-    # (volume_master_upload_url/4), which is what makes the object keys immutable
-    # and stops concurrent promotes clobbering the object the HEAD points at.
-    download_url =
-      if head && head.tree_digest do
-        key = volume_master_object_key(account.id, volume_name, head_master_object_id(head))
-        Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
-      end
-
-    # SSRF guard: a runner host follows the download URL, so refuse to hand out
-    # one whose host resolves to a private, loopback, or link-local address. A
-    # nil URL (no HEAD) is fine — it just means no convergence, the status quo.
-    if is_nil(download_url) or Tuist.URL.public_host_url?(download_url) do
-      %{
-        generation: (head && head.generation) || 0,
-        digest: head && head.tree_digest,
-        content_digest: head && head.content_digest,
-        download_url: download_url
-      }
-    end
-  rescue
-    _ -> nil
-  end
-
-  @doc """
-  The cache-volume HEAD of `account_id`'s `volume_name` with a presigned GET URL
-  for its master, for a runner host to prefetch. The same payload a trusted
-  dispatch carries, under the same public-host guard. `nil` when the account is
-  unknown, the volume has published no master, or no URL can be minted.
-  """
-  def host_volume_head(account_id, volume_name) when is_integer(account_id) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id),
-         %{generation: generation, download_url: url} = head when generation > 0 and is_binary(url) <-
-           volume_head_payload(account, volume_name) do
-      head
-    else
-      _ -> nil
-    end
-  end
-
   @doc """
   Mints a presigned PUT URL for the master object of `account_id`'s cache volume
   `volume_name`, keyed by `tree_digest` — the content-addressed, immutable key
@@ -1251,9 +1198,9 @@ defmodule Tuist.Runners do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
           # the account's shared cache. Determine trust fail-closed — any
           # uncertainty means untrusted, so the job runs cold and cannot poison
-          # the master. Untrusted jobs get NO grant and NO volume HEAD (so the
-          # cache isn't account-portable and the guest can't publish), and the
-          # host is told to skip materialize/promote via the untrusted label.
+          # the master. Untrusted jobs get NO grant (so the cache isn't
+          # account-portable), and the host is told to skip materialize/promote
+          # via the untrusted label.
           trusted = job_trusted?(candidate, account)
           assigned_job? = provider(candidate) in ["buildkite", "gitlab"]
           volume_name = cache_volume_name(fleet_name, node_name, candidate)
@@ -1326,12 +1273,7 @@ defmodule Tuist.Runners do
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
              # untrusted job's cache is never account-portable.
-             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id)),
-             # Current cache-volume HEAD (generation + inventory digest) plus
-             # presigned URLs for the account's master archive — trusted jobs
-             # only. nil for an untrusted job (no convergence, and the guest has
-             # no upload URL so it cannot publish a HEAD) or best-effort failure.
-             volume_head: if(builtin_volume?, do: volume_head_payload(account, volume_name))
+             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id))
            }}
         else
           {:error, reason} = err ->

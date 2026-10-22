@@ -44,8 +44,7 @@ defmodule TuistWeb.RunnersController do
           on_cluster_network,
           fleet_platform,
           Map.get(dispatched, :fleet_site),
-          Map.get(dispatched, :cache_signing_grant),
-          Map.get(dispatched, :volume_head)
+          Map.get(dispatched, :cache_signing_grant)
         )
         |> Map.merge(setup_info_fields(credential, account, Map.get(dispatched, :runner_name)))
 
@@ -352,8 +351,7 @@ defmodule TuistWeb.RunnersController do
          fleet_on_cluster_network,
          fleet_platform,
          fleet_site,
-         cache_signing_grant,
-         volume_head
+         cache_signing_grant
        ) do
     base =
       Map.merge(
@@ -364,12 +362,6 @@ defmodule TuistWeb.RunnersController do
     base =
       case cache_signing_grant do
         grant when is_binary(grant) and grant != "" -> Map.put(base, :cache_signing_grant, grant)
-        _ -> base
-      end
-
-    base =
-      case volume_head do
-        %{} = head -> Map.put(base, :volume_head, head)
         _ -> base
       end
 

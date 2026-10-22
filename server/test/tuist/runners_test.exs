@@ -548,7 +548,7 @@ defmodule Tuist.RunnersTest do
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == "signed-grant-token"
-      assert result.volume_head == nil
+      refute Map.has_key?(result, :volume_head)
       # The host neither materializes nor promotes the built-in volume for it.
       assert_receive {:patched, %{"tuist.dev/runner-cache-untrusted" => "true"}}
     end
@@ -563,8 +563,10 @@ defmodule Tuist.RunnersTest do
         "signed-grant-token"
       end)
 
-      assert {:ok, %{cache_signing_grant: "signed-grant-token"}} =
+      assert {:ok, %{cache_signing_grant: "signed-grant-token"} = result} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      refute Map.has_key?(result, :volume_head)
     end
 
     test "stamps the job's repository volume in the same patch as the account label" do
@@ -662,7 +664,7 @@ defmodule Tuist.RunnersTest do
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
-      assert result.volume_head == nil
+      refute Map.has_key?(result, :volume_head)
       assert_receive {:patched, %{"tuist.dev/runner-cache-untrusted" => "true"}}
     end
 
@@ -676,7 +678,7 @@ defmodule Tuist.RunnersTest do
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
-      assert result.volume_head == nil
+      refute Map.has_key?(result, :volume_head)
     end
 
     test "threads the polling node's identity into the residency lookup" do
@@ -2066,7 +2068,7 @@ defmodule Tuist.RunnersTest do
         :matched
       end)
 
-      assert {:ok, %{credential: credential, cache_signing_grant: nil, volume_head: nil}} =
+      assert {:ok, %{credential: credential, cache_signing_grant: nil}} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
 
       assert credential.kind == :gitlab
