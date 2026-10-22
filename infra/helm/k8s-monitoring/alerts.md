@@ -4140,15 +4140,28 @@ the body. Releases older than that answer first, which turns a steady fraction o
 an account's duplicate uploads into 502s while Kura's own request metrics count
 them as successes.
 
-`upstream` is the instance's HTTP backend (`kura-kura-<instance>-http`), which
-identifies the account.
+A 502 on a `-grpc` upstream whose controller error line is
+`recv() failed (104: Connection reset by peer) while reading response header from upstream`
+(upstream `grpc://<pod ip>:4001`) is Kura resetting the gateway gRPC
+connections the controller had open. It shows up as `ByteStream/Write` uploads
+from one Bazel client that hang for about a second and then fail together
+across dozens of connections, while requests a millisecond later succeed. The
+cause is not yet known. Kura logs each failed connection on the gateway gRPC
+listener at warn as `public HTTP connection failed`, with the HTTP/2 cause, the
+peer and the connection age:
+`{cluster="tuist-production", namespace="kura", service_name="kura"} |= "public HTTP connection failed"`.
+
+`upstream` is the instance's backend, which identifies the account:
+`kura-kura-<instance>-http` for the HTTP lane (pod port 4000) and
+`kura-kura-<instance>-grpc` for gateway gRPC (pod port 4001).
 
 - 503 and 504 are excluded. They come from draining pods, capacity shedding and
   upstream timeouts, arrive in bursts of thousands, and the Kura 5xx rule covers
   what Kura produces.
 - The pending period is what separates sustained breakage from a burst: one
   burst stays in the 15-minute window for three 5-minute evaluations and never
-  reaches the fourth.
+  reaches the fourth. Bursts repeating over 8 minutes or more, such as one CI
+  job's upload phase, keep the count up for four evaluations and fire.
 - The source is the access log because the controllers were not scraped. Every
   line except 2xx and 404 is kept; those two are sampled at 10%. The dedicated
   `kura-ingress-nginx` scrape in `values.yaml` now exports

@@ -1631,7 +1631,7 @@ defmodule Tuist.RunnersTest do
       heads = :counters.new(1, [])
 
       expect(Tuist.Storage, :object_exists?, 3, fn ^key, _actor ->
-        :counters.add(heads, 1, 1)
+        :ok = :counters.add(heads, 1, 1)
         :counters.get(heads, 1) == 3
       end)
 
