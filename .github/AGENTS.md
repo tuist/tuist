@@ -123,6 +123,15 @@ The optional `custom_cache_apfs` staging smoke input runs the candidate shared
 cache lifecycle and real APFS tests in a staging macOS runner. It validates native
 filesystem behavior, not a deployed host/mailbox/server rollout. Keep that
 limitation explicit when reporting smoke results.
+`runners-cache-reuse-e2e.yml` (dispatch only) checks reuse across hosts on a
+production profile: a seed, sequential jobs `gap_seconds` apart, two concurrent
+jobs and a final job, each with five volumes (changing, growing, never-changing).
+The report reads unavailability from the client's own warning, because the
+job-local fallback can sit on its own disk, and marks a run inconclusive, never
+failed, when GitHub reported a runner's job too late for volumes to be
+authorized. A job that starts before the background prefetch has reached its host
+starts cold by design, so keep `gap_seconds` above the time a save plus a
+download of the largest volume takes.
 `macos-cache-volumes-smoke.yml` exercises the deployed action, guest APFS mount
 and teardown/publication path on main. Run seed, then verify with the same key
 after publication; fail then verify checks that failed-job writes are discarded.

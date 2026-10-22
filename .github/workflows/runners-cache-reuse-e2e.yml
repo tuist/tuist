@@ -2,7 +2,7 @@ name: Runners Cache Reuse E2E
 
 # Reproduces how macOS custom cache volumes behave across consecutive runs of
 # one repository: a seed job, sequential jobs a few minutes apart, concurrent
-# jobs, and a final job. Five volumes reserve about what a large iOS project
+# jobs, and a final job, on the production rack by default. Five volumes reserve about what a large iOS project
 # does (one large plus four default-capacity volumes):
 #   large, build  change every run (compilation cache, .build)
 #   grow          saved near-empty by the seed, GROW_GB in every later job
@@ -24,46 +24,39 @@ on:
   workflow_dispatch:
     inputs:
       runner_label:
-        description: macOS runner label (tuist-staging-macos, tuist-canary-macos or a production profile)
+        description: macOS runner label; spread across several hosts, as production's rack profiles are, to exercise placement
         type: string
-        default: tuist-staging-macos
+        default: tuist-macos-27-0
       key_prefix:
-        description: Volume key prefix; use a fresh one to start from empty volumes
+        description: Volume key prefix; empty starts from fresh volumes keyed by this run
         type: string
-        default: e2e-reuse-v1
+        default: ""
       gap_seconds:
         description: Seconds between sequential jobs
         type: string
-        default: "180"
+        default: "600"
       large_size:
         description: Capacity of the large volume (above 20gb needs runner_custom_volume_sizes)
         type: string
-        default: 30gb
+        default: 20gb
       fill_gb:
         description: GB of incompressible data in the large and build volumes
         type: string
-        default: "6"
+        default: "10"
       grow_gb:
         description: GB the grow volume holds after the seed
         type: string
-        default: "3"
+        default: "4"
       strict:
         description: Fail the run when an expectation is not met
         type: boolean
         default: true
-  push:
-    branches:
-      - claude/qonto-runner-issues-16e553
-    paths:
-      - .github/workflows/runners-cache-reuse-e2e.yml
-      - .github/workflows/runners-cache-reuse-e2e-probe.yml
-      - .github/runners-cache-reuse-e2e.trigger
 
 permissions:
   contents: read
 
 concurrency:
-  group: runners-cache-reuse-e2e-${{ inputs.runner_label || 'push' }}-${{ inputs.key_prefix || github.sha }}
+  group: runners-cache-reuse-e2e-${{ inputs.runner_label }}-${{ inputs.key_prefix || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -78,14 +71,8 @@ jobs:
       fill_gb: ${{ steps.config.outputs.fill_gb }}
       grow_gb: ${{ steps.config.outputs.grow_gb }}
     steps:
-      - uses: actions/checkout@v4
-        if: github.event_name == 'push'
-        with:
-          sparse-checkout: .github/runners-cache-reuse-e2e.trigger
-          sparse-checkout-cone-mode: false
       - id: config
         env:
-          EVENT: ${{ github.event_name }}
           RUNNER_LABEL: ${{ inputs.runner_label }}
           KEY_PREFIX: ${{ inputs.key_prefix }}
           GAP_SECONDS: ${{ inputs.gap_seconds }}
@@ -94,23 +81,7 @@ jobs:
           GROW_GB: ${{ inputs.grow_gb }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = push ]; then
-            RUNNER_LABEL=tuist-macos-27-0
-            KEY_PREFIX="e2e-reuse-prod-${GITHUB_SHA:0:8}"
-            GAP_SECONDS=180
-            LARGE_SIZE=20gb
-            FILL_GB=6
-            GROW_GB=3
-            # The trigger file may override these with name=value lines.
-            while IFS='=' read -r name value; do
-              case "$name" in
-                gap_seconds) [[ "$value" =~ ^[0-9]+$ ]] && GAP_SECONDS=$value ;;
-                fill_gb) [[ "$value" =~ ^[0-9]+$ ]] && FILL_GB=$value ;;
-                grow_gb) [[ "$value" =~ ^[0-9]+$ ]] && GROW_GB=$value ;;
-                large_size) [[ "$value" =~ ^[0-9]+gb$ ]] && LARGE_SIZE=$value ;;
-              esac
-            done < .github/runners-cache-reuse-e2e.trigger
-          fi
+          KEY_PREFIX="${KEY_PREFIX:-e2e-reuse-${GITHUB_RUN_ID}}"
           {
             echo "runner_label=$RUNNER_LABEL"
             echo "key_prefix=$KEY_PREFIX"
@@ -240,7 +211,7 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           GROW_GB: ${{ needs.config.outputs.grow_gb }}
-          STRICT: ${{ github.event_name == 'push' || inputs.strict }}
+          STRICT: ${{ inputs.strict }}
         run: |
           set -euo pipefail
           cat results/*/e2e.jsonl > all.jsonl 2>/dev/null || : > all.jsonl
