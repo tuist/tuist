@@ -3,6 +3,7 @@
 This directory contains ExUnit tests for the Tuist Server.
 
 ## Testing Guidelines
+- Build metadata component tests cover single-render partitioning, escaped observations, safe custom links and the initially hidden Noora card disclosure. Gradle detail regressions keep custom metadata inside Build Details and the collapsed infrastructure card outside it; omit the card when no recognized observations exist.
 - SCIM reprovisioning regressions live in `tuist/scim_test.exs` and `tuist_web/controllers/scim/users_controller_test.exs`. Preserve existing roles and publication permissions when no recognized role is supplied, while honoring explicit role changes and enrollment defaults for new or reactivated memberships. Cover both privilege loss and unintended promotion, attachment notifications, and deprovisioning.
 - HTML assertions must not depend on serialized attribute order. Check portal-template event wiring with `Floki` selectors when LiveView's `element/2` cannot reach the portal content; retain the separate event-driven behavior assertions.
 - Integration layout tests that expect GitHub's Manage integration link must populate the installation fixture's `html_url`; the UI intentionally omits that link when no management URL is recorded.

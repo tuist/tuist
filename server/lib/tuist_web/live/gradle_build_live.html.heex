@@ -212,6 +212,9 @@
         <TuistWeb.Components.BuildMetadata.build_metadata values={@build.custom_values || %{}} />
       </.card_section>
     </.card>
+    <TuistWeb.Components.BuildMetadata.infrastructure_metadata values={
+      @build.custom_values || %{}
+    } />
     <.card
       title={dgettext("dashboard_gradle", "Tasks")}
       icon="subtask"

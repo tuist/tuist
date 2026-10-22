@@ -345,6 +345,9 @@
           <TuistWeb.Components.BuildMetadata.build_metadata values={@run.custom_values || %{}} />
         </.card_section>
       </.card>
+      <TuistWeb.Components.BuildMetadata.infrastructure_metadata values={
+        @run.custom_values || %{}
+      } />
       <.ci_context_card
         :if={@ci_context}
         context={@ci_context}

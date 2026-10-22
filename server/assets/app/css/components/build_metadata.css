@@ -1,0 +1,18 @@
+#build-environment {
+  & > [data-part="root"] > [data-part="header"] {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  & > [data-part="root"][data-state="closed"] > [data-part="header"] {
+    padding-bottom: var(--noora-spacing-4);
+  }
+
+  & [data-part="content"][hidden] {
+    display: none;
+  }
+
+  & [data-part="trigger"][aria-expanded="true"] svg {
+    transform: rotate(180deg);
+  }
+}

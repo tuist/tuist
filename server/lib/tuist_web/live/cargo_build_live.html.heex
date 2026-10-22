@@ -107,6 +107,10 @@
       <TuistWeb.Components.BuildMetadata.build_metadata values={@build.custom_values || %{}} />
     </.card_section>
   </.card>
+  <TuistWeb.Components.BuildMetadata.infrastructure_metadata
+    :if={@selected_tab == "overview"}
+    values={@build.custom_values || %{}}
+  />
   <div :if={@selected_tab == "cache" && @cache_metrics} data-part="cache">
     <.card
       title={dgettext("dashboard_builds", "Cache Summary")}

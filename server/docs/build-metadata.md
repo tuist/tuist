@@ -37,7 +37,7 @@ Values remain strings. The server stores them in each build's `custom_values` ma
 | `tuist.ci.provider`, `tuist.ci.job`, `tuist.ci.runner_environment` | Allowlisted CI context when available and not already represented by the producer's first-class fields. |
 | `tuist.ci.runner_name` | Identifying runner name, collected only with `TUIST_BUILD_METADATA_RUNNER_NAME=1`. |
 
-The shared build-detail component renders recognized observations under **Infrastructure and runner** and remaining entries under **Custom metadata**, once per entry. Numeric formatting requires a positive integer no larger than `9007199254740991`; other values stay raw. Every value is an untrusted client claim, never a verified runner identity or authorization input.
+The shared build-detail components render recognized observations in a separate **Infrastructure and runner** Noora card immediately below Build Details, collapsed by default. Remaining entries stay under **Custom metadata** inside Build Details, once per entry. Numeric formatting requires a positive integer no larger than `9007199254740991`; other values stay raw. Every value is an untrusted client claim, never a verified runner identity or authorization input.
 
 ## Producers and origin
 

@@ -309,6 +309,9 @@ defmodule TuistWeb.BazelInvocationLive do
             } />
           </.card_section>
         </.card>
+        <TuistWeb.Components.BuildMetadata.infrastructure_metadata values={
+          @invocation.custom_values || %{}
+        } />
       </div>
       <div :if={@selected_tab == "cache"} data-part="tab-panel">
         <.cache_tab

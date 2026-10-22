@@ -578,6 +578,40 @@ defmodule TuistWeb.GradleBuildLiveTest do
     refute has_element?(view, "#requested-tasks")
   end
 
+  test "infrastructure is collapsed below Build Details while custom metadata stays inside", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        custom_values: %{"tuist.cpu.available_processors" => "28", "team" => "mobile"}
+      )
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#gradle-build > #build-environment", "Infrastructure and runner")
+    assert has_element?(view, "#build-environment button[aria-expanded=false]")
+    assert has_element?(view, "#build-environment-content[hidden]", "Available logical processors")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+    refute has_element?(view, "#build-environment #custom-metadata-table")
+  end
+
+  test "omits the infrastructure card when no recognized observations were reported", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id = GradleFixtures.build_fixture(project_id: project.id, custom_values: %{"team" => "mobile"})
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    refute has_element?(view, "#build-environment")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+  end
+
   test "build details distinguish absent, zero and recorded cache savings", %{
     conn: conn,
     project: project,

@@ -2,31 +2,22 @@ defmodule TuistWeb.Components.BuildMetadata do
   @moduledoc false
   use TuistWeb, :html
 
+  import Noora.Button, only: [neutral_button: 1]
+  import Noora.Card, only: [card: 1, card_section: 1]
+  import Noora.Icon, only: [chevron_down: 1]
   import Noora.Table, only: [table: 1, text_cell: 1]
 
+  alias Phoenix.LiveView.JS
   alias Tuist.Builds.Metadata
   alias Tuist.Utilities.ByteFormatter
 
   attr :values, :map, default: %{}
 
   def build_metadata(assigns) do
-    {observations, custom} = Metadata.partition(assigns.values)
-    assigns = assign(assigns, observations: observations, custom: custom)
+    {_observations, custom} = Metadata.partition(assigns.values)
+    assigns = assign(assigns, :custom, custom)
 
     ~H"""
-    <div :if={@observations != []} data-part="custom-metadata-section" data-field="build-environment">
-      <span data-part="custom-metadata-label">
-        {dgettext("dashboard_builds", "Infrastructure and runner")}
-      </span>
-      <.table id="build-environment-table" rows={@observations} row_key={fn {key, _} -> key end}>
-        <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Reported property")}>
-          <.text_cell label={label(key)} />
-        </:col>
-        <:col :let={{key, value}} label={dgettext("dashboard_builds", "Value")}>
-          <.text_cell label={format_value(key, value)} />
-        </:col>
-      </.table>
-    </div>
     <div :if={@custom != []} data-part="custom-metadata-section">
       <span data-part="custom-metadata-label">{dgettext("dashboard_builds", "Custom metadata")}</span>
       <.table id="custom-metadata-table" rows={@custom} row_key={fn {key, _} -> key end}>
@@ -46,6 +37,57 @@ defmodule TuistWeb.Components.BuildMetadata do
           <.text_cell :if={not link?(value)} label={value} />
         </:col>
       </.table>
+    </div>
+    """
+  end
+
+  attr :values, :map, default: %{}
+
+  def infrastructure_metadata(assigns) do
+    {observations, _custom} = Metadata.partition(assigns.values)
+    assigns = assign(assigns, :observations, observations)
+
+    ~H"""
+    <div :if={@observations != []} id="build-environment">
+      <.card
+        title={dgettext("dashboard_builds", "Infrastructure and runner")}
+        icon="server"
+        data-part="root"
+        data-state="closed"
+      >
+        <:actions>
+          <.neutral_button
+            id="build-environment-toggle"
+            data-part="trigger"
+            phx-click={
+              JS.toggle_attribute({"aria-expanded", "false", "true"}, to: "#build-environment-toggle")
+              |> JS.toggle_attribute({"hidden", ""}, to: "#build-environment-content")
+              |> JS.toggle_attribute({"data-state", "closed", "open"},
+                to: "#build-environment > [data-part=root]"
+              )
+            }
+            aria-label={dgettext("dashboard_builds", "Infrastructure and runner")}
+            aria-expanded="false"
+            aria-controls="build-environment-content"
+          >
+            <.chevron_down />
+          </.neutral_button>
+        </:actions>
+        <.card_section
+          id="build-environment-content"
+          data-part="content"
+          hidden
+        >
+          <.table id="build-environment-table" rows={@observations} row_key={fn {key, _} -> key end}>
+            <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Reported property")}>
+              <.text_cell label={label(key)} />
+            </:col>
+            <:col :let={{key, value}} label={dgettext("dashboard_builds", "Value")}>
+              <.text_cell label={format_value(key, value)} />
+            </:col>
+          </.table>
+        </.card_section>
+      </.card>
     </div>
     """
   end

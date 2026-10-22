@@ -468,6 +468,7 @@
         <TuistWeb.Components.BuildMetadata.build_metadata values={@run.custom_values || %{}} />
       </.card_section>
     </.card>
+    <TuistWeb.Components.BuildMetadata.infrastructure_metadata values={@run.custom_values || %{}} />
     <.card
       :if={not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)}
       title={dgettext("dashboard_builds", "Errors and Warnings")}

@@ -3,7 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
-- `BuildMetadata.build_metadata/1` shares infrastructure/custom-value rendering across build details. Recognition controls display only: render every map entry once, keep unknown/invalid observations raw, escape values and never imply verified runner identity. Semantics and rollout: `server/docs/build-metadata.md`.
+- `BuildMetadata.build_metadata/1` keeps custom values inside Build Details; `infrastructure_metadata/1` renders recognized observations in a separate, initially collapsed Noora card immediately below it. Use client-side LiveView JS disclosure commands, preserving explicit ARIA expansion state and hidden content before JavaScript mounts. Recognition controls display only: render every map entry once, keep unknown/invalid observations raw, escape values and never imply verified runner identity. Semantics and rollout: `server/docs/build-metadata.md`.
 - The project sidebar accepts `previews_available` from the authorized layout.
   Keep Xcode/Gradle's default Previews entry; other build systems gain it after
   their first preview upload without database queries during component rendering.
