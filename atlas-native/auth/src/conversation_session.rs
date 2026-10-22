@@ -33,6 +33,13 @@ pub(crate) enum Action {
         connection: String,
         after: u64,
     },
+    #[serde(rename = "component_action")]
+    CardEvent {
+        connection: String,
+        id: String,
+        message_id: String,
+        event: String,
+    },
     Close {
         connection: String,
     },
@@ -200,6 +207,40 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                 })
                 .map_err(|_| invalid())?;
             serde_json::to_value(&state.snapshot).map_err(|_| invalid())
+        }
+        Action::CardEvent {
+            connection,
+            id,
+            message_id,
+            event,
+        } => {
+            let model = get(&connection)?;
+            let state = model.state.lock().map_err(|_| invalid())?;
+            if state.closed
+                || !state.active
+                || state.snapshot.needs_session
+                || state
+                    .snapshot
+                    .selected
+                    .as_ref()
+                    .map(|item| item.id.as_str())
+                    != Some(id.as_str())
+            {
+                return Err(invalid());
+            }
+            let allowed = state.snapshot.messages.iter().any(|message| {
+                message.id == message_id
+                    && message.kind == "tool"
+                    && message.tool_status.as_deref() == Some("succeeded")
+                    && message
+                        .component
+                        .as_ref()
+                        .is_some_and(|card| card.allows(&event))
+            });
+            if !allowed {
+                return Err(invalid());
+            }
+            Ok(json!({"effect":"show_evidence","conversation_id":id,"message_id":message_id}))
         }
         Action::Close { connection } => {
             if let Some(model) = models().lock().map_err(|_| invalid())?.remove(&connection) {

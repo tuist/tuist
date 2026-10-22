@@ -71,7 +71,46 @@ struct AtlasConversationsTests {
         #expect(model.bot?.name == "Juniper")
     }
 
-    private func snapshot(sequence: Int, selected: Bool = false, draft: String = "") throws -> Data {
+    @Test func cardActionForwardsToRustAndRejectsLateEffectsAfterAccessLoss() async throws {
+        var revoked = false
+        var sequence = 0
+        var delayed = false
+        var pending: CheckedContinuation<Data, Error>?
+        let message: [String: Any] = [
+            "id": "evidence", "kind": "tool", "body": "", "author_name": "Juniper", "inserted_at": "2026-10-22T12:00:00Z",
+            "tool_status": "succeeded", "tool_input": "", "tool_output": "original evidence",
+            "component": ["type": "result_table", "version": 1, "data": ["title": "Accounts", "columns": ["Name"], "rows": [["Northstar"]]],
+                          "actions": [["id": "show_evidence", "label": "View source"]], "fallback": "Northstar"]
+        ]
+        let effect = Data("{\"effect\":\"show_evidence\",\"conversation_id\":\"\(id)\",\"message_id\":\"evidence\"}".utf8)
+        let model = AtlasConversations(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"handle\"}".utf8) }
+            sequence += 1
+            return try snapshot(sequence: sequence, selected: !revoked, messages: revoked ? [] : [message])
+        }, localRequest: { action in
+            if action["action"] as? String == "close" { return Data("{}".utf8) }
+            #expect(action["action"] as? String == "component_action")
+            #expect(action["connection"] as? String == "handle")
+            #expect(action["id"] as? String == id)
+            #expect(action["message_id"] as? String == "evidence")
+            #expect(action["event"] as? String == "show_evidence")
+            if delayed { return try await withCheckedThrowingContinuation { pending = $0 } }
+            return effect
+        })
+        await model.load()
+        #expect(model.messages.first?.component?.data.rows == [["Northstar"]])
+        #expect(await model.componentAction(messageId: "evidence", event: "show_evidence"))
+        delayed = true
+        let action = Task { await model.componentAction(messageId: "evidence", event: "show_evidence") }
+        while pending == nil { await Task.yield() }
+        revoked = true
+        await model.load()
+        pending?.resume(returning: effect)
+        #expect(await action.value == false)
+        #expect(model.messages.isEmpty)
+    }
+
+    private func snapshot(sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = []) throws -> Data {
         let conversation: [String: Any] = [
             "id": id, "title": "Private conversation", "kind": "private", "status": "idle",
             "summary": "", "origin": "manual", "participants": [], "updated_at": "2027-06-07T10:00:00Z"
@@ -79,7 +118,7 @@ struct AtlasConversationsTests {
         return try JSONSerialization.data(withJSONObject: [
             "sequence": sequence, "bot": ["name": "Juniper", "configured": true],
             "conversations": [conversation], "selected": selected ? conversation as Any : NSNull(),
-            "messages": [], "people": [], "draft": draft, "loading": false, "history_loading": false, "saving": false,
+            "messages": messages, "people": [], "draft": draft, "loading": false, "history_loading": false, "saving": false,
             "has_more": true, "has_older": false, "needs_session": false
         ])
     }

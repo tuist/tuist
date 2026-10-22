@@ -175,6 +175,26 @@ internal fun checkConversationsModel() {
     create.second(Result.success(snapshot(20, SHARED)))
     check(model.createDraft == null && model.snapshot.selected?.id == SHARED)
 
+    // Card events go to Rust; only a matching effect can reveal source, never a late effect for a different thread.
+    val evidence =
+        JSONObject(
+            """{"id":"evidence","kind":"tool","body":"","author_name":"Server bot","inserted_at":"2026-10-22T12:00:00Z","tool_status":"succeeded","component":{"type":"result_table","version":1,"data":{"title":"Accounts","columns":["Name"],"rows":[["Northstar"]]},"actions":[{"id":"show_evidence","label":"View source"}],"fallback":"Northstar"}}""",
+        )
+    model.refresh()
+    take("request", "refresh").second(Result.success(snapshot(21, SHARED).put("messages", org.json.JSONArray().put(evidence))))
+    model.componentAction("evidence", "show_evidence")
+    val event = take("component_action")
+    check(event.first.getString("id") == SHARED && event.first.getString("message_id") == "evidence")
+    val effect = JSONObject().put("effect", "show_evidence").put("conversation_id", SHARED).put("message_id", "evidence")
+    event.second(Result.success(effect))
+    check(model.revealedEvidence == setOf("evidence"))
+    model.componentAction("evidence", "show_evidence")
+    val lateEffect = take("component_action")
+    model.select(PRIVATE)
+    take("request", "select").second(Result.success(snapshot(22, PRIVATE)))
+    lateEffect.second(Result.success(effect))
+    check(model.revealedEvidence.isEmpty())
+
     // Closing releases the handle and ignores late results.
     model.close()
     check(take("close").first.getString("connection") == "handle")

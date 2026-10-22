@@ -345,7 +345,7 @@ class MainActivity : Activity() {
                             it.setActive(true)
                             it.open()
                         }
-                    val screen = AtlasConversationsScreen(this, titles.getValue(tab), model, presence, ::updateBack)
+                    val screen = AtlasConversationsScreen(this, titles.getValue(tab), model, presence, ::updateBack, appearance)
                     conversationScreen = screen
                     setActionBar(screen.toolbar)
                     screen.view

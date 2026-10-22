@@ -22,6 +22,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toolbar
+import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -33,6 +34,7 @@ class AtlasConversationsScreen(
     private val model: AtlasConversationsModel,
     private val presence: AtlasPresenceModel?,
     private val navigationChanged: () -> Unit,
+    private val appearance: AtlasAppearance? = null,
 ) {
     val toolbar = Toolbar(activity)
     private val liveStatus =
@@ -250,6 +252,7 @@ class AtlasConversationsScreen(
                 snapshot.error,
                 model.failure,
                 model.expandedTools,
+                model.revealedEvidence,
                 conversation.archived,
             )
         if (key == renderedContent) return
@@ -438,8 +441,20 @@ class AtlasConversationsScreen(
             )
             if (expanded) {
                 if (value.body.isNotEmpty()) card.addView(body(value.body))
-                if (value.toolInput.isNotEmpty()) card.addView(body("Input\n${value.toolInput}", true))
-                if (value.toolOutput.isNotEmpty()) card.addView(body("Output\n${value.toolOutput}", true))
+                value.component?.let { component ->
+                    card.addView(
+                        AtlasConversationCardView(
+                            activity,
+                            JSONObject(component),
+                            appearance,
+                        ) { event -> model.componentAction(value.id, event) },
+                        LinearLayout.LayoutParams(-1, dp(180)),
+                    )
+                }
+                if (value.component == null || value.id in model.revealedEvidence) {
+                    if (value.toolInput.isNotEmpty()) card.addView(body("Input\n${value.toolInput}", true))
+                    if (value.toolOutput.isNotEmpty()) card.addView(body("Output\n${value.toolOutput}", true))
+                }
             }
             content.addView(card, LinearLayout.LayoutParams(-1, -2))
             return

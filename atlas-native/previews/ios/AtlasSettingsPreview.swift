@@ -153,7 +153,7 @@ private final class AtlasPresencePreviewData: ObservableObject {
 
     private func snapshot() -> Data {
         try! JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "location": location,
+            "sequence": sequence, "location": location, "self_id": "preview-self",
             "people": [
                 ["id": "online", "name": "Alex Morgan", "email": "alex@example.org", "online": true, "here": !location.isEmpty],
                 ["id": "offline", "name": "Sam Rivera", "email": "sam@example.org", "online": false, "here": false]

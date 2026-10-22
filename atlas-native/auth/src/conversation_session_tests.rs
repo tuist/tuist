@@ -32,6 +32,44 @@ fn opened() -> (String, Arc<Model>) {
 }
 
 #[test]
+fn card_events_require_a_current_server_supplied_action_and_live_selection() {
+    let (connection, model) = opened();
+    let message: Message = serde_json::from_value(json!({
+        "id":"evidence", "kind":"tool", "body":"", "author_name":"Assistant", "inserted_at":"2026-10-22T12:00:00Z", "tool_status":"succeeded",
+        "component":{"type":"result_table","version":1,"data":{"title":"Accounts","columns":["Name"],"rows":[["Northstar"]]},"actions":[{"id":"show_evidence","label":"View source"}],"fallback":"Northstar"}
+    })).unwrap();
+    {
+        let mut state = model.state.lock().unwrap();
+        state.active = true;
+        state.snapshot.selected = Some(conversation(FIRST, "private"));
+        state.snapshot.messages = vec![message];
+    }
+    let event = |id: &str, message_id: &str, event: &str| Action::CardEvent {
+        connection: connection.clone(),
+        id: id.into(),
+        message_id: message_id.into(),
+        event: event.into(),
+    };
+    assert_eq!(
+        execute(event(FIRST, "evidence", "show_evidence")).unwrap()["effect"],
+        "show_evidence"
+    );
+    assert!(execute(event(SECOND, "evidence", "show_evidence")).is_err());
+    assert!(execute(event(FIRST, "missing", "show_evidence")).is_err());
+    assert!(execute(event(FIRST, "evidence", "execute_tool")).is_err());
+    {
+        let mut state = model.state.lock().unwrap();
+        state.snapshot.messages.clear();
+    }
+    assert!(execute(event(FIRST, "evidence", "show_evidence")).is_err());
+    execute(Action::Close {
+        connection: connection.clone(),
+    })
+    .unwrap();
+    assert!(execute(event(FIRST, "evidence", "show_evidence")).is_err());
+}
+
+#[test]
 fn shared_state_preserves_drafts_and_retry_identity_per_conversation() {
     let (id, model) = opened();
     {

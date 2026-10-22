@@ -85,6 +85,11 @@ pub(super) struct Message {
     pub tool_input: String,
     #[serde(default)]
     pub tool_output: String,
+    #[serde(
+        default,
+        deserialize_with = "crate::conversation_components::deserialize"
+    )]
+    pub component: Option<crate::conversation_components::Component>,
 }
 
 #[derive(Deserialize, Serialize)]

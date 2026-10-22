@@ -1,9 +1,11 @@
+import Combine
 import SwiftUI
 
 struct AtlasConversationsView: View {
     @StateObject private var model: AtlasConversations
     @State private var path: [AtlasConversation] = []
     @State private var creating = false
+    @State private var selfId: String?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
 
@@ -72,7 +74,7 @@ struct AtlasConversationsView: View {
             .modifier(AtlasThemedContent())
             .navigationTitle("Conversations")
             .navigationDestination(for: AtlasConversation.self) { conversation in
-                AtlasConversationDetail(model: model, conversation: conversation)
+                AtlasConversationDetail(model: model, conversation: conversation, selfId: selfId)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -90,6 +92,8 @@ struct AtlasConversationsView: View {
                 }
             }
         }
+        .toolbar(path.isEmpty ? .visible : .hidden, for: .tabBar)
+        .onReceive(presence?.$selfId.eraseToAnyPublisher() ?? Just(nil).eraseToAnyPublisher()) { selfId = $0 }
         .onAppear { model.setActive(scenePhase == .active) }
         .onChange(of: scenePhase) { _, phase in model.setActive(phase == .active) }
         .onDisappear { model.setActive(false) }
@@ -99,110 +103,225 @@ struct AtlasConversationsView: View {
 private struct AtlasConversationDetail: View {
     @ObservedObject var model: AtlasConversations
     let conversation: AtlasConversation
+    let selfId: String?
     @State private var addressAgent = false
     @State private var followLatest = true
+    @State private var hasShownMessages = false
+    @State private var showingInfo = false
     @Environment(\.atlasPresence) private var presence
 
+    private var botName: String { model.bot?.name ?? "the agent" }
+    private var current: AtlasConversation { model.selected ?? conversation }
+
     var body: some View {
-        ScrollViewReader { scroll in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 20) {
-                    if let selected = model.selected {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(selected.kind == "private"
-                                ? "Private · Only you and \(model.bot?.name ?? "the agent")"
-                                : selected.participants.map(\.name).joined(separator: ", "))
-                                .font(.caption).foregroundStyle(.secondary)
-                            if !selected.origin.isEmpty {
-                                Text("Started from \(selected.origin)").font(.caption).foregroundStyle(.secondary)
-                            }
-                            if !selected.summary.isEmpty { Text(selected.summary).font(.subheadline) }
-                            Label(selected.status.capitalized, systemImage: "circle.dotted").font(.caption).foregroundStyle(.secondary)
+        GeometryReader { geometry in
+            ScrollViewReader { scroll in
+                ScrollView {
+                    LazyVStack(spacing: 14) {
+                        if model.hasOlder {
+                            Button("Load earlier messages") { followLatest = false; Task { await model.history(older: true) } }
+                                .disabled(model.loadingHistory).frame(minHeight: 44)
                         }
-                    }
-                    if model.hasOlder {
-                        Button("Load earlier messages") { followLatest = false; Task { await model.history(older: true) } }
-                            .disabled(model.loadingHistory).frame(minHeight: 44)
-                    }
-                    ForEach(model.messages) { message in
-                        AtlasConversationMessageView(message: message)
+                        if conversation.kind == "private" {
+                            Label("Private · Only you and \(botName)", systemImage: "lock")
+                                .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
+                        }
+                        ForEach(Array(model.messages.enumerated()), id: \.element.id) { index, message in
+                            if startsDay(at: index), let date = ISO8601DateFormatter().date(from: message.insertedAt) {
+                                Text(date, format: .dateTime.month(.abbreviated).day().year())
+                                    .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
+                            }
+                            AtlasConversationMessageView(message: message, selfId: selfId) { event in
+                                await model.componentAction(messageId: message.id, event: event)
+                            }
                             .id(message.id)
+                        }
+                        if model.loadingHistory { ProgressView("Loading history") }
+                        if let error = model.errorMessage {
+                            Text(error).font(.callout).foregroundStyle(.red)
+                            Button("Retry") { Task { await model.history() } }.frame(minHeight: 44)
+                        }
+                        Color.clear.frame(height: 1).id("conversation-latest")
+                            .background {
+                                GeometryReader { position in
+                                    Color.clear.preference(key: AtlasConversationBottom.self,
+                                                           value: position.frame(in: .named("conversation-history")).maxY)
+                                }
+                            }
                     }
-                    if model.loadingHistory { ProgressView("Loading history") }
-                    if let error = model.errorMessage {
-                        Text(error).foregroundStyle(.red)
-                        Button("Retry") { Task { await model.history() } }.frame(minHeight: 44)
-                    }
-                    Color.clear.frame(height: 1).id("conversation-latest")
-                        .onAppear { followLatest = true }
-                        .onDisappear { followLatest = false }
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .frame(maxWidth: 720)
+                    .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .bottom)
                 }
-                .padding()
-            }
-            .refreshable { await model.history() }
-            .onChange(of: model.messages.last?.id) { _, _ in
-                if followLatest { scroll.scrollTo("conversation-latest", anchor: .bottom) }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) { composer }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Latest messages", systemImage: "arrow.down.to.line") {
-                        followLatest = true
-                        scroll.scrollTo("conversation-latest", anchor: .bottom)
+                .coordinateSpace(name: "conversation-history")
+                .onPreferenceChange(AtlasConversationBottom.self) { bottom in
+                    followLatest = bottom.isFinite && bottom >= 0 && bottom <= geometry.size.height + 20
+                }
+                .defaultScrollAnchor(.bottom)
+                .scrollDismissesKeyboard(.interactively)
+                .modifier(AtlasThemedContent())
+                .refreshable { await model.history() }
+                .onChange(of: model.messages.last?.id) { _, latest in
+                    guard latest != nil else { return }
+                    if !hasShownMessages || followLatest { scroll.scrollTo("conversation-latest", anchor: .bottom) }
+                    hasShownMessages = true
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if !followLatest {
+                        Button("Latest messages", systemImage: "arrow.down") {
+                            followLatest = true
+                            scroll.scrollTo("conversation-latest", anchor: .bottom)
+                        }
+                        .labelStyle(.iconOnly).buttonStyle(.borderedProminent)
+                        .frame(minWidth: 44, minHeight: 44).padding()
                     }
                 }
             }
         }
-        .navigationTitle(conversation.kind == "private" ? model.bot?.name ?? conversation.title : conversation.title)
+        .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        .navigationTitle(conversation.kind == "private" ? botName : conversation.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Conversation details", systemImage: "info.circle") { showingInfo = true }
+                    .accessibilityIdentifier("conversation-info")
+            }
+        }
+        .sheet(isPresented: $showingInfo) { details }
         .task(id: conversation.id) { presence?.show(); await model.open(conversation) }
         .onDisappear { model.leave(id: conversation.id) }
         .protectsAtlasNavigation(!model.draft.isEmpty || model.saving)
     }
 
+    private func startsDay(at index: Int) -> Bool {
+        guard index > 0,
+              let date = ISO8601DateFormatter().date(from: model.messages[index].insertedAt),
+              let previous = ISO8601DateFormatter().date(from: model.messages[index - 1].insertedAt) else { return true }
+        return !Calendar.current.isDate(date, inSameDayAs: previous)
+    }
+
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             if let message = model.liveMessage {
                 Text(message).font(.caption).foregroundStyle(.secondary)
-            } else if !model.viewers.isEmpty {
-                Text(model.viewers.map { $0.name + ($0.typing ? " is typing…" : " is here") }.joined(separator: " · "))
-                    .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("conversation-presence")
+            } else {
+                let viewers = model.viewers.filter { $0.id != selfId }
+                if !viewers.isEmpty {
+                    Text(viewers.map { $0.name + ($0.typing ? " is typing…" : " is here") }.joined(separator: " · "))
+                        .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("conversation-presence")
+                }
             }
             if conversation.kind != "private" {
-                Toggle("Ask \(model.bot?.name ?? "the agent")", isOn: $addressAgent).font(.subheadline)
+                Button { addressAgent.toggle() } label: {
+                    Label("Ask \(botName)", systemImage: addressAgent ? "checkmark.circle.fill" : "sparkles")
+                        .font(.subheadline.weight(.medium)).frame(minHeight: 44)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityValue(addressAgent ? "On" : "Off")
+                .accessibilityIdentifier("conversation-address-agent")
             }
-            HStack(alignment: .bottom) {
-                TextField("Message", text: Binding(get: { model.draft }, set: { model.draft = $0 }), axis: .vertical)
-                    .lineLimit(1...6).textFieldStyle(.roundedBorder).accessibilityIdentifier("conversation-composer")
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField(conversation.kind == "private" ? "Message \(botName)" : "Message the team",
+                          text: Binding(get: { model.draft }, set: { model.draft = $0 }), axis: .vertical)
+                    .lineLimit(1...6).textFieldStyle(.plain).padding(.leading, 12).padding(.vertical, 12)
+                    .accessibilityIdentifier("conversation-composer")
                 Button {
                     followLatest = true
                     Task { await model.send(addressAgent: addressAgent) }
                 } label: {
-                    if model.saving { ProgressView() } else { Image(systemName: "arrow.up.circle.fill").font(.title) }
+                    Group {
+                        if model.saving { ProgressView() } else { Image(systemName: "arrow.up").font(.headline.bold()) }
+                    }
+                    .frame(width: 44, height: 44)
                 }
-                .frame(minWidth: 44, minHeight: 44).accessibilityLabel("Send message")
+                .buttonStyle(.borderedProminent).buttonBorderShape(.circle)
+                .modifier(AtlasPrimaryAction()).accessibilityLabel("Send message")
                 .disabled(model.saving || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("conversation-send")
             }
+            .padding(6).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 28))
         }
-        .padding(.horizontal).padding(.vertical, 10).background(.bar)
+        .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
+        .frame(maxWidth: .infinity).background(.bar)
+    }
+
+    private var details: some View {
+        NavigationStack {
+            Form {
+                Section("Conversation") {
+                    if current.kind == "private" { Label("Only you and \(botName)", systemImage: "lock") }
+                    if !current.summary.isEmpty { Text(current.summary) }
+                    if !current.origin.isEmpty { LabeledContent("Started from", value: current.origin.capitalized) }
+                    LabeledContent("Status", value: current.status.capitalized)
+                }
+                if current.kind != "private" {
+                    Section("Participants") { ForEach(current.participants) { Text($0.name) } }
+                }
+            }
+            .navigationTitle("Conversation details").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingInfo = false } } }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
 private struct AtlasConversationMessageView: View {
     let message: AtlasConversationMessage
+    let selfId: String?
+    let action: (String) async -> Bool
+    @State private var showingEvidence = false
+    @Environment(\.atlasTheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var outgoing: Bool { message.kind == "human" && selfId != nil && message.authorId == selfId }
+    private var palette: AtlasTheme.Palette? { contrast == .increased ? nil : theme?.palette(scheme) }
+    private var fill: Color {
+        if outgoing { return palette.map { Color(atlasHex: $0.accent) } ?? AtlasSettingsStyle.tint }
+        return palette.map { Color(atlasHex: $0.surface) } ?? Color(uiColor: .secondarySystemGroupedBackground)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(message.authorName).font(.subheadline.bold())
-                Spacer()
-                if let date = ISO8601DateFormatter().date(from: message.insertedAt) {
-                    Text(date, style: .time).font(.caption).foregroundStyle(.secondary)
+        Group {
+            if message.kind == "system" {
+                Text(message.body).font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity).multilineTextAlignment(.center)
+            } else {
+                HStack(alignment: .bottom, spacing: 0) {
+                    if outgoing { Spacer(minLength: 40) }
+                    VStack(alignment: outgoing ? .trailing : .leading, spacing: 5) {
+                        if !outgoing, message.kind != "tool" {
+                            Text(message.authorName).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                .padding(.horizontal, 12)
+                        }
+                        if message.kind == "tool" {
+                            tool.padding(14).background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 18))
+                        } else {
+                            Text(message.body).textSelection(.enabled).padding(.horizontal, 16).padding(.vertical, 12)
+                                .foregroundStyle(outgoing
+                                    ? palette.map { Color(atlasHex: $0.onAccent) } ?? AtlasSettingsStyle.onTint : .primary)
+                                .background(fill, in: RoundedRectangle(cornerRadius: 20))
+                        }
+                        if let date = ISO8601DateFormatter().date(from: message.insertedAt) {
+                            Text(date, style: .time).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 12)
+                        }
+                    }
+                    if !outgoing { Spacer(minLength: 40) }
                 }
             }
-            if message.kind == "tool" {
-                DisclosureGroup {
+        }
+        .accessibilityIdentifier("conversation-message-\(message.id)")
+    }
+
+    private var tool: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 8) {
+                if let card = message.component {
+                    AtlasConversationCardView(card: card) { event in
+                        Task { if await action(event) { showingEvidence = true } }
+                    }
+                }
+                if message.component == nil || showingEvidence {
                     if !message.toolInput.isEmpty {
                         Text("Inputs").font(.caption.bold())
                         Text(message.toolInput).font(.caption.monospaced()).textSelection(.enabled)
@@ -211,18 +330,21 @@ private struct AtlasConversationMessageView: View {
                         Text("Result").font(.caption.bold())
                         Text(message.toolOutput).font(.caption.monospaced()).textSelection(.enabled)
                     }
-                    if !message.body.isEmpty { Text(message.body).textSelection(.enabled) }
-                } label: {
-                    Label("\(message.toolName ?? "Tool") · \(message.toolStatus ?? "Working")", systemImage: "wrench.and.screwdriver")
-                        .font(.subheadline)
                 }
-            } else {
-                Text(message.body).textSelection(.enabled)
+                if !message.body.isEmpty { Text(message.body).font(.callout).textSelection(.enabled) }
             }
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
+        } label: {
+            Label("\(message.toolName ?? "Tool") · \(message.toolStatus ?? "Working")", systemImage: "wrench.and.screwdriver")
+                .font(.subheadline)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("conversation-message-\(message.id)")
+        .multilineTextAlignment(.leading)
     }
+}
+
+private struct AtlasConversationBottom: PreferenceKey {
+    static var defaultValue: CGFloat { .infinity }
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 private struct AtlasCreateConversation: View {

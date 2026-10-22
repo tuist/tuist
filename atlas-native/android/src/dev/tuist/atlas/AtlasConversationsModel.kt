@@ -43,6 +43,7 @@ class AtlasConversationsModel(
         val toolStatus: String?,
         val toolInput: String,
         val toolOutput: String,
+        val component: String? = null,
     ) {
         val isTool get() = kind == "tool" || toolName != null
     }
@@ -89,6 +90,8 @@ class AtlasConversationsModel(
     var createDraft: CreateDraft? = null
         private set
     var expandedTools = emptySet<String>()
+        private set
+    var revealedEvidence = emptySet<String>()
         private set
 
     // Local draft writes still in flight; the view must not overwrite what the person is typing with an older echo.
@@ -169,6 +172,7 @@ class AtlasConversationsModel(
 
     fun select(id: String) {
         expandedTools = emptySet()
+        revealedEvidence = emptySet()
         command(JSONObject().put("action", "select").put("id", id))
     }
 
@@ -234,6 +238,31 @@ class AtlasConversationsModel(
                 .put("address_agent", askBot(id)),
         )
         listener?.invoke()
+    }
+
+    fun componentAction(
+        messageId: String,
+        event: String,
+    ) {
+        val handle = connection ?: return
+        val id = snapshot.selected?.id ?: return
+        request(
+            JSONObject()
+                .put("action", "component_action")
+                .put("connection", handle)
+                .put("id", id)
+                .put("message_id", messageId)
+                .put("event", event),
+        ) { result ->
+            val effect = result.getOrNull()
+            if (!closed && snapshot.selected?.id == id && effect?.optString("effect") == "show_evidence" &&
+                effect.optString("conversation_id") == id && effect.optString("message_id") == messageId &&
+                snapshot.messages.any { it.id == messageId }
+            ) {
+                revealedEvidence = revealedEvidence + messageId
+                listener?.invoke()
+            }
+        }
     }
 
     fun toggleTool(id: String) {
@@ -414,6 +443,7 @@ class AtlasConversationsModel(
             value.nullableString("tool_status"),
             value.optString("tool_input"),
             value.optString("tool_output"),
+            value.optJSONObject("component")?.toString(),
         )
 
     private fun JSONObject.nullableString(key: String) = if (!has(key) || isNull(key)) null else optString(key)

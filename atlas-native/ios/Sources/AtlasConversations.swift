@@ -21,6 +21,23 @@ struct AtlasConversation: Decodable, Identifiable, Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
+struct AtlasConversationComponent: Codable {
+    struct Table: Codable {
+        let title: String
+        let columns: [String]
+        let rows: [[String]]
+    }
+    struct Action: Codable {
+        let id: String
+        let label: String
+    }
+    let type: String
+    let version: Int
+    let data: Table
+    let actions: [Action]
+    let fallback: String
+}
+
 struct AtlasConversationMessage: Decodable, Identifiable {
     let id: String
     let kind: String
@@ -32,6 +49,7 @@ struct AtlasConversationMessage: Decodable, Identifiable {
     let toolStatus: String?
     let toolInput: String
     let toolOutput: String
+    let component: AtlasConversationComponent?
 }
 
 struct AtlasConversationBot: Decodable {
@@ -144,6 +162,22 @@ final class AtlasConversations: ObservableObject {
         let body = draft
         await draftTask?.value
         await perform(["action": "send", "id": id, "body": body, "address_agent": addressAgent])
+    }
+
+    func componentAction(messageId: String, event: String) async -> Bool {
+        guard let connection, let id = selected?.id else { return false }
+        struct Effect: Decodable {
+            let effect: String
+            let conversationId: String
+            let messageId: String
+        }
+        do {
+            let effect: Effect = try decode(await localRequest([
+                "action": "component_action", "connection": connection, "id": id, "message_id": messageId, "event": event
+            ]))
+            return selected?.id == id && effect.conversationId == id && effect.messageId == messageId
+                && effect.effect == "show_evidence" && messages.contains { $0.id == messageId }
+        } catch { return false }
     }
 
     func setActive(_ value: Bool) {
