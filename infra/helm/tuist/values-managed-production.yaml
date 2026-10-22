@@ -1456,8 +1456,18 @@ rackFleet:
   # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
   # and the `ber1` smoke pool share through the fleet allocator, apart from
   # the rented fleet's 14. A 12 vCPU profile's guest takes a whole host, so
-  # that shape's ceiling is the host count. 26.6 keeps one runner warm because
-  # `tuist-macos` resolves there; the rest start cold.
+  # that shape's ceiling is the host count.
+  #
+  # Every Xcode keeps one 6 vCPU runner warm: 13 to 75 s of queue on
+  # 2026-10-21/22 for 27.0, which had none, was the scale-up and the boot.
+  # Warm runners are the first capacity the allocator gives up, so a queued
+  # job for another image takes one's slot, and a 12 vCPU job takes a host
+  # holding only warm runners after 30 s (infra/runners-controller/AGENTS.md).
+  # The 12 vCPU shape stays cold: an idle one would hold a whole host.
+  #
+  # Every image's golden fits beside the cache: about 60 GiB each, 9 images
+  # in the 540 GiB allowance above, and a release pulls only the overlay on
+  # hosts that held the previous image (infra/tart-kubelet/AGENTS.md).
   runners:
     enabled: true
     # Every BER1 host runs macOS 27 and Tart 2.41.1.
@@ -1467,14 +1477,8 @@ rackFleet:
       12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
     autoscaling:
       enabled: true
-      minWarmPoolFloor: 0
+      minWarmPoolFloor: 1
       maxReplicas: 18
-    xcodeOverrides:
-      "26.6":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 1
-          maxReplicas: 18
     shapes:
       12vcpu-28gb:
         autoscaling:
@@ -1982,33 +1986,29 @@ runnersFleet:
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors sum to 1 of the 16-slot budget; the remaining 15 slots are
-  # dynamically apportioned by queue depth across the pools. Older
-  # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
-  #
-  # The default (26.6) carries the warm floor, since `tuist-macos`
-  # resolves there. That resolution goes through each account's
-  # protected `macos` profile, which stores `xcode_version` at account
-  # creation — so bumping the catalog default only redirects new
-  # accounts. Move existing accounts' profile in the same change, or
-  # their traffic stays on the old pool while the floor warms an idle
-  # one. Revisit once we open the runners to general signups where the
-  # pool mix is unpredictable in advance.
+  # Every Xcode keeps one runner warm, so a job for any supported image
+  # claims a booted VM instead of waiting for a scale-up and a cold boot
+  # (13 to 75 s on 2026-10-21/22 for a pool with no floor). The floors take
+  # 9 of the 16 slots while the fleet is idle; they are the tier the
+  # allocator gives up first, so a queued job for any image takes the slot
+  # of a warm runner it does not need, the least recently used image's
+  # first (infra/runners-controller/AGENTS.md, "Fleet-capacity
+  # awareness"). Add a floor when adding a profile.
   xcodeOverrides:
     "27.2-beta":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
     "27.1":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
     "27.0":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
     "26.6":
       autoscaling:
@@ -2018,27 +2018,27 @@ runnersFleet:
     "26.5":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
     "26.4.1":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
     "26.3":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
     "26.1.1":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
     "26.0.1":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
   # Resolved at deploy time from the latest `runner-image@` git tag.
   runnerImageSemver: ""

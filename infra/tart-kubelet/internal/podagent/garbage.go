@@ -113,6 +113,18 @@ type Collector struct {
 	// disk reclaimed slightly later).
 	goldenSeenMu sync.Mutex
 	goldenSeen   map[string]time.Time
+
+	// Goldens pulls a pool's current image when this host holds its previous
+	// one (see follow.go). Nil disables following releases.
+	Goldens goldenEnsurer
+
+	// FollowTimeout overrides defaultFollowTimeout.
+	FollowTimeout time.Duration
+
+	followMu      sync.Mutex
+	followSince   map[string]time.Time
+	followRunning bool
+	followWG      sync.WaitGroup
 }
 
 // defaultGoldenRetention keeps an unreferenced golden base for a day —
@@ -201,6 +213,11 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 		aggressive = true
 	}
 
+	var follow []string
+	if !aggressive {
+		follow = c.planFollow(expected, vms, now)
+	}
+
 	var droppedClones, droppedImages, droppedGoldens int
 	for _, vm := range vms {
 		switch vm.Source {
@@ -269,6 +286,8 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 	if underPressure {
 		c.reclaimGoldensUnderDiskPressure(ctx, expected, floor)
 	}
+
+	c.startFollow(ctx, follow)
 }
 
 // reclaimGoldensUnderDiskPressure is the bound the retention pass lacks:
@@ -433,6 +452,9 @@ func (c *Collector) keepGolden(name string, expected *expectedSet, now time.Time
 		c.goldenSeen[name] = now
 		return true
 	}
+	if _, following := expected.following[name]; following && !aggressive {
+		return true
+	}
 	if aggressive || expected.superseded(name) {
 		return false
 	}
@@ -517,6 +539,12 @@ type expectedSet struct {
 	// not carry.
 	imageRefs map[string]struct{}
 	tagRepos  map[string]struct{}
+
+	// successions maps the golden of a pool's previous image to the pool's
+	// move, and following holds the previous goldens this pass keeps until
+	// their successor is pulled (see follow.go).
+	successions map[string]succession
+	following   map[string]struct{}
 }
 
 // superseded reports whether golden is for an image no pool of the fleet
@@ -567,6 +595,7 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 		imageRepos: map[string]struct{}{},
 		imageRefs:  map[string]struct{}{},
 		tagRepos:   map[string]struct{}{},
+		following:  map[string]struct{}{},
 	}
 	if c.Fleet != "" {
 		pools, err := listRunnerPools(ctx, c.K8s)
@@ -582,6 +611,12 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 			}
 			out.poolGoldens[goldenVMName(pool.Spec.Image)] = struct{}{}
 			out.addImage(pool.Spec.Image, c.Images)
+			if previous := pool.previousImage(); previous != "" && previous != pool.Spec.Image {
+				if out.successions == nil {
+					out.successions = map[string]succession{}
+				}
+				out.successions[goldenVMName(previous)] = succession{previous: previous, current: pool.Spec.Image}
+			}
 		}
 	}
 	for i := range pods.Items {
