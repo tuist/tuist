@@ -22,6 +22,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/attachments`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)`.
     func createTestCaseRunAttachment(_ input: Operations.createTestCaseRunAttachment.Input) async throws -> Operations.createTestCaseRunAttachment.Output
+    /// Discover the supported custom metadata budget without sending credentials or build data.
+    ///
+    /// - Remark: HTTP `GET /api/metadata/limits`.
+    /// - Remark: Generated from `#/paths//api/metadata/limits/get(getCustomMetadataLimits)`.
+    func getCustomMetadataLimits(_ input: Operations.getCustomMetadataLimits.Input) async throws -> Operations.getCustomMetadataLimits.Output
     /// Get account or volume storage, activity and trends for a time range.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/analytics`.
@@ -1240,6 +1245,13 @@ extension APIProtocol {
             headers: headers,
             body: body
         ))
+    }
+    /// Discover the supported custom metadata budget without sending credentials or build data.
+    ///
+    /// - Remark: HTTP `GET /api/metadata/limits`.
+    /// - Remark: Generated from `#/paths//api/metadata/limits/get(getCustomMetadataLimits)`.
+    public func getCustomMetadataLimits(headers: Operations.getCustomMetadataLimits.Input.Headers = .init()) async throws -> Operations.getCustomMetadataLimits.Output {
+        try await getCustomMetadataLimits(Operations.getCustomMetadataLimits.Input(headers: headers))
     }
     /// Get account or volume storage, activity and trends for a time range.
     ///
@@ -12875,6 +12887,49 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/command`.
             public var command: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/custom_metadata`.
+            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/custom_metadata/tags`.
+                public var tags: [Swift.String]?
+                /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/custom_metadata/values`.
+                public struct valuesPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `valuesPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/custom_metadata/values`.
+                public var values: Components.Schemas.CargoBuildDetail.custom_metadataPayload.valuesPayload?
+                /// Creates a new `custom_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - tags:
+                ///   - values:
+                public init(
+                    tags: [Swift.String]? = nil,
+                    values: Components.Schemas.CargoBuildDetail.custom_metadataPayload.valuesPayload? = nil
+                ) {
+                    self.tags = tags
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case tags
+                    case values
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/custom_metadata`.
+            public var custom_metadata: Components.Schemas.CargoBuildDetail.custom_metadataPayload?
             /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/duration_ms`.
             public var duration_ms: Swift.Int
             /// - Remark: Generated from `#/components/schemas/CargoBuildDetail/git_branch`.
@@ -12912,6 +12967,7 @@ public enum Components {
             ///   - ci_provider:
             ///   - ci_run_id:
             ///   - command: The Cargo subcommand, for example build or check.
+            ///   - custom_metadata:
             ///   - duration_ms:
             ///   - git_branch:
             ///   - git_commit_sha:
@@ -12930,6 +12986,7 @@ public enum Components {
                 ci_provider: Swift.String? = nil,
                 ci_run_id: Swift.String? = nil,
                 command: Swift.String? = nil,
+                custom_metadata: Components.Schemas.CargoBuildDetail.custom_metadataPayload? = nil,
                 duration_ms: Swift.Int,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -12948,6 +13005,7 @@ public enum Components {
                 self.ci_provider = ci_provider
                 self.ci_run_id = ci_run_id
                 self.command = command
+                self.custom_metadata = custom_metadata
                 self.duration_ms = duration_ms
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
@@ -12967,6 +13025,7 @@ public enum Components {
                 case ci_provider
                 case ci_run_id
                 case command
+                case custom_metadata
                 case duration_ms
                 case git_branch
                 case git_commit_sha
@@ -20440,6 +20499,49 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CargoBuild/command`.
             public var command: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/CargoBuild/custom_metadata`.
+            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CargoBuild/custom_metadata/tags`.
+                public var tags: [Swift.String]?
+                /// - Remark: Generated from `#/components/schemas/CargoBuild/custom_metadata/values`.
+                public struct valuesPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `valuesPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/CargoBuild/custom_metadata/values`.
+                public var values: Components.Schemas.CargoBuild.custom_metadataPayload.valuesPayload?
+                /// Creates a new `custom_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - tags:
+                ///   - values:
+                public init(
+                    tags: [Swift.String]? = nil,
+                    values: Components.Schemas.CargoBuild.custom_metadataPayload.valuesPayload? = nil
+                ) {
+                    self.tags = tags
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case tags
+                    case values
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CargoBuild/custom_metadata`.
+            public var custom_metadata: Components.Schemas.CargoBuild.custom_metadataPayload?
             /// - Remark: Generated from `#/components/schemas/CargoBuild/duration_ms`.
             public var duration_ms: Swift.Int
             /// - Remark: Generated from `#/components/schemas/CargoBuild/git_branch`.
@@ -20476,6 +20578,7 @@ public enum Components {
             ///   - ci_provider:
             ///   - ci_run_id:
             ///   - command: The Cargo subcommand, for example build or check.
+            ///   - custom_metadata:
             ///   - duration_ms:
             ///   - git_branch:
             ///   - git_commit_sha:
@@ -20493,6 +20596,7 @@ public enum Components {
                 ci_provider: Swift.String? = nil,
                 ci_run_id: Swift.String? = nil,
                 command: Swift.String? = nil,
+                custom_metadata: Components.Schemas.CargoBuild.custom_metadataPayload? = nil,
                 duration_ms: Swift.Int,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -20510,6 +20614,7 @@ public enum Components {
                 self.ci_provider = ci_provider
                 self.ci_run_id = ci_run_id
                 self.command = command
+                self.custom_metadata = custom_metadata
                 self.duration_ms = duration_ms
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
@@ -20528,6 +20633,7 @@ public enum Components {
                 case ci_provider
                 case ci_run_id
                 case command
+                case custom_metadata
                 case duration_ms
                 case git_branch
                 case git_commit_sha
@@ -21224,6 +21330,49 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/command`.
                 public var command: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/custom_metadata`.
+                public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/custom_metadata/tags`.
+                    public var tags: [Swift.String]?
+                    /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/custom_metadata/values`.
+                    public struct valuesPayload: Codable, Hashable, Sendable {
+                        /// A container of undocumented properties.
+                        public var additionalProperties: [String: Swift.String]
+                        /// Creates a new `valuesPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        public init(additionalProperties: [String: Swift.String] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        public func encode(to encoder: any Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/custom_metadata/values`.
+                    public var values: Components.Schemas.CargoBuildList.buildsPayloadPayload.custom_metadataPayload.valuesPayload?
+                    /// Creates a new `custom_metadataPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - tags:
+                    ///   - values:
+                    public init(
+                        tags: [Swift.String]? = nil,
+                        values: Components.Schemas.CargoBuildList.buildsPayloadPayload.custom_metadataPayload.valuesPayload? = nil
+                    ) {
+                        self.tags = tags
+                        self.values = values
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case tags
+                        case values
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/custom_metadata`.
+                public var custom_metadata: Components.Schemas.CargoBuildList.buildsPayloadPayload.custom_metadataPayload?
                 /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/duration_ms`.
                 public var duration_ms: Swift.Int
                 /// - Remark: Generated from `#/components/schemas/CargoBuildList/buildsPayload/git_branch`.
@@ -21260,6 +21409,7 @@ public enum Components {
                 ///   - ci_provider:
                 ///   - ci_run_id:
                 ///   - command: The Cargo subcommand, for example build or check.
+                ///   - custom_metadata:
                 ///   - duration_ms:
                 ///   - git_branch:
                 ///   - git_commit_sha:
@@ -21277,6 +21427,7 @@ public enum Components {
                     ci_provider: Swift.String? = nil,
                     ci_run_id: Swift.String? = nil,
                     command: Swift.String? = nil,
+                    custom_metadata: Components.Schemas.CargoBuildList.buildsPayloadPayload.custom_metadataPayload? = nil,
                     duration_ms: Swift.Int,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
@@ -21294,6 +21445,7 @@ public enum Components {
                     self.ci_provider = ci_provider
                     self.ci_run_id = ci_run_id
                     self.command = command
+                    self.custom_metadata = custom_metadata
                     self.duration_ms = duration_ms
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
@@ -21312,6 +21464,7 @@ public enum Components {
                     case ci_provider
                     case ci_run_id
                     case command
+                    case custom_metadata
                     case duration_ms
                     case git_branch
                     case git_commit_sha
@@ -24812,6 +24965,131 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Discover the supported custom metadata budget without sending credentials or build data.
+    ///
+    /// - Remark: HTTP `GET /api/metadata/limits`.
+    /// - Remark: Generated from `#/paths//api/metadata/limits/get(getCustomMetadataLimits)`.
+    public enum getCustomMetadataLimits {
+        public static let id: Swift.String = "getCustomMetadataLimits"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/metadata/limits/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCustomMetadataLimits.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCustomMetadataLimits.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getCustomMetadataLimits.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.getCustomMetadataLimits.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/metadata/limits/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/metadata/limits/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/metadata/limits/GET/responses/200/content/json/max_values`.
+                        public var max_values: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - max_values:
+                        public init(max_values: Swift.Int) {
+                            self.max_values = max_values
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case max_values
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/metadata/limits/GET/responses/200/content/application\/json`.
+                    case json(Operations.getCustomMetadataLimits.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getCustomMetadataLimits.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCustomMetadataLimits.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCustomMetadataLimits.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Metadata limits
+            ///
+            /// - Remark: Generated from `#/paths//api/metadata/limits/get(getCustomMetadataLimits)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCustomMetadataLimits.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getCustomMetadataLimits.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
                             response: self
                         )
                     }
@@ -66334,6 +66612,49 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/command`.
                             public var command: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/custom_metadata`.
+                            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/tags`.
+                                public var tags: [Swift.String]?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/values`.
+                                public struct valuesPayload: Codable, Hashable, Sendable {
+                                    /// A container of undocumented properties.
+                                    public var additionalProperties: [String: Swift.String]
+                                    /// Creates a new `valuesPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - additionalProperties: A container of undocumented properties.
+                                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                                        self.additionalProperties = additionalProperties
+                                    }
+                                    public init(from decoder: any Decoder) throws {
+                                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                    }
+                                    public func encode(to encoder: any Encoder) throws {
+                                        try encoder.encodeAdditionalProperties(additionalProperties)
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/values`.
+                                public var values: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload.valuesPayload?
+                                /// Creates a new `custom_metadataPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - tags:
+                                ///   - values:
+                                public init(
+                                    tags: [Swift.String]? = nil,
+                                    values: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload.valuesPayload? = nil
+                                ) {
+                                    self.tags = tags
+                                    self.values = values
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case tags
+                                    case values
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/custom_metadata`.
+                            public var custom_metadata: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/duration_ms`.
                             public var duration_ms: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/GET/responses/200/content/json/buildsPayload/git_branch`.
@@ -66370,6 +66691,7 @@ public enum Operations {
                             ///   - ci_provider:
                             ///   - ci_run_id:
                             ///   - command: The Cargo subcommand, for example build or check.
+                            ///   - custom_metadata:
                             ///   - duration_ms:
                             ///   - git_branch:
                             ///   - git_commit_sha:
@@ -66387,6 +66709,7 @@ public enum Operations {
                                 ci_provider: Swift.String? = nil,
                                 ci_run_id: Swift.String? = nil,
                                 command: Swift.String? = nil,
+                                custom_metadata: Operations.listCargoBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload? = nil,
                                 duration_ms: Swift.Int,
                                 git_branch: Swift.String? = nil,
                                 git_commit_sha: Swift.String? = nil,
@@ -66404,6 +66727,7 @@ public enum Operations {
                                 self.ci_provider = ci_provider
                                 self.ci_run_id = ci_run_id
                                 self.command = command
+                                self.custom_metadata = custom_metadata
                                 self.duration_ms = duration_ms
                                 self.git_branch = git_branch
                                 self.git_commit_sha = git_commit_sha
@@ -66422,6 +66746,7 @@ public enum Operations {
                                 case ci_provider
                                 case ci_run_id
                                 case command
+                                case custom_metadata
                                 case duration_ms
                                 case git_branch
                                 case git_commit_sha
@@ -67314,6 +67639,49 @@ public enum Operations {
                     public var compilations: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayload?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/contract_version`.
                     public var contract_version: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/custom_metadata`.
+                    public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/custom_metadata/tags`.
+                        public var tags: [Swift.String]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/custom_metadata/values`.
+                        public struct valuesPayload: Codable, Hashable, Sendable {
+                            /// A container of undocumented properties.
+                            public var additionalProperties: [String: Swift.String]
+                            /// Creates a new `valuesPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - additionalProperties: A container of undocumented properties.
+                            public init(additionalProperties: [String: Swift.String] = .init()) {
+                                self.additionalProperties = additionalProperties
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                            }
+                            public func encode(to encoder: any Encoder) throws {
+                                try encoder.encodeAdditionalProperties(additionalProperties)
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/custom_metadata/values`.
+                        public var values: Operations.createCargoBuild.Input.Body.jsonPayload.custom_metadataPayload.valuesPayload?
+                        /// Creates a new `custom_metadataPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - tags:
+                        ///   - values:
+                        public init(
+                            tags: [Swift.String]? = nil,
+                            values: Operations.createCargoBuild.Input.Body.jsonPayload.custom_metadataPayload.valuesPayload? = nil
+                        ) {
+                            self.tags = tags
+                            self.values = values
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case tags
+                            case values
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/custom_metadata`.
+                    public var custom_metadata: Operations.createCargoBuild.Input.Body.jsonPayload.custom_metadataPayload?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/duration_ms`.
                     public var duration_ms: Swift.Int
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/POST/requestBody/json/git_branch`.
@@ -67350,6 +67718,7 @@ public enum Operations {
                     ///   - command:
                     ///   - compilations:
                     ///   - contract_version:
+                    ///   - custom_metadata:
                     ///   - duration_ms:
                     ///   - git_branch:
                     ///   - git_commit_sha:
@@ -67369,6 +67738,7 @@ public enum Operations {
                         command: Swift.String? = nil,
                         compilations: Operations.createCargoBuild.Input.Body.jsonPayload.compilationsPayload? = nil,
                         contract_version: Swift.String? = nil,
+                        custom_metadata: Operations.createCargoBuild.Input.Body.jsonPayload.custom_metadataPayload? = nil,
                         duration_ms: Swift.Int,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
@@ -67388,6 +67758,7 @@ public enum Operations {
                         self.command = command
                         self.compilations = compilations
                         self.contract_version = contract_version
+                        self.custom_metadata = custom_metadata
                         self.duration_ms = duration_ms
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
@@ -67408,6 +67779,7 @@ public enum Operations {
                         case command
                         case compilations
                         case contract_version
+                        case custom_metadata
                         case duration_ms
                         case git_branch
                         case git_commit_sha
@@ -86192,6 +86564,49 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/command`.
                         public var command: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
+                        public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/custom_metadata/tags`.
+                            public var tags: [Swift.String]?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public struct valuesPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: [String: Swift.String]
+                                /// Creates a new `valuesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: [String: Swift.String] = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public var values: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload?
+                            /// Creates a new `custom_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - tags:
+                            ///   - values:
+                            public init(
+                                tags: [Swift.String]? = nil,
+                                values: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload? = nil
+                            ) {
+                                self.tags = tags
+                                self.values = values
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case tags
+                                case values
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
+                        public var custom_metadata: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/duration_ms`.
                         public var duration_ms: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cargo/builds/{build_id}/GET/responses/200/content/json/git_branch`.
@@ -86229,6 +86644,7 @@ public enum Operations {
                         ///   - ci_provider:
                         ///   - ci_run_id:
                         ///   - command: The Cargo subcommand, for example build or check.
+                        ///   - custom_metadata:
                         ///   - duration_ms:
                         ///   - git_branch:
                         ///   - git_commit_sha:
@@ -86247,6 +86663,7 @@ public enum Operations {
                             ci_provider: Swift.String? = nil,
                             ci_run_id: Swift.String? = nil,
                             command: Swift.String? = nil,
+                            custom_metadata: Operations.getCargoBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
                             duration_ms: Swift.Int,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
@@ -86265,6 +86682,7 @@ public enum Operations {
                             self.ci_provider = ci_provider
                             self.ci_run_id = ci_run_id
                             self.command = command
+                            self.custom_metadata = custom_metadata
                             self.duration_ms = duration_ms
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
@@ -86284,6 +86702,7 @@ public enum Operations {
                             case ci_provider
                             case ci_run_id
                             case command
+                            case custom_metadata
                             case duration_ms
                             case git_branch
                             case git_commit_sha

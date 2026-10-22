@@ -304,35 +304,9 @@ defmodule TuistWeb.BazelInvocationLive do
               </div>
             </div>
             <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
-            <div
-              :if={map_size(@invocation.custom_values || %{}) > 0}
-              data-part="custom-metadata-section"
-            >
-              <span data-part="custom-metadata-label">
-                {dgettext("dashboard_builds", "Custom metadata")}
-              </span>
-              <.table
-                id="custom-metadata-table"
-                rows={Map.to_list(@invocation.custom_values)}
-                row_key={fn {key, _value} -> key end}
-              >
-                <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
-                  <.text_cell label={key} />
-                </:col>
-                <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
-                  <a
-                    :if={url?(value)}
-                    href={value}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-part="custom-metadata-link"
-                  >
-                    {value}
-                  </a>
-                  <.text_cell :if={not url?(value)} label={value} />
-                </:col>
-              </.table>
-            </div>
+            <TuistWeb.Components.BuildMetadata.build_metadata values={
+              @invocation.custom_values || %{}
+            } />
           </.card_section>
         </.card>
       </div>
@@ -1047,13 +1021,4 @@ defmodule TuistWeb.BazelInvocationLive do
       "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/#{assigns.bazel_detail_path}/#{assigns.invocation.invocation_id}"
 
   defp cache_path(socket, params), do: "#{detail_path(socket.assigns)}?#{URI.encode_query(params)}"
-
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and not is_nil(host) -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
 end

@@ -3,6 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
+- `BuildMetadata.build_metadata/1` shares infrastructure/custom-value rendering across build details. Recognition controls display only: render every map entry once, keep unknown/invalid observations raw, escape values and never imply verified runner identity. Semantics and rollout: `server/docs/build-metadata.md`.
 - The project sidebar accepts `previews_available` from the authorized layout.
   Keep Xcode/Gradle's default Previews entry; other build systems gain it after
   their first preview upload without database queries during component rendering.

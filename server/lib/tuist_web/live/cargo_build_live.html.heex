@@ -104,6 +104,7 @@
           </div>
         </div>
       </div>
+      <TuistWeb.Components.BuildMetadata.build_metadata values={@build.custom_values || %{}} />
     </.card_section>
   </.card>
   <div :if={@selected_tab == "cache" && @cache_metrics} data-part="cache">

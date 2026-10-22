@@ -97,7 +97,7 @@ defmodule TuistWeb.API.GradleController do
                values: %Schema{
                  type: :object,
                  additionalProperties: %Schema{type: :string, maxLength: 500},
-                 maxProperties: 20,
+                 maxProperties: 64,
                  description: "Key-value pairs for structured build data."
                }
              }

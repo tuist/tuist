@@ -342,32 +342,7 @@
             </div>
           </div>
           <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
-          <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
-            <span data-part="custom-metadata-label">
-              {dgettext("dashboard_builds", "Custom metadata")}
-            </span>
-            <.table
-              id="custom-metadata-table"
-              rows={Map.to_list(@run.custom_values)}
-              row_key={fn {key, _value} -> key end}
-            >
-              <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
-                <.text_cell label={key} />
-              </:col>
-              <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
-                <a
-                  :if={url?(value)}
-                  href={value}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-part="custom-metadata-link"
-                >
-                  {value}
-                </a>
-                <.text_cell :if={not url?(value)} label={value} />
-              </:col>
-            </.table>
-          </div>
+          <TuistWeb.Components.BuildMetadata.build_metadata values={@run.custom_values || %{}} />
         </.card_section>
       </.card>
       <.ci_context_card

@@ -1,5 +1,7 @@
 # Cargo insights
 
+`cargo_builds.custom_tags` and `custom_values` hold the shared optional custom metadata, validated through `Tuist.Builds.Build`. Keep the ClickHouse migration, REST/query serialization and MCP schemas aligned. Unknown keys remain ordinary strings; old records default to empty containers. Apply migrations and complete the receiver rollout before expanded discovery is advertised; older Cargo endpoints reject the new field. See `server/docs/build-metadata.md`.
+
 The Tuist CLI decorates Cargo. Builds and compiler invocations are retained for 90 days in ClickHouse; tests use shared test ingestion with `build_system: cargo`.
 
 - A compilation is a rustc invocation. Never describe its duration as per-source-file timing, Cargo scheduling time, or cache-hit time.

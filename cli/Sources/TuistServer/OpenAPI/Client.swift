@@ -388,6 +388,66 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Discover the supported custom metadata budget without sending credentials or build data.
+    ///
+    /// - Remark: HTTP `GET /api/metadata/limits`.
+    /// - Remark: Generated from `#/paths//api/metadata/limits/get(getCustomMetadataLimits)`.
+    public func getCustomMetadataLimits(_ input: Operations.getCustomMetadataLimits.Input) async throws -> Operations.getCustomMetadataLimits.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.getCustomMetadataLimits.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/metadata/limits",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCustomMetadataLimits.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.getCustomMetadataLimits.Output.Ok.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Get account or volume storage, activity and trends for a time range.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/analytics`.

@@ -160,7 +160,7 @@ components:
                 type: string
                 x-struct:
                 x-validate:
-              maxProperties: 20
+              maxProperties: 64
               type: object
               x-struct:
               x-validate:
@@ -5978,6 +5978,27 @@ components:
           type: string
           x-struct:
           x-validate:
+        custom_metadata:
+          properties:
+            tags:
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            values:
+              additionalProperties:
+                type: string
+                x-struct:
+                x-validate:
+              type: object
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
         duration_ms:
           type: integer
           x-struct:
@@ -11582,6 +11603,27 @@ components:
           type: string
           x-struct:
           x-validate:
+        custom_metadata:
+          properties:
+            tags:
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            values:
+              additionalProperties:
+                type: string
+                x-struct:
+                x-validate:
+              type: object
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
         duration_ms:
           type: integer
           x-struct:
@@ -12234,6 +12276,27 @@ components:
                 description: The Cargo subcommand, for example build or check.
                 nullable: true
                 type: string
+                x-struct:
+                x-validate:
+              custom_metadata:
+                properties:
+                  tags:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  values:
+                    additionalProperties:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                type: object
                 x-struct:
                 x-validate:
               duration_ms:
@@ -14414,6 +14477,29 @@ paths:
       summary: Create a test case run attachment and get a presigned upload URL.
       tags:
         - Tests
+  /api/metadata/limits:
+    get:
+      callbacks: {}
+      operationId: getCustomMetadataLimits
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  max_values:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - max_values
+                type: object
+                x-struct:
+                x-validate:
+          description: Metadata limits
+      summary: Discover the supported custom metadata budget without sending credentials or build data.
+      tags: []
   /api/accounts/{account_handle}/runners/volumes/analytics:
     get:
       callbacks: {}
@@ -17183,7 +17269,7 @@ paths:
                         type: string
                         x-struct:
                         x-validate:
-                      maxProperties: 20
+                      maxProperties: 64
                       type: object
                       x-struct:
                       x-validate:
@@ -24140,7 +24226,7 @@ paths:
                         type: string
                         x-struct:
                         x-validate:
-                      maxProperties: 20
+                      maxProperties: 64
                       type: object
                       x-struct:
                       x-validate:
@@ -28837,6 +28923,27 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        custom_metadata:
+                          properties:
+                            tags:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            values:
+                              additionalProperties:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: object
+                              x-struct:
+                              x-validate:
+                          type: object
+                          x-struct:
+                          x-validate:
                         duration_ms:
                           type: integer
                           x-struct:
@@ -29354,6 +29461,31 @@ paths:
                 contract_version:
                   maxLength: 4096
                   type: string
+                  x-struct:
+                  x-validate:
+                custom_metadata:
+                  properties:
+                    tags:
+                      items:
+                        maxLength: 50
+                        type: string
+                        x-struct:
+                        x-validate:
+                      maxItems: 50
+                      type: array
+                      x-struct:
+                      x-validate:
+                    values:
+                      additionalProperties:
+                        maxLength: 500
+                        type: string
+                        x-struct:
+                        x-validate:
+                      maxProperties: 64
+                      type: object
+                      x-struct:
+                      x-validate:
+                  type: object
                   x-struct:
                   x-validate:
                 duration_ms:
@@ -35914,6 +36046,27 @@ paths:
                     description: The Cargo subcommand, for example build or check.
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  custom_metadata:
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    type: object
                     x-struct:
                     x-validate:
                   duration_ms:
@@ -46738,7 +46891,7 @@ paths:
                         x-struct:
                         x-validate:
                       description: Key-value pairs for structured build data.
-                      maxProperties: 20
+                      maxProperties: 64
                       type: object
                       x-struct:
                       x-validate:

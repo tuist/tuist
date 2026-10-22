@@ -3,6 +3,7 @@
 This directory contains frontend assets for the Phoenix app (LiveView, marketing, apidocs).
 
 ## Responsibilities
+- Build-detail infrastructure and custom metadata tables share the existing metadata typography, link treatment and 35% property column across Xcode, Gradle, Bazel, Mix and Cargo. Keep `#build-environment-table` and `#custom-metadata-table` aligned in page styles.
 
 - `app/css/pages/auth.css` includes the shared integration organization chooser, reusing login's logo, dots, gradients and frame. Organization rows use Noora avatars, keyboard focus states, wrapping labels and a bounded scrolling list with inset padding to preserve row borders and shadows, with a Cancel action below. Keep both provider flows visually identical and support light/dark themes and narrow viewports.
 

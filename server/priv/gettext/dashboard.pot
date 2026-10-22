@@ -3122,14 +3122,14 @@ msgid "Local"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:224
-#: lib/tuist_web/live/toolchain_cache_live.ex:190
+#: lib/tuist_web/live/toolchain_cache_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "Mix Cache"
 msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.ex:278
 #: lib/tuist_web/live/mix_build_live.ex:319
-#: lib/tuist_web/live/toolchain_cache_live.ex:221
+#: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr ""
@@ -3152,7 +3152,7 @@ msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.ex:337
 #: lib/tuist_web/live/mix_build_live.ex:342
-#: lib/tuist_web/live/toolchain_cache_live.ex:378
+#: lib/tuist_web/live/toolchain_cache_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Not cached"
 msgstr ""
@@ -3162,7 +3162,7 @@ msgstr ""
 msgid "Previous"
 msgstr ""
 
-#: lib/tuist_web/live/toolchain_cache_live.ex:205
+#: lib/tuist_web/live/toolchain_cache_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Average and percentiles of individual build cache hit rates. Work without a cache lookup is excluded."
 msgstr ""
@@ -3187,7 +3187,7 @@ msgstr ""
 msgid "Successful client CAS transfer or local fallback copy time. Local operations include verification and installation; remote transfers exclude local installation. Task rows identify the source. Excludes cache-key latency and compilation."
 msgstr ""
 
-#: lib/tuist_web/live/toolchain_cache_live.ex:191
+#: lib/tuist_web/live/toolchain_cache_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS transfers and local fallback copies, with provenance on each build's task rows. Remote timings measure transfers; local timings include verification and installation. Throughput is bytes divided by operation time. Compilation and linked resources are excluded. CAS Outputs separately shows only Kura-reported remote transfers."
 msgstr ""
