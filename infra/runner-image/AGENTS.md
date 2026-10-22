@@ -464,9 +464,11 @@ CI:
   5. `announce` writes each profile's standalone and stacked digest into
      the `tuist-upcoming-runner-images` ConfigMap of canary and
      production, so their macOS hosts pull the images their pools move
-     to before the deploy moves them (see "stages" in
-     `infra/tart-kubelet/AGENTS.md`). A failure there does not hold the
-     deploy.
+     to, and waits until they hold them (see "stages" in
+     `infra/tart-kubelet/AGENTS.md`). Every deploy holds a pool on its
+     current image until then, for up to an hour; dispatch the release
+     with `skip_staging` to move the pools at once. A failure in
+     `announce` does not hold the deploy.
   6. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
