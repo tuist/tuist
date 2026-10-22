@@ -126,6 +126,7 @@ final class AtlasBusinessUITests: XCTestCase {
         let all = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "31 items")).firstMatch
         XCTAssertTrue(all.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(all.frame.minY, app.navigationBars.firstMatch.frame.maxY)
+        XCTAssertTrue(app.staticTexts["Tuist"].isHittable)
         capture(app, "ios-accounts-filters-reset")
     }
 

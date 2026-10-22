@@ -13,17 +13,19 @@ struct AtlasBusinessView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
+            // Bottom-aligning the first count header clamps the list to its natural start, clear of navigation.
+            let anchor: UnitPoint = model.resource == .invoices ? .top : .bottom
             list.onChange(of: model.page?.page) { _, page in
                 if page == 1 {
-                    if hasLoaded { proxy.scrollTo("business-start", anchor: .top) }
+                    if hasLoaded { proxy.scrollTo("business-start", anchor: anchor) }
                     hasLoaded = true
                 }
             }
             .onChange(of: model.filters) { _, _ in
-                if hasLoaded, model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
+                if hasLoaded, model.page?.page == 1 { proxy.scrollTo("business-start", anchor: anchor) }
             }
             .onChange(of: model.query) { _, _ in
-                if hasLoaded, model.page?.page == 1 { proxy.scrollTo("business-start", anchor: .top) }
+                if hasLoaded, model.page?.page == 1 { proxy.scrollTo("business-start", anchor: anchor) }
             }
         }
     }
