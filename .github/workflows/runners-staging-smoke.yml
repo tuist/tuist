@@ -64,6 +64,19 @@ on:
         description: GB of incompressible data the seed writes across the volume's paths (more than 20 proves the larger size)
         type: string
         default: "0"
+      managed_cache_sizes:
+        description: Attach the managed Xcode and module caches with this branch's actions and tuist-runner-cache
+        type: boolean
+        default: false
+      managed_cache_size:
+        description: Size for both managed caches, from 1gb to 100gb; empty keeps their current size
+        type: string
+        default: ""
+      managed_cache_phase:
+        description: "seed: write a sentinel into both caches; verify: the sentinels survived (and change both caches so they are saved)"
+        type: choice
+        options: [seed, verify]
+        default: seed
       vm_isolation:
         description: Probe, from inside a staging runner VM, that the host, its networks and link-local are unreachable while the internet and the cache carve-outs work
         type: boolean
@@ -116,7 +129,7 @@ permissions: {}
 jobs:
   smoke:
     # The cache volume sizes smoke needs the environment's few macOS slots.
-    if: github.repository == 'tuist/tuist' && !inputs.cache_volume_sizes
+    if: github.repository == 'tuist/tuist' && !inputs.cache_volume_sizes && !inputs.managed_cache_sizes
     # Single-label form. `tuist-staging-macos` is the pool's unique
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the
@@ -331,6 +344,78 @@ jobs:
         # smoke independent of the image; its own teardown then finds nothing.
         if: runner.os == 'macOS'
         run: tuist-cache-volume --detach-all
+
+  # The managed Xcode and module caches at a requested size, with this branch's
+  # actions and tuist-runner-cache (ahead of the image's on PATH). The server
+  # must run the matching branch. Each cache's limit must follow the capacity
+  # its volume attached at, and so must the teardown prune, which reads the
+  # limit back from the xcconfig. Seed, then verify with a larger size to check
+  # growth keeps the contents, then verify without a size to check it never
+  # shrinks.
+  managed-cache-sizes:
+    if: github.repository == 'tuist/tuist' && inputs.managed_cache_sizes
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      PHASE: ${{ inputs.managed_cache_phase }}
+      SIZE: ${{ inputs.managed_cache_size }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put this branch's tuist-runner-cache first on PATH
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          install -m 0755 infra/runner-image/tuist-runner-cache "$RUNNER_TEMP/bin/tuist-runner-cache"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/xcode-cache
+        with:
+          size: ${{ inputs.managed_cache_size }}
+      - uses: ./.github/actions/module-cache
+        with:
+          size: ${{ inputs.managed_cache_size }}
+      - name: Verify capacities, limits and retained contents
+        run: |
+          set -euo pipefail
+          test "$(command -v tuist-runner-cache)" = "$RUNNER_TEMP/bin/tuist-runner-cache"
+          capacity() { echo $(( $(df -Pk "$1/" | awk 'NR == 2 { print $2 }') * 1024 )); }
+          expected_limit() { awk -v c="$1" 'BEGIN { r = c / 5; if (r < 2e9) r = 2e9; if (r > c / 2) r = c / 2; printf "%.0f", c - r }'; }
+          eval "$(awk '/^managed_xcode_cache_limit\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' infra/runner-image/dispatch-poll.sh)"
+          xcode=$(capacity "$TUIST_COMPILATION_CACHE_CAS_PATH")
+          module=$(capacity "$TUIST_XDG_CACHE_HOME")
+          xcode_limit=$(sed -n 's/^COMPILATION_CACHE_LIMIT_SIZE = //p' "$XCODE_XCCONFIG_FILE" | head -n 1)
+          teardown_limit=$(MANAGED_XCCONFIG="$XCODE_XCCONFIG_FILE" MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000 managed_xcode_cache_limit)
+          {
+            echo "### Managed cache sizes: $PHASE, requested ${SIZE:-nothing}"
+            echo "- Xcode cache: filesystem $((xcode / 1000000)) MB, xcconfig limit $xcode_limit, teardown prune limit $teardown_limit"
+            echo "- Module cache: filesystem $((module / 1000000)) MB, TUIST_CACHE_MAX_BYTES $TUIST_CACHE_MAX_BYTES"
+          } >> "$GITHUB_STEP_SUMMARY"
+          test "$xcode_limit" = "$(expected_limit "$xcode")"
+          test "$teardown_limit" = "$xcode_limit"
+          test "$TUIST_CACHE_MAX_BYTES" = "$(expected_limit "$module")"
+          if [ -n "$SIZE" ]; then
+            requested=$(( ${SIZE%[gG][bB]} * 1000000000 ))
+            for bytes in "$xcode" "$module"; do
+              if [ "$bytes" -lt $(( requested * 9 / 10 )) ]; then
+                echo "::error::a cache holds $bytes bytes for a $SIZE request; is the server on this branch?"
+                exit 1
+              fi
+            done
+          fi
+          case "$PHASE" in
+            seed)
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_COMPILATION_CACHE_CAS_PATH/sizes-smoke-sentinel"
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_XDG_CACHE_HOME/sizes-smoke-sentinel"
+              ;;
+            verify)
+              echo "- Sentinels from run $(cat "$TUIST_COMPILATION_CACHE_CAS_PATH/sizes-smoke-sentinel") and $(cat "$TUIST_XDG_CACHE_HOME/sizes-smoke-sentinel")" >> "$GITHUB_STEP_SUMMARY"
+              # An unchanged volume is never saved, so a grown one would not keep its size.
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_COMPILATION_CACHE_CAS_PATH/sizes-smoke-verified"
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_XDG_CACHE_HOME/sizes-smoke-verified"
+              ;;
+          esac
+          sync
 
   # A runner VM runs customer code, so it must reach the internet and its
   # cache carve-outs and nothing else: not the host's own listeners on any of

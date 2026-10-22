@@ -42,7 +42,7 @@ defmodule Tuist.Runners.CacheVolumes do
   @cold_publish_margin_bytes 1_000_000_000
 
   @volume_bytes 20_000_000_000
-  # Tuist sizes its managed volumes and ignores requested sizes for them.
+  # The capacity Tuist's managed volumes start at when no size is requested.
   @managed_volume_bytes %{"tuist-xcode" => 30_000_000_000, "tuist-module" => 20_000_000_000}
   # The largest volume a host that does not advertise its maximum accepts.
   @legacy_max_volume_bytes 32_000_000_000
@@ -344,18 +344,14 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   defp allocation_volume_bytes(%{key: key, head_id: nil}, _saved_head, requested),
-    do: Map.get(@managed_volume_bytes, key) || requested || @volume_bytes
+    do: requested || default_volume_bytes(key)
 
   defp allocation_volume_bytes(%{key: key}, saved_head, requested),
-    do: Map.get(@managed_volume_bytes, key) || max(saved_volume_bytes(key, saved_head), requested || 0)
+    do: max(saved_volume_bytes(key, saved_head), requested || 0)
 
-  # Managed volumes size themselves.
   defp requested_volume_bytes(attrs) do
     requested = Map.get(attrs, :requested_volume_bytes)
-
-    if Map.has_key?(@managed_volume_bytes, attrs.key) or not valid_requested_volume_bytes?(requested),
-      do: nil,
-      else: requested
+    if valid_requested_volume_bytes?(requested), do: requested
   end
 
   # Only a use that may publish records its request, so pull requests leave the
@@ -771,7 +767,7 @@ defmodule Tuist.Runners.CacheVolumes do
   it have the key's default.
   """
   def volume_bytes(%Volume{head_id: nil, key: key} = volume, _head_volume_bytes),
-    do: Map.get(@managed_volume_bytes, key) || volume.requested_volume_bytes || @volume_bytes
+    do: volume.requested_volume_bytes || default_volume_bytes(key)
 
   def volume_bytes(%Volume{key: key}, head_volume_bytes), do: saved_volume_bytes(key, %{volume_bytes: head_volume_bytes})
 
@@ -790,8 +786,7 @@ defmodule Tuist.Runners.CacheVolumes do
   def next_volume_bytes(%Volume{} = volume, head_volume_bytes),
     do: max(volume_bytes(volume, head_volume_bytes), volume.requested_volume_bytes || 0)
 
-  defp saved_volume_bytes(key, saved_head),
-    do: Map.get(@managed_volume_bytes, key) || (saved_head && saved_head.volume_bytes) || @volume_bytes
+  defp saved_volume_bytes(key, saved_head), do: (saved_head && saved_head.volume_bytes) || default_volume_bytes(key)
 
   @doc """
   The custom volumes that jobs of `repository` attached since `since`, keyed by
