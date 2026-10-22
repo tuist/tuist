@@ -7224,10 +7224,16 @@ final class TestServiceTests: TuistUnitTestCase {
                 .prepare(platform: .any, config: .any)
                 .willReturn(session)
             given(testCoverageEvidenceService)
-                .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any)
+                .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any, reports: .any)
                 .willReturn(nil)
             given(coverageExportService)
-                .export(resultBundlePath: .any, derivedDataDirectory: .any, config: .any, runStartedAt: .any)
+                .export(
+                    resultBundlePath: .any,
+                    derivedDataDirectory: .any,
+                    config: .any,
+                    runStartedAt: .any,
+                    keepingReports: .any
+                )
                 .willReturn(nil)
             subject = subjectCollectingCoverage(
                 testCoverageEvidenceService: testCoverageEvidenceService,
@@ -7265,7 +7271,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 .record(
                     session: .value(session),
                     resultBundlePath: .value(resultBundlePath),
-                    derivedDataDirectory: .value(derivedDataPath)
+                    derivedDataDirectory: .value(derivedDataPath),
+                    reports: .any
                 )
                 .called(1)
             verify(coverageExportService)
@@ -7273,7 +7280,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     resultBundlePath: .value(resultBundlePath),
                     derivedDataDirectory: .value(derivedDataPath),
                     config: .any,
-                    runStartedAt: .any
+                    runStartedAt: .any,
+                    keepingReports: .value(true)
                 )
                 .called(1)
         }
@@ -7318,7 +7326,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 .record(
                     session: .value(session),
                     resultBundlePath: .value(resultBundlePath),
-                    derivedDataDirectory: .value(derivedDataPath)
+                    derivedDataDirectory: .value(derivedDataPath),
+                    reports: .any
                 )
                 .called(1)
             verify(coverageExportService)
@@ -7326,7 +7335,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     resultBundlePath: .value(resultBundlePath),
                     derivedDataDirectory: .value(derivedDataPath),
                     config: .any,
-                    runStartedAt: .any
+                    runStartedAt: .any,
+                    keepingReports: .value(true)
                 )
                 .called(1)
             XCTAssertEqual(arguments.value.filter { $0 == "-derivedDataPath" }.count, 1)
@@ -7511,10 +7521,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .prepare(platform: .any, config: .any)
             .willReturn(TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:]))
         given(testCoverageEvidenceService)
-            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any)
+            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any, reports: .any)
             .willReturn(nil)
         given(coverageExportService)
-            .export(resultBundlePath: .any, derivedDataDirectory: .any, config: .any, runStartedAt: .any)
+            .export(resultBundlePath: .any, derivedDataDirectory: .any, config: .any, runStartedAt: .any, keepingReports: .any)
             .willReturn(nil)
         subject = subjectCollectingCoverage(
             testCoverageEvidenceService: testCoverageEvidenceService,
@@ -7552,14 +7562,15 @@ final class TestServiceTests: TuistUnitTestCase {
         let passedDerivedDataPath = arguments.firstIndex(of: "-derivedDataPath").map { arguments[$0 + 1] }
         XCTAssertEqual(passedDerivedDataPath, derivedDataPath?.pathString, file: file, line: line)
         verify(testCoverageEvidenceService)
-            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .value(derivedDataPath))
+            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .value(derivedDataPath), reports: .any)
             .called(1)
         verify(coverageExportService)
             .export(
                 resultBundlePath: .any,
                 derivedDataDirectory: .value(derivedDataPath),
                 config: .any,
-                runStartedAt: .any
+                runStartedAt: .any,
+                keepingReports: .value(true)
             )
             .called(1)
         if let derivedDataPath {
