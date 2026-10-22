@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -404,10 +403,7 @@ func (b *APFSImages) Seal(slot Slot, path string) (err error) {
 		return ErrFull
 	}
 	if !usage.Changed {
-		// A branch cloned from an older generation holds that generation's content.
-		if b.MountedGeneration(slot) == 0 {
-			b.keepUnchanged(slot, func() error { return b.verifyHolds(image, usage) })
-		}
+		b.keepUnchanged(slot, func() error { return b.verifyHolds(image, usage) })
 		return ErrUnchanged
 	}
 	if _, err := os.Stat(image + ".checking"); err == nil {
@@ -489,20 +485,6 @@ func (b *APFSImages) Delete(slot Slot, path string) error {
 }
 func (b *APFSImages) Keep(slot Slot, path string) error { return b.Delete(slot, path) }
 
-// MountedGeneration is the older generation a branch was cloned from when its
-// own base was not on this host, or 0 when it was cloned from its base.
-func (b *APFSImages) MountedGeneration(slot Slot) int64 {
-	data, err := os.ReadFile(b.image(slot) + ".base")
-	if err != nil {
-		return 0
-	}
-	generation, err := strconv.ParseInt(string(data), 10, 64)
-	if err != nil || generation <= 0 || generation >= slot.BaseGeneration {
-		return 0
-	}
-	return generation
-}
-
 // PrefetchReservation is the Reserve slot ID a prefetch holds while it downloads.
 const PrefetchReservation = "prefetch"
 
@@ -543,46 +525,4 @@ func (b *APFSImages) prefetchWith(ctx context.Context, slot Slot, spare bool) er
 		defer finish(false)
 	}
 	return b.prefetch(ctx, slot, spare)
-}
-
-var errNoLocalCopy = errors.New("no local copy of the lineage")
-
-// cloneLocal clones the slot's base master, or the newest older master of the
-// same lineage, into tmp. The caller holds the scope lock; nothing here touches
-// the network.
-func (b *APFSImages) cloneLocal(ctx context.Context, slot Slot, image, tmp string, source *string) error {
-	master := b.master(slot)
-	mounted := slot.BaseGeneration
-	if _, err := os.Stat(master); os.IsNotExist(err) {
-		older, generation := b.olderMaster(slot)
-		if older == "" {
-			return errNoLocalCopy
-		}
-		*source, master, mounted = "older", older, generation
-	} else if err != nil {
-		return err
-	}
-	if *source == "unknown" {
-		*source = "local"
-	}
-	if err := b.operation(slot, "clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
-		return err
-	}
-	if mounted != slot.BaseGeneration {
-		if err := os.WriteFile(image+".base", []byte(strconv.FormatInt(mounted, 10)), 0600); err != nil {
-			return err
-		}
-	}
-	markUsed(master)
-	return nil
-}
-
-// Cold reports whether a warm identity's branch started empty because no copy
-// of its lineage was on this host.
-func (b *APFSImages) Cold(slot Slot) bool {
-	if slot.BaseGeneration <= 0 {
-		return false
-	}
-	_, err := os.Stat(b.image(slot) + ".cold")
-	return err == nil
 }

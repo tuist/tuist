@@ -88,6 +88,7 @@ type LocalImages struct {
 	// (Store.InUse). Pressure eviction takes those lineages' masters last.
 	InUse     func(scope string) bool
 	refresh   refresher
+	fetching  sync.Map
 	locks     sync.Map
 	admission contextMutex
 }
@@ -526,7 +527,9 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	}
 	start := time.Now()
 	defer func() {
-		b.Observe.For(slot).Report("attach", source, start, err)
+		observed := slot
+		observed.MountedGeneration = b.MountedGeneration(slot)
+		b.Observe.For(observed).Report("attach", source, start, err)
 	}()
 	ctx = WithSubject(ctx, SubjectOf(slot))
 	image := b.image(slot)
@@ -544,6 +547,9 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 		}
 		tmp := image + ".tmp"
 		_ = os.Remove(tmp)
+		_ = os.Remove(image + ".base")
+		_ = os.Remove(image + ".cold")
+		cold := false
 		if slot.BaseGeneration > 0 {
 			if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(slot.ContentDigest) {
 				return errors.New("invalid master digest")
@@ -554,23 +560,20 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 			if lockErr != nil {
 				return lockErr
 			}
-			master := b.master(slot)
-			if _, err = os.Stat(master); os.IsNotExist(err) {
-				source = "remote"
-				err = b.restoreMaster(ctx, slot, master)
-			}
-			if err == nil {
-				if source == "unknown" {
-					source = "local"
-				}
-				err = b.operation(slot, "clone", "local", func() error { return b.cloneContext(ctx, master, tmp) })
-				markUsed(master)
-			}
+			err = b.cloneLocal(ctx, slot, image, tmp, &source)
 			unlock()
-			if err == nil {
+			if errors.Is(err, errNoLocalCopy) {
+				// A job never waits for a download: it starts empty, the HEAD is fetched
+				// in the background, and this branch is withheld from publication unless
+				// the server lets it replace the saved version.
+				source, cold, err = "cold", true, os.WriteFile(image+".cold", nil, 0600)
+			} else if err == nil {
 				b.growClone(slot, tmp)
 			}
-		} else if slot.Kind == KindCheckout {
+		}
+		switch {
+		case err != nil, slot.BaseGeneration > 0 && !cold:
+		case slot.Kind == KindCheckout:
 			// Never fall back to an empty image: the guest mounts it over its workspace.
 			if b.Seed == nil {
 				err = errors.New("checkout seeding unavailable")
@@ -578,7 +581,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				source = "local"
 				err = b.operation(slot, "clone", "local", func() error { return b.Seed(ctx, slot, tmp) })
 			}
-		} else {
+		default:
 			var f *os.File
 			f, err = os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 			if err == nil {
@@ -728,6 +731,9 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	done := b.Observe.For(slot).Start("publish", "none")
 	defer func() { done(err) }()
+	if b.Cold(slot) && !slot.PublishCold {
+		return ErrWithheld
+	}
 	// A verified branch is already detached and passed these checks; verify
 	// rejects one whose verification was interrupted.
 	_, verified := os.Stat(b.image(slot) + ".verified")
@@ -802,9 +808,10 @@ func (b *LocalImages) installBranch(slot Slot) error {
 // base generation when this host no longer holds that master, as when admission
 // evicted it while the job ran. The branch is a clone of that master, so the
 // lineage stays warm here without a download. Only a job that may publish seals
-// a branch, and verify checks it as publication would.
+// a branch, and verify checks it as publication would. A branch cloned from an
+// older generation, or started empty, never holds its base's content.
 func (b *LocalImages) keepUnchanged(slot Slot, verify func() error) {
-	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) || b.HasMaster(slot.Identity) {
+	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) || b.HasMaster(slot.Identity) || b.MountedGeneration(slot) != 0 || b.Cold(slot) {
 		return
 	}
 	_ = b.operation(slot, "keep", "unchanged", func() error {
@@ -869,7 +876,7 @@ func (b *LocalImages) Delete(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified", ".entries"} {
+	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".verified", ".entries", ".base", ".cold"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -890,7 +897,7 @@ func (b *LocalImages) Keep(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".verified", ".entries"} {
+	for _, suffix := range []string{"", ".verified", ".entries", ".base", ".cold"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -1034,6 +1041,67 @@ func (b *LocalImages) olderMaster(slot Slot) (string, int64) {
 	return best, newest
 }
 
+var errNoLocalCopy = errors.New("no local copy of the lineage")
+
+// cloneLocal clones the slot's base master, or the newest older master of the
+// same lineage, into tmp. The caller holds the scope lock; nothing here touches
+// the network.
+func (b *LocalImages) cloneLocal(ctx context.Context, slot Slot, image, tmp string, source *string) error {
+	master := b.master(slot)
+	mounted := slot.BaseGeneration
+	if _, err := os.Stat(master); os.IsNotExist(err) {
+		older, generation := b.olderMaster(slot)
+		if older == "" {
+			return errNoLocalCopy
+		}
+		*source, master, mounted = "older", older, generation
+	} else if err != nil {
+		return err
+	}
+	if *source == "unknown" {
+		*source = "local"
+	}
+	if err := b.operation(slot, "clone", "local", func() error { return b.cloneContext(ctx, master, tmp) }); err != nil {
+		return err
+	}
+	if mounted != slot.BaseGeneration {
+		// Durable before the branch exists: a branch that lost it would pass for a
+		// clone of its base.
+		if err := os.WriteFile(image+".base", []byte(strconv.FormatInt(mounted, 10)), 0600); err != nil {
+			return err
+		}
+		if err := syncFile(image + ".base"); err != nil {
+			return err
+		}
+	}
+	markUsed(master)
+	return nil
+}
+
+// MountedGeneration is the older generation a branch was cloned from when its
+// own base was not on this host, or 0 when it was cloned from its base.
+func (b *LocalImages) MountedGeneration(slot Slot) int64 {
+	data, err := os.ReadFile(b.image(slot) + ".base")
+	if err != nil {
+		return 0
+	}
+	generation, err := strconv.ParseInt(string(data), 10, 64)
+	if err != nil || generation <= 0 || generation >= slot.BaseGeneration {
+		return 0
+	}
+	return generation
+}
+
+// Cold reports whether a warm identity's branch started empty because no copy
+// of its lineage was on this host.
+func (b *LocalImages) Cold(slot Slot) bool {
+	if slot.BaseGeneration <= 0 {
+		return false
+	}
+	_, err := os.Stat(b.image(slot) + ".cold")
+	return err == nil
+}
+
 // HasMaster reports whether the immutable master a warm identity clones from is
 // already on this host.
 func (b *LocalImages) HasMaster(identity Identity) bool {
@@ -1057,11 +1125,24 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 	return b.prefetch(ctx, slot, false)
 }
 
-// prefetch downloads into staging without the scope lock, so jobs and maintenance
-// keep using the lineage's local masters while it runs, then installs under it.
-// A spare prefetch of a lineage without a used copy here installs a speculative
-// master, which pressure eviction takes before the masters jobs used.
+// prefetch restores the slot's master in the background. A spare prefetch of a
+// lineage without a used copy here installs a speculative master, which pressure
+// eviction takes before the masters jobs used.
 func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error {
+	return b.fetchMaster(ctx, slot, func(master, older string) error {
+		if spare && (older == "" || speculative(older)) {
+			_ = os.WriteFile(master+".spare", nil, 0600)
+		}
+		return nil
+	})
+}
+
+// fetchMaster downloads the slot's master into staging without the scope lock,
+// so jobs and maintenance keep using the lineage's local masters while it runs,
+// then installs it under the lock and calls installed there with the newest
+// older master. A master already local, or one another fetch is downloading,
+// is left to that copy.
+func (b *LocalImages) fetchMaster(ctx context.Context, slot Slot, installed func(master, older string) error) error {
 	master := b.master(slot)
 	if _, err := os.Stat(master); err == nil {
 		return nil
@@ -1075,6 +1156,10 @@ func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error
 	// One name per saved version, so the next attempt resumes the archive an
 	// interrupted one left beside it. Maintenance removes it once abandoned.
 	download := filepath.Join(staging, fmt.Sprintf("%s-%d-%s.img", slot.Scope, slot.BaseGeneration, slot.ContentDigest))
+	if _, busy := b.fetching.LoadOrStore(download, struct{}{}); busy {
+		return nil
+	}
+	defer b.fetching.Delete(download)
 	_ = os.Remove(download)
 	defer os.Remove(download)
 	if err := b.operation(slot, "restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
@@ -1098,28 +1183,7 @@ func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error
 	if err = b.recordMaster(slot, master); err != nil {
 		return err
 	}
-	if spare && (older == "" || speculative(older)) {
-		_ = os.WriteFile(master+".spare", nil, 0600)
-	}
-	return nil
-}
-func (b *LocalImages) restoreMaster(ctx context.Context, slot Slot, master string) error {
-	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
-		return err
-	}
-	download := master + ".tmp"
-	_ = os.Remove(download)
-	defer os.Remove(download)
-	if err := b.operation(slot, "restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if err := durableRename(download, master); err != nil {
-		return err
-	}
-	return b.recordMaster(slot, master)
+	return installed(master, older)
 }
 
 // removeStaleStaging deletes downloads a crash left in staging. A live download
