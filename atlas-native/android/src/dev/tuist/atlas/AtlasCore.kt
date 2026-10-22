@@ -4,6 +4,7 @@ data class AtlasSection(
     val title: String,
     val description: String,
     val url: String,
+    val kind: String,
 )
 
 class AtlasCore {
@@ -22,7 +23,7 @@ class AtlasCore {
 
     fun sections(): List<AtlasSection> =
         List(sectionCount()) { section ->
-            AtlasSection(readField(section, 0), readField(section, 1), readField(section, 2))
+            AtlasSection(readField(section, 0), readField(section, 1), readField(section, 2), readField(section, 3))
         }
 
     private fun readField(

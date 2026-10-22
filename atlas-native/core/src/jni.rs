@@ -43,7 +43,7 @@ mod tests {
         let count = Java_dev_tuist_atlas_AtlasCore_sectionCount(environment, instance);
         assert_eq!(count, atlas_section_count());
         for section in 0..count {
-            for field_id in 0..3 {
+            for field_id in 0..4 {
                 let length = Java_dev_tuist_atlas_AtlasCore_fieldLength(
                     environment,
                     instance,
@@ -80,7 +80,7 @@ mod tests {
             -1
         );
         assert_eq!(
-            Java_dev_tuist_atlas_AtlasCore_fieldByte(environment, instance, 0, 3, 0),
+            Java_dev_tuist_atlas_AtlasCore_fieldByte(environment, instance, 0, 4, 0),
             -1
         );
     }

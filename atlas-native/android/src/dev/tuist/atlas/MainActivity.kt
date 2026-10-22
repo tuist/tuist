@@ -17,11 +17,12 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var authentication: AtlasAuthentication
+    private val authenticationListener: () -> Unit = { render() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = getString(R.string.app_name)
-        authentication = (lastNonConfigurationInstance as? AtlasAuthentication) ?: AtlasAuthentication(this)
+        authentication = (application as AtlasApplication).authentication
         if (savedInstanceState == null && intent.data == null) authentication.restore()
         if (savedInstanceState == null) handleCallback(intent)
     }
@@ -30,17 +31,16 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
-        authentication.listener = { render() }
+        authentication.listener = authenticationListener
         render()
     }
 
     override fun onStop() {
-        authentication.listener = null
+        if (authentication.listener === authenticationListener) authentication.listener = null
         super.onStop()
     }
 
     override fun onDestroy() {
-        if (!isChangingConfigurations) authentication.close()
         super.onDestroy()
     }
 
@@ -104,6 +104,10 @@ class MainActivity : Activity() {
             content.addView(TextView(this).apply { text = Uri.parse(server).host })
             AtlasCore().sections().forEach { section ->
                 button(section.title) {
+                    if (section.kind == "automation") {
+                        startActivity(Intent(this, AtlasAutomationActivity::class.java))
+                        return@button
+                    }
                     val origin = Uri.parse(server)
                     val destination =
                         Uri
@@ -125,7 +129,7 @@ class MainActivity : Activity() {
             }
             content.addView(
                 TextView(this).apply {
-                    text = "Sections currently open in your browser, which may ask you to sign in separately."
+                    text = "Automation runs natively. Other sections open in your browser and may require a separate sign-in."
                 },
             )
             button("Sign out") { authentication.signOut() }

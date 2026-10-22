@@ -5,8 +5,9 @@ Rust core owns the section catalog and destinations; the CLI is Rust, Android
 uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
 strings or routes. Authentication networking and OAuth state live in the independent
 Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
-and secure persistence. Workspace sections still open in the system browser and
-may require a separate browser sign-in. OAuth tokens are not browser cookies.
+and secure persistence. Automation is native (run, monitor, approve); the other
+workspace sections open in the system browser and may require a separate browser
+sign-in. OAuth tokens are not browser cookies. Workflow authoring remains web-first.
 
 ## Layout
 
@@ -20,8 +21,8 @@ may require a separate browser sign-in. OAuth tokens are not browser cookies.
   graph.
 - `cli/`: host Rust executable sharing the catalog; see `cli/AGENTS.md`.
 - `core/include/`: authored C header and Clang module map imported by Swift.
-- `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
-- `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
+- `android/`: Kotlin platform-widget UI, JNI adapter, manifest and resources; see `android/AGENTS.md`.
+- `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge/form tests; see `ios/AGENTS.md`.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions. Keep native browser auth separate
   from presentation; restore sessions automatically rather than exposing a debug
@@ -61,6 +62,27 @@ Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
 `~/.android/debug.keystore`; see the README for key generation. iOS needs Apple
 Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
+
+## Native Automation
+
+The shared auth crate allowlists authenticated JSON requests and bounded Phoenix
+WebSocket subscriptions; navigation core stays dependency-free. The server owns
+contract validation, revision checks, authorization, durable progress and approvals.
+Native controls project supported schemas and explicitly fall back to web for
+unsupported shapes. Do not execute workflow source on a phone or render server HTML.
+
+A reviewed launch freezes revision, inputs and a UUID request ID. Securely retain an
+unconfirmed request and replay it unchanged; never turn a timeout into a new request.
+Pending requests belong to the credential lifetime and are cleared on explicit new
+sign-in/sign-out. Execution watches are foreground-only, reconcile on reconnect and
+HTTP fallback, and report real phases/steps/waits rather than percentage progress.
+Approval confirmation shows the persisted payload and binds its digest to the decision.
+Protected results are fetched separately, never carried on progress channels.
+
+Once 0.68.2 has no Apple extension target. There is no ActivityKit/WidgetKit extension,
+APNs/FCM registration, background push or real-device activity validation in this slice.
+Do not keep sockets alive in suspended apps or claim background delivery. Adding those
+surfaces requires build-system support, actual device signing and notification services.
 
 ## Boundaries
 

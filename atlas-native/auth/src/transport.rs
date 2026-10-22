@@ -30,7 +30,7 @@ impl Transport for Network {
     }
 }
 
-fn client() -> Result<&'static Client> {
+pub(crate) fn client() -> Result<&'static Client> {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     if let Some(client) = CLIENT.get() {
         return Ok(client);

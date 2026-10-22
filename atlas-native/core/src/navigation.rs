@@ -9,6 +9,12 @@ pub struct Section {
 
 pub static SECTIONS: &[Section] = &[
     Section {
+        id: "automation",
+        title: c"Automation",
+        description: c"Run workflows, follow executions, and review approvals",
+        url: c"https://atlas.tuist.dev/automation/workflows",
+    },
+    Section {
         id: "accounts",
         title: c"Accounts",
         description: c"Customer relationships and sales",
@@ -34,6 +40,11 @@ pub fn field(section: i32, field: i32) -> Option<&'static CStr> {
         0 => Some(section.title),
         1 => Some(section.description),
         2 => Some(section.url),
+        3 => Some(if section.id == "automation" {
+            c"automation"
+        } else {
+            c"browser"
+        }),
         _ => None,
     }
 }
@@ -85,6 +96,7 @@ mod tests {
         assert_eq!(
             urls,
             [
+                "https://atlas.tuist.dev/automation/workflows",
                 "https://atlas.tuist.dev/commercial/sales/accounts",
                 "https://atlas.tuist.dev/tasks",
                 "https://atlas.tuist.dev/library/notes",
@@ -97,7 +109,7 @@ mod tests {
         for section in [-1, SECTIONS.len() as i32, i32::MAX] {
             assert!(field(section, 0).is_none());
         }
-        for field_id in [-1, 3, i32::MAX] {
+        for field_id in [-1, 4, i32::MAX] {
             assert!(field(0, field_id).is_none());
         }
     }

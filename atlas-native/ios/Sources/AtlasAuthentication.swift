@@ -11,15 +11,20 @@ struct AtlasAuthenticationError: LocalizedError {
 
 enum AtlasAuthBridge {
     static func execute(_ input: String) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            try input.withCString { pointer in
-                guard let result = atlas_auth_execute(pointer) else {
-                    throw AtlasAuthenticationError(kind: "internal", message: "Could not complete sign-in.")
-                }
-                defer { atlas_auth_free(result) }
-                return String(cString: result)
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let output = try input.withCString { pointer in
+                        guard let result = atlas_auth_execute(pointer) else {
+                            throw AtlasAuthenticationError(kind: "internal", message: "Could not contact Atlas.")
+                        }
+                        defer { atlas_auth_free(result) }
+                        return String(cString: result)
+                    }
+                    continuation.resume(returning: output)
+                } catch { continuation.resume(throwing: error) }
             }
-        }.value
+        }
     }
 }
 
@@ -31,6 +36,8 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     @Published var selfHostedAddress = UserDefaults.standard.string(forKey: "atlas.selfHostedServer") ?? ""
 
     private var browser: ASWebAuthenticationSession?
+    private var rotation: Task<String, Error>?
+    private var generation = 0
 
     func restore() async {
         guard !busy, server == nil else { return }
@@ -57,6 +64,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         errorMessage = nil
         defer { busy = false; browser = nil }
         do {
+            try AtlasSecureStorage.delete("automation.admission")
             let address = selfHosted ? selfHostedAddress : "https://atlas.tuist.dev"
             var request: [String: Any] = ["operation": "begin", "server": address]
             if let saved = try AtlasSecureStorage.load("registration") { request["registration"] = try object(saved) }
@@ -79,10 +87,74 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
 
     func signOut() {
         do {
+            generation += 1
+            rotation?.cancel()
+            rotation = nil
+            try AtlasSecureStorage.delete("automation.admission")
             try AtlasSecureStorage.delete("session")
             server = nil
             errorMessage = nil
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    func native(_ request: [String: Any]) async throws -> [String: Any] {
+        let epoch = generation
+        let session = try await preparedSession()
+        try checkSession(epoch)
+        do {
+            let response = try await command(["operation": "native", "session": try object(session), "request": request])
+            try checkSession(epoch)
+            return response
+        } catch {
+            try checkSession(epoch)
+            throw error
+        }
+    }
+
+    func pendingLaunch() throws -> [String: Any]? {
+        try AtlasSecureStorage.load("automation.admission").map { try object($0) }
+    }
+
+    func launch(_ request: [String: Any]) async throws -> [String: Any] {
+        if let pending = try pendingLaunch() {
+            guard NSDictionary(dictionary: pending).isEqual(to: request) else {
+                throw AtlasAuthenticationError(kind: "pending_launch",
+                                               message: "Retry your pending launch before starting another workflow.")
+            }
+        } else {
+            try AtlasSecureStorage.save("automation.admission", value: try json(request))
+        }
+        let response: [String: Any]
+        do { response = try await native(request) } catch {
+            if let failure = error as? AtlasAuthenticationError,
+               ["revision_changed", "invalid_input"].contains(failure.kind) {
+                try AtlasSecureStorage.delete("automation.admission")
+            }
+            throw error
+        }
+        try AtlasSecureStorage.delete("automation.admission")
+        return response
+    }
+
+    private func checkSession(_ epoch: Int) throws {
+        try Task.checkCancellation()
+        guard epoch == generation, server != nil else { throw CancellationError() }
+    }
+
+    private func preparedSession() async throws -> String {
+        if let rotation { return try await rotation.value }
+        let epoch = generation
+        let task = Task<String, Error> {
+            guard let saved = try AtlasSecureStorage.load("session") else { throw invalidResponse() }
+            let restored = try await command(["operation": "restore", "session": try object(saved)])
+            guard epoch == generation, server != nil else { throw CancellationError() }
+            let encoded = try json(restored)
+            try AtlasSecureStorage.save("session", value: encoded)
+            return encoded
+        }
+        rotation = task
+        defer { if epoch == generation { rotation = nil } }
+        return try await task.value
     }
 
     func destination(_ url: URL) -> URL {

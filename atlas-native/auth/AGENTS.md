@@ -11,7 +11,7 @@ existing server login page rather than implementing Google sign-in themselves.
   one connection-pooled HTTPS client, rejects redirects, and bounds request time
   and response size. Endpoint origins must match the selected server. Do not
   disable certificate validation or cache token responses as build artifacts.
-- `bridge.rs` accepts JSON commands (`begin`, `complete`, `restore`). Pending grants,
+- `bridge.rs` accepts JSON commands (`begin`, `complete`, `restore`, `native`). Pending grants,
   registrations, and sessions are opaque JSON to native storage adapters. Tokens,
   state, and verifiers must not appear in logs, Debug implementations, errors, or
   analytics. Errors expose fixed categories/messages, never raw transport bodies.
@@ -31,6 +31,24 @@ existing server login page rather than implementing Google sign-in themselves.
   server/transport failure. Native adapters persist rotated credentials before
   exposing a signed-in state. Future authenticated API calls must restore through
   the same coordinator to avoid concurrent refresh-token reuse.
+
+## Native API and forms
+
+`api.rs` owns an allowlisted Automation request enum, same-origin bearer HTTP and
+bounded TLS Phoenix subscriptions. Credentials travel in the WebSocket subprotocol,
+never query parameters. Each watch returns on a changed durable sequence or a bounded
+wait; native lifecycle cancellation and reconnect reconciliation own presentation.
+HTTP/watch waits do not hold a global session lock. Fixed error categories/messages
+never copy arbitrary response bodies. Responses/frames are limited to 1 MiB; protected
+result reads are separate and oversized-result errors direct users to web. Approval
+payloads and results arrive as server-serialized JSON strings, not numeric maps to
+round-trip through platform JSON number types; preserve that text verbatim.
+
+`form.rs` conservatively projects at most 32 scalar controls and four object levels.
+Strings/text, string enums, dates, booleans and numbers are supported; required object
+groups preserve missing/false/zero distinctions. Unsupported unions, arrays, references,
+optional object groups and required empty groups fall back to web. Native validation
+is only usability: the pinned server contract remains authoritative.
 
 ## Build and test
 

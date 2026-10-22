@@ -77,7 +77,7 @@ class AtlasSecureStorage(
     }
 }
 
-private class AuthFailure(
+internal class AuthFailure(
     val kind: String,
     message: String,
 ) : Exception(message)
@@ -89,6 +89,11 @@ class AtlasAuthentication(
 ) {
     private val storage = AtlasSecureStorage(context.applicationContext)
     private val worker = Executors.newSingleThreadExecutor()
+    private val requests = Executors.newFixedThreadPool(4)
+    private val watches = Executors.newFixedThreadPool(2)
+
+    @Volatile private var generation = 0
+    val sessionGeneration: Int get() = generation
     private val main = Handler(Looper.getMainLooper())
     private val preferences = context.getSharedPreferences("atlas.settings", Context.MODE_PRIVATE)
     var listener: (() -> Unit)? = null
@@ -97,6 +102,8 @@ class AtlasAuthentication(
 
     fun close() {
         worker.shutdown()
+        requests.shutdown()
+        watches.shutdown()
         listener = null
     }
 
@@ -126,6 +133,7 @@ class AtlasAuthentication(
         selfHosted: Boolean,
     ) {
         work {
+            storage.delete("automation.admission")
             val request = JSONObject().put("operation", "begin").put("server", address)
             storage.load("registration")?.let { request.put("registration", it) }
             val login = command(request)
@@ -155,12 +163,88 @@ class AtlasAuthentication(
     }
 
     fun signOut() {
+        if (busy) return
+        generation += 1
         work {
+            storage.delete("automation.admission")
             storage.delete("session")
             storage.delete("pending")
             main.post { server = null }
         }
     }
+
+    fun pendingLaunch(callback: (JSONObject?) -> Unit) {
+        val epoch = generation
+        worker.execute {
+            val pending =
+                try {
+                    storage.load("automation.admission")
+                } catch (_: Exception) {
+                    null
+                }
+            main.post { if (epoch == generation) callback(pending) }
+        }
+    }
+
+    fun native(
+        request: JSONObject,
+        current: () -> Boolean = { true },
+        callback: (Result<JSONObject>) -> Unit,
+    ) {
+        val epoch = generation
+        worker.execute prepare@{
+            if (!current()) return@prepare
+            try {
+                check(epoch == generation)
+                val saved = storage.load("session") ?: throw AuthFailure("unauthorized", "Sign in to Atlas first.")
+                val restored = command(JSONObject().put("operation", "restore").put("session", saved))
+                check(epoch == generation)
+                storage.save("session", restored)
+                if (request.optString("action") == "run") {
+                    val pending = storage.load("automation.admission")
+                    if (pending != null && canonical(pending) != canonical(request)) {
+                        throw AuthFailure("pending_launch", "Retry your pending launch before starting another workflow.")
+                    }
+                    storage.save("automation.admission", request)
+                }
+                val executor = if (request.optString("action") == "watch") watches else requests
+                executor.execute api@{
+                    if (epoch != generation || !current()) return@api
+                    val result =
+                        runCatching {
+                            command(JSONObject().put("operation", "native").put("session", restored).put("request", request))
+                        }
+                    worker.execute completion@{
+                        if (epoch != generation) return@completion
+                        val definitive = (result.exceptionOrNull() as? AuthFailure)?.kind in setOf("invalid_input", "revision_changed")
+                        if ((result.isSuccess || definitive) && request.optString("action") == "run") {
+                            try {
+                                storage.delete("automation.admission")
+                            } catch (_: Exception) {
+                                // Retain for safe replay.
+                            }
+                        }
+                        main.post { if (epoch == generation) callback(result) }
+                    }
+                }
+            } catch (failure: Exception) {
+                val error = if (failure is AuthFailure) failure else AuthFailure("storage", "Could not access secure Atlas credentials.")
+                main.post { if (epoch == generation) callback(Result.failure(error)) }
+            }
+        }
+    }
+
+    private fun canonical(value: Any?): String =
+        when (value) {
+            is JSONObject ->
+                value.keys().asSequence().toList().sorted().joinToString(prefix = "{", postfix = "}") {
+                    JSONObject.quote(it) + ":" +
+                        canonical(value.get(it))
+                }
+            is org.json.JSONArray -> (0 until value.length()).joinToString(prefix = "[", postfix = "]") { canonical(value.get(it)) }
+            is String -> JSONObject.quote(value)
+            else -> value?.toString() ?: "null"
+        }
 
     private fun accept(session: JSONObject) {
         storage.save("session", session)

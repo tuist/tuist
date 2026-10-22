@@ -17,6 +17,10 @@ enum Command {
     Restore {
         session: Session,
     },
+    Native {
+        session: Session,
+        request: crate::api::Request,
+    },
 }
 
 pub fn execute(input: &str) -> String {
@@ -34,6 +38,7 @@ pub fn execute(input: &str) -> String {
                 serde_json::to_value(complete(pending, &callback)?)
             }
             Command::Restore { session } => serde_json::to_value(restore(session)?),
+            Command::Native { session, request } => return crate::api::execute(session, request),
         }
         .map_err(|_| crate::invalid())
     })

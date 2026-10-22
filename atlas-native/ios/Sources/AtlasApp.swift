@@ -31,20 +31,25 @@ struct AtlasApp: App {
                 }
                 Section("Workspace") {
                     ForEach(AtlasCore.sections()) { section in
-                        Link(destination: authentication.destination(section.url)) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(section.title)
-                                    .font(.headline)
-                                Text(section.description)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                        if section.kind == "automation" {
+                            NavigationLink {
+                                AtlasAutomationView(authentication: authentication)
+                            } label: {
+                                Label(section.title, systemImage: "bolt.horizontal.circle")
                             }
-                            .padding(.vertical, 8)
+                        } else {
+                            Link(destination: authentication.destination(section.url)) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(section.title).font(.headline)
+                                    Text(section.description).font(.subheadline).foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 8)
+                            }
                         }
                     }
                 }
                 Section {
-                    Text("Sections currently open in your browser, which may ask you to sign in separately.")
+                    Text("Automation runs natively. Other sections open in your browser and may require a separate sign-in.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Button("Sign out", role: .destructive) { authentication.signOut() }
