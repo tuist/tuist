@@ -156,6 +156,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   location. Without access, skip it — Bazel builds fine against the local cache.
 - Synchronize inline write races with the test-only `FailpointAction::Pause` and explicit replicated versions; local versions are stamped at staging, so sleeps between request starts cannot guarantee distinct versions.
 - Synchronize cancellation tests with explicit blocking-commit hooks; fixed scheduler-yield counts cannot guarantee that disk work has started or finished on CI.
+- HTTP listener logging tests assert the rendered Display cause chain, not Debug-only protocol-code spellings. Keep the warning level and listener/peer/connection-age assertions alongside the concrete underlying cause.
 - The two-source backfill capacity E2E checks readiness, completion, full-ring retention, and bounded evictions. Exclusive claims and independent fetchers can leave holes in the retained recency band, so do not assert fixed artifact identities; ordered marginal-trade behavior is covered by the backfill Rust unit tests.
 - Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:
   `mise exec -- cargo clippy --all-targets -- -D warnings`)
