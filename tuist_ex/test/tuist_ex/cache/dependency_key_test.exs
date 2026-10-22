@@ -1,6 +1,8 @@
 defmodule TuistEx.Cache.DependencyKeyTest do
   use ExUnit.Case, async: true
+  use Mimic
 
+  alias TuistEx.Cache.Compiler
   alias TuistEx.DependencyCache
 
   setup do
@@ -47,6 +49,34 @@ defmodule TuistEx.Cache.DependencyKeyTest do
     ]
 
     %{producer: producer, consumer: consumer, options: options}
+  end
+
+  test "unsupported compiler configuration rejects a closure without reading source bytes", ctx do
+    expect(Compiler, :config, fn _, true, _ -> [compilers: [:unsupported]] end)
+    reject(Compiler, :source_tree, 2)
+    reject(Compiler, :source_paths, 2)
+    assert {:bypass, "custom_compiler"} = action_key(ctx)
+  end
+
+  test "an unsupported upstream source rejects the whole closure before any source hashing",
+       ctx do
+    stub(Compiler, :config, fn _, true, _ -> [] end)
+
+    stub(Compiler, :source_paths, fn dep, _ ->
+      if dep.app == :producer, do: ["src/native.c"], else: ["lib/consumer.ex"]
+    end)
+
+    reject(Compiler, :source_tree, 2)
+    assert {:bypass, "custom_compiler"} = action_key(ctx)
+  end
+
+  test "source bytes are rechecked after structural enumeration", ctx do
+    stub(Compiler, :config, fn _, true, _ -> [] end)
+    stub(Compiler, :source_paths, fn _, _ -> [] end)
+
+    expect(Compiler, :source_tree, fn _, _ -> [{"src/added_after_enumeration.c", 0, "digest"}] end)
+
+    assert {:bypass, "custom_compiler"} = action_key(ctx)
   end
 
   test "runtime, optional and app flags on dependency edges enter the key", ctx do

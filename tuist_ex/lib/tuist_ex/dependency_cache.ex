@@ -484,6 +484,7 @@ defmodule TuistEx.DependencyCache do
     _ -> {:bypass, "unmodeled_input"}
   catch
     :unmodeled_input -> {:bypass, "unmodeled_input"}
+    :custom_compiler -> {:bypass, "custom_compiler"}
   end
 
   defp model_key(dependency, closure, context, options) do
@@ -494,40 +495,49 @@ defmodule TuistEx.DependencyCache do
         do: throw(:unmodeled_input)
     end
 
-    config = dependency_config(dependency, options)
-    sources = Compiler.source_tree(dependency, config)
+    # A rejected closure needs no source bytes, even for its supported members.
+    [{_, config, sources} | upstream_sources] =
+      [dependency | closure]
+      |> Enum.map(&structural_model(&1, options))
+      |> Enum.map(&modeled_source/1)
 
-    upstream_sources =
-      Enum.map(closure, fn dep ->
-        upstream_config = dependency_config(dep, options)
-        {dep, upstream_config, Compiler.source_tree(dep, upstream_config)}
+    upstream =
+      upstream_sources
+      |> Enum.sort_by(fn {dep, _, _} -> dep.app end)
+      |> Enum.map(fn {dep, upstream_config, tree} ->
+        {dep.app, dependency_options(dep), tree, compiler_config(upstream_config),
+         Compiler.artifacts(dep, upstream_config)}
       end)
 
-    if not Compiler.supported_config?(config) or unsupported_sources?(sources, config) or
-         Enum.any?(upstream_sources, fn {_dep, upstream_config, tree} ->
-           not Compiler.supported_config?(upstream_config) or
-             unsupported_sources?(tree, upstream_config)
-         end) do
-      {:bypass, "custom_compiler"}
-    else
-      upstream =
-        upstream_sources
-        |> Enum.sort_by(fn {dep, _, _} -> dep.app end)
-        |> Enum.map(fn {dep, upstream_config, tree} ->
-          {dep.app, dependency_options(dep), tree, compiler_config(upstream_config),
-           Compiler.artifacts(dep, upstream_config)}
-        end)
+    paths =
+      if !Keyword.get(options, :portable, false),
+        do: {File.cwd!(), dependency.opts[:dest], dependency.opts[:build]}
 
-      paths =
-        if !Keyword.get(options, :portable, false),
-          do: {File.cwd!(), dependency.opts[:dest], dependency.opts[:build]}
+    inputs =
+      {context, dependency.app, dependency_options(dependency), sources, compiler_config(config),
+       upstream, paths}
 
-      inputs =
-        {context, dependency.app, dependency_options(dependency), sources,
-         compiler_config(config), upstream, paths}
+    {:ok, inputs |> model_term() |> Key.build()}
+  end
 
-      {:ok, inputs |> model_term() |> Key.build()}
-    end
+  defp structural_model(dependency, options) do
+    config = dependency_config(dependency, options)
+
+    if not Compiler.supported_config?(config) or
+         Enum.any?(
+           Compiler.source_paths(dependency, config),
+           &Compiler.unsupported_source?(&1, config)
+         ),
+       do: throw(:custom_compiler)
+
+    {dependency, config}
+  end
+
+  defp modeled_source({dependency, config}) do
+    sources = Compiler.source_tree(dependency, config)
+    # Recheck the freshly read tree, not only the earlier path enumeration.
+    if unsupported_sources?(sources, config), do: throw(:custom_compiler)
+    {dependency, config, sources}
   end
 
   defp dependency_config(dependency, options),
