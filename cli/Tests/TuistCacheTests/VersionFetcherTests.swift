@@ -3,6 +3,6 @@ import Testing
 
 struct CacheVersionFetcherTests {
     @Test func returnsCurrentArtifactFormatVersion() {
-        #expect(CacheVersionFetcher().version() == .version8)
+        #expect(CacheVersionFetcher().version() == .version9)
     }
 }

@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Logging
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistCache
 import TuistConfig
@@ -305,7 +306,7 @@ import XcodeGraph
             }
 
             Logger.current.info(
-                "All cacheable targets have been cached successfully as xcframeworks",
+                "Cache warming completed successfully",
                 metadata: .success
             )
 
@@ -779,7 +780,7 @@ import XcodeGraph
             // target-specific output path, so the operations are independent. We run them with
             // bounded concurrency to cut the wall-clock time of this phase on projects with many
             // cacheable targets, while keeping the input order so artifact storage stays deterministic.
-            return try await cacheableTargets.concurrentMap(
+            return try await cacheableTargets.concurrentCompactMap(
                 maxConcurrentTasks: Self.maxConcurrentXCFrameworkCreations
             ) { cacheableTarget in
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
@@ -818,58 +819,12 @@ import XcodeGraph
                     output: xcframeworkPath
                 )
 
-                if let metadata = debuggingMetadata[cacheableTarget.0] {
-                    let current = try await CachedModuleDebuggingMetadata.capture(
-                        target: cacheableTarget.0,
-                        fileSystem: fileSystem
-                    )
-                    guard metadata == current else {
-                        throw CacheWarmCommandServiceError.sourcesChangedDuringBuild(target: cacheableTarget.0.target.name)
-                    }
-                    let info = try PropertyListDecoder().decode(
-                        XCFrameworkInfoPlist.self,
-                        from: await fileSystem.readFile(at: xcframeworkPath.appending(component: "Info.plist"))
-                    )
-                    var prefixMappings: [[String: String]] = []
-                    for directory in Set(platformBinaryArtifacts).sorted() {
-                        let prefixMap = directory.appending(
-                            components: "tuist-prefix-maps",
-                            "\(cacheableTarget.0.project.name).build",
-                            "\(cacheableTarget.0.target.name).build.json"
-                        )
-                        if try await fileSystem.exists(prefixMap) {
-                            prefixMappings.append(try JSONDecoder().decode(
-                                [String: String].self,
-                                from: await fileSystem.readFile(at: prefixMap)
-                            ))
-                        }
-                    }
-                    for library in info.libraries {
-                        let slice = xcframeworkPath.appending(component: library.identifier)
-                        var debugInputs = try await fileSystem.glob(
-                            directory: slice, include: ["dSYMs/*.dSYM/Contents/Resources/DWARF/*"]
-                        ).collect()
-                        if debugInputs.isEmpty {
-                            let product = slice.appending(library.path)
-                            debugInputs =
-                                [product.extension == "framework" ? product
-                                    .appending(component: product.basenameWithoutExt) : product]
-                        }
-                        let output = metadata.sources.isEmpty ? "" : try await commandRunner.capture(
-                            arguments: ["/usr/bin/xcrun", "dwarfdump", "--show-sources"] + debugInputs.map(\.pathString)
-                        )
-                        let debugSources = Set(output.split(whereSeparator: \.isNewline).map(String.init)
-                            .filter { $0.hasPrefix("/") })
-                        try await fileSystem.writeAsJSON(
-                            metadata.recording(
-                                debugSources: debugSources,
-                                prefixMappings: prefixMappings,
-                                fileSystem: fileSystem
-                            ),
-                            at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
-                        )
-                    }
-                }
+                if let metadata = debuggingMetadata[cacheableTarget.0],
+                   try await !writeDebuggingMetadata(
+                       metadata, target: cacheableTarget.0, artifact: xcframeworkPath,
+                       productsDirectories: Set(platformBinaryArtifacts)
+                   )
+                { return nil }
 
                 // Embed App Intents metadata if available.
                 // For static frameworks, appintentsmetadataprocessor writes a .appintents bundle
@@ -907,6 +862,85 @@ import XcodeGraph
                     path: xcframeworkPath,
                     metadata: .init()
                 )
+            }
+        }
+
+        func writeDebuggingMetadata(
+            _ metadata: CachedModuleDebuggingMetadata,
+            target: GraphTarget,
+            artifact: AbsolutePath,
+            productsDirectories: Set<AbsolutePath>
+        ) async throws -> Bool {
+            try Task.checkCancellation()
+            let current = try await CachedModuleDebuggingMetadata.capture(
+                target: target, fileSystem: fileSystem, validateGeneratedSources: true
+            )
+            guard metadata == current else {
+                throw CacheWarmCommandServiceError.sourcesChangedDuringBuild(target: target.target.name)
+            }
+            if target.target.sources.contains(where: { $0.contentHashIsPlaceholder == true }) {
+                AlertController.current.warning(.alert(
+                    "Skipping \(target.target.name): script-generated source contents cannot be verified before the consumer builds them."
+                ))
+                return false
+            }
+            do {
+                let info = try PropertyListDecoder().decode(
+                    XCFrameworkInfoPlist.self,
+                    from: await fileSystem.readFile(at: artifact.appending(component: "Info.plist"))
+                )
+                guard !info.libraries.isEmpty else {
+                    throw DebuggingMetadataError.unavailableSymbols("The XCFramework contains no library slices")
+                }
+                var prefixMappings: [[String: String]] = []
+                for directory in productsDirectories.sorted() {
+                    let prefixMap = directory.appending(
+                        components: "tuist-prefix-maps", "\(target.project.xcodeProjPath.basenameWithoutExt).build",
+                        "\(target.target.name).build.json"
+                    )
+                    if try await fileSystem.exists(prefixMap) {
+                        prefixMappings.append(try JSONDecoder().decode(
+                            [String: String].self, from: await fileSystem.readFile(at: prefixMap)
+                        ))
+                    }
+                }
+                for library in info.libraries {
+                    let slice = artifact.appending(component: library.identifier)
+                    var inputs = try await fileSystem.glob(
+                        directory: slice, include: ["dSYMs/*.dSYM/Contents/Resources/DWARF/*"]
+                    ).collect()
+                    if inputs.isEmpty {
+                        let product = slice.appending(library.path)
+                        inputs =
+                            [product.extension == "framework" ? product
+                                .appending(component: product.basenameWithoutExt) : product]
+                    }
+                    let output: String
+                    do {
+                        output = metadata.sources.isEmpty ? "" : try await commandRunner.capture(
+                            arguments: ["/usr/bin/xcrun", "dwarfdump", "--show-sources"] + inputs.map(\.pathString)
+                        )
+                    } catch {
+                        try Task.checkCancellation()
+                        if error is CancellationError { throw error }
+                        throw DebuggingMetadataError.unavailableSymbols(error.localizedDescription)
+                    }
+                    try await fileSystem.writeAsJSON(
+                        metadata.recording(
+                            debugSources: Set(output.split(whereSeparator: \.isNewline).map(String.init)
+                                .filter { $0.hasPrefix("/") }),
+                            prefixMappings: prefixMappings, fileSystem: fileSystem
+                        ), at: slice.appending(component: CachedModuleDebuggingMetadata.fileName)
+                    )
+                }
+                return true
+            } catch {
+                try Task.checkCancellation()
+                guard error is DebuggingMetadataError || error is DecodingError else { throw error }
+                AlertController.current.warning(.alert(
+                    "Skipping \(target.target.name): portable debug information could not be recorded: \(error.localizedDescription)"
+                ))
+                return false
             }
         }
 

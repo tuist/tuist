@@ -49,10 +49,14 @@ enum CacheVersion: String, Equatable, Hashable {
     /// Debug artifacts now carry linked debug information and source identities in every XCFramework slice.
     /// Older products can depend on the warming machine's objects/CAS and cannot support restored source debugging.
     case version8 = "8"
+
+    /// Source metadata now includes generated/buildable-folder identities and multiple verified DWARF spellings.
+    /// Cold-miss experimental version-8 artifacts so unsupported metadata cannot occupy otherwise valid warm keys.
+    case version9 = "9"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version8
+        .version9
     }
 }

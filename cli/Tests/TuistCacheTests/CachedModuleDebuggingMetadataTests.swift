@@ -45,21 +45,25 @@ struct CachedModuleDebuggingMetadataTests {
         if status == "ambiguous" {
             debugSources.insert(try #require(metadata.sourcePaths["Feature/Feature.swift"]))
         }
-        if status != "verified" {
+        if status == "unrelated" {
             await #expect(throws: (any Error).self) {
                 try await metadata.recording(debugSources: debugSources, fileSystem: FileSystem())
             }
             return
         }
-        #expect(throws: (any Error).self) { try metadata.recording(debugSources: debugSources) }
+        if status == "verified" {
+            #expect(throws: (any Error).self) { try metadata.recording(debugSources: debugSources) }
+        }
         let recorded = try await metadata.recording(debugSources: debugSources, fileSystem: FileSystem())
         let artifact = root.appending(component: "Feature.xcframework")
         try await write(recorded, at: artifact)
         try await FileSystem().remove(aliasRoot)
         try await FileSystem().remove(producer.project.sourceRootPath)
-        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: consumer) == [DebuggerSourceMapping(
-            original: try AbsolutePath(validating: debugPath),
-            current: consumer.project.sourceRootPath.appending(components: "Feature", "Feature.swift")
+        let mappings = try #require(await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: consumer))
+        #expect(Set(mappings.map(\.original.pathString)) == debugSources)
+        #expect(Set(mappings.map(\.current)) == [consumer.project.sourceRootPath.appending(
+            components: "Feature",
+            "Feature.swift"
         )])
     }
 
@@ -94,16 +98,15 @@ struct CachedModuleDebuggingMetadataTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func doesNotGuessAmbiguousDebugSources() async throws {
+    func recordsMultipleVerifiedCompilerSpellingsOfOneSource() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let target = try await target(at: root)
         let metadata = try await CachedModuleDebuggingMetadata.capture(target: target)
-        #expect(throws: (any Error).self) {
-            try metadata.recording(
-                debugSources: ["/^one/Feature/Feature.swift", "/^two/Feature/Feature.swift"],
-                prefixMappings: [["/^one": root.pathString, "/^two": root.pathString]]
-            )
-        }
+        let recorded = try metadata.recording(
+            debugSources: ["/^one/Feature/Feature.swift", "/^two/Feature/Feature.swift"],
+            prefixMappings: [["/^one": root.pathString, "/^two": root.pathString]]
+        )
+        #expect(recorded.debugPaths["Feature/Feature.swift"] == ["/^one/Feature/Feature.swift", "/^two/Feature/Feature.swift"])
     }
 
     @Test(.inTemporaryDirectory)
@@ -144,8 +147,8 @@ struct CachedModuleDebuggingMetadataTests {
         #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: target) == nil)
     }
 
-    @Test(.inTemporaryDirectory)
-    func doesNotFollowMetadataSymlinksOutsideTheArtifact() async throws {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func doesNotFollowMetadataSymlinksOutsideTheArtifact(parentDirectory: Bool) async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let target = try await target(at: root.appending(component: "checkout"))
         let source = target.project.sourceRootPath.appending(components: "Feature", "Feature.swift")
@@ -153,11 +156,15 @@ struct CachedModuleDebuggingMetadataTests {
             .recording(debugSources: [source.pathString])
         let artifact = root.appending(component: "Feature.xcframework")
         try await write(metadata, at: artifact)
-        let outside = root.appending(component: "outside.json")
+        let outside = root.appending(components: "outside", CachedModuleDebuggingMetadata.fileName)
+        try await FileSystem().makeDirectory(at: outside.parentDirectory)
         try await FileSystem().writeAsJSON(metadata, at: outside)
         let path = artifact.appending(components: "macos-arm64", CachedModuleDebuggingMetadata.fileName)
-        try await FileSystem().remove(path)
-        try FileManager.default.createSymbolicLink(at: path.url, withDestinationURL: outside.url)
+        let link = parentDirectory ? path.parentDirectory : path
+        try await FileSystem().remove(link)
+        try FileManager.default.createSymbolicLink(
+            at: link.url, withDestinationURL: parentDirectory ? outside.parentDirectory.url : outside.url
+        )
         #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: target) == nil)
     }
 
@@ -176,6 +183,135 @@ struct CachedModuleDebuggingMetadataTests {
         }
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func verifiesGeneratedSourcesBeforeTheirSideEffectsRun(stale: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let producer = try await target(at: root.appending(component: "producer"))
+        let consumer = try await target(at: root.appending(component: "consumer"))
+        let content = Data("public let generated = 42\n".utf8)
+        let checksum = try ContentHasher().hash(content)
+        func generated(_ base: GraphTarget) -> GraphTarget {
+            var target = base.target
+            target.sources = [SourceFile(
+                path: base.path.appending(components: "Derived", "nested", "Generated.swift"), contentHash: checksum
+            )]
+            return GraphTarget(path: base.path, target: target, project: base.project)
+        }
+        let original = generated(producer)
+        let current = generated(consumer)
+        let before = try await CachedModuleDebuggingMetadata.capture(target: original)
+        let producerSource = try #require(original.target.sources.first?.path)
+        try await FileSystem().makeDirectory(at: producerSource.parentDirectory)
+        try content.write(to: producerSource.url)
+        #expect(try await CachedModuleDebuggingMetadata.capture(target: original, validateGeneratedSources: true) == before)
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(before.recording(debugSources: [producerSource.pathString]), at: artifact)
+        let consumerSource = try #require(current.target.sources.first?.path)
+        if stale {
+            try await FileSystem().makeDirectory(at: consumerSource.parentDirectory)
+            try await FileSystem().writeText("stale", at: consumerSource)
+        }
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: current) == [DebuggerSourceMapping(
+            original: producerSource, current: consumerSource
+        )])
+        try await FileSystem().writeText("changed during build", at: producerSource)
+        #expect(try await CachedModuleDebuggingMetadata.capture(target: original, validateGeneratedSources: true) != before)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func placeholderGeneratedOutputsCannotBypassSourceVerification() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let base = try await target(at: root)
+        let source = try #require(base.target.sources.first?.path)
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: base).recording(debugSources: [source.pathString])
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(metadata, at: artifact)
+        var generated = SourceFile(path: root.appending(component: "Generated.swift"), contentHash: "path-fingerprint")
+        let legacyJSON = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(generated)) as? [String: Any])
+        #expect(legacyJSON["contentHashIsPlaceholder"] == nil)
+        let legacy = try JSONDecoder().decode(SourceFile.self, from: JSONEncoder().encode(generated))
+        #expect(legacy.contentHashIsPlaceholder == nil)
+        generated.contentHashIsPlaceholder = true
+        let decoded = try JSONDecoder().decode(SourceFile.self, from: JSONEncoder().encode(generated))
+        #expect(decoded.contentHashIsPlaceholder == true)
+        var target = base.target
+        target.sources.append(generated)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(
+            at: artifact, for: GraphTarget(path: root, target: target, project: base.project)
+        ) == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func capturesBuildableFoldersAndSiblingInclusions() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let base = try await target(at: root)
+        let source = try #require(base.target.sources.first?.path)
+        let siblingSource = root.appending(component: "Shared.swift")
+        try await FileSystem().writeText("public let shared = 1", at: siblingSource)
+        var target = base.target
+        target.sources = []
+        target.buildableFolders = [.init(path: source.parentDirectory, exceptions: [], resolvedFiles: [
+            .init(path: source, compilerFlags: nil), .init(path: root.appending(component: ".DS_Store"), compilerFlags: nil),
+        ])]
+        let sibling = Target.test(name: "Sibling", buildableFolders: [.init(
+            path: root, exceptions: [.init(
+                excluded: [],
+                compilerFlags: [:],
+                publicHeaders: [],
+                privateHeaders: [],
+                target: "Feature",
+                included: [siblingSource]
+            )], resolvedFiles: []
+        )])
+        var project = base.project
+        project.targets["Feature"] = target
+        project.targets["Sibling"] = sibling
+        let graphTarget = GraphTarget(path: root, target: target, project: project)
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: graphTarget)
+        #expect(Set(metadata.sources.keys) == ["Feature/Feature.swift", "Shared.swift"])
+        let artifact = root.appending(component: "Feature.xcframework")
+        let empty = CachedModuleDebuggingMetadata(
+            version: metadata.version, moduleName: metadata.moduleName, sourceRoot: root,
+            sources: [:], sourcePaths: [:], debugPaths: [:]
+        )
+        try await write(empty, at: artifact)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: graphTarget) == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func doesNotReadUnobservedDeclaredSourcesDuringAdmission() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let base = try await target(at: root)
+        let source = try #require(base.target.sources.first?.path)
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: base).recording(debugSources: [source.pathString])
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(metadata, at: artifact)
+        var target = base.target
+        target.sources.append(SourceFile(path: root.appending(component: "NotCompiledForThisSDK.swift")))
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(
+            at: artifact, for: GraphTarget(path: root, target: target, project: base.project)
+        ) != nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func rejectsTwoDeclaredFilesClaimingTheSameCompilerAlias() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let base = try await target(at: root)
+        let other = root.appending(components: "Other", "Feature.swift")
+        try await FileSystem().makeDirectory(at: other.parentDirectory)
+        try await FileSystem().writeText("public let other = 1", at: other)
+        var target = base.target
+        target.sources.append(SourceFile(path: other))
+        let metadata = try await CachedModuleDebuggingMetadata.capture(
+            target: GraphTarget(path: root, target: target, project: base.project)
+        )
+        #expect(throws: (any Error).self) {
+            try metadata.recording(debugSources: ["/^shared/Feature.swift"], prefixMappings: [
+                ["/^shared": root.appending(component: "Feature").pathString], ["/^shared": other.parentDirectory.pathString],
+            ])
+        }
     }
 
     private func target(at root: AbsolutePath, contents: String = "public let value = 42\n") async throws -> GraphTarget {

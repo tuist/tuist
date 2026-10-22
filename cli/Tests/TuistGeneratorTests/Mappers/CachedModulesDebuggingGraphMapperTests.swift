@@ -1167,6 +1167,54 @@ struct CachedModulesDebuggingGraphMapperTests {
         }
     }
 
+    @Test(.inTemporaryDirectory, arguments: ["missing-plan", "malformed-plan", "symbol-tool-failure"])
+    func symbolPreparationFailurePreservesTheCompilerSourceMap(failure: String) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let original = compilationCacheGraph(at: root)
+        var cached = original
+        let artifactPath = root.appending(component: "Feature.xcframework")
+        let artifact = GraphDependency.testXCFramework(path: artifactPath, linking: .static)
+        cached.dependencies[.target(name: "App", path: root)] = [artifact]
+        cached.dependencies[artifact] = []
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = original
+        environment.cachedModuleSourceMappings[artifactPath] = [DebuggerSourceMapping(
+            original: try AbsolutePath(validating: "/producer/Feature.swift"), current: root.appending(component: "Feature.swift")
+        )]
+        let (mapped, sideEffects, _) = try await subject.map(graph: cached, environment: environment)
+        let action = try #require(mapped.projects[root]?.schemes.first?.runAction)
+        for effect in sideEffects {
+            guard case let .file(file) = effect, let contents = file.contents else { continue }
+            try await FileSystem().makeDirectory(at: file.path.parentDirectory)
+            try contents.write(to: file.path.url)
+        }
+        let plan = try #require(sideEffects.compactMap { effect -> FileDescriptor? in
+            guard case let .file(file) = effect, file.path.basename.hasSuffix("-run-sources.json") else { return nil }
+            return file
+        }.first)
+        if failure == "missing-plan" { try await FileSystem().remove(plan.path) }
+        if failure == "malformed-plan" { try await FileSystem().writeText("{broken", at: plan.path) }
+        let temporary = root.appending(component: "compiler")
+        let products = root.appending(component: "products")
+        let binary = products.appending(components: "App.app", "Contents", "MacOS", "App")
+        try await FileSystem().makeDirectory(at: temporary)
+        try await FileSystem().makeDirectory(at: binary.parentDirectory)
+        try await FileSystem().writeText("not a Mach-O image", at: binary)
+        try writeCompilationPrefixMap(["/^root": root.pathString], at: temporary)
+        let script = root.appending(component: "prepare.sh")
+        try await FileSystem().writeText(#require(action.preActions.first?.scriptText), at: script)
+        let output = try runProcess("/bin/sh", arguments: [script.pathString], environment: [
+            "PATH": "/usr/bin:/bin", "HOME": root.pathString, "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "SWIFT_ENABLE_PREFIX_MAPPING": "YES", "TARGET_TEMP_DIR": temporary.pathString,
+            "TARGET_BUILD_DIR": products.pathString, "EXECUTABLE_PATH": "App.app/Contents/MacOS/App",
+            "FULL_PRODUCT_NAME": "App.app",
+        ], includeStandardError: true, expectedStatus: 1)
+        #expect(output.contains("cached debug symbols could not be prepared"))
+        let contents = try String(contentsOf: #require(action.customLLDBInitFile).url, encoding: .utf8)
+        #expect(contents.contains("settings set target.source-map \"/^root\" \"\(root.pathString)\""))
+        #expect(contents.contains("command source -s 0"))
+    }
+
     private func compilationCacheGraph(
         at projectPath: AbsolutePath,
         attachDebugger: Bool = true,

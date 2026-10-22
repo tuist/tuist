@@ -554,9 +554,6 @@ private struct CacheDebuggerSettingsRenderer {
         environment = os.environ
         mappings = {}
         plan = None
-        if sys.argv[2]:
-            with open(sys.argv[2], encoding="utf-8") as source_mappings:
-                plan = json.load(source_mappings)
 
         target_temp_dir = environment.get("TARGET_TEMP_DIR", "")
         prefix_mapping_enabled = environment.get("COMPILATION_CACHE_ENABLE_CACHING") == "YES" and any(
@@ -593,14 +590,21 @@ private struct CacheDebuggerSettingsRenderer {
             passed_later = xcode_aliases.index(alias) if alias in xcode_aliases else len(xcode_aliases)
             return (-len(path.rstrip("/")), -passed_later, alias)
 
-        \#(CachedModuleSymbolsPreparationScript.value)
-
         if mappings:
             arguments = " ".join(lldb_quoted(value) for mapping in sorted(mappings.items(), key=compiler_precedence) for value in mapping)
             # Xcode keeps one LLDB process across runs and sources this file into its global settings, so
             # appending would leave earlier runs' entries, including other checkouts', ahead of these.
             with open(sys.argv[1], "w", encoding="utf-8") as output:
                 output.write("settings set target.source-map " + arguments + "\n")
+
+        try:
+            if sys.argv[2]:
+                with open(sys.argv[2], encoding="utf-8") as source_mappings:
+                    plan = json.load(source_mappings)
+            exec(\#(String(reflecting: CachedModuleSymbolsPreparationScript.value)))
+        except Exception as error:
+            print("Tuist: cached debug symbols could not be prepared: " + str(error), file=sys.stderr)
+            sys.exit(1)
         TUIST_SOURCE_MAP
         """#
     }

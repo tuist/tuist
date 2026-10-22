@@ -37,7 +37,12 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
         given(mutator).map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any)
             .willReturn(fixture.graph)
         let subject = subject(fixture: fixture, path: path, storage: storage, mutator: mutator, reader: reader)
-        let (_, _, environment) = try await subject.map(graph: fixture.graph, environment: MapperEnvironment())
+        let metadata = RunMetadataStorage()
+        let (_, _, environment) = try await RunMetadataStorage.$current.withValue(metadata) {
+            try await subject.map(graph: fixture.graph, environment: MapperEnvironment())
+        }
+        let items = await metadata.binaryCacheItems
+        #expect((items[path]?["Feature"]?.source == .miss) == (status != "verified"))
         verify(mutator).map(
             graph: .any,
             precompiledArtifacts: .value(status == "verified" ? [fixture.feature: artifact] : [:]),
@@ -122,6 +127,54 @@ struct TargetsToCacheBinariesDebuggingAdmissionTests {
         verify(storage).fetch(
             .value([CacheStorableItem(name: "Feature", hash: "feature")]), cacheCategory: .value(.binaries)
         ).called(1)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func conflictingModulesKeepSourcesWithoutDiscardingUnrelatedHits() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let targets = ["First", "Second", "Healthy"].map { Target.test(name: $0, product: .framework) }
+        let project = Project.test(path: path, targets: targets)
+        let graph = Graph.test(projects: [path: project])
+        let storage = MockCacheStoring()
+        let artifacts = Dictionary(uniqueKeysWithValues: targets.map { target in
+            (CacheItem.test(name: target.name, hash: target.name), path.appending(component: target.name + ".xcframework"))
+        })
+        given(storage).fetch(.any, cacheCategory: .any).willReturn(artifacts)
+        let reader = MockCachedModuleDebuggingMetadataReading()
+        for target in targets {
+            given(reader).sourceMappings(
+                artifact: .value(path.appending(component: target.name + ".xcframework")), target: .any
+            ).willReturn([DebuggerSourceMapping(
+                original: try AbsolutePath(validating: target.name == "Healthy" ? "/unique/Healthy.swift" : "/^src/Shared.swift"),
+                current: path.appending(components: target.name, "Shared.swift")
+            )])
+        }
+        let mutator = MockCacheGraphMutating()
+        given(mutator).map(graph: .any, precompiledArtifacts: .any, sources: .any, keepSourceTargets: .any).willReturn(graph)
+        let subject = TargetsToCacheBinariesGraphMapper(
+            config: .test(), cacheGraphContentHasher: MockCacheGraphContentHashing(),
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []), configuration: "Debug",
+            cacheGraphMutator: mutator, cacheStorage: storage, coverage: .on,
+            precomputedTargetHashes: Dictionary(uniqueKeysWithValues: targets.map {
+                (TargetReference(projectPath: path, name: $0.name), .test(hash: $0.name))
+            }), debuggingMetadataReader: reader
+        )
+        let metadata = RunMetadataStorage()
+        await metadata.update(binaryCacheItems: [path: Dictionary(uniqueKeysWithValues: artifacts.keys.map { ($0.name, $0) })])
+        let (_, _, environment) = try await RunMetadataStorage.$current.withValue(metadata) {
+            try await subject.map(graph: graph, environment: MapperEnvironment())
+        }
+        let healthy = try #require(targets.last)
+        verify(mutator).map(
+            graph: .any, precompiledArtifacts: .value([
+                GraphTarget(path: path, target: healthy, project: project): path.appending(component: "Healthy.xcframework"),
+            ]), sources: .any, keepSourceTargets: .any
+        ).called(1)
+        #expect(Set(environment.cachedModuleSourceMappings.keys) == [path.appending(component: "Healthy.xcframework")])
+        let items = await metadata.binaryCacheItems
+        #expect(items[path]?["First"]?.source == .miss)
+        #expect(items[path]?["Second"]?.source == .miss)
+        #expect(items[path]?["Healthy"]?.source != .miss)
     }
 
     private func subject(
