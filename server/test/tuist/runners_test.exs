@@ -521,7 +521,7 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
-    test "stamps only the account label on a macOS Pod once the dispatch commits" do
+    test "stamps the account and untrusted labels on a macOS Pod once the dispatch commits" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
@@ -539,7 +539,7 @@ defmodule Tuist.RunnersTest do
       assert result.cache_signing_grant == "signed-grant-token"
       refute Map.has_key?(result, :volume_head)
       assert_receive {:patched, %{"tuist.dev/runner-account" => ^account_label} = labels}
-      assert labels == %{"tuist.dev/runner-account" => account_label}
+      assert labels == %{"tuist.dev/runner-account" => account_label, "tuist.dev/runner-cache-untrusted" => "true"}
     end
 
     test "includes the minted cache signing grant in the dispatch result" do
@@ -579,8 +579,7 @@ defmodule Tuist.RunnersTest do
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
       refute Map.has_key?(result, :volume_head)
-      assert_receive {:patched, %{"tuist.dev/runner-account" => _} = labels}
-      refute Map.has_key?(labels, "tuist.dev/runner-cache-untrusted")
+      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-untrusted" => "true"}}
     end
 
     test "treats a job as untrusted (cold) when the workflow-run lookup fails, fail-closed" do

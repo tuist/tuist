@@ -130,6 +130,8 @@ defmodule Tuist.Runners do
   @pool_label "tuist.dev/runner-pool"
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
+  # Keeps hosts that still create built-in cache images from creating one.
+  @cache_untrusted_label "tuist.dev/runner-cache-untrusted"
 
   # The owner label gates dispatch egress: the runners-namespace
   # NetworkPolicy admits only label-less (idle, polling) Pods to the
@@ -1243,7 +1245,7 @@ defmodule Tuist.Runners do
   # after the stamp re-queues the job while the Pod keeps polling, and the label
   # would then mark a Pod that never ran a job. Best-effort.
   defp stamp_account_label(namespace, pod_name, account) do
-    labels = %{@account_label => Integer.to_string(account.id)}
+    labels = %{@account_label => Integer.to_string(account.id), @cache_untrusted_label => "true"}
     patch_pod_labels(namespace, pod_name, %{"metadata" => %{"labels" => labels}}, @owner_label_stamp_attempts)
   end
 
