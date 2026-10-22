@@ -6621,11 +6621,11 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/OrganizationUsageMeter`.
         public struct OrganizationUsageMeter: Codable, Hashable, Sendable {
-            /// The amount beyond the included allowance, which is charged.
+            /// The amount beyond the included allowance.
             ///
             /// - Remark: Generated from `#/components/schemas/OrganizationUsageMeter/billable`.
             public var billable: Swift.Int
-            /// The charge for the billable amount so far, in US cents.
+            /// What the billable amount is charged so far, in US cents. Only Pro accounts are charged for it; other plans report 0.
             ///
             /// - Remark: Generated from `#/components/schemas/OrganizationUsageMeter/charge_cents`.
             public var charge_cents: Swift.Int
@@ -6640,8 +6640,8 @@ public enum Components {
             /// Creates a new `OrganizationUsageMeter`.
             ///
             /// - Parameters:
-            ///   - billable: The amount beyond the included allowance, which is charged.
-            ///   - charge_cents: The charge for the billable amount so far, in US cents.
+            ///   - billable: The amount beyond the included allowance.
+            ///   - charge_cents: What the billable amount is charged so far, in US cents. Only Pro accounts are charged for it; other plans report 0.
             ///   - included: The amount included in every billing period at no cost.
             ///   - used: The amount metered so far in the period. For cache meters, traffic served from a Tuist Runners cache region counts at half.
             public init(

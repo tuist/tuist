@@ -309,41 +309,8 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
       period = {~U[2026-10-22 08:30:00.123456Z], ~U[2026-11-22 08:30:00.123456Z]}
 
-      stub(Billing, :recent_billing_periods, fn %{id: ^account_id}, 1 -> [period] end)
-
-      stub(UsagePricing, :period_breakdown, fn %{id: ^account_id}, ^period ->
-        %{
-          cache: %{
-            egress: %{
-              quantity: 130_000_000_000,
-              runner_quantity: 20_000_000_000,
-              metered: 120_300_000_000,
-              included: 100_000_000_000,
-              billable: 20_300_000_000,
-              charge: Money.new(710, :USD)
-            },
-            requests: %{
-              quantity: 412_000,
-              runner_quantity: 0,
-              metered: 412_000,
-              included: 1_000_000,
-              billable: 0,
-              charge: Money.new(0, :USD)
-            },
-            charge: Money.new(710, :USD)
-          },
-          tests: %{
-            passed: 6_200_000,
-            included: 5_000_000,
-            billable: 1_200_000,
-            charge: Money.new(240, :USD)
-          }
-        }
-      end)
-
-      stub(Allowance, :period_breakdown, fn %{id: ^account_id}, ^period ->
-        %{minutes: 250, free_minutes: 100, billed: Money.new(1_200, :USD)}
-      end)
+      stub(Billing, :effective_plan, fn %{id: ^account_id} -> :pro end)
+      stub_period_usage(account_id, period)
 
       # When
       conn = get(conn, ~p"/api/organizations/tuist-org/usage")
@@ -373,6 +340,25 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                "runner_minutes" => %{"used" => 250, "included" => 100, "charge_cents" => 1_200},
                "estimated_charge_cents" => 2_150
              }
+    end
+
+    test "charges an account not on Pro only for runner minutes", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+      Accounts.add_user_to_organization(user, organization)
+      stub_period_usage(organization.account.id, {~U[2026-10-01 00:00:00Z], ~U[2026-11-01 00:00:00Z]})
+
+      # When
+      conn = get(conn, ~p"/api/organizations/tuist-org/usage")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["cache_egress"]["billable"] == 20_300_000_000
+      assert response["cache_egress"]["charge_cents"] == 0
+      assert response["passing_test_cases"]["charge_cents"] == 0
+      assert response["runner_minutes"]["charge_cents"] == 1_200
+      assert response["estimated_charge_cents"] == 1_200
     end
 
     test "returns no charges for an organization without usage", %{conn: conn, user: user} do
@@ -1182,5 +1168,38 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         }
       }
     }
+  end
+
+  defp stub_period_usage(account_id, period) do
+    stub(Billing, :recent_billing_periods, fn %{id: ^account_id}, 1 -> [period] end)
+
+    stub(UsagePricing, :period_breakdown, fn %{id: ^account_id}, ^period ->
+      %{
+        cache: %{
+          egress: %{
+            quantity: 130_000_000_000,
+            runner_quantity: 20_000_000_000,
+            metered: 120_300_000_000,
+            included: 100_000_000_000,
+            billable: 20_300_000_000,
+            charge: Money.new(710, :USD)
+          },
+          requests: %{
+            quantity: 412_000,
+            runner_quantity: 0,
+            metered: 412_000,
+            included: 1_000_000,
+            billable: 0,
+            charge: Money.new(0, :USD)
+          },
+          charge: Money.new(710, :USD)
+        },
+        tests: %{passed: 6_200_000, included: 5_000_000, billable: 1_200_000, charge: Money.new(240, :USD)}
+      }
+    end)
+
+    stub(Allowance, :period_breakdown, fn %{id: ^account_id}, ^period ->
+      %{minutes: 250, free_minutes: 100, billed: Money.new(1_200, :USD)}
+    end)
   end
 end

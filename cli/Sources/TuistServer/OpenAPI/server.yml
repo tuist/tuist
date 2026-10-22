@@ -1523,12 +1523,12 @@ components:
       description: The usage of one usage-based meter over a billing period, in the meter's unit, and what it is charged so far.
       properties:
         billable:
-          description: The amount beyond the included allowance, which is charged.
+          description: The amount beyond the included allowance.
           type: integer
           x-struct:
           x-validate:
         charge_cents:
-          description: The charge for the billable amount so far, in US cents.
+          description: What the billable amount is charged so far, in US cents. Only Pro accounts are charged for it; other plans report 0.
           type: integer
           x-struct:
           x-validate:

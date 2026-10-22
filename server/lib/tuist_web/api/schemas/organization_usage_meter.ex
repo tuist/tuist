@@ -22,11 +22,11 @@ defmodule TuistWeb.API.Schemas.OrganizationUsageMeter do
       },
       billable: %Schema{
         type: :integer,
-        description: "The amount beyond the included allowance, which is charged."
+        description: "The amount beyond the included allowance."
       },
       charge_cents: %Schema{
         type: :integer,
-        description: "The charge for the billable amount so far, in US cents."
+        description: "What the billable amount is charged so far, in US cents. Only Pro accounts are charged for it; other plans report 0."
       }
     },
     required: [:used, :included, :billable, :charge_cents]
