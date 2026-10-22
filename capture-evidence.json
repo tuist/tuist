@@ -1,14 +1,14 @@
 {
-  "implementation": "2b3947a1fc01abfef5e3f85308e0837e1330104c",
-  "capturedAt": "2026-10-22T19:25:55.975Z",
+  "implementation": "529d8a884decd2b10c16579aa3e9dc643795a37f",
+  "capturedAt": "2026-10-22T21:13:25.188Z",
   "browser": "155.0.8059.85",
   "resources": [
     {
       "name": "xcode",
       "inventory": "/tuistrocks/inventory-xcode/builds/xcode/modules",
       "detail": "/tuistrocks/inventory-xcode/builds/xcode/modules/ca0c2774-b686-8199-bc6d-b0181482a01b",
-      "inventoryWidgets": "Module builds\n1,026\n+111.1%\nsince last week\nFailed module builds\n0\nNo change\nsince last week\nAvg. module build duration\n3.1s\n-0.3%\nsince last week\nModules\n30\n-14.3%\nsince last week",
-      "detailWidgets": "Module builds\n38\n+111.1%\nsince last week\nModule build duration\n7.8s\n-20.6%\nsince last week",
+      "inventoryWidgets": "Module builds\n999\n+94.7%\nsince last week\nFailed module builds\n0\nNo change\nsince last week\nAvg. module build duration\n3.1s\n-0.8%\nsince last week\nModules\n30\n-14.3%\nsince last week",
+      "detailWidgets": "Module builds\n37\n+94.7%\nsince last week\nModule build duration\n8.7s\n+4.7%\nsince last week",
       "headers": [
         "\n            \n              \n                Module\n                \n                \n              \n            \n          ",
         "\n            \n              \n                p50\n                \n                \n              \n            \n          ",
@@ -31,7 +31,7 @@
       "name": "gradle",
       "inventory": "/tuistrocks/inventory-gradle/builds/gradle/tasks",
       "detail": "/tuistrocks/inventory-gradle/builds/gradle/tasks/034c16ef-64a3-80d9-8b29-efbbc2dac500",
-      "inventoryWidgets": "Task executions\n897\n+108.6%\nsince last week\nFailed task executions\n2\n+100.0%\nsince last week\nAvg. execution duration\n2.2s\n-2.0%\nsince last week\nTasks\n29\nNo change\nsince last week",
+      "inventoryWidgets": "Task executions\n873\n+92.3%\nsince last week\nFailed task executions\n2\n+100.0%\nsince last week\nAvg. execution duration\n2.2s\n-2.4%\nsince last week\nTasks\n29\nNo change\nsince last week",
       "detailWidgets": "Executions\n27\n+92.9%\nsince last week\nDuration\n6.3s\n-43.2%\nsince last week",
       "headers": [
         "\n            \n              \n                Task\n                \n                \n              \n            \n          ",
@@ -58,8 +58,8 @@
       "name": "once",
       "inventory": "/tuistrocks/inventory-once/builds/once/actions",
       "detail": "/tuistrocks/inventory-once/builds/once/actions/1199c294-f777-8f1c-9edf-886e5b4b4e68",
-      "inventoryWidgets": "Action executions\n981\n+110.1%\nsince last week\nFailed action executions\n2\n+100.0%\nsince last week\nAvg. execution duration\n1.6s\n-1.1%\nsince last week\nActions\n29\nNo change\nsince last week",
-      "detailWidgets": "Executions\n35\n+105.9%\nsince last week\nDuration\n5.7s\n-1.5%\nsince last week",
+      "inventoryWidgets": "Action executions\n953\n+92.5%\nsince last week\nFailed action executions\n2\n+100.0%\nsince last week\nAvg. execution duration\n1.6s\n-1.4%\nsince last week\nActions\n29\nNo change\nsince last week",
+      "detailWidgets": "Executions\n34\n+88.9%\nsince last week\nDuration\n6.2s\n+23.2%\nsince last week",
       "headers": [
         "\n            \n              \n                Action\n                \n                \n              \n            \n          ",
         "\n            \n              Target\n              \n              \n            \n          ",
@@ -83,8 +83,8 @@
       "name": "bazel",
       "inventory": "/tuistrocks/inventory-bazel/builds/bazel/actions",
       "detail": "/tuistrocks/inventory-bazel/builds/bazel/actions/8fcac1d8-141b-8a2a-af52-0373fe247181",
-      "inventoryWidgets": "Action executions\n660\n+266.7%\nsince last week\nFailed action executions\n15\n+15\nsince last week\nAvg. execution duration\n2.1s\n-0.2%\nsince last week\nActions\n30\nNo change\nsince last week",
-      "detailWidgets": "Executions\n22\n+266.7%\nsince last week\nDuration\n3.5s\n-59.3%\nsince last week",
+      "inventoryWidgets": "Action executions\n630\n+200.0%\nsince last week\nFailed action executions\n15\n+15\nsince last week\nAvg. execution duration\n2.1s\n-1.8%\nsince last week\nActions\n30\nNo change\nsince last week",
+      "detailWidgets": "Executions\n21\n+200.0%\nsince last week\nDuration\n3.5s\n-53.5%\nsince last week",
       "headers": [
         "\n            \n              \n                Action\n                \n                \n              \n            \n          ",
         "\n            \n              Target\n              \n              \n            \n          ",
@@ -109,8 +109,8 @@
       "name": "mix-modules",
       "inventory": "/tuistrocks/inventory-mix/builds/mix/modules",
       "detail": "/tuistrocks/inventory-mix/builds/mix/modules/3f61e9bc-b499-887d-9c30-f5db7bdd08af",
-      "inventoryWidgets": "Module compilations\n1,121\n+111.1%\nsince last week\nFailed compilations\n0\nNo change\nsince last week\nModules\n30\nNo change\nsince last week",
-      "detailWidgets": "Compilations\n38\n+111.1%\nsince last week",
+      "inventoryWidgets": "Module compilations\n1,092\n+95.0%\nsince last week\nFailed compilations\n0\nNo change\nsince last week\nModules\n30\nNo change\nsince last week",
+      "detailWidgets": "Compilations\n37\n+94.7%\nsince last week",
       "headers": [
         "\n            \n              \n                Module\n                \n                \n              \n            \n          ",
         "\n            \n              Last status\n              \n              \n            \n          ",
@@ -161,5 +161,35 @@
       "\n              \n                  \n                  \n            \n  \n    \n\n\n\n    \n  \n  main\n  \n\n          \n                  \n                  \n                \n            "
     ],
     "errors": []
-  }
+  },
+  "marekPoints": {
+    "capturedAt": "2026-10-22T21:17:27.325Z",
+    "browser": "155.0.8059.85",
+    "xcodeStatuses": [
+      "Failed",
+      "Not recorded",
+      "Passed"
+    ],
+    "branchFormAutocomplete": "off",
+    "errors": []
+  },
+  "reviewScreenshots": [
+    "marek-01-xcode-duration-tooltip.png",
+    "marek-01-xcode-terminology.png",
+    "marek-02-default-branch-state.png",
+    "marek-03-search.png",
+    "marek-04-xcode-status.png",
+    "marek-05-branch-editor.png",
+    "marek-05-inventory-controls.png",
+    "marek-06-gradle-inventory.png",
+    "marek-07-once-fields.png",
+    "marek-08-bazel-action-type.png",
+    "marek-09-mix-navigation.png",
+    "marek-10-builds-only.png",
+    "marek-11-project-context.png",
+    "marek-12-native-section-names.png",
+    "marek-13-history-filters.png",
+    "marek-14-executions-without-cache-badges.png",
+    "marek-15-mix-without-file-timing.png"
+  ]
 }
