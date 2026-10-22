@@ -120,9 +120,12 @@ query logs only to us-east-1, so the stack must be applied there. Each line
 carries the queried hostname, the recursive resolver's IP, the client subnet when
 the resolver sent one, and the Route53 edge location that answered.
 
-Latency records steer by the resolver, not the client: a client whose resolver
-sits on another continent is sent to that continent's region. To check which
-resolvers an account's clients use, run a Logs Insights query against the group:
+Latency records steer by the client subnet when the resolver sends one (Google
+Public DNS does) and by the resolver's own address otherwise, so a client behind
+a resolver on another continent may be sent to that continent's region. Either
+way, a client is only steered among the regions its account has. To check which
+resolvers and subnets an account's lookups come from, run a Logs Insights query
+against the group:
 
 ```
 fields @timestamp, @message
