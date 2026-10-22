@@ -25,7 +25,7 @@ public struct LogInView: View {
 
     @ViewBuilder
     private var content: some View {
-        #if compiler(>=6.4)
+        #if canImport(SwiftUI, _version: 8.0.85)
             if #available(iOS 27.1, *), horizontalSizeClass == .regular {
                 ArrangementView {
                     signInContent(includesWelcome: false)
