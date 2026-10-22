@@ -27,7 +27,7 @@ defmodule Atlas.Inference do
   @token_attr_keys Map.values(@token_attr_key_map)
   @default_profile_page_size 10
   @max_profile_page_size 100
-  @atlas_roles [:inference, :coding, :embedding]
+  @atlas_roles [:inference, :coding, :embedding, :conversations]
 
   def list_model_bindings do
     ModelBinding
@@ -99,6 +99,34 @@ defmodule Atlas.Inference do
     |> where([binding], field(binding, ^field) == true)
     |> where([binding], binding.enabled == true)
     |> Repo.one()
+  end
+
+  @doc """
+  Returns the enabled profile assigned to an Atlas role together with its
+  enabled, unexpired role token. There is deliberately no fallback to another
+  role's profile: a feature bound to a role stays unavailable until an
+  administrator assigns a profile to that exact role.
+  """
+  def fetch_atlas_role(role) when role in @atlas_roles do
+    role_name = to_string(role)
+
+    with %ModelBinding{} = binding <- get_atlas_profile(role),
+         %Token{} = token <-
+           Repo.one(
+             from token in Token,
+               where:
+                 token.model_binding_id == ^binding.id and token.atlas_role == ^role_name and
+                   token.enabled == true
+           ),
+         false <- expired?(token) do
+      {:ok, binding, token}
+    else
+      _ -> {:error, :not_configured}
+    end
+  end
+
+  def atlas_role_configured?(role) when role in @atlas_roles do
+    match?({:ok, _binding, _token}, fetch_atlas_role(role))
   end
 
   def change_model_binding(%ModelBinding{} = binding, attrs \\ %{}) do
@@ -798,6 +826,7 @@ defmodule Atlas.Inference do
     |> maybe_clear_atlas_role(changeset, :inference)
     |> maybe_clear_atlas_role(changeset, :coding)
     |> maybe_clear_atlas_role(changeset, :embedding)
+    |> maybe_clear_atlas_role(changeset, :conversations)
     |> persist_model_binding_operation(changeset, operation)
     |> Repo.transaction()
     |> case do
@@ -902,10 +931,12 @@ defmodule Atlas.Inference do
   defp atlas_token_name("inference"), do: "Atlas inference"
   defp atlas_token_name("coding"), do: "Atlas coding"
   defp atlas_token_name("embedding"), do: "Atlas embeddings"
+  defp atlas_token_name("conversations"), do: "Atlas conversations"
 
   defp atlas_role_field(:inference), do: :atlas_inference
   defp atlas_role_field(:coding), do: :atlas_coding
   defp atlas_role_field(:embedding), do: :atlas_embedding
+  defp atlas_role_field(:conversations), do: :atlas_conversations
 
   defp atlas_token_allowed?(%Token{atlas_role: nil}, %ModelBinding{}), do: true
 
@@ -914,6 +945,8 @@ defmodule Atlas.Inference do
   defp atlas_token_allowed?(%Token{atlas_role: "coding"}, %ModelBinding{atlas_coding: true}), do: true
 
   defp atlas_token_allowed?(%Token{atlas_role: "embedding"}, %ModelBinding{atlas_embedding: true}), do: true
+
+  defp atlas_token_allowed?(%Token{atlas_role: "conversations"}, %ModelBinding{atlas_conversations: true}), do: true
 
   defp atlas_token_allowed?(%Token{atlas_role: role}, %ModelBinding{}) when is_binary(role), do: false
 

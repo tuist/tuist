@@ -7,6 +7,7 @@ defmodule Atlas.Application do
 
   alias Atlas.Accounts.HandleRegistry
   alias Atlas.Agents.Sessions.TelemetryHandler
+  alias Atlas.Conversations.Checkpoints
   alias Atlas.Demo
   alias Atlas.Engineering.Errors.DropAlerter
   alias Atlas.Engineering.Errors.Event.Buffer
@@ -23,6 +24,7 @@ defmodule Atlas.Application do
   def start(_type, _args) do
     attach_sentry_logger()
     TelemetryHandler.attach()
+    Checkpoints.attach()
     HTTP.configure_req_defaults()
 
     :ok = Application.ensure_started(:logger)
@@ -61,6 +63,7 @@ defmodule Atlas.Application do
       GitHubAppBootstrap,
       {Oban, Application.fetch_env!(:atlas, Oban)},
       Notifier,
+      Atlas.Conversations.Notifier,
       {Task.Supervisor, name: Atlas.TaskSupervisor},
       Sweeper
     ] ++

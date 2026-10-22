@@ -20,6 +20,27 @@ Invalid/missing path UUIDs return 404. Invalid fields return 422 with sanitized 
 
 Controller regressions live in `test/atlas_web/controllers/native_controller_test.exs`. These are backend endpoints; no new database, schema migration, or seed data is needed.
 
+## Native conversations
+
+`AtlasWeb.NativeConversationsController` serves fixed routes under `/api/native/conversations`, declared before the dynamic native resource routes and protected by the same bearer-only, `no-store` pipeline. Older servers answer the list route with the dynamic resource's 404, which clients treat as unsupported. Domain rules live in [conversations](../../atlas/conversations/AGENTS.md). Conversations a caller cannot read return `404 {"error":"not_found"}`, indistinguishable from missing ones.
+
+- `GET /api/native/conversations?page=N` returns `{bot: {name, configured}, conversations: {items, page, total_pages, total_count}}`. There are 25 items per page: the caller's private thread first, then the most recently updated. `configured` is false when no enabled profile carries the conversations role.
+- `POST /api/native/conversations/private` returns `{conversation}`, with 201 on creation and 200 afterwards (idempotent).
+- `POST /api/native/conversations` with `{title (≤200 chars, non-blank), participant_ids (≤30 UUIDs)}` returns 201 `{conversation}`. Malformed or unknown IDs return 422 `fields.participant_ids`.
+- `GET /:id/messages?page=N` returns `{conversation, messages: {items, page, total_pages, total_count}, latest_seq}`. There are 50 items per page; page 1 is the newest, and items are chronological within a page.
+- `POST /:id/messages` with `{body (≤16,000 bytes, non-blank), client_id (UUID), address_agent?}` returns 201 `{message}`, or 200 with the original message when the `client_id` is retried. A missing `address_agent` defaults to true; private threads always address the assistant.
+- `POST /:id/participants {user_id}` (owner only) returns 201 `{participant: {id, name}}`. It returns 422 `fields.user_id: ["missing_access"]` when the person lacks the scopes the history requires. `DELETE /:id/participants/:user_id` returns `{removed: true}`. `POST /:id/runs/:run_id/cancel` (initiator or owner) returns 202 `{run: {id, status}}`.
+- Conversation fields: `id`, `title` (the assistant's name for private threads), `kind`, `status` (`active`/`archived`), `summary`, `origin` (`manual`/`signal`), `owner_id`, `participants` (`[{id, name}]`), `agent_status` (`idle`, `queued`, `running`, `unconfigured`), `latest_seq`, `updated_at`.
+- Message fields: `id`, `kind` (`human`, `agent`, `tool`, `system`), `body`, `author_id` (humans only), `author_name`, `inserted_at`, `tool_name`, `tool_status` (`running`, `succeeded`, `failed`, `cancelled`), `tool_input`/`tool_output` (redacted bounded strings, `""` when absent), `seq` (stable creation order). A tool message keeps its ID and `seq` while its status changes; the change moves the conversation revision.
+- Errors use the native envelope: 401 for an invalid token, 403 for a forbidden membership action, 404, 409 for an archived conversation, 422 `invalid_params`/`validation_failed`, and 429 `rate_limited` (30 messages per minute per person).
+
+The presence socket (`/presence/websocket`, bearer subprotocol) also routes:
+
+- `conversation:<uuid>` (`AtlasWeb.ConversationChannel`). A join replies with, and the server pushes `snapshot` with, `{revision, people: [{id, name, typing}], agent_status}`. `revision` equals `latest_seq`; clients refetch page 1 when it moves. `people` lists current viewers, including the caller. The client pushes `typing {typing: bool}`; typing lapses after eight seconds. Leases last 20 seconds and are renewed every ten. Joins, pushes, typing and renewals re-check the OAuth grant and read access; losing either stops the channel. Joins without access reply `{reason: "unavailable"}`.
+- `conversations:me` (`AtlasWeb.ConversationListChannel`) replies with, and pushes, `{revision, people: []}`, where `revision` is a non-negative fingerprint of the caller's authorized list. It hears ID-free invalidations, recomputes before pushing, coalesces bursts, and renews every ten seconds to cover missed notifications.
+
+Coverage lives in `test/atlas_web/controllers/native_conversations_controller_test.exs` and `test/atlas_web/conversation_channel_test.exs`.
+
 ## Native link endpoints
 
 `AtlasWeb.NativeLinksController` serves the app association files and the `/open` landing from the `:native_links` pipeline (secure headers only; no Accept negotiation, session, CSRF, or user lookup). Association files return 404 until `AtlasWeb.NativeLinks.Config` lists verified identities, and set public caching. The Android statement delegates `handle_all_urls` to the fixed `dev.tuist.atlas` package. `/open` validates `screen` and the optional UUID against `AtlasWeb.NativeLinks` and returns 404 otherwise, including encoded slashes and extra segments.

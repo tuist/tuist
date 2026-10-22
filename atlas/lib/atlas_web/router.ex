@@ -198,6 +198,15 @@ defmodule AtlasWeb.Router do
   scope "/api/native", AtlasWeb do
     pipe_through :native
 
+    get "/conversations", NativeConversationsController, :index
+    post "/conversations", NativeConversationsController, :create
+    post "/conversations/private", NativeConversationsController, :private
+    get "/conversations/:id/messages", NativeConversationsController, :messages
+    post "/conversations/:id/messages", NativeConversationsController, :post_message
+    post "/conversations/:id/participants", NativeConversationsController, :add_participant
+    delete "/conversations/:id/participants/:user_id", NativeConversationsController, :remove_participant
+    post "/conversations/:id/runs/:run_id/cancel", NativeConversationsController, :cancel_run
+
     get "/profile", NativeController, :profile
     get "/:resource", NativeController, :index
     post "/:resource", NativeController, :create

@@ -157,19 +157,25 @@ defmodule AtlasWeb.Admin.InferenceHelpers do
       label: gettext("Atlas embeddings"),
       color: "secondary"
     })
+    |> maybe_add_atlas_role(profile.atlas_conversations, %{
+      label: gettext("Atlas conversations"),
+      color: "primary"
+    })
     |> Enum.reverse()
   end
 
   def atlas_usage_label(%ModelBinding{} = profile) do
-    case {profile.atlas_inference, profile.atlas_coding, profile.atlas_embedding} do
-      {true, true, true} -> gettext("Inference, coding, and embeddings")
-      {true, true, false} -> gettext("Inference and coding")
-      {true, false, true} -> gettext("Inference and embeddings")
-      {false, true, true} -> gettext("Coding and embeddings")
-      {true, false, false} -> gettext("Inference")
-      {false, true, false} -> gettext("Coding")
-      {false, false, true} -> gettext("Embeddings")
-      {false, false, false} -> gettext("Not used by Atlas")
+    [
+      {profile.atlas_inference, gettext("Inference")},
+      {profile.atlas_coding, gettext("Coding")},
+      {profile.atlas_embedding, gettext("Embeddings")},
+      {profile.atlas_conversations, gettext("Conversations")}
+    ]
+    |> Enum.filter(&elem(&1, 0))
+    |> Enum.map(&elem(&1, 1))
+    |> case do
+      [] -> gettext("Not used by Atlas")
+      labels -> Enum.join(labels, ", ")
     end
   end
 
