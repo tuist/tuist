@@ -83,7 +83,7 @@ concurrency:
   cancel-in-progress: true
 
 # Builds, lint and the Linux suite. The macOS test runs (`tuist test`), the
-# binary-cache warm and the coverage signal live in tuist-test.yml.
+# binary-cache warm and the coverage signal live in tuist-project-tests.yml.
 #
 # Linux archive caches: restore-keys hashes Package.swift (not Package.resolved) so the
 # fallback never crosses structural changes. See #10510 / e8fa267 for the incidents

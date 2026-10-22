@@ -167,7 +167,7 @@ never persist it or extend its host scope beyond github.com.
 
 ## CLI dependency volumes
 
-macOS jobs in `cli.yml`, `app.yml`, `tuist-test.yml` and `tuist-coverage-backfill.yml` use the standard
+macOS jobs in `cli.yml`, `app.yml`, `tuist-project-tests.yml` and `tuist-project-coverage-backfill.yml` use the standard
 `tuist-macos-27-0` profile and install dependencies through `tuist/install`.
 Custom volumes do not require the larger M4 shape. If host cache capacity is
 unavailable, each attachment falls back independently to an empty job-local directory; always
@@ -179,7 +179,7 @@ safe for fork contributors to read. Linux and release/backport workflows have
 separate toolchain and runner requirements and are not part of this migration.
 
 `cli.yml` holds builds, lint and the Linux suite; every macOS `tuist test` run
-of `tuist/tuist` lives in `tuist-test.yml` (below). Lint and SwiftPM Build run on
+of `tuist/tuist` lives in `tuist-project-tests.yml` (below). Lint and SwiftPM Build run on
 pull requests only. The `Package.resolved`
 job runs on both and checks that the lockfile's `originHash` is the SHA-256 of
 the root `Package.swift`. `tuist/install` forces resolved versions, so the other
@@ -313,7 +313,7 @@ instruments each disposable downloaded build using native line counters.
 Keep coverage
 off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
-from `tuist-test.yml` (`Tuist Test`), which runs every macOS `tuist test` of the
+from `tuist-project-tests.yml` (`tuist/tuist Tests`), which runs every macOS `tuist test` of the
 CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
 a pull request the unit and app tests run selectively, acceptance as before, and
 `coverage-complete` runs `tuist coverage complete` once the unit and app tests
@@ -323,7 +323,7 @@ finished, whatever their result (not on drafts or forks). On a push to main the
 follows when both passed. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: on a pull request the CLI reports the
-head from the merge ref (`HEAD^2`). `tuist-coverage-backfill.yml` is a dispatch-only
+head from the merge ref (`HEAD^2`). `tuist-project-coverage-backfill.yml` is a dispatch-only
 full run of an earlier commit on main, tested with main's `mise.toml`. The
 selective runs upload coverage too; the server drops from their skips whatever a
 full run of the scheme at the commit executed. The coverage settings are set once, in the
@@ -337,7 +337,7 @@ backward-compatibility gate's CLI knows it. The test runs pass no
 follow the resolved option, and the acceptance-test schemes set `coverage: false`
 to stay out. CLIs before tuist/tuist#14404 ignore the last two variables, so until
 `mise.toml` pins one with it the runs collect no coverage and stay green
-(`tuist coverage complete` leaves the commit pending). `tuist-test.yml`'s single
+(`tuist coverage complete` leaves the commit pending). `tuist-project-tests.yml`'s single
 `tuist cache` on main warms the variant those settings select: plain binaries
 before that pin, the coverage variant after it. Plain environment variables
 never reach the macOS test hosts (only `TEST_RUNNER_`-prefixed ones do), so

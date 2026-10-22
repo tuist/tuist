@@ -1,4 +1,4 @@
-name: Tuist Test
+name: tuist/tuist Tests
 
 # Every `tuist test` run of the tuist/tuist project (the CLI and the app), with
 # the binary-cache warm they read and the signal that a commit's coverage is
@@ -47,7 +47,7 @@ on:
       - "server/native/xcresult_nif/Sources/XCResultParser/**"
       - "app/**"
       - "*.swift"
-      - ".github/workflows/tuist-test.yml"
+      - ".github/workflows/tuist-project-tests.yml"
       - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
@@ -70,7 +70,7 @@ on:
       - "server/native/xcresult_nif/Sources/XCResultParser/**"
       - "app/**"
       - "*.swift"
-      - ".github/workflows/tuist-test.yml"
+      - ".github/workflows/tuist-project-tests.yml"
       - "mise/tasks/cli/ee.sh"
       - "mise.toml"
       - "mise.lock"
@@ -94,7 +94,7 @@ env:
   TUIST_DEV_INSTANCE: "1"
 
 concurrency:
-  group: tuist-test-${{ github.head_ref || github.run_id }}
+  group: tuist-project-tests-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:

@@ -36,7 +36,7 @@ on:
       - Server Kura Regional Deployment
       - Server Production Deployment
       - Tuist Ops Deployment
-      - Tuist Test
+      - tuist/tuist Tests
       - Xcode Processor
       - Xcode Processor Deploy
     branches: [main]
