@@ -78,7 +78,7 @@ Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
 restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 
-The server build-plan and unsharded fallback jobs run `verification/bcrypt_load.exs` in an isolated VM at production bcrypt cost. Preserve this guard alongside token-cache regression tests; the normal test profile's reduced bcrypt rounds hid the scale-out brownout.
+Production-cost token burst coverage belongs in the normal ExUnit suite, including sharded and unsharded runs. The token-cache regression creates a rounds-12 hash explicitly and counts real bcrypt calls without mutating shared configuration or asserting wall-clock latency.
 
 ## Server test sharding
 

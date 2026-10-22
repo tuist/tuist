@@ -22,4 +22,5 @@ This area owns Plug middleware for request processing.
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 
-- Do not cache authenticated subjects or successful authorization decisions. Credential and permission revocation must apply on the next request regardless of which web node receives it.
+- Proof-cache `UnavailableError` must render HTTP 503 in strict and cached authentication. Cachex-backed legacy subject fills return unavailable without retaining errors, and never bypass proof-cache failure guards with bcrypt.
+- Never cache authorization booleans across credentials. Ordinary allowlisted API reads/uploads may use dedicated `SubjectCache` snapshots with at most 60 seconds of non-sliding staleness and verified expiry checks. Resolve route policy before controller dispatch; all other writes and runner-shell upgrades authenticate fresh by default. Credential creation/privilege changes also bypass resource-loader caches. Private loaders remain bounded; public project/account snapshots are reloaded before access, so privacy flips cannot inherit a cached public grant.

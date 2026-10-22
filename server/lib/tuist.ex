@@ -171,6 +171,8 @@ defmodule Tuist do
       Accounts.AccountToken,
       Accounts.User,
       Authentication,
+      Authentication.SubjectCache,
+      Authentication.UnavailableError,
       Authorization,
       Guardian,
       OIDC,

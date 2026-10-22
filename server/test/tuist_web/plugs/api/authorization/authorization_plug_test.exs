@@ -19,6 +19,25 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     %{cache: cache}
   end
 
+  test "a read-only credential cannot borrow a write credential's cached permission", %{cache: cache} do
+    project = ProjectsFixtures.project_fixture()
+
+    write = %AuthenticatedAccount{
+      account: project.account,
+      token_id: UUIDv7.generate(),
+      scopes: ["project:cache:write"],
+      all_projects: true
+    }
+
+    read = %{write | token_id: UUIDv7.generate(), scopes: ["project:cache:read"]}
+    opts = AuthorizationPlug.init(category: :cache, caching: true)
+    request = :post |> build_conn("/") |> assign(:selected_project, project) |> assign(:cache, cache)
+    assert AuthorizationPlug.call(assign(request, :current_subject, write), opts).halted == false
+    denied = AuthorizationPlug.call(assign(request, :current_subject, read), opts)
+    assert denied.halted
+    assert denied.status == 403
+  end
+
   test "returns the connection when the authenticated account with project:bundles:read scope can read bundles" do
     # Given
     project = ProjectsFixtures.project_fixture()

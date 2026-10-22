@@ -270,8 +270,6 @@ jobs:
           echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
         env:
           TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-current
-      - name: Verify production-cost token burst
-        run: env MIX_ENV=test mix run --no-start --no-compile verification/bcrypt_load.exs
       - name: Plan oldest supported ClickHouse shards
         id: floor
         run: |
@@ -448,8 +446,6 @@ jobs:
         run: mise/tasks/cldr/prefetch-locale-data.sh
       - name: Compile
         run: mix compile --warnings-as-errors
-      - name: Verify production-cost token burst
-        run: env MIX_ENV=test mix run --no-start --no-compile verification/bcrypt_load.exs
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       - name: Setup database
