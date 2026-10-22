@@ -4,7 +4,7 @@ struct AtlasBusinessView: View {
     @StateObject private var model: AtlasBusiness
     @State private var query = ""
     @State private var creating = false
-    @State private var loadedCriteria: (query: String, filters: [String: String])?
+    @State private var listRevision = 0
     @Environment(\.atlasPresence) private var presence
 
     init(resource: AtlasBusinessResource, request: @escaping ([String: Any]) async throws -> Data) {
@@ -12,15 +12,8 @@ struct AtlasBusinessView: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            list.onChange(of: model.page?.page) { _, page in
-                if page == 1, loadedCriteria?.query == model.query, loadedCriteria?.filters == model.filters {
-                    proxy.scrollTo("business-start", anchor: .top)
-                }
-                if page != nil {
-                    loadedCriteria = (query: model.query, filters: model.filters)
-                }
-            }
+        list.onChange(of: model.page?.page) { previous, page in
+            if previous != nil, page == 1 { listRevision += 1 }
         }
     }
 
@@ -30,7 +23,7 @@ struct AtlasBusinessView: View {
                 ContentUnavailableView("Access required", systemImage: "lock", description: Text("Ask an Atlas administrator for access."))
             } else if let page = model.page {
                 if model.resource == .invoices {
-                    AtlasFinanceOverviewView(overview: page.financeOverview).id("business-start")
+                    AtlasFinanceOverviewView(overview: page.financeOverview)
                     Section {
                         Text("Manage manual invoices here. Imported invoices are read-only. No payments are made from this screen.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -53,7 +46,6 @@ struct AtlasBusinessView: View {
                 } header: {
                     Text(model.query.isEmpty ? "\(page.totalCount) items" : "Results for “\(model.query)” · \(page.totalCount) items")
                 }
-                .id(model.resource == .invoices ? "business-records" : "business-start")
                 if model.filters["group_by"] == "reminder" {
                     ForEach(AtlasTaskReminderGroup.allCases) { group in
                         let items = page.items.filter { (model.records[$0.id] ?? $0)["reminder_group"] == group.rawValue }
@@ -85,6 +77,7 @@ struct AtlasBusinessView: View {
         // Reset only the list for new criteria; scrolling headers can clip them under native navigation.
         .id(model.query)
         .id(model.filters)
+        .id(listRevision)
         .modifier(AtlasThemedContent())
         .navigationTitle(model.resource.title)
         .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
