@@ -17,6 +17,7 @@ defmodule Tuist.OAuth.Exchange do
 
   alias Boruta.Ecto.Token
   alias Boruta.Oauth.Authorization
+  alias Boruta.Oauth.Authorization.Client, as: ClientAuthorization
   alias Boruta.Oauth.AuthorizationCodeRequest
   alias Boruta.Oauth.Error
   alias Boruta.Oauth.RefreshTokenRequest
@@ -27,7 +28,8 @@ defmodule Tuist.OAuth.Exchange do
   def token(conn, application, opts \\ []) do
     result =
       with :ok <- allow_request_uri(conn),
-           {:ok, request} <- Request.token_request(conn) do
+           {:ok, request} <- Request.token_request(conn),
+           :ok <- preflight_client(request) do
         authorize = Keyword.get(opts, :authorize, &Authorization.token/1)
 
         case credential_query(request) do
@@ -69,6 +71,32 @@ defmodule Tuist.OAuth.Exchange do
        error_description: "External request_uri is not supported at the token endpoint; use an inline request."
      }}
   end
+
+  defp preflight_client(%AuthorizationCodeRequest{client_authentication: %{type: "jwt"} = source} = request) do
+    client_authorized(
+      ClientAuthorization.authorize(
+        id: request.client_id,
+        source: source,
+        redirect_uri: request.redirect_uri,
+        grant_type: request.grant_type,
+        code_verifier: request.code_verifier
+      )
+    )
+  end
+
+  defp preflight_client(%RefreshTokenRequest{client_authentication: %{type: "jwt"} = source} = request) do
+    client_authorized(
+      ClientAuthorization.authorize(
+        id: request.client_id,
+        source: source,
+        grant_type: request.grant_type
+      )
+    )
+  end
+
+  defp preflight_client(_request), do: :ok
+  defp client_authorized({:ok, _client}), do: :ok
+  defp client_authorized({:error, _} = error), do: error
 
   defp exchange(request, authorize, query) do
     transaction =

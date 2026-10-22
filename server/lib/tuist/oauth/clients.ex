@@ -13,6 +13,7 @@ defmodule Tuist.OAuth.Clients do
   alias Boruta.Oauth.Client
   alias Boruta.Oauth.Clients
   alias Tuist.Environment
+  alias Tuist.Repo
 
   @authorization_code_ttl 300
   @supported_grant_types ["authorization_code", "refresh_token", "revoke"]
@@ -76,9 +77,13 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Boruta.Openid.Clients
   def refresh_jwk_from_jwks_uri(client_id) do
-    case static_client(client_id) do
-      %Client{} -> {:error, "JWK refresh from JWKS URI not supported"}
-      nil -> EctoClients.refresh_jwk_from_jwks_uri(client_id)
+    if Repo.in_transaction?() do
+      {:error, "JWK refresh from JWKS URI not supported inside a transaction"}
+    else
+      case static_client(client_id) do
+        %Client{} -> {:error, "JWK refresh from JWKS URI not supported"}
+        nil -> EctoClients.refresh_jwk_from_jwks_uri(client_id)
+      end
     end
   end
 
