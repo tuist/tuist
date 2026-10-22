@@ -163,6 +163,24 @@ struct XCActivityLogParserTests {
         #expect(interval?.1 == 1500)
     }
 
+    @Test func buildSteps_logDeduplicatesNonASCIIText() {
+        let path = "/Users/José/Projects/🙂App/カフェ.swift"
+        let log = BuildStepLog.render(
+            signature: "Compile App",
+            command: "",
+            output: "警告: \(path)\nok",
+            messages: ["警告: \(path)", "注意 🚀 naïve", "©", "Cafe\u{301}"],
+            limit: 1000
+        )
+        #expect(log.text == "Compile App\n警告: \(path)\nok\n注意 🚀 naïve\n©\nCafe\u{301}")
+        #expect(!log.truncated)
+
+        // Byte matching never splits a character: "©" (C2 A9) shares its last
+        // byte with "é" (C3 A9), and canonically equivalent spellings stay distinct.
+        let distinct = BuildStepLog.render(signature: "Café", command: "", output: "", messages: ["©", "Cafe\u{301}"], limit: 1000)
+        #expect(distinct.text == "Café\n©\nCafe\u{301}")
+    }
+
     @Test func buildSteps_logNormalizesAndDeduplicatesBeforeTruncation() {
         let log = BuildStepLog.render(signature: "Compile App", command: "Compile App\r\ncd /workspace", output: "hello\rworld\r\n", messages: ["hello\nworld\n"], limit: 1000)
         #expect(log.text == "Compile App\ncd /workspace\nhello\nworld\n")
