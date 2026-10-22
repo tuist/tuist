@@ -14,6 +14,7 @@ import org.gradle.api.tasks.testing.TestDescriptor
 import org.gradle.api.tasks.testing.TestListener
 import org.gradle.api.tasks.testing.TestResult
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -566,42 +567,49 @@ abstract class TuistTestInsightsService :
         val response = httpClient.execute { config ->
             val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get()).trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
-                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
-                }
+            // The server creates a new run for every report without an id, so a report it may have received is not sent again.
+            httpClient.retrying("Test insights request", replaySafe = false) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                    }
 
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    val outgoingReport = if (config.token.isBlank()) report.copy(
-                        gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
-                        gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
-                        isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
-                        historySource = null, historyFallbackReason = null
-                    ) else report
-                    Gson().toJson(outgoingReport, writer)
-                }
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        val outgoingReport = if (config.token.isBlank()) report.copy(
+                            gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                            gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
+                            isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
+                            historySource = null, historyFallbackReason = null
+                        ) else report
+                        Gson().toJson(outgoingReport, writer)
+                    }
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_OK -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, TestResponse::class.java)
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_OK -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, TestResponse::class.java)
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            val message = "Test insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
+                            if (status in TuistRetry.RETRYABLE_STATUSES) {
+                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
+                            }
+                            logger.warn("Tuist: $message")
+                            null
                         }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn("Tuist: Test insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                        null
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
 

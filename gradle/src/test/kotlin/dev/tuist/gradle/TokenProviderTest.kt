@@ -392,4 +392,80 @@ class TokenProviderTest {
             provider.getToken()
         }
     }
+
+    private fun refreshingProvider(server: MockWebServer): Pair<TokenProvider, CredentialStore> {
+        val url = server.url("/").toUri()
+        val store = CredentialStore(File(tempDir, "refresh-credentials"))
+        store.write(url, Credentials(expiredJwt(), "refresh-token"))
+        val httpClients = TuistHttpClients(
+            useEnvironmentProxy = false,
+            environmentVariables = emptyMap(),
+            retryPolicy = RetryPolicy(sleeper = {})
+        )
+        val provider = TokenProvider(
+            serverURL = url,
+            refreshAuthTokenService = RefreshAuthTokenService(httpClients),
+            credentialStore = store,
+            envProvider = { null },
+            tokenCacheFactory = { CachedValueStore() }
+        )
+        return provider to store
+    }
+
+    @Test
+    fun `refresh retries a 503 and stores the refreshed token`() {
+        MockWebServer().use { server ->
+            val newToken = validJwt()
+            server.enqueue(MockResponse().setResponseCode(503))
+            server.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setBody(Gson().toJson(mapOf("access_token" to newToken, "refresh_token" to "new-refresh")))
+            )
+            val (provider, store) = refreshingProvider(server)
+
+            assertEquals(newToken, provider.getToken())
+            assertEquals("new-refresh", store.read(server.url("/").toUri())?.refreshToken)
+            assertEquals(2, server.requestCount)
+        }
+    }
+
+    @Test
+    fun `refresh against a server that stays unavailable is not reported as not authenticated`() {
+        MockWebServer().use { server ->
+            repeat(4) { server.enqueue(MockResponse().setResponseCode(503)) }
+            val (provider, store) = refreshingProvider(server)
+
+            val error = assertFailsWith<Exception> { provider.getToken() }
+
+            assertTrue(error !is TokenProvider.NotAuthenticatedException, "Got $error")
+            assertTrue(error is java.io.IOException, "Got $error")
+            assertEquals(4, server.requestCount)
+            assertEquals("refresh-token", store.read(server.url("/").toUri())?.refreshToken)
+        }
+    }
+
+    @Test
+    fun `refresh does not resend a token the server may have rotated`() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(502))
+            server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+            val (provider, _) = refreshingProvider(server)
+
+            val error = assertFailsWith<Exception> { provider.getToken() }
+
+            assertTrue(error !is TokenProvider.NotAuthenticatedException, "Got $error")
+            assertEquals(1, server.requestCount)
+        }
+    }
+
+    @Test
+    fun `refresh rejected by the server means not authenticated`() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(401).setBody("""{"message":"The refresh token is expired or invalid"}"""))
+            val (provider, _) = refreshingProvider(server)
+
+            assertFailsWith<TokenProvider.NotAuthenticatedException> { provider.getToken() }
+            assertEquals(1, server.requestCount)
+        }
+    }
 }
