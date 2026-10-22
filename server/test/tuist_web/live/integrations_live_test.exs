@@ -202,7 +202,13 @@ defmodule TuistWeb.IntegrationsLiveTest do
       origin_installation: origin_installation
     } do
       github_project = ProjectsFixtures.project_fixture(account_id: account.id)
-      github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+
+      github_installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: account.id,
+          html_url: "https://github.com/organizations/acme/settings/installations/123"
+        )
+
       stub(VCS, :get_github_app_installation_repositories, fn _ -> {:ok, []} end)
 
       for {provider, project, installation_key, installation} <- [
