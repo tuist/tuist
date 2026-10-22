@@ -588,6 +588,89 @@ STUB
     [ "$status" -eq 0 ]
 }
 
+@test "a site with prefixes of its own announces them to the WAN's upstream from the WAN address, and takes only a default route back" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_bgp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"router id 149.6.170.31;"* ]]
+    # one session per family, bound to the floating WAN address, so only the
+    # master has one
+    [[ "$output" == *"protocol bgp upstream4 {
+  local 149.6.170.31 as 218377;
+  neighbor 149.6.170.30 as 174;
+  direct;"* ]]
+    [[ "$output" == *"protocol bgp upstream6 {
+  local 2001:978:2:b::4:11 as 218377;
+  neighbor 2001:978:2:b::4:10 as 174;
+  direct;"* ]]
+    # each prefix is originated as a blackhole in BIRD's own table and is the
+    # only thing announced
+    [[ "$output" == *"protocol static originate4 {
+  ipv4;
+  route 95.130.119.0/24 blackhole;
+}"* ]]
+    [[ "$output" == *"protocol static originate6 {
+  ipv6;
+  route 2a11:83c0::/29 blackhole;
+}"* ]]
+    [[ "$output" == *'export where proto = "originate4";'* ]]
+    [[ "$output" == *'export where proto = "originate6";'* ]]
+    [[ "$output" == *"if net.len = 0 then accept;"* ]]
+    # nothing goes into the node's routes: the default is keepalived's
+    [[ "$output" != *"protocol kernel"* ]]
+    # an IPv4-only announcement has no IPv6 session
+    jq '.management.edge.wan.bgp.prefixes = ["95.130.119.0/24"]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/v4only.json"
+    run fleet_edge_bgp "$BATS_TEST_TMPDIR/v4only.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"protocol bgp upstream4"* ]]
+    [[ "$output" != *"upstream6"* ]]
+    [[ "$output" != *"2001:978:"* ]]
+}
+
+@test "a WAN announcement with a bad AS number or prefix, or no address to announce from, is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/badbgp.json"
+    jq '.management.edge.wan.bgp.asn = "AS218377"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.wan.bgp.asn and peer_asn are AS numbers"* ]]
+    jq '.management.edge.wan.bgp.peer_asn = 4294967296' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    jq '.management.edge.wan.bgp.prefixes = []' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"announces no prefixes"* ]]
+    jq '.management.edge.wan.bgp.prefixes = ["95.130.119.1/24"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'95.130.119.1/24' is not an IPv4 network with its prefix length"* ]]
+    jq '.management.edge.wan.bgp.prefixes = ["2A11:83C0::/29"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an IPv6 network ending in ::"* ]]
+    jq '.management.edge.wan |= del(.address6, .gateway6)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'2a11:83c0::/29' is IPv6, and the WAN has no IPv6 address to announce it from"* ]]
+    jq '.management.edge.wan |= {vlan, bgp}' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.wan.bgp needs the WAN's address"* ]]
+}
+
+@test "render --check notices a WAN announcement the site has and the chart does not" {
+    chart="$BATS_TEST_TMPDIR/chart"
+    mkdir -p "$chart/sites"
+    cp -R "$FLEET_ROOT/../helm/rack-edge/sites/ber1" "$chart/sites/"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -eq 0 ]
+    rm "$chart/sites/ber1/bird.conf"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: "*"/sites/ber1/bird.conf"* ]]
+}
+
 @test "the edges' VLANs are tagged only on the ports facing an edge's data links and on the ISL" {
     for tor in ber1-tor-a ber1-tor-b; do
         run fleet_render "$SITE_FILE" "$tor"
