@@ -2234,3 +2234,70 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Your team, here in Atlas. Availability updates while the app is active."
 msgstr ""
+
+#: lib/atlas_web/components/account_menu.ex:37
+#: lib/atlas_web/controllers/native_links_controller.ex:62
+#: lib/atlas_web/controllers/native_links_html/open.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "Open in Atlas"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:10
+#, elixir-autogen, elixir-format
+msgid "Open Tasks"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:11
+#, elixir-autogen, elixir-format
+msgid "Open this task"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:12
+#, elixir-autogen, elixir-format
+msgid "Open Accounts"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:13
+#, elixir-autogen, elixir-format
+msgid "Open this account"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:14
+#, elixir-autogen, elixir-format
+msgid "Open Invoices"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:15
+#, elixir-autogen, elixir-format
+msgid "Open this invoice"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:16
+#, elixir-autogen, elixir-format
+msgid "Open Time off"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:17
+#, elixir-autogen, elixir-format
+msgid "Open People"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html.ex:18
+#, elixir-autogen, elixir-format
+msgid "Open Profile"
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html/open.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Open it in the Atlas app, or continue in your browser. You may need to sign in."
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html/open.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Continue in your browser. You may need to sign in."
+msgstr ""
+
+#: lib/atlas_web/controllers/native_links_html/open.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Continue in browser"
+msgstr ""

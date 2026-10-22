@@ -84,7 +84,7 @@ class SbfmExemptionTest(unittest.TestCase):
             "/marketing-markdown", "/marketing-markdown/",
             "/marketing-markdown/cache", "/marketing-markdown/compare/github-actions",
             "/marketing-markdown/source/openness", "/robots.txt", "/llms.txt",
-            "/llms-full.txt", "/sitemap.xml",
+            "/llms-full.txt", "/sitemap.xml", "/geofeed.csv",
         ]
         for locale in ["en", "es", "ja", "ka", "ko", "ru", "yue_Hant", "zh_Hans", "zh_Hant"]:
             for section in ["docs", "docs-markdown"]:

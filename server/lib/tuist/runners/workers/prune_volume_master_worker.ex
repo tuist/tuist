@@ -7,8 +7,9 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterWorker do
   (`runner-volume-masters/<account>/<volume>/<master id>.image`), so a promote no
   longer overwrites the previous object — without this it would accumulate one
   multi-GB object per distinct inventory forever, cleaned only on account
-  deletion. `Runners.report_volume_head/7` enqueues this with a delay equal to the
-  presigned-URL TTL when a new digest supersedes an old one, so the object
+  deletion. `Runners.report_volume_head/6` and `Runners.clear_volume_master/2`
+  enqueue this with a delay equal to the presigned-URL TTL when a new digest
+  supersedes an old one, so the object
   survives as long as any in-flight convergence could still fetch it.
 
   Best-effort: `Runners.prune_superseded_volume_master/3` re-checks the HEAD and
@@ -19,15 +20,14 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterWorker do
   use Oban.Worker, queue: :default, max_attempts: 5
 
   alias Tuist.Runners
-  alias Tuist.Runners.VolumeHeads
 
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"account_id" => account_id} = args}) do
+  def perform(%Oban.Job{args: %{"account_id" => account_id, "volume_name" => volume_name} = args}) do
     master_id = master_id(args)
 
-    case Runners.prune_superseded_volume_master(account_id, volume_name(args), master_id) do
+    case Runners.prune_superseded_volume_master(account_id, volume_name, master_id) do
       :ok ->
         :ok
 
@@ -39,10 +39,6 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterWorker do
         error
     end
   end
-
-  # Jobs enqueued before volumes were per repository name no volume.
-  defp volume_name(%{"volume_name" => volume_name}), do: volume_name
-  defp volume_name(_args), do: VolumeHeads.reserved_tuist_cache()
 
   # Jobs enqueued before master ids could carry a content digest name the object
   # by its inventory digest, which is still that object's id.

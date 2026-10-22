@@ -352,18 +352,26 @@ defmodule Mix.Tasks.Tuist.Test do
   # the Git history is read before the tests can change the checkout.
   defp run_deferred(options, test_args) do
     configure(Keyword.put(options, :mode, {:defer, self()}))
-    history = collect_history(options)
+    network_publishing? = network_publishing?()
+    history = collect_history(options, network_publishing?)
 
     try do
       run_test(test_args, options)
     after
-      submit_runs(summarize_coverage(ExUnitFormatter.take_deferred()), [], options, history)
+      submit_runs(
+        summarize_coverage(ExUnitFormatter.take_deferred()),
+        [],
+        options,
+        history,
+        network_publishing?
+      )
     end
   end
 
   defp run_with_retries(options, test_args, retries) do
     configure(Keyword.put(options, :mode, {:defer, self()}))
-    history = collect_history(options)
+    network_publishing? = network_publishing?()
+    history = collect_history(options, network_publishing?)
     suite = run_suite(test_args, options)
     # One per suite that ran: an umbrella runs one for each application. The
     # first run's coverage is the run's: retries never carry `--cover`.
@@ -394,7 +402,7 @@ defmodule Mix.Tasks.Tuist.Test do
           retry(test_args, retries, options)
       end
 
-    submit_runs(deferred, attempts, options, history)
+    submit_runs(deferred, attempts, options, history, network_publishing?)
 
     if suite == :failed, do: fail(test_args)
     :ok
@@ -424,26 +432,26 @@ defmodule Mix.Tasks.Tuist.Test do
   # The commits and branch heads go up before the runs, whose ingestion reads
   # which commits the default branch reached; the commit's listing once the
   # runs exist.
-  defp submit_runs(deferred, attempts, options, history) do
-    upload_history(history, &GitHistory.publish/2)
+  defp submit_runs(deferred, attempts, options, history, network_publishing?) do
+    upload_history(history, &GitHistory.publish/2, network_publishing?)
 
     for {payload, opts, _aborted?} <- deferred do
       payload
       |> ExUnitFormatter.merge_retries(attempts)
-      |> with_coverage(options, opts, history)
+      |> with_coverage(options, opts, history, network_publishing?)
       |> ExUnitFormatter.submit(opts)
     end
 
-    upload_history(history, &GitHistory.upload_listing/2)
+    upload_history(history, &GitHistory.upload_listing/2, network_publishing?)
     :ok
   end
 
-  defp upload_history(nil, _upload), do: :ok
+  defp upload_history(nil, _upload, _network_publishing?), do: :ok
 
-  defp upload_history(history, upload) do
+  defp upload_history(history, upload, network_publishing?) do
     analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
 
-    if not Auth.network_publishing?(analytics_options) do
+    if not network_publishing? do
       case Isolated.run(fn -> upload.(history, analytics_options) end, 300_000) do
         problems when is_list(problems) ->
           Enum.each(problems, &Report.debug("tuist analytics: " <> &1))
@@ -454,13 +462,18 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
+  defp network_publishing? do
+    analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
+    Isolated.run(fn -> Auth.network_publishing?(analytics_options) end, 2_000) == true
+  end
+
   # On authenticated CI, or with coverage, unless `TUIST_GIT_UPLOAD_ENABLED=false`.
-  defp collect_history(options) do
+  defp collect_history(options, network_publishing?) do
     coverage? = options[:coverage] == true
     analytics_options = Application.get_env(:tuist_ex, :analytics_options, [])
 
     with true <-
-           not Auth.network_publishing?(analytics_options) and GitHistory.enabled?(coverage?),
+           not network_publishing? and GitHistory.enabled?(coverage?),
          %{} = history <-
            Isolated.run(
              fn ->
@@ -479,10 +492,10 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
-  defp with_coverage(payload, options, opts, history) do
+  defp with_coverage(payload, options, opts, history, network_publishing?) do
     {snapshot, payload} = Map.pop(payload, :coverage_snapshot)
 
-    if Auth.network_publishing?(opts) do
+    if network_publishing? do
       payload
     else
       do_with_coverage(payload, snapshot, options, opts, history)

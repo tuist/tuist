@@ -107,6 +107,7 @@ config :tuist, Tuist.Repo,
   # default; a genuinely hung query still fails within this bound.
   timeout: 60_000
 
+config :tuist, Tuist.Runners, volume_master_readable_interval_ms: 0
 config :tuist, Tuist.Tasks, sync: true
 
 # Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.

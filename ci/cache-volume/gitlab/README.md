@@ -119,7 +119,9 @@ listing with that token. Missing source metadata never grants save permission;
 API failure declines attachment. Predefined-looking `CI_*` variables are not
 used to grant permission. Successful push, schedule and web pipelines on any
 branch can save, narrowed by the runner profile's **Save cache from** setting;
-tags, merge requests, child and other pipelines cannot.
+tags, child and other pipelines cannot. Merge request pipelines save under the
+source branch only when the connection has an API access token and the merge
+request's source project is the project itself.
 Saved changes become available only after the job and local writers are gone.
 
 Tuist embeds GitLab Runner's shell executor in the isolated Linux or macOS runner.

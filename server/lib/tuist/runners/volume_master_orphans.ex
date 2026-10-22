@@ -17,11 +17,10 @@ defmodule Tuist.Runners.VolumeMasterOrphans do
   import Ecto.Query
 
   alias Tuist.Repo
-  alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.VolumeMasterOrphan
 
   @doc "Records `master_id` as an orphan (idempotent upsert on the unique key)."
-  def record(account_id, master_id, volume_name \\ VolumeHeads.reserved_tuist_cache())
+  def record(account_id, master_id, volume_name)
       when is_integer(account_id) and is_binary(master_id) and master_id != "" do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
@@ -44,8 +43,7 @@ defmodule Tuist.Runners.VolumeMasterOrphans do
   end
 
   @doc "Forgets `master_id` — it was accepted as HEAD or already reclaimed."
-  def forget(account_id, master_id, volume_name \\ VolumeHeads.reserved_tuist_cache())
-      when is_integer(account_id) and is_binary(master_id) do
+  def forget(account_id, master_id, volume_name) when is_integer(account_id) and is_binary(master_id) do
     Repo.delete_all(
       from(o in VolumeMasterOrphan,
         where:
@@ -58,8 +56,7 @@ defmodule Tuist.Runners.VolumeMasterOrphans do
   end
 
   @doc "Whether `master_id` is still recorded as an orphan (never accepted)."
-  def exists?(account_id, master_id, volume_name \\ VolumeHeads.reserved_tuist_cache())
-      when is_integer(account_id) and is_binary(master_id) do
+  def exists?(account_id, master_id, volume_name) when is_integer(account_id) and is_binary(master_id) do
     Repo.exists?(
       from(o in VolumeMasterOrphan,
         where:

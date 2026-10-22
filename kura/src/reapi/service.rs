@@ -8390,6 +8390,116 @@ mod tests {
         assert_eq!(split_error.code(), tonic::Code::NotFound);
     }
 
+    async fn persist_snapshot_test_entry(context: &TestContext, seed: u8) -> ([u8; 32], u64) {
+        let blob_hash = [seed; 32];
+        let blob_key_name = blob_key(&format!("{}/7", hex::encode(blob_hash)));
+        context
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key_name,
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("blob should persist");
+        let action_hash = [seed.wrapping_add(0x80); 32];
+        let action_key = format!("action_cache/{}/10", hex::encode(action_hash));
+        let action_result = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([seed]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        tokio::time::sleep(Duration::from_millis(3)).await;
+        let manifest = context
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &action_key,
+                "application/x-protobuf",
+                &action_result,
+            )
+            .await
+            .expect("action result should persist");
+        (action_hash, manifest.version_ms)
+    }
+
+    #[tokio::test]
+    async fn snapshot_reconcile_at_its_byte_budget_keeps_the_newest_entries() {
+        let context = test_context(|_| {}).await;
+        let unbounded = SnapshotBuildBudgets {
+            metadata_bytes: 1024 * 1024,
+            index_bytes: 1024 * 1024,
+            encoded_bytes: 1024 * 1024,
+            decoded_bytes: 1024 * 1024,
+        };
+        let mut oldest_first = Vec::new();
+        for seed in 1..=3u8 {
+            oldest_first.push(persist_snapshot_test_entry(&context, seed).await);
+        }
+        let full = match reconcile_snapshot_index(
+            &context.state,
+            "ios",
+            None,
+            NamespaceSnapshotIndex::new(),
+            unbounded,
+        )
+        .await
+        {
+            Ok(index) => index,
+            Err((_, error)) => panic!("the initial reconcile should load every entry: {error}"),
+        };
+        assert_eq!(full.entries.len(), 3);
+        // A budget that holds exactly the three entries it was measured with.
+        let budgets = SnapshotBuildBudgets {
+            index_bytes: full.estimated_bytes(),
+            ..unbounded
+        };
+
+        // A build republishes the oldest entry (the proxy's view refresh does
+        // this for every per-key hit) and publishes a new one.
+        let (republished, previous_version) = oldest_first[0];
+        let (republished_again, republished_version) =
+            persist_snapshot_test_entry(&context, 1).await;
+        assert_eq!(republished_again, republished);
+        assert!(republished_version > previous_version);
+        let (published, _) = persist_snapshot_test_entry(&context, 4).await;
+
+        let index = match reconcile_snapshot_index(&context.state, "ios", None, full, budgets).await
+        {
+            Ok(index) => index,
+            Err((_, error)) => panic!("a full index should still reconcile: {error}"),
+        };
+        assert!(
+            index.entries.contains_key(&published),
+            "the newest entry must displace an older one rather than be rejected"
+        );
+        assert!(
+            index.entries.contains_key(&republished),
+            "a republished entry is the newest write and must stay advertised"
+        );
+        assert!(
+            index.entries.contains_key(&oldest_first[2].0),
+            "the next-newest entry still fits"
+        );
+        assert!(
+            !index.entries.contains_key(&oldest_first[1].0),
+            "the oldest entry makes room"
+        );
+        assert!(index.estimated_bytes() <= budgets.index_bytes);
+    }
+
     #[tokio::test]
     async fn snapshot_reconcile_rejects_a_decode_larger_than_its_working_budget() {
         let context = test_context(|_| {}).await;

@@ -51,6 +51,31 @@ pub extern "C" fn atlas_group_field_byte(group: i32, field_id: i32, offset: i32)
         .map_or(-1, |value| i32::from(*value))
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn atlas_destination_count() -> i32 {
+    crate::destinations::DESTINATIONS.len() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn atlas_destination_field(destination: i32, field: i32) -> *const c_char {
+    crate::destinations::field(destination, field).map_or(core::ptr::null(), |value| value.as_ptr())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn atlas_destination_field_length(destination: i32, field: i32) -> i32 {
+    crate::destinations::field(destination, field).map_or(-1, |value| value.to_bytes().len() as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn atlas_destination_field_byte(destination: i32, field: i32, offset: i32) -> i32 {
+    let Ok(offset) = usize::try_from(offset) else {
+        return -1;
+    };
+    crate::destinations::field(destination, field)
+        .and_then(|value| value.to_bytes().get(offset))
+        .map_or(-1, |value| i32::from(*value))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

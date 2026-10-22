@@ -10,6 +10,14 @@ mkdir "$fixture/bin"
 export CAPTURE_ARGS="$fixture/args"
 cat > "$fixture/bin/tuist-runner-cache" <<'HELPER'
 #!/bin/bash
+if [ "$1" = -h ]; then
+  if [ -n "${HELPER_SUPPORTS_SIZE-1}" ]; then
+    echo 'usage: tuist-runner-cache activate <module|xcode> [--size NGB]' >&2
+    exit 0
+  fi
+  echo 'usage: tuist-runner-cache activate <module|xcode>' >&2
+  exit 2
+fi
 printf '%s\n' "$@" > "$CAPTURE_ARGS"
 printf '%s' "${HELPER_ENV:-}"
 exit "${HELPER_EXIT:-0}"
@@ -35,6 +43,19 @@ for cache in xcode module; do
     [[ $(cat "$CAPTURE_ARGS") == $'activate\n'"$cache" ]]
   done
   echo "ok: $cache cache exports the runner environment to later commands"
+
+  upper=$(printf '%s' "$cache" | tr '[:lower:]' '[:upper:]')
+  for entry in "buildkite $hook BUILDKITE_PLUGIN_${upper}_CACHE_SIZE" "bash $fixture/$cache-gitlab.sh TUIST_${upper}_CACHE_SIZE" "sh $fixture/$cache-gitlab.sh TUIST_${upper}_CACHE_SIZE"; do
+    read -r shell script size_variable <<< "$entry"
+    run() { if [ "$shell" = buildkite ]; then run_buildkite "$script"; else run_gitlab "$script" "$shell"; fi; }
+    [[ $(export "$size_variable=50gb"; run 2> "$fixture/err") == 'after /Users/runner/My Cache|1000' ]]
+    [[ $(cat "$CAPTURE_ARGS") == $'activate\n'"$cache"$'\n--size\n50gb' ]]
+    [[ ! -s "$fixture/err" ]]
+    [[ $(export "$size_variable=50gb" HELPER_SUPPORTS_SIZE=; run 2> "$fixture/err") == 'after /Users/runner/My Cache|1000' ]]
+    [[ $(cat "$CAPTURE_ARGS") == $'activate\n'"$cache" ]]
+    grep -q '^Warning: this runner image does not support' "$fixture/err"
+  done
+  echo "ok: $cache cache passes the size only to a helper that supports it"
 
   for code in 3 1; do
     [[ $(HELPER_EXIT=$code run_buildkite "$hook" 2> "$fixture/err") == 'after |' ]]
@@ -62,8 +83,9 @@ done
 
 cmp "$source_dir/xcode-cache/buildkite/package.sh" "$source_dir/module-cache/buildkite/package.sh"
 cmp "$source_dir/xcode-cache/gitlab/package.sh" "$source_dir/module-cache/gitlab/package.sh"
-diff <(sed 's/xcode/module/' "$source_dir/xcode-cache/buildkite/hooks/pre-command") "$source_dir/module-cache/buildkite/hooks/pre-command"
-diff <(sed 's/xcode/module/' "$source_dir/xcode-cache/gitlab/xcode-cache.yml") "$source_dir/module-cache/gitlab/module-cache.yml"
+diff <(sed 1,2d "$source_dir/xcode-cache/buildkite/plugin.yml") <(sed 1,2d "$source_dir/module-cache/buildkite/plugin.yml")
+diff <(sed 's/xcode/module/; s/XCODE/MODULE/' "$source_dir/xcode-cache/buildkite/hooks/pre-command") "$source_dir/module-cache/buildkite/hooks/pre-command"
+diff <(sed 's/xcode/module/; s/XCODE/MODULE/' "$source_dir/xcode-cache/gitlab/xcode-cache.yml") "$source_dir/module-cache/gitlab/module-cache.yml"
 echo 'ok: the two caches differ only by name'
 
 # Gradle: every entry point attaches the same volume and writes the same init

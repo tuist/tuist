@@ -5,6 +5,7 @@ defmodule AtlasWeb.NativeController do
   alias Atlas.Audit
   alias Atlas.Finance.Invoices
   alias Atlas.Native
+  alias Atlas.Push
   alias Atlas.Tasks
   alias Atlas.Users
 
@@ -24,7 +25,8 @@ defmodule AtlasWeb.NativeController do
 
     json(conn, %{
       server_version: to_string(Application.spec(:atlas, :vsn)),
-      user: %{name: user.name || "", email: user.email}
+      user: %{name: user.name || "", email: user.email},
+      push_notifications: Push.capabilities()
     })
   end
 
@@ -35,7 +37,12 @@ defmodule AtlasWeb.NativeController do
     end
   end
 
-  def show(conn, %{"id" => id}), do: respond(conn, Native.get(resource(conn), id))
+  def show(conn, %{"id" => id}) do
+    case Native.get(resource(conn), id) do
+      {:ok, item} -> json(conn, %{item: Native.detail(resource(conn), item, conn.assigns.current_user)})
+      error -> respond(conn, error)
+    end
+  end
 
   def create(conn, params) do
     case attributes(conn, params) do

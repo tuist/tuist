@@ -268,6 +268,37 @@ func TestConfigureNodePrunesAllDynamicLabelsWhenNone(t *testing.T) {
 	}
 }
 
+func TestConfigureNodePrunesCacheMasterLabelsNoProviderAdvertises(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-mini-1"}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"tuist.dev/cache-master-42":                           "true",
+				"tuist.dev/cache-master-42.repo-0123456789abcdef":     "true",
+				"tuist.dev/cache-volumes-per-repository":              "true",
+				"tuist.dev/cache-volume-capacity-gib":                 "240",
+				"tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa": "true",
+			},
+		},
+	}
+
+	m.configureNode(node, map[string]string{
+		"tuist.dev/cache-volume-capacity-gib":                 "240",
+		"tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa": "true",
+	})
+
+	for _, label := range []string{"tuist.dev/cache-master-42", "tuist.dev/cache-master-42.repo-0123456789abcdef", "tuist.dev/cache-volumes-per-repository"} {
+		if _, present := node.Labels[label]; present {
+			t.Errorf("%s survived a heartbeat that no longer advertises it", label)
+		}
+	}
+	for _, label := range []string{"tuist.dev/cache-volume-capacity-gib", "tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
+		if _, present := node.Labels[label]; !present {
+			t.Errorf("%s was pruned while still advertised", label)
+		}
+	}
+}
+
 func TestApplyDiskPressureSetsTrueWithDetail(t *testing.T) {
 	m := &Maintainer{
 		DiskPressure: func(context.Context) (bool, string, error) {

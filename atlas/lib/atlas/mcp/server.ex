@@ -274,6 +274,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SendAccountEmail
   alias Atlas.MCP.Tools.SendEmailBroadcast
   alias Atlas.MCP.Tools.SendNudge
+  alias Atlas.MCP.Tools.SendTestPushNotification
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
   alias Atlas.MCP.Tools.SetFinancingLines
   alias Atlas.MCP.Tools.SetPOCContext
@@ -514,6 +515,7 @@ defmodule Atlas.MCP.Server do
     PollChatGPTProviderLogin,
     CancelChatGPTProviderLogin,
     DisconnectLLMProvider,
+    SendTestPushNotification,
     CreateMCPServer,
     DeleteMCPServer,
     GetNudgeAnalyticsStatus,

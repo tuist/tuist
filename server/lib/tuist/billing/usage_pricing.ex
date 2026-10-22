@@ -86,7 +86,7 @@ defmodule Tuist.Billing.UsagePricing do
   The cache egress, in whole megabytes, and the cache requests an account is
   metered for over `[period_start, period_end)`, with runner traffic counted
   at half. It is what Stripe is sent, and what the Air limit is checked
-  against for an account on usage-based pricing.
+  against.
   """
   def metered_cache_usage(account_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     cache = account_id |> UsageMeters.cache_downloads(period_start, period_end) |> cache_totals()

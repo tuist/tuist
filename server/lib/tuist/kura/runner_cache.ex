@@ -39,6 +39,20 @@ defmodule Tuist.Kura.RunnerCache do
   Teardown is also batched. These limits bound the backing Kubernetes work if
   runner availability expands or contracts unexpectedly.
 
+  An active node whose account the region no longer serves drains before it
+  goes. Dispatch hands a job the endpoint when the job is claimed, and the
+  runner exports it as a hard override for the job's whole run, so destroying
+  the node at once breaks the remote cache of every job already running beside
+  it. Draining (`Kura.begin_drain/1`) stops dispatch handing the endpoint out
+  and leaves the workload serving. The node is destroyed once it has drained
+  for fifteen minutes and no job of the account claimed on the region's pools
+  before the drain is still claimed or running, or after six hours whatever
+  is in flight. An account the region serves again before then gets the same
+  node back (`Kura.cancel_drain/1`). The drain also absorbs a rolling deploy
+  that changes who is admitted: while the two server versions disagree, the
+  draining row stops the old one from provisioning a second node, and the new
+  one has not yet destroyed the first.
+
   In canary and production, an actor-only runner flag narrows the account query
   before the final availability check. Broad gates still evaluate every
   eligible account. Both steps use one flag snapshot so a concurrent flag update
@@ -87,6 +101,17 @@ defmodule Tuist.Kura.RunnerCache do
   @rented_job_window_days 7
   @site_traffic_window_days 7
 
+  # Dispatch hands a job the node's endpoint when the job is claimed, and the
+  # job keeps it until it ends, so a node is torn down only once no job of the
+  # account claimed on the region's pools before the drain is still in flight.
+  # The minimum outlasts a rolling deploy, so a server version that still
+  # admits the account never sees the node gone and provisions it again. The
+  # maximum keeps a job row stuck in flight from holding a node forever; it is
+  # the six hours runner billing caps a session at.
+  @min_drain_seconds 15 * 60
+  @max_drain_seconds 6 * 3600
+  @in_flight_job_statuses ["claimed", "running"]
+
   @doc """
   Converges runner-cache nodes with runner availability. Safe to call on every
   reconciler tick; returns `:ok`.
@@ -120,9 +145,19 @@ defmodule Tuist.Kura.RunnerCache do
 
   defp converge_region(%Regions{id: region_id} = region, account_ids) do
     # Tear down first so an account that flips runners off frees its node
-    # even when no image tag is configured to provision new ones.
+    # even when no image tag is configured to provision new ones. A draining
+    # node the account is admitted to again returns to service before
+    # anything else looks at it, so it is never provisioned twice.
+    region
+    |> drains_to_cancel(account_ids)
+    |> Enum.each(&cancel_drain/1)
+
     region
     |> nodes_to_tear_down(account_ids)
+    |> Enum.each(&retire/1)
+
+    region
+    |> drained_nodes(account_ids)
     |> Enum.each(&tear_down/1)
 
     case image_tag() do
@@ -410,12 +445,14 @@ defmodule Tuist.Kura.RunnerCache do
     )
   end
 
+  # A draining node keeps its workload running, so it is settled: the
+  # Kubernetes work admission bounds is already done.
   defp provisioning_slots(region_id) do
     unsettled_servers =
       Repo.aggregate(
         from(s in Server,
           where: s.region == ^region_id,
-          where: s.status not in [:active, :destroyed]
+          where: s.status not in [:active, :drain_pending, :destroyed]
         ),
         :count
       )
@@ -436,29 +473,94 @@ defmodule Tuist.Kura.RunnerCache do
     max(@max_unsettled_servers_per_region - converging_servers, 0)
   end
 
-  defp nodes_to_tear_down(%Regions{id: region_id} = region, account_ids) do
-    platforms = region_platforms(region)
-
-    profile_exists =
-      from(p in Profile,
-        where: p.account_id == parent_as(:server).account_id,
-        where: p.platform in ^platforms,
-        select: 1
-      )
-
+  defp drains_to_cancel(%Regions{id: region_id} = region, account_ids) do
     cohort_ids = MapSet.to_list(account_ids)
 
     Repo.all(
       from(s in Server,
         as: :server,
         where: s.region == ^region_id,
-        where: s.status not in [:destroying, :destroyed],
-        where: not exists(profile_exists) or s.account_id not in ^cohort_ids,
-        order_by: [asc: s.updated_at, asc: s.id],
-        limit: ^@max_teardowns_per_reconcile,
+        where: s.status == :drain_pending,
+        where: exists(profile_exists(region)) and s.account_id in ^cohort_ids,
+        order_by: [asc: s.id],
         select: s
       )
     )
+  end
+
+  defp nodes_to_tear_down(%Regions{} = region, account_ids) do
+    region
+    |> unwanted_servers(account_ids)
+    |> where([s], s.status not in [:destroying, :destroyed, :drain_pending])
+    |> order_by([s], asc: s.updated_at, asc: s.id)
+    |> limit(^@max_teardowns_per_reconcile)
+    |> Repo.all()
+  end
+
+  defp drained_nodes(%Regions{} = region, account_ids) do
+    now = DateTime.utc_now()
+    min_drain_cutoff = DateTime.add(now, -@min_drain_seconds, :second)
+    max_drain_cutoff = DateTime.add(now, -@max_drain_seconds, :second)
+    platforms = region |> region_platforms() |> Enum.map(&Atom.to_string/1)
+
+    in_flight_job =
+      from(j in WorkflowJob,
+        as: :job,
+        where: j.account_id == parent_as(:server).account_id,
+        where: j.status in ^@in_flight_job_statuses,
+        where: j.platform in ^platforms,
+        where: j.claimed_at <= parent_as(:server).drain_started_at,
+        where: ^region_pool_condition(region),
+        select: 1
+      )
+
+    region
+    |> unwanted_servers(account_ids)
+    |> where([s], s.status == :drain_pending)
+    |> where([s], is_nil(s.drain_started_at) or s.drain_started_at <= ^min_drain_cutoff)
+    |> where([s], s.drain_started_at <= ^max_drain_cutoff or not exists(in_flight_job))
+    |> order_by([s], asc: s.drain_started_at, asc: s.id)
+    |> limit(^@max_teardowns_per_reconcile)
+    |> Repo.all()
+  end
+
+  # The region's servers whose account it no longer serves.
+  defp unwanted_servers(%Regions{id: region_id} = region, account_ids) do
+    cohort_ids = MapSet.to_list(account_ids)
+
+    from(s in Server,
+      as: :server,
+      where: s.region == ^region_id,
+      where: not exists(profile_exists(region)) or s.account_id not in ^cohort_ids,
+      select: s
+    )
+  end
+
+  defp profile_exists(region) do
+    platforms = region_platforms(region)
+
+    from(p in Profile,
+      where: p.account_id == parent_as(:server).account_id,
+      where: p.platform in ^platforms,
+      select: 1
+    )
+  end
+
+  # The pools whose jobs dispatch hands the region's endpoint: a site's region
+  # serves the pools racked at the site, a region without a site every other
+  # pool (`Tuist.Kura.runner_cache_endpoint_url/3`).
+  defp region_pool_condition(%Regions{} = region) do
+    site_pools = Environment.runners_site_pools()
+
+    case Regions.site(region) do
+      nil ->
+        pools = Map.keys(site_pools)
+        dynamic([job: j], j.fleet_name not in ^pools)
+
+      site ->
+        pools = for {pool, %{site: ^site}} <- site_pools, do: pool
+        dynamic([job: j], j.fleet_name in ^pools)
+    end
   end
 
   defp provision(account_id, region_id, image_tag) do
@@ -590,6 +692,46 @@ defmodule Tuist.Kura.RunnerCache do
 
       {:error, reason} ->
         Logger.warning("[Kura.RunnerCache] could not retry runner-cache node #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  # Jobs dispatch handed an active node's endpoint keep using it until they
+  # end, so the node drains: dispatch stops handing it out, and it keeps
+  # serving until `drained_nodes/2` lets it go. A node that is not active is
+  # not handed out, so it goes straight away.
+  defp retire(%Server{status: :active} = server) do
+    case Kura.begin_drain(server) do
+      {:ok, _server} ->
+        Logger.info(
+          "[Kura.RunnerCache] draining runner-cache node #{server.id} (its region no longer serves the account)"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.RunnerCache] could not drain runner-cache node #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp retire(%Server{} = server), do: tear_down(server)
+
+  defp cancel_drain(%Server{} = server) do
+    case Kura.cancel_drain(server) do
+      {:ok, _server} ->
+        Logger.info(
+          "[Kura.RunnerCache] returning runner-cache node #{server.id} to service (its region serves the account again)"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.RunnerCache] could not return runner-cache node #{server.id} to service: #{inspect(reason)}"
+        )
 
         :ok
     end

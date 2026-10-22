@@ -469,6 +469,12 @@ func exchangeMac(ctx context.Context, share string, request map[string]any) (mac
 // checkoutMac mounts the job's cached checkout at its workspace before the first
 // step. Every failure leaves the workspace untouched, so actions/checkout clones
 // exactly as it does without a cached checkout.
+//
+// The image mounts at the workspace's parent and its tree moves into the
+// workspace, so the workspace is not a volume root. Foundation stages a safe
+// save on another volume in `<volume root>/.TemporaryItems`, and Xcode's task
+// sandbox refuses writes there when it is inside the project, which fails
+// CoreML compilation into a DerivedData under the workspace.
 func checkoutMac(workspace string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -481,6 +487,10 @@ func checkoutMacAt(ctx context.Context, workspace, share, statePath string, comm
 	}
 	if err := emptyTarget(workspace); err != nil {
 		return "skipped (workspace is not empty)"
+	}
+	parent := filepath.Dir(workspace)
+	if parent == filepath.Dir(parent) || !onlyEntry(parent, filepath.Base(workspace)) {
+		return "skipped (workspace parent is not empty)"
 	}
 	response, err := exchangeMac(ctx, share, map[string]any{"checkout": true, "uid": os.Getuid()})
 	if err != nil {
@@ -497,14 +507,20 @@ func checkoutMacAt(ctx context.Context, workspace, share, statePath string, comm
 		}
 		return "unavailable (" + reason + ")"
 	}
-	if err := os.MkdirAll(workspace, 0755); err != nil {
+	if err := os.MkdirAll(parent, 0755); err != nil {
 		return "unavailable (workspace)"
 	}
 	shared := filepath.Join(share, response.Directory)
 	_ = os.Remove(filepath.Join(shared, ".attach-error"))
-	if err := attachMacImage(ctx, command, filepath.Join(shared, "cache.sparseimage"), workspace, "-owners", "off"); err != nil {
+	if err := attachMacImage(ctx, command, filepath.Join(shared, "cache.sparseimage"), parent, "-owners", "off"); err != nil {
 		recordAttachError(shared, err)
 		return "unavailable (attach)"
+	}
+	if err := moveTreeInto(parent, filepath.Base(workspace)); err != nil {
+		recordAttachError(shared, err)
+		// Detaching uncovers the empty workspace the job started with.
+		_ = command("detach", parent, "-force")
+		return "unavailable (layout)"
 	}
 	_ = recordCheckout(statePath, workspace, true)
 	// Mounted proves to the host that the guest holds the branch; nothing is
@@ -513,6 +529,46 @@ func checkoutMacAt(ctx context.Context, workspace, share, statePath string, comm
 		return "reused (unreported)"
 	}
 	return "reused"
+}
+
+// onlyEntry reports whether dir is absent or holds nothing but an entry named
+// name, so mounting over it hides nothing else.
+func onlyEntry(dir, name string) bool {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return true
+	}
+	return err == nil && (len(entries) == 0 || (len(entries) == 1 && entries[0].Name() == name))
+}
+
+// macVolumeEntries are what macOS keeps at a volume's root. They stay there,
+// outside the workspace.
+var macVolumeEntries = map[string]bool{".fseventsd": true, ".Spotlight-V100": true, ".Trashes": true, ".TemporaryItems": true, ".DocumentRevisions-V100": true}
+
+// moveTreeInto moves the tree at the volume root into its subdirectory name.
+// The tree may itself hold an entry called name, so it is gathered first under a
+// name the tree cannot have.
+func moveTreeInto(root, name string) error {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return err
+	}
+	gathered, err := os.MkdirTemp(root, ".tuist-checkout-")
+	if err != nil {
+		return err
+	}
+	if err := os.Chmod(gathered, 0755); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if macVolumeEntries[entry.Name()] {
+			continue
+		}
+		if err := os.Rename(filepath.Join(root, entry.Name()), filepath.Join(gathered, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return os.Rename(gathered, filepath.Join(root, name))
 }
 
 // baselinePath records a mounted volume's top-level entries outside the volume.

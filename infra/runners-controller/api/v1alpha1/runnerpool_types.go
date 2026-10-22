@@ -356,6 +356,13 @@ type RunnerPoolStatus struct {
 	// +optional
 	ObservedImage string `json:"observedImage,omitempty"`
 
+	// PreviousImage is the `spec.image` the pool ran before
+	// ObservedImage. tart-kubelet reads it to pull the current image on
+	// hosts that hold the previous one before its GC reaps that golden,
+	// so a release costs those hosts only what changed.
+	// +optional
+	PreviousImage string `json:"previousImage,omitempty"`
+
 	// ImageRolledAt is when the controller most recently observed
 	// `spec.image` changing. The server-side dispatch endpoint reads
 	// this to stagger stale-Pod drains across a rolling window —

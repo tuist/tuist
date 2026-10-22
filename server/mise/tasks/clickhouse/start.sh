@@ -190,6 +190,8 @@ fi
 # Set keep_alive_timeout high enough to cover idle gaps in the Elixir connection
 # pool; otherwise the server drops sockets mid-suite and TRUNCATE queries from
 # ExUnit `on_exit` handlers fail with `Mint.TransportError: socket closed`.
+# Disable request-count rotation too: reconnecting after 10,000 requests creates
+# a new driver session, losing the sandbox transaction and its uncommitted rows.
 (
   cd "${CLICKHOUSE_RUNTIME_DIR}"
   TZ=UTC nohup clickhouse server \
@@ -209,6 +211,7 @@ fi
     --mysql_port="${CLICKHOUSE_MYSQL_PORT}" \
     --postgresql_port="${CLICKHOUSE_POSTGRESQL_PORT}" \
     --keep_alive_timeout=300 \
+    --max_keep_alive_requests=0 \
     2>&1 | (
       trap '' HUP
       head -c "${STARTUP_LOG_MAX_BYTES}" > "${STARTUP_LOG}"

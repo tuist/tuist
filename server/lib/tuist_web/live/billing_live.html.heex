@@ -48,72 +48,41 @@
         <div data-part="usage-details-title">
           <span data-part="label">{dgettext("dashboard_account", "Usage details")}</span>
           <.badge
-            :if={
-              if @usage_pricing,
-                do: usage_allowance_exceeded?(@usage_pricing),
-                else: @remote_cache_hits_count > 200
-            }
+            :if={usage_allowance_exceeded?(@usage_pricing)}
             label={dgettext("dashboard_account", "Free tier exceeded")}
             color="attention"
             size="small"
             style="light-fill"
           />
         </div>
-        <%= if @usage_pricing do %>
-          <.progress_bar
-            id="cache-egress-progress"
-            value={@usage_pricing.cache.egress.metered}
-            value_label={
-              Tuist.Utilities.ByteFormatter.format_bytes(@usage_pricing.cache.egress.metered)
-            }
-            max={@usage_pricing.cache.egress.included}
-            max_label={
-              Tuist.Utilities.ByteFormatter.format_bytes(@usage_pricing.cache.egress.included)
-            }
-            title={dgettext("dashboard_account", "Cache egress:")}
-          />
-          <.progress_bar
-            id="cache-requests-progress"
-            value={@usage_pricing.cache.requests.metered}
-            value_label={format_number(@usage_pricing.cache.requests.metered)}
-            max={@usage_pricing.cache.requests.included}
-            max_label={format_number(@usage_pricing.cache.requests.included)}
-            title={dgettext("dashboard_account", "Cache requests:")}
-          />
-          <.progress_bar
-            id="passing-test-cases-progress"
-            value={@usage_pricing.tests.passed}
-            value_label={format_number(@usage_pricing.tests.passed)}
-            max={@usage_pricing.tests.included}
-            max_label={format_number(@usage_pricing.tests.included)}
-            title={dgettext("dashboard_account", "Passing test cases:")}
-          />
-        <% end %>
         <.progress_bar
-          :if={is_nil(@usage_pricing)}
-          id="remote-cache-hits-progress"
-          value={@remote_cache_hits_count}
-          value_label={format_number(@remote_cache_hits_count)}
-          max={200}
-          max_label={format_number(200)}
-          title={dgettext("dashboard_account", "Remote cache hits:")}
-        >
-          <:description>
-            <div data-part="description">
-              <.link_button
-                href="https://tuist.dev/pricing"
-                label={dgettext("dashboard_account", "Learn more")}
-                variant="primary"
-                size="medium"
-                target="_blank"
-                underline
-              />
-              <span data-part="label">
-                {dgettext("dashboard_account", "about remote cache hits")}
-              </span>
-            </div>
-          </:description>
-        </.progress_bar>
+          id="cache-egress-progress"
+          value={@usage_pricing.cache.egress.metered}
+          value_label={
+            Tuist.Utilities.ByteFormatter.format_bytes(@usage_pricing.cache.egress.metered)
+          }
+          max={@usage_pricing.cache.egress.included}
+          max_label={
+            Tuist.Utilities.ByteFormatter.format_bytes(@usage_pricing.cache.egress.included)
+          }
+          title={dgettext("dashboard_account", "Cache egress:")}
+        />
+        <.progress_bar
+          id="cache-requests-progress"
+          value={@usage_pricing.cache.requests.metered}
+          value_label={format_number(@usage_pricing.cache.requests.metered)}
+          max={@usage_pricing.cache.requests.included}
+          max_label={format_number(@usage_pricing.cache.requests.included)}
+          title={dgettext("dashboard_account", "Cache requests:")}
+        />
+        <.progress_bar
+          id="passing-test-cases-progress"
+          value={@usage_pricing.tests.passed}
+          value_label={format_number(@usage_pricing.tests.passed)}
+          max={@usage_pricing.tests.included}
+          max_label={format_number(@usage_pricing.tests.included)}
+          title={dgettext("dashboard_account", "Passing test cases:")}
+        />
         <.progress_bar
           :if={@runner_usage.enabled or @runner_usage.total_ms > 0}
           id="runner-minutes-progress"
@@ -139,10 +108,7 @@
           </:description>
         </.progress_bar>
         <div
-          :if={
-            not is_nil(@usage_pricing) and
-              not (@runner_usage.enabled or @runner_usage.total_ms > 0)
-          }
+          :if={not (@runner_usage.enabled or @runner_usage.total_ms > 0)}
           data-part="description"
         >
           <.link_button
@@ -307,9 +273,7 @@
     <.pricing_cards id="billing-pricing-plans" plan={@plan} />
   </div>
   <.card
-    :if={
-      @plan == :pro and not is_nil(@usage_pricing) and usage_pricing_rows(@usage_pricing) != []
-    }
+    :if={@plan == :pro and usage_pricing_rows(@usage_pricing) != []}
     data-part="usage-card"
     icon="history"
     title={dgettext("dashboard_account", "Usage")}
@@ -337,44 +301,6 @@
         </:col>
         <:col :let={usage_item} label={dgettext("dashboard_account", "Total")}>
           <.text_cell label={format_money(usage_item.total)} />
-        </:col>
-      </.table>
-    </.card_section>
-  </.card>
-  <.card
-    :if={@plan == :pro and is_nil(@usage_pricing) and @remote_cache_hits_count > 200}
-    data-part="usage-card"
-    icon="history"
-    title={dgettext("dashboard_account", "Usage")}
-  >
-    <.card_section data-part="usage-card-section">
-      <span data-part="info-label">
-        {dgettext(
-          "dashboard_account",
-          "You’ve exceeded your free tier quota and will incur charges for additional usage."
-        )}
-      </span>
-      <.table
-        id="usage-table"
-        rows={[
-          %{
-            remote_cache_hits_count: @remote_cache_hits_count,
-            price: dgettext("dashboard_account", "$0.50"),
-            total: @estimated_next_payment
-          }
-        ]}
-      >
-        <:col :let={usage_item} label={dgettext("dashboard_account", "Remote cache hits")}>
-          <.text_and_description_cell
-            label={format_number(usage_item.remote_cache_hits_count)}
-            description={dgettext("dashboard_account", "above free tier")}
-          />
-        </:col>
-        <:col :let={usage_item} label={dgettext("dashboard_account", "Price")}>
-          <.text_cell label={usage_item.price} />
-        </:col>
-        <:col :let={usage_item} label={dgettext("dashboard_account", "Total")}>
-          <.text_cell label={usage_item.total} />
         </:col>
       </.table>
     </.card_section>

@@ -88,6 +88,9 @@ env:
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
+  ATLAS_APPLE_APP_IDS: "U6LC622NKF.dev.tuist.atlas"
+  # Add ATLAS_ANDROID_APP_LINK_SHA256 only after provisioning the stable distribution key.
+  # Its public certificate must match atlas-mobile-previews signing configuration.
   POOL_SIZE: "10"
   DATABASE_SSL: "1"
   # Tags every Sentry event with the deploy environment. SENTRY_RELEASE
@@ -176,6 +179,17 @@ externalSecrets:
       remoteRef: "atlas-google-oauth/username"
     GOOGLE_CLIENT_SECRET:
       remoteRef: "atlas-google-oauth/credential"
+    ATLAS_CHATGPT_CLIENT_ID:
+      remoteRef: "atlas-chatgpt-oauth/client_id"
+    ATLAS_APNS_TEAM_ID:
+      remoteRef: "atlas-apns/team_id"
+    ATLAS_APNS_KEY_ID:
+      remoteRef: "atlas-apns/key_id"
+    ATLAS_APNS_PRIVATE_KEY:
+      remoteRef: "atlas-apns/private_key"
+      trim: false
+    ATLAS_APNS_ENVIRONMENT:
+      remoteRef: "atlas-apns/environment"
     SUPER_ADMIN_PASSWORD:
       remoteRef: "atlas-super-admin/password"
     STRIPE_API_KEY:

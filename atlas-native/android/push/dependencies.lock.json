@@ -1,0 +1,679 @@
+{
+  "schema_version": 1,
+  "root": "com.google.firebase:firebase-messaging:24.1.0",
+  "excluded_toolchain_artifacts": [
+    "org.jetbrains.kotlin:kotlin-stdlib",
+    "org.jetbrains.kotlin:kotlin-stdlib-common",
+    "org.jetbrains.kotlin:kotlin-stdlib-jdk7",
+    "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+  ],
+  "artifacts": [
+    {
+      "coordinate": "androidx.activity:activity",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/activity/activity/1.0.0/activity-1.0.0.aar",
+      "sha256": "d1bc9842455c2e534415d88c44df4d52413b478db9093a1ba36324f705f44c3d",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core",
+        "androidx.lifecycle:lifecycle-runtime",
+        "androidx.lifecycle:lifecycle-viewmodel",
+        "androidx.savedstate:savedstate"
+      ]
+    },
+    {
+      "coordinate": "androidx.annotation:annotation",
+      "version": "1.5.0",
+      "packaging": "jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/annotation/annotation/1.5.0/annotation-1.5.0.jar",
+      "sha256": "261fb7c0210858500bab66d34354972a75166ab4182add283780b05513d6ec4a",
+      "dependencies": []
+    },
+    {
+      "coordinate": "androidx.arch.core:core-common",
+      "version": "2.1.0",
+      "packaging": "jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/arch/core/core-common/2.1.0/core-common-2.1.0.jar",
+      "sha256": "fe1237bf029d063e7f29fe39aeaf73ef74c8b0a3658486fc29d3c54326653889",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.arch.core:core-runtime",
+      "version": "2.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/arch/core/core-runtime/2.0.0/core-runtime-2.0.0.aar",
+      "sha256": "87e65fc767c712b437649c7cee2431ebb4bed6daef82e501d4125b3ed3f65f8e",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.arch.core:core-common"
+      ]
+    },
+    {
+      "coordinate": "androidx.asynclayoutinflater:asynclayoutinflater",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/asynclayoutinflater/asynclayoutinflater/1.0.0/asynclayoutinflater-1.0.0.aar",
+      "sha256": "f7eab60c57addd94bb06275832fe7600611beaaae1a1ec597c231956faf96c8b",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core"
+      ]
+    },
+    {
+      "coordinate": "androidx.collection:collection",
+      "version": "1.1.0",
+      "packaging": "jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/collection/collection/1.1.0/collection-1.1.0.jar",
+      "sha256": "632a0e5407461de774409352940e292a291037724207a787820c77daf7d33b72",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.concurrent:concurrent-futures",
+      "version": "1.1.0",
+      "packaging": "jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/concurrent/concurrent-futures/1.1.0/concurrent-futures-1.1.0.jar",
+      "sha256": "0ce067c514a0d1049d1bebdf709e344ed3266fe9744275682937cdcb13334e9e",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "com.google.guava:listenablefuture"
+      ]
+    },
+    {
+      "coordinate": "androidx.coordinatorlayout:coordinatorlayout",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/coordinatorlayout/coordinatorlayout/1.0.0/coordinatorlayout-1.0.0.aar",
+      "sha256": "e508c695489493374d942bf7b4ee02abf7571d25aac4c622e57d6cd5cd29eb73",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core",
+        "androidx.customview:customview"
+      ]
+    },
+    {
+      "coordinate": "androidx.core:core",
+      "version": "1.2.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/core/core/1.2.0/core-1.2.0.aar",
+      "sha256": "524b8b88ceb6a74a7e44e6b567a135660f211799904cb218bfee5be1166820b2",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.collection:collection",
+        "androidx.lifecycle:lifecycle-runtime",
+        "androidx.versionedparcelable:versionedparcelable"
+      ]
+    },
+    {
+      "coordinate": "androidx.cursoradapter:cursoradapter",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/cursoradapter/cursoradapter/1.0.0/cursoradapter-1.0.0.aar",
+      "sha256": "a81c8fe78815fa47df5b749deb52727ad11f9397da58b16017f4eb2c11e28564",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.customview:customview",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/customview/customview/1.0.0/customview-1.0.0.aar",
+      "sha256": "20e5b8f6526a34595a604f56718da81167c0b40a7a94a57daa355663f2594df2",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core"
+      ]
+    },
+    {
+      "coordinate": "androidx.documentfile:documentfile",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/documentfile/documentfile/1.0.0/documentfile-1.0.0.aar",
+      "sha256": "865a061ef2fad16522f8433536b8d47208c46ff7c7745197dfa1eeb481869487",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.drawerlayout:drawerlayout",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/drawerlayout/drawerlayout/1.0.0/drawerlayout-1.0.0.aar",
+      "sha256": "9402442cdc5a43cf62fb14f8cf98c63342d4d9d9b805c8033c6cf7e802749ac1",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core",
+        "androidx.customview:customview"
+      ]
+    },
+    {
+      "coordinate": "androidx.fragment:fragment",
+      "version": "1.1.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/fragment/fragment/1.1.0/fragment-1.1.0.aar",
+      "sha256": "a14c8b8f2153f128e800fbd266a6beab1c283982a29ec570d2cc05d307d81496",
+      "dependencies": [
+        "androidx.activity:activity",
+        "androidx.annotation:annotation",
+        "androidx.collection:collection",
+        "androidx.core:core",
+        "androidx.lifecycle:lifecycle-viewmodel",
+        "androidx.loader:loader",
+        "androidx.viewpager:viewpager"
+      ]
+    },
+    {
+      "coordinate": "androidx.interpolator:interpolator",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/interpolator/interpolator/1.0.0/interpolator-1.0.0.aar",
+      "sha256": "33193135a64fe21fa2c35eec6688f1a76e512606c0fc83dc1b689e37add7732a",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.legacy:legacy-support-core-ui",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/legacy/legacy-support-core-ui/1.0.0/legacy-support-core-ui-1.0.0.aar",
+      "sha256": "0d1260c6e7e6a337f875df71b516931e703f716e90889817cd3a20fa5ac3d947",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.asynclayoutinflater:asynclayoutinflater",
+        "androidx.coordinatorlayout:coordinatorlayout",
+        "androidx.core:core",
+        "androidx.cursoradapter:cursoradapter",
+        "androidx.customview:customview",
+        "androidx.drawerlayout:drawerlayout",
+        "androidx.interpolator:interpolator",
+        "androidx.legacy:legacy-support-core-utils",
+        "androidx.slidingpanelayout:slidingpanelayout",
+        "androidx.swiperefreshlayout:swiperefreshlayout",
+        "androidx.viewpager:viewpager"
+      ]
+    },
+    {
+      "coordinate": "androidx.legacy:legacy-support-core-utils",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/legacy/legacy-support-core-utils/1.0.0/legacy-support-core-utils-1.0.0.aar",
+      "sha256": "a7edcf01d5b52b3034073027bc4775b78a4764bb6202bb91d61c829add8dd1c7",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core",
+        "androidx.documentfile:documentfile",
+        "androidx.loader:loader",
+        "androidx.localbroadcastmanager:localbroadcastmanager",
+        "androidx.print:print"
+      ]
+    },
+    {
+      "coordinate": "androidx.lifecycle:lifecycle-common",
+      "version": "2.1.0",
+      "packaging": "jar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-common/2.1.0/lifecycle-common-2.1.0.jar",
+      "sha256": "76db6be533bd730fb361c2feb12a2c26d9952824746847da82601ef81f082643",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.lifecycle:lifecycle-livedata",
+      "version": "2.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata/2.0.0/lifecycle-livedata-2.0.0.aar",
+      "sha256": "c82609ced8c498f0a701a30fb6771bb7480860daee84d82e0a81ee86edf7ba39",
+      "dependencies": [
+        "androidx.arch.core:core-common",
+        "androidx.arch.core:core-runtime",
+        "androidx.lifecycle:lifecycle-livedata-core"
+      ]
+    },
+    {
+      "coordinate": "androidx.lifecycle:lifecycle-livedata-core",
+      "version": "2.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.0.0/lifecycle-livedata-core-2.0.0.aar",
+      "sha256": "fde334ec7e22744c0f5bfe7caf1a84c9d717327044400577bdf9bd921ec4f7bc",
+      "dependencies": [
+        "androidx.arch.core:core-common",
+        "androidx.arch.core:core-runtime",
+        "androidx.lifecycle:lifecycle-common"
+      ]
+    },
+    {
+      "coordinate": "androidx.lifecycle:lifecycle-runtime",
+      "version": "2.1.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime/2.1.0/lifecycle-runtime-2.1.0.aar",
+      "sha256": "e5173897b965e870651e83d9d5af1742d3f532d58863223a390ce3a194c8312b",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.arch.core:core-common",
+        "androidx.lifecycle:lifecycle-common"
+      ]
+    },
+    {
+      "coordinate": "androidx.lifecycle:lifecycle-viewmodel",
+      "version": "2.1.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-viewmodel/2.1.0/lifecycle-viewmodel-2.1.0.aar",
+      "sha256": "ba55fb7ac1b2828d5327cda8acf7085d990b2b4c43ef336caa67686249b8523d",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.loader:loader",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/loader/loader/1.0.0/loader-1.0.0.aar",
+      "sha256": "11f735cb3b55c458d470bed9e25254375b518b4b1bad6926783a7026db0f5025",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core",
+        "androidx.lifecycle:lifecycle-livedata",
+        "androidx.lifecycle:lifecycle-viewmodel"
+      ]
+    },
+    {
+      "coordinate": "androidx.localbroadcastmanager:localbroadcastmanager",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/localbroadcastmanager/localbroadcastmanager/1.0.0/localbroadcastmanager-1.0.0.aar",
+      "sha256": "e71c328ceef5c4a7d76f2d86df1b65d65fe2acf868b1a4efd84a3f34336186d8",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.print:print",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/print/print/1.0.0/print-1.0.0.aar",
+      "sha256": "1d5c7f3135a1bba661fc373fd72e11eb0a4adbb3396787826dd8e4190d5d9edd",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "androidx.savedstate:savedstate",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/savedstate/savedstate/1.0.0/savedstate-1.0.0.aar",
+      "sha256": "2510a5619c37579c9ce1a04574faaf323cd0ffe2fc4e20fa8f8f01e5bb402e83",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.arch.core:core-common",
+        "androidx.lifecycle:lifecycle-common"
+      ]
+    },
+    {
+      "coordinate": "androidx.slidingpanelayout:slidingpanelayout",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/slidingpanelayout/slidingpanelayout/1.0.0/slidingpanelayout-1.0.0.aar",
+      "sha256": "76bffb7cefbf780794d8817002dad1562f3e27c0a9f746d62401c8edb30aeede",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core",
+        "androidx.customview:customview"
+      ]
+    },
+    {
+      "coordinate": "androidx.swiperefreshlayout:swiperefreshlayout",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/swiperefreshlayout/swiperefreshlayout/1.0.0/swiperefreshlayout-1.0.0.aar",
+      "sha256": "9761b3a809c9b093fd06a3c4bbc645756dec0e95b5c9da419bc9f2a3f3026e8d",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core",
+        "androidx.interpolator:interpolator"
+      ]
+    },
+    {
+      "coordinate": "androidx.versionedparcelable:versionedparcelable",
+      "version": "1.1.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/versionedparcelable/versionedparcelable/1.1.0/versionedparcelable-1.1.0.aar",
+      "sha256": "9a1d77140ac222b7866b5054ee7d159bc1800987ed2d46dd6afdd145abb710c1",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.collection:collection"
+      ]
+    },
+    {
+      "coordinate": "androidx.viewpager:viewpager",
+      "version": "1.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/androidx/viewpager/viewpager/1.0.0/viewpager-1.0.0.aar",
+      "sha256": "147af4e14a1984010d8f155e5e19d781f03c1d70dfed02a8e0d18428b8fc8682",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.core:core",
+        "androidx.customview:customview"
+      ]
+    },
+    {
+      "coordinate": "com.google.android.datatransport:transport-api",
+      "version": "3.1.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/datatransport/transport-api/3.1.0/transport-api-3.1.0.aar",
+      "sha256": "7dafc39f0ea835473366acc346f7e67fc8443f4c645d999c3e987bcad6b88c7b",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "com.google.android.datatransport:transport-backend-cct",
+      "version": "3.1.9",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/datatransport/transport-backend-cct/3.1.9/transport-backend-cct-3.1.9.aar",
+      "sha256": "07a32025a65b08ee7e11d14dc539a758b66713f0c1d13900a81599ceadbaf44d",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "com.google.android.datatransport:transport-api",
+        "com.google.android.datatransport:transport-runtime",
+        "com.google.firebase:firebase-encoders",
+        "com.google.firebase:firebase-encoders-json"
+      ]
+    },
+    {
+      "coordinate": "com.google.android.datatransport:transport-runtime",
+      "version": "3.1.9",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/datatransport/transport-runtime/3.1.9/transport-runtime-3.1.9.aar",
+      "sha256": "41745c5b8f427d24439015b84f651ad420718991867d2afc262c264009b802c1",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "com.google.android.datatransport:transport-api",
+        "com.google.firebase:firebase-encoders",
+        "com.google.firebase:firebase-encoders-proto",
+        "javax.inject:javax.inject"
+      ]
+    },
+    {
+      "coordinate": "com.google.android.gms:play-services-base",
+      "version": "18.0.1",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-base/18.0.1/play-services-base-18.0.1.aar",
+      "sha256": "2896d76f432be52167295bb9ce45ade25c310aeffc04d28cf8db6a15868e83de",
+      "dependencies": [
+        "androidx.collection:collection",
+        "androidx.core:core",
+        "androidx.fragment:fragment",
+        "com.google.android.gms:play-services-basement",
+        "com.google.android.gms:play-services-tasks"
+      ]
+    },
+    {
+      "coordinate": "com.google.android.gms:play-services-basement",
+      "version": "18.3.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-basement/18.3.0/play-services-basement-18.3.0.aar",
+      "sha256": "6c11ae3eb2dd7f17373f919c4c557a70e4cf891bc0c9b66926a0a6445d654352",
+      "dependencies": [
+        "androidx.collection:collection",
+        "androidx.core:core",
+        "androidx.fragment:fragment"
+      ]
+    },
+    {
+      "coordinate": "com.google.android.gms:play-services-cloud-messaging",
+      "version": "17.2.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-cloud-messaging/17.2.0/play-services-cloud-messaging-17.2.0.aar",
+      "sha256": "27255e7fe9706483816b158db25cf319f6a26a0566feff41597ce8807a350e37",
+      "dependencies": [
+        "com.google.android.gms:play-services-basement",
+        "com.google.android.gms:play-services-tasks"
+      ]
+    },
+    {
+      "coordinate": "com.google.android.gms:play-services-stats",
+      "version": "17.0.2",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-stats/17.0.2/play-services-stats-17.0.2.aar",
+      "sha256": "dd4314a53f49a378ec146103d36232b96c75454d29526336ccbdf132941764d3",
+      "dependencies": [
+        "androidx.legacy:legacy-support-core-utils",
+        "com.google.android.gms:play-services-basement"
+      ]
+    },
+    {
+      "coordinate": "com.google.android.gms:play-services-tasks",
+      "version": "18.1.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-tasks/18.1.0/play-services-tasks-18.1.0.aar",
+      "sha256": "d60575eae39350e6234858bc9d7d775375707ae82a684e6caf7f3e41a12e25a2",
+      "dependencies": [
+        "com.google.android.gms:play-services-basement"
+      ]
+    },
+    {
+      "coordinate": "com.google.errorprone:error_prone_annotations",
+      "version": "2.26.0",
+      "packaging": "jar",
+      "url": "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.26.0/error_prone_annotations-2.26.0.jar",
+      "sha256": "53cdfc0beb2d766fe03b78f0b11d020554cd419879d20380c38fa1dcf2ba1b50",
+      "dependencies": []
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-annotations",
+      "version": "16.2.0",
+      "packaging": "jar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-annotations/16.2.0/firebase-annotations-16.2.0.jar",
+      "sha256": "46f6d5dfdd2ccf3c40de897a14bd9779314c3319f44bfd31e7e0a20d935a5e3e",
+      "dependencies": [
+        "javax.inject:javax.inject"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-common",
+      "version": "21.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-common/21.0.0/firebase-common-21.0.0.aar",
+      "sha256": "379287d7171371512493681b398e78c341b333cf974ee81a18b1d56e7c2e385d",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "androidx.concurrent:concurrent-futures",
+        "com.google.android.gms:play-services-basement",
+        "com.google.android.gms:play-services-tasks",
+        "com.google.firebase:firebase-annotations",
+        "com.google.firebase:firebase-components",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-play-services"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-common-ktx",
+      "version": "21.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-common-ktx/21.0.0/firebase-common-ktx-21.0.0.aar",
+      "sha256": "25fc80c9bb9ecb1672908718c294afcc4ac1e47473677be060c795e04f120066",
+      "dependencies": [
+        "com.google.firebase:firebase-annotations",
+        "com.google.firebase:firebase-common",
+        "com.google.firebase:firebase-components"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-components",
+      "version": "18.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-components/18.0.0/firebase-components-18.0.0.aar",
+      "sha256": "c7c48a3a80f44a499ebd6473bcfc7dd5a45ef523fabe2414a62515ff3c640972",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "com.google.errorprone:error_prone_annotations",
+        "com.google.firebase:firebase-annotations"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-datatransport",
+      "version": "18.2.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-datatransport/18.2.0/firebase-datatransport-18.2.0.aar",
+      "sha256": "b2b28f6ba173f5e0c4fe3d36a2d7ee5239c7acbf4143b549ecf031a3485b35bb",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "com.google.android.datatransport:transport-api",
+        "com.google.android.datatransport:transport-backend-cct",
+        "com.google.android.datatransport:transport-runtime",
+        "com.google.firebase:firebase-common",
+        "com.google.firebase:firebase-components"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-encoders",
+      "version": "17.0.0",
+      "packaging": "jar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-encoders/17.0.0/firebase-encoders-17.0.0.jar",
+      "sha256": "282a5a703f9b7eb56508dde97ea918e95d73318b157050f457f7a86dca750150",
+      "dependencies": [
+        "androidx.annotation:annotation"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-encoders-json",
+      "version": "18.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-encoders-json/18.0.0/firebase-encoders-json-18.0.0.aar",
+      "sha256": "80aece7e1ef58957ca2fc1957bc9208ec92a3a9528201331d3c63e3182570f97",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "com.google.firebase:firebase-encoders"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-encoders-proto",
+      "version": "16.0.0",
+      "packaging": "jar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-encoders-proto/16.0.0/firebase-encoders-proto-16.0.0.jar",
+      "sha256": "293db96a0d1d43f033167881b638d8fde844e4e5495f5101cf52295765295e0e",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "com.google.firebase:firebase-encoders"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-iid-interop",
+      "version": "17.1.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-iid-interop/17.1.0/firebase-iid-interop-17.1.0.aar",
+      "sha256": "0b7c3721c84b62e70415307239ed4a7f998989084bf2833f90b9f5bea3095a05",
+      "dependencies": [
+        "com.google.android.gms:play-services-basement",
+        "com.google.android.gms:play-services-tasks"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-installations",
+      "version": "17.2.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-installations/17.2.0/firebase-installations-17.2.0.aar",
+      "sha256": "de011e6a3b7961de638f172f2cb66ba304eaa989662a9e2b0f48dff774ccc166",
+      "dependencies": [
+        "com.google.android.gms:play-services-tasks",
+        "com.google.firebase:firebase-annotations",
+        "com.google.firebase:firebase-common",
+        "com.google.firebase:firebase-common-ktx",
+        "com.google.firebase:firebase-components",
+        "com.google.firebase:firebase-installations-interop"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-installations-interop",
+      "version": "17.1.1",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-installations-interop/17.1.1/firebase-installations-interop-17.1.1.aar",
+      "sha256": "fac650680f7921f4ab92f0bb21a09234b12cdaefab2cf70188281d7ea52b8dad",
+      "dependencies": [
+        "com.google.android.gms:play-services-tasks",
+        "com.google.firebase:firebase-annotations"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-measurement-connector",
+      "version": "19.0.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-measurement-connector/19.0.0/firebase-measurement-connector-19.0.0.aar",
+      "sha256": "dba74d6bf94647ee397bf7afb2ab07f6fe8d13157e56785fa540a2a13ed82c99",
+      "dependencies": [
+        "com.google.android.gms:play-services-basement",
+        "com.google.firebase:firebase-annotations"
+      ]
+    },
+    {
+      "coordinate": "com.google.firebase:firebase-messaging",
+      "version": "24.1.0",
+      "packaging": "aar",
+      "url": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-messaging/24.1.0/firebase-messaging-24.1.0.aar",
+      "sha256": "d5ef3eea17208cf214fdec311f7d1c478ed1c19c39a3b06313f11288c72304d9",
+      "dependencies": [
+        "androidx.annotation:annotation",
+        "com.google.android.datatransport:transport-api",
+        "com.google.android.datatransport:transport-backend-cct",
+        "com.google.android.datatransport:transport-runtime",
+        "com.google.android.gms:play-services-base",
+        "com.google.android.gms:play-services-basement",
+        "com.google.android.gms:play-services-cloud-messaging",
+        "com.google.android.gms:play-services-stats",
+        "com.google.android.gms:play-services-tasks",
+        "com.google.errorprone:error_prone_annotations",
+        "com.google.firebase:firebase-common",
+        "com.google.firebase:firebase-common-ktx",
+        "com.google.firebase:firebase-components",
+        "com.google.firebase:firebase-datatransport",
+        "com.google.firebase:firebase-encoders",
+        "com.google.firebase:firebase-encoders-json",
+        "com.google.firebase:firebase-encoders-proto",
+        "com.google.firebase:firebase-iid-interop",
+        "com.google.firebase:firebase-installations",
+        "com.google.firebase:firebase-installations-interop",
+        "com.google.firebase:firebase-measurement-connector"
+      ]
+    },
+    {
+      "coordinate": "com.google.guava:listenablefuture",
+      "version": "1.0",
+      "packaging": "jar",
+      "url": "https://repo.maven.apache.org/maven2/com/google/guava/listenablefuture/1.0/listenablefuture-1.0.jar",
+      "sha256": "e4ad7607e5c0477c6f890ef26a49cb8d1bb4dffb650bab4502afee64644e3069",
+      "dependencies": []
+    },
+    {
+      "coordinate": "javax.inject:javax.inject",
+      "version": "1",
+      "packaging": "jar",
+      "url": "https://repo.maven.apache.org/maven2/javax/inject/javax.inject/1/javax.inject-1.jar",
+      "sha256": "91c77044a50c481636c32d916fd89c9118a72195390452c81065080f957de7ff",
+      "dependencies": []
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm",
+      "version": "1.6.4",
+      "packaging": "jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.6.4/kotlinx-coroutines-core-jvm-1.6.4.jar",
+      "sha256": "c24c8bb27bb320c4a93871501a7e5e0c61607638907b197aef675513d4c820be",
+      "dependencies": []
+    },
+    {
+      "coordinate": "org.jetbrains.kotlinx:kotlinx-coroutines-play-services",
+      "version": "1.6.4",
+      "packaging": "jar",
+      "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-play-services/1.6.4/kotlinx-coroutines-play-services-1.6.4.jar",
+      "sha256": "4ee3784c3465caab86adcc4f93956d56ea662aac82e5c2c83ca3c1f0415fe397",
+      "dependencies": [
+        "com.google.android.gms:play-services-tasks",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"
+      ]
+    }
+  ]
+}

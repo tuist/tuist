@@ -996,39 +996,33 @@ func TestCacheReadinessIsPreferredRatherThanRequired(t *testing.T) {
 	}
 }
 
-func TestPreferCacheVolumeNodes(t *testing.T) {
+func TestPreferCacheVolumeNode(t *testing.T) {
 	p := basePool("")
 	pod := build(t, p)
-	volume := func(c string) string { return "tuist.dev/cache-volume-" + strings.Repeat(c, 48) }
 
-	PreferCacheVolumeNodes(pod, []string{volume("a"), "tuist.dev/golden-0123", volume("b"), volume("c"), volume("d"), volume("e")})
+	PreferCacheVolumeNode(pod, "b03")
 
 	terms := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
-	var keys []string
-	var volumeWeight int32
-	for _, term := range terms[1:] {
-		keys = append(keys, term.Preference.MatchExpressions[0].Key)
-		volumeWeight += term.Weight
-		if term.Preference.MatchExpressions[0].Operator != corev1.NodeSelectorOpExists {
-			t.Fatalf("operator = %q, want Exists", term.Preference.MatchExpressions[0].Operator)
-		}
-	}
-	if got, want := strings.Join(keys, ","), strings.Join([]string{volume("a"), volume("b"), volume("c"), volume("d")}, ","); got != want {
-		t.Fatalf("volume preferences = %s, want %s", got, want)
+	if len(terms) != 2 {
+		t.Fatalf("terms = %+v, want the golden and one volume preference", terms)
 	}
 	if terms[0].Preference.MatchExpressions[0].Key != GoldenNodeAffinityKey(p.Spec.Image) {
 		t.Fatal("the golden preference must stay first")
 	}
+	field := terms[1].Preference.MatchFields[0]
+	if field.Key != "metadata.name" || field.Operator != corev1.NodeSelectorOpIn || strings.Join(field.Values, ",") != "b03" {
+		t.Fatalf("volume preference = %+v, want metadata.name In [b03]", field)
+	}
 	// A host without the golden pulls the image for minutes; one without a
 	// volume only starts that volume cold.
-	if volumeWeight >= terms[0].Weight {
-		t.Fatalf("volume preferences weigh %d together, want less than the golden %d", volumeWeight, terms[0].Weight)
+	if terms[1].Weight >= terms[0].Weight {
+		t.Fatalf("volume preference weighs %d, want less than the golden %d", terms[1].Weight, terms[0].Weight)
 	}
 }
 
-func TestPreferCacheVolumeNodesLeavesThePodAloneWithoutVolumes(t *testing.T) {
+func TestPreferCacheVolumeNodeLeavesThePodAloneWithoutANode(t *testing.T) {
 	pod := build(t, basePool("linux"))
-	PreferCacheVolumeNodes(pod, []string{"not-a-volume"})
+	PreferCacheVolumeNode(pod, "")
 	if pod.Spec.Affinity != nil {
 		t.Fatalf("affinity = %+v, want none", pod.Spec.Affinity)
 	}

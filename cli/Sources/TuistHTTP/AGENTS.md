@@ -17,6 +17,7 @@ This module provides HTTP client helpers used by server and cache integrations.
 ## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
+- `URLSession.tuistDiscovery` creates an isolated session honoring runtime proxy/private-CA settings, with 10-second request/resource limits, no cookies or credential storage, and no redirects (including with a custom CA).
 - `TuistURLSessionTransport` materializes the whole response body before returning, so every body a client middleware receives is re-iterable and a failed transfer is replayed from the start rather than resumed.
 - [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry behavior uses one shared policy with environment-configurable retry count and base delay, with bounded attempts and per-attempt delay.
 - Default proxy mode comes from runtime HTTP settings, and the shared session is resolved lazily, reused process-wide, and invalidated when those runtime settings change.

@@ -1,6 +1,7 @@
 import "../css/fonts.css"
 import "noora/noora.css"
 import "../css/routes/auth.css"
+import "../css/routes/native_links.css"
 import "../css/layouts/dashboard.css"
 import "../css/layouts/account.css"
 import "../css/routes/demo.css"

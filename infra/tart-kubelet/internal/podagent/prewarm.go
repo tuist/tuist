@@ -154,6 +154,10 @@ type runnerPoolSpec struct {
 			MinWarmPoolFloor *int32 `json:"minWarmPoolFloor"`
 		} `json:"autoscaling"`
 	} `json:"spec"`
+	Status struct {
+		ObservedImage string `json:"observedImage"`
+		PreviousImage string `json:"previousImage"`
+	} `json:"status"`
 }
 
 // runsOn reports whether the pool runs macOS VMs on fleet's hosts.
@@ -162,6 +166,16 @@ func (p runnerPoolSpec) runsOn(fleet string) bool {
 		return false
 	}
 	return p.Spec.FleetSelector == fleet && p.Spec.Image != ""
+}
+
+// previousImage is the image the pool ran before its current one, or empty.
+// Until the runners-controller has seen a new spec.image, the image it last
+// observed is the previous one.
+func (p runnerPoolSpec) previousImage() string {
+	if observed := p.Status.ObservedImage; observed != "" && observed != p.Spec.Image {
+		return observed
+	}
+	return p.Status.PreviousImage
 }
 
 func (p runnerPoolSpec) warmFloor() int32 {

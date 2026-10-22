@@ -19,7 +19,6 @@ defmodule TuistWeb.RunnerJobsLive do
   alias Tuist.Runners.Billing
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
-  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -528,28 +527,6 @@ defmodule TuistWeb.RunnerJobsLive do
     do: %{label: String.capitalize(other), status: "warning"}
 
   def conclusion_badge_props(_), do: nil
-
-  @doc """
-  Picks the most informative duration for a row depending on its
-  status:
-    * queued — time spent waiting in the queue
-    * claimed — time since claimed (waiting for the runner to mint)
-    * running — time the runner has been executing
-    * completed — total run duration (started → completed)
-  """
-  def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: DateFormatter.ms_since(enqueued)
-  def duration_ms(%{status: "claimed", claimed_at: claimed}), do: DateFormatter.ms_since(claimed)
-  def duration_ms(%{status: "running", started_at: started}), do: DateFormatter.ms_since(started)
-
-  def duration_ms(%{status: "completed", started_at: started, completed_at: completed}) do
-    cond do
-      is_nil(started) -> 0
-      is_nil(completed) -> 0
-      true -> DateTime.diff(completed, started, :millisecond)
-    end
-  end
-
-  def duration_ms(_), do: 0
 
   def trend_to_int(trend) when is_number(trend), do: round(trend)
   def trend_to_int(_), do: 0

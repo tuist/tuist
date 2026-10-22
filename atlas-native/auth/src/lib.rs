@@ -2,6 +2,8 @@ mod accounts;
 mod bridge;
 mod business;
 mod presence;
+mod push;
+mod themes;
 mod time_off;
 mod transport;
 

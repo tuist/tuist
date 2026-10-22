@@ -176,7 +176,6 @@ abstract class TuistTestQuarantineBuildService :
         val tuistProject: Property<String>
         val useEnvironmentProxy: Property<Boolean>
         val projectDir: DirectoryProperty
-        val networkTrustedPublishing: Property<Boolean>
     }
 
     @Volatile
@@ -199,8 +198,7 @@ abstract class TuistTestQuarantineBuildService :
             project = parameters.tuistProject.orNull,
             serverUrl = serverUrl,
             projectDir = parameters.projectDir.asFile.get(),
-            httpClients = httpClients,
-            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
+            httpClients = httpClients
         )
         val httpClient = TuistHttpClient(
             configurationProvider = configProvider,

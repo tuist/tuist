@@ -18,6 +18,13 @@ enum Command {
     Restore {
         session: Session,
     },
+    Themes {
+        server: String,
+    },
+    ValidateThemes {
+        catalog: Value,
+    },
+    DefaultThemes,
     Presence {
         #[serde(flatten)]
         action: crate::presence::Action,
@@ -27,6 +34,11 @@ enum Command {
         resource: crate::business::Resource,
         #[serde(flatten)]
         action: crate::business::Action,
+    },
+    Push {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::push::Action,
     },
     TimeOff {
         session: Session,
@@ -56,6 +68,9 @@ pub fn execute(input: &str) -> String {
                 serde_json::to_value(complete(pending, &callback)?)
             }
             Command::Restore { session } => serde_json::to_value(restore(session)?),
+            Command::Themes { server } => return crate::themes::fetch(&server),
+            Command::ValidateThemes { catalog } => return crate::themes::validate(catalog),
+            Command::DefaultThemes => return Ok(crate::themes::defaults()),
             Command::Presence { action } => {
                 return crate::presence::execute(action);
             }
@@ -65,6 +80,9 @@ pub fn execute(input: &str) -> String {
                 action,
             } => {
                 return crate::business::execute(session, resource, action);
+            }
+            Command::Push { session, action } => {
+                return crate::push::execute(session, action);
             }
             Command::TimeOff { session, action } => {
                 return crate::time_off::execute(session, action);

@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -62,6 +63,9 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+// deprecatedFlags are accepted and ignored so an older chart's arguments still start the operator.
+var deprecatedFlags = []string{"cache-volume-master-cap-gib", "cache-volume-cas-gib"}
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme))
@@ -102,8 +106,6 @@ func main() {
 		tartKubeletMaxPods           int
 		tartKubeletGuestCapacity     int
 		runnerCacheVolumeGiB         int
-		cacheVolumeMasterCapGiB      int
-		cacheVolumeCASGiB            int
 		customCacheURL               string
 		customCacheNamespace         string
 		customCacheSA                string
@@ -278,24 +280,16 @@ func main() {
 			"macosFleet.sshIngressAllowCIDRs.")
 	flag.IntVar(&runnerCacheVolumeGiB, "runner-cache-volume-gib", 0,
 		"When > 0, bootstrap provisions a quota-bounded APFS volume of this many GiB on each Mac mini "+
-			"to hold per-account cache-volume images and turns the feature on in tart-kubelet. "+
+			"to hold the runner cache volumes and turns them on in tart-kubelet. "+
 			"This quota is the aggregate ceiling for all cache volumes on the host — the filesystem bound "+
 			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
 			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
-	flag.IntVar(&cacheVolumeMasterCapGiB, "cache-volume-master-cap-gib", 0,
-		"Per-account cache master image cap (GiB) passed to tart-kubelet's --cache-volume-cap-gib. The "+
-			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
-			"Only meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.masterCapGib.")
-	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", 0,
-		"Xcode compilation cache (CAS) share (GiB) of each per-account cache image, passed to tart-kubelet's "+
-			"--cache-volume-cas-gib. > 0 folds the CAS into the image as a subdir. The CAS and the binary cache "+
-			"share the master cap less a reserve, which the guest divides by what each holds; this value is the "+
-			"CAS's share of the fixed split that runner images older than that division apply. 0 (default) "+
-			"leaves the compilation cache VM-local. Only "+
-			"meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.casGib.")
+	for _, name := range deprecatedFlags {
+		flag.Int(name, 0, "Deprecated and ignored.")
+	}
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -502,6 +496,11 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	flag.Visit(func(f *flag.Flag) {
+		if slices.Contains(deprecatedFlags, f.Name) {
+			setupLog.Info("ignoring deprecated flag", "flag", f.Name, "value", f.Value.String())
+		}
+	})
 
 	rackHostImageMirrors := parseCommaList(rackHostImageMirrorsRaw)
 	for _, mirror := range rackHostImageMirrors {
@@ -630,8 +629,6 @@ func main() {
 		HostMemoryMB:              tartKubeletHostMemory,
 		MaxPods:                   tartKubeletMaxPods,
 		RunnerCacheVolumeGiB:      runnerCacheVolumeGiB,
-		CacheVolumeMasterCapGiB:   cacheVolumeMasterCapGiB,
-		CacheVolumeCASGiB:         cacheVolumeCASGiB,
 		CustomCacheURL:            customCacheURL,
 		CustomCacheNamespace:      customCacheNamespace,
 		CustomCacheServiceAccount: customCacheSA,

@@ -336,6 +336,10 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   to the work directory whose inode is the client's target, and refuses
   non-empty targets in either namespace. Any miss leaves the workspace empty, so
   actions/checkout clones as before; it never fails the job.
+- With a checkout mounted, `tuist-cache-volume --key` leaves out a path in the
+  checkout's `.git` that already holds data (such as `.git/lfs`) with a notice
+  instead of refusing it as non-empty; with no path left it attaches nothing and
+  reports `cache-hit=false`.
 - When the host granted a checkout (mounted, `cold`, `capacity`, `timeout`) the
   hook records `/home/runner/.tuist-checkout.json`. After the runner exits,
   outside GitHub's job time, `run-job.sh` runs `--checkout-export`: it packs what
