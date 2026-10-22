@@ -205,6 +205,33 @@ not execution inside Grafana or publication. Signed artifacts, corporate/other
 OS stores and safe owner process replacement remain open. See [evidence and
 availability distinctions](GRAFANA-CLIENT.md).
 
+## Wrappers, runner shell and Kura follow-up, 2026-10-22
+
+The bounded install/cache action and Buildkite/GitLab wrapper audit traces their
+networking to preinstalled CLI/helpers or external provider actions/executors.
+Fifteen install tests and shell contracts pass with local stubs. They are not TLS
+probes or qualification of separately published action tags. See
+[wrapper ownership](ACTION-CLIENTS.md).
+
+Both runner-shell-agent copies now embed the twelve-key deny for discovery HTTP
+and WSS after ordinary native validation. Darwin-host race tests pass with real
+DER, actual private accepted leaf/intermediate/root denies, normal trust
+failures, downgrade restrictions and privacy-safe typed diagnostics. All twelve
+public HTTP failures are natively attributed, not callback evidence. The Linux
+source was tested on Darwin, not in a Linux image. Resumption remains disabled
+by the original nil session cache. The shared guard/CI watches both copies;
+no image, helper release or installed process replacement is claimed. Other
+cache-volume/GitLab/host/poller/vendor transports remain open. See
+[runner scope and qualification](RUNNER-CLIENTS.md).
+
+Kura source review found a materially different reqwest 0.13 native-verifier
+boundary, including native extra anchors, Remote Asset, telemetry/Sentry and
+rotating explicit-anchor mTLS. Locked platform-verifier is 0.6.2. Neither a
+peer-only wrapper nor assuming peer CAs are private closes all twelve keys.
+Native constructed-chain enforcement, identity/provider/ALPN parity, Bazel
+integration and actual runtime tests remain open; no new Kura implementation or
+rollout is claimed. See [open Kura design](KURA-CLIENTS.md).
+
 ## Validation and limits
 
 - The standalone Go policy/store/guard suite passes with actual **Go 1.26.10**.

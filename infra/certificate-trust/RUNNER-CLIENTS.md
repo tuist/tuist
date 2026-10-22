@@ -30,7 +30,7 @@ Both suites pass on the **Darwin arm64 host**. Running the Linux image's source 
 
 The shared policy suite checks both policy arrays; byte-identical `main.go`, `certificate_trust.go`, `certificate_trust_test.go` and `certificate_trust_diagnostics_test.go` copies; protected HTTP/WSS factory wiring; log arguments; and fixture equality. Linux's separate pre-existing `main_test.go` is not mirrored. Read-only certificate CI is wired to watch and run both focused suites; no completed Linux CI run is claimed here. Existing owner Docker/Packer builds include these new files through their existing `cmd` build inputs; no new runtime policy file or host trust mutation is required.
 
-Local logs: `/tmp/tuist-emudhra-audit/runner-shell-{macos,linux-source}-reviewed-live-race.log`, `runner-shell-reviewed-go-sync.log` and `runner-shell-reviewed-actionlint.log`. These are test receipts, not signed release attestations.
+Source implementation: `50cda9fed5`. Host test logs: `/tmp/tuist-emudhra-audit/runner-shell-{macos,linux-source}-reviewed-live-race.log`. The final AST guard's focused tests pass in `runner-shell-final-ast-guards.log`; full post-guard shared-suite rerun is pending. Workflow lint passes in `runner-shell-final-actionlint.log` with the explicitly installed shellcheck on PATH. Earlier `*-actionlint.log` attempts that failed to resolve the mise shellcheck shim are not passing receipts. These are test receipts, not signed release attestations.
 
 ## Remaining owner gates
 

@@ -18,6 +18,11 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
   original native/bundled roots; do not unify stores merely to share a client.
   `GRAFANA-CLIENT.md` records the independent Go backend's full twelve-key callback,
   native-versus-application attribution and exact artifact/runtime limits.
+  `ACTION-CLIENTS.md` traces bounded wrapper ownership, not provider/helper TLS.
+  `RUNNER-CLIENTS.md` limits the new Go callback evidence to shell HTTP/WSS;
+  keep both source/test copies identical and qualify real images separately.
+  `KURA-CLIENTS.md` records the open reqwest 0.13/native-platform design: retain
+  native roots, inspect constructed anchors and do not exempt explicit mTLS CAs.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight
   intermediate-key controls; Go 1.27.1 fails. Qualify replacement SDKs by actual
   behavior and update the explicit CI/test allowlist, not numeric ordering.
