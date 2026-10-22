@@ -2770,16 +2770,21 @@ and the file together.
 
 All five are production only. The warm-rate rule reads Postgres (see its
 section); the other four read Loki (`grafanacloud-logs`), because the metric
-that carries the same fields cannot be rated.
+that carries the same fields undercounts.
 `tuist_runner_cache_volume_operations_total` (macOS hosts and the Linux
 `agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
-removed and only a plain `sum` stored, so `rate()` and `increase()` over it
-return an empty result, as with the Oban counters in **Ingestion jobs being
-discarded**. The aggregated sum also goes down whenever an agent restarts, so
-it cannot stand in for a counter either. Moving these rules to the metric needs
-the metric's aggregation rule changed to keep counter semantics first (see
-`README.md`, *Metrics aggregated downstream of this chart*), and it would
-still lack `kind`, `use` and the refusal messages the rules read.
+removed. Until 2026-10-22 16:50 UTC it stored only a plain `sum`, so `rate()`
+and `increase()` over it returned an empty result, as with the Oban counters
+in **Ingestion jobs being discarded**. It now has an exact `sum:counter` rule
+and rates, but both agents create each `(operation, source, result)` series
+on its first increment, and that first increment is never counted (see
+`README.md`, *Metrics aggregated downstream of this chart*). Compared with the
+host logs over 17:20 to 18:20 UTC that day, the metric read 12 to 31% low on
+successes and showed neither of the hour's two isolated failures. A rule on it
+would miss exactly the first failures of a new breakage. Moving a rule to the
+metric needs the alerting series initialized to 0 in both agents, then a
+side-by-side comparison with the Loki rule. The metric also lacks `kind`, `use`
+and the macOS refusal lines that never become a cache phase.
 
 The host logs used:
 
