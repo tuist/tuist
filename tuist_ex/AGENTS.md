@@ -1,5 +1,7 @@
 # Tuist Elixir integration
 
+`Analytics.BuildMetadata` enriches compile reports only, using existing string-valued custom metadata. Do not add probes or larger budgets to shared test metadata/HTTP shaping. Explicit values win; automatic observations fill spare slots within 20 unless credential-free discovery advertises up to 64. No scheduler-to-CPU inference, environment dumps, runner names without opt-in, auth forwarding, persistent discovery cache or metadata-related POST retries. See `server/docs/build-metadata.md` for semantics and rollout.
+
 This independently published Hex package provides `mix tuist.login` with browser,
 email/password, and continuous integration authentication, `mix tuist.test`
 which installs an ExUnit formatter and posts a test-run payload to
