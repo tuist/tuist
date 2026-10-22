@@ -62,7 +62,8 @@ struct AtlasApp: App {
     @ViewBuilder private var workspace: some View {
         if let server = authentication.server {
             AtlasWorkspaceView(holidayRequest: authentication.holidayRequest,
-                               businessRequest: authentication.businessRequest, presence: authentication.presence, navigation: navigation) {
+                               businessRequest: authentication.businessRequest, presence: authentication.presence, navigation: navigation,
+                               automation: authentication) {
                 AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
                                   profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications)
             }
