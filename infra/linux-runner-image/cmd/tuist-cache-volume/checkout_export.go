@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -25,6 +26,7 @@ var oidPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 type checkoutState struct {
 	Workspace string   `json:"workspace"`
+	Mounted   bool     `json:"mounted,omitempty"`
 	Base      string   `json:"base,omitempty"`
 	LFS       []string `json:"lfs,omitempty"`
 }
@@ -32,7 +34,7 @@ type checkoutState struct {
 // recordCheckout keeps the state only when the host granted a checkout: without a
 // grant the host would discard the export, so the job pays nothing for it.
 func recordCheckout(path, workspace string, mounted bool) error {
-	state := checkoutState{Workspace: workspace}
+	state := checkoutState{Workspace: workspace, Mounted: mounted}
 	if mounted {
 		if head, err := os.ReadFile(filepath.Join(workspace, ".git", "HEAD")); err == nil && commitPattern.MatchString(strings.TrimSpace(string(head))) {
 			state.Base = strings.TrimSpace(string(head))
@@ -44,6 +46,28 @@ func recordCheckout(path, workspace string, mounted bool) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+// withoutCheckoutPaths leaves out the paths in a mounted cached checkout's .git
+// directory that already hold data, such as .git/lfs: the checkout brought them,
+// and a volume only attaches over an empty directory.
+func withoutCheckoutPaths(targets []string, statePath string) []string {
+	data, err := os.ReadFile(statePath)
+	var state checkoutState
+	if err != nil || json.Unmarshal(data, &state) != nil || !state.Mounted || !filepath.IsAbs(state.Workspace) {
+		return targets
+	}
+	repository := filepath.Join(state.Workspace, ".git")
+	var kept []string
+	for _, target := range targets {
+		path, err := absolutePath(target)
+		if err == nil && containsPath(repository, path) && errors.Is(emptyTarget(path), errInvalidPath) {
+			fmt.Fprintf(os.Stderr, "::notice::Not attaching a cache volume at %s: this job's cached checkout already provides it\n", target)
+			continue
+		}
+		kept = append(kept, target)
+	}
+	return kept
 }
 
 func lfsObjects(workspace string) []string {

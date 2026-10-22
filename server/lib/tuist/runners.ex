@@ -105,7 +105,6 @@ defmodule Tuist.Runners do
   """
 
   alias Tuist.Accounts
-  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Buildkite
@@ -131,14 +130,7 @@ defmodule Tuist.Runners do
   @pool_label "tuist.dev/runner-pool"
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
-  # The job's cache volume, stamped with the account label. See
-  # `VolumeHeads.volume_name_for_repository/1`.
-  @cache_volume_label "tuist.dev/runner-cache-volume"
-  # Stamped on a Pod whenever dispatch cannot POSITIVELY confirm the job is
-  # trusted (same-repo, not a fork). tart-kubelet reads it and skips cache-volume
-  # materialization + promotion, so an untrusted fork job neither reads the
-  # account's warm master nor writes into it. Fail-closed: any uncertainty means
-  # the label is present and the job runs cold on an isolated branch.
+  # Keeps hosts that still create built-in cache images from creating one.
   @cache_untrusted_label "tuist.dev/runner-cache-untrusted"
 
   # The owner label gates dispatch egress: the runners-namespace
@@ -202,11 +194,7 @@ defmodule Tuist.Runners do
     )
   end
 
-  # Only the Mac fleet keeps the account's built-in cache volume on its hosts.
-  # The server can't see a host's per-host `gib`, so platform is only a coarse
-  # proxy; a `gib:0` macOS fleet advertises no masters, so its queue is never
-  # reordered for one.
-  defp builtin_volumes?(fleet_name) do
+  defp macos_fleet?(fleet_name) do
     Catalog.fleet_platform(fleet_name) == :macos
   end
 
@@ -220,59 +208,6 @@ defmodule Tuist.Runners do
   # Presigned-URL lifetime for the cache-volume master archive. Comfortably
   # covers a job: the download is used at materialize, the upload at job end.
   @volume_master_url_ttl_seconds 6 * 60 * 60
-
-  # The job's cache-volume HEAD for the dispatch response: the current
-  # generation + inventory digest, plus a presigned GET URL for the master object
-  # so a behind runner can converge its stale local master. The PUT URL is minted
-  # separately at promote time (volume_master_upload_url/4), keyed by the runner's
-  # new digest. Best-effort — any failure returns nil and the runner stays on its
-  # local master (the status quo).
-  defp volume_head_payload(account, volume_name) do
-    head = VolumeHeads.get_head(account.id, volume_name)
-
-    # Download URL for the CURRENT HEAD's content-addressed object, so a behind
-    # host converges by fetching exactly the bytes that produced the HEAD digest.
-    # No HEAD yet => nil => the host stays cold (status quo) and its first
-    # successful job establishes the HEAD. The upload URL is NOT handed out here
-    # anymore: the guest mints it at promote time keyed by its own new digest
-    # (volume_master_upload_url/4), which is what makes the object keys immutable
-    # and stops concurrent promotes clobbering the object the HEAD points at.
-    download_url =
-      if head && head.tree_digest do
-        key = volume_master_object_key(account.id, volume_name, head_master_object_id(head))
-        Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
-      end
-
-    # SSRF guard: a runner host follows the download URL, so refuse to hand out
-    # one whose host resolves to a private, loopback, or link-local address. A
-    # nil URL (no HEAD) is fine — it just means no convergence, the status quo.
-    if is_nil(download_url) or Tuist.URL.public_host_url?(download_url) do
-      %{
-        generation: (head && head.generation) || 0,
-        digest: head && head.tree_digest,
-        content_digest: head && head.content_digest,
-        download_url: download_url
-      }
-    end
-  rescue
-    _ -> nil
-  end
-
-  @doc """
-  The cache-volume HEAD of `account_id`'s `volume_name` with a presigned GET URL
-  for its master, for a runner host to prefetch. The same payload a trusted
-  dispatch carries, under the same public-host guard. `nil` when the account is
-  unknown, the volume has published no master, or no URL can be minted.
-  """
-  def host_volume_head(account_id, volume_name) when is_integer(account_id) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id),
-         %{generation: generation, download_url: url} = head when generation > 0 and is_binary(url) <-
-           volume_head_payload(account, volume_name) do
-      head
-    else
-      _ -> nil
-    end
-  end
 
   @doc """
   Mints a presigned PUT URL for the master object of `account_id`'s cache volume
@@ -328,8 +263,7 @@ defmodule Tuist.Runners do
 
   def volume_master_upload_url(_account_id, _volume_name, _tree_digest, _content_digest), do: :error
 
-  # Shared by the automatic macOS cache and Linux custom volumes. The caller
-  # resolves the volume identity; neither path accepts an object key from a job.
+  # The caller resolves the volume identity; no object key comes from a job.
   def volume_master_download_url(account_id, volume_name, digest, content_digest) do
     with true <- VolumeHeads.valid_storage_volume_name?(volume_name),
          true <- is_binary(digest) and valid_inventory_digest?(digest),
@@ -371,44 +305,18 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Whether a promote built on `base_generation` could still win the fast-forward
-  of `account_id`'s cache volume `volume_name` — the pre-flight a runner makes
-  before uploading.
+  Whether a publish built on `base_generation` could still win the fast-forward
+  of `account_id`'s cache volume `volume_name`, checked before the host uploads
+  its image so a publish that is certain to lose skips the transfer.
 
-  The runner's image upload runs at teardown and blocks the VM halt (and so the
-  host slot's reclaim) for its whole duration, yet under cross-host contention
-  most promotes lose the fast-forward that follows it. Asking this first lets a
-  runner whose base another host has already advanced past skip the transfer
-  entirely instead of paying for it and being rejected.
-
-  `unverifiable_digest` is the HEAD digest the promoting host downloaded and could
-  not verify, when it reported one: it makes a promote viable against a HEAD nothing
-  can adopt, from a cold base or a stale one alike, and must be evaluated here as
-  well as at the bump or the pre-flight would turn away the only promote that can
-  retire it.
-
-  Advisory only: see `Tuist.Runners.VolumeHeads.fast_forward_viable?/4` — the
-  compare-and-swap in `report_volume_head/7` remains what decides the HEAD.
+  Advisory only: see `Tuist.Runners.VolumeHeads.fast_forward_viable?/3`. The
+  compare-and-swap in `report_volume_head/6` remains what decides the HEAD.
   """
-  def fast_forward_viable?(account_id, volume_name, base_generation, unverifiable_digest \\ nil) do
-    VolumeHeads.fast_forward_viable?(
-      account_id,
-      base_generation,
-      volume_name,
-      unverifiable_digest: reported_unverifiable_digest(unverifiable_digest)
-    )
+  def fast_forward_viable?(account_id, volume_name, base_generation) do
+    VolumeHeads.fast_forward_viable?(account_id, base_generation, volume_name)
   end
 
   defp valid_inventory_digest?(digest), do: Regex.match?(~r/^[a-f0-9]{40}$/, digest)
-
-  # A reported unverifiable digest is honored only in the guest's own digest
-  # format. An absent or malformed one reads as no report at all, which simply
-  # leaves the HEAD standing — the conservative direction.
-  defp reported_unverifiable_digest(digest) when is_binary(digest) do
-    if valid_inventory_digest?(digest), do: digest
-  end
-
-  defp reported_unverifiable_digest(_digest), do: nil
 
   # A reported content digest is honored only as a 64-char SHA-256 hex. An
   # absent or malformed one reads as unreported, so the HEAD row carries no
@@ -421,46 +329,23 @@ defmodule Tuist.Runners do
   defp reported_content_digest(_digest), do: nil
 
   @doc """
-  Records a runner's promote of `account_id`'s cache volume `volume_name`:
+  Records a host's publish of `account_id`'s cache volume `volume_name`:
   fast-forwards the volume's HEAD to `tree_digest` published from `node_name`,
-  but ONLY when
-  `base_generation` (the generation the job built on) is still the current HEAD.
-  Called by the runner after a successful, cache-changing job whose branch it
-  uploaded to the master archive.
+  but ONLY when `base_generation` (the generation the job built on) is still the
+  current HEAD.
 
-  `tree_digest` MUST be a 40-char SHA-1 hex string. dispatch interpolates the
-  stored HEAD digest straight into the master object key
-  (volume_master_object_key/3), so an unvalidated digest from an authenticated
-  runner could persist `/` or `..` and poison a future dispatch's download key or
-  escape the account prefix. Validate here too — not just when minting the upload
-  URL — since this is the write that the download key is later derived from.
+  `tree_digest` MUST be a 40-char SHA-1 hex string, because the stored HEAD digest
+  is interpolated into the master object key (`volume_master_object_key/3`).
 
-  `unverifiable_digest`, when the runner reports one, is the HEAD digest its host
-  downloaded and found the stored object does not reproduce. It lets the promote
-  retire that lineage instead of being rejected against a HEAD no host can adopt —
-  whether this host holds no master or one at an older generation, both of which are
-  wedged the same way (see `Tuist.Runners.VolumeHeads`). Validated like
-  `tree_digest`, since it too reaches a query.
-
-  `content_digest`, when the runner reports one, is the SHA-256 of the image
-  bytes it uploaded (the same digest its PUT was checksum-verified against).
+  `content_digest`, when reported, is the SHA-256 of the image bytes uploaded.
   Stored on the HEAD row so converging hosts can verify the downloaded object
-  bit-for-bit before adopting it. Optional for rollout: an absent or malformed
-  value stores nil and hosts skip the content check for that HEAD.
+  before adopting it. An absent or malformed value stores nil.
 
   Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
   base is stale (another host advanced the HEAD first), or `:error` on an invalid
   digest.
   """
-  def report_volume_head(
-        account_id,
-        volume_name,
-        node_name,
-        tree_digest,
-        base_generation,
-        unverifiable_digest \\ nil,
-        content_digest \\ nil
-      ) do
+  def report_volume_head(account_id, volume_name, node_name, tree_digest, base_generation, content_digest \\ nil) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
       superseded = VolumeHeads.get_head(account_id, volume_name)
       content_digest = reported_content_digest(content_digest)
@@ -472,7 +357,6 @@ defmodule Tuist.Runners do
              tree_digest,
              base_generation,
              volume_name,
-             unverifiable_digest: reported_unverifiable_digest(unverifiable_digest),
              content_digest: content_digest
            ) do
         {:ok, generation} ->
@@ -611,42 +495,6 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Resolves the account and cache volume a runner Pod ran, from the
-  `tuist.dev/runner-account` and `tuist.dev/runner-cache-volume` labels the
-  server stamped on it at claim. Authoritative — the runner can't change them —
-  so a volume-head report is bound to the account and volume it actually ran,
-  not to whatever the request body claims. A Pod stamped without a volume label
-  ran the account's `tuist-cache` volume; a malformed one resolves nothing.
-
-  A Pod carrying the `tuist.dev/runner-cache-untrusted` label (an untrusted
-  fork-PR job) is rejected: it was dispatched with no volume-head and its cache
-  branch is discarded on the host, so it must never be able to advance an
-  account's shared HEAD. Fail-closed so a compromised fork job can't poison the
-  master by reporting a promote.
-  """
-  def volume_owner_for_sa(namespace, sa_name) do
-    with {:ok, pod} <- K8sClient.get_pod(namespace, pod_name_from_sa(sa_name)),
-         :ok <- reject_untrusted_pod(pod),
-         label when is_binary(label) <- get_in(pod, ["metadata", "labels", @account_label]),
-         {account_id, ""} <- Integer.parse(label),
-         volume_name = get_in(pod, ["metadata", "labels", @cache_volume_label]) || VolumeHeads.reserved_tuist_cache(),
-         true <- VolumeHeads.valid_volume_name?(volume_name) do
-      {:ok, %{account_id: account_id, volume_name: volume_name}}
-    else
-      {:error, :cache_untrusted} = error -> error
-      _ -> {:error, :account_unresolved}
-    end
-  end
-
-  defp reject_untrusted_pod(pod) do
-    if get_in(pod, ["metadata", "labels", @cache_untrusted_label]) == "true" do
-      {:error, :cache_untrusted}
-    else
-      :ok
-    end
-  end
-
-  @doc """
   Object-storage prefix holding an account's runner cache-volume master
   archive(s), under one `<volume_name>/` directory per volume. Deleting this
   prefix removes the account's cache masters regardless of the per-object key,
@@ -736,7 +584,7 @@ defmodule Tuist.Runners do
   # macOS Pods are placed before a job is assigned, so the queued jobs are the
   # only hint of which volumes the next Pod will need.
   defp preferred_nodes(fleet_name) do
-    with true <- builtin_volumes?(fleet_name),
+    with true <- macos_fleet?(fleet_name),
          {:ok, candidates} <- Jobs.pick_queued_top_k(fleet_name, [], [], @preferred_node_candidates) do
       VolumeAffinities.preferred_nodes(fleet_name, candidates, @preferred_node_candidates)
     else
@@ -1178,30 +1026,19 @@ defmodule Tuist.Runners do
   end
 
   # The affinity outcome is the only server-side read on whether the preference
-  # discriminates at all. The host's warm/cold materialize counter is the ground
-  # truth, but it can't distinguish "dispatch had no resident candidate queued"
-  # from "dispatch preferred one and the host had evicted it anyway" — the two
-  # call for opposite fixes (more hosts holding an account's master vs. a
-  # smaller assumed resident count), so the decision is reported where it's made.
+  # discriminates at all, so the decision is reported where it's made.
   #
   # Emitted once per COMMITTED dispatch, not once per scoring pass. A poll that
   # scores a candidate and then loses the claim race, or hits an account's
   # concurrency cap, retries and scores again; counting every pass would report
-  # several outcomes for one served job and leave this metric with a different
-  # denominator than the host's one-materialize-per-job counter, which is the
-  # thing it exists to be compared against.
-  #
-  # An untrusted job is reported as `:untrusted` rather than by its residency
-  # outcome: the host skips materialize for it, so it runs cold by design no
-  # matter how resident its account is, and folding it into `resident` would
-  # overstate the warm placements this is meant to measure.
-  defp record_affinity_outcome(_fleet_name, nil, _trusted), do: :ok
+  # several outcomes for one served job.
+  defp record_affinity_outcome(_fleet_name, nil), do: :ok
 
-  defp record_affinity_outcome(fleet_name, outcome, trusted) do
+  defp record_affinity_outcome(fleet_name, outcome) do
     :telemetry.execute(
       Telemetry.event_name_dispatch_affinity(),
       %{count: 1},
-      %{fleet: fleet_name, outcome: if(trusted, do: Atom.to_string(outcome), else: "untrusted")}
+      %{fleet: fleet_name, outcome: Atom.to_string(outcome)}
     )
   end
 
@@ -1248,28 +1085,16 @@ defmodule Tuist.Runners do
                mint_credential(account, candidate, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name, claim.claimed_at),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
-          # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
-          # the account's shared cache. Determine trust fail-closed — any
-          # uncertainty means untrusted, so the job runs cold and cannot poison
-          # the master. Untrusted jobs get NO grant and NO volume HEAD (so the
-          # cache isn't account-portable and the guest can't publish), and the
-          # host is told to skip materialize/promote via the untrusted label.
+          # Fork-exclusion: only a trusted (same-repo, non-fork) job gets the
+          # account's cache-signing grant. Trust is determined fail-closed.
           trusted = job_trusted?(candidate, account)
           assigned_job? = provider(candidate) in ["buildkite", "gitlab"]
-          volume_name = cache_volume_name(fleet_name, node_name, candidate)
 
-          # Stamp the account label (the host's cache-materialize trigger) only
-          # now that dispatch has fully committed — stamping it before the commit
-          # would let a failed dispatch strand a stale account on a Pod that later
-          # runs a different one. The volume and untrusted labels ride the same
-          # patch so the host sees them atomically. See stamp_account_label/5.
-          #
-          # macOS jobs keep their Xcode and module caches on custom volumes, so the
-          # host neither materializes nor promotes the built-in one for them.
-          builtin_volume? = trusted and not builtin_volumes?(fleet_name)
-          stamp_account_label(namespace, pod_name, account, volume_name, builtin_volume?)
+          # Stamped only now that dispatch has fully committed. See
+          # stamp_account_label/3.
+          stamp_account_label(namespace, pod_name, account)
 
-          record_affinity_outcome(fleet_name, affinity_outcome, trusted)
+          record_affinity_outcome(fleet_name, affinity_outcome)
 
           # Open the per-Pod billing session only after dispatch
           # commits — JIT minted, PG marked running, CH state
@@ -1326,12 +1151,7 @@ defmodule Tuist.Runners do
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an
              # untrusted job's cache is never account-portable.
-             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id)),
-             # Current cache-volume HEAD (generation + inventory digest) plus
-             # presigned URLs for the account's master archive — trusted jobs
-             # only. nil for an untrusted job (no convergence, and the guest has
-             # no upload URL so it cannot publish a HEAD) or best-effort failure.
-             volume_head: if(builtin_volume?, do: volume_head_payload(account, volume_name))
+             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id))
            }}
         else
           {:error, reason} = err ->
@@ -1418,30 +1238,15 @@ defmodule Tuist.Runners do
     patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
   end
 
-  # The account label is the host's cache-materialize trigger: tart-kubelet
-  # clonefiles this account's cache master into the VM's branch when it observes
-  # the label. It is stamped only after the dispatch fully commits, NOT alongside
-  # the owner label. Stamping it pre-commit would let a dispatch that fails after
-  # the stamp (mint or ClickHouse error → release_safely re-queues the job while
-  # the Pod keeps polling) leave a stale account on a Pod that later wins a claim
-  # for a DIFFERENT account — the host would then run the second account's job on
-  # the first account's materialized cache. Post-commit stamping guarantees only
-  # the account the VM actually runs ever triggers materialization. Best-effort:
-  # a stamp failure degrades to a cold (unmaterialized) job, never a
-  # wrong-account one.
-  defp stamp_account_label(namespace, pod_name, account, volume_name, trusted) do
-    labels = %{@account_label => Integer.to_string(account.id), @cache_volume_label => volume_name}
-    labels = if trusted, do: labels, else: Map.put(labels, @cache_untrusted_label, "true")
+  # The account label marks a Pod as committed (`committed?/1`), so a Pod that
+  # polls again after a lost dispatch response drains instead of serving a second
+  # job, and it attributes host logs to the account. It is stamped only after the
+  # dispatch fully commits, NOT alongside the owner label: a dispatch that fails
+  # after the stamp re-queues the job while the Pod keeps polling, and the label
+  # would then mark a Pod that never ran a job. Best-effort.
+  defp stamp_account_label(namespace, pod_name, account) do
+    labels = %{@account_label => Integer.to_string(account.id), @cache_untrusted_label => "true"}
     patch_pod_labels(namespace, pod_name, %{"metadata" => %{"labels" => labels}}, @owner_label_stamp_attempts)
-  end
-
-  defp cache_volume_name(fleet_name, node_name, candidate) do
-    if FeatureFlags.runner_cache_volumes_per_repository_enabled?() and builtin_volumes?(fleet_name) and
-         VolumeAffinities.repository_volumes?(node_name) do
-      VolumeHeads.volume_name_for_repository(Map.get(candidate, :repository))
-    else
-      VolumeHeads.reserved_tuist_cache()
-    end
   end
 
   # A job is trusted only when its workflow run's head repository is the base
@@ -1766,10 +1571,9 @@ defmodule Tuist.Runners do
             # committed Pod that received its JIT runs the job in place and never
             # polls again. So a committed Pod polling HERE means its dispatch
             # response was lost and the runner never started — it must not be
-            # handed a second, possibly different, account on the cache already
-            # materialized for the first (the host's SourceAccount guard blocks
-            # promotion, but not the guest reading it). 410 so the guest halts and
-            # the runner-pool reconciler replaces it with a fresh Pod.
+            # handed a second, possibly different, account's job. 410 so the
+            # guest halts and the runner-pool reconciler replaces it with a fresh
+            # Pod.
             Logger.info("runners: reaping committed-but-polling pod",
               pod: pod_name,
               fleet: fleet_name

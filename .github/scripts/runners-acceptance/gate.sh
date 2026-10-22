@@ -48,15 +48,21 @@ conclusion="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json concl
 jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")"
 jq -r '.jobs[] | "- \(.name): \(.conclusion // .status)"' <<< "${jobs}" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
-[ "${conclusion}" = success ] && exit 0
-
-jq -r '.jobs[] | select(.conclusion != "success" and .conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${jobs}" |
+# Re-raises every layer's failure, cache volumes included, as an error. A cache
+# volume GitHub had not yet reported the job for, or one an overlapping probe
+# run saved over, leaves the run successful with a `Cache volumes inconclusive`
+# warning, re-raised here as a warning: neither must block a deploy.
+jq -r '.jobs[] | select(.conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${jobs}" |
   while IFS=$'\t' read -r job_id name; do
     gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" \
-      --jq '.[] | select(.annotation_level == "failure" and (.title // "") != "") | "\(.title)\t\(.message)"' |
-      while IFS=$'\t' read -r title message; do
-        echo "::error title=${title} (${ENVIRONMENT})::${name}: ${message}"
-        printf -- '- **%s** on %s: %s\n' "${title}" "${name}" "${message}" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+      --jq '.[] | select((.title // "") != "" and (.annotation_level == "failure" or .title == "Cache volumes inconclusive")) | "\(.annotation_level)\t\(.title)\t\(.message)"' |
+      while IFS=$'\t' read -r annotation_level title message; do
+        level=error
+        [ "${annotation_level}" = failure ] || level=warning
+        echo "::${level} title=${title} (${ENVIRONMENT})::${name}: ${message}"
+        printf -- '- %s **%s** on %s: %s\n' "${level}" "${title}" "${name}" "${message}" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
       done
   done
+
+[ "${conclusion}" = success ] && exit 0
 fail "Runners acceptance" "the runners or their cache are broken on ${ENVIRONMENT} (${conclusion}): ${url}"

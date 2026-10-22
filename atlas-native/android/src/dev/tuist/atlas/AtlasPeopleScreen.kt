@@ -11,8 +11,13 @@ import android.widget.Toolbar
 class AtlasPeopleScreen(
     private val activity: Activity,
     private val model: AtlasPresenceModel,
+    webPage: (() -> Unit)? = null,
 ) {
-    val toolbar = Toolbar(activity).apply { title = "People" }
+    val toolbar =
+        Toolbar(activity).apply {
+            title = "People"
+            browserAction(webPage)
+        }
     private val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val listener: () -> Unit = { render() }
     val view =

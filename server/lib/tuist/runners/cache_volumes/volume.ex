@@ -12,7 +12,6 @@ defmodule Tuist.Runners.CacheVolumes.Volume do
     field(:repository, :string)
     field(:default_branch, :string)
     field(:key, :string)
-    field(:builtin_name, :string)
     field(:platform, :string, default: "linux")
     field(:architecture, :string)
     field(:uid, :integer)

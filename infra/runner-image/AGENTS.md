@@ -228,8 +228,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `MANAGED_XCODE_CACHE_LIMIT_BYTES`. Nothing reaches the runner's environment
   until a job asks: the `tuist/module-cache` and `tuist/xcode-cache` actions,
   Buildkite plugins and GitLab snippets (`ci/runner-caches/`) run
-  `/usr/local/bin/tuist-runner-cache activate <cache>`, which attaches the volume
-  with `tuist-cache-volume` once per job (`<cache>.attached`), prints the
+  `/usr/local/bin/tuist-runner-cache activate <cache> [--size NGB]`, which
+  attaches the volume with `tuist-cache-volume`, passing the size, once per job
+  (`<cache>.attached`), prints the
   environment for the integration to export, chains a workflow-set
   `XCODE_XCCONFIG_FILE` last (a relative one resolved against the step's
   working directory), and leaves `<cache>.used`. It exits 3 without exporting
@@ -237,11 +238,19 @@ added to catch that failed on `admin`'s unwritable cache instead.
   means a runner that never staged caches, including one whose directory could
   not be created; the helper then exits 0 and the job runs without them. Keep
   the helper's env contract in step with these files, and run
-  `runner-caches_test.sh`. The server sizes `tuist-xcode` at 30 GB and
-  `tuist-module` at 20 GB; keep the limits under the 99% fill at which a volume
-  is no longer saved. The runner image reads nothing from the host's `cache`
-  share and calls none of the server's volume HEAD routes, so it works with
-  hosts that still offer that share and with hosts that do not.
+  `runner-caches_test.sh`. After the attach the helper reads the volume's
+  capacity (`df` on the path, which links into the mounted image) and rewrites
+  `TUIST_CACHE_MAX_BYTES` in `module.env` or `COMPILATION_CACHE_LIMIT_SIZE` in
+  the xcconfig to the capacity less max(2 GB, 20%), at most half of it: 24 GB at
+  the default 30 GB, 16 GB at 20 GB. A path left as a local directory (the
+  volume was unavailable) keeps the staged limits of a default-sized volume. The
+  teardown prune bounds the store at the limit the xcconfig gave the compiler
+  (`managed_xcode_cache_limit`), so both follow the capacity the job set with
+  `size` (the server's defaults: 30 GB `tuist-xcode`, 20 GB `tuist-module`).
+  Keep the limits under the 99% fill at which a volume is no longer saved. The
+  runner image reads nothing from the host's `cache` share and calls none of
+  the server's volume HEAD routes, so it works with hosts that still offer that
+  share and with hosts that do not.
   Only a job that **succeeded** saves its cache volumes. The gate is
   `JOB_PASSED` (zero exit AND a job result of `succeeded`), not the runner's
   exit status. `run.sh` folds every Listener code except a restart into 0, and
@@ -748,9 +757,17 @@ semantics; this doc is just about the VM image.
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - The job-started hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
-  before the first step. It mounts the job's cached checkout at the workspace
-  only when the host serves one and the workspace is empty, and otherwise leaves
-  it untouched, so actions/checkout clones as before. It never fails the job.
+  before the first step. It mounts the job's cached checkout only when the host
+  serves one, the workspace is empty and its parent holds nothing else, and
+  otherwise leaves it untouched, so actions/checkout clones as before. It never
+  fails the job. The image mounts at the workspace's parent and the guest moves
+  the tree into the workspace: the workspace must not be a volume root, because
+  Foundation stages safe saves in `<volume root>/.TemporaryItems` and Xcode's
+  task sandbox refuses writes there inside the project (CoreML compilation into
+  a DerivedData under the workspace fails with "compile failed to write partial
+  plist"). `tuist-cache-volume --key` leaves out a path in the mounted
+  checkout's `.git` that already holds data (such as `.git/lfs`) with a notice,
+  instead of refusing it as non-empty.
   When the host granted a checkout (mounted, or `cold`, `capacity`, `timeout`)
   it records the workspace and the mounted master's commit and LFS objects in
   `/Users/runner/.tuist-checkout.json`. The teardown then runs

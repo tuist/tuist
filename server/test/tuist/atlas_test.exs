@@ -6,12 +6,9 @@ defmodule Tuist.AtlasTest do
 
   describe "customer_context/1" do
     test "returns the Atlas customer context by account handle" do
-      AccountsFixtures.organization_fixture(
-        name: "tuist-org",
-        current_month_remote_cache_hits_count: 42
-      )
+      AccountsFixtures.organization_fixture(name: "tuist-org")
 
-      assert {:ok, %{current_month_remote_cache_hits: 42}} = Atlas.customer_context("tuist-org")
+      assert {:ok, %{current_month_remote_cache_hits: 0}} = Atlas.customer_context("tuist-org")
     end
 
     test "returns not_found when the account handle does not exist" do

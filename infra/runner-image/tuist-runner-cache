@@ -1,5 +1,5 @@
 #!/bin/bash
-# tuist-runner-cache activate <module|xcode>
+# tuist-runner-cache activate <module|xcode> [--size NGB]
 #
 # Turns on one of the runner's managed caches for the rest of the job. On
 # success it prints the cache's environment as NAME=VALUE lines on stdout for
@@ -10,17 +10,28 @@
 # volume and `<cache>.env` its environment. Activating leaves `<cache>.used`,
 # which tells teardown the job used the cache.
 #
+# On managed cache volumes, `--size` sets the volume's capacity, a whole number
+# of GB from 1gb to 100gb, and the cache's size limit follows the capacity the
+# volume attached at.
+#
 # Exit status: 0 when the cache is active; 3 when the runner could not attach
 # it, so the job runs on an empty cache; 2 on a usage error.
 set -uo pipefail
 
 RUNNER_CACHES_DIR="${TUIST_RUNNER_CACHES_DIR:-/Users/runner/.tuist-runner-caches}"
+USAGE="usage: tuist-runner-cache activate <module|xcode> [--size NGB]"
 
 usage() {
-  echo "usage: tuist-runner-cache activate <module|xcode>" >&2
+  echo "${USAGE}" >&2
   exit 2
 }
 
+case "${1:-}" in
+  -h | --help)
+    echo "${USAGE}" >&2
+    exit 0
+    ;;
+esac
 [ "${1:-}" = "activate" ] || usage
 cache="${2:-}"
 case "${cache}" in
@@ -28,6 +39,64 @@ case "${cache}" in
   xcode) label="Xcode compilation cache" ;;
   *) usage ;;
 esac
+size=""
+case "$#" in
+  2) ;;
+  4) [ "$3" = "--size" ] || usage; size="$4" ;;
+  *) usage ;;
+esac
+if [ -n "${size}" ]; then
+  gb=$(printf '%s' "${size}" | sed -nE 's/^([0-9]{1,3})[gG][bB]$/\1/p')
+  if [ -z "${gb}" ] || [ "${gb}" -lt 1 ] || [ "${gb}" -gt 100 ]; then
+    echo "Invalid cache size \"${size}\": use a whole number of GB from 1gb to 100gb, such as 50gb." >&2
+    exit 2
+  fi
+fi
+
+# volume_capacity_bytes prints the capacity of the volume a cache path links
+# into, or nothing when the path is not a volume: a volume that could not be
+# restored leaves an empty local directory instead.
+volume_capacity_bytes() {
+  [ -L "$1" ] || return 0
+  df -Pk "$1/" 2>/dev/null | awk 'NR == 2 && $2 ~ /^[0-9]+$/ { printf "%.0f", $2 * 1024 }'
+}
+
+# cache_limit_bytes leaves the room a job grows into before the cache is next
+# pruned, max(2 GB, 20%) of the capacity and at most half of it, under the 99%
+# fill at which a volume is no longer saved.
+cache_limit_bytes() {
+  awk -v capacity="$1" 'BEGIN { room = capacity / 5; if (room < 2e9) room = 2e9; if (room > capacity / 2) room = capacity / 2; printf "%.0f", capacity - room }'
+}
+
+# replace_line rewrites the line of a file that starts with a prefix.
+replace_line() {
+  local file="$1" prefix="$2" value="$3" temporary
+  temporary=$(mktemp "${file}.XXXXXX") || return 1
+  if awk -v prefix="${prefix}" -v value="${value}" 'index($0, prefix) == 1 { print prefix value; next } { print }' "${file}" >"${temporary}"; then
+    mv "${temporary}" "${file}"
+  else
+    rm -f "${temporary}"
+    return 1
+  fi
+}
+
+# limit_to_volume bounds the cache to the capacity its volume attached at: the
+# module cache through TUIST_CACHE_MAX_BYTES, the compilation cache through its
+# xcconfig, whose limit the teardown prune also reads. A path that is not a
+# volume keeps the limits dispatch staged.
+limit_to_volume() {
+  local capacity limit
+  capacity=$(volume_capacity_bytes "$1")
+  [ -n "${capacity}" ] && [ "${capacity}" -gt 0 ] 2>/dev/null || return 0
+  limit=$(cache_limit_bytes "${capacity}")
+  if [ "${cache}" = "module" ]; then
+    replace_line "${env_file}" "TUIST_CACHE_MAX_BYTES=" "${limit}" || return 0
+  else
+    replace_line "$(sed -n 's/^XCODE_XCCONFIG_FILE=//p' "${env_file}")" "COMPILATION_CACHE_LIMIT_SIZE = " "${limit}" || return 0
+  fi
+  awk -v label="${label}" -v capacity="${capacity}" -v limit="${limit}" \
+    'BEGIN { printf "The %s volume holds %.1f GB; the cache is limited to %.1f GB.\n", label, capacity / 1e9, limit / 1e9 }' >&2
+}
 
 case "$(cat "${RUNNER_CACHES_DIR}/mode" 2>/dev/null)" in
   opt-in) ;;
@@ -52,11 +121,12 @@ if [ -f "${volume_file}" ] && [ ! -e "${RUNNER_CACHES_DIR}/${cache}.attached" ];
   # include that directory.
   client="$(dirname "$0")/tuist-cache-volume"
   [ -x "${client}" ] || client=tuist-cache-volume
-  if ! "${client}" --key "${key}" --path "${path}" >&2; then
+  if ! "${client}" --key "${key}" --path "${path}" ${size:+--size "${size}"} >&2; then
     echo "The ${label} volume could not be attached; this job runs with an empty cache." >&2
     exit 3
   fi
   : >"${RUNNER_CACHES_DIR}/${cache}.attached" 2>/dev/null || true
+  limit_to_volume "${path}"
 fi
 
 if ! : >"${RUNNER_CACHES_DIR}/${cache}.used" 2>/dev/null; then

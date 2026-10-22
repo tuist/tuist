@@ -490,9 +490,19 @@ first prevents a later management-cluster reconciliation from recreating it.
 Cluster retirement is deliberately manual because it permanently removes the
 control plane and any remaining persistent volumes.
 
-Then delete the `pentest.tuist.dev` record in Cloudflare. It was created by
-hand at bootstrap, so nothing removes it, and once Hetzner reassigns the
-released load-balancer IP, whoever receives it would serve that hostname.
+**Before** running it, delete every DNS record that points at the cluster's
+load balancers, and confirm with `dig +short <name>` that each resolves to
+nothing. Today that is the record for the ingress host in
+`infra/helm/tuist/values-pentest.yaml`. Bootstrap has operators create it by
+hand, so nothing removes it.
+
+The workflow releases those load balancers. Once Hetzner reassigns an IP,
+Cloudflare forwards the hostname's traffic to the new holder. The request
+`Host` header tells them which name they received, so they need no prior
+knowledge of it. Cloudflare passes `/.well-known/acme-challenge/` through over
+plain HTTP, so they could also obtain a valid certificate for the name. Strict
+TLS at Cloudflare does not prevent the takeover; only removing the records
+first does.
 
 ## 10. Teardown
 
@@ -504,7 +514,16 @@ longer on `main` before deleting the `Cluster` resource.
 KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist delete cluster <cluster_name>
 ```
 
-caph drains + deletes the nodes and releases the Hetzner LB and servers.
+caph drains + deletes the nodes and servers, and releases its API-server load
+balancer and network. It does not touch the load balancers the Hetzner cloud
+controller created for `type: LoadBalancer` Services such as ingress-nginx:
+delete those Services first, while the controller still runs, or remove the
+leftover load balancers in the Hetzner console afterwards.
+
+Before releasing any load balancer, delete every DNS record that points at it
+(hand-made Cloudflare records especially, since ExternalDNS only removes the
+ones it owns). A record that outlives its load balancer hands the hostname to
+whoever Hetzner gives the IP next.
 
 ---
 

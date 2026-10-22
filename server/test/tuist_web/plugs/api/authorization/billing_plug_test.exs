@@ -15,15 +15,13 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   setup :set_mimic_from_context
 
   setup context do
-    current_month_remote_cache_hits_count =
-      Map.get(context, :current_month_remote_cache_hits_count, 0)
-
     %{account: account} =
       user =
-      AccountsFixtures.user_fixture(
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
-        preload: [:account]
-      )
+      AccountsFixtures.user_fixture(preload: [:account])
+
+    account
+    |> Ecto.Changeset.change(current_month_cache_requests: Map.get(context, :current_month_cache_requests, 0))
+    |> Repo.update!()
 
     project =
       [account_id: account.id] |> ProjectsFixtures.project_fixture() |> Repo.preload(:account)
@@ -38,7 +36,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     }
   end
 
-  @tag current_month_remote_cache_hits_count: 50
+  @tag current_month_cache_requests: 50_000
   test "caches the billing information across requests",
        %{conn: conn, project: project} do
     # Given
@@ -65,7 +63,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     end
   end
 
-  @tag current_month_remote_cache_hits_count: 50
+  @tag current_month_cache_requests: 50_000
   test "returns the same connection when the plan is enterprise, and the subscription is active",
        %{conn: conn, project: project} do
     # Given
@@ -91,7 +89,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
-  @tag current_month_remote_cache_hits_count: 50
+  @tag current_month_cache_requests: 50_000
   test "returns the same connection when the plan is enterprise, and the subscription is not active",
        %{conn: conn, project: project} do
     # Given
@@ -121,7 +119,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
            }
   end
 
-  @tag current_month_remote_cache_hits_count: 250
+  @tag current_month_cache_requests: 1_250_000
   test "returns an error when the plan is air, and the usage is above the threshold",
        %{conn: conn, project: project} do
     # Given
@@ -151,7 +149,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
            }
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns the same connection when the plan is pro, and the subscription is trialing",
        %{conn: conn, project: project} do
     # Given
@@ -177,7 +175,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns an error when the plan is pro, and the subscription is not active",
        %{conn: conn, project: project} do
     # Given
@@ -207,7 +205,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
            }
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns the same connection the plan is pro, and the subscription is active",
        %{conn: conn, project: project} do
     # Given
@@ -233,7 +231,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns the same connection the plan is open_source, and the subscription is active",
        %{conn: conn, project: project} do
     # Given
@@ -259,7 +257,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns the an error if the plan is open_source, and the subscription is canceled",
        %{conn: conn, project: project} do
     # Given
@@ -289,7 +287,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
            }
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "returns the same connection while the pro subscription's renewal payment is being retried",
        %{conn: conn, project: project} do
     # Given
@@ -311,7 +309,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
     assert got == conn
   end
 
-  @tag current_month_remote_cache_hits_count: 1000
+  @tag current_month_cache_requests: 5_000_000
   test "says a payment failed when an unpaid subscription left the account over the free tier",
        %{conn: conn, project: project} do
     # Given

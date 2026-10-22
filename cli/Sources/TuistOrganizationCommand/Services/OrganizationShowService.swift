@@ -16,18 +16,15 @@ protocol OrganizationShowServicing {
 
 struct OrganizationShowService: OrganizationShowServicing {
     private let getOrganizationService: GetOrganizationServicing
-    private let getOrganizationUsageService: GetOrganizationUsageServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
         getOrganizationService: GetOrganizationServicing = GetOrganizationService(),
-        getOrganizationUsageService: GetOrganizationUsageServicing = GetOrganizationUsageService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.getOrganizationService = getOrganizationService
-        self.getOrganizationUsageService = getOrganizationUsageService
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
@@ -42,11 +39,6 @@ struct OrganizationShowService: OrganizationShowServicing {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let organization = try await getOrganizationService.getOrganization(
-            organizationName: organizationName,
-            serverURL: serverURL
-        )
-
-        let organizationUsage = try await getOrganizationUsageService.getOrganizationUsage(
             organizationName: organizationName,
             serverURL: serverURL
         )
@@ -97,9 +89,6 @@ struct OrganizationShowService: OrganizationShowServicing {
         Logger.current.info(
             """
             \(baseInfo.joined(separator: "\n"))
-
-            \("Usage".bold()) (current calendar month)
-            Remote cache hits: \(organizationUsage.currentMonthRemoteCacheHits)
 
             \("Organization members".bold()) (total number: \(organization.members.count))
             \(membersTable)

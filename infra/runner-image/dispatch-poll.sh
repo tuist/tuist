@@ -397,9 +397,10 @@ RUNNER_CACHES_DIR="/Users/runner/.tuist-runner-caches"
 MANAGED_XCODE_CACHE="/Users/runner/.tuist-compilation-cache"
 MANAGED_MODULE_CACHE="/Users/runner/.tuist-module-cache"
 MANAGED_XCCONFIG="/Users/runner/.tuist-managed-cas.xcconfig"
-# The server allocates `tuist-xcode` at 30 GB and `tuist-module` at 20 GB. Each
-# limit leaves the room a job grows into before the next prune, under the 99%
-# fill at which a volume is no longer saved.
+# The limits of a default-sized volume: `tuist-xcode` at 30 GB, `tuist-module` at
+# 20 GB. tuist-runner-cache replaces them with the limits for the capacity the
+# volume attaches at, which a job sets with `size`; the teardown prune reads the
+# compilation cache's back from its xcconfig (managed_xcode_cache_limit).
 MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000
 MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
 # The compilation cache root teardown drains and prunes, and the limit it prunes
@@ -854,6 +855,15 @@ stage_managed_cache_volumes() {
   fi
 }
 
+# managed_xcode_cache_limit prints the compilation cache limit the job's xcconfig
+# gave the compiler, which tuist-runner-cache derived from the capacity of the
+# attached volume, else the default-sized volume's.
+managed_xcode_cache_limit() {
+  local limit
+  limit=$(sed -n 's/^COMPILATION_CACHE_LIMIT_SIZE = \([0-9][0-9]*\)$/\1/p' "${MANAGED_XCCONFIG}" 2>/dev/null | head -n 1)
+  printf '%s' "${limit:-${MANAGED_XCODE_CACHE_LIMIT_BYTES}}"
+}
+
 # JOB_RESULT_FILE is where the Buildkite pre-exit hook and the GitLab executor
 # leave the job's outcome for teardown. The hook's state directory defaults to
 # this directory, and the executor is handed the path.
@@ -1274,7 +1284,7 @@ HOOK
           custom_volumes_savable=0
           echo "$(date -u +%FT%TZ) dispatch-poll: WARNING compilation cache publications did not drain; this job's cache volumes will not be saved"
         elif [ "${JOB_PASSED}" = "1" ]; then
-          CAS_LIMIT_BYTES="${MANAGED_XCODE_CACHE_LIMIT_BYTES}"
+          CAS_LIMIT_BYTES=$(managed_xcode_cache_limit)
           prune_cas_stores teardown
         fi
       fi

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "revision": "2",
+  "revision": "3",
   "default_theme_id": "pulse",
   "themes": [
     {
@@ -77,7 +77,7 @@
     },
     {
       "id": "pelotas",
-      "name": "Pelotas",
+      "name": "Brigadeiro",
       "description": "Citrus. Atlantic. Open skies.",
       "typography": "rounded",
       "button_radius": 20,

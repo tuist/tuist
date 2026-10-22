@@ -7,7 +7,8 @@ extension Client {
 
     /// Tuist client for authenticated sessions
     public static func authenticated(
-        serverURL: URL, authenticationURL: URL? = nil, networkTrustedReports: Bool = false
+        serverURL: URL, authenticationURL: URL? = nil, networkTrustedReports: Bool = false,
+        networkTrustedPublishing: Bool = false
     ) -> Client {
         .init(
             serverURL: serverURL,
@@ -20,7 +21,8 @@ extension Client {
                 ServerClientActorHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,
-                    networkTrustedReports: networkTrustedReports
+                    networkTrustedReports: networkTrustedReports,
+                    networkTrustedPublishing: networkTrustedPublishing
                 ),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
@@ -28,8 +30,8 @@ extension Client {
         )
     }
 
-    public static func reporting(serverURL: URL) -> Client {
-        authenticated(serverURL: serverURL, networkTrustedReports: true)
+    public static func reporting(serverURL: URL, networkTrusted: Bool) -> Client {
+        authenticated(serverURL: serverURL, networkTrustedReports: true, networkTrustedPublishing: networkTrusted)
     }
 
     /// Innermost, so verbose logging still shows the uncompressed body.

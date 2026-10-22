@@ -10,20 +10,17 @@ import TuistServer
 
 struct OrganizationShowServiceTests {
     private let getOrganizationService: MockGetOrganizationServicing
-    private let getOrganizationUsageService: MockGetOrganizationUsageServicing
     private let subject: OrganizationShowService
     private let configLoader: MockConfigLoading
     private let serverURL: URL
 
     init() {
         getOrganizationService = MockGetOrganizationServicing()
-        getOrganizationUsageService = MockGetOrganizationUsageServicing()
         configLoader = MockConfigLoading()
         serverURL = URL(string: "https://test.tuist.dev")!
         given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
         subject = OrganizationShowService(
             getOrganizationService: getOrganizationService,
-            getOrganizationUsageService: getOrganizationUsageService,
             configLoader: configLoader
         )
     }
@@ -57,10 +54,6 @@ struct OrganizationShowServiceTests {
                 )
             )
 
-        given(getOrganizationUsageService)
-            .getOrganizationUsage(organizationName: .any, serverURL: .any)
-            .willReturn(.test(currentMonthRemoteCacheHits: 210))
-
         // When
         try await subject.run(
             organizationName: "tuist",
@@ -75,9 +68,6 @@ struct OrganizationShowServiceTests {
                 \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
                 Name: test-one
                 Plan: Air
-
-                \(TerminalStyle.bold.open)Usage\(TerminalStyle.reset.open) (current calendar month)
-                Remote cache hits: 210
 
                 \(TerminalStyle.bold.open)Organization members\(TerminalStyle.reset.open) (total number: 2)
                 username  email              role
@@ -103,9 +93,6 @@ struct OrganizationShowServiceTests {
                     ssoOrganization: .google("tuist.io")
                 )
             )
-        given(getOrganizationUsageService)
-            .getOrganizationUsage(organizationName: .any, serverURL: .any)
-            .willReturn(.test())
 
         // When
         try await subject.run(
@@ -138,9 +125,6 @@ struct OrganizationShowServiceTests {
                     ssoOrganization: .okta("tuist.okta.com")
                 )
             )
-        given(getOrganizationUsageService)
-            .getOrganizationUsage(organizationName: .any, serverURL: .any)
-            .willReturn(.test())
 
         // When
         try await subject.run(

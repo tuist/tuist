@@ -109,13 +109,13 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert Repo.get!(Volume, volume.id).platform == "linux"
   end
 
-  test "macOS identities are separate while existing Linux UUIDs and built-in heads survive", %{
+  test "macOS identities are separate while existing Linux UUIDs and other volumes' heads survive", %{
     job: job,
     account: account
   } do
     {:ok, linux} = CacheVolumes.allocate_for_job(job, identity(), attrs())
-    builtin = VolumeHeads.reserved_tuist_cache()
-    assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, builtin)
+    linux_name = CacheVolumes.storage_name(Repo.get!(Volume, Repo.get!(Usage, linux.id).volume_id))
+    assert {:ok, _} = VolumeHeads.bump_head(account.id, "node", String.duplicate("a", 40), 0, linux_name)
     {:ok, mac} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs(), :platform, "macos"))
     refute mac.scope == linux.scope
     assert length(CacheVolumes.list(account.id).volumes) == 2
@@ -123,7 +123,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert mac_volume.platform == "macos"
     assert String.starts_with?(CacheVolumes.storage_name(mac_volume), "macos-")
     assert VolumeHeads.valid_storage_volume_name?(CacheVolumes.storage_name(mac_volume))
-    refute VolumeHeads.valid_volume_name?(CacheVolumes.storage_name(mac_volume))
     {:ok, again} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     assert again.id == linux.id
     assert {:ok, _} = CacheVolumes.report("node", mac.id, report())
@@ -138,7 +137,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
                "content_digest" => String.duplicate("c", 64)
              })
 
-    assert VolumeHeads.get_head(account.id, builtin).generation == 1
+    assert VolumeHeads.get_head(account.id, linux_name).generation == 1
   end
 
   test "allocation derives macOS from the executed session, ignoring guest platform", %{account: account, job: job} do
@@ -325,13 +324,6 @@ defmodule Tuist.Runners.CacheVolumesTest do
       Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.utc_now()))
       assert {:error, :unavailable} = CacheVolumes.allocate(params)
     end
-  end
-
-  test "custom Linux names never become valid macOS dispatch names", %{job: job, account: account} do
-    {:ok, _} = CacheVolumes.allocate_for_job(job, identity(), attrs())
-    name = CacheVolumes.storage_name(volume(account))
-    assert VolumeHeads.valid_storage_volume_name?(name)
-    refute VolumeHeads.valid_volume_name?(name)
   end
 
   test "only one concurrent base can publish through the shared macOS HEAD", %{job: job, account: account} do
@@ -916,17 +908,41 @@ defmodule Tuist.Runners.CacheVolumesTest do
       end
     end
 
-    test "managed volumes ignore requests and the Gradle volume honors them", %{job: job, account: account} do
-      assert {:ok, %{volume_bytes: 30_000_000_000}} =
-               CacheVolumes.allocate_for_job(job, identity(), %{sized("xcode", gb(5)) | key: "tuist-xcode"})
+    test "managed volumes start at their own default and honor requests like any volume", %{job: job, account: account} do
+      complete(job)
 
-      assert is_nil(Repo.get_by!(Volume, account_id: account.id, key: "tuist-xcode").requested_volume_bytes)
+      assert {:ok, %{volume_bytes: 30_000_000_000} = first} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("xcode", nil) | key: "tuist-xcode"})
 
       assert {:ok, %{volume_bytes: 20_000_000_000}} =
-               CacheVolumes.allocate_for_job(job, identity(), %{sized("module", gb(50)) | key: "tuist-module"})
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("module", nil) | key: "tuist-module"})
+
+      publish_report("node", first.id)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000} = grown} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("grown", gb(50)) | key: "tuist-xcode"})
+
+      assert grown.parent_id == first.id
+      publish_report("node", grown.id)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000} = next} =
+               CacheVolumes.allocate_for_job(job, identity(), %{sized("smaller", gb(10)) | key: "tuist-xcode"})
+
+      assert next.parent_id == grown.id
+      xcode = Repo.get_by!(Volume, account_id: account.id, key: "tuist-xcode")
+      assert xcode.requested_volume_bytes == gb(10)
+
+      assert {:ok, %{volume_bytes: 50_000_000_000, pending_volume_bytes: 10_000_000_000}} =
+               Query.run(:show, account.id, %{"volume_id" => xcode.id})
 
       assert {:ok, %{volume_bytes: 50_000_000_000}} =
                CacheVolumes.allocate_for_job(job, identity(), %{sized("gradle", gb(50)) | key: "tuist-gradle"})
+
+      assert {:ok, %{volume_bytes: 50_000_000_000}} =
+               CacheVolumes.allocate_for_job(job, identity(), %{
+                 sized("other-module", gb(50), %{uid: 1002})
+                 | key: "tuist-module"
+               })
     end
 
     test "a capacity above the host maximum allocates nothing", %{job: job, account: account} do

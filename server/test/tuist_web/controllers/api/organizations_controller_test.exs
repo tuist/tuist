@@ -297,24 +297,17 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       :ok
     end
 
-    test "returns an organization usage", %{conn: conn, user: user} do
+    test "returns 0 remote cache hits", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
-
-      organization =
-        AccountsFixtures.organization_fixture(
-          name: "tuist-org",
-          current_month_remote_cache_hits_count: 1
-        )
-
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
 
       # When
       conn = get(conn, ~p"/api/organizations/tuist-org/usage")
 
       # Then
-      response = json_response(conn, :ok)
-      assert response["current_month_remote_cache_hits"] == 1
+      assert json_response(conn, :ok) == %{"current_month_remote_cache_hits" => 0}
     end
 
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do

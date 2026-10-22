@@ -27,6 +27,8 @@ Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377),
 > [!NOTE]
 > Add the IPv6 range if your allowlist supports IPv6 entries.
 
+The ranges are located in Berlin, Germany. Their location is published as an [RFC 8805](https://www.rfc-editor.org/rfc/rfc8805) geofeed at [tuist.dev/geofeed.csv](https://tuist.dev/geofeed.csv) and referenced from their RIPE Database objects, so geolocation services and location-based routing place them correctly.
+
 ### Server IP addresses {#server-ip-addresses}
 
 Outbound network traffic from Tuist services, such as the server and its integrations, currently originates from a fixed, reserved set of stable IP addresses. Allowlist every address in the set: it is sized so we can grow capacity or fail over between addresses without you having to change your allowlist.
@@ -96,4 +98,6 @@ Update both when a rack's upstream address changes or a new rack site is added.
 The Tuist IP range is registered to ORG-TG278-RIPE (LIR de.tuist) and announced
 from AS218377. Only list a prefix here once it is registered to Tuist GmbH in
 the RIPE Database with a route/route6 object and a ROA for AS218377.
+Add it to server/priv/static/geofeed.csv too, with the location of the site
+that announces it.
 -->

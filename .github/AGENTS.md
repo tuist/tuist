@@ -33,6 +33,11 @@ Stable cache certificate readiness is an operator bootstrap check documented in
 `infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
 controller verifies TLS before advertising stable endpoints.
 
+`workflows/cache-dns.yml` plans `infra/cache-dns/zone.yaml` on pull requests and
+applies it on `main`, assuming roles from `infra/cache-dns/deploy-role.yaml`. The
+pull-request role can create change sets but never execute them, so a modified
+workflow on a branch still cannot change the zone.
+
 The runners-controller release publishes both the controller and cache-volume
 agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
@@ -53,7 +58,7 @@ same environment. When the base cannot be resolved, the push deploys.
 `workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
 using `actions/atlas-native/` (see its `AGENTS.md`). Fork jobs have no OIDC permission
 and use only the local cache. Trusted builds use the `tuist/atlas-mobile` cache
-when authentication succeeds, except for device builds, which use local caching
+when authentication succeeds, except for Android and iOS device builds, which use local caching
 only so signed releases do not consume shared outputs written by PRs. Main builds publish the tested artifacts to the
 private Tuist project's `nightly` preview track after distinct build, test and
 language-specific lint jobs pass; pull requests never publish. The single
@@ -63,15 +68,22 @@ Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
 The separate native iOS UI job builds the isolated Once fixture runner, exercises
-CRUD/navigation with `xcodebuild test-without-building`, and exports xcresult
+CRUD/navigation, including `AtlasNavigationUITests` object links, with `xcodebuild test-without-building`, and exports xcresult
 screenshots plus a simulator recording as `atlas-native-ui-evidence`. Fixtures
 make no live account-management requests and never enter production source globs.
 Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
 ad-hoc profile from 1Password, then publishes its IPA alongside the APK and
-simulator app in a separate step without the 1Password token. Signing runs before
-any uploads to avoid publishing a simulator-only nightly when it fails. Credential-free
+simulator app in separate steps without the 1Password token. Android distribution
+is re-signed with a stable key only when the protected environment configures
+`ATLAS_ANDROID_KEYSTORE_REF`, its password reference, alias, and the same
+`ATLAS_ANDROID_APP_LINK_SHA256` allowlist used by the server. Without a key reference,
+Android nightly publication is skipped rather than distributing ephemeral debug
+identities; debug CI artifacts remain. Android and simulator publication precede
+iOS device signing so a profile capability update cannot block them. iOS signing
+requires an Associated Domains-enabled profile and requests only the hosted app
+link domain. Credential-free Android signing, associated-domain capability,
 keychain-lifecycle and launcher-packaging tests also gate publication.
 PR/fork builds never receive distribution secrets. These are not
 store releases; device installation requires a UDID registered in Atlas's profile. The CLI is uploaded as a
@@ -417,7 +429,7 @@ keep signing unconditional across channels.
 
 ## Atlas releases
 
-Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects. The release-list arguments must remain compatible with the pinned Helm version; fake release-state tests also validate them against the real CLI without cluster access. After rollout and readiness, the managed release smoke test requires the public root to redirect signed-out visitors to `/login`, so a healthy but outdated or misrouted application cannot pass.
+Atlas releases publish the image and standalone Helm chart with the same version, plus a Compose bundle. Managed deployment consumes the published chart with an explicit production overlay; publishing must not require cluster credentials. Deployment validation pins Helm, mikefarah yq, and jq and runs the rendering and fake-kubectl retirement checks before the image build. The offline ChatGPT configuration check verifies managed ExternalSecret sourcing, runtime `envFrom`, no explicit client-ID shadowing, and standalone/demo isolation. Managed deployment checks live legacy namespace retention after stuck-release recovery, because rollback can remove its retention annotation. Keep that read-only guard before upgrades that disable the legacy sandbox objects. The release-list arguments must remain compatible with the pinned Helm version; fake release-state tests also validate them against the real CLI without cluster access. After rollout and readiness, the managed release smoke test requires the public root to redirect signed-out visitors to `/login`, so a healthy but outdated or misrouted application cannot pass.
 
 ## Cloudflare configuration
 
@@ -493,16 +505,42 @@ covered only by the production schedule.
   cas-proxy's `remote_hits` for the rebuild's store to be above zero. The
   project lives in `project/`, not `fixture/`: the root `.gitignore` ignores
   `Fixture`, which matches case-insensitively on macOS.
-- On canary only, the macOS probe also round-trips the `runners-acceptance-probe`
-  custom cache volume: the probe job seeds it with its run id through
-  `tuist/cache-volume` after the Xcode build, since GitHub can report which job
-  a runner runs later than the host's 25-second authorization budget.
-  `volume-wait` then waits on a GitHub-hosted runner for the host to publish,
-  and `macos-volume` attaches it and requires that run id or a later one,
-  since overlapping probe runs share the volume. Canary has one rack host, so
-  verify lands where seed published; production's multi-host fleets would make
-  it depend on convergence. Both jobs require a real APFS mount, because an
-  unavailable volume falls back to a job-local directory and still succeeds.
+- On canary only, the macOS probe also round-trips cache volumes, and a failure
+  blocks production like any other layer. `scripts/runners-acceptance/volume.sh`
+  attaches four volumes after the Xcode build, since GitHub can report which job
+  a runner runs later than the host's 25-second authorization budget: custom
+  volumes `runners-acceptance-probe` (emptied and reseeded with the run id each
+  run) and `runners-acceptance-static` (written once, then never changed, which
+  covers an unchanged volume losing its saved copy), and the managed Xcode and
+  module cache volumes through the in-repo `actions/xcode-cache` and
+  `actions/module-cache`, each with a run-id marker at its root. The job's last
+  step writes a 256 MB payload into the probe volume, so the host's
+  incomplete-image check and the guest's detach flush handle a large final
+  write. `volume-wait` then waits on a GitHub-hosted runner for the host to
+  publish, and `macos-volume` attaches them all and requires `cache-hit=true`,
+  a real APFS mount, the run id or a later one (overlapping probe runs share
+  the volumes), the payload's checksum and exactly the seeded entries. An
+  older run's id is a failure unless that run's seed job overlapped this one's
+  (each widened by the 120 s publish allowance): both cloned the same saved
+  copy and the host turns down whichever saves second, so the volume is
+  `Cache volumes inconclusive`. Verify reads both seed jobs' times from the
+  Actions API, which is why `macos-volume` has `actions: read`.
+  Canary has one rack host, so verify lands where seed published; production's
+  multi-host fleets would make it depend on convergence.
+- The script attaches through the in-repo action sources rather than the
+  released actions because it reads the client's output: an unavailable volume
+  falls back to a job-local directory and the job still succeeds, so any
+  fallback fails as `Cache volumes`, except one refused because GitHub had not
+  yet reported the runner's job (the client's "GitHub had not yet reported which
+  job this runner is running", the server's 425 `execution_pending`). That is a
+  webhook delay, not a regression: the volume is skipped with a
+  `Cache volumes inconclusive` warning, the seed job hands its skipped volumes
+  to verify, and `gate.sh` re-raises the warning without failing. The round trip
+  is not retried: the regressions it guards against were deterministic or
+  intermittent save losses, which a retry would hide or merely repeat.
+  The pattern must match `errExecutionPending` in
+  `infra/linux-runner-image/cmd/tuist-cache-volume/main.go`.
+  `macos-cache-volumes-smoke.yml` covers the released `tuist/cache-volume`.
 - To prove a broken endpoint fails fast, dispatch with `cache_endpoint` set to a
   wrong URL; it skips the expected-host check and overrides what dispatch hands
   each job.
