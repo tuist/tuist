@@ -20,7 +20,9 @@ name: Runners Acceptance
 # `macos-volume` then requires each to be a saved copy holding exactly that.
 # Failures are titled `Cache volumes`. A volume refused because GitHub had not
 # yet reported the runner's job is a webhook delay, not a regression: it is
-# reported as `Cache volumes inconclusive` and does not fail the run.
+# reported as `Cache volumes inconclusive` and does not fail the run. So is a
+# volume another probe run saved over this one's because their seed jobs
+# overlapped, for example a branch dispatched while a deploy gate runs.
 
 run-name: Runners acceptance (${{ inputs.environment || 'production' }}) ${{ inputs.correlation_id }}
 
@@ -217,6 +219,7 @@ jobs:
     runs-on: ${{ needs.plan.outputs.volume_label }}
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@v4
@@ -234,6 +237,9 @@ jobs:
         timeout-minutes: 2
         env:
           SEED_PENDING: ${{ needs.macos.outputs.volume_pending }}
+          # Tells a save lost to an overlapping probe run apart from a stale copy.
+          GH_TOKEN: ${{ github.token }}
+          VOLUME_LABEL: ${{ needs.plan.outputs.volume_label }}
         run: .github/scripts/runners-acceptance/volume.sh verify
 
   linux:
