@@ -15,7 +15,7 @@ omitting it preserves generic browser login, including self-hosted providers.
   one connection-pooled HTTPS client, rejects redirects, and bounds request time
   and response size. Endpoint origins must match the selected server. Do not
   disable certificate validation or cache token responses as build artifacts.
-- `bridge.rs` accepts JSON commands (`begin`, `complete`, `restore`, `ai_accounts`, `time_off`, `business`). `accounts.rs` implements only the fixed, owner-scoped `/api/me/llm-providers` lifecycle routes. It validates sessions without refreshing, uses bearer authentication, filters responses through metadata/device-login types, validates OpenAI verification links and polling intervals, and returns fixed error messages. Never accept arbitrary API paths, owner IDs, or raw provider response objects. Pending grants,
+- `bridge.rs` accepts JSON commands (`begin`, `complete`, `restore`, `native`, `ai_accounts`, `time_off`, `business`, `presence`, and theme commands). `accounts.rs` implements only the fixed, owner-scoped `/api/me/llm-providers` lifecycle routes. It validates sessions without refreshing, uses bearer authentication, filters responses through metadata/device-login types, validates OpenAI verification links and polling intervals, and returns fixed error messages. Never accept arbitrary API paths, owner IDs, or raw provider response objects. Pending grants,
   registrations, and sessions are opaque JSON to native storage adapters. Tokens,
   state, and verifiers must not appear in logs, Debug implementations, errors, or
   analytics. Errors expose fixed categories/messages, never raw transport bodies.
@@ -46,7 +46,25 @@ omitting it preserves generic browser login, including self-hosted providers.
   expiry together. Refresh uses that issuing client, preserves a refresh token when
   omitted by rotation, and distinguishes definitive OAuth rejection from temporary
   server/transport failure. Native adapters persist rotated credentials before
-  exposing a signed-in state. Authenticated API calls restore through the same coordinator to avoid concurrent refresh-token reuse. Both native adapters persist rotated credentials before making an API request, including when that request subsequently fails. iOS queues requests/sign-out on the main-actor coordinator; Android uses its existing single worker and drains pending login cancellation before shutdown.
+  exposing a signed-in state. Authenticated API calls restore through the same coordinator to avoid concurrent refresh-token reuse. Both native adapters persist rotated credentials before making an API request, including when that request subsequently fails. iOS shares the main-actor credential coordinator and session identity across Automation and business features; Android's application-scoped coordinator shares its credential worker across activities and drains pending login cancellation before shutdown. Keep Automation HTTP/watch waits on separate bounded workers, not the refresh queue.
+
+## Native API and forms
+
+`api.rs` owns an allowlisted Automation request enum, same-origin bearer HTTP and
+bounded TLS Phoenix subscriptions. Credentials travel in the WebSocket subprotocol,
+never query parameters. Each watch returns on a changed durable sequence or a bounded
+wait; native lifecycle cancellation and reconnect reconciliation own presentation.
+HTTP/watch waits do not hold a global session lock. Fixed error categories/messages
+never copy arbitrary response bodies. Responses/frames are limited to 1 MiB; protected
+result reads are separate and oversized-result errors direct users to web. Approval
+payloads and results arrive as server-serialized JSON strings, not numeric maps to
+round-trip through platform JSON number types; preserve that text verbatim.
+
+`form.rs` conservatively projects at most 32 scalar controls and four object levels.
+Strings/text, string enums, dates, booleans and numbers are supported; required object
+groups preserve missing/false/zero distinctions. Unsupported unions, arrays, references,
+optional object groups and required empty groups fall back to web. Native validation
+is only usability: the pinned server contract remains authoritative.
 
 ## Build and test
 

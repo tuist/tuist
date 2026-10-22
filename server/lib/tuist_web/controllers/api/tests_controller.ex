@@ -3,6 +3,7 @@ defmodule TuistWeb.API.TestsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.IdempotentRequests
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Tests
@@ -738,6 +739,7 @@ defmodule TuistWeb.API.TestsController do
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
     body_params = conn |> ReportPublishingPlug.parameters(body_params) |> RemoteURL.strip_credentials_from_params()
+    request_id = Map.get(body_params, :id)
 
     run_params =
       body_params
@@ -745,6 +747,33 @@ defmodule TuistWeb.API.TestsController do
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
       |> Map.merge(Tuist.ReportActor.attributes(conn))
 
+    # A client retries a report whose response it lost. The run is written through
+    # a buffer, so the lookup by id in `get_or_create_test` misses until the buffer
+    # flushes, and the retry would create the run, its children and its jobs again.
+    # A request carrying an id therefore claims it first; a retry gets the first
+    # request's response back, and retries the processing job when scheduling it
+    # failed the first time.
+    case IdempotentRequests.run("test_run", selected_project.id, request_id, fn ->
+           create_test_run(conn, body_params, run_params, selected_project)
+         end) do
+      {:ok, creation} ->
+        respond_to_test_creation(conn, creation)
+
+      {:replayed, creation} ->
+        replay_test_creation(conn, selected_project, request_id, creation)
+
+      {:error, :in_progress} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> put_resp_header("retry-after", "1")
+        |> json(%{message: "A test run with this id is still being created; retry this report"})
+
+      {:error, reason} ->
+        respond_to_test_creation_error(conn, reason)
+    end
+  end
+
+  defp create_test_run(conn, body_params, run_params, selected_project) do
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
         notify_connected(conn, selected_project)
@@ -761,7 +790,7 @@ defmodule TuistWeb.API.TestsController do
         # to "in_progress" while it waits for the other shards, so
         # test_run.status is never "processing" even though the CLI is
         # uploading an xcresult that still needs parsing.
-        processing_result =
+        processing =
           if Map.get(body_params, :status) == "processing" do
             # The CLI uploads each shard's xcresult to S3 keyed on the UUID
             # it generated locally (body_params.id). For sharded runs, the
@@ -783,7 +812,7 @@ defmodule TuistWeb.API.TestsController do
                 "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/stress_result_bundle.zip"
               end
 
-            enqueue_xcresult_processing(%{
+            %{
               test_run_id: test_run.id,
               source_test_run_id: xcresult_id,
               storage_key: storage_key,
@@ -836,19 +865,40 @@ defmodule TuistWeb.API.TestsController do
               shard_report_revision: Map.get(body_params, :shard_report_revision),
               ran_at: processing_ran_at(body_params, test_run),
               vcs_comment_params: vcs_comment_params
-            })
+            }
           else
             if !ReportPublishingPlug.network_publisher?(conn),
               do: Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
 
-            :ok
+            nil
           end
 
-        respond_to_test_creation(conn, test_run, selected_project, processing_result)
+        {:ok,
+         %{
+           body: test_creation_body(test_run, selected_project),
+           processing: processing,
+           scheduled: is_nil(processing) or enqueue_xcresult_processing(processing) == :ok
+         }}
 
-      {:error, reason} ->
-        respond_to_test_creation_error(conn, reason)
+      {:error, _reason} = error ->
+        error
     end
+  end
+
+  defp replay_test_creation(conn, selected_project, request_id, %{scheduled: false, processing: processing} = creation) do
+    case enqueue_xcresult_processing(processing) do
+      :ok ->
+        creation = %{creation | scheduled: true}
+        IdempotentRequests.update_result("test_run", selected_project.id, request_id, creation)
+        respond_to_test_creation(conn, creation)
+
+      {:error, _reason} ->
+        respond_to_test_creation(conn, creation)
+    end
+  end
+
+  defp replay_test_creation(conn, _selected_project, _request_id, creation) do
+    respond_to_test_creation(conn, creation)
   end
 
   defp respond_to_test_creation_error(conn, :shard_plan_not_visible) do
@@ -868,12 +918,10 @@ defmodule TuistWeb.API.TestsController do
     conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
   end
 
-  defp respond_to_test_creation(conn, test_run, selected_project, :ok) do
+  defp test_creation_body(test_run, selected_project) do
     actor = test_run |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor()
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
+    %{
       type: "test",
       id: test_run.id,
       actor: actor,
@@ -898,10 +946,16 @@ defmodule TuistWeb.API.TestsController do
               Map.put(result, :arguments, Enum.map(arguments, &Map.take(&1, [:id, :name])))
           end
         end)
-    })
+    }
   end
 
-  defp respond_to_test_creation(conn, _test_run, _selected_project, {:error, _reason}) do
+  defp respond_to_test_creation(conn, %{scheduled: true, body: body}) do
+    conn
+    |> put_status(:ok)
+    |> json(body)
+  end
+
+  defp respond_to_test_creation(conn, %{scheduled: false}) do
     conn
     |> put_status(:service_unavailable)
     |> json(%{message: "The test run could not be scheduled for processing"})

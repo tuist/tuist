@@ -193,6 +193,8 @@ defmodule Tuist do
       Authentication,
       Authentication.UnavailableError,
       Authentication.SubjectCache,
+      Authentication.RefreshReplays,
+      IdempotentRequests,
       Authorization,
       Guardian,
       OIDC,

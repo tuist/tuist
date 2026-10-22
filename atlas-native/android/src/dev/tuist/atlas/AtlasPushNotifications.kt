@@ -1,7 +1,6 @@
 package dev.tuist.atlas
 
 import android.Manifest
-import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,33 +13,11 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONObject
 import java.util.UUID
-
-class AtlasApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        val applicationId = getString(R.string.atlas_firebase_application_id)
-        val apiKey = getString(R.string.atlas_firebase_api_key)
-        val projectId = getString(R.string.atlas_firebase_project_id)
-        val senderId = getString(R.string.atlas_firebase_sender_id)
-        if (listOf(applicationId, apiKey, projectId, senderId).any { it.isBlank() }) return
-        FirebaseApp.initializeApp(
-            this,
-            FirebaseOptions
-                .Builder()
-                .setApplicationId(applicationId)
-                .setApiKey(apiKey)
-                .setProjectId(projectId)
-                .setGcmSenderId(senderId)
-                .build(),
-        )
-    }
-}
 
 // The service never registers devices or refreshes Atlas credentials. Registration is foreground-only.
 class AtlasMessagingService : FirebaseMessagingService() {

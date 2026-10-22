@@ -5,7 +5,8 @@ Rust core owns the hierarchical domain/section catalog and destinations; the CLI
 uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
 strings or routes. Authentication networking and OAuth state live in the independent
 Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
-and secure persistence. Tasks, sales accounts, manual invoice bookkeeping, time off,
+and secure persistence. Automation is native (run, monitor, approve) through Browse;
+workflow authoring remains web-first. Tasks, sales accounts, manual invoice bookkeeping, time off,
 and Profile are native on both platforms. Mobile navigation hides browser-only
 catalog entries and empty ancestor groups. Profile uses authenticated APIs on the
 selected server. OAuth tokens are not browser cookies.
@@ -30,10 +31,10 @@ selected server. OAuth tokens are not browser cookies.
   graph.
 - `cli/`: host Rust executable sharing the catalog; see `cli/AGENTS.md`.
 - `core/include/`: authored C header and Clang module map imported by Swift.
-- `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
+- `android/`: Kotlin platform-widget UI, JNI adapter, manifest and resources; see `android/AGENTS.md`.
+- `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge/form tests; see `ios/AGENTS.md`.
 - `android/distribution/`: stable-key Android signing and publication guard; see
   `android/distribution/AGENTS.md`. PR/debug builds must never supply verified-link identities.
-- `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions.
   iOS also offers Sign in with Google using the shared Rust provider hint and the
@@ -81,10 +82,31 @@ Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
 Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
+## Native Automation
+
+The shared auth crate allowlists authenticated JSON requests and bounded Phoenix
+WebSocket subscriptions; navigation core stays dependency-free. The server owns
+contract validation, revision checks, authorization, durable progress and approvals.
+Native controls project supported schemas and explicitly fall back to web for
+unsupported shapes. Do not execute workflow source on a phone or render server HTML.
+
+A reviewed launch freezes revision, inputs and a UUID request ID. Securely retain an
+unconfirmed request and replay it unchanged; never turn a timeout into a new request.
+Pending requests belong to the credential lifetime and are cleared on explicit new
+sign-in/sign-out. Execution watches are foreground-only, reconcile on reconnect and
+HTTP fallback, and report real phases/steps/waits rather than percentage progress.
+Approval confirmation shows the persisted payload and binds its digest to the decision.
+Protected results are fetched separately, never carried on progress channels.
+
+Automation has no ActivityKit/WidgetKit extension or background execution/approval
+notification integration. Once 0.68.2 has no Apple extension target. The separate
+native push subsystem below supports other fixed notification kinds; do not imply
+that it delivers Automation progress or decisions. Do not keep Automation sockets
+alive in suspended apps or claim real-device activity validation.
 ## Workspace navigation
 
 - The signed-in shell has five stable destinations: Tasks, Accounts, Finance, Browse, and Profile. iOS uses a native TabView, sidebar-adaptable on iPad/iOS 18+, without automatic More overflow. Android uses platform widgets with readable 48dp+ destination controls and larger-text wrapping. Browse is a searchable hierarchical directory of implemented native screens only. Add future domains there rather than expanding the tab bar indefinitely. Unavailable permissions show an explanation inside a stable tab, not a disappearing destination.
-- `core/src/navigation.rs` owns stable IDs, titles, descriptions, parent groups, canonical URLs, native screen keys, shortcut placement, and required browser scopes. Root domains mirror Atlas: Overview, Commercial, Outbound, Engineering, People, Operations, Library, and Admin. Commercial contains Sales, Finance, and GTM; Operations contains Hardware. The catalog includes the existing domain entry points, including customer evaluations, vendor costs, postal correspondence, engineering specs, hardware financing/insurance, documents, and administrative tools. Add future destinations/groups here rather than hard-coding new menus in either platform.
+- `core/src/navigation.rs` owns stable IDs, titles, descriptions, parent groups, canonical URLs, native screen keys, shortcut placement, and required browser scopes. Root domains mirror Atlas: Automation, Overview, Commercial, Outbound, Engineering, People, Operations, Library, and Admin. Automation uses its own native feature views through Browse without adding a sixth top-level tab; retain the original five section indices and the expanded eight-field bridge. Commercial contains Sales, Finance, and GTM; Operations contains Hardware. The catalog includes the existing domain entry points, including customer evaluations, vendor costs, postal correspondence, engineering specs, hardware financing/insurance, documents, and administrative tools. Add future destinations/groups here rather than hard-coding new menus in either platform.
 - C/JNI section fields 0–3 and the original five indices remain compatible. Fields 4–7 expose stable ID, group ID, shortcut flag, and required web scope. The parallel group bridge exposes title, description, stable ID, parent ID, and placement. Group strings have the same immutable process-lifetime ownership and primitive JNI rules as section strings. Rust tests enforce unique routes/IDs, reachable nonempty groups, valid parents, acyclicity, and stable original destinations.
 - iOS `AtlasWorkspaceView` composes native NavigationStack/List destinations. Android `AtlasWorkspaceModel` owns the selected group and search without retaining an Activity; `AtlasWorkspaceScreen` owns SearchView and directory rows, and `AtlasHomeScreen` composes the stable destinations. Retain models across configuration changes, save only validated navigation IDs for process restoration, disable automatic form/search state persistence, and detach old listeners. Back clears search before ascending the hierarchy, with system Back/Up support; drafts survive rotation and failed saves.
 - The shared catalog/CLI retain web routes, but mobile never displays browser-only entries. Scope metadata is descriptive, never a local authorization grant; Atlas enforces actual access. Implement future native adapters under the same stable destination IDs without changing the information architecture.
