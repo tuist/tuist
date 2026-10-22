@@ -78,7 +78,13 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           restore-mix-cache: "false"
-      - run: git diff --exit-code -- server/mix.lock
+      - name: Fetch the exact committed lock without resolving upgrades
+        shell: bash
+        run: |
+          git show HEAD:server/mix.lock > server/mix.lock
+          cd server
+          elixir ../.github/scripts/server-elixir-cache-reconcile.exs
+          git diff --exit-code -- mix.lock
       - name: Seed and compare cache-disabled and remote-only builds
         run: python3 .github/scripts/server-elixir-cache-benchmark.py
       - name: Record raw results
