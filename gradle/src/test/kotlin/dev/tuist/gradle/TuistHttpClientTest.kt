@@ -155,4 +155,25 @@ class TuistHttpClientTest {
         assertEquals(200, result)
         assertEquals(1, mockWebServer.requestCount)
     }
+
+    @Test
+    fun `execute resolves the configuration again once it lapses`() {
+        val validUntil = listOf(System.currentTimeMillis() - 1, Long.MAX_VALUE)
+        val tokens = mutableListOf<String>()
+        val httpClient = TuistHttpClient(
+            configurationProvider = object : ConfigurationProvider {
+                override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration = CacheConfiguration(
+                    url = "https://cache.example",
+                    token = "token-${tokens.size + 1}",
+                    accountHandle = "test-account",
+                    projectHandle = "test-project",
+                    validUntilMs = validUntil[tokens.size]
+                ).also { tokens += it.token }
+            }
+        )
+
+        val seen = (1..3).map { httpClient.execute { config -> config.token } }
+
+        assertEquals(listOf("token-1", "token-2", "token-2"), seen)
+    }
 }

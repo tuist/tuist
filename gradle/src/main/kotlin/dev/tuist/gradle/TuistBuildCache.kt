@@ -1,5 +1,6 @@
 package dev.tuist.gradle
 
+import dev.tuist.gradle.services.GetCacheTokenService
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
 import org.gradle.caching.BuildCacheException
@@ -53,7 +54,8 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             project = configuration.project,
             serverUrl = configuration.url ?: "https://tuist.dev",
             projectDir = projectDir,
-            httpClients = httpClients
+            httpClients = httpClients,
+            exchangeCacheToken = true
         )
 
         val httpClient = TuistHttpClient(configurationProvider, httpClients = httpClients)
@@ -91,7 +93,13 @@ class DefaultConfigurationProvider(
     private val project: String?,
     private val serverUrl: String,
     private val projectDir: java.io.File,
-    private val httpClients: TuistHttpClients = TuistHttpClients()
+    private val httpClients: TuistHttpClients = TuistHttpClients(),
+    /**
+     * Sends cache nodes a token exchanged for the credential rather than the credential itself.
+     * Only for configurations that reach cache nodes alone: the server does not accept it.
+     */
+    private val exchangeCacheToken: Boolean = false,
+    private val getCacheTokenService: GetCacheTokenService = GetCacheTokenService(httpClients)
 ) : ConfigurationProvider {
 
     private val resolvedServerUrl: java.net.URI by lazy {
@@ -114,6 +122,18 @@ class DefaultConfigurationProvider(
         TokenProvider(resolvedServerUrl, httpClients = httpClients)
     }
 
+    // The project scope keeps the exchanged token small enough for a request header.
+    private val cacheTokenStore: CacheTokenStore? by lazy {
+        val handle = resolvedProject
+        if (!exchangeCacheToken || handle.projectHandle.isBlank()) return@lazy null
+        CacheTokenStore(
+            serverURL = resolvedServerUrl,
+            fullHandle = "${handle.accountHandle}/${handle.projectHandle}",
+            tokenProvider = tokenProvider,
+            getCacheTokenService = getCacheTokenService
+        )
+    }
+
     private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
 
     override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
@@ -124,11 +144,14 @@ class DefaultConfigurationProvider(
             resolveCacheEndpoint(handle.accountHandle)
         }
 
+        val cacheToken = cacheTokenStore?.resolve(forceRefresh)
+
         return CacheConfiguration(
             url = cacheEndpoint,
-            token = token,
+            token = (cacheToken as? CacheTokenStore.Exchanged)?.token ?: token,
             accountHandle = handle.accountHandle,
-            projectHandle = handle.projectHandle
+            projectHandle = handle.projectHandle,
+            validUntilMs = cacheToken?.validUntilMs
         )
     }
 
@@ -451,5 +474,8 @@ data class CacheConfiguration(
     @com.google.gson.annotations.SerializedName("account_handle")
     val accountHandle: String,
     @com.google.gson.annotations.SerializedName("project_handle")
-    val projectHandle: String
+    val projectHandle: String,
+    /** When to resolve the configuration again rather than reuse it. `null` reuses it until a request is refused. */
+    @Transient
+    val validUntilMs: Long? = null
 )
