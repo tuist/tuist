@@ -1454,8 +1454,18 @@ rackFleet:
   # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
   # and the `ber1` smoke pool share through the fleet allocator, apart from
   # the rented fleet's 14. A 12 vCPU profile's guest takes a whole host, so
-  # that shape's ceiling is the host count. 26.6 keeps one runner warm because
-  # `tuist-macos` resolves there; the rest start cold.
+  # that shape's ceiling is the host count.
+  #
+  # Every Xcode keeps one 6 vCPU runner warm: 13 to 75 s of queue on
+  # 2026-10-21/22 for 27.0, which had none, was the scale-up and the boot.
+  # Warm runners are the first capacity the allocator gives up, so a queued
+  # job for another image takes one's slot, and a 12 vCPU job takes a host
+  # holding only warm runners after 30 s (infra/runners-controller/AGENTS.md).
+  # The 12 vCPU shape stays cold: an idle one would hold a whole host.
+  #
+  # Every image's golden fits beside the cache: about 60 GiB each, 9 images
+  # in the 540 GiB allowance above, and a release pulls only the overlay on
+  # hosts that held the previous image (infra/tart-kubelet/AGENTS.md).
   runners:
     enabled: true
     # Every BER1 host runs macOS 27 and Tart 2.41.1.
@@ -1465,14 +1475,8 @@ rackFleet:
       12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
     autoscaling:
       enabled: true
-      minWarmPoolFloor: 0
+      minWarmPoolFloor: 1
       maxReplicas: 18
-    xcodeOverrides:
-      "26.6":
-        autoscaling:
-          enabled: true
-          minWarmPoolFloor: 1
-          maxReplicas: 18
     shapes:
       12vcpu-28gb:
         autoscaling:

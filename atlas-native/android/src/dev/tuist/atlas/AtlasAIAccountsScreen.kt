@@ -60,6 +60,8 @@ class AtlasAIAccountsScreen(
     private var showingTokenHelp = false
     private var profile: AtlasProfileModel? = null
     private var appearance: AtlasAppearance? = null
+    private var pushStatus: (() -> String)? = null
+    private var pushToggle: (() -> Unit)? = null
     private var navigationChanged: () -> Unit = {}
     private val renderListener: () -> Unit = { render() }
 
@@ -90,6 +92,19 @@ class AtlasAIAccountsScreen(
 
     fun appearance(model: AtlasAppearance) {
         appearance = model
+        render()
+    }
+
+    fun notifications(
+        status: () -> String,
+        toggle: () -> Unit,
+    ) {
+        pushStatus = status
+        pushToggle = toggle
+        render()
+    }
+
+    fun notificationsChanged() {
         render()
     }
 
@@ -169,6 +184,11 @@ class AtlasAIAccountsScreen(
                         scroll.scrollTo(0, 0)
                         render()
                     }
+                }
+                if (identity?.pushAvailable == true && pushStatus != null) {
+                    heading("Notifications")
+                    row("Push notifications", pushStatus?.invoke().orEmpty()) { pushToggle?.invoke() }
+                    text("Private, generic alerts on this device. Atlas records never appear in previews.")
                 }
                 heading("AI accounts")
                 row("Claude", status("claude")) {

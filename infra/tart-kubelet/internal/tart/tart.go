@@ -50,6 +50,12 @@ type Client struct {
 	// to EnsureRealGUISession; tests construct Client directly and
 	// leave it nil to skip the check.
 	EnsureGUISession func(ctx context.Context) error
+
+	// BackgroundPull is the command a background pull (InBackground) runs
+	// under, ahead of `tart`. New() sets macOS's `taskpolicy -b`, which runs
+	// the pull at background QoS, so the host schedules running VMs' CPU and
+	// disk I/O first. Empty runs it like any other pull.
+	BackgroundPull []string
 }
 
 // New returns a Client with sensible defaults.
@@ -59,6 +65,7 @@ func New() *Client {
 		UserDataDir:      "/var/lib/tart-userdata",
 		LogDir:           "/var/log/tart-vms",
 		EnsureGUISession: EnsureRealGUISession,
+		BackgroundPull:   []string{"/usr/sbin/taskpolicy", "-b"},
 	}
 }
 
@@ -130,10 +137,39 @@ func (c *Client) Pull(ctx context.Context, image string) error {
 // notion of a mirror: a rack's image cache is reached by naming it in the
 // reference.
 func (c *Client) PullFrom(ctx context.Context, image string, insecure bool) error {
+	name, args := c.Binary, withInsecure([]string{"pull"}, insecure, image)
+	if IsInBackground(ctx) {
+		args = append(args, "--concurrency", strconv.Itoa(backgroundPullConcurrency))
+		if len(c.BackgroundPull) > 0 {
+			args = append(append(append([]string{}, c.BackgroundPull[1:]...), c.Binary), args...)
+			name = c.BackgroundPull[0]
+		}
+	}
 	ctx, cancel := context.WithTimeout(ctx, pullTimeout)
 	defer cancel()
-	_, err := c.run(ctx, c.Binary, withInsecure([]string{"pull"}, insecure, image)...)
+	_, err := c.run(ctx, name, args...)
 	return err
+}
+
+// backgroundPullConcurrency is the network concurrency of a background pull,
+// half of Tart's default of 4, so it leaves running VMs most of the host's
+// link.
+const backgroundPullConcurrency = 2
+
+type backgroundPullKey struct{}
+
+// InBackground marks the pulls made with ctx as background work: an image
+// pulled ahead of the Pods that will clone it, which must not slow the jobs
+// the host is running. They run under BackgroundPull with
+// backgroundPullConcurrency.
+func InBackground(ctx context.Context) context.Context {
+	return context.WithValue(ctx, backgroundPullKey{}, true)
+}
+
+// IsInBackground reports whether ctx was marked with InBackground.
+func IsInBackground(ctx context.Context) bool {
+	background, _ := ctx.Value(backgroundPullKey{}).(bool)
+	return background
 }
 
 // Clone invokes `tart clone <source> <name>`.

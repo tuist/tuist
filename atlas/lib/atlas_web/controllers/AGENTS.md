@@ -16,9 +16,19 @@ Task status and display names are not editable. Blank/omitted assignees default 
 
 Invalid/missing path UUIDs return 404. Invalid fields return 422 with sanitized optional `fields`; database conflicts return 409. Missing/invalid bearer tokens return 401; scope denial and imported invoice writes return 403. The controller supplies caller/interface `api` audit context, including account operations whose domain reads that context; domain contexts own mutation audit events.
 
-`GET /api/native/profile` returns only `{server_version, user: {name, email}}` for the bearer caller. Its version is the running OTP application's `Application.spec(:atlas, :vsn)`, compiled from `ATLAS_VERSION` in `mix.exs`; do not substitute MCP's protocol version or invent a revision. It accepts no user selector and grants no profile/settings writes. AI connections reuse `/api/me/llm-providers`.
+`GET /api/native/profile` returns only `{server_version, user: {name, email}, push_notifications: {ios, android}}` for the bearer caller. The push map reports which providers this server has credentials for; older servers omit it, which clients treat as unavailable. Its version is the running OTP application's `Application.spec(:atlas, :vsn)`, compiled from `ATLAS_VERSION` in `mix.exs`; do not substitute MCP's protocol version or invent a revision. It accepts no user selector and grants no profile/settings writes. AI connections reuse `/api/me/llm-providers`.
 
 Controller regressions live in `test/atlas_web/controllers/native_controller_test.exs`. These are backend endpoints; no new database, schema migration, or seed data is needed.
+
+## Push devices
+
+`AtlasWeb.PushDevicesController` serves `PUT` and `DELETE /api/me/push-devices/:installation_id` behind `MCPAuth` plus `AtlasWeb.Plugs.NativeOAuthClient`, which accepts only tokens whose OAuth client registered exactly `dev.tuist.atlas://oauth-callback` (otherwise 403 `native_client_required`). Responses are `no-store`. `installation_id` is a lowercase UUID.
+
+- `PUT` body is exactly `{platform, token, environment}`: `ios` with an even-length 32–512 character hex token (stored lowercase) and `sandbox` or `production`, or `android` with a 16–4096 character printable token and `production`. Unknown keys, including owner or app identifiers, return 400 `invalid_push_device`. Success is `{registered: true, registration_id}`.
+- `DELETE` has no body and returns `{deleted: true}` for any valid ID, whether or not the caller could retire it.
+- 409 `installation_retired` means the ID was deleted or reassigned; the client rotates its installation UUID and retries. 409 `installation_conflict` means another user's live installation. 503 `push_unavailable` means the platform's provider is not configured. 429 `rate_limited` caps each user at 120 requests per hour.
+
+Semantics and delivery live in [push](../../atlas/push/AGENTS.md). Coverage is `push_devices_controller_test.exs`.
 
 ## Native link endpoints
 

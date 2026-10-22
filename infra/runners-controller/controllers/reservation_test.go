@@ -1203,3 +1203,49 @@ func TestReservation_DoesNotYieldToAnUnseatableShape(t *testing.T) {
 		t.Fatal("blocked forever behind a shape no drain could ever serve")
 	}
 }
+
+// Every image keeps a warm runner, so on a quiet fleet each host can hold an
+// idle one. A host holding only idle runners clears at once, so the starved
+// shape takes it after idleHostReservationGrace rather than reservationGrace.
+func TestReservation_TakesAnIdleHostEarly(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 45*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		bootedMacOSPod("small-warm-0", "macos-26-6", "m4-0", reservationNow.Add(-time.Hour)),
+		bootedMacOSPod("small-warm-1", "macos-26-6", "m4-1", reservationNow.Add(-time.Hour)),
+		placedPod("small-owned", "macos-26-6", "m4-1", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the host holding only an idle runner should be reserved before reservationGrace")
+	}
+	if isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("the host running a job should not be reserved")
+	}
+}
+
+// A host that would have to wait out a job is only worth draining once the
+// Pod has waited the full reservationGrace.
+func TestReservation_WaitsTheFullGraceForABusyHost(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 45*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		placedPod("small-owned-0", "macos-26-6", "m4-0", "acme"),
+		placedPod("small-owned-1", "macos-26-6", "m4-1", "acme"),
+		bootedMacOSPod("small-booted", "macos-26-6", "m4-1", reservationNow.Add(-time.Minute)),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"m4-0", "m4-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Errorf("%s was reserved before reservationGrace although it runs a job", name)
+		}
+	}
+}

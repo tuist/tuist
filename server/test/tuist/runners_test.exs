@@ -1627,10 +1627,11 @@ defmodule Tuist.RunnersTest do
     } do
       parts = [{1, ~s("etag-1")}]
       expect(Tuist.Storage, :multipart_complete_upload, fn ^key, "upload-1", ^parts, _actor -> :ok end)
-      heads = :counters.new(1, [:atomics])
       # Storage answers before the object is readable.
+      heads = :counters.new(1, [])
+
       expect(Tuist.Storage, :object_exists?, 3, fn ^key, _actor ->
-        :counters.add(heads, 1, 1)
+        :ok = :counters.add(heads, 1, 1)
         :counters.get(heads, 1) == 3
       end)
 
