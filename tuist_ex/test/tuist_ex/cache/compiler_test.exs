@@ -174,6 +174,13 @@ defmodule TuistEx.Cache.CompilerTest do
     refute Compiler.supported_config?(aliases: [compile: ["generate", "compile"]])
   end
 
+  test "compile.all and implicit source-generator aliases always require auditing" do
+    for compilers <- [nil, [:elixir, :app]],
+        name <- [:"compile.all", :"compile.yecc", :"compile.leex"] do
+      refute Compiler.supported_config?(compilers: compilers, aliases: [{name, ["custom"]}])
+    end
+  end
+
   test "effective project configuration preserves first-key semantics with stable key ordering" do
     assert Compiler.effective_config(version: "1", app: :probe, version: "ignored") ==
              [app: :probe, version: "1"]

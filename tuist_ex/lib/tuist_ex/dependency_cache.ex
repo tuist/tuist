@@ -133,26 +133,31 @@ defmodule TuistEx.DependencyCache do
     remaining = Enum.drop_while(dependencies, &(&1.app != dependency.app))
     by_app = Map.new(dependencies, &{&1.app, &1})
 
-    {requests, _seen} =
-      Enum.reduce_while(remaining, {[], MapSet.new()}, fn candidate, {requests, seen} ->
+    {requests, _seen, _context} =
+      Enum.reduce_while(remaining, {[], MapSet.new(), :uncaptured}, fn candidate,
+                                                                       {requests, seen, context} ->
         candidate = check_dependency(candidate, options)
 
         cond do
           MapSet.size(seen) >= Reapi.concurrency() ->
-            {:halt, {requests, seen}}
+            {:halt, {requests, seen, context}}
 
           Mix.Dep.ok?(candidate) and not Mix.Dep.compilable?(candidate) ->
-            {:cont, {requests, seen}}
+            {:cont, {requests, seen, context}}
 
           not selected?(candidate, options) or not Mix.Dep.compilable?(candidate) or
               Enum.any?(closure(candidate, by_app, MapSet.new()), &MapSet.member?(seen, &1.app)) ->
-            {:halt, {requests, seen}}
+            {:halt, {requests, seen, context}}
 
           true ->
-            modeled =
-              if candidate.app == dependency.app,
-                do: {:ok, key},
-                else: action_key(candidate, dependencies, capture_context(options), options)
+            {modeled, context} =
+              if candidate.app == dependency.app do
+                {{:ok, key}, context}
+              else
+                # One speculative context per window; staging still reads fresh inputs.
+                context = if context == :uncaptured, do: capture_context(options), else: context
+                {action_key(candidate, dependencies, context, options), context}
+              end
 
             case modeled do
               {:ok, candidate_key} ->
@@ -160,10 +165,10 @@ defmodule TuistEx.DependencyCache do
                 local = Path.join([store_root(options), candidate_key, "manifest.json"])
                 request = {candidate_key, candidate.app}
                 requests = if File.regular?(local), do: requests, else: [request | requests]
-                {:cont, {requests, MapSet.put(seen, candidate.app)}}
+                {:cont, {requests, MapSet.put(seen, candidate.app), context}}
 
               _ ->
-                {:halt, {requests, seen}}
+                {:halt, {requests, seen, context}}
             end
         end
       end)
@@ -326,33 +331,35 @@ defmodule TuistEx.DependencyCache do
       end)
     end
 
-    prepared? = prepare_sources(dependency, options)
+    prepared = prepare_sources(dependency, options)
     duration = compile_dependency(dependency)
 
     {reason, metrics} =
-      if prepared? do
-        case Store.publish_with_metrics(
-               root,
-               key,
-               dependency.opts[:build],
-               dependency.opts[:dest],
-               duration,
-               &(valid_artifact?(&1, dependency, options) and current?.()),
-               materialize_resources: materialize?(dependency, options)
-             ) do
-          {:ok, metrics} ->
-            metrics =
-              if Keyword.get(options, :upload, true),
-                do: publish_remote(remote, root, key, dependency.app, metrics),
-                else: metrics
+      case prepared do
+        {:ok, materialize?} ->
+          case Store.publish_with_metrics(
+                 root,
+                 key,
+                 dependency.opts[:build],
+                 dependency.opts[:dest],
+                 duration,
+                 &(valid_artifact?(&1, dependency, options) and current?.()),
+                 materialize_resources: materialize?
+               ) do
+            {:ok, metrics} ->
+              metrics =
+                if Keyword.get(options, :upload, true),
+                  do: publish_remote(remote, root, key, dependency.app, metrics),
+                  else: metrics
 
-            {"", metrics}
+              {"", metrics}
 
-          {:error, _} ->
-            {if(current?.(), do: "store_failed", else: "inputs_changed"), %{}}
-        end
-      else
-        {"unmodeled_input", %{}}
+            {:error, _} ->
+              {if(current?.(), do: "store_failed", else: "inputs_changed"), %{}}
+          end
+
+        :error ->
+          {"unmodeled_input", %{}}
       end
 
     dependency
@@ -391,26 +398,22 @@ defmodule TuistEx.DependencyCache do
     end
   end
 
-  defp materialize?(dependency, options),
-    do:
-      dependency
-      |> Compiler.config(false, Compiler.builder(dependency, options))
-      |> Compiler.materialize?()
-
   defp prepare_sources(dependency, options) do
-    Compiler.prepare_sources(dependency, dependency_config(dependency, options))
-    true
+    config = dependency_config(dependency, options)
+    Compiler.prepare_sources(dependency, config)
+    {:ok, Compiler.materialize?(config)}
   rescue
-    _ -> false
+    _ -> :error
   catch
-    :unmodeled_input -> false
+    :unmodeled_input -> :error
   end
 
   defp valid_artifact?(staging, dependency, options) do
     builder = Compiler.builder(dependency, options)
+    config = Compiler.config(dependency, false, builder)
 
     materialized? =
-      not materialize?(dependency, options) or
+      not Compiler.materialize?(config) or
         Enum.all?(["ebin", "priv", "include", "src"], fn name ->
           case File.lstat(Path.join(staging, name)) do
             {:ok, %{type: :directory}} -> true
@@ -420,11 +423,7 @@ defmodule TuistEx.DependencyCache do
         end)
 
     materialized? and Compiler.outputs_present?(staging, builder) and
-      valid_application?(
-        staging,
-        dependency,
-        Compiler.config(dependency, false, builder)[:version]
-      )
+      valid_application?(staging, dependency, config[:version])
   end
 
   defp valid_application?(staging, dependency, version) do

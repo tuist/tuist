@@ -1749,6 +1749,56 @@ defmodule TuistEx.DependencyCacheTest do
     refute first_key == second_key
   end
 
+  test "compile.all aliases bypass restoration and publication", %{project: project, dir: dir} do
+    repo = Path.join(dir, "package")
+    mixfile = Path.join(repo, "mix.exs")
+
+    File.write!(
+      mixfile,
+      String.replace(
+        File.read!(mixfile),
+        "deps: []",
+        ~s(aliases: ["compile.all": ["compile.all"]], deps: [])
+      )
+    )
+
+    commit!(repo)
+
+    for _ <- 1..2 do
+      File.rm_rf!(Path.join(project, "_build"))
+      result = run!(project)
+      assert result["value"] == 1
+
+      assert [%{"outcome" => "bypass", "reason" => "custom_compiler"}] =
+               result["dependency_cache"]
+
+      assert result["output"] =~ "Generated dep_probe app"
+      refute File.exists?(Path.join(dir, "cache"))
+    end
+  end
+
+  test "new unsupported source paths after compilation fail open without publication", %{
+    project: project,
+    dir: dir
+  } do
+    repo = Path.join(dir, "package")
+    File.write!(Path.join(repo, "README.md"), "source resource")
+
+    File.write!(Path.join(repo, "lib/probe.ex"), """
+    defmodule DepProbe do
+      File.mkdir_p!("src")
+      File.ln_s!("../README.md", "src/link")
+      def value, do: 1
+    end
+    """)
+
+    commit!(repo)
+    result = run!(project)
+    assert result["value"] == 1
+    assert [%{"outcome" => "miss", "reason" => "inputs_changed"}] = result["dependency_cache"]
+    assert File.ls!(Path.join(dir, "cache")) == []
+  end
+
   @tag hash_audit: true
   test "local restore reconciles inputs after staging, before installing cached code", %{
     project: project,

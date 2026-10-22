@@ -263,6 +263,7 @@ defmodule TuistEx.Cache.Compiler do
 
       true ->
         compilers = config[:compilers] || Mix.compilers()
+        compiler_aliases = Enum.map([:all, :yecc, :leex | compilers], &"compile.#{&1}")
         paths = (config[:elixirc_paths] || ["lib"]) ++ (config[:erlc_paths] || ["src"])
         include = config[:erlc_include_path] || "include"
 
@@ -275,12 +276,7 @@ defmodule TuistEx.Cache.Compiler do
               :loadconfig,
               :"app.config",
               :will_recompile
-            ] or
-              (String.starts_with?(to_string(name), "compile.") and
-                 String.replace_prefix(to_string(name), "compile.", "") in Enum.map(
-                   compilers,
-                   &to_string/1
-                 ))
+            ] or to_string(name) in compiler_aliases
           end) and
           (config[:elixirc_options] || [])[:tracers] in [nil, []] and
           Enum.all?([include | paths], &source_path?/1) and
