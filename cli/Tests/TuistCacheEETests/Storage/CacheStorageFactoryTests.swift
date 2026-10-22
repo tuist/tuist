@@ -2,8 +2,11 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import GRPCCore
+import GRPCNIOTransportHTTP2
 import Mockable
 import Path
+import SwiftProtobuf
+import Synchronization
 import Testing
 import TuistAlert
 import TuistCache
@@ -13,16 +16,16 @@ import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
-import TuistREAPI
 import TuistServer
 import TuistSupport
 import XcodeGraph
 
 @testable import TuistCacheEE
+@testable import TuistREAPI
 @testable import TuistSupport
 @testable import TuistTesting
 
-struct CacheStorageFactoryTests {
+struct CacheStorageFactoryTests { // swiftlint:disable:this type_body_length
     private struct TokenCarryingError: Error, LocalizedError {
         var errorDescription: String? { "The access token ey.super-secret-token is invalid." }
     }
@@ -418,10 +421,98 @@ struct CacheStorageFactoryTests {
         ])
     }
 
+    @Test(.withScopedAlertController(), .withMockedEnvironment())
+    func reapiSendsTheTokenExchangedForTheProject() async throws {
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        given(serverAuthenticationController).authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(.project("opaque-token"))
+        given(serverAuthenticationController).authenticationToken(serverURL: .any)
+            .willReturn(.project("opaque-token"))
+        let cacheTokenStore = MockCacheTokenStoring()
+        given(cacheTokenStore)
+            .cacheToken(authenticationURL: .value(Constants.URLs.production), fullHandle: .value("tuist/project"))
+            .willReturn("cache-token")
+        let authorizations = AuthorizationRecorder()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [SHA256Capabilities()], interceptors: [authorizations])
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let port = try #require(try await transport.listeningAddress.ipv4?.port)
+            given(cacheURLStore).getCacheURL(for: .any, accountHandle: .any)
+                .willReturn(URL(string: "http://127.0.0.1:\(port)")!)
+            let factory = CacheStorageFactory(
+                cacheDirectoriesProvider: cacheDirectoriesProvider,
+                serverAuthenticationController: serverAuthenticationController,
+                serverEnvironmentService: serverEnvironmentService,
+                cacheURLStore: cacheURLStore,
+                cacheTokenStore: cacheTokenStore
+            )
+
+            _ = try await factory.cacheStorage(config: .test(fullHandle: "tuist/project"))
+        }
+
+        #expect(AlertController.current.warnings().isEmpty)
+        #expect(authorizations.values == ["Bearer cache-token"])
+    }
+
+    @Test(.withScopedAlertController(), .withMockedEnvironment())
+    func reapiDoesNotFallBackToTheCredentialWhenTheFreeTierIsExhausted() async throws {
+        given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
+        given(serverAuthenticationController).authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(.project("opaque-token"))
+        given(serverAuthenticationController).authenticationToken(serverURL: .any)
+            .willReturn(.project("opaque-token"))
+        given(cacheURLStore).getCacheURL(for: .any, accountHandle: .any).willReturn(URL(string: "http://127.0.0.1:1")!)
+        let cacheTokenStore = MockCacheTokenStoring()
+        given(cacheTokenStore).cacheToken(authenticationURL: .any, fullHandle: .any)
+            .willThrow(GetCacheTokenServiceError.freeTierExhausted("Upgrade your plan."))
+        let factory = CacheStorageFactory(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            serverAuthenticationController: serverAuthenticationController,
+            serverEnvironmentService: serverEnvironmentService,
+            cacheURLStore: cacheURLStore,
+            cacheTokenStore: cacheTokenStore
+        )
+
+        let result = try await factory.cacheStorage(config: .test(fullHandle: "tuist/project"))
+
+        // The cache token store reports the plan once for every cache client, so the factory does not repeat it.
+        #expect(AlertController.current.warnings().isEmpty)
+        #expect((await payloadStorage(result))?.remoteStorage != nil)
+        verify(cacheTokenStore).cacheToken(authenticationURL: .any, fullHandle: .value("tuist/project")).called(1)
+    }
+
     private func payloadStorage(_ storage: CacheStoring) async -> CacheStorage? {
         if let indexed = storage as? BinaryCacheStorage {
             return await indexed.selectiveTestsStorage as? CacheStorage
         }
         return storage as? CacheStorage
+    }
+}
+
+private final class AuthorizationRecorder: ServerInterceptor {
+    private let recorded = Mutex<[String]>([])
+    var values: [String] { recorded.withLock { $0 } }
+
+    func intercept<Input: Sendable, Output: Sendable>(
+        request: StreamingServerRequest<Input>,
+        context: ServerContext,
+        next: @Sendable (StreamingServerRequest<Input>, ServerContext) async throws -> StreamingServerResponse<Output>
+    ) async throws -> StreamingServerResponse<Output> {
+        recorded.withLock { $0 += request.metadata[stringValues: "authorization"].map { $0 } }
+        return try await next(request, context)
+    }
+}
+
+private struct SHA256Capabilities: Build_Bazel_Remote_Execution_V2_Capabilities.SimpleServiceProtocol {
+    func getCapabilities(
+        request _: Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest,
+        context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_ServerCapabilities {
+        .with { $0.cacheCapabilities.digestFunctions = [.sha256] }
     }
 }
