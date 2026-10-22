@@ -66,6 +66,8 @@
 #   /marketing-markdown[/...]  Published agent guides and policy sources.
 #   /robots.txt, /llms.txt, /llms-full.txt, /sitemap.xml
 #                      Crawler discovery and full documentation export.
+#   /geofeed.csv       RFC 8805 geofeed of the Tuist IP range, fetched by
+#                      geolocation providers from the RIPE objects.
 #   /auth.md (exact)   Agent-auth protocol discovery document.
 #   /ready (exact)     Kubernetes readiness probe.
 #   POST /-/faro/collect  Browser telemetry XHR from real users; if a
@@ -119,7 +121,7 @@ spec:
     (
       http.request.method in {"GET" "HEAD"} and
       (
-        http.request.uri.path in {"/docs" "/marketing-markdown" "/robots.txt" "/llms.txt" "/llms-full.txt" "/sitemap.xml"} or
+        http.request.uri.path in {"/docs" "/marketing-markdown" "/robots.txt" "/llms.txt" "/llms-full.txt" "/sitemap.xml" "/geofeed.csv"} or
         starts_with(http.request.uri.path, "/docs/") or
         starts_with(http.request.uri.path, "/marketing-markdown/") or
         starts_with(http.request.uri.path, "/en/docs/") or
