@@ -25,7 +25,14 @@ defmodule Tuist.OnceEvents.Workers.PublishTestReportWorker do
 
         {:ok, _} =
           Repo.transaction(fn ->
-            publication = Repo.one!(from(p in TestReportPublication, where: p.id == ^id, lock: "FOR UPDATE"))
+            publication =
+              Repo.one!(
+                from(p in TestReportPublication,
+                  where: p.id == ^id,
+                  select: struct(p, [:id, :effects_dispatched_at]),
+                  lock: "FOR UPDATE"
+                )
+              )
 
             if is_nil(publication.effects_dispatched_at) do
               Tests.finish_captured_effects(effects)
@@ -45,19 +52,17 @@ defmodule Tuist.OnceEvents.Workers.PublishTestReportWorker do
   end
 
   def perform(%Oban.Job{args: %{"run_id" => id}}) do
-    case Repo.get(TestReportPublication, id) do
-      nil ->
-        :ok
-
-      _publication ->
-        case TestReportIngestor.publish_prepared(id) do
-          {:ok, :in_progress} -> {:snooze, 5}
-          {:ok, :yielded} -> {:snooze, 1}
-          {:ok, _} -> :ok
-          {:error, :publication_uncertain} -> {:discard, :publication_uncertain}
-          {:error, :publication_preparation_failed} -> {:discard, :publication_preparation_failed}
-          {:error, _} = error -> error
-        end
+    if Repo.exists?(from(p in TestReportPublication, where: p.id == ^id)) do
+      case TestReportIngestor.publish_prepared(id) do
+        {:ok, :in_progress} -> {:snooze, 5}
+        {:ok, :yielded} -> {:snooze, 1}
+        {:ok, _} -> :ok
+        {:error, :publication_uncertain} -> {:discard, :publication_uncertain}
+        {:error, :publication_preparation_failed} -> {:discard, :publication_preparation_failed}
+        {:error, _} = error -> error
+      end
+    else
+      :ok
     end
   end
 end

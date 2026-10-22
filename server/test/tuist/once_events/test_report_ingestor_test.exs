@@ -13,6 +13,7 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
   alias Tuist.Tests.Test.Buffer
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.TelemetryCapture
 
   setup do
     project = ProjectsFixtures.project_fixture()
@@ -84,7 +85,8 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
       args: %{run_id: run.id, phase: "publish"}
     )
 
-    assert {:ok, publication} = TestReportIngestor.prepare_snapshot(run.id)
+    assert {:ok, %{state: "pending", payload: nil}} = TestReportIngestor.prepare_snapshot(run.id)
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
     %{version: 2, test: test, chunks: [first | remaining]} = :erlang.binary_to_term(publication.payload, [:safe])
     assert Tuist.Repo.get!(OnceEvents.Run, run.id).test_report_published_at
     assert publication.state == "pending"
@@ -208,7 +210,8 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
   test "a soft deadline yields between acknowledged chunks and the next job resumes without replay", %{run: run} do
     stage_case(run, %{})
     assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
-    assert {:ok, publication} = TestReportIngestor.prepare_snapshot(run.id)
+    assert {:ok, _} = TestReportIngestor.prepare_snapshot(run.id)
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
     %{chunks: [{_, _, first_token} | remaining]} = :erlang.binary_to_term(publication.payload, [:safe])
     clock = :atomics.new(1, [])
     parent = self()
@@ -241,7 +244,8 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     stage_case(run, %{})
     run = finalize(run)
     assert {:ok, _} = TestReportIngestor.enqueue(run)
-    assert {:ok, publication} = TestReportIngestor.prepare_snapshot(run.id)
+    assert {:ok, _} = TestReportIngestor.prepare_snapshot(run.id)
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
     parent = self()
 
     stub(Tuist.IngestRepo, :insert_all, fn schema, rows, opts ->
@@ -329,6 +333,95 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     assert {:error, :publication_uncertain} = TestReportIngestor.publish_prepared(run.id)
     refute_receive :unsafe_replay
     assert Tuist.Repo.get!(OnceEvents.TestReportPublication, publication.id).state == "uncertain"
+  end
+
+  @tag adversarial: true
+  test "recovery queues metadata without selecting immutable payloads", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, publication} = TestReportIngestor.enqueue(finalize(run))
+
+    publication
+    |> Ecto.Changeset.change(state: "pending", payload: :erlang.term_to_binary(%{version: 2, chunks: []}))
+    |> Tuist.Repo.update!()
+
+    ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+    assert :ok = TestReportIngestor.recover_recent()
+    queries = publication_selects(ref)
+    assert queries != []
+    assert Enum.all?(queries, &(not String.contains?(&1, ~s("payload"))))
+  end
+
+  for {state, result} <- [
+        {"publishing", {:snooze, 5}},
+        {"uncertain", {:discard, :publication_uncertain}},
+        {"published", :ok}
+      ] do
+    @tag publication_state: state, publication_result: result
+    test "a #{state} publication is inspected without selecting its payload", %{
+      run: run,
+      publication_state: state,
+      publication_result: result
+    } do
+      stage_case(run, %{})
+      assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+      assert {:ok, _} = TestReportIngestor.prepare_snapshot(run.id)
+
+      Tuist.Repo.update_all(from(p in OnceEvents.TestReportPublication, where: p.id == ^run.id),
+        set: [state: state, owner: "live-owner", updated_at: DateTime.utc_now()]
+      )
+
+      ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+      assert ^result = PublishTestReportWorker.perform(%Oban.Job{args: %{"run_id" => run.id, "phase" => "publish"}})
+      queries = publication_selects(ref)
+      assert queries != []
+      assert Enum.all?(queries, &(not String.contains?(&1, ~s("payload"))))
+    end
+  end
+
+  test "a successful publication reads its payload only after claiming it", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+    assert :ok = PublishTestReportWorker.perform(%Oban.Job{args: %{"run_id" => run.id, "phase" => "publish"}})
+    queries = publication_selects(ref)
+    assert Enum.count(queries, &String.contains?(&1, ~s("payload"))) == 1
+    assert List.last(queries) =~ ~s("payload")
+  end
+
+  test "followups load one payload but their marker lock selects only metadata", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.publish(finalize(run))
+    ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+    assert :ok = PublishTestReportWorker.perform(%Oban.Job{args: %{"run_id" => run.id, "phase" => "followups"}})
+    queries = publication_selects(ref)
+    assert Enum.count(queries, &String.contains?(&1, ~s("payload"))) == 1
+    assert Enum.any?(queries, &(String.contains?(&1, "FOR UPDATE") and not String.contains?(&1, ~s("payload"))))
+  end
+
+  test "operator retry still rejects a terminal row carrying a payload", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    assert {:ok, _} = TestReportIngestor.prepare_snapshot(run.id)
+
+    Tuist.Repo.update_all(from(p in OnceEvents.TestReportPublication, where: p.id == ^run.id),
+      set: [state: "failed_preparation"]
+    )
+
+    assert {:error, :not_failed_preparation} = TestReportIngestor.retry_preparation(run.id)
+  end
+
+  defp publication_selects(ref, queries \\ []) do
+    receive do
+      {[:tuist, :repo, :query], ^ref, _, %{query: query}} ->
+        queries =
+          if String.starts_with?(query, "SELECT") and String.contains?(query, ~s("once_test_report_publications")),
+            do: [query | queries],
+            else: queries
+
+        publication_selects(ref, queries)
+    after
+      0 -> Enum.reverse(queries)
+    end
   end
 
   test "durable intent recovery is independent of the two-hour terminal-run scan", %{run: run} do

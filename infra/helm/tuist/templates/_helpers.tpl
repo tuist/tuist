@@ -13,8 +13,13 @@ Include one terminating generation, which may still hold in-flight requests. */}
 {{- $replicas = max $replicas (int .Values.server.autoscaling.maxReplicas) -}}
 {{- end -}}
 {{- $surge := 0 -}}
-{{- if eq .Values.server.strategy.type "RollingUpdate" -}}
-{{- $raw := toString .Values.server.strategy.rollingUpdate.maxSurge -}}
+{{- $strategy := .Values.server.strategy | default dict -}}
+{{- if eq ($strategy.type | default "RollingUpdate") "RollingUpdate" -}}
+{{- $rollingUpdate := $strategy.rollingUpdate | default dict -}}
+{{- $raw := "25%" -}}
+{{- if and (hasKey $rollingUpdate "maxSurge") (not (kindIs "invalid" (get $rollingUpdate "maxSurge"))) -}}
+{{- $raw = toString (get $rollingUpdate "maxSurge") -}}
+{{- end -}}
 {{- if regexMatch "^[0-9]+%$" $raw -}}
 {{- $surge = int (ceil (divf (mulf $replicas (int (trimSuffix "%" $raw))) 100)) -}}
 {{- else if regexMatch "^[0-9]+$" $raw -}}

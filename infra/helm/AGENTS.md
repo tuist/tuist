@@ -137,6 +137,7 @@ runs the mixed-version latency expression through promtool.
   per-instance ConfigMap-read role, sticky runtime/controller rollback floor and
   quarantined-volume reaper exclusion belong together; see
   [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
+- Rate-limit rollout envelopes honor Kubernetes defaults when strategy or rolling-update keys are explicitly null: RollingUpdate with 25% surge, rounded up. Helm partial-map overrides retain chart defaults; explicit numeric zero surge must not be replaced through Sprig's empty-value defaulting. Keep null/default/zero/Recreate and invalid-value checks in `tuist/test-rate-limit-envelope.py`.
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
 - Slack chart: `infra/helm/slack/AGENTS.md`

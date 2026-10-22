@@ -36,6 +36,16 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   @lease_seconds 360
   @max_preparation_attempts 8
   @publication_budget_ms to_timeout(minute: 3)
+  @claim_fields [
+    :id,
+    :state,
+    :owner,
+    :updated_at,
+    :preparation_attempts,
+    :next_chunk,
+    :in_flight_chunk,
+    :first_attempt_at
+  ]
 
   # The stream commits intent, not remote I/O. A crash before enqueue is covered
   # by the terminal-run sweep; afterwards the durable intent/job survives. The
@@ -134,7 +144,7 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   end
 
   defp claim_preparation(id, owner) do
-    current = Repo.one!(from(p in TestReportPublication, where: p.id == ^id, lock: "FOR UPDATE"))
+    current = Repo.one!(claim_query(id))
     expired = DateTime.diff(DateTime.utc_now(), current.updated_at) >= @lease_seconds
 
     cond do
@@ -185,7 +195,7 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
              updated_at: DateTime.truncate(DateTime.utc_now(), :second)
            ]
          ) do
-      {1, _} -> Repo.get!(TestReportPublication, publication.id)
+      {1, _} -> %{publication | state: "pending", owner: nil}
       _ -> Repo.rollback(:preparation_superseded)
     end
   end
@@ -272,8 +282,16 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
     end
   end
 
+  defp claim_query(id) do
+    from(p in TestReportPublication,
+      where: p.id == ^id,
+      select: struct(p, ^@claim_fields),
+      lock: "FOR UPDATE"
+    )
+  end
+
   defp claim_publication(id, owner) do
-    current = Repo.one!(from(p in TestReportPublication, where: p.id == ^id, lock: "FOR UPDATE"))
+    current = Repo.one!(claim_query(id))
     now = DateTime.truncate(DateTime.utc_now(), :second)
     expired = DateTime.diff(now, current.updated_at) >= @lease_seconds
 
@@ -301,7 +319,8 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
             )
           )
 
-        {:claimed, updated}
+        payload = Repo.one!(from(p in TestReportPublication, where: p.id == ^id, select: p.payload))
+        {:claimed, %{updated | payload: payload}}
     end
   end
 
@@ -495,6 +514,7 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
     query =
       from(p in TestReportPublication,
         where: p.state in ["preparing", "pending"] or (p.state == "publishing" and p.updated_at < ^cutoff),
+        select: struct(p, [:id, :state]),
         order_by: p.id,
         limit: 100
       )

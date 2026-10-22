@@ -30,6 +30,27 @@ class RateLimitEnvelopeTests(unittest.TestCase):
     def test_percentage_surge_rounds_up(self):
         self.check_envelope(7, "server.replicaCount=3", "server.strategy.rollingUpdate.maxSurge=33%")
 
+    def test_kubernetes_defaults_when_strategy_keys_are_null(self):
+        for override in ("server.strategy=null", "server.strategy.rollingUpdate=null", "server.strategy.rollingUpdate.maxSurge=null"):
+            with self.subTest(override=override):
+                self.check_envelope(12, "server.replicaCount=5", override)
+
+    def test_partial_override_keeps_chart_surge_default(self):
+        self.check_envelope(11, "server.replicaCount=5", "server.strategy.rollingUpdate.maxUnavailable=0")
+
+    def test_explicit_zero_surge_is_not_defaulted(self):
+        self.check_envelope(10, "server.replicaCount=5", "server.strategy.rollingUpdate.maxSurge=0")
+
+    def test_recreate_has_no_surge(self):
+        self.check_envelope(10, "server.replicaCount=5", "server.strategy.type=Recreate", "server.strategy.rollingUpdate=null")
+
+    def test_invalid_surge_is_rejected(self):
+        for value in ("-1", "invalid", "1.5%"):
+            with self.subTest(value=value):
+                result = HELPERS["render"](["values-self-hosted-ci.yaml"], [f"server.strategy.rollingUpdate.maxSurge={value}"])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("server.strategy.rollingUpdate.maxSurge", result.stderr)
+
     def test_larger_explicit_allowance(self):
         self.check_envelope(20, "server.rateLimitFallbackReplicas=20")
 

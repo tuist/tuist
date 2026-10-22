@@ -1,8 +1,12 @@
 defmodule Tuist.Registry.CommandTest do
   use ExUnit.Case, async: true
+  use Mimic
 
+  alias Tuist.Registry.BoundedTask
   alias Tuist.Registry.Command
   alias Tuist.Registry.Temporary
+
+  setup :set_mimic_from_context
 
   test "short commands preserve output and exit status without the port acknowledgement race" do
     for _ <- 1..40 do
@@ -52,6 +56,73 @@ defmodule Tuist.Registry.CommandTest do
           await_removed(path, attempts - 1)
         ),
       else: true
+  end
+
+  test "a command task exception returns a sanitized parent exception" do
+    expect(System, :cmd, fn _, _, _ -> raise "synthetic sensitive child failure" end)
+
+    assert_raise RuntimeError, "registry command process failed", fn ->
+      Command.run("sh", ["-c", "printf partial-output"])
+    end
+  end
+
+  @tag :tmp_dir
+  test "killing a nested owner terminates its operating-system command", %{tmp_dir: directory} do
+    pid_file = Path.join(directory, "command.pid")
+    parent = self()
+
+    {owner, ref} =
+      spawn_monitor(fn ->
+        BoundedTask.run(
+          fn ->
+            send(parent, {:nested_task, self()})
+
+            Command.run("sh", ["-c", ~s(echo $$ > "$1"; exec sleep 30), "registry-command-test", pid_file],
+              timeout: 10_000
+            )
+          end,
+          15_000
+        )
+      end)
+
+    assert_receive {:nested_task, nested_task}
+
+    on_exit(fn ->
+      Process.exit(owner, :kill)
+      Process.exit(nested_task, :kill)
+    end)
+
+    assert await_file(pid_file, 300)
+    pid = pid_file |> File.read!() |> String.trim() |> String.to_integer()
+    assert pid > 0
+    Process.exit(owner, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^owner, :killed}
+    assert await_process_exit(pid, 300)
+  end
+
+  defp await_file(_path, 0), do: false
+
+  defp await_file(path, attempts) do
+    if File.exists?(path) and File.read!(path) != "",
+      do: true,
+      else:
+        (
+          Process.sleep(10)
+          await_file(path, attempts - 1)
+        )
+  end
+
+  defp await_process_exit(_pid, 0), do: false
+
+  defp await_process_exit(pid, attempts) do
+    case System.cmd("kill", ["-0", Integer.to_string(pid)], stderr_to_stdout: true) do
+      {_, 0} ->
+        Process.sleep(10)
+        await_process_exit(pid, attempts - 1)
+
+      _ ->
+        true
+    end
   end
 
   test "a stalled child is bounded" do

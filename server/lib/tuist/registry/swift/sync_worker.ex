@@ -11,6 +11,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   use Oban.Worker, queue: :swift_registry_sync
 
   alias Tuist.Registry
+  alias Tuist.Registry.BoundedTask
   alias Tuist.Registry.Swift.Lock
   alias Tuist.Registry.Swift.Metadata
   alias Tuist.Registry.Swift.ReleaseWorker
@@ -306,11 +307,15 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   defp bounded_sync_package(scope, name, full_handle, token, deadline) do
     remaining = max(1, min(to_timeout(minute: 2), deadline - System.monotonic_time(:millisecond)))
-    task = Task.async(fn -> do_sync_package(scope, name, full_handle, token) end)
 
-    case Task.yield(task, remaining) || Task.shutdown(task, :brutal_kill) do
+    case BoundedTask.run(fn -> do_sync_package(scope, name, full_handle, token) end, remaining) do
       {:ok, result} ->
         result
+
+      {:exit, _} ->
+        Logger.warning("Registry package sync crashed; retaining catalog rotation progress")
+        :telemetry.execute(@package_skipped_event, %{packages: 1}, %{reason: :package_crash})
+        :failed
 
       nil ->
         Logger.warning("Registry package sync timed out; retaining catalog rotation progress")
@@ -329,12 +334,14 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   end
 
   defp do_sync_package(scope, name, full_handle, token) do
-    metadata =
-      case Metadata.get_package(scope, name) do
-        {:ok, metadata} -> metadata
-        {:error, :not_found} -> empty_metadata(scope, name, full_handle)
-      end
+    case Metadata.get_package(scope, name) do
+      {:ok, metadata} -> sync_package_tags(scope, name, full_handle, token, metadata)
+      {:error, :not_found} -> sync_package_tags(scope, name, full_handle, token, empty_metadata(scope, name, full_handle))
+      {:error, _} -> metadata_failed(:metadata_read_failed)
+    end
+  end
 
+  defp sync_package_tags(scope, name, full_handle, token, metadata) do
     case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
       {:ok, tags} ->
         sync_tags(scope, name, full_handle, tags, metadata)
@@ -414,13 +421,22 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   defp sync_tags(scope, name, full_handle, tags, metadata) do
     missing_versions = missing_versions(tags, metadata)
 
-    :ok =
-      Metadata.update_package(scope, name, metadata, fn current ->
-        {:ok, update_metadata(current, scope, name, full_handle)}
-      end)
+    case Metadata.update_package(scope, name, metadata, fn current ->
+           {:ok, update_metadata(current, scope, name, full_handle)}
+         end) do
+      :ok ->
+        enqueue_release_workers(scope, name, full_handle, missing_versions)
+        :ok
 
-    enqueue_release_workers(scope, name, full_handle, missing_versions)
-    :ok
+      {:error, _} ->
+        metadata_failed(:metadata_write_failed)
+    end
+  end
+
+  defp metadata_failed(reason) do
+    Logger.warning("Registry package metadata unavailable; retaining catalog rotation progress")
+    :telemetry.execute(@package_skipped_event, %{packages: 1}, %{reason: reason})
+    :failed
   end
 
   defp missing_versions(tags, metadata) do

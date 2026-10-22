@@ -172,7 +172,15 @@ defmodule Tuist.OnceEvents.PreparationConcurrencyTest do
     assert publication.state == "pending"
     assert publication.owner == nil
     assert publication.preparation_attempts == 2
-    assert publication.payload
+    assert publication.payload == nil
+
+    Sandbox.unboxed_run(Repo, fn ->
+      stored = Repo.get!(TestReportPublication, run.id)
+      assert stored.state == "pending"
+      assert stored.owner == nil
+      assert stored.preparation_attempts == 2
+      assert stored.payload
+    end)
   end
 
   defp start_preparer(id) do

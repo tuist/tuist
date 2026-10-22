@@ -1,28 +1,39 @@
 defmodule Tuist.OAuth.Exchange do
   @moduledoc """
-  Serializes one-time credential exchanges without forking Boruta's adapters.
+  Serializes authorization-code and refresh-token exchanges using Boruta's
+  request parser, authorization protocol and response conversion.
 
-  Capture callbacks defer the HTTP response until the credential transaction
-  commits. The transaction covers validation, replacement creation and revocation.
-  A lost response after commit still consumes the credential; this is not token
-  delivery recovery or revocation of already-issued JWTs. All grant-serving
-  replicas must run this wrapper before relying on exchange serialization;
+  Parse exactly once before taking a database connection: request objects and
+  request URIs must select the same credential that Boruta redeems. Responses
+  are deferred until the transaction commits. The transaction covers validation,
+  replacement creation and revocation. A lost response after commit still
+  consumes the credential; this is not token delivery recovery or revocation
+  of already-issued JWTs. All grant-serving replicas must run this wrapper;
   legacy Boruta-only issuers do not participate in its lock protocol.
   """
   import Ecto.Query
 
   alias Boruta.Ecto.Token
+  alias Boruta.Oauth.Authorization
+  alias Boruta.Oauth.AuthorizationCodeRequest
   alias Boruta.Oauth.Error
+  alias Boruta.Oauth.RefreshTokenRequest
+  alias Boruta.Oauth.Request
+  alias Boruta.Oauth.TokenResponse
   alias Tuist.Repo
 
-  def token(conn, oauth_module, application) do
-    case credential_query(conn.params) do
-      nil ->
-        oauth_module.token(conn, application)
+  def token(conn, application, opts \\ []) do
+    result =
+      with {:ok, request} <- Request.token_request(conn) do
+        authorize = Keyword.get(opts, :authorize, &Authorization.token/1)
 
-      query ->
-        exchange(conn, oauth_module, application, query)
-    end
+        case credential_query(request) do
+          nil -> authorize(request, authorize)
+          query -> exchange(request, authorize, query)
+        end
+      end
+
+    respond(conn, application, result)
   rescue
     error in Postgrex.Error ->
       if error.postgres[:code] == :lock_not_available do
@@ -36,45 +47,51 @@ defmodule Tuist.OAuth.Exchange do
       end
   end
 
-  def token_success(_conn, response), do: {:success, response}
-  def token_error(_conn, error), do: {:error, error}
-
-  defp exchange(conn, oauth_module, application, query) do
+  defp exchange(request, authorize, query) do
     transaction =
       Repo.transaction(fn ->
         Repo.query!("SET LOCAL lock_timeout = '5s'")
         Repo.one(from(t in query, select: t.id, lock: "FOR UPDATE"))
-        capture_exchange(conn, oauth_module)
+
+        case authorize(request, authorize) do
+          # Boruta intentionally revokes a code's descendant on reuse.
+          {:error, %Error{error: :invalid_grant}} = error -> error
+          {:error, _} = error -> Repo.rollback(error)
+          success -> success
+        end
       end)
 
-    result =
-      case transaction do
-        {:ok, result} -> result
-        {:error, result} -> result
-      end
-
-    case result do
-      {:success, response} -> application.token_success(conn, response)
-      {:error, error} -> application.token_error(conn, error)
+    case transaction do
+      {:ok, result} -> result
+      {:error, result} -> result
     end
   end
 
-  defp capture_exchange(conn, oauth_module) do
-    case oauth_module.token(conn, __MODULE__) do
-      # Boruta intentionally revokes a code's descendant on reuse.
-      {:error, %Error{error: :invalid_grant}} = error -> error
-      {:error, _} = error -> Repo.rollback(error)
-      success -> success
+  defp authorize(request, authorize) do
+    with {:ok, tokens} <- authorize.(request),
+         %TokenResponse{} = response <- TokenResponse.from_token(tokens) do
+      {:success, response}
     end
   end
 
-  defp credential_query(%{"grant_type" => "authorization_code", "code" => code}) when is_binary(code) do
+  defp respond(conn, application, {:success, response}), do: application.token_success(conn, response)
+  defp respond(conn, application, {:error, %Error{} = error}), do: application.token_error(conn, error)
+
+  defp respond(conn, application, {:error, reason}) do
+    application.token_error(conn, %Error{
+      status: :internal_server_error,
+      error: :unknown_error,
+      error_description: inspect(reason)
+    })
+  end
+
+  defp credential_query(%AuthorizationCodeRequest{code: code}) when is_binary(code) do
     from(t in Token, where: t.type == "code" and t.value == ^code)
   end
 
-  defp credential_query(%{"grant_type" => "refresh_token", "refresh_token" => token}) when is_binary(token) do
+  defp credential_query(%RefreshTokenRequest{refresh_token: token}) when is_binary(token) do
     from(t in Token, where: t.type == "access_token" and t.refresh_token == ^token)
   end
 
-  defp credential_query(_params), do: nil
+  defp credential_query(_request), do: nil
 end

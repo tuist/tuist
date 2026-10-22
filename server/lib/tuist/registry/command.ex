@@ -1,6 +1,7 @@
 defmodule Tuist.Registry.Command do
   @moduledoc false
 
+  alias Tuist.Registry.BoundedTask
   alias Tuist.Registry.Temporary
 
   def run(command, args, opts \\ []) do
@@ -16,28 +17,32 @@ defmodule Tuist.Registry.Command do
     # MuonTrap's output acknowledgements race quick child exits (:epipe).
     # Redirect to a private file, retaining child/process-group cleanup when
     # the port owner exits. No shared temp-file server is involved.
-    task =
-      Task.async(fn ->
-        System.cmd(
-          MuonTrap.muontrap_path(),
-          [
-            "--delay-to-sigkill",
-            "500",
-            "--",
-            System.find_executable("sh"),
-            "-c",
-            ~s(output=$1; shift; exec "$@" > "$output" 2>&1),
-            "registry-command",
-            output,
-            executable | args
-          ],
-          Keyword.delete(opts, :timeout)
-        )
-      end)
+    result =
+      BoundedTask.run(
+        fn ->
+          System.cmd(
+            MuonTrap.muontrap_path(),
+            [
+              "--delay-to-sigkill",
+              "500",
+              "--",
+              System.find_executable("sh"),
+              "-c",
+              ~s(output=$1; shift; exec "$@" > "$output" 2>&1),
+              "registry-command",
+              output,
+              executable | args
+            ],
+            Keyword.delete(opts, :timeout)
+          )
+        end,
+        timeout
+      )
 
     status =
-      case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
+      case result do
         {:ok, {_, status}} -> status
+        {:exit, _} -> raise "registry command process failed"
         nil -> :timeout
       end
 
