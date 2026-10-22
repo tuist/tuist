@@ -4,7 +4,7 @@ struct AtlasBusinessView: View {
     @StateObject private var model: AtlasBusiness
     @State private var query = ""
     @State private var creating = false
-    @State private var hasLoaded = false
+    @State private var loadedCriteria: (query: String, filters: [String: String])?
     @Environment(\.atlasPresence) private var presence
 
     init(resource: AtlasBusinessResource, request: @escaping ([String: Any]) async throws -> Data) {
@@ -13,20 +13,13 @@ struct AtlasBusinessView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            // Bottom-align a real first row to preserve List's top inset; supplementary headers ignore alignment.
-            let firstRowID = model.resource == .invoices ? nil : model.page?.items.first?.id
-            let anchor: UnitPoint = firstRowID == nil ? .top : .bottom
             list.onChange(of: model.page?.page) { _, page in
-                if page == 1 {
-                    if hasLoaded { proxy.scrollTo(firstRowID ?? "business-start", anchor: anchor) }
-                    hasLoaded = true
+                if page == 1, loadedCriteria?.query == model.query, loadedCriteria?.filters == model.filters {
+                    proxy.scrollTo("business-start", anchor: .top)
                 }
-            }
-            .onChange(of: model.filters) { _, _ in
-                if hasLoaded, model.page?.page == 1 { proxy.scrollTo(firstRowID ?? "business-start", anchor: anchor) }
-            }
-            .onChange(of: model.query) { _, _ in
-                if hasLoaded, model.page?.page == 1 { proxy.scrollTo(firstRowID ?? "business-start", anchor: anchor) }
+                if page != nil {
+                    loadedCriteria = (query: model.query, filters: model.filters)
+                }
             }
         }
     }
@@ -89,6 +82,9 @@ struct AtlasBusinessView: View {
                 ProgressView().frame(maxWidth: .infinity).accessibilityLabel("Loading")
             }
         }
+        // Reset only the list for new criteria; scrolling headers can clip them under native navigation.
+        .id(model.query)
+        .id(model.filters)
         .modifier(AtlasThemedContent())
         .navigationTitle(model.resource.title)
         .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
