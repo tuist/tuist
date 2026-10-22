@@ -74,10 +74,29 @@ the exact replacement pod and incarnation on another host. Crash promotion may
 lose acknowledged writes that had not yet replicated; clients must rebuild a
 cache miss rather than treating the asynchronous cache as durable storage.
 
+A **kubelet-verified container exit** is positive fencing for that process. At
+start the runtime writes `kura-incarnation=<incarnation>` to
+`/dev/termination-log`, so the terminated container's message names the exact
+process. When the holder pod's status reports that message, the controller
+moves to `Fencing` without waiting for grant expiry and records the evidence as
+`holder_exit` on the grant. A restarted container in the same pod (same pod
+UID and host) reports the inherited holder as `exit_resume`; the controller
+grants it the next epoch with an `exit_resume` binding to the exited holder,
+and the runtime reopens its own marked volume only for that grant. If no such
+restart is ready 60 seconds after the exit was recorded, the controller
+promotes a ready standby on another host whose initial backfill completed. A
+process holding an inherited volume reports not ready until its exit resume
+installs, so after a promotion the old ordinal stays unready and marked and
+needs the replica recovery below.
+A current operator `primaryPromotion` request takes precedence. Host loss,
+partitions and interrupted handovers report no exit and keep the manual path.
+
 An active primary fsyncs `.kura.primary-unclean` on its data volume. Only a
 successful planned revocation removes it. A crashed/expired primary's volume
 cannot restart into the peer plane, including after the feature flag is removed.
-Quarantine and rebuild it; do not manually erase the marker.
+The only reopening is an exit resume in the same pod, which rewrites the marker
+for the new holder. Otherwise quarantine and rebuild it; do not manually erase
+the marker.
 Every activated volume also fsyncs `.kura.serving-floor` with its instance UID.
 Compatible runtimes reject disabling authority or reusing that volume for another
 instance, including on a clean standby. Older binaries do not understand this
