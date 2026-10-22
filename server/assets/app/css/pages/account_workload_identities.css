@@ -87,12 +87,6 @@
         overflow-wrap: anywhere;
       }
 
-      & [data-part="policy-header"],
-      & [data-part="configuration"],
-      & [data-part="policy-footer"] {
-        position: relative;
-      }
-
       & [data-part="policy-header"] {
         display: flex;
         justify-content: space-between;
