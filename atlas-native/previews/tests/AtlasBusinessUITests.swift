@@ -125,6 +125,7 @@ final class AtlasBusinessUITests: XCTestCase {
         app.buttons["Reset filters"].tap()
         let all = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "31 items")).firstMatch
         XCTAssertTrue(all.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(all.frame.minY, app.navigationBars.firstMatch.frame.maxY)
         capture(app, "ios-accounts-filters-reset")
     }
 

@@ -56,8 +56,8 @@ struct AtlasBusinessView: View {
                     }
                 } header: {
                     Text(model.query.isEmpty ? "\(page.totalCount) items" : "Results for “\(model.query)” · \(page.totalCount) items")
+                        .id(model.resource == .invoices ? "business-records" : "business-start")
                 }
-                .id(model.resource == .invoices ? "business-records" : "business-start")
                 if model.filters["group_by"] == "reminder" {
                     ForEach(AtlasTaskReminderGroup.allCases) { group in
                         let items = page.items.filter { (model.records[$0.id] ?? $0)["reminder_group"] == group.rawValue }
