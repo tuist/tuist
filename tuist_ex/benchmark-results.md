@@ -371,3 +371,16 @@ passed those driver/lifecycle tests. The review expanded the Python coverage to
 20 tests, including run scoping, seeded misses/key drift/bypasses, partition
 output, lock mutation, timeouts/cancellation, forced termination, malformed
 records, total deadlines including setup and credential-free endpoint metadata.
+
+After merging `main`, the full package suite passed **451 tests**; formatting,
+warnings-as-errors compilation, Hex packaging and docs also passed. Additional
+Elixir 1.18 / OTP 27 cache testing caught a real compatibility issue: older Mix
+writes `compile.fetch` for rebar/custom managers instead of `compile.elixir_scm`.
+Validation now selects that required marker by runtime capability while retaining
+Elixir-SCM checks for Mix projects and newer runtimes. After this fix, the cache
+suite passed on Elixir 1.18 / OTP 27 (**93 passed, 10 compression tests skipped**)
+and Elixir 1.20 / OTP 29 (**103 passed**); the minimum-version rebar/Mix-dependent
+restore integration test passed separately. CI now includes the minimum-version
+cache suite, including the cold remote round trip that caught the issue. All 20
+Python tests, Docker lifecycle tests and both modified workflows' actionlint
+checks passed. These checks do not establish a new full-server performance result.

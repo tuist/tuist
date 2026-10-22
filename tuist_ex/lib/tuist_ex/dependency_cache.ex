@@ -429,12 +429,18 @@ defmodule TuistEx.DependencyCache do
   defp valid_application?(staging, dependency, version) do
     app = dependency.app
     path = Path.join([staging, "ebin", "#{app}.app"])
+    Code.ensure_loaded!(Mix.Dep.ElixirSCM)
+
+    manifest =
+      if dependency.manager != :mix and not function_exported?(Mix.Dep.ElixirSCM, :update, 3),
+        do: "compile.fetch",
+        else: "compile.elixir_scm"
 
     with {:ok, [{:application, ^app, properties}]} <- :file.consult(String.to_charlist(path)),
          true <- Keyword.keyword?(properties),
          true <- to_string(Keyword.fetch!(properties, :vsn)) == version,
          modules when is_list(modules) <- Keyword.fetch!(properties, :modules),
-         true <- File.regular?(Path.join(staging, ".mix/compile.elixir_scm")) do
+         true <- File.regular?(Path.join([staging, ".mix", manifest])) do
       Enum.all?(modules, fn module ->
         is_atom(module) and File.regular?(Path.join([staging, "ebin", "#{module}.beam"]))
       end)

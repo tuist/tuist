@@ -126,7 +126,9 @@ caching for those same paths; keep Go test result reuse disabled with `-count=1`
 
 `tuist-ex.yml` runs separate compilation, documentation, test, formatting,
 and package jobs. Compilation covers the minimum and current supported Elixir
-versions. The workflow is reused by `tuist-ex-release.yml` before publication.
+versions; the minimum-version job also runs the cache suite, including a real
+cold remote round trip, to catch Mix/OTP artifact-layout differences. The workflow
+is reused by `tuist-ex-release.yml` before publication.
 Releases run only from `main`, serialize publishing, and use the shared
 `release:check` registry with the `tuist-ex@` tag prefix. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
