@@ -512,8 +512,8 @@ disagree.
 
 Two things follow. A PDU is a `RackPDU`, adopted and kept configured by the CAPI
 provider (see "RackPDU objects" below), and a RackHost names its outlet as
-`power: {pdu: <name>, outlet: "<n>"}`; `ber1-runner-b01` to `b06` are on
-`ber1-pdu-b`, `b07` to `b09` on `ber1-pdu-a`. And a mini's outlet and its ToR
+`power: {pdu: <name>, outlet: "<n>"}`; `ber1-runner-b01` to `b06`, `b15` and
+`b16` are on `ber1-pdu-b`, `b07` to `b14` on `ber1-pdu-a`. And a mini's outlet and its ToR
 must land on the same chain (chain A minis on ToR A, chain B minis on ToR B), so
 a mini never depends on the other chain. Crossed, any one ATS failure takes the
 whole fleet: half the minis lose power and the other half lose their ToR.

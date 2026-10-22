@@ -417,8 +417,8 @@
 		// One /32 per mini, matching exactly what the edges advertise
 		// (infra/helm/rack-edge/sites/ber1/tailnet-routes.sh, rendered from
 		// infra/rack-switch-fleet/sites/ber1.json, and the hosts' addresses
-		// in rackFleet.hosts in values-managed-production.yaml): b01-b09 at
-		// 10.10.0.101-10.10.0.109. Not the segment's /24, although the
+		// in rackFleet.hosts in values-managed-production.yaml): b01-b16 at
+		// 10.10.0.101-10.10.0.116. Not the segment's /24, although the
 		// edges' routes are auto-approved inside it: the segment also holds
 		// the edges (10.10.0.2, .3) and ber1-store-a (10.10.0.11), and a
 		// /24 here would hand SSH to any of them the moment an edge
@@ -436,6 +436,13 @@
 				"10.10.0.107/32",
 				"10.10.0.108/32",
 				"10.10.0.109/32",
+				"10.10.0.110/32",
+				"10.10.0.111/32",
+				"10.10.0.112/32",
+				"10.10.0.113/32",
+				"10.10.0.114/32",
+				"10.10.0.115/32",
+				"10.10.0.116/32",
 			],
 			"ip":  ["tcp:22"],
 		},
@@ -463,6 +470,13 @@
 				"10.10.0.107/32",
 				"10.10.0.108/32",
 				"10.10.0.109/32",
+				"10.10.0.110/32",
+				"10.10.0.111/32",
+				"10.10.0.112/32",
+				"10.10.0.113/32",
+				"10.10.0.114/32",
+				"10.10.0.115/32",
+				"10.10.0.116/32",
 			],
 			"ip":  ["tcp:22"],
 		},

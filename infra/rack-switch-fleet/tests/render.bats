@@ -638,7 +638,7 @@ mini_referencing() {
 
 @test "the site's mini references its RackHost, and that validates" {
     run jq -r '[.nodes[] | select(.rack_host != null) | .rack_host] | join(" ")' "$SITE_FILE"
-    [ "$output" = "ber1-runner-b01 ber1-runner-b02 ber1-runner-b03 ber1-runner-b04 ber1-runner-b05 ber1-runner-b06 ber1-runner-b07 ber1-runner-b08 ber1-runner-b09" ]
+    [ "$output" = "ber1-runner-b01 ber1-runner-b02 ber1-runner-b03 ber1-runner-b04 ber1-runner-b05 ber1-runner-b06 ber1-runner-b07 ber1-runner-b08 ber1-runner-b09 ber1-runner-b10 ber1-runner-b11 ber1-runner-b12 ber1-runner-b13 ber1-runner-b14 ber1-runner-b15 ber1-runner-b16" ]
     run fleet_check_rack_hosts "$SITE_FILE"
     [ "$status" -eq 0 ]
 }
