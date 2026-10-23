@@ -686,7 +686,7 @@ STUB
     jq '.management.edge.wan.egress |= del(.nodes)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/allminis.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/allminis.json"
     [ "$status" -eq 0 ]
-    [[ "$output" == *'ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109 } snat ip to 95.130.119.16-95.130.119.31 persistent'* ]]
+    [[ "$output" == *'ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109, 10.10.0.110, 10.10.0.111, 10.10.0.112, 10.10.0.113, 10.10.0.114, 10.10.0.115, 10.10.0.116 } snat ip to 95.130.119.16-95.130.119.31 persistent'* ]]
     [[ "$output" != *"10.10.0.11 "* ]]
     [[ "$output" != *"10.10.0.11,"* ]]
     # without an egress the machines all go out from the WAN address
