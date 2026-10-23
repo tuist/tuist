@@ -83,7 +83,8 @@ Android nightly publication is skipped rather than distributing ephemeral debug
 identities; debug CI artifacts remain. Android and simulator publication precede
 iOS device signing so a profile capability update cannot block them. iOS signing
 requires an Associated Domains-enabled profile and requests only the hosted app
-link domain. Credential-free Android signing, associated-domain and APNs capability,
+link domain. Its provisioning guard accepts Apple's scalar wildcard authorization
+as well as domain arrays, without copying a wildcard into the app signature. Credential-free Android signing, associated-domain and APNs capability,
 keychain-lifecycle and launcher-packaging tests also gate publication. Android
 builds verify locked Firebase dependencies, explicitly merged SDK manifests, and
 library R IDs against the final APK. Portable importer integrity/resource tests

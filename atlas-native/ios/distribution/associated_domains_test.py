@@ -26,6 +26,16 @@ class AssociatedDomainsTests(unittest.TestCase):
             )
             return result, plistlib.loads(entitlements.read_bytes())
 
+    def test_scalar_wildcard_profile_requests_only_the_hosted_domain(self):
+        result, entitlements = self.configure("*")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(entitlements[KEY], [DOMAIN])
+
+    def test_scalar_exact_profile_requests_only_the_hosted_domain(self):
+        result, entitlements = self.configure(DOMAIN)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(entitlements[KEY], [DOMAIN])
+
     def test_wildcard_profile_requests_only_the_hosted_domain(self):
         result, entitlements = self.configure(["*"])
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -37,10 +47,15 @@ class AssociatedDomainsTests(unittest.TestCase):
         self.assertEqual(entitlements[KEY], [DOMAIN])
 
     def test_missing_or_wrong_capability_fails_closed(self):
-        for domains in [None, [], ["applinks:other.example.org"], ["webcredentials:atlas.tuist.dev"]]:
+        for domains in [
+            None, [], "", True, 1, {"0": "*"}, [["*"]],
+            "applinks:other.example.org", "webcredentials:atlas.tuist.dev", "**",
+            ["applinks:other.example.org"], ["webcredentials:atlas.tuist.dev"],
+        ]:
             with self.subTest(domains=domains):
-                result, _ = self.configure(domains)
+                result, entitlements = self.configure(domains)
                 self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(entitlements, {} if domains is None else {KEY: domains})
                 self.assertIn("regenerate the Atlas ad-hoc provisioning profile", result.stderr)
 
 
