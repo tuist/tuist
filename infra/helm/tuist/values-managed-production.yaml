@@ -2263,9 +2263,17 @@ runnersFleetLinux:
         minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
-    - { vcpus: 8, memoryGb: 16 }
+    # Jobs on 8vcpu-16gb and 16vcpu-32gb arrive as one fan-out of two
+    # 8 vCPU jobs and one 16 vCPU job, so their floors cover one fan-out.
+    - vcpus: 8
+      memoryGb: 16
+      autoscaling:
+        minWarmPoolFloor: 2
     - { vcpus: 8, memoryGb: 32 }
-    - { vcpus: 16, memoryGb: 32 }
+    - vcpus: 16
+      memoryGb: 32
+      autoscaling:
+        minWarmPoolFloor: 1
     # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
     # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to
