@@ -6581,7 +6581,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_testWithoutBuilding_fromBundle_records_coverage_evidence_and_exports_coverage() async throws {
+    func test_run_testWithoutBuilding_fromBundle_records_coverage_evidence_and_exports_coverage_under_the_passthrough_derived_data() async throws {
         // Given
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
@@ -6590,6 +6590,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
         try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
         let resultBundlePath = path.appending(component: "Shard.xcresult")
+        let derivedDataPath = path.appending(component: "DerivedData")
         let session = TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:])
         let testCoverageEvidenceService = MockTestCoverageEvidenceServicing()
         let coverageExportService = MockCoverageExportServicing()
@@ -6620,6 +6621,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: [
                     "-testProductsPath", testProductsPath.pathString,
                     "-destination", "platform=iOS Simulator,id=device-id",
+                    "-derivedDataPath", derivedDataPath.pathString,
                 ],
                 mode: .remote
             )
@@ -6630,12 +6632,16 @@ final class TestServiceTests: TuistUnitTestCase {
             .prepare(platform: .value(.iOSSimulator), config: .any)
             .called(1)
         verify(testCoverageEvidenceService)
-            .record(session: .value(session), resultBundlePath: .value(resultBundlePath), derivedDataDirectory: .value(nil))
+            .record(
+                session: .value(session),
+                resultBundlePath: .value(resultBundlePath),
+                derivedDataDirectory: .value(derivedDataPath)
+            )
             .called(1)
         verify(coverageExportService)
             .export(
                 resultBundlePath: .value(resultBundlePath),
-                derivedDataDirectory: .value(nil),
+                derivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 runStartedAt: .any
             )
