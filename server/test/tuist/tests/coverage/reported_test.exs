@@ -159,16 +159,19 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
               %{
                 paths: ["Sources/Math.swift", "Sources/Text.swift"],
                 scopes:
-                  [
-                    %{
-                      kind: "test",
-                      module: "AppTests",
-                      suite: "MathTests",
-                      name: "testAdd()",
-                      files: [0],
-                      lines: [[1, 2]]
-                    }
-                  ] ++
+                  if(Keyword.get(opts, :test_scope, true),
+                    do: [
+                      %{
+                        kind: "test",
+                        module: "AppTests",
+                        suite: "MathTests",
+                        name: "testAdd()",
+                        files: [0],
+                        lines: [[1, 2]]
+                      }
+                    ],
+                    else: []
+                  ) ++
                     if(target_scope?, do: [target], else: []),
                 overlapped_tests: Keyword.get(opts, :overlapped_tests, [])
               },
@@ -192,8 +195,23 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     project: project,
     account: account
   } do
-    assert reasons(missing_evidence_runs(project, account, "collected", false)) == [:not_linked]
+    assert reasons(missing_evidence_runs(project, account, "collected", false, test_scope: false)) == [:not_linked]
     assert [%{coverage_evidence_status: "collected"}] = Commits.runs(project.id, "base")
+  end
+
+  test "a target with only its process's evidence doesn't link the package", %{project: project, account: account} do
+    assert reasons(missing_evidence_runs(project, account, "collected", true, test_scope: false)) == [:not_linked]
+  end
+
+  test "a test whose target recorded only overlapping tests has no attribution because of the overlap", %{
+    project: project,
+    account: account
+  } do
+    overlapped = [%{module: "AppTests", suite: "TextTests", name: "testTrim()"}]
+
+    assert reasons(
+             missing_evidence_runs(project, account, "collected", true, test_scope: false, overlapped_tests: overlapped)
+           ) == [:overlapped]
   end
 
   test "a test of a target that recorded evidence has no attribution of its own", %{project: project, account: account} do
