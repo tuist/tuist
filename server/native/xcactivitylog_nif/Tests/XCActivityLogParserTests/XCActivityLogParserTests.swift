@@ -433,6 +433,50 @@ struct XCActivityLogParserTests {
         #expect(result.cacheable_tasks.allSatisfy { $0.read_duration == nil && $0.write_duration == nil })
     }
 
+    // MARK: - Remote Cache With Batch-Mode Swift Jobs
+    //
+    // `xcode_27_remote_batch_jobs` builds three Swift targets against local Kura through the CAS
+    // plugin with `-driver-batch-count 2`. Bravo was compiled into this build's local CAS by an
+    // earlier build, Charlie only by another machine (remote hits), and Alpha was edited. Each
+    // batch job names one key per primary file in its `materialize key [...]` / `query key [...]`
+    // steps and uploads each key separately, but Xcode counts the job once.
+
+    @Test func remoteBatchJobs_countsEveryTaskXcodeReports() async throws {
+        let result = try await parseFixture("xcode_27_remote_batch_jobs")
+        let summary = try xcodeCacheSummary(inFixture: "xcode_27_remote_batch_jobs")
+
+        #expect(result.cacheable_tasks.count == summary.cacheable)
+        #expect(result.cacheable_tasks.filter { $0.status != "miss" }.count == summary.hits)
+        #expect(Set(result.cacheable_tasks.map(\.key)).count == result.cacheable_tasks.count)
+    }
+
+    @Test func remoteBatchJobs_classifiesEachJobOnce() async throws {
+        let result = try await parseFixture("xcode_27_remote_batch_jobs")
+        let statuses = Dictionary(grouping: result.cacheable_tasks) { "\($0.type) \($0.status)" }
+            .mapValues { Set($0.compactMap(\.description)) }
+
+        #expect(statuses == [
+            "swift hit_local": [
+                "Compiling Clang module SwiftShims",
+                "Compiling Clang module _SwiftConcurrencyShims",
+                "Emitting module for Bravo",
+                "Compiling BravoFour.swift, BravoOne.swift",
+                "Compiling BravoThree.swift, BravoTwo.swift",
+            ],
+            "swift hit_remote": [
+                "Emitting module for Charlie",
+                "Compiling CharlieFour.swift, CharlieOne.swift",
+                "Compiling CharlieThree.swift, CharlieTwo.swift",
+            ],
+            "swift miss": [
+                "Emitting module for Alpha",
+                "Compiling AlphaFive.swift, AlphaFour.swift, AlphaOne.swift",
+                "Compiling AlphaSix.swift, AlphaThree.swift, AlphaTwo.swift",
+            ],
+        ])
+        #expect(result.cacheable_tasks.filter { $0.status == "miss" }.allSatisfy { !$0.cas_output_node_ids.isEmpty })
+    }
+
     private func xcodeCacheSummary(inFixture name: String) throws -> (hits: Int, cacheable: Int) {
         let log = String(decoding: try gunzip(try fixtureURL(name)), as: UTF8.self)
         let regex = try NSRegularExpression(pattern: "(\\d+) hits / (\\d+) cacheable tasks")
