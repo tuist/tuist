@@ -1,10 +1,10 @@
 {
-  "hash": "f1072ba1eb083c8c955e135753a84b3d62d0e7881a0ff785297fa4cc4e043d9b",
+  "hash": "2d3a3f7f8bc42bda93d1d161b67477e5f363eefee20a36e5f032305f03f50fe1",
   "hash_tree": {
     "context": {
       "child": {
         "file": "server/L10N.md",
-        "hash": "4b6d469c7014caa6766970af517055bd43685866b230e2545cce3b06044cec87",
+        "hash": "c492c51cd80fe9f2e65f78078814f4c0450564fd840e075598276364f83073b9",
         "locale_override": {
           "file": "server/L10N/es.md",
           "hash": "0fddcd4efd657f1b06dcfd0915245d2f172199275328cfa77c8f000c711a0361"
@@ -15,9 +15,9 @@
     },
     "source": {
       "file": "server/priv/gettext/dashboard_gradle.pot",
-      "hash": "4830157411fe0ba195202cf14dbe72b13e65c66c97f979bf187ccdd13df8e6bf"
+      "hash": "b6e98f9e9701394c0aecb78a8c9c3300e4bf9ea1b7fc5b6142c09f1cf954f7ec"
     }
   },
-  "model": "openai:gpt-4.1-mini",
-  "translated_at": "2026-05-11T14:13:52.906162Z"
+  "model": "hive:Translator",
+  "translated_at": "2026-10-23T15:33:44.834121Z"
 }
