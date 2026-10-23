@@ -98,18 +98,15 @@
             )
             |> String.slice(0, 8)}</span>
           </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_builds", "Rust version")}</div>
-            <span data-part="label">{available(@build.rust_version)}</span>
-          </div>
         </div>
       </div>
       <TuistWeb.Components.BuildMetadata.build_metadata values={@build.custom_values || %{}} />
     </.card_section>
   </.card>
-  <TuistWeb.Components.BuildMetadata.infrastructure_metadata
+  <TuistWeb.Components.BuildMetadata.environment_metadata
     :if={@selected_tab == "overview"}
     values={@build.custom_values || %{}}
+    fields={[{dgettext("dashboard_builds", "Rust version"), @build.rust_version}]}
   />
   <div :if={@selected_tab == "cache" && @cache_metrics} data-part="cache">
     <.card

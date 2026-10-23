@@ -153,14 +153,6 @@
             </div>
           </div>
           <div data-part="metadata-row">
-            <div :if={@build.gradle_version} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Gradle Version")}</div>
-              <span data-part="label">{@build.gradle_version}</span>
-            </div>
-            <div :if={@build.java_version} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Java Version")}</div>
-              <span data-part="label">{@build.java_version}</span>
-            </div>
             <div :if={@build.git_branch} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_gradle", "Branch")}</div>
               <span data-part="label">
@@ -212,9 +204,13 @@
         <TuistWeb.Components.BuildMetadata.build_metadata values={@build.custom_values || %{}} />
       </.card_section>
     </.card>
-    <TuistWeb.Components.BuildMetadata.infrastructure_metadata values={
-      @build.custom_values || %{}
-    } />
+    <TuistWeb.Components.BuildMetadata.environment_metadata
+      values={@build.custom_values || %{}}
+      fields={[
+        {dgettext("dashboard_gradle", "Gradle Version"), @build.gradle_version},
+        {dgettext("dashboard_gradle", "Java Version"), @build.java_version}
+      ]}
+    />
     <.card
       title={dgettext("dashboard_gradle", "Tasks")}
       icon="subtask"

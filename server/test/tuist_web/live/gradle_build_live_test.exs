@@ -578,7 +578,8 @@ defmodule TuistWeb.GradleBuildLiveTest do
     refute has_element?(view, "#requested-tasks")
   end
 
-  test "infrastructure is collapsed below Build Details while custom metadata stays inside", %{
+  @tag :build_environment
+  test "build environment is collapsed below Build Details while custom metadata stays inside", %{
     conn: conn,
     project: project,
     organization: organization
@@ -591,7 +592,11 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
 
-    assert has_element?(view, "#gradle-build > #build-environment", "Infrastructure and runner")
+    assert has_element?(view, "#gradle-build > #build-environment", "Build environment")
+    assert has_element?(view, "#build-environment-content[hidden]", "Gradle Version")
+    assert has_element?(view, "#build-environment-content[hidden]", "Java Version")
+    refute has_element?(view, "[data-part=build-details]", "Gradle Version")
+    refute has_element?(view, "[data-part=build-details]", "Java Version")
     assert has_element?(view, "#build-environment button[aria-expanded=false]")
     assert has_element?(view, "#build-environment-content[hidden]", "Available logical processors")
     assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
@@ -599,7 +604,8 @@ defmodule TuistWeb.GradleBuildLiveTest do
     refute has_element?(view, "#build-environment #custom-metadata-table")
   end
 
-  test "omits the infrastructure card when no recognized observations were reported", %{
+  @tag :build_environment
+  test "legacy toolchain versions show the environment without new observations", %{
     conn: conn,
     project: project,
     organization: organization
@@ -608,7 +614,9 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
 
-    refute has_element?(view, "#build-environment")
+    assert has_element?(view, "#build-environment-content[hidden]", "8.5")
+    assert has_element?(view, "#build-environment-content[hidden]", "17.0.1")
+    refute has_element?(view, "[data-part=build-details]", "Gradle Version")
     assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
   end
 

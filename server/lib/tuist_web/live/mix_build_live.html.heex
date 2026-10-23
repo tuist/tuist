@@ -437,24 +437,6 @@
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_builds", "Elixir version")}</div>
-              <span data-part="label">
-                {if(@run.elixir_version == "",
-                  do: dgettext("dashboard_builds", "Unknown"),
-                  else: @run.elixir_version
-                )}
-              </span>
-            </div>
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_builds", "OTP version")}</div>
-              <span data-part="label">
-                {if(@run.otp_version == "",
-                  do: dgettext("dashboard_builds", "Unknown"),
-                  else: @run.otp_version
-                )}
-              </span>
-            </div>
-            <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_builds", "Mix environment")}</div>
               <span data-part="label">
                 {if(@run.mix_env == "",
@@ -468,7 +450,13 @@
         <TuistWeb.Components.BuildMetadata.build_metadata values={@run.custom_values || %{}} />
       </.card_section>
     </.card>
-    <TuistWeb.Components.BuildMetadata.infrastructure_metadata values={@run.custom_values || %{}} />
+    <TuistWeb.Components.BuildMetadata.environment_metadata
+      values={@run.custom_values || %{}}
+      fields={[
+        {dgettext("dashboard_builds", "Elixir version"), @run.elixir_version},
+        {dgettext("dashboard_builds", "OTP version"), @run.otp_version}
+      ]}
+    />
     <.card
       :if={not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)}
       title={dgettext("dashboard_builds", "Errors and Warnings")}

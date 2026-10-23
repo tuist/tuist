@@ -4,7 +4,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 ## Responsibilities
 
-- Build-detail infrastructure and custom metadata tables share the existing metadata typography, link treatment and 35% property column across Xcode, Gradle, Bazel, Mix and Cargo. Keep `#build-environment-table` and `#custom-metadata-table` aligned in page styles. `components/build_metadata.css` keeps the separate Infrastructure and runner Noora card compact and initially collapsed, hides its content before JavaScript mounts, and preserves a single-row header on narrow screens. Custom metadata stays inside Build Details.
+- Build environment and custom metadata tables share the existing metadata typography, link treatment and 35% property column across Xcode, Gradle, Bazel, Mix, Cargo and Once. Keep `#build-environment-table` and `#custom-metadata-table` aligned in page styles. `components/build_metadata.css` keeps the separate Build environment Noora card compact and initially collapsed, hides its content before JavaScript mounts, and preserves a single-row header on narrow screens. Custom metadata stays inside Build Details.
 
 - `app/js/JSONInput.mjs` enables the Lumis overlay only when its source exactly matches the native textarea. Fall back to plain text during stale responses, IME composition and disconnection; never rewrite input values or selections. Synchronize scrolling and resizing, and preserve readable forced-colors and no-JavaScript states with `app/css/components/json_input.css`.
 

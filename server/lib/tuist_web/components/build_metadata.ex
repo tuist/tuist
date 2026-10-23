@@ -42,15 +42,23 @@ defmodule TuistWeb.Components.BuildMetadata do
   end
 
   attr :values, :map, default: %{}
+  attr :fields, :list, default: [], doc: "Label/value pairs from existing build environment fields"
 
-  def infrastructure_metadata(assigns) do
+  def environment_metadata(assigns) do
     {observations, _custom} = Metadata.partition(assigns.values)
-    assigns = assign(assigns, :observations, observations)
+
+    fields =
+      assigns.fields
+      |> Enum.filter(fn {_label, value} -> is_binary(value) and String.trim(value) != "" end)
+      |> Enum.map(fn {label, value} -> {"field:#{label}", label, value} end)
+
+    observations = Enum.map(observations, fn {key, value} -> {key, label(key), format_value(key, value)} end)
+    assigns = assign(assigns, :properties, fields ++ observations)
 
     ~H"""
-    <div :if={@observations != []} id="build-environment">
+    <div :if={@properties != []} id="build-environment">
       <.card
-        title={dgettext("dashboard_builds", "Infrastructure and runner")}
+        title={dgettext("dashboard_builds", "Build environment")}
         icon="server"
         data-part="root"
         data-state="closed"
@@ -66,7 +74,7 @@ defmodule TuistWeb.Components.BuildMetadata do
                 to: "#build-environment > [data-part=root]"
               )
             }
-            aria-label={dgettext("dashboard_builds", "Infrastructure and runner")}
+            aria-label={dgettext("dashboard_builds", "Build environment")}
             aria-expanded="false"
             aria-controls="build-environment-content"
           >
@@ -78,12 +86,15 @@ defmodule TuistWeb.Components.BuildMetadata do
           data-part="content"
           hidden
         >
-          <.table id="build-environment-table" rows={@observations} row_key={fn {key, _} -> key end}>
-            <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Reported property")}>
-              <.text_cell label={label(key)} />
+          <.table id="build-environment-table" rows={@properties} row_key={fn {key, _, _} -> key end}>
+            <:col
+              :let={{_key, label, _value}}
+              label={dgettext("dashboard_builds", "Reported property")}
+            >
+              <.text_cell label={label} />
             </:col>
-            <:col :let={{key, value}} label={dgettext("dashboard_builds", "Value")}>
-              <.text_cell label={format_value(key, value)} />
+            <:col :let={{_key, _label, value}} label={dgettext("dashboard_builds", "Value")}>
+              <.text_cell label={value} />
             </:col>
           </.table>
         </.card_section>

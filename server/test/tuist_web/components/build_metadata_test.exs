@@ -14,25 +14,25 @@ defmodule TuistWeb.Components.BuildMetadataTest do
     }
 
     custom = render_component(&BuildMetadata.build_metadata/1, values: values)
-    infrastructure = render_component(&BuildMetadata.infrastructure_metadata/1, values: values)
+    environment = render_component(&BuildMetadata.environment_metadata/1, values: values)
 
-    assert infrastructure =~ "Infrastructure and runner"
-    assert infrastructure =~ "Available logical processors"
-    assert infrastructure =~ "Maximum JVM heap"
-    refute infrastructure =~ "unknown-workers"
-    refute infrastructure =~ "future.key"
+    assert environment =~ "Build environment"
+    assert environment =~ "Available logical processors"
+    assert environment =~ "Maximum JVM heap"
+    refute environment =~ "unknown-workers"
+    refute environment =~ "future.key"
     refute custom =~ "Available logical processors"
     assert custom =~ "tuist.gradle.max_workers"
     assert custom =~ "&lt;script&gt;untrusted&lt;/script&gt;"
     refute custom =~ "<script>"
-    text = (custom <> infrastructure) |> Floki.parse_fragment!() |> Floki.text()
+    text = (custom <> environment) |> Floki.parse_fragment!() |> Floki.text()
     assert length(Regex.scan(~r/unknown-workers/, text)) == 1
     assert length(Regex.scan(~r/future.key/, text)) == 1
   end
 
-  test "infrastructure is a separate Noora card collapsed before JavaScript mounts" do
+  test "build environment is a separate Noora card collapsed before JavaScript mounts" do
     html =
-      render_component(&BuildMetadata.infrastructure_metadata/1,
+      render_component(&BuildMetadata.environment_metadata/1,
         values: %{"tuist.cpu.available_processors" => "28"}
       )
 
@@ -44,31 +44,71 @@ defmodule TuistWeb.Components.BuildMetadataTest do
     assert [_] =
              Floki.find(
                document,
-               "button[data-part=trigger][aria-expanded=false][aria-controls=build-environment-content]"
+               "button[data-part=trigger][aria-label='Build environment'][aria-expanded=false][aria-controls=build-environment-content]"
              )
 
     assert [_] = Floki.find(document, "#build-environment-content.noora-card__section[hidden]")
     refute html =~ "custom-metadata-table"
   end
 
-  test "custom metadata remains outside the infrastructure disclosure" do
+  test "custom metadata remains outside the environment disclosure" do
     html = render_component(&BuildMetadata.build_metadata/1, values: %{"team" => "mobile"})
 
     assert html =~ "Custom metadata"
     assert html =~ "custom-metadata-table"
     assert html =~ "mobile"
     refute html =~ "build-environment-toggle"
-    refute html =~ "Infrastructure and runner"
   end
 
-  test "infrastructure is omitted when only custom or invalid observations were reported" do
+  test "environment is omitted when only custom or invalid observations were reported" do
     for values <- [%{"team" => "mobile"}, %{"tuist.cpu.available_processors" => "unknown"}] do
-      html = render_component(&BuildMetadata.infrastructure_metadata/1, values: values)
+      html = render_component(&BuildMetadata.environment_metadata/1, values: values)
       assert String.trim(html) == ""
     end
   end
 
-  test "observations remain escaped text while ordinary metadata retains safe links" do
+  test "existing fields show the environment even without new observations" do
+    html =
+      render_component(&BuildMetadata.environment_metadata/1,
+        fields: [{"Gradle Version", "9.2.1"}, {"Java Version", "21.0.7"}]
+      )
+
+    document = Floki.parse_fragment!(html)
+    assert [_] = Floki.find(document, "#build-environment-content[hidden]")
+    assert html =~ "Gradle Version"
+    assert html =~ "9.2.1"
+    assert html =~ "Java Version"
+    assert html =~ "21.0.7"
+    refute html =~ "custom-metadata-table"
+  end
+
+  test "existing fields and observations are rendered together without rewriting metadata" do
+    values = %{"tuist.jvm.vendor" => "Eclipse Adoptium", "team" => "mobile"}
+
+    html =
+      render_component(&BuildMetadata.environment_metadata/1,
+        fields: [{"Java Version", "21.0.7"}],
+        values: values
+      )
+
+    document = Floki.parse_fragment!(html)
+    rows = Floki.find(document, "#build-environment-table tbody tr")
+    assert length(rows) == 2
+    assert Floki.text(hd(rows)) =~ "Java Version"
+    assert Floki.text(List.last(rows)) =~ "Eclipse Adoptium"
+    refute html =~ "mobile"
+  end
+
+  test "missing existing fields are omitted rather than displaying an empty environment" do
+    html =
+      render_component(&BuildMetadata.environment_metadata/1,
+        fields: [{"Java Version", nil}, {"Gradle Version", ""}, {"Rust version", "  "}]
+      )
+
+    assert String.trim(html) == ""
+  end
+
+  test "existing fields and observations remain escaped while ordinary metadata retains safe links" do
     values = %{
       "tuist.ci.runner_name" => "<script>untrusted</script>",
       "tuist.ci.job" => "https://example.com/job",
@@ -76,19 +116,25 @@ defmodule TuistWeb.Components.BuildMetadataTest do
       "unsafe-link" => "javascript:alert(1)"
     }
 
-    infrastructure = render_component(&BuildMetadata.infrastructure_metadata/1, values: values)
+    environment =
+      render_component(&BuildMetadata.environment_metadata/1,
+        values: values,
+        fields: [{"Once version", "<script>version</script>"}]
+      )
+
     custom = render_component(&BuildMetadata.build_metadata/1, values: values)
 
-    assert infrastructure =~ "&lt;script&gt;untrusted&lt;/script&gt;"
-    assert infrastructure =~ "https://example.com/job"
-    assert [] == infrastructure |> Floki.parse_fragment!() |> Floki.find("a, script")
+    assert environment =~ "&lt;script&gt;untrusted&lt;/script&gt;"
+    assert environment =~ "&lt;script&gt;version&lt;/script&gt;"
+    assert environment =~ "https://example.com/job"
+    assert [] == environment |> Floki.parse_fragment!() |> Floki.find("a, script")
 
     assert ["https://example.com/build"] ==
              custom |> Floki.parse_fragment!() |> Floki.find("a") |> Floki.attribute("href")
   end
 
-  test "legacy empty maps render neither metadata section" do
-    for component <- [&BuildMetadata.build_metadata/1, &BuildMetadata.infrastructure_metadata/1] do
+  test "legacy empty maps without existing fields render neither metadata section" do
+    for component <- [&BuildMetadata.build_metadata/1, &BuildMetadata.environment_metadata/1] do
       assert component |> render_component(values: %{}) |> String.trim() == ""
     end
   end

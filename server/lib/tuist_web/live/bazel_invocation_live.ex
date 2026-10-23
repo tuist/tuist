@@ -267,14 +267,6 @@ defmodule TuistWeb.BazelInvocationLive do
                   <div data-part="title">{dgettext("dashboard_projects", "Targets")}</div>
                   <code data-part="command">{target_patterns_label(@invocation.target_patterns)}</code>
                 </div>
-                <div
-                  :if={@invocation.bazel_version != ""}
-                  data-part="metadata"
-                  data-field="bazel-version"
-                >
-                  <div data-part="title">{dgettext("dashboard_projects", "Bazel version")}</div>
-                  <code data-part="command">{@invocation.bazel_version}</code>
-                </div>
               </div>
               <div data-part="metadata-row">
                 <div :if={connected_to_repository?(@selected_project)} data-part="metadata">
@@ -309,9 +301,10 @@ defmodule TuistWeb.BazelInvocationLive do
             } />
           </.card_section>
         </.card>
-        <TuistWeb.Components.BuildMetadata.infrastructure_metadata values={
-          @invocation.custom_values || %{}
-        } />
+        <TuistWeb.Components.BuildMetadata.environment_metadata
+          values={@invocation.custom_values || %{}}
+          fields={[{dgettext("dashboard_projects", "Bazel version"), @invocation.bazel_version}]}
+        />
       </div>
       <div :if={@selected_tab == "cache"} data-part="tab-panel">
         <.cache_tab
