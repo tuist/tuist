@@ -24,6 +24,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.Env
+  alias TuistEx.Analytics.ExcludeTestIds
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.Metadata
@@ -40,12 +41,16 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     # any test does, which is when a run of an instrumented build gets ready.
     if Keyword.get(merged, :coverage_native, false), do: prepare_native(merged)
     quarantine = Keyword.get(merged, :quarantine)
+    exclusion = Keyword.get(merged, :quarantine_exclusion)
 
     {:ok,
      %{
        tests: [],
        quarantine: quarantine,
-       excluded_names: Quarantine.excluded_names(quarantine),
+       quarantine_exclusion: exclusion,
+       # Only the name filter leaves out other tests than the skipped ones.
+       excluded_names:
+         if(exclusion == :names, do: Quarantine.excluded_names(quarantine), else: MapSet.new()),
        also_excluded: [],
        excluded: [],
        excluded_tags: MapSet.new(Keyword.get(merged, :coverage_excluded_tags, [])),
@@ -88,7 +93,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     identity = Quarantine.identity(record(test))
 
     cond do
-      Quarantine.skipped?(state.quarantine, identity) ->
+      reason == ExcludeTestIds.reason() or Quarantine.skipped?(state.quarantine, identity) ->
         {:noreply, state}
 
       MapSet.member?(state.excluded_names, Atom.to_string(test.name)) ->
@@ -182,9 +187,16 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     notify = Keyword.get(state.opts, :notify, &IO.puts/1)
 
     if state.skipped_but_ran != [] do
+      why =
+        if state.quarantine_exclusion == :names,
+          do:
+            "an include filter (--only, --include, file:line) selected them, or they are not of type `test`",
+          else: "they are not of type `test`"
+
       notify.(
-        "warning: Tuist skips these tests, but they ran: an include filter " <>
-          "(--only, --include, file:line) selected them, or they are not of type `test`:\n" <>
+        "warning: Tuist skips these tests, but they ran: " <>
+          why <>
+          ":\n" <>
           list(state.skipped_but_ran)
       )
     end
