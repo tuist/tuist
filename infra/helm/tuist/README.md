@@ -227,9 +227,19 @@ clickhouse:
 
 ## Scaling the server
 
-Complete the [OAuth upgrade sequence and clustering migration prerequisites](../../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering) before changing cluster membership. Enable `server.cluster.enabled` before adding web replicas or enabling autoscaling; the chart rejects configurations that can run multiple web replicas without clustering. Web nodes use `<applicationName>@<pod-address>` names and discover IPv4 peer addresses through the release's headless service, including pods that are still starting.
+### When to add replicas
 
-For a self-hosted installation, create a high-entropy cookie Secret in the release namespace using your secret manager, then configure its name and key:
+A single web replica may be enough for a small installation. Add replicas when you need the web tier to remain available during restarts or node failures, or when one replica can no longer comfortably handle your request volume.
+
+For availability, spread replicas across nodes or failure zones. Two pods on the same host do not protect against host failure, and shared dependencies still need their own availability strategy. For capacity, first check that the bottleneck is in the web tier: adding web replicas does not scale PostgreSQL, ClickHouse or background processors, and each replica adds database connections.
+
+Geographic distribution is a separate concern. More replicas in one region do not bring the server closer to users elsewhere, and placing web replicas far from their shared databases can increase latency. A multi-region deployment needs a design for traffic routing, data placement and cross-region communication; increasing the replica count alone does not provide that.
+
+### Configure the cluster
+
+Tuist uses Erlang clustering to exchange notifications between web replicas, so features such as realtime updates can work across the web tier. Enable `server.cluster.enabled` before increasing the replica count or enabling autoscaling beyond one replica; the chart rejects multi-replica configurations without clustering. If you are upgrading an existing installation, first follow the [upgrade and clustering migration prerequisites](https://tuist.dev/en/docs/guides/server/self-host/server#multi-replica-clustering).
+
+Create a high-entropy cookie Secret in the release namespace using your secret manager, then reference it:
 
 ```yaml
 server:
@@ -241,20 +251,16 @@ server:
     cookieExistingSecretKey: release-cookie
 ```
 
-All web replicas must use the same private Erlang cookie, including during rolling upgrades. Treat it as a remote-execution credential: never use an image-baked cookie, publish its value, or rotate it independently on each pod. Cookie rotation requires coordinated replacement of every participating process; updating the Secret alone does not update running nodes.
+The cookie lets the web replicas trust one another, so they must all use the same value, including during rolling upgrades. Treat it as a remote-execution credential: keep it private and never use an image-baked cookie. To rotate it, coordinate replacement of every participating process; updating the Secret alone does not change running nodes.
 
-For ordinary server-connected Helm upgrades, leaving `cookieExistingSecret` empty lets the chart generate a cookie Secret and reuse its value through Helm's `lookup`. Offline `helm template` and GitOps renderers cannot recover that existing value and must use a separately managed Secret instead. Changing the configured key to a missing key in an existing generated Secret fails rather than silently rotating the cookie. To rename a key without rotating credentials, prepare an external Secret with the same cookie under the new key, then update the Secret name and key together.
+Use a separately managed Secret for offline `helm template` and GitOps deployments. Ordinary server-connected Helm upgrades can instead generate and reuse a cookie when `cookieExistingSecret` is empty, but offline renderers cannot preserve that generated value.
 
-Distribution uses `server.cluster.distributionPort` (9100 by default) and EPMD on TCP 4369. When `server.networkPolicy.enabled` is true, the chart admits these ports between this release's server pods. Keep both ports private and verify actual network-policy enforcement; rendered rules alone do not establish isolation or reachability. The release environment pins the distribution listener to the configured port, so exposing only EPMD is insufficient.
+The replicas also need private connectivity on EPMD (TCP 4369) and the distribution port (TCP 9100 by default). Allow these connections only between trusted server peers. Enable `server.networkPolicy.enabled` to render the chart's peer rules, and verify that your cluster enforces them. Background processors remain outside the web cluster and scale separately.
 
-Processor fleets stay outside the web cluster. A surviving single web node remains useful; requiring a peer for readiness would make one failed node remove the other from service. DNS discovers peers but does not disconnect healthy nodes when an answer is temporarily missing or incomplete.
+### Verify the rollout
 
-Check every running web pod with the release's `rpc 'Node.list()'` command. With two healthy replicas, each should list the other pod-address node. Check the cookie Secret reference and private network rules if the list stays empty. Qualify joining, rolling replacement and failure/recovery under load before increasing traffic. The isolated local cluster-formation probe is:
+Once the replicas are running, use the release's `rpc 'Node.list()'` command on each web pod to check membership. With two healthy replicas, each should list the other. If the lists are empty, check that the pods use the same cookie and can reach each other's distribution ports.
 
-```sh
-cd server
-MIX_ENV=test elixir --name formation_$$@127.0.0.1 --cookie formation_verification \
-  -S mix run --no-start verification/cluster_formation.exs
-```
+Before increasing traffic, exercise a rolling replacement and a replica failure under load. Check that requests continue to be served and that cross-replica PubSub and Oban notifications work across the deployed versions. Ready pods alone do not establish that the cluster is working.
 
-Run that probe only in an owned local VM, never attached to a deployed cluster. It does not substitute for validating membership, PubSub and Oban notifications across the actual deployed versions.
+A surviving single replica should still serve requests. Do not make readiness depend on having a peer: otherwise, losing one replica would take the survivor out of service too.
