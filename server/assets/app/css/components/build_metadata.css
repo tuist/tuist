@@ -1,3 +1,30 @@
+[data-part="build-details-section"] > [data-part="metadata-grid"] {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--noora-spacing-9) var(--noora-spacing-7);
+
+  & > [data-part="metadata-row"] {
+    display: contents;
+  }
+
+  & [data-part="metadata"] {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  & [data-field="command"] {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 #build-environment {
   & > [data-part="root"] > [data-part="header"] {
     flex-direction: row;
