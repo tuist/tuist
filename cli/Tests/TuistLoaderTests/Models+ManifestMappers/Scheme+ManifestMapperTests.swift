@@ -30,6 +30,23 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
     }
 
+    func test_from_when_the_scheme_has_an_order_hint() async throws {
+        // Given
+        let manifest = ProjectDescription.Scheme.scheme(name: "Scheme", orderHint: 0)
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: projectPath,
+            rootDirectory: rootDirectory
+        )
+
+        // When
+        let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertEqual(model.orderHint, 0)
+    }
+
     func test_from_when_the_scheme_has_actions() async throws {
         // Given
         let arguments = ProjectDescription.Arguments.test(
