@@ -15,7 +15,7 @@ spec:
   applyOrder: 1
   applyNote: No WAN path lands here, so a bad change costs one half of the rack's redundancy rather than the site's connectivity. Always the first switch changed, and the only one used to try a change out.
   credentialItem: ber1-tor-b switch admin
-  configRevision: 322070b8bd051a70
+  configRevision: 815f696b3ffe8f38
   config:
     hostname: ber1-tor-b
     managementVlan: 1
@@ -76,7 +76,7 @@ spec:
       - port: 8
         description: ""
         spanningTree: true
-        nativeVlan: 10
+        nativeVlan: 1
         taggedVlans: []
       - port: 9
         description: ""
@@ -234,10 +234,6 @@ spec:
     - port: 7
       purpose: data
       peer: ber1-runner-b06
-      detail: runner/en0
-    - port: 8
-      purpose: data
-      peer: ber1-runner-b15
       detail: runner/en0
     - port: 9
       purpose: data

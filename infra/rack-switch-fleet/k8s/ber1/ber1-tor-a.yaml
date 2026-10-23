@@ -15,7 +15,7 @@ spec:
   applyOrder: 2
   applyNote: Carries the WAN ports, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.
   credentialItem: ber1-tor-a switch admin
-  configRevision: 41892aa072f09560
+  configRevision: 550ccbee8ad925ae
   config:
     hostname: ber1-tor-a
     managementVlan: 1
@@ -86,7 +86,7 @@ spec:
       - port: 10
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 10
         taggedVlans: []
       - port: 11
         description: ""
@@ -242,6 +242,10 @@ spec:
     - port: 9
       purpose: data
       peer: ber1-runner-b14
+      detail: runner/en0
+    - port: 10
+      purpose: data
+      peer: ber1-runner-b15
       detail: runner/en0
     - port: 24
       purpose: wan
