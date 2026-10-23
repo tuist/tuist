@@ -333,7 +333,8 @@ CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
 a pull request the unit and app tests run selectively, acceptance as before, and
 `coverage-complete` runs `tuist coverage complete` once the unit and app tests
 finished, whatever their result (not on drafts or forks). On a push to main the
-`cache` job warms the binary cache first, then the unit and app tests run in full
+`cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
+and the CLI session logs when it fails, then the unit and app tests run in full
 (`--no-selective-testing`) and `coverage-complete`
 follows when both passed. The unit and app tests record per-test evidence on both,
 since their targets link TestCoverageAttribution and every run that uploads
