@@ -2,8 +2,9 @@
 # apply infra/k8s/mgmt/talos/patches/. Talos mints a talosconfig for the
 # ServiceAccount below into a Secret of the same name, scoped to the roles
 # listed, once the node has machine.features.kubernetesTalosAPIAccess enabled
-# for this namespace (patches/10-talos-api-access.yaml). Applied by the
-# reconcile script, not by the kubectl job.
+# for this namespace (patches/10-talos-api-access.yaml). The reconcile script
+# applies this file at the start of each run and deletes the ServiceAccount
+# and its Secret when it exits, so the credential is not kept at rest.
 apiVersion: v1
 kind: Namespace
 metadata:

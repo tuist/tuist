@@ -20,6 +20,14 @@
 # Only added and removed lines are printed: talosctl's dry-run diff also
 # shows unchanged context, which includes private keys, and this
 # repository's Actions logs are public.
+#
+# The Talos credential exists only while this script runs. Talos mints it
+# into a Secret for the talos.dev ServiceAccount, and the Secret is readable
+# by every principal with cluster-wide secret read. So the script creates
+# the ServiceAccount at the start, after removing any left over from an
+# interrupted run, and deletes it and the Secret on exit. A certificate
+# copied during a run stays valid until it expires (Talos issues them for
+# 6 hours).
 
 set -euo pipefail
 
@@ -42,8 +50,23 @@ fail() {
 # Keeps talosctl's messages and changed lines; drops diff context and headers.
 safe_output() { grep -vE '^( |@@|\+\+\+ |--- |$)' || true; }
 
+revoke_talos_credential() {
+  kubectl -n "$NAMESPACE" delete serviceaccounts.talos.dev talos-patcher --ignore-not-found >/dev/null 2>&1 || true
+  kubectl -n "$NAMESPACE" delete secret talos-patcher --ignore-not-found >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do
+    kubectl -n "$NAMESPACE" get secret talos-patcher >/dev/null 2>&1 || return 0
+    sleep 2
+  done
+  echo "warning: Secret $NAMESPACE/talos-patcher still exists" >&2
+}
+
 workdir="$(mktemp -d)"
-trap 'rm -rf "$workdir"' EXIT
+cleanup() {
+  revoke_talos_credential
+  rm -rf "$workdir"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 patch_args=()
 for patch in "$PATCHES_DIR"/*.yaml; do
@@ -57,6 +80,7 @@ for patch in "$PATCHES_DIR"/*.yaml; do
 done
 (( ${#patch_args[@]} > 0 )) || fail "no patches in $PATCHES_DIR"
 
+revoke_talos_credential
 kubectl apply -f "$PATCHER_MANIFEST" >/dev/null ||
   fail "could not apply $PATCHER_MANIFEST; if the talos.dev ServiceAccount kind is unknown, apply patches/10-talos-api-access.yaml by hand first (infra/k8s/mgmt/talos/README.md)"
 for _ in $(seq 1 30); do
@@ -123,6 +147,9 @@ run_talosctl() {
   done
   kubectl -n "$NAMESPACE" delete job "$job_name" --ignore-not-found >/dev/null 2>&1 || true
 
+  if [[ "$status" != 1/* && -z "$output" ]]; then
+    echo "Job $job_name produced no output within 10 minutes. If it never started a pod, kube-controller-manager is probably down; fix the node with talosctl over the tailnet." >&2
+  fi
   printf '%s\n' "$output"
   [[ "$status" == 1/* ]]
 }
@@ -135,7 +162,25 @@ wait_until_healthy() {
     sleep 5
   done
   kubectl wait --for=condition=Ready "node/$node" --timeout=10m >/dev/null
+  kubectl -n kube-system wait --for=condition=Ready pod -l tier=control-plane \
+    --field-selector "spec.nodeName=$node" --timeout=10m >/dev/null
   kubectl wait --for=condition=Available deployment --all --all-namespaces --timeout=15m >/dev/null
+
+  # Deployments stay Available while a control-plane component crash-loops,
+  # so require the static pods to stay up without restarting for a while.
+  local restarts
+  restarts="$(control_plane_restarts "$node")"
+  sleep 90
+  [[ "$(control_plane_restarts "$node")" == "$restarts" ]] ||
+    fail "a control-plane pod on $node restarted after the change; check kube-system and fix it with talosctl over the tailnet"
+  kubectl -n kube-system wait --for=condition=Ready pod -l tier=control-plane \
+    --field-selector "spec.nodeName=$node" --timeout=10s >/dev/null ||
+    fail "a control-plane pod on $node is not Ready after the change"
+}
+
+control_plane_restarts() {
+  kubectl -n kube-system get pods -l tier=control-plane --field-selector "spec.nodeName=$1" \
+    -o jsonpath='{range .items[*]}{.metadata.name}={.status.containerStatuses[0].restartCount}{" "}{end}'
 }
 
 nodes="$(kubectl get nodes -l node-role.kubernetes.io/control-plane \

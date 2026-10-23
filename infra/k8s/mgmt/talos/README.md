@@ -21,9 +21,12 @@ The Talos API is reachable only over the tailnet, and CI stays off it. Instead,
 the script runs `talosctl` in a Job in namespace `mgmt-talos`, using a
 credential Talos mints for the `talos-patcher` ServiceAccount in
 [`../talos-patcher.yaml`](../talos-patcher.yaml) (`patches/10-talos-api-access.yaml`
-allows it). The Job applies with `--mode no-reboot`, one node at a time, and
-waits for the API server, the node and every Deployment to be healthy before
-the next node.
+allows it). That credential exists only while a run is in progress: the
+script creates the ServiceAccount at the start and deletes it and its Secret
+on exit, because every principal with cluster-wide secret read could use it.
+The Job applies with `--mode no-reboot`, one node at a time, and waits for
+the API server, the node and every Deployment to be healthy before the next
+node.
 
 Rules for a patch:
 
@@ -38,6 +41,14 @@ Rules for a patch:
 - The plan prints only added and removed lines. Never print talosctl's dry-run
   diff in CI: its unchanged context includes private keys, and the repository's
   Actions logs are public.
+
+Talos does not validate every value: on a test cluster it accepted
+`podSubnets: [not-a-cidr]`, which crash-looped kube-controller-manager. Review
+the plan's changed lines as carefully as the patch. The script fails the run
+if a control-plane pod restarts in the 90 seconds after a change, but it cannot
+repair one. A broken kube-controller-manager also stops the Jobs this script
+depends on, so fix such a node by hand with `talosctl` over the tailnet
+(Bootstrap below shows how to get the talosconfig), then fix the patch.
 
 A change to the API server (`cluster.apiServer`) restarts it. Every controller
 on the mgmt cluster then loses its leader lease and restarts, so the CAPI
