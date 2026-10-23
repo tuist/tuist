@@ -1,0 +1,1615 @@
+{
+  "implementation": "1f0be4307d10ca6fc44e41f91917fefcda7b682f",
+  "beforeImplementation": "529d8a884decd2b10c16579aa3e9dc643795a37f",
+  "syntheticData": true,
+  "before": {
+    "capturedAt": "2026-10-23T07:25:37.010Z",
+    "browser": "155.0.8059.85",
+    "results": [
+      {
+        "name": "xcode",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 950
+          },
+          {
+            "label": "p50",
+            "width": 156.375
+          },
+          {
+            "label": "p90 ",
+            "width": 148.1875
+          },
+          {
+            "label": "p99",
+            "width": 135.25
+          },
+          {
+            "label": "Avg.",
+            "width": 122
+          },
+          {
+            "label": "Last status",
+            "width": 199.0625
+          },
+          {
+            "label": "Last ran at",
+            "width": 189.125
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "gradle",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Task",
+            "width": 950
+          },
+          {
+            "label": "Root project",
+            "width": 144.640625
+          },
+          {
+            "label": "Build path",
+            "width": 109.53125
+          },
+          {
+            "label": "Task type",
+            "width": 139.15625
+          },
+          {
+            "label": "p50",
+            "width": 92.03125
+          },
+          {
+            "label": "p90 ",
+            "width": 87.21875
+          },
+          {
+            "label": "p99",
+            "width": 77.09375
+          },
+          {
+            "label": "Avg.",
+            "width": 71.8125
+          },
+          {
+            "label": "Last status",
+            "width": 117.15625
+          },
+          {
+            "label": "Last ran at",
+            "width": 111.359375
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "once",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 950
+          },
+          {
+            "label": "Target",
+            "width": 202.546875
+          },
+          {
+            "label": "p50",
+            "width": 138.046875
+          },
+          {
+            "label": "p90 ",
+            "width": 110.546875
+          },
+          {
+            "label": "p99",
+            "width": 97.3125
+          },
+          {
+            "label": "Avg.",
+            "width": 111.921875
+          },
+          {
+            "label": "Last status",
+            "width": 148.5
+          },
+          {
+            "label": "Last ran at",
+            "width": 141.125
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "bazel",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 950
+          },
+          {
+            "label": "Target",
+            "width": 182.296875
+          },
+          {
+            "label": "Action type",
+            "width": 145.625
+          },
+          {
+            "label": "p50",
+            "width": 102.84375
+          },
+          {
+            "label": "p90 ",
+            "width": 97.453125
+          },
+          {
+            "label": "p99",
+            "width": 86.15625
+          },
+          {
+            "label": "Avg.",
+            "width": 80.25
+          },
+          {
+            "label": "Last status",
+            "width": 130.921875
+          },
+          {
+            "label": "Last ran at",
+            "width": 124.453125
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "mix",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 950
+          },
+          {
+            "label": "Last status",
+            "width": 448.046875
+          },
+          {
+            "label": "Last ran at ",
+            "width": 501.953125
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "xcode",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 570
+          },
+          {
+            "label": "p50",
+            "width": 93.8125
+          },
+          {
+            "label": "p90 ",
+            "width": 88.90625
+          },
+          {
+            "label": "p99",
+            "width": 81.140625
+          },
+          {
+            "label": "Avg.",
+            "width": 73.203125
+          },
+          {
+            "label": "Last status",
+            "width": 119.4375
+          },
+          {
+            "label": "Last ran at",
+            "width": 113.5
+          }
+        ],
+        "scrollWidth": 1140,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "gradle",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Task",
+            "width": 939.4375
+          },
+          {
+            "label": "Root project",
+            "width": 143.046875
+          },
+          {
+            "label": "Build path",
+            "width": 108.328125
+          },
+          {
+            "label": "Task type",
+            "width": 137.609375
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1879,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "once",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 741.15625
+          },
+          {
+            "label": "Target",
+            "width": 158.03125
+          },
+          {
+            "label": "p50",
+            "width": 107.703125
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 75.921875
+          },
+          {
+            "label": "Avg.",
+            "width": 87.328125
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1482,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "bazel",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 840.65625
+          },
+          {
+            "label": "Target",
+            "width": 161.328125
+          },
+          {
+            "label": "Action type",
+            "width": 128.875
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1681,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "mix",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 570
+          },
+          {
+            "label": "Last status",
+            "width": 268.828125
+          },
+          {
+            "label": "Last ran at ",
+            "width": 301.171875
+          }
+        ],
+        "scrollWidth": 1140,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "xcode",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 552.921875
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 78.71875
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1106,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "gradle",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Task",
+            "width": 939.4375
+          },
+          {
+            "label": "Root project",
+            "width": 143.046875
+          },
+          {
+            "label": "Build path",
+            "width": 108.328125
+          },
+          {
+            "label": "Task type",
+            "width": 137.609375
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1879,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "once",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 741.15625
+          },
+          {
+            "label": "Target",
+            "width": 158.03125
+          },
+          {
+            "label": "p50",
+            "width": 107.703125
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 75.921875
+          },
+          {
+            "label": "Avg.",
+            "width": 87.328125
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1482,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "bazel",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 840.65625
+          },
+          {
+            "label": "Target",
+            "width": 161.328125
+          },
+          {
+            "label": "Action type",
+            "width": 128.875
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1681,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "mix",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 490
+          },
+          {
+            "label": "Last status",
+            "width": 231.09375
+          },
+          {
+            "label": "Last ran at ",
+            "width": 258.90625
+          }
+        ],
+        "scrollWidth": 980,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "xcode",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 552.921875
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 78.71875
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1106,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      },
+      {
+        "name": "gradle",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Task",
+            "width": 939.4375
+          },
+          {
+            "label": "Root project",
+            "width": 143.046875
+          },
+          {
+            "label": "Build path",
+            "width": 108.328125
+          },
+          {
+            "label": "Task type",
+            "width": 137.609375
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1879,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      },
+      {
+        "name": "once",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 741.15625
+          },
+          {
+            "label": "Target",
+            "width": 158.03125
+          },
+          {
+            "label": "p50",
+            "width": 107.703125
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 75.921875
+          },
+          {
+            "label": "Avg.",
+            "width": 87.328125
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1482,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      },
+      {
+        "name": "bazel",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 840.65625
+          },
+          {
+            "label": "Target",
+            "width": 161.328125
+          },
+          {
+            "label": "Action type",
+            "width": 128.875
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1681,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      },
+      {
+        "name": "mix",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 348
+          },
+          {
+            "label": "Last status",
+            "width": 164.125
+          },
+          {
+            "label": "Last ran at ",
+            "width": 183.875
+          }
+        ],
+        "scrollWidth": 696,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      }
+    ],
+    "errors": []
+  },
+  "after": {
+    "capturedAt": "2026-10-23T07:29:52.868Z",
+    "browser": "155.0.8059.85",
+    "results": [
+      {
+        "name": "xcode",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 320
+          },
+          {
+            "label": "p50",
+            "width": 260.078125
+          },
+          {
+            "label": "p90 ",
+            "width": 246.453125
+          },
+          {
+            "label": "p99",
+            "width": 224.9375
+          },
+          {
+            "label": "Avg.",
+            "width": 202.921875
+          },
+          {
+            "label": "Last status",
+            "width": 331.0625
+          },
+          {
+            "label": "Last ran at",
+            "width": 314.546875
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "gradle",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Task",
+            "width": 320
+          },
+          {
+            "label": "Root project",
+            "width": 240.578125
+          },
+          {
+            "label": "Build path",
+            "width": 182.1875
+          },
+          {
+            "label": "Task type",
+            "width": 231.4375
+          },
+          {
+            "label": "p50",
+            "width": 153.0625
+          },
+          {
+            "label": "p90 ",
+            "width": 145.046875
+          },
+          {
+            "label": "p99",
+            "width": 128.234375
+          },
+          {
+            "label": "Avg.",
+            "width": 119.4375
+          },
+          {
+            "label": "Last status",
+            "width": 194.84375
+          },
+          {
+            "label": "Last ran at",
+            "width": 185.171875
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "once",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 320
+          },
+          {
+            "label": "Target",
+            "width": 336.890625
+          },
+          {
+            "label": "p50",
+            "width": 229.59375
+          },
+          {
+            "label": "p90 ",
+            "width": 183.859375
+          },
+          {
+            "label": "p99",
+            "width": 161.84375
+          },
+          {
+            "label": "Avg.",
+            "width": 186.15625
+          },
+          {
+            "label": "Last status",
+            "width": 246.984375
+          },
+          {
+            "label": "Last ran at",
+            "width": 234.671875
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "bazel",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 320
+          },
+          {
+            "label": "Target",
+            "width": 303.203125
+          },
+          {
+            "label": "Action type",
+            "width": 242.203125
+          },
+          {
+            "label": "p50",
+            "width": 171.046875
+          },
+          {
+            "label": "p90 ",
+            "width": 162.09375
+          },
+          {
+            "label": "p99",
+            "width": 143.296875
+          },
+          {
+            "label": "Avg.",
+            "width": 133.46875
+          },
+          {
+            "label": "Last status",
+            "width": 217.75
+          },
+          {
+            "label": "Last ran at",
+            "width": 206.9375
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "mix",
+        "width": 2200,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 320
+          },
+          {
+            "label": "Last status",
+            "width": 745.171875
+          },
+          {
+            "label": "Last ran at ",
+            "width": 834.828125
+          }
+        ],
+        "scrollWidth": 1900,
+        "clientWidth": 1900,
+        "documentWidth": 2200,
+        "viewport": 2200
+      },
+      {
+        "name": "xcode",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 320
+          },
+          {
+            "label": "p50",
+            "width": 134.96875
+          },
+          {
+            "label": "p90 ",
+            "width": 127.90625
+          },
+          {
+            "label": "p99",
+            "width": 116.734375
+          },
+          {
+            "label": "Avg.",
+            "width": 105.3125
+          },
+          {
+            "label": "Last status",
+            "width": 171.8125
+          },
+          {
+            "label": "Last ran at",
+            "width": 163.265625
+          }
+        ],
+        "scrollWidth": 1140,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "gradle",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Task",
+            "width": 320
+          },
+          {
+            "label": "Root project",
+            "width": 143.046875
+          },
+          {
+            "label": "Build path",
+            "width": 108.328125
+          },
+          {
+            "label": "Task type",
+            "width": 137.609375
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1259,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "once",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 320
+          },
+          {
+            "label": "Target",
+            "width": 174.828125
+          },
+          {
+            "label": "p50",
+            "width": 119.15625
+          },
+          {
+            "label": "p90 ",
+            "width": 95.421875
+          },
+          {
+            "label": "p99",
+            "width": 83.984375
+          },
+          {
+            "label": "Avg.",
+            "width": 96.609375
+          },
+          {
+            "label": "Last status",
+            "width": 128.171875
+          },
+          {
+            "label": "Last ran at",
+            "width": 121.828125
+          }
+        ],
+        "scrollWidth": 1140,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "bazel",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 320
+          },
+          {
+            "label": "Target",
+            "width": 161.328125
+          },
+          {
+            "label": "Action type",
+            "width": 128.875
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1161,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "mix",
+        "width": 1440,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 320
+          },
+          {
+            "label": "Last status",
+            "width": 386.734375
+          },
+          {
+            "label": "Last ran at ",
+            "width": 433.265625
+          }
+        ],
+        "scrollWidth": 1140,
+        "clientWidth": 1140,
+        "documentWidth": 1440,
+        "viewport": 1440
+      },
+      {
+        "name": "xcode",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 320
+          },
+          {
+            "label": "p50",
+            "width": 108.640625
+          },
+          {
+            "label": "p90 ",
+            "width": 102.9375
+          },
+          {
+            "label": "p99",
+            "width": 93.953125
+          },
+          {
+            "label": "Avg.",
+            "width": 84.765625
+          },
+          {
+            "label": "Last status",
+            "width": 138.28125
+          },
+          {
+            "label": "Last ran at",
+            "width": 131.421875
+          }
+        ],
+        "scrollWidth": 980,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "gradle",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Task",
+            "width": 320
+          },
+          {
+            "label": "Root project",
+            "width": 143.046875
+          },
+          {
+            "label": "Build path",
+            "width": 108.328125
+          },
+          {
+            "label": "Task type",
+            "width": 137.609375
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1259,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "once",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 320
+          },
+          {
+            "label": "Target",
+            "width": 158.03125
+          },
+          {
+            "label": "p50",
+            "width": 107.703125
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 75.921875
+          },
+          {
+            "label": "Avg.",
+            "width": 87.328125
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1061,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "bazel",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 320
+          },
+          {
+            "label": "Target",
+            "width": 161.328125
+          },
+          {
+            "label": "Action type",
+            "width": 128.875
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1161,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "mix",
+        "width": 1280,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 320
+          },
+          {
+            "label": "Last status",
+            "width": 311.265625
+          },
+          {
+            "label": "Last ran at ",
+            "width": 348.734375
+          }
+        ],
+        "scrollWidth": 980,
+        "clientWidth": 980,
+        "documentWidth": 1280,
+        "viewport": 1280
+      },
+      {
+        "name": "xcode",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 320
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 78.71875
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 873,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      },
+      {
+        "name": "gradle",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Task",
+            "width": 320
+          },
+          {
+            "label": "Root project",
+            "width": 143.046875
+          },
+          {
+            "label": "Build path",
+            "width": 108.328125
+          },
+          {
+            "label": "Task type",
+            "width": 137.609375
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1259,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      },
+      {
+        "name": "once",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 320
+          },
+          {
+            "label": "Target",
+            "width": 158.03125
+          },
+          {
+            "label": "p50",
+            "width": 107.703125
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 75.921875
+          },
+          {
+            "label": "Avg.",
+            "width": 87.328125
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1061,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      },
+      {
+        "name": "bazel",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Action",
+            "width": 320
+          },
+          {
+            "label": "Target",
+            "width": 161.328125
+          },
+          {
+            "label": "Action type",
+            "width": 128.875
+          },
+          {
+            "label": "p50",
+            "width": 91.015625
+          },
+          {
+            "label": "p90 ",
+            "width": 86.25
+          },
+          {
+            "label": "p99",
+            "width": 76.25
+          },
+          {
+            "label": "Avg.",
+            "width": 71.015625
+          },
+          {
+            "label": "Last status",
+            "width": 115.859375
+          },
+          {
+            "label": "Last ran at",
+            "width": 110.0625
+          }
+        ],
+        "scrollWidth": 1161,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      },
+      {
+        "name": "mix",
+        "width": 768,
+        "columns": [
+          {
+            "label": "Module",
+            "width": 320
+          },
+          {
+            "label": "Last status",
+            "width": 177.328125
+          },
+          {
+            "label": "Last ran at ",
+            "width": 198.671875
+          }
+        ],
+        "scrollWidth": 696,
+        "clientWidth": 696,
+        "documentWidth": 768,
+        "viewport": 768
+      }
+    ],
+    "errors": []
+  },
+  "longNameProbes": 20,
+  "longNameProbeScope": "Transient browser DOM substitution, asserting ellipsis, hidden overflow, nowrap, and full DOM text preservation. Screenshots use unmodified seeded data.",
+  "images": [
+    "column-width-after-bazel-2200.png",
+    "column-width-after-gradle-1440.png",
+    "column-width-after-gradle-2200.png",
+    "column-width-after-gradle-768.png",
+    "column-width-after-mix-2200.png",
+    "column-width-after-once-2200.png",
+    "column-width-after-xcode-2200.png",
+    "column-width-before-gradle-2200.png"
+  ]
+}
