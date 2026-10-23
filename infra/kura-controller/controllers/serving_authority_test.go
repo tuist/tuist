@@ -658,3 +658,28 @@ func TestAuthorityNeverTreatsAnotherIncarnationsExitAsFencing(t *testing.T) {
 		t.Fatal("automatic promotion overrode an operator request", next)
 	}
 }
+
+func TestAuthorityDropsAnExitBindingWhenResumingTheLiveWriter(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	holder := statuses["test-0"].ServingAuthority.Identity
+	exited := holder
+	exited.Incarnation = "exited-before-the-restart"
+	grant.Phase = "Fencing"
+	grant.ExitResume = &exitResume{Epoch: grant.Epoch - 1, Holder: exited}
+	writeAuthorityGrant(t, r, grant)
+	sample := statuses["test-0"]
+	fenced := grant
+	sample.ServingAuthority.Observed = &fenced
+	sample.ServingAuthority.FencedEpoch = grant.Epoch
+	sample.ServingAuthority.Valid = false
+	statuses["test-0"] = sample
+
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != grant.Epoch+1 || next.ResumeEpoch != grant.Epoch {
+		t.Fatal("the live writer was not resumed", next)
+	}
+	if next.ExitResume != nil || next.HolderExit != nil {
+		t.Fatal("a live-writer resume kept an earlier exit binding the runtime would refuse", next.ExitResume)
+	}
+}
