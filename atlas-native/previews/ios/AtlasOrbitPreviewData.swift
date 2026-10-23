@@ -14,7 +14,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         if action["action"] as? String == "open" { return Data("{\"connection\":\"preview-only\"}".utf8) }
         let command = action["command"] as? [String: Any] ?? [:]
         switch command["action"] as? String {
-        case "private": selected = thread(id: privateID, title: "Juniper", kind: "private")
+        case "private": selected = thread(id: privateID, title: "Pip", kind: "private")
         case "select": selected = thread(id: sharedID, title: "Build listing latency", kind: "shared")
         case "create": selected = thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared")
         case "leave": selected = nil
@@ -62,8 +62,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
             }
         }
         return try JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "assistant": ["name": "Juniper", "configured": true],
-            "threads": [thread(id: privateID, title: "Juniper", kind: "private"),
+            "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
+            "threads": [thread(id: privateID, title: "Pip", kind: "private"),
                               thread(id: sharedID, title: "Build listing latency", kind: "shared")],
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
@@ -79,7 +79,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
     }
 
     private func message(id: String, kind: String, body: String, extra: [String: Any] = [:]) -> [String: Any] {
-        var value: [String: Any] = ["id": id, "kind": kind, "body": body, "author_name": "Juniper", "inserted_at": "2027-06-07T10:42:00Z", "tool_input": "", "tool_output": ""]
+        var value: [String: Any] = ["id": id, "kind": kind, "body": body, "author_name": "Pip", "inserted_at": "2027-06-07T10:42:00Z", "tool_input": "", "tool_output": ""]
         for (key, field) in extra { value[key] = field }
         return value
     }

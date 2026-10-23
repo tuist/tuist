@@ -177,7 +177,7 @@ Do not add README entries for internal operational details such as env var names
 
 ## Orbit
 
-- Agentic threads (a pinned private thread per person plus shared, owner-managed threads) live under `lib/atlas/orbit/`; see [the threads intent](lib/atlas/orbit/AGENTS.md). The assistant is one general agent bound to the `orbit` inference role, with no fallback profile. Its tools are a default-deny, read-only allowlist enforced against the intersection of every reader's scopes, with a sensitivity ratchet on the thread. Runs are durable Oban jobs fenced by attempt and resumed across deploys from encrypted per-turn Condukt snapshots. The native contract is in [the controller intent](lib/atlas_web/controllers/AGENTS.md#native-orbit). `Orbit.open_for_signal/1` is the generic monitor entry point; no monitor calls it yet.
+- Agentic threads (a pinned private thread per person plus shared, owner-managed threads) live under `lib/atlas/orbit/`; see [the threads intent](lib/atlas/orbit/AGENTS.md). The assistant and mascot is Pip, with a fixed, non-configurable name, bound to the `orbit` inference role, with no fallback profile. Its tools are a default-deny, read-only allowlist enforced against the intersection of every reader's scopes, with a sensitivity ratchet on the thread. Runs are durable Oban jobs fenced by attempt and resumed across deploys from encrypted per-turn Condukt snapshots. The native contract is in [the controller intent](lib/atlas_web/controllers/AGENTS.md#native-orbit). `Orbit.open_for_signal/1` is the generic monitor entry point; no monitor calls it yet.
 
 ## Tasks
 

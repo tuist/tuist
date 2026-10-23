@@ -616,7 +616,6 @@ default_alert_slack_channel = System.get_env("ATLAS_DEFAULT_ALERT_SLACK_CHANNEL"
 # secret is app-wide; the bot token can be captured through the install
 # flow and persisted in `slack_installations`.
 config :atlas, :default_alert_slack_channel, default_alert_slack_channel
-config :atlas, :orbit, agent_name: System.get_env("ATLAS_ORBIT_AGENT_NAME") || "Atlas"
 
 config :atlas, :slack,
   client_id: System.get_env("ATLAS_SLACK_CLIENT_ID"),

@@ -24,7 +24,7 @@ Controller regressions live in `test/atlas_web/controllers/native_controller_tes
 
 `AtlasWeb.NativeOrbitController` serves fixed routes under `/api/native/orbit/threads`, declared before the dynamic native resource routes and protected by the same bearer-only, `no-store` pipeline. Older servers answer the list route with the dynamic resource's 404, which clients treat as unsupported. Domain rules live in [Orbit](../../atlas/orbit/AGENTS.md). Threads a caller cannot read return `404 {"error":"not_found"}`, indistinguishable from missing ones.
 
-- `GET /api/native/orbit/threads?page=N` returns `{assistant: {name, configured}, threads: {items, page, total_pages, total_count}}`. There are 25 items per page: the caller's private thread first, then the most recently updated. `configured` is false when no enabled profile carries the Orbit role.
+- `GET /api/native/orbit/threads?page=N` returns `{assistant: {name, configured}, threads: {items, page, total_pages, total_count}}`. There are 25 items per page: the caller's private thread first, then the most recently updated. `assistant.name` is always `Pip`, the fixed mascot/assistant identity, not a deployment preference. `configured` is false when no enabled profile carries the Orbit role.
 - `POST /api/native/orbit/threads/private` returns `{thread}`, with 201 on creation and 200 afterwards (idempotent).
 - `POST /api/native/orbit/threads` with `{title (≤200 chars, non-blank), participant_ids (≤30 UUIDs)}` returns 201 `{thread}`. Malformed or unknown IDs return 422 `fields.participant_ids`.
 - `GET /:id/messages?page=N` returns `{thread, messages: {items, page, total_pages, total_count}, latest_seq}`. There are 50 items per page; page 1 is the newest, and items are chronological within a page.

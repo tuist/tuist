@@ -109,7 +109,7 @@ private struct AtlasThreadDetail: View {
     @State private var showingInfo = false
     @Environment(\.atlasPresence) private var presence
 
-    private var assistantName: String { model.assistant?.name ?? "the agent" }
+    private var assistantName: String { model.assistant?.name ?? "Pip" }
     private var current: AtlasThread { model.selected ?? thread }
 
     var body: some View {

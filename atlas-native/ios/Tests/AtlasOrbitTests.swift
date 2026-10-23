@@ -16,7 +16,7 @@ struct AtlasOrbitTests {
             return try snapshot(sequence: commands.count, selected: name == "private")
         }, localRequest: { _ in throw CancellationError() })
         await model.load()
-        #expect(model.assistant?.name == "Juniper")
+        #expect(model.assistant?.name == "Pip")
         #expect(model.hasMore)
         #expect(model.threads.first?.id == id)
         let thread = try #require(await model.privateThread())
@@ -68,7 +68,7 @@ struct AtlasOrbitTests {
         fail = false
         await model.load()
         #expect(model.errorMessage == nil)
-        #expect(model.assistant?.name == "Juniper")
+        #expect(model.assistant?.name == "Pip")
     }
 
     @Test func cardActionForwardsToRustAndRejectsLateEffectsAfterAccessLoss() async throws {
@@ -77,7 +77,7 @@ struct AtlasOrbitTests {
         var delayed = false
         var pending: CheckedContinuation<Data, Error>?
         let message: [String: Any] = [
-            "id": "evidence", "kind": "tool", "body": "", "author_name": "Juniper", "inserted_at": "2026-10-22T12:00:00Z",
+            "id": "evidence", "kind": "tool", "body": "", "author_name": "Pip", "inserted_at": "2026-10-22T12:00:00Z",
             "tool_status": "succeeded", "tool_input": "", "tool_output": "original evidence",
             "component": ["type": "result_table", "version": 1, "data": ["title": "Accounts", "columns": ["Name"], "rows": [["Northstar"]]],
                           "actions": [["id": "show_evidence", "label": "View source"]], "fallback": "Northstar"]
@@ -116,7 +116,7 @@ struct AtlasOrbitTests {
             "summary": "", "origin": "manual", "participants": [], "updated_at": "2027-06-07T10:00:00Z"
         ]
         return try JSONSerialization.data(withJSONObject: [
-            "sequence": sequence, "assistant": ["name": "Juniper", "configured": true],
+            "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
             "threads": [thread], "selected": selected ? thread as Any : NSNull(),
             "messages": messages, "people": [], "draft": draft, "loading": false, "history_loading": false, "saving": false,
             "has_more": true, "has_older": false, "needs_session": false

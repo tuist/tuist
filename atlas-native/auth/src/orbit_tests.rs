@@ -47,7 +47,7 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             "GET",
             "?page=2".to_owned(),
             Value::Null,
-            json!({"assistant":{"name":"Juniper","configured":true,"token":"must-not-forward"},"threads":{"items":[thread()],"page":2,"total_pages":2,"total_count":26}}),
+            json!({"assistant":{"name":"Pip","configured":true,"token":"must-not-forward"},"threads":{"items":[thread()],"page":2,"total_pages":2,"total_count":26}}),
         ),
         (
             Action::Private,

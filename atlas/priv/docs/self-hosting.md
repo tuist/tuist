@@ -138,11 +138,10 @@ You can configure external services through the application Secret and environme
 
 ## Enable Orbit
 
-Orbit is the native apps' space for working with the Atlas assistant in private or shared threads. The assistant uses an inference profile you choose for the whole workspace, not people's personal AI accounts. Until a profile is assigned, threads still work between people and the apps explain that the assistant isn't configured.
+Orbit is the native apps' space for working with Pip, Atlas's assistant and mascot, in private or shared threads. Pip's name is fixed, not a deployment setting. The assistant uses an inference profile you choose for the whole workspace, not people's personal AI accounts. Until a profile is assigned, threads still work between people and the apps explain that the assistant isn't configured.
 
 1. In **Admin → Inference**, add a provider and a profile for the model you want to use.
 2. Open the profile, choose **Edit profile**, then **Use for Orbit**. Only one profile can hold this role, and Atlas never falls back to another profile.
-3. Optionally, set `ATLAS_ORBIT_AGENT_NAME` in the application environment to change the assistant's display name. It defaults to "Atlas".
 
 The assistant can only read Atlas data that everyone in a thread is allowed to see, and it can't change data, send messages, or browse the web.
 

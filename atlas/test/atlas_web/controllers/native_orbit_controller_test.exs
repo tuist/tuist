@@ -31,7 +31,7 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     user = user_fixture()
     api = bearer(user)
 
-    assert %{"assistant" => %{"name" => "Atlas", "configured" => false}, "threads" => %{"items" => [], "page" => 1}} =
+    assert %{"assistant" => %{"name" => "Pip", "configured" => false}, "threads" => %{"items" => [], "page" => 1}} =
              api |> get("/api/native/orbit/threads?page=1") |> json_response(200)
 
     orbit_profile_fixture()
@@ -40,10 +40,10 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert api |> post("/api/native/orbit/threads/private", %{}) |> json_response(200) == private
 
     body = api |> get("/api/native/orbit/threads") |> json_response(200)
-    assert body["assistant"] == %{"name" => "Atlas", "configured" => true}
+    assert body["assistant"] == %{"name" => "Pip", "configured" => true}
     assert %{"page" => 1, "total_pages" => 1, "total_count" => 2, "items" => [first, second]} = body["threads"]
     assert first["id"] == private["thread"]["id"]
-    assert first["kind"] == "private" and first["title"] == "Atlas"
+    assert first["kind"] == "private" and first["title"] == "Pip"
     assert second["kind"] == "shared" and second["title"] == "Team"
 
     assert Map.keys(first) |> Enum.sort() ==

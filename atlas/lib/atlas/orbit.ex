@@ -36,17 +36,9 @@ defmodule Atlas.Orbit do
   @private_title "Private thread"
   @notification_channel :atlas_orbit
 
-  ## Configuration
+  ## Assistant
 
-  def agent_name do
-    :atlas
-    |> Application.get_env(:orbit, [])
-    |> Keyword.get(:agent_name)
-    |> case do
-      name when is_binary(name) and name != "" -> name
-      _ -> "Atlas"
-    end
-  end
+  def agent_name, do: "Pip"
 
   def agent_configured?, do: Inference.atlas_role_configured?(:orbit)
 

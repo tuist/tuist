@@ -15,6 +15,11 @@ defmodule Atlas.OrbitTest do
   alias Atlas.Orbit.Workers.RunThread
   alias Atlas.Repo
 
+  test "Pip is the fixed mascot and assistant identity" do
+    assert Orbit.agent_name() == "Pip"
+    assert Atlas.Orbit.Agent.system_prompt() =~ "You are Pip,"
+  end
+
   describe "private threads" do
     test "each person gets exactly one, created on first use" do
       user = user_fixture()

@@ -4,7 +4,7 @@ Agentic threads between people and the Atlas assistant. The thread is the agenti
 
 ## Naming and upgrades
 
-Orbit is the feature/context (`Atlas.Orbit`), Thread is the persistent entity (`Atlas.Orbit.Thread`), and Run is one durable assistant execution. Messages, participants, tool calls and result cards retain their distinct meanings. The native surface uses `/api/native/orbit/threads`, `assistant`/`threads`/`thread` payload keys, `orbit:thread:<uuid>`/`orbit:me` channels and the `orbit_session` bridge. The inference role, Oban queue and application configuration use `orbit`; the optional assistant-name setting is `ATLAS_ORBIT_AGENT_NAME`.
+Orbit is the feature/context (`Atlas.Orbit`), Thread is the persistent entity (`Atlas.Orbit.Thread`), and Run is one durable assistant execution. Messages, participants, tool calls and result cards retain their distinct meanings. The native surface uses `/api/native/orbit/threads`, `assistant`/`threads`/`thread` payload keys, `orbit:thread:<uuid>`/`orbit:me` channels and the `orbit_session` bridge. The inference role and Oban queue use `orbit`. The assistant and mascot is Pip; its name is fixed in `Orbit.agent_name/0`, not configurable through application settings or the environment.
 
 The original draft migration remains historical. `RenameConversationsToOrbit` reversibly renames its tables, foreign-key columns, constraints, indexes and inference binding, and transfers role tokens, Oban worker/queue names and redacted agent-session labels without changing IDs, token hashes, job arguments, checkpoint bytes or tool results. It requires draining old workers before migration, then deploying the renamed server and clients together; this is not a mixed-version/zero-downtime schema rename. Legacy draft API/channel/bridge names are not parallel aliases. Message content and historical audit events stay unchanged. Unrelated Slack/support conversations are not Orbit threads.
 
@@ -12,7 +12,7 @@ The original draft migration remains historical. `RenameConversationsToOrbit` re
 
 - Every person has exactly one pinned private thread (`kind: "private"`, unique per owner). Nobody else can read it, including administrators; there is no admin override.
 - Shared threads have an owner and participants. Only the owner adds people; members may leave; the owner cannot. `origin` is `manual` or `signal`.
-- The assistant is one general agent (`Atlas.Orbit.Agent`) named by `ATLAS_ORBIT_AGENT_NAME` (default "Atlas"). Nothing in prompts, tools or defaults names an organization, person or service.
+- Pip is one general agent (`Atlas.Orbit.Agent`) and Atlas's mascot. Keep its name fixed across prompts, API responses, private-thread titles and new message author labels. The inference profile remains configurable, not Pip's identity. No organization, privileged user or upstream service is assumed.
 - `orbit_threads.last_seq` is the revision. Every append or tool status change takes the next sequence under the thread row lock. `position` is a message's stable creation order (served as `seq`); a message's own `seq` column records its last change.
 
 ## Access and the sensitivity ratchet

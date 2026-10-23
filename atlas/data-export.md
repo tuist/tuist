@@ -56,7 +56,7 @@ For a verified data request, select **all** matching `finance_invoices`, includi
 
 ## Orbit threads
 
-Orbit threads store people's messages to each other and to the Atlas assistant. They use the workspace's Orbit inference profile, not personal AI accounts.
+Orbit threads store people's messages to each other and to Pip, Atlas's fixed-name assistant and mascot. They use the workspace's Orbit inference profile, not personal AI accounts.
 
 - `orbit_threads`: kind (`private`/`shared`), title, status, optional signal summary and source type/ID, owner (`owner_id`, cleared on user deletion), the scopes its history requires (`required_scopes`), the latest sequence number, and timestamps. Each person has at most one private thread.
 - `orbit_participants`: thread and user references, role (`owner`/`member`), and join time. User deletion cascades.

@@ -13,11 +13,11 @@ final class AtlasOrbitUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(privateThread.frame.height, 44)
         capture(app, "ios-orbit-list-preview")
         privateThread.tap()
-        XCTAssertTrue(app.navigationBars["Juniper"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Pip"].waitForExistence(timeout: 5))
         let composer = app.textFields["thread-composer"]
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         XCTAssertFalse(app.tabBars.firstMatch.isHittable)
-        XCTAssertTrue(app.staticTexts["Private · Only you and Juniper"].exists)
+        XCTAssertTrue(app.staticTexts["Private · Only you and Pip"].exists)
         let ownMessage = app.staticTexts["Check whether other projects are affected too."]
         let reply = app.staticTexts["The build listing became slower after this morning’s deployment. I’m comparing the query plans."]
         XCTAssertGreaterThan(ownMessage.frame.maxX, reply.frame.maxX)

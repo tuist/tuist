@@ -37,7 +37,7 @@ internal fun checkOrbitModel() {
         needsSession: Boolean = false,
     ) = JSONObject()
         .put("sequence", sequence)
-        .put("assistant", JSONObject().put("name", "Server assistant").put("configured", true))
+        .put("assistant", JSONObject().put("name", "Pip").put("configured", true))
         .put(
             "threads",
             org.json
@@ -178,7 +178,7 @@ internal fun checkOrbitModel() {
     // Card events go to Rust; only a matching effect can reveal source, never a late effect for a different thread.
     val evidence =
         JSONObject(
-            """{"id":"evidence","kind":"tool","body":"","author_name":"Server assistant","inserted_at":"2026-10-22T12:00:00Z","tool_status":"succeeded","component":{"type":"result_table","version":1,"data":{"title":"Accounts","columns":["Name"],"rows":[["Northstar"]]},"actions":[{"id":"show_evidence","label":"View source"}],"fallback":"Northstar"}}""",
+            """{"id":"evidence","kind":"tool","body":"","author_name":"Pip","inserted_at":"2026-10-22T12:00:00Z","tool_status":"succeeded","component":{"type":"result_table","version":1,"data":{"title":"Accounts","columns":["Name"],"rows":[["Northstar"]]},"actions":[{"id":"show_evidence","label":"View source"}],"fallback":"Northstar"}}""",
         )
     model.refresh()
     take("request", "refresh").second(Result.success(snapshot(21, SHARED).put("messages", org.json.JSONArray().put(evidence))))
