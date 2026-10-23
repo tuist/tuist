@@ -12,6 +12,7 @@ defmodule Noora do
       import Noora.Avatar
       import Noora.Badge
       import Noora.Banner
+      import Noora.Brand
       import Noora.Breadcrumbs
       import Noora.Button
       import Noora.ButtonDropdown

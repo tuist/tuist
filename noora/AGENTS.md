@@ -47,6 +47,10 @@ dependency, so changes here affect `server/` directly. Component code lives in
 - `Noora.Icon` uses per-SVG `@external_resource` and `__mix_recompile__?/0` for
   additions/removals, never the directory itself (Mix cannot digest directories).
   Brand SVGs use monochrome filled `currentColor` and `brand_<name>/1` helpers.
+- `Noora.Brand` (`tuist_logo/1`, `tuist_wordmark/1`) reads its shapes at compile time
+  from `lib/noora/brand`, copies of the color assets in
+  `server/priv/static/marketing/images/brand`; update both when the brand changes.
+  Colors live in `css/brand.css` and follow the color scheme; `surface` pins it.
 - Delegate date-picker navigation from the hook root so patched controls still work.
 - Charts initialize near the viewport only when `data-lazy="true"`; offscreen
   updates/destruction remain safe and resize listeners register once per lifetime.
