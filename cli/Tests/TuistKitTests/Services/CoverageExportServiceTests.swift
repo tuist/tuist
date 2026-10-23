@@ -444,6 +444,46 @@ struct CoverageExportServiceTests {
         #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/AppTests.xctest/AppTests") == "AppTests")
     }
 
+    @Test(.inTemporaryDirectory) func mapsAliasesThroughTheMapsTheTestProductsCarry() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let targetDirectory = directory.appending(
+            components: "Build",
+            "Intermediates.noindex",
+            "App.build",
+            "Debug",
+            "Local.build"
+        )
+        try FileManager.default.createDirectory(atPath: targetDirectory.pathString, withIntermediateDirectories: true)
+        try JSONEncoder().encode(["/^src": "/test-job/Local"])
+            .write(to: URL(fileURLWithPath: targetDirectory.appending(component: "compilation-prefix-map.json").pathString))
+        let buildSources = CoverageBuildSources(
+            rootDirectories: ["/build-job"],
+            files: [:],
+            prefixMaps: ["Lib": ["/^src": "/build-job/Lib"], "Local": ["/^src": "/build-job/Local"]]
+        )
+
+        // A test job's derived data has no intermediates: the maps come from the test products.
+        let withoutIntermediates = CompilationPrefixMaps(derivedDataDirectory: nil, buildSources: buildSources)
+        #expect(withoutIntermediates.remap("/^src/A.swift", target: "Lib") == "/build-job/Lib/A.swift")
+
+        // The products were compiled by the build that recorded them, so its maps win over the
+        // derived data's; the derived data's still map the targets the build recorded none for.
+        let maps = CompilationPrefixMaps(
+            derivedDataDirectory: directory,
+            buildSources: CoverageBuildSources(
+                rootDirectories: ["/build-job"],
+                files: [:],
+                prefixMaps: ["Lib": ["/^src": "/build-job/Lib"]]
+            )
+        )
+        #expect(maps.remap("/^src/A.swift", target: "Lib") == "/build-job/Lib/A.swift")
+        #expect(maps.remap("/^src/A.swift", target: "Local") == "/test-job/Local/A.swift")
+        #expect(
+            CompilationPrefixMaps(derivedDataDirectory: directory, buildSources: buildSources)
+                .remap("/^src/A.swift", target: "Local") == "/build-job/Local/A.swift"
+        )
+    }
+
     @Test(.inTemporaryDirectory) func writesMappedFilesUnderThePathTheyMapBackTo() async throws {
         let report = try write(
             "SF:/^src/Lib/A.swift\nDA:1,1\nend_of_record\nSF:/^src/Lib/A.swift\nDA:1,1\nend_of_record\n",
