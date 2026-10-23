@@ -30,7 +30,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' INT TERM
 mkdir -p "$work/baseline"
-git archive "$base" kura | tar -x -C "$work/baseline"
+git -C "$repo" archive "$base" kura | tar -x -C "$work/baseline"
 cache=$RUNNER_TEMP/kura-trust-bazel-cache
 flags=(--jobs=4 --disk_cache="$cache/disk" --repository_cache="$cache/download" --experimental_disk_cache_gc_max_size=4G)
 for tree in "$work/baseline/kura" "$repo/kura"; do
