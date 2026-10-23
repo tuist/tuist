@@ -41,7 +41,12 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
     locale = Gettext.get_locale(TuistWeb.Gettext)
     all_cases = Customers.get_case_studies(locale)
     search_query = Map.get(params, "search", "")
-    page = params |> Map.get("page", "1") |> String.to_integer()
+
+    page =
+      case Integer.parse(Map.get(params, "page", "1")) do
+        {num, ""} -> num
+        _ -> 1
+      end
 
     previous_page = Map.get(socket.assigns, :current_page, 1)
     page_changed = page != previous_page

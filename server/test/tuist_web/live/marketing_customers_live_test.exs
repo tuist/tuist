@@ -31,5 +31,11 @@ defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
       assert html =~
                ~s(href="https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/")
     end
+
+    test "falls back to the first page when the page param is not an integer", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, "/customers?page=1'%20ORDER%20BY%201--%20-")
+
+      assert html =~ "Hyperconnect optimized its multi-service pipeline with Tuist"
+    end
   end
 end
