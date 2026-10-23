@@ -6581,7 +6581,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_testWithoutBuilding_fromBundle_records_coverage_evidence_and_exports_coverage_under_the_passthrough_derived_data() async throws {
+    func test_run_testWithoutBuilding_fromBundle_collects_coverage_under_the_passthrough_derived_data() async throws {
         // Given
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
