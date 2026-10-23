@@ -52,6 +52,9 @@ type CustomVolumes struct {
 	checkoutReserved uint64
 	checkoutMu       sync.Mutex
 	checkoutJobs     map[string]cachevolumes.CheckoutTask
+	pendingMu        sync.Mutex
+	// pending holds when each Pod stops waiting for GitHub's job report.
+	pending map[string]time.Time
 	// spare cancels the running background prefetch; guarded by Space.mu.
 	spare context.CancelCauseFunc
 	// spareScope is the scope that prefetch restores; guarded by Space.mu.
@@ -485,15 +488,15 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		if input.Checkout {
 			budget = 15 * time.Second
 		}
-		deadline := time.Now().Add(budget)
-		if requestDeadline := info.ModTime().Add(budget); requestDeadline.Before(deadline) {
-			deadline = requestDeadline
+		asked := time.Now()
+		if info.ModTime().Before(asked) {
+			asked = info.ModTime()
 		}
-		acquireCtx, cancel := context.WithDeadline(ctx, deadline)
+		acquireCtx, cancel := context.WithDeadline(ctx, asked.Add(budget))
 		if input.Checkout {
 			response := map[string]any{"error": "unavailable", "reason": "error"}
 			if c.Checkouts != nil {
-				response = c.checkout(acquireCtx, pod, input.UID)
+				response = c.checkout(acquireCtx, pod, input.UID, asked)
 			}
 			cancel()
 			if response == nil {
@@ -518,16 +521,20 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 		status, err := c.request(acquireCtx, "authorize", body, &identity)
 		// 425 means GitHub has not yet reported which job this runner executes.
-		for status == http.StatusTooEarly {
-			select {
-			case <-acquireCtx.Done():
-			case <-time.After(customAuthorizeRetry):
-				status, err = c.request(acquireCtx, "authorize", body, &identity)
+		if status == http.StatusTooEarly {
+			pendingCtx, stop := context.WithDeadline(acquireCtx, c.pendingUntil(string(pod.UID), asked))
+			for status == http.StatusTooEarly {
+				select {
+				case <-pendingCtx.Done():
+				case <-time.After(customAuthorizeRetry):
+					status, err = c.request(pendingCtx, "authorize", body, &identity)
+				}
+				if pendingCtx.Err() != nil && status != http.StatusOK {
+					err = cachevolumes.ErrExecutionPending
+					break
+				}
 			}
-			if acquireCtx.Err() != nil && status != http.StatusOK {
-				err = cachevolumes.ErrExecutionPending
-				break
-			}
+			stop()
 		}
 		// 507: the volume is larger than this host's maximum.
 		if status == http.StatusInsufficientStorage {
@@ -573,6 +580,33 @@ func (c *CustomVolumes) requests(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 	return nil
+}
+
+// pendingUntil is when a Pod stops waiting for GitHub to report the job its
+// runner executes. The first request answered 425 starts one wait of
+// customAcquireBudget that the Pod's checkout and every later volume share:
+// GitHub's report can lag the job's start by minutes, and a job that requests
+// several volumes would otherwise wait the whole budget once per volume. A
+// request after the wait still asks the server once, so a report that arrived
+// meanwhile still authorizes it.
+func (c *CustomVolumes) pendingUntil(podUID string, asked time.Time) time.Time {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	if until, ok := c.pending[podUID]; ok {
+		return until
+	}
+	// A runner Pod lives for one job, which never outlasts six hours.
+	for uid, until := range c.pending {
+		if time.Since(until) > 6*time.Hour {
+			delete(c.pending, uid)
+		}
+	}
+	if c.pending == nil {
+		c.pending = map[string]time.Time{}
+	}
+	until := asked.Add(customAcquireBudget)
+	c.pending[podUID] = until
+	return until
 }
 
 // Guests only ever see complete responses. O_EXCL and link never follow or
