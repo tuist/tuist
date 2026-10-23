@@ -1057,7 +1057,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   end
 
   test "records a target whose run skipped tests of other targets", %{project: project, account: account} do
-    # Quarantine skips a test of another target on every run.
     recorded_source(project, account, [], %{skip_test_identifiers: ["AppTests/MathTests/testFlaky()"]})
     skipped_head(project, account, [{"TextKitTests", :local, "text"}])
 
@@ -1727,6 +1726,31 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     })
 
     assert %{kind: "measured", skipped_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  # The client reports only the caller's skips: a quarantined test it skipped
+  # is outside the suite, so a run that skipped only it is a full run.
+  test "a commit whose only skipped test is a quarantined one is measured", %{project: project, account: account} do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    assert %{kind: "measured", skipped_tests_count: 0, carried_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "a caller's skip beside a quarantined test carries only the caller's", %{project: project, account: account} do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([]),
+      skip_test_identifiers: ["AppTests/TextTests/testTrim()"]
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} = Reported.compute(project, "head")
   end
 
   test "a target selective testing skipped that no ancestor run executed is a gap", %{

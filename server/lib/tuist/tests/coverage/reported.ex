@@ -7,8 +7,10 @@ defmodule Tuist.Tests.Coverage.Reported do
   skipped would have covered lines too. The skipped tests are those Tuist
   skipped: every test of a target selective testing skipped (the command
   event names it as a hit, a scheme skipped whole included) and the tests
-  the runs' skip identifiers name (quarantine, `-skip-testing`), less what
-  another run of their scheme executed at the commit. A target's tests are the ones it executed in the nearest
+  the runs' skip identifiers name (`--skip-test-targets`, `-skip-testing`),
+  less what another run of their scheme executed at the commit. A test
+  quarantine skipped is outside the suite: the client doesn't report it, so
+  it is neither carried nor a gap. A target's tests are the ones it executed in the nearest
   ancestor run that ran it, and per-test evidence
   (`Tuist.Tests.Coverage.Evidence`) says which lines each of them ran the
   last time it executed. What a caller's `-only-testing` left out was never

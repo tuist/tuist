@@ -4685,7 +4685,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/build_run_id`.
             public var build_run_id: Swift.String?
-            /// The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
+            /// The tests the caller told this run to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`. Quarantined tests Tuist skipped are not included: they are outside the suite, so code coverage neither carries them forward nor counts them as missing. Code coverage carries forward what the caller's skips covered the last time they ran.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/skip_test_identifiers`.
             public var skip_test_identifiers: [Swift.String]?
@@ -5354,7 +5354,7 @@ public enum Components {
             ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
             ///   - coverage:
             ///   - build_run_id: The UUID of an associated build run.
-            ///   - skip_test_identifiers: The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
+            ///   - skip_test_identifiers: The tests the caller told this run to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`. Quarantined tests Tuist skipped are not included: they are outside the suite, so code coverage neither carries them forward nor counts them as missing. Code coverage carries forward what the caller's skips covered the last time they ran.
             ///   - git_ref: The git reference.
             ///   - base_branch: The branch the run's commit will merge into: the pull request's base, or the project's default branch.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -34323,7 +34323,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
-                    /// The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
+                    /// The tests the caller told this run to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`. Quarantined tests Tuist skipped are not included: they are outside the suite, so code coverage neither carries them forward nor counts them as missing. Code coverage carries forward what the caller's skips covered the last time they ran.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/skip_test_identifiers`.
                     public var skip_test_identifiers: [Swift.String]?
@@ -34992,7 +34992,7 @@ public enum Operations {
                     ///   - history_source: Whether the client collected the run's Git history (merge base, commit graph) or could not (`none`).
                     ///   - coverage:
                     ///   - build_run_id: The UUID of an associated build run.
-                    ///   - skip_test_identifiers: The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran.
+                    ///   - skip_test_identifiers: The tests the caller told this run to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`. Quarantined tests Tuist skipped are not included: they are outside the suite, so code coverage neither carries them forward nor counts them as missing. Code coverage carries forward what the caller's skips covered the last time they ran.
                     ///   - git_ref: The git reference.
                     ///   - base_branch: The branch the run's commit will merge into: the pull request's base, or the project's default branch.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
