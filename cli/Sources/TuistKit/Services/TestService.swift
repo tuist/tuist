@@ -874,7 +874,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await runCollectingCoverage(
                 arguments: xcodebuildArguments,
                 resultBundlePath: resultBundlePath,
-                derivedDataPath: derivedDataPath,
                 config: config
             )
         } catch {
@@ -950,13 +949,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     /// Runs `test-without-building` the way `testScheme` runs its test action: the coverage evidence
     /// is recorded and the run's coverage exported as soon as it ends, failed or not, before a
-    /// stress pass replaces the profile both read.
+    /// stress pass replaces the profile both read. The profile is under the arguments'
+    /// `-derivedDataPath`, whether it came from `--derived-data-path` or after `--`.
     private func runCollectingCoverage(
         arguments: [String],
         resultBundlePath: AbsolutePath?,
-        derivedDataPath: AbsolutePath?,
         config: Tuist
     ) async throws {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let derivedDataPath = try passedValue(for: "-derivedDataPath", arguments: arguments).map {
+            try AbsolutePath(validating: $0, relativeTo: currentWorkingDirectory)
+        }
         let session = await testCoverageEvidenceService.prepare(
             platform: passedValue(for: "-destination", arguments: arguments)
                 .flatMap(TestCoverageEvidencePlatform.init(destination:)),
@@ -1154,7 +1157,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await runCollectingCoverage(
                 arguments: xcodebuildArguments,
                 resultBundlePath: resultBundlePath,
-                derivedDataPath: derivedDataPath,
                 config: config
             )
         } catch {
