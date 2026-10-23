@@ -3,13 +3,16 @@
 // Run sequentially on baseline and changed images; both receive identical config.
 import fs from "node:fs";
 import crypto from "node:crypto";
+import https from "node:https";
+import { bodyFor, bodySize } from "./corpus.mjs";
 import { execFileSync } from "node:child_process";
 const label = process.argv[2];
 const testImage = process.argv[3];
 if (!label || !testImage) throw Error("Usage: node resources.mjs label image");
-const prefix = "kura-provider-resource-" + process.pid;
+const prefix = "kura-provider-resource-" + crypto.randomUUID().slice(0, 8);
 const network = prefix;
 const out = process.env.KURA_RESOURCE_OUTPUT || `/tmp/kura-provider-resource-${label}`;
+if (fs.existsSync(out) && fs.readdirSync(out).length) throw Error("resource output must be empty");
 fs.mkdirSync(out, { recursive: true });
 const certs = out + "/certs";
 fs.mkdirSync(certs, { recursive: true });
@@ -75,8 +78,10 @@ for (const [suffix, port] of [
     certs + ":/certs:ro",
     "-p",
     "127.0.0.1:" + port + ":4000",
+    "-p",
+    "127.0.0.1:" + (port + 1000) + ":7443",
     "--memory=1536m",
-    "--cpus=2",
+    "--cpus=1",
     ...Object.entries(env).flatMap(([k, v]) => ["-e", k + "=" + v]),
     testImage,
   );
@@ -109,11 +114,30 @@ const headers = {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const url = (port, key) =>
   `http://127.0.0.1:${port}/api/cache/gradle/${key}?tenant_id=default&namespace_id=bench`;
-const body = Buffer.alloc(1024 * 1024, 71);
-const stats = { puts: 0, gets: 0, readBytes: 0, failures: [] };
+const stats = { puts: 0, gets: 0, handshakes: 0, readBytes: 0, retainedObjects: 0, failures: [] };
+const tlsOptions = Object.fromEntries(["ca", "cert", "key"].map((key, index) => [key, fs.readFileSync(certs + "/" + ["ca.pem", "peer.pem", "peer.key"][index])]));
+function handshake(index) {
+  return new Promise((resolve, reject) => {
+    const request = https.get({ ...tlsOptions, hostname: "127.0.0.1", port: 5291 + index, servername: names[index], path: "/_internal/status", agent: false, rejectUnauthorized: true }, response => {
+      response.resume();
+      if (response.socket.isSessionReused()) {
+        response.destroy();
+        return reject(Error("mTLS churn probe unexpectedly resumed a session"));
+      }
+      response.on("error", reject);
+      response.on("end", () => {
+        if (response.statusCode !== 200) return reject(Error("mTLS status probe rejected: " + response.statusCode));
+        stats.handshakes++;
+        resolve();
+      });
+    });
+    request.setTimeout(5000, () => request.destroy(Error("mTLS status probe timed out")));
+    request.on("error", reject);
+  });
+}
 async function write(key) {
   const port = 4291 + (stats.puts % 3);
-  const r = await fetch(url(port, key), { method: "PUT", headers, body });
+  const r = await fetch(url(port, key), { method: "PUT", headers, body: bodyFor(key) });
   if (!r.ok) throw Error(`PUT ${key}: ${r.status} ${await r.text()}`);
   await r.arrayBuffer();
   stats.puts++;
@@ -124,7 +148,7 @@ async function read(port, key) {
   const b = Buffer.from(await r.arrayBuffer());
   stats.gets++;
   stats.readBytes += b.length;
-  if (r.status !== 200 || b.length !== body.length || !b.equals(body))
+  if (r.status !== 200 || b.length !== bodySize || !b.equals(bodyFor(key)))
     stats.failures.push({ port, key, status: r.status, bytes: b.length });
 }
 const docker = (...args) => execFileSync("docker", args, { encoding: "utf8" });
@@ -147,6 +171,7 @@ function hostStats() {
       'read -r kura_pid rest < /proc/1/task/1/children; cat "/proc/$kura_pid/smaps_rollup"',
     ),
     disk: docker("exec", `${prefix}-${n}`, "du", "-sb", "/data"),
+    diskAllocated: docker("exec", `${prefix}-${n}`, "du", "-sB1", "/data"),
     net: docker("exec", `${prefix}-${n}`, "cat", "/proc/net/dev"),
   }));
 }
@@ -181,7 +206,7 @@ for (const port of [4291, 4292, 4293]) {
     for (let retry = 0; retry < 60; retry++) {
       const r = await fetch(url(port, "seed-" + i), { headers });
       const data = Buffer.from(await r.arrayBuffer());
-      if (r.ok && data.equals(body)) break;
+      if (r.ok && data.equals(bodyFor("seed-" + i))) break;
       if (retry === 59) throw Error("replication did not converge: " + port + "/" + i);
       await sleep(1000);
     }
@@ -196,6 +221,12 @@ await Promise.all([
       await write(`load-${i}`);
     }
   })(),
+  (async () => {
+    for (let i = 0; i < 1280; i++) {
+      await sleep(Math.max(0, start + i * 50 - Date.now()));
+      await handshake(i % 3);
+    }
+  })(),
   ...[4291, 4292, 4293].map(async (port) => {
     for (let i = 0; i < 256; i++) {
       await sleep(Math.max(0, start + i * 250 - Date.now()));
@@ -205,6 +236,15 @@ await Promise.all([
 ]);
 stats.loadDurationMs = Date.now() - start;
 stats.loadEndSample = sequence;
+await sleep(30000);
+for (const port of [4291, 4292, 4293]) {
+  for (const [kind, count] of [["seed", 64], ["load", 256]]) {
+    for (let i = 0; i < count; i++) {
+      await read(port, `${kind}-${i}`);
+      stats.retainedObjects++;
+    }
+  }
+}
 await sleep(30000);
 clearInterval(interval);
 await sampling;

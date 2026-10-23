@@ -32,8 +32,12 @@ default. Linux native-store overrides, malformed/missing files, strict extras,
 anchor denial and fresh reload behavior are tested in an owned child process;
 never mutate shared `SSL_CERT_FILE`/`SSL_CERT_DIR` variables in the parent.
 See [`../infra/certificate-trust/KURA-CLIENTS.md`](../infra/certificate-trust/KURA-CLIENTS.md)
-for commands and evidence limits. Local unit/handshake passes are not Linux
-execution, four-axis main-relative stress, release or rollout clearance.
+for commands and evidence limits. The explicit read-only Linux workflow now
+executes the standalone native suite; local macOS passes alone are not Linux
+evidence. Neither unit suite is four-axis stress, release or rollout clearance.
+The build-only Linux release/resource entry point has its own
+[`test/e2e/certificate-trust/AGENTS.md`](test/e2e/certificate-trust/AGENTS.md);
+keep its private fixture keys out of artifacts and review all measured deltas.
 
 ## Key Boundaries
 - Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.

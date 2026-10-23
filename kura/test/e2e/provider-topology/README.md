@@ -12,32 +12,43 @@ node test/e2e/provider-topology/summarize.mjs /tmp/topology-before /tmp/topology
 The harness creates three disposable containers with distinct origin regions,
 two providers, real peer mTLS, and separate private DNS aliases. The baseline
 receives the same environment and ignores the new optional topology field.
-Each container has two CPUs, a 1.5 GiB cgroup limit and a 3 GiB cache capacity.
-It reserves loopback ports 4291–4293 and removes only its own containers and
-network. Keep the output directories distinct: each contains temporary test
-certificates as well as the resource traces.
+Each container has one CPU, a 1.5 GiB cgroup limit and a 3 GiB cache capacity.
+It reserves loopback ports 4291–4293 and 5291–5293, uses a disposable Docker bridge
+and removes only its own randomly named containers/network. Keep the
+output directories distinct and empty: each contains synthetic private keys
+as well as resource traces. Never upload an entire output directory.
 Keep these generated files out of the repository. Record measured results and
 limitations in the associated PR, then remove the temporary output directories
 when they are no longer needed.
 
-The corpus is 64 seeded and 256 subsequent 1 MiB objects, written round-robin
-across all three origins. Every seed must replicate byte-for-byte to all nodes
-before load begins. The load offers four writes/second and four verified
-reads/second per node for roughly 64 seconds, extending when writes cannot
-keep pace. A 30-second cooldown separates peak memory from settled memory.
+The corpus is 64 seeded and 256 subsequent distinct, incompressible 1 MiB objects, written
+round-robin across all three origins. Every seed must replicate byte-for-byte
+to all nodes before load begins. The load offers four writes/second and four
+verified reads/second per node for roughly 64 seconds, extending when writes
+cannot keep pace. It also performs 1,280 full inbound peer-mTLS connections at
+20/second, refusing resumed sessions. After a 30-second cooldown all 320
+objects must still read byte-for-byte on all three nodes. Another 30-second
+cooldown measures recovery after those final reads.
 `result.json` records completed work, failures, process CPU ticks, disk size,
 anonymous memory and network counters. Every node's `/metrics` is scraped at
 two-second intervals throughout seeding, load and cooldown.
 
-The summary aggregates simultaneous memory samples across all three nodes,
+The summary writes `summary.json` and aggregates simultaneous memory samples across all three nodes,
 reports peak and cooldown values, uses the doubled `_total_total` counters,
 and normalizes CPU to completed client bytes. The runtime has no CPU-seconds
 metric, so `/proc/<kura-pid>/stat` supplies that measurement. Interface transmit
 bytes include mTLS, ACKs, probes and metadata; client egress and peer applied
-payload counters are reported separately. Disk includes metadata and segments;
+payload counters are reported separately. Disk reports both apparent and allocated bytes, including metadata and segments;
 refresh bytes show write amplification beyond the client and replicated corpus.
 
-This is a bounded local resource regression check. It does not verify provider
+`compare.mjs before-1 after-1 after-2 before-2` compares four summaries in ABBA
+order. It rejects unequal completed work or missing/nonfinite measurements and
+reports every delta plus the baseline-to-baseline spread. Positive increases
+outside that spread require review, not an automatic budget waiver. See the
+build-only [`certificate-trust` workflow entry point](../certificate-trust/AGENTS.md).
+
+This is a bounded local resource regression check. It covers private-peer TLS,
+not the cost of rebuilding native-root HTTP clients or deployed telemetry/auth. It does not verify provider
 billing, production compaction/retention, N-1 capacity, or a physical private
 underlay. Run the host capture and fault sequence in
 [`private-replication.md`](../../../../infra/kura-controller/private-replication.md)

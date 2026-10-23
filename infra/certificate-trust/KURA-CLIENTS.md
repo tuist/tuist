@@ -1,6 +1,6 @@
 # Kura native and explicit-anchor certificate trust
 
-Implementation and local qualification, **2026-10-22**. Kura now independently embeds the twelve-key `emudhra-2026-10-19-v2` policy in its native and explicit-anchor verifiers. This is source and macOS-host evidence, not Linux execution, a release-image qualification, resource-budget clearance or a rollout. Container PEM containment alone does not close this row.
+Implementation and local qualification, **2026-10-22**. Kura now independently embeds the twelve-key `emudhra-2026-10-19-v2` policy in its native and explicit-anchor verifiers. This is source, macOS-host and standalone Linux CI evidence, not a release-image qualification, resource-budget clearance or a rollout. Container PEM containment alone does not close this row.
 
 ## Locked verifier and production paths
 
@@ -70,9 +70,17 @@ The existing Kura JUnit adapter used Python. Commit `66df472e87` replaces its re
 
 The shared Go suite checks all twelve hashes, the policy marker, real fixture equality, locked verifier versions and a bounded constructor/backend/alternative-stack inventory, including code after named test modules. It is not an arbitrary Rust alias/macro/data-flow proof. The normal Kura Bazel pipeline includes these targets; a source guard or a local pass is not current-head Linux CI evidence.
 
+## Standalone Linux CI qualification
+
+Read-only [workflow 39911817495](https://github.com/tuist/tuist/actions/runs/39911817495) succeeded at `2a5d5062fb3acb6c341a0d15dbe6ab2709c0429e` on GitHub-hosted Linux amd64 (Ubuntu kernel 6.17.0-1022-azure), Bazel 9.1.1/Rust 1.94.1. The independent target passed **10 cases, 3 ignored** in **0.174 s**. Both explicit public/PKCS#1/SEC1 opt-ins separately passed; the public case took **6.455 s**. Twelve public negatives required typed certificate failures, and unrelated HTTPS succeeded. Accepted synthetic leaf/intermediate/absent-root controls establish the additive deny separately.
+
+The Linux-only parent test launches an owned child with isolated `SSL_CERT_FILE`/`SSL_CERT_DIR`. It exercises native-file override, all-blocked anchors, malformed/missing stores, strict extra roots, valid extra roots despite native-store errors and fresh-file reload. No shared environment or host trust is mutated. Raw source/platform/JUnit/log receipts are in `/tmp/tuist-emudhra-audit/kura-linux-native-39911817495/`.
+
+The runtime workflow's explicit `qualification_only=true` branch now builds the main merge-base and candidate with identical release assembly, runs the complete Linux suite, and collects ABBA private-peer resource evidence. It has no registry login, publication or deployment. Its source path and measurements are not yet a passing resource/release receipt. The improved fixture uses distinct incompressible objects, full mTLS churn and post-load retention/recovery; it does not measure native-client construction cost or deployed telemetry/auth integrations.
+
 ## Remaining gates
 
-- Linux native execution, including native-store failure/override/reload behavior, and fresh current-head CI results.
+- Complete Linux library/current-head results and supported distro/runtime variants remain distinct from the standalone result above.
 - Sustained before/after stress against the main merge base on **memory/headroom, disk/retention, CPU/work and egress/work**, including post-load recovery. Unit tests do not satisfy Kura's four-axis budget policy; this behavior change remains incomplete until that gate is measured.
 - Exact Linux release images, macOS release binaries and minimum-supported-runtime qualification, plus deployed Sentry/OTLP/enrollment/Kubernetes integration where applicable. OTLP gRPC TLS remains unavailable, not silently protected or downgraded.
 - Owner-authorized publication, installed runtime floors, version-skew/backport qualification and health-gated replacement preserving instance pins, warm caches, pauses, access and patched rollback. No release, deployment or replacement is authorized by this receipt.

@@ -113,6 +113,12 @@ fn unix_native_store_override_errors_and_reload_are_process_scoped() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .any(|line| line.starts_with("test result: ok. 1 passed; 0 failed;")),
+        "native-store child must execute exactly one test"
+    );
 }
 
 #[cfg(target_os = "linux")]
@@ -144,7 +150,8 @@ fn unix_native_store_child() {
     };
     std::fs::write(&path, &first.root_pem).unwrap();
     reqwest::Client::builder().build().unwrap();
-    verify(native().unwrap().as_ref(), &first).unwrap();
+    let original = native().unwrap();
+    verify(original.as_ref(), &first).unwrap();
     assert!(
         config(
             Roots::Native(Vec::new()),
@@ -155,6 +162,8 @@ fn unix_native_store_child() {
     );
     std::fs::write(&path, &second.root_pem).unwrap();
     let reloaded = native().unwrap();
+    verify(original.as_ref(), &first).unwrap();
+    assert!(verify(original.as_ref(), &second).is_err());
     verify(reloaded.as_ref(), &second).unwrap();
     assert!(verify(reloaded.as_ref(), &first).is_err());
     std::fs::write(&path, b"invalid native store").unwrap();

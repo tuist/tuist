@@ -253,7 +253,10 @@ accepted-key differentials, actual HTTPS, h2/TLS1.2+1.3, separate-PKI HTTPS
 CONNECT, peer rotation/overlap, Sentry controls and private terminal auth errors
 with retained transient-EOF retry. Explicit public/PKCS1/SEC1 opt-ins pass.
 The standard JUnit Python report adapter was replaced with Rust and tests rerun.
-Linux native execution/current-head CI, main-relative four-axis stress and
+Standalone Linux CI at `2a5d5062fb` now passes 10 ordinary cases (3 ignored)
+and both explicit public/PEM opt-ins, including isolated native-store failure,
+override and reload controls (workflow `39911817495`). Complete current-head
+Linux library results, main-relative four-axis stress and
 exact release/deployed integration remain required: this behavior change is
 not complete under Kura's resource policy. No publication or rollout is claimed.
 See [Kura implementation and qualification limits](KURA-CLIENTS.md).

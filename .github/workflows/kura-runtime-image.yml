@@ -11,12 +11,21 @@ name: Kura Runtime Image
 # nodes are amd64). Pair it with a `Server Deployment` dispatch: pass the printed
 # `sha-<sha>` tag as `kura_runtime_image_tag` and the same commit as `commit_sha`.
 #
+# The default dispatch is build-only qualification. Publication requires an
+# explicitly authorized qualification_only=false dispatch; it is never a side
+# effect of collecting resource evidence.
+#
 # A matching stub registers this workflow_dispatch trigger on the default branch
 # (GitHub requires that before the workflow can be dispatched against any ref);
 # dispatching against this branch runs the real build below.
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      qualification_only:
+        description: Build-only Linux tests, release assembly and ABBA resource evidence (no publication)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -28,13 +37,61 @@ defaults:
     working-directory: kura
 
 env:
-  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/kura
 
 jobs:
+  qualify:
+    name: Linux build-only resource evidence
+    if: inputs.qualification_only
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: bazel node
+          working_directory: kura
+          env: false
+      - name: Check workload and measurement contracts
+        run: mise exec -- node --test test/e2e/provider-topology/{compare,corpus,summarize}.test.mjs
+      - name: Install the native C/C++ toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and exercise baseline and candidate on the same host
+        env:
+          KURA_QUALIFICATION_OUTPUT: ${{ runner.temp }}/kura-trust-evidence
+        run: bash test/e2e/certificate-trust/qualify-linux.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kura-build-only-${{ github.sha }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: error
+          # Never upload whole resource directories: they contain private test keys.
+          path: |
+            ${{ runner.temp }}/kura-trust-evidence/SOURCE
+            ${{ runner.temp }}/kura-trust-evidence/*.txt
+            ${{ runner.temp }}/kura-trust-evidence/*.json
+            ${{ runner.temp }}/kura-trust-evidence/*.xml
+            ${{ runner.temp }}/kura-trust-evidence/before-*/result.json
+            ${{ runner.temp }}/kura-trust-evidence/before-*/summary.json
+            ${{ runner.temp }}/kura-trust-evidence/before-*/*.prom
+            ${{ runner.temp }}/kura-trust-evidence/after-*/result.json
+            ${{ runner.temp }}/kura-trust-evidence/after-*/summary.json
+            ${{ runner.temp }}/kura-trust-evidence/after-*/*.prom
   build-and-push:
     name: Build and push (amd64)
+    if: ${{ !inputs.qualification_only }}
+    env:
+      MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
     runs-on: tuist-linux
     timeout-minutes: 60
     steps:

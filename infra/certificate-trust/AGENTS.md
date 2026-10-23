@@ -26,10 +26,12 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
   semantics and qualify real images separately. Managed cache-volume endpoints
   are currently plaintext HTTP: do not describe those routes as TLS handshakes.
   `KURA-CLIENTS.md` records Kura's independent reqwest 0.13 native/explicit
-  enforcement and macOS-host Bazel evidence. Preserve complete Apple SecTrust
+  enforcement, macOS-host Bazel evidence and standalone native Linux CI. Preserve complete Apple SecTrust
   paths, Unix native-store/extra-anchor semantics, explicit/inbound mTLS and
-  per-build identity/provider/PEM/SNI/ALPN parity. Linux execution, main-relative
-  four-axis stress and exact release/deployed integration remain gates.
+  per-build identity/provider/PEM/SNI/ALPN parity. Complete current-head Linux
+  library results, main-relative four-axis stress and exact release/deployed
+  integration remain gates. The runtime workflow's safe-default build-only path
+  retains only public evidence/hashes, not private keys or runnable artifacts.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight
   intermediate-key controls; Go 1.27.1 fails. Qualify replacement SDKs by actual
   behavior and update the explicit CI/test allowlist, not numeric ordering.

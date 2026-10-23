@@ -57,6 +57,16 @@ The aggregate mitigation paths trigger many independent main deploy workflows:
 split merges by owner rather than treating this test job as a fleet rollout gate.
 Runner idle-only and Kura health-gated waves can stay warm; cache-volume agents,
 parallel gateway updates and singleton access paths need separate qualification.
+`workflows/kura-runtime-image.yml` has an explicit `qualification_only` dispatch
+branch for native Linux tests, exact release assembly and ABBA resource evidence.
+It is the safe dispatch default; publication requires explicit `false` and its
+own authorization. The job overrides permissions to contents-read, uses only `github.token`, skips
+the publishing job, and never logs into a registry or configures a remote cache.
+Its artifact allowlist excludes generated private test keys and runnable
+binaries/images; only public evidence and artifact hashes/IDs are retained.
+Successful execution is evidence to review, not deployment or budget approval.
+See `kura/test/e2e/certificate-trust/AGENTS.md`.
+
 Kura and Android SDK image builds require the shared named `certificate-trust`
 Docker context. Keep direct E2E Docker callers and release path detection aligned.
 Management Tailscale image replacements require the manual workflow's separate
