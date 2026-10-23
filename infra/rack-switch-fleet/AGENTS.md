@@ -576,7 +576,7 @@ A power node may carry `mac`, its management card's MAC in lower case, like a
 switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
 factory card, which asks for DHCP, lands on its address with the edge as its
 router and nobody at it; an unknown MAC still gets the provisioning range. A
-node without one (today `ber1-pdu-a`, whose label shows only its serial) is
+node without one (today `ber1-pdu-b`, whose label shows only its serial) is
 rendered all the same, gets no reservation, and its RackPDU reports
 `AddressReserved=False`.
 
