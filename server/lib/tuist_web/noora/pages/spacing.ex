@@ -15,9 +15,9 @@ defmodule TuistWeb.Noora.Pages.Spacing do
       <h2><a href="#scale">Scale</a></h2>
       <div data-part="token-rows">
         <div :for={token <- @tokens}>
-          <code>{token.name}</code>
-          <span data-part="value">{token.value}</span>
           <div data-part="spacing-bar" style={"width: var(#{token.name})"}></div>
+          <span data-part="value">{token.value}</span>
+          <code data-part="token-name">{token.name}</code>
         </div>
       </div>
     </section>

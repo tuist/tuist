@@ -29,7 +29,7 @@ defmodule TuistWeb.Noora.Pages.Introduction do
         <.link navigate={Pages.path(Pages.Colors)}>
           <.chart_donut_4 />
           <strong>Colors</strong>
-          <span>The palette and the semantic tokens that switch between light and dark.</span>
+          <span>The color scales behind every component.</span>
         </.link>
         <.link navigate={Pages.path(Pages.Typography)}>
           <.file_text />

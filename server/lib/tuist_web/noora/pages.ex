@@ -9,6 +9,7 @@ defmodule TuistWeb.Noora.Pages do
     {"Getting started", [Pages.Introduction, Pages.Installation]},
     {"Foundations",
      [
+       Pages.Brand,
        Pages.Colors,
        Pages.Typography,
        Pages.Spacing,

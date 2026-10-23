@@ -40,9 +40,9 @@ defmodule TuistWeb.Noora.NooraLiveTest do
   test "documents the attributes and slots declared by the component", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/noora/button")
 
-    assert has_element?(view, "#api-reference td code", "variant")
-    assert has_element?(view, "#api-reference [data-part=values] code", ~s("destructive"))
-    assert has_element?(view, "#api-reference td code", ":icon_left")
+    assert has_element?(view, "#api-button-attributes td [data-part=label]", "variant")
+    assert has_element?(view, "#api-button-attributes [data-part=values] code", ~s("destructive"))
+    assert has_element?(view, "#api-button-slots td [data-part=label]", ":icon_left")
   end
 
   for page <- Pages.all() do

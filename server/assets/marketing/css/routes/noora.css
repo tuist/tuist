@@ -185,8 +185,15 @@
       gap: var(--noora-spacing-3);
       box-shadow: var(--noora-border-light-default);
       border-radius: var(--noora-radius-4);
+
       padding: 0 var(--noora-spacing-3) 0 var(--noora-spacing-4);
       color: var(--noora-surface-label-tertiary);
+
+      /* The input drops its own outline; the field shows the docs ring. */
+      &:has(input:focus-visible) {
+        outline: 2px solid var(--noora-surface-label-brand);
+        outline-offset: 2px;
+      }
 
       & svg {
         flex-shrink: 0;
@@ -216,7 +223,7 @@
     & [data-part="group"] {
       display: flex;
       flex-direction: column;
-      gap: 1px;
+      gap: var(--noora-spacing-1);
     }
 
     & [data-part="group-title"] {
@@ -226,11 +233,21 @@
     }
 
     & [data-part="nav-item"] {
+      position: relative;
       border-radius: var(--noora-radius-3);
       padding: var(--noora-spacing-3) var(--noora-spacing-4);
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-body-medium);
       text-decoration: none;
+
+      /* Each item's hit area reaches half the 2px gap above and below it, so
+         neighbors cover the gap between them: no dead zone where the hover
+         and the cursor flicker. */
+      &::before {
+        position: absolute;
+        inset: calc(var(--noora-spacing-1) / -2) 0;
+        content: "";
+      }
 
       &:hover {
         background: var(--noora-surface-background-tertiary);
@@ -242,6 +259,13 @@
         color: var(--noora-surface-label-primary);
         font-weight: var(--noora-font-weight-medium);
       }
+
+      /* Items sit 2px apart, so a ring drawn outside would be covered by
+         the next item's background; it sits on the item's own edge instead,
+         following its 6px radius. */
+      &:focus-visible {
+        outline-offset: -2px;
+      }
     }
 
     & [data-part="search-empty"] {
@@ -250,15 +274,18 @@
     }
   }
 
+  /* The bottom padding matches the 48px gap between sections, so a short
+     page fits the window instead of overflowing by a large tail. */
   & [data-part="main"] {
-    padding: var(--noora-spacing-13) var(--noora-spacing-11) var(--noora-spacing-16);
+    padding: var(--noora-spacing-13) var(--noora-spacing-11) var(--noora-spacing-11);
     min-width: 0;
   }
 
+  /* Sections, and the steps inside the installation list, share one rhythm. */
   & [data-part="article"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-13);
+    gap: var(--noora-spacing-11);
     margin: 0 auto;
     max-width: 880px;
   }
@@ -269,25 +296,38 @@
     gap: var(--noora-spacing-4);
 
     & h1 {
-      font: var(--noora-font-weight-semibold) var(--noora-font-heading-2xlarge);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-2xlarge);
       letter-spacing: -0.02em;
     }
 
     & [data-part="lede"] {
-      max-width: 640px;
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-body-large);
     }
   }
 
-  & [data-part="section"] {
+  /* A title sits 8px above its description. Content (code, previews,
+     tables) sits 20px below whatever precedes it, the description or, in
+     sections without one, the title. */
+  & [data-part="section"],
+  & [data-part="steps"] > li {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-5);
+
+    & > * + * {
+      margin-top: var(--noora-spacing-7);
+    }
+
+    & > h2 + :is(p, [data-part="section-description"]) {
+      margin-top: var(--noora-spacing-4);
+    }
+  }
+
+  & [data-part="section"] {
     scroll-margin-top: calc(var(--noora-docs-header-height) + var(--noora-spacing-8));
 
     & h2 {
-      font: var(--noora-font-weight-semibold) var(--noora-font-heading-large);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
 
       & a {
         color: inherit;
@@ -307,9 +347,24 @@
 
     & > p,
     & [data-part="section-description"] {
-      max-width: 680px;
       color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-large);
     }
+  }
+
+  /* Inline code in body-large text (descriptions, steps, guidelines) is set
+     in code-large, so it matches the text around it; elsewhere it keeps the
+     default code-medium. */
+  &
+    :is(
+      [data-part="lede"],
+      [data-part="section"] > p,
+      [data-part="section-description"],
+      [data-part="steps"] > li > p,
+      [data-part="guidelines"]
+    )
+    code {
+    font: var(--noora-font-code-large);
   }
 
   & p code,
@@ -328,7 +383,8 @@
     display: flex;
     flex-direction: column;
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-6);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-primary);
   }
 
   & .noora-docs-example [data-part="preview"] {
@@ -337,7 +393,7 @@
     justify-content: center;
     align-items: center;
     gap: var(--noora-spacing-6);
-    border-radius: var(--noora-radius-6) var(--noora-radius-6) 0 0;
+    border-radius: var(--noora-radius-4) var(--noora-radius-4) 0 0;
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-11) var(--noora-spacing-9);
     min-height: 120px;
@@ -353,46 +409,72 @@
     }
   }
 
-  & .noora-docs-example [data-part="code"] {
-    display: none;
-    border-top: 1px solid var(--noora-docs-stroke);
+  /* The example's source: a code window card inset in the frame under the
+     preview. Collapsed, only its bar shows, holding the disclosure toggle
+     and the copy button; expanding reveals the code box inside the card. */
+  /* Concentric with the frame: its 8px radius minus the 4px inset. */
+  & .noora-docs-example [data-part="source"] {
+    margin: 0 var(--noora-spacing-2) var(--noora-spacing-2);
+    border-radius: var(--noora-radius-2);
 
-    & .code-window {
-      box-shadow: none;
-      border-radius: 0;
+    /* The shared bar keeps only 2px below it, as a seam to the code box;
+       here it is the card's last row when collapsed, so it balances its
+       top padding. */
+    & > [data-part="bar"] {
+      padding-bottom: var(--noora-spacing-2);
+    }
+
+    /* Square on top, where it meets the bar; rounded with the card below. */
+    & > [data-part="code"] {
+      display: none;
+      clip-path: inset(-8px 0 0 0 round 0 0 var(--noora-radius-2) var(--noora-radius-2));
+      border-radius: 0 0 var(--noora-radius-2) var(--noora-radius-2);
     }
   }
 
-  & .noora-docs-example[data-expanded] [data-part="code"] {
+  & .noora-docs-example[data-expanded] [data-part="source"] > [data-part="code"] {
     display: block;
   }
 
+  /* The toggle fills the bar, so the whole row opens and closes the code;
+     only the copy button beside it does something else. */
   & .noora-docs-example [data-part="code-toggle"] {
     display: flex;
-    justify-content: center;
+    flex: 1;
     align-items: center;
-    gap: var(--noora-spacing-2);
+    align-self: stretch;
+    gap: var(--noora-spacing-4);
     cursor: pointer;
+    /* Reaches over the bar's top, bottom, and left padding, and adds it
+       back inside, so the row has no dead edge and the label stays put. */
+    margin: calc(var(--noora-spacing-2) * -1) 0 calc(var(--noora-spacing-2) * -1) calc(var(--noora-spacing-4) * -1);
     border: 0;
-    border-top: 1px solid var(--noora-docs-stroke);
-    border-radius: 0 0 var(--noora-radius-6) var(--noora-radius-6);
-    background: var(--noora-surface-background-tertiary);
-    padding: var(--noora-spacing-4);
+    border-radius: var(--noora-radius-2);
+    background: none;
+    padding: calc(var(--noora-spacing-2) * 2) var(--noora-spacing-4) calc(var(--noora-spacing-2) * 2)
+      calc(var(--noora-spacing-4) * 2);
     color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    font: var(--noora-font-body-medium);
 
     &:hover {
       color: var(--noora-surface-label-primary);
     }
 
     & svg {
-      transition: transform 150ms ease;
+      transition: transform 150ms var(--ease-out-cubic);
       width: var(--noora-icon-size-medium);
       height: var(--noora-icon-size-medium);
+      color: var(--noora-surface-label-tertiary);
     }
 
     & [data-part="hide"] {
       display: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      & svg {
+        transition: none;
+      }
     }
   }
 
@@ -406,16 +488,8 @@
     }
 
     & svg {
-      transform: rotate(180deg);
+      transform: rotate(90deg);
     }
-  }
-
-  & .code-window [data-part="code"] pre {
-    margin: 0;
-    background: transparent !important;
-    padding: var(--noora-spacing-4) var(--noora-spacing-6) var(--noora-spacing-6);
-    overflow-x: auto;
-    font: var(--noora-font-code-large);
   }
 
   & [data-part="guidelines"] {
@@ -424,18 +498,20 @@
     gap: var(--noora-spacing-4);
     margin: 0;
     padding-left: var(--noora-spacing-8);
-    max-width: 720px;
     color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-large);
 
     & li::marker {
       color: var(--noora-surface-label-tertiary);
     }
   }
 
+  /* The heading sits as far above its tables as a description sits above
+     its code. */
   & [data-part="api"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-4);
+    gap: var(--noora-spacing-7);
 
     & + [data-part="api"] {
       margin-top: var(--noora-spacing-8);
@@ -443,10 +519,6 @@
 
     & [data-part="api-name"] code {
       font: var(--noora-font-weight-semibold) var(--noora-font-code-large);
-    }
-
-    & [data-part="api-module"] {
-      color: var(--noora-surface-label-tertiary);
     }
 
     & [data-part="api-global"] {
@@ -458,63 +530,29 @@
     }
   }
 
+  /* API tables are Noora tables built from its cells. Unlike the dashboard's
+     data tables, they fit the column instead of growing to their content,
+     so descriptions wrap rather than scroll sideways. */
   & [data-part="api-table"] {
-    box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-4);
-    overflow-x: auto;
-
     & table {
-      border-collapse: collapse;
       width: 100%;
-      min-width: 560px;
+      min-width: 0;
     }
 
-    & th,
-    & td {
-      vertical-align: top;
-      border-bottom: 1px solid var(--noora-docs-stroke);
-      padding: var(--noora-spacing-4) var(--noora-spacing-5);
-      text-align: left;
-    }
-
-    & tr:last-child td {
-      border-bottom: 0;
-    }
-
-    & th {
-      background: var(--noora-surface-background-tertiary);
+    & [data-part="api-description"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-3);
       color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-    }
-
-    & td {
-      color: var(--noora-surface-label-secondary);
-    }
-
-    & td:first-child {
-      white-space: nowrap;
-    }
-
-    & td:first-child code {
-      color: var(--noora-surface-label-primary);
-    }
-
-    & [data-part="required"] {
-      margin-left: var(--noora-spacing-3);
-      color: var(--noora-surface-label-destructive);
-      font: var(--noora-font-body-small);
-    }
-
-    & [data-part="none"] {
-      color: var(--noora-surface-label-tertiary);
+      white-space: normal;
     }
 
     & [data-part="values"],
     & [data-part="slot-attrs"] {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
       gap: var(--noora-spacing-2);
-      margin-top: var(--noora-spacing-3);
     }
   }
 
@@ -566,7 +604,7 @@
       flex-direction: column;
       gap: var(--noora-spacing-3);
       box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-6);
+      border-radius: var(--noora-radius-4);
       padding: var(--noora-spacing-7);
       color: var(--noora-surface-label-primary);
       text-decoration: none;
@@ -595,33 +633,217 @@
   & [data-part="steps"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-9);
-    counter-reset: noora-docs-step;
+    gap: var(--noora-spacing-11);
     margin: 0;
     padding: 0;
     list-style: none;
 
     & > li {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-4);
-      counter-increment: noora-docs-step;
       scroll-margin-top: calc(var(--noora-docs-header-height) + var(--noora-spacing-8));
-    }
-
-    & > li > h2::before {
-      margin-right: var(--noora-spacing-4);
-      content: counter(noora-docs-step);
-      color: var(--noora-surface-label-tertiary);
-      font: var(--noora-font-code-large);
     }
 
     & > li > p {
       color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-large);
+    }
+  }
+
+  & p a {
+    color: var(--noora-surface-label-primary);
+    text-underline-offset: 2px;
+  }
+
+  /* Brand. Cell surfaces are theme-fixed (absolute ramp values, no
+     light-dark()): each cell shows an asset on the background it was made
+     for, whatever the reader's theme. Mirrors tuist.dev/brand. */
+  & [data-part="brand-grid"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-4);
+    padding: 0;
+    overflow: hidden;
+    list-style: none;
+
+    & > [data-part="brand-cell"] {
+      display: flex;
+      position: relative;
+      justify-content: center;
+      align-items: center;
+      box-sizing: border-box;
+      padding: var(--noora-spacing-12) var(--noora-spacing-9);
+      min-height: 200px;
+
+      &[data-surface="light"] {
+        background: var(--noora-neutral-light-100);
+      }
+
+      &[data-surface="dark"] {
+        background: var(--noora-neutral-dark-1100);
+      }
+
+      &:nth-child(n + 3)[data-surface="light"] {
+        border-top: 1px solid var(--noora-neutral-light-200);
+      }
+
+      &:nth-child(n + 3)[data-surface="dark"] {
+        border-top: 1px solid var(--noora-neutral-dark-1000);
+      }
+
+      /* Scaled up from the assets' 32px (wordmark) and 28px (logo) intrinsic
+         heights; the width follows each asset's aspect ratio. */
+      & > img {
+        display: block;
+        width: auto;
+        max-width: 100%;
+        height: var(--noora-spacing-13);
+      }
+
+      & > [data-part="download"] {
+        position: absolute;
+        right: var(--noora-spacing-3);
+        bottom: var(--noora-spacing-3);
+        transform: translateY(6px);
+        opacity: 0;
+        transition:
+          opacity 0.2s var(--ease-out-cubic),
+          transform 0.2s var(--ease-out-cubic),
+          background 0.2s var(--ease-out-cubic);
+
+        & svg {
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+        }
+      }
+
+      /* The neutral button's tokens follow the theme; pin them to the
+         cell's own surface. */
+      &[data-surface="light"] > [data-part="download"] {
+        --noora-button-neutral-label: var(--noora-neutral-light-1200);
+        --noora-button-neutral-background-hover: var(--noora-neutral-light-200);
+        --noora-button-neutral-background-active: var(--noora-neutral-light-300);
+      }
+
+      &[data-surface="dark"] > [data-part="download"] {
+        --noora-button-neutral-label: var(--noora-neutral-light-50);
+        --noora-button-neutral-background-hover: var(--noora-neutral-dark-1000);
+        --noora-button-neutral-background-active: var(--noora-neutral-dark-900);
+      }
+
+      &:hover > [data-part="download"],
+      &:focus-within > [data-part="download"] {
+        transform: translateY(0);
+        opacity: 1;
+      }
     }
   }
 
   /* Foundations */
+  /* Palette: one row per scale, a name column and a swatch per step. The
+     grid keeps steps in the same column across scales of different lengths
+     (13 neutral steps, 11 per hue). */
+  /* The sideways scroll clips at the padding edge, so 4px of padding keeps
+     the swatches' focus ring (2px offset, 2px wide) visible; the negative
+     margin keeps the grid aligned with the text around it. */
+  & [data-part="palette"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    margin: calc(var(--noora-spacing-2) * -1);
+    padding: var(--noora-spacing-2);
+    overflow-x: auto;
+  }
+
+  & [data-part="palette-row"] {
+    display: grid;
+    grid-template-columns: 112px repeat(13, minmax(32px, 1fr));
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    min-width: 600px;
+  }
+
+  & [data-part="palette-name"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="palette-swatch"] {
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--noora-surface-label-primary) 10%, transparent);
+    border-radius: var(--noora-radius-3);
+    height: var(--noora-spacing-11);
+  }
+
+  /* Copyable color swatches: selecting one copies `var(--token)` and flashes
+     a check, in white or near-black, whichever contrasts more with the
+     swatch (chosen by the page's color hook). The wrapper only carries the
+     hook, so the sections keep the article's spacing. */
+  & [data-part="color-copy"],
+  & [data-part="type-sizes"] {
+    display: contents;
+  }
+
+  & [data-token] {
+    display: grid;
+    position: relative;
+    place-items: center;
+    cursor: copy;
+    border: 0;
+    padding: 0;
+
+    /* The focus ring is a pseudo-element rather than an outline so its
+       corners can take a fixed 6px radius: an outline's radius grows with
+       its offset. It sits 2px outside the swatch. */
+    &:focus-visible {
+      outline: none;
+    }
+
+    &:focus-visible::after {
+      position: absolute;
+      inset: calc(var(--noora-spacing-2) * -1);
+      border: 2px solid var(--noora-surface-label-brand);
+      border-radius: var(--noora-radius-3);
+      pointer-events: none;
+      content: "";
+    }
+
+    /* The check grows in from nothing and shrinks back out the same way;
+       on the way out the fade trails the shrink so the scale stays visible. */
+    & svg {
+      transform: scale(0);
+      opacity: 0;
+      transition:
+        opacity 100ms var(--ease-out-cubic) 100ms,
+        transform 200ms var(--ease-out-cubic);
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+      pointer-events: none;
+    }
+
+    &[data-check="light"] svg {
+      color: var(--noora-neutral-light-50);
+    }
+
+    &[data-check="dark"] svg {
+      color: var(--noora-neutral-dark-1200);
+    }
+
+    &[data-copied] svg {
+      transform: scale(1);
+      opacity: 1;
+      transition:
+        opacity 100ms var(--ease-out-cubic),
+        transform 200ms var(--ease-out-cubic);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      & svg,
+      &[data-copied] svg {
+        transition: none;
+      }
+    }
+  }
+
   & [data-part="swatches"] {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -646,35 +868,6 @@
     }
   }
 
-  & [data-part="scale"] {
-    display: grid;
-    grid-auto-columns: minmax(0, 1fr);
-    grid-auto-flow: column;
-    box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-4);
-    overflow: hidden;
-
-    & > div {
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      padding: var(--noora-spacing-3);
-      height: 72px;
-    }
-
-    & span {
-      mix-blend-mode: difference;
-      color: white;
-      font: var(--noora-font-code-small);
-    }
-  }
-
-  & [data-part="scale-name"] {
-    margin-bottom: calc(var(--noora-spacing-3) * -1);
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-code-medium);
-  }
-
   & [data-part="token-rows"] {
     display: flex;
     flex-direction: column;
@@ -682,9 +875,10 @@
     border-radius: var(--noora-radius-4);
     overflow: hidden;
 
+    /* The live example leads; its value and token name sit on the right. */
     & > div {
       display: grid;
-      grid-template-columns: minmax(0, 220px) 96px minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) 72px minmax(0, 240px);
       align-items: center;
       gap: var(--noora-spacing-6);
       border-bottom: 1px solid var(--noora-docs-stroke);
@@ -695,19 +889,58 @@
       }
     }
 
-    & code {
+    /* A merged row: one specimen cell beside a column of name cells, like a
+       merged spreadsheet cell. The column's left edge meets the dividers
+       between the names. */
+    & > [data-part="token-group"] {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 240px);
+      align-items: stretch;
+      gap: 0;
+      padding: 0;
+
+      & > [data-part="type-specimen"] {
+        align-self: center;
+        padding: var(--noora-spacing-5) var(--noora-spacing-6);
+      }
+
+      & > [data-part="token-names"] {
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid var(--noora-docs-stroke);
+
+        & > [data-part="token-name"] {
+          display: flex;
+          flex: 1;
+          justify-content: flex-end;
+          align-items: center;
+          border-bottom: 1px solid var(--noora-docs-stroke);
+          padding: var(--noora-spacing-5) var(--noora-spacing-6);
+
+          &:last-child {
+            border-bottom: 0;
+          }
+        }
+      }
+    }
+
+    & [data-part="token-name"] {
       color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-code-small);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: right;
       overflow-wrap: anywhere;
     }
 
     & [data-part="value"] {
       color: var(--noora-surface-label-tertiary);
-      font: var(--noora-font-code-small);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
     }
   }
 
+  /* Long specimens truncate with an ellipsis. The clip box needs room
+     above and below the line for descenders and accents, which tight
+     display line heights would otherwise cut. */
   & [data-part="type-specimen"] {
+    padding-block: 0.15em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -744,7 +977,7 @@
 
     & [data-part="value"] {
       color: var(--noora-surface-label-tertiary);
-      font: var(--noora-font-code-small);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
     }
   }
 
@@ -757,7 +990,7 @@
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 
     & [data-part="tile"] {
-      border-radius: var(--noora-radius-6);
+      border-radius: var(--noora-radius-4);
     }
   }
 
@@ -808,12 +1041,33 @@
       }
     }
 
-    & [data-part="token-rows"] > div {
-      grid-template-columns: minmax(0, 1fr) 64px;
+    & [data-part="token-rows"] > div:not([data-part="token-group"]) {
+      grid-template-columns: 64px minmax(0, 1fr);
 
-      & > :last-child {
+      & > :first-child {
         grid-column: 1 / -1;
       }
     }
+
+    & [data-part="token-rows"] > [data-part="token-group"] {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
   }
+}
+
+/* Default focus ring for the docs frame: 2px brand purple, 2px out. It
+   overrides the site-wide :focus-visible (marketing.css) by qualifying the
+   element type, and everything else sits in :where(), so any component's
+   own `.component:focus-visible` style still wins. Live previews are
+   excluded so they show each component's real focus state. */
+:where(.noora-docs)
+  :where(:not([data-part="preview"] *)):is(a, button, input, select, textarea, summary, div):focus-visible {
+  outline: 2px solid var(--noora-surface-label-brand);
+  outline-offset: 2px;
+}
+
+/* Docs links have no radius of their own; 4px draws the ring 2px out with
+   6px corners. */
+:where(.noora-docs) :is([data-part="brand"], h2 a, p a):focus-visible {
+  border-radius: var(--noora-radius-2);
 }
