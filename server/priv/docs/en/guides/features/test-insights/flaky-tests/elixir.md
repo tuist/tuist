@@ -82,6 +82,7 @@ The run fails as usual when any test that isn't muted fails, or when ExUnit stop
 > - Skipping matches a test by its describe block and name, not its module. A test with the same describe block and name in another module is skipped too. See [how skipping selects tests](#how-skipping-selects-tests).
 > - A skipped test still runs when you select it with `--only`, `--include`, or `path:line`, or when it isn't declared with `test`, such as a StreamData `property`.
 > - If `mix test` cannot read the quarantined tests, it runs every test and counts every failure.
+> - Reading the quarantined tests requires credentials, even for a public project. A run without a `TUIST_TOKEN`, a `mix tuist.login` session, or a continuous integration identity token applies no quarantine. That includes pull requests from forks, which usually run without secrets.
 > - With `--cover`, a skipped test counts as removed: lines only it covered are reported as uncovered.
 >
 > `mix test` names the tests a skip left out by mistake, and the skipped tests that ran anyway, after its summary.
