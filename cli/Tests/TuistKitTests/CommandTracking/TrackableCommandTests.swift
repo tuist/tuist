@@ -25,7 +25,6 @@ final class TrackableCommandTests: TuistTestCase {
     private var uploadAnalyticsService: MockUploadAnalyticsServicing!
     private var gitHubActionsJobSummaryService: MockGitHubActionsJobSummaryServicing!
     private var runReportService: MockRunReportServicing!
-    private var reportOutbox: MockReportOutboxing!
 
     override func setUp() {
         super.setUp()
@@ -35,8 +34,6 @@ final class TrackableCommandTests: TuistTestCase {
         uploadAnalyticsService = MockUploadAnalyticsServicing()
         gitHubActionsJobSummaryService = MockGitHubActionsJobSummaryServicing()
         runReportService = MockRunReportServicing()
-        reportOutbox = MockReportOutboxing()
-        given(reportOutbox).hasPendingEntries().willReturn(false)
         given(runReportService)
             .clearRunReport(at: .any)
             .willReturn()
@@ -71,7 +68,6 @@ final class TrackableCommandTests: TuistTestCase {
         uploadAnalyticsService = nil
         gitHubActionsJobSummaryService = nil
         runReportService = nil
-        reportOutbox = nil
         super.tearDown()
     }
 
@@ -103,7 +99,6 @@ final class TrackableCommandTests: TuistTestCase {
             serverAuthenticationController: serverAuthenticationController,
             gitHubActionsJobSummaryService: gitHubActionsJobSummaryService,
             runReportService: runReportService,
-            reportOutbox: reportOutbox,
             bestEffortForegroundUploadTimeout: bestEffortForegroundUploadTimeout,
             sessionDirectory: temporaryPath
         )
@@ -247,40 +242,6 @@ final class TrackableCommandTests: TuistTestCase {
         verify(uploadAnalyticsService)
             .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
             .called(1)
-    }
-
-    func test_whenTheForegroundUploadLeavesReportsPending_flushesThemInTheBackground() async throws {
-        reportOutbox.reset()
-        given(reportOutbox).hasPendingEntries().willReturn(true)
-        uploadAnalyticsService.reset()
-        given(uploadAnalyticsService)
-            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
-            .willThrow(URLError(.timedOut))
-        try makeSubject(analyticsRequired: true)
-
-        try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
-
-        verify(backgroundProcessRunner)
-            .runInBackground(
-                .matching { Array($0.dropFirst()) == ["analytics-upload", "--flush-report-outbox"] },
-                environment: .any
-            )
-            .called(1)
-    }
-
-    func test_whenTheUploadRunsInTheBackground_leavesFlushingTheOutboxToIt() async throws {
-        reportOutbox.reset()
-        given(reportOutbox).hasPendingEntries().willReturn(true)
-        try makeSubject()
-
-        try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
-
-        verify(backgroundProcessRunner)
-            .runInBackground(.any, environment: .any)
-            .called(1)
-        verify(backgroundProcessRunner)
-            .runInBackground(.matching { $0.contains("--flush-report-outbox") }, environment: .any)
-            .called(0)
     }
 
     func test_whenRunMetadataUploadTimesOut_doesNotFailCommand() async throws {

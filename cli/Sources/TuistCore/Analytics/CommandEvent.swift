@@ -3,8 +3,6 @@ import Path
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
 public struct CommandEvent: Codable, Equatable {
-    /// The id the server records the event under and deduplicates every send of it by.
-    public let id: String?
     public let runId: String
     public let name: String
     public let subcommand: String?
@@ -36,7 +34,6 @@ public struct CommandEvent: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id
         case runId
         case name
         case subcommand
@@ -65,7 +62,6 @@ public struct CommandEvent: Codable, Equatable {
     }
 
     public init(
-        id: String? = nil,
         runId: String,
         name: String,
         subcommand: String?,
@@ -92,7 +88,6 @@ public struct CommandEvent: Codable, Equatable {
         cacheEndpoint: String,
         moduleCacheOutputs: [ModuleCacheOutput] = []
     ) {
-        self.id = id
         self.runId = runId
         self.name = name
         self.subcommand = subcommand
@@ -122,7 +117,6 @@ public struct CommandEvent: Codable, Equatable {
 
     #if MOCKING
         public static func test(
-            id: String? = nil,
             runId: String = "",
             name: String = "generate",
             subcommand: String? = nil,
@@ -149,7 +143,6 @@ public struct CommandEvent: Codable, Equatable {
             moduleCacheOutputs: [ModuleCacheOutput] = []
         ) -> CommandEvent {
             CommandEvent(
-                id: id,
                 runId: runId,
                 name: name,
                 subcommand: subcommand,

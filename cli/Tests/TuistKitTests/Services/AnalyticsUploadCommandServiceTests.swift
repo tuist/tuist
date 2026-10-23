@@ -29,8 +29,7 @@ struct AnalyticsUploadCommandServiceTests {
         subject = AnalyticsUploadCommandService(
             fileSystem: FileSystem(),
             uploadAnalyticsService: uploadAnalyticsService,
-            configLoader: configLoader,
-            reportOutbox: Self.reportOutbox()
+            configLoader: configLoader
         )
     }
 
@@ -149,7 +148,6 @@ struct AnalyticsUploadCommandServiceTests {
             fileSystem: fileSystem,
             uploadAnalyticsService: DelayedUploadAnalyticsService(delay: .seconds(1)),
             configLoader: configLoader,
-            reportOutbox: Self.reportOutbox(),
             bestEffortUploadTimeout: .milliseconds(1)
         )
 
@@ -217,14 +215,13 @@ struct AnalyticsUploadCommandServiceTests {
         let subject = AnalyticsUploadCommandService(
             fileSystem: FileSystem(),
             uploadAnalyticsService: RecordingUploadAnalyticsService(recorder: recorder),
-            configLoader: configLoader,
-            reportOutbox: Self.reportOutbox()
+            configLoader: configLoader
         )
 
         try await subject.run(
-            eventFilePath: try #require(command.eventFilePath),
-            fullHandle: try #require(command.fullHandle),
-            serverURL: try #require(command.serverURL),
+            eventFilePath: command.eventFilePath,
+            fullHandle: command.fullHandle,
+            serverURL: command.serverURL,
             sessionDirectory: command.sessionDirectory,
             projectPath: command.projectPath
         )
@@ -274,8 +271,7 @@ struct AnalyticsUploadCommandServiceTests {
         let subject = AnalyticsUploadCommandService(
             fileSystem: FileSystem(),
             uploadAnalyticsService: RecordingUploadAnalyticsService(recorder: recorder),
-            configLoader: configLoader,
-            reportOutbox: Self.reportOutbox()
+            configLoader: configLoader
         )
 
         // When
@@ -313,8 +309,7 @@ struct AnalyticsUploadCommandServiceTests {
         let subject = AnalyticsUploadCommandService(
             fileSystem: FileSystem(),
             uploadAnalyticsService: RecordingUploadAnalyticsService(recorder: recorder),
-            configLoader: configLoader,
-            reportOutbox: Self.reportOutbox()
+            configLoader: configLoader
         )
 
         // When
@@ -328,56 +323,11 @@ struct AnalyticsUploadCommandServiceTests {
         let values = await recorder.values()
         #expect(values == [false])
     }
-
-    @Test(.inTemporaryDirectory, arguments: [false, true])
-    func run_flushes_the_report_outbox_after_its_own_upload(uploadFails: Bool) async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let eventFilePath = temporaryDirectory.appending(component: "event.json")
-        try JSONEncoder().encode(CommandEvent.test()).write(to: eventFilePath.url, options: .atomic)
-        let uploadAnalyticsService = MockUploadAnalyticsServicing()
-        if uploadFails {
-            given(uploadAnalyticsService)
-                .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
-                .willThrow(TestError.uploadFailed)
-        } else {
-            given(uploadAnalyticsService)
-                .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
-                .willReturn(.test())
-        }
-        let reportOutbox = Self.reportOutbox()
-        let subject = AnalyticsUploadCommandService(
-            fileSystem: FileSystem(),
-            uploadAnalyticsService: uploadAnalyticsService,
-            configLoader: configLoader,
-            reportOutbox: reportOutbox
-        )
-
-        _ = try? await subject.run(eventFilePath: eventFilePath.pathString, fullHandle: fullHandle, serverURL: serverURL)
-
-        verify(reportOutbox).flush().called(1)
-    }
-
-    @Test func flushing_the_report_outbox_needs_no_event() async throws {
-        let command = try AnalyticsUploadCommand.parse(["--flush-report-outbox"])
-
-        #expect(command.eventFilePath == nil)
-        #expect(command.flushReportOutbox)
-        #expect(throws: (any Error).self) { try AnalyticsUploadCommand.parse([]) }
-        #expect(throws: (any Error).self) { try AnalyticsUploadCommand.parse(["/event.json"]) }
-    }
 }
 
 private enum TestError: Error {
     case uploadFailed
     case configLoadFailed
-}
-
-extension AnalyticsUploadCommandServiceTests {
-    fileprivate static func reportOutbox() -> MockReportOutboxing {
-        let reportOutbox = MockReportOutboxing()
-        given(reportOutbox).flush().willReturn()
-        return reportOutbox
-    }
 }
 
 private actor AuthenticationConfigRecorder {

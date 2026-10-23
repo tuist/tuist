@@ -49,7 +49,6 @@ public class TrackableCommand {
     private let fileSystem: FileSysteming
     private let gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing
     private let runReportService: RunReportServicing
-    private let reportOutbox: ReportOutboxing
     private let bestEffortForegroundUploadTimeout: Duration
     private let sessionDirectory: AbsolutePath
 
@@ -64,7 +63,6 @@ public class TrackableCommand {
         fileSystem: FileSysteming = FileSystem(),
         gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing = GitHubActionsJobSummaryService(),
         runReportService: RunReportServicing = RunReportService(),
-        reportOutbox: ReportOutboxing = ReportOutbox(),
         bestEffortForegroundUploadTimeout: Duration = .seconds(15),
         sessionDirectory: AbsolutePath
     ) {
@@ -78,7 +76,6 @@ public class TrackableCommand {
         self.fileSystem = fileSystem
         self.gitHubActionsJobSummaryService = gitHubActionsJobSummaryService
         self.runReportService = runReportService
-        self.reportOutbox = reportOutbox
         self.bestEffortForegroundUploadTimeout = bestEffortForegroundUploadTimeout
         self.sessionDirectory = sessionDirectory
     }
@@ -155,8 +152,6 @@ public class TrackableCommand {
         serverURL: URL,
         ranAt: Date
     ) async {
-        var flushesReportOutbox = false
-        defer { if flushesReportOutbox { flushReportOutboxInBackground() } }
         do {
             if ServerAuthenticationConfig.current.optionalAuthentication {
                 let token = try? await serverAuthenticationController.authenticationToken(
@@ -204,7 +199,6 @@ public class TrackableCommand {
             let buildRunURL = await runMetadataStorage.buildRunURL
             let isAnalyticsRequired = (command as? TrackableParsableCommand)?.analyticsRequired == true
             if isAnalyticsRequired || Environment.current.isCI {
-                flushesReportOutbox = true
                 Logger.current.info("Uploading run metadata...")
                 let serverCommandEvent = try await uploadCommandEvent(
                     commandEvent,
@@ -276,19 +270,6 @@ public class TrackableCommand {
             Logger.current.warning("Failed to upload run metadata: \(error.localizedDescription)")
         } catch {
             Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
-        }
-    }
-
-    /// The background `analytics-upload` flushes the outbox after its own upload, so only a foreground upload spawns this.
-    private func flushReportOutboxInBackground() {
-        guard reportOutbox.hasPendingEntries() else { return }
-        do {
-            try backgroundProcessRunner.runInBackground(
-                [Environment.current.currentExecutablePath()?.pathString ?? "tuist", "analytics-upload", "--flush-report-outbox"],
-                environment: ProcessInfo.processInfo.environment
-            )
-        } catch {
-            Logger.current.debug("Failed to start flushing the report outbox: \(error)")
         }
     }
 

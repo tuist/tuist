@@ -39,7 +39,7 @@ import TuistHTTP
         ) async throws -> Components.Schemas.RunsTest
     }
 
-    enum CreateTestServiceError: LocalizedError, HTTPStatusCodeError {
+    enum CreateTestServiceError: LocalizedError {
         case unknownError(Int)
         case forbidden(String)
         case notFound(String)
@@ -57,43 +57,25 @@ import TuistHTTP
                 return message
             }
         }
-
-        var httpStatusCode: Int {
-            switch self {
-            case let .unknownError(statusCode): statusCode
-            case .badRequest: 400
-            case .unauthorized: 401
-            case .forbidden: 403
-            case .notFound: 404
-            case .serviceUnavailable: 503
-            }
-        }
     }
 
     // swiftlint:disable:next type_body_length
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
         private let makeClient: @Sendable (URL, Bool) -> Client
-        private let reportOutbox: ReportOutbox
 
         public init(
             fullHandleService: FullHandleServicing = FullHandleService()
         ) {
-            self.init(
-                fullHandleService: fullHandleService,
-                makeClient: { Client.reporting(serverURL: $0, networkTrusted: $1) },
-                reportOutbox: ReportOutbox()
-            )
+            self.init(fullHandleService: fullHandleService, makeClient: { Client.reporting(serverURL: $0, networkTrusted: $1) })
         }
 
         init(
             fullHandleService: FullHandleServicing = FullHandleService(),
-            makeClient: @escaping @Sendable (URL, Bool) -> Client,
-            reportOutbox: ReportOutbox = ReportOutbox(directory: nil)
+            makeClient: @escaping @Sendable (URL, Bool) -> Client
         ) {
             self.fullHandleService = fullHandleService
             self.makeClient = makeClient
-            self.reportOutbox = reportOutbox
         }
 
         // swiftlint:disable:next function_body_length
@@ -295,64 +277,52 @@ import TuistHTTP
 
             let history = GitHistoryPayloads(gitHistory)
 
-            let body = Operations.createTest.Input.Body.jsonPayload(
-                git_branch: gitBranch,
-                execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
-                git_object_format: networkTrusted ? nil : history.objectFormat,
-                scheme: testSummary.testPlanName,
-                merge_base_sha: networkTrusted ? nil : gitHistory?.mergeBaseSHA,
-                ci_host: ciHost,
-                git_remote_url_origin: networkTrusted ? nil : gitRemoteURLOrigin,
-                history_fallback_reason: networkTrusted ? nil : gitHistory?.fallbackReason,
-                is_pull_request: networkTrusted ? nil : gitHistory?.isPullRequest,
-                status: status,
-                shard_index: networkTrusted ? nil : shardIndex,
-                only_test_identifiers: networkTrusted ? [] : onlyTestIdentifiers,
-                coverage_evidence: networkTrusted ? nil : testSummary.coverageEvidencePayload,
-                git_dirty: networkTrusted ? nil : gitHistory?.dirty,
-                history_source: networkTrusted ? nil : history.source,
-                coverage: networkTrusted ? nil : coveragePayload(coverage, toolVersion: xcodeVersion),
-                build_run_id: networkTrusted ? nil : buildRunId,
-                skip_test_identifiers: networkTrusted ? [] : skipTestIdentifiers,
-                git_ref: gitRef,
-                base_branch: networkTrusted ? nil : gitHistory?.baseBranch,
-                model_identifier: modelIdentifier,
-                ci_run_id: ciRunId,
-                ci_provider: ciProviderPayload,
-                ci_project_handle: ciProjectHandle,
-                pull_request_number: networkTrusted ? nil : gitHistory?.pullRequestNumber,
-                coverage_enabled: networkTrusted ? nil : coverageEnabled,
-                stress_new_tests: networkTrusted ? nil : stressNewTests,
-                macos_version: macOSVersion,
-                id: id,
-                shard_plan_id: networkTrusted ? nil : shardPlanId,
-                duration: testSummary.duration ?? 0,
-                xcode_version: xcodeVersion,
-                git_commit_sha: gitCommitSHA,
-                test_modules: testModules,
-                is_ci: isCI
-            )
-
-            let send = { try await self.send(body, handles: handles, client: client) }
-            guard !networkTrusted else { return try await send() }
-            return try await reportOutbox.deliver(
-                .testRun,
-                id: id,
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                body: body,
-                send: send
-            )
-        }
-
-        private func send(
-            _ body: Operations.createTest.Input.Body.jsonPayload,
-            handles: (accountHandle: String, projectHandle: String),
-            client: Client
-        ) async throws -> Components.Schemas.RunsTest {
             let response = try await client.createTest(
-                path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
-                body: .json(body)
+                .init(
+                    path: .init(
+                        account_handle: handles.accountHandle,
+                        project_handle: handles.projectHandle
+                    ),
+                    body: .json(
+                        .init(
+                            git_branch: gitBranch,
+                            execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
+                            git_object_format: networkTrusted ? nil : history.objectFormat,
+                            scheme: testSummary.testPlanName,
+                            merge_base_sha: networkTrusted ? nil : gitHistory?.mergeBaseSHA,
+                            ci_host: ciHost,
+                            git_remote_url_origin: networkTrusted ? nil : gitRemoteURLOrigin,
+                            history_fallback_reason: networkTrusted ? nil : gitHistory?.fallbackReason,
+                            is_pull_request: networkTrusted ? nil : gitHistory?.isPullRequest,
+                            status: status,
+                            shard_index: networkTrusted ? nil : shardIndex,
+                            only_test_identifiers: networkTrusted ? [] : onlyTestIdentifiers,
+                            coverage_evidence: networkTrusted ? nil : testSummary.coverageEvidencePayload,
+                            git_dirty: networkTrusted ? nil : gitHistory?.dirty,
+                            history_source: networkTrusted ? nil : history.source,
+                            coverage: networkTrusted ? nil : coveragePayload(coverage, toolVersion: xcodeVersion),
+                            build_run_id: networkTrusted ? nil : buildRunId,
+                            skip_test_identifiers: networkTrusted ? [] : skipTestIdentifiers,
+                            git_ref: gitRef,
+                            base_branch: networkTrusted ? nil : gitHistory?.baseBranch,
+                            model_identifier: modelIdentifier,
+                            ci_run_id: ciRunId,
+                            ci_provider: ciProviderPayload,
+                            ci_project_handle: ciProjectHandle,
+                            pull_request_number: networkTrusted ? nil : gitHistory?.pullRequestNumber,
+                            coverage_enabled: networkTrusted ? nil : coverageEnabled,
+                            stress_new_tests: networkTrusted ? nil : stressNewTests,
+                            macos_version: macOSVersion,
+                            id: id,
+                            shard_plan_id: networkTrusted ? nil : shardPlanId,
+                            duration: testSummary.duration ?? 0,
+                            xcode_version: xcodeVersion,
+                            git_commit_sha: gitCommitSHA,
+                            test_modules: testModules,
+                            is_ci: isCI
+                        )
+                    )
+                )
             )
 
             switch response {

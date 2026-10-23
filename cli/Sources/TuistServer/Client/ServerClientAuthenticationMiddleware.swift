@@ -86,7 +86,6 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             throw ServerReportPublishingError.invalidCredentials
         }
         addAuthorizationHeader(to: &request, token: token)
-        ReportOutboxSend.current?.willSendWithCredentials(operationID: operationID)
 
         return try await next(request, body, baseURL)
     }
