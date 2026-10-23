@@ -214,7 +214,7 @@ jobs:
       - run: mise exec -- rustup target add aarch64-apple-ios-sim
       - run: mise run prepare:rust
       - name: Test associated-domain provisioning guard without credentials
-        run: python3 ios/distribution/associated_domains_test.py
+        run: bash ios/distribution/test-associated-domains.sh
       - name: Test APNs provisioning guard without credentials
         run: python3 ios/distribution/push_test.py
       - name: Build isolated native UI fixtures

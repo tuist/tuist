@@ -661,7 +661,8 @@ extension XcodeBuildTestCommandService {
     ) async throws {
         let session = await testCoverageEvidenceService.prepare(
             platform: passedValue(for: "-destination", arguments: arguments)
-                .flatMap(TestCoverageEvidencePlatform.init(destination:))
+                .flatMap(TestCoverageEvidencePlatform.init(destination:)),
+            config: config
         )
         let runStartedAt = Date()
         var runError: Error?

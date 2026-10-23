@@ -19,8 +19,8 @@ import (
 
 // KataRuntimeSelectorLabel is the node label selected by the kata-qemu
 // RuntimeClass (infra/helm/tuist/templates/kata-qemu.yaml). The drift loop checks
-// it to establish schedulability, then checks the shared-memory configuration
-// proof before reporting the runtime ready.
+// it to establish schedulability, then checks the host-configuration proof
+// (shared memory, virtiofsd file budget) before reporting the runtime ready.
 const KataRuntimeSelectorLabel = "katacontainers.io/kata-runtime"
 
 // KataRuntimeReadyCondition reports whether a machine that asked for
@@ -48,9 +48,8 @@ const (
 	// containerd predates the v3 config syntax the handler is written in).
 	KataRuntimeRepairFailedReason = "KataRuntimeRepairFailed"
 
-	// KataSharedMemoryUnverifiedReason also covers labelled hosts that predate
-	// shared-memory sizing or have rebooted since the last successful repair.
-	KataSharedMemoryUnverifiedReason = "KataSharedMemoryUnverified"
+	// KataHostConfigUnverifiedReason also covers labelled hosts that predate	// the current host configuration or have rebooted since the last successful repair.
+	KataHostConfigUnverifiedReason = "KataHostConfigUnverified"
 )
 
 // kataRuntimeReadyGauge is the alertable form of the condition. Only machines
@@ -58,7 +57,7 @@ const (
 // "a runner box has an unverified Kata configuration" alert with no cache-fleet noise.
 var kataRuntimeReadyGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Name: "capt_node_kata_runtime_ready",
-	Help: "1 when a machine with spec.kataRuntime has the runtime label and verified shared-memory configuration for this boot, 0 otherwise. Machines that never asked for kata publish no series.",
+	Help: "1 when a machine with spec.kataRuntime has the runtime label and verified host configuration for this boot, 0 otherwise. Machines that never asked for kata publish no series.",
 }, []string{"machine", "fleet"})
 
 func init() {
@@ -149,8 +148,8 @@ export DEBIAN_FRONTEND=noninteractive
 
 // labelKataRuntimeNode patches the kata labels onto the live Node, which is the
 // step that actually makes the kata-qemu RuntimeClass select the box. Only
-// reached once the repair script has verified the runtime and shared-memory
-// capacity. The annotation records that proof for this configuration and boot.
+// reached once the repair script has verified the runtime and host
+// configuration. The annotation records that proof for this configuration and boot.
 func labelKataRuntimeNode(ctx context.Context, c client.Client, node *corev1.Node) error {
 	helper, err := patch.NewHelper(node, c)
 	if err != nil {
@@ -165,7 +164,7 @@ func labelKataRuntimeNode(ctx context.Context, c client.Client, node *corev1.Nod
 	if node.Annotations == nil {
 		node.Annotations = map[string]string{}
 	}
-	node.Annotations[kataSharedMemoryAnnotation] = kataSharedMemoryRevision(node)
+	node.Annotations[kataHostConfigAnnotation] = kataHostConfigRevision(node)
 	return helper.Patch(ctx, node)
 }
 
@@ -206,7 +205,7 @@ func reconcileLinuxKataRuntimeDrift(
 		return false, nil
 	}
 	runtimeInstalled := node.Labels[KataRuntimeSelectorLabel] == "true"
-	if runtimeInstalled && node.Annotations[kataSharedMemoryAnnotation] == kataSharedMemoryRevision(node) {
+	if runtimeInstalled && node.Annotations[kataHostConfigAnnotation] == kataHostConfigRevision(node) {
 		conditions.MarkTrue(machine, KataRuntimeReadyCondition)
 		recordKataRuntimeReady(machineName, fleet, true)
 		return false, nil
@@ -216,9 +215,9 @@ func reconcileLinuxKataRuntimeDrift(
 	// finish the repair leaves the machine visibly broken, which is the whole
 	// point: the incident's cost was that a node in this state looked healthy.
 	if runtimeInstalled {
-		conditions.MarkFalse(machine, KataRuntimeReadyCondition, KataSharedMemoryUnverifiedReason,
+		conditions.MarkFalse(machine, KataRuntimeReadyCondition, KataHostConfigUnverifiedReason,
 			clusterv1.ConditionSeverityError,
-			"Kata shared-memory capacity has not been verified for this configuration and boot; repairing in place")
+			"Kata host configuration (shared memory, virtiofsd file budget) has not been verified for this configuration and boot; repairing in place")
 	} else {
 		conditions.MarkFalse(machine, KataRuntimeReadyCondition, KataRuntimeMissingReason,
 			clusterv1.ConditionSeverityError,
@@ -245,7 +244,7 @@ func reconcileLinuxKataRuntimeDrift(
 	}
 	hostKey := bootstrap.NewHostKeyState(known)
 
-	script := renderKataSharedMemoryRepairScript(opts)
+	script := renderKataHostConfigRepairScript(opts)
 	if !runtimeInstalled {
 		script = renderKataRuntimeRepairScript(opts)
 	}
@@ -260,7 +259,7 @@ func reconcileLinuxKataRuntimeDrift(
 	if sshErr != nil {
 		conditions.MarkFalse(machine, KataRuntimeReadyCondition, KataRuntimeRepairFailedReason,
 			clusterv1.ConditionSeverityError,
-			"could not repair the Kata runtime or shared-memory configuration on %s: %v", host, sshErr)
+			"could not repair the Kata runtime or host configuration on %s: %v", host, sshErr)
 		return false, fmt.Errorf("repair kata runtime over ssh on %s: %w", host, sshErr)
 	}
 	if labelErr := labelKataRuntimeNode(ctx, c, node); labelErr != nil {
@@ -269,7 +268,7 @@ func reconcileLinuxKataRuntimeDrift(
 
 	conditions.MarkTrue(machine, KataRuntimeReadyCondition)
 	recordKataRuntimeReady(machineName, fleet, true)
-	logger.Info("verified the Kata runtime and shared-memory configuration",
+	logger.Info("verified the Kata runtime and host configuration",
 		"node", node.Name, "host", host)
 	return true, nil
 }

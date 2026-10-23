@@ -72,38 +72,7 @@ curl --fail --insecure https://localhost:18443/docs/self-hosting > "$work/compos
 grep -q 'Docker Compose' "$work/compose-docs.html"
 if [ -n "${ATLAS_SCREENSHOT_DIR:-}" ]; then
   mkdir -p "$ATLAS_SCREENSHOT_DIR"
-  python3 - "$ATLAS_SCREENSHOT_DIR" "${ATLAS_CHROME_PATH:-google-chrome}" "$work" <<'PYTHON'
-import pathlib, subprocess, sys, time
-output, chrome, temporary = pathlib.Path(sys.argv[1]).resolve(), sys.argv[2], pathlib.Path(sys.argv[3])
-for name, size, extra in [
-    ("desktop", "1440,1100", []),
-    ("mobile", "390,844", []),
-    ("dark", "1440,1100", ["--force-dark-mode"]),
-]:
-    screenshot = output / (name + ".png")
-    process = subprocess.Popen([
-        chrome, "--headless", "--no-sandbox", "--disable-gpu",
-        "--ignore-certificate-errors", "--hide-scrollbars",
-        "--no-first-run", "--no-default-browser-check",
-        "--user-data-dir=" + str(temporary / ("profile-" + name)),
-        "--window-size=" + size,
-        "--screenshot=" + str(screenshot),
-        *extra, "https://localhost:18443/docs/self-hosting",
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    try:
-        deadline = time.monotonic() + 30
-        while not screenshot.exists() or screenshot.stat().st_size < 1000:
-            if process.poll() is not None or time.monotonic() > deadline:
-                raise RuntimeError("Chrome did not capture " + name)
-            time.sleep(0.1)
-    finally:
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
-PYTHON
+  node "$root/atlas/deploy/capture-docs.mjs" "$ATLAS_SCREENSHOT_DIR" "${ATLAS_CHROME_PATH:-google-chrome}" "$work"
 fi
 "${compose[@]}" down --volumes
 

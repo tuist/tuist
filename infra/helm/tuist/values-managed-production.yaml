@@ -1268,9 +1268,10 @@ ovhFleets:
       enabled: true
       item: OVH_FLEET_SSH
 
-# BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
-# 10GbE, 2 TB), three three-up trays on chain B (ber1-tor-b and ber1-pdu-b),
-# behind the rack's two edges. Declared here because the rack
+# BER1 rack fleet: M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB, 10GbE,
+# 2 TB) in three-up trays behind the rack's two edges, eight on each chain:
+# b01 to b06, b15 and b16 on chain B (ber1-tor-b and ber1-pdu-b), b07 to b14
+# on chain A (ber1-tor-a and ber1-pdu-a). Declared here because the rack
 # is in production (kubernetes.namespace in
 # infra/rack-switch-fleet/sites/ber1.json); no other env may declare it too.
 #
@@ -1325,10 +1326,10 @@ rackFleet:
     prewarm: ["27.1"]
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
-  # which both edges advertise to the tailnet as a /32. Each outlet is on the
-  # RackPDU ber1-pdu-b, which infra/rack-switch-fleet renders from the site
-  # definition and its controller adopts. A host's outlet and its ToR port are
-  # on the same chain, which the site's render checks.
+  # which both edges advertise to the tailnet as a /32. Each outlet is on a
+  # RackPDU, ber1-pdu-a or ber1-pdu-b, which infra/rack-switch-fleet renders
+  # from the site definition and its controller adopts. A host's outlet and its
+  # ToR port are on the same chain, which the site's render checks.
   hosts:
     - name: ber1-runner-b01
       serial: K9YLWQHQM2
@@ -1391,24 +1392,80 @@ rackFleet:
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "9"
+        pdu: ber1-pdu-a
+        outlet: "1"
     - name: ber1-runner-b08
       serial: J64HHMX93T
       address: 10.10.0.108
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "10"
+        pdu: ber1-pdu-a
+        outlet: "2"
     - name: ber1-runner-b09
       serial: C0YKJG7JLH
       address: 10.10.0.109
       rack: prep
       shelf: tray-b3
       power:
+        pdu: ber1-pdu-a
+        outlet: "3"
+    - name: ber1-runner-b10
+      serial: MVNN9473GC
+      address: 10.10.0.110
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
+        outlet: "4"
+    - name: ber1-runner-b11
+      serial: M2V3QN9M92
+      address: 10.10.0.111
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
+        outlet: "5"
+    - name: ber1-runner-b12
+      serial: KMV5QJ0L9Q
+      address: 10.10.0.112
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
+        outlet: "6"
+    - name: ber1-runner-b13
+      serial: KV9M9KJVXC
+      address: 10.10.0.113
+      rack: prep
+      shelf: tray-b5
+      power:
+        pdu: ber1-pdu-a
+        outlet: "7"
+    - name: ber1-runner-b14
+      serial: HHJNHDFN2X
+      address: 10.10.0.114
+      rack: prep
+      shelf: tray-b5
+      power:
+        pdu: ber1-pdu-a
+        outlet: "8"
+    - name: ber1-runner-b15
+      serial: LP230KQTJ1
+      address: 10.10.0.115
+      rack: prep
+      shelf: tray-b5
+      power:
         pdu: ber1-pdu-b
-        outlet: "11"
+        outlet: "9"
+    - name: ber1-runner-b16
+      serial: LWGC6JVT03
+      address: 10.10.0.116
+      rack: prep
+      shelf: tray-b6
+      power:
+        pdu: ber1-pdu-b
+        outlet: "10"
   machine:
     # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
     # `guestShapes` below), both dimensions binding at the same count, and 2 of
@@ -1451,17 +1508,22 @@ rackFleet:
   # the profile names, and one that spills over to the rented fleet runs at
   # that shape.
   #
-  # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
+  # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
   # and the `ber1` smoke pool share through the fleet allocator, apart from
   # the rented fleet's 14. A 12 vCPU profile's guest takes a whole host, so
   # that shape's ceiling is the host count.
   #
-  # Every Xcode keeps one 6 vCPU runner warm: 13 to 75 s of queue on
-  # 2026-10-21/22 for 27.0, which had none, was the scale-up and the boot.
-  # Warm runners are the first capacity the allocator gives up, so a queued
-  # job for another image takes one's slot, and a 12 vCPU job takes a host
-  # holding only warm runners after 30 s (infra/runners-controller/AGENTS.md).
-  # The 12 vCPU shape stays cold: an idle one would hold a whole host.
+  # Warm floors follow demand. Only a warm runner claims a job in under 10 s:
+  # a cold one is the scale-up and the boot, 10 to 75 s even with the image on
+  # the host. A floor on an image without jobs holds a slot a burst for
+  # another image then waits for (warm runners give theirs up after 30 s,
+  # infra/runners-controller/AGENTS.md), so the rack's 28 production slots
+  # keep floors only for the images that had a job in most working hours of
+  # the week to 2026-10-22 (07:00 to 18:00 UTC, weekdays): 27.0 in 60 of 60
+  # hours, 26.6 in 50, 26.3 in 36, 26.0.1 in 29. 27.0 keeps two, since its
+  # jobs arrive in fan-outs. The other images had a job in at most 7 of those
+  # hours (26.1.1) or none (27.1, 27.2-beta, 26.4.1), and start cold. The
+  # 12 vCPU shape stays cold: an idle one would hold a whole host.
   #
   # Every image's golden fits beside the cache: about 60 GiB each, 9 images
   # in the 540 GiB allowance above, and a release pulls only the overlay on
@@ -1475,14 +1537,35 @@ rackFleet:
       12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
     autoscaling:
       enabled: true
-      minWarmPoolFloor: 1
-      maxReplicas: 18
+      minWarmPoolFloor: 0
+      maxReplicas: 32
+    xcodeOverrides:
+      "27.0":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 2
+          maxReplicas: 32
+      "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 32
+      "26.3":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 32
+      "26.0.1":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 32
     shapes:
       12vcpu-28gb:
         autoscaling:
           enabled: true
           minWarmPoolFloor: 0
-          maxReplicas: 9
+          maxReplicas: 16
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
@@ -1933,11 +2016,16 @@ runnersFleet:
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors sum to 1 of the 16-slot budget; the remaining 15 slots are
-  # dynamically apportioned by queue depth across the pools. Older
-  # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
+  # Floors follow demand and sum to 3 of the 16-slot budget; the remaining
+  # 13 slots are dynamically apportioned by queue depth across the pools.
+  # Only a warm runner claims a job in under 10 s. 27.0 keeps two: in the
+  # week to 2026-10-22 it had a job in 46 of the 60 weekday working hours
+  # (07:00 to 18:00 UTC) and claimed only 55% of its 1,112 jobs within 10 s
+  # without a floor. Images with jobs in fewer hours (27.1 in 9, the 12 vCPU
+  # pools, older Xcodes) sit cold so an unused runner doesn't tie up a host.
   #
-  # The default (26.6) carries the warm floor, since `tuist-macos`
+  # The default (26.6) keeps one although it had a job in only 3 of those
+  # hours, since a new account's first job lands there and `tuist-macos`
   # resolves there. That resolution goes through each account's
   # protected `macos` profile, which stores `xcode_version` at account
   # creation — so bumping the catalog default only redirects new
@@ -1959,7 +2047,7 @@ runnersFleet:
     "27.0":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 2
         maxReplicas: 16
     "26.6":
       autoscaling:
@@ -2006,7 +2094,7 @@ runnersFleet:
   # It autoscales from zero so it shares the rack's guest slots with the
   # catalog's rack pools through the fleet allocator, which only counts
   # autoscaling pools: a fixed count would hold slots the allocator believes
-  # free. Eighteen is every guest slot in the rack, so a load run still reaches
+  # free. Thirty-two is every guest slot in the rack, so a load run still reaches
   # all of them when nothing else is running.
   #
   # The image is the catalog's 26.6 runner, so it follows runner releases.
@@ -2022,7 +2110,7 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 18
+        maxReplicas: 32
         # Smoke runs are dispatched by hand, so the last hour's peak does not
         # predict the next one.
         holdRecentPeak: false

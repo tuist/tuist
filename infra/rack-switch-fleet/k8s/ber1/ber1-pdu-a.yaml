@@ -1,0 +1,14 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackPDU
+metadata:
+  name: ber1-pdu-a
+  labels:
+    tuist.dev/site: ber1
+    tuist.dev/role: power
+spec:
+  site: ber1
+  model: evmafc20a
+  address: 192.168.0.17
+  chain: ber1-ats-2
+  managedBy: controller
+  outletStateOnStartup: "on"

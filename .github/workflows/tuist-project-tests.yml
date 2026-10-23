@@ -153,13 +153,6 @@ jobs:
       (github.event_name == 'push' || github.event.pull_request.draft == false)
     env:
       TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
-      # Which files each test, suite and target executed, from the linked
-      # TestCoverageAttribution package: the server carries a later run's
-      # skipped tests only from a run that recorded it. Main's full runs are the
-      # sources for every selective run, and a pull request's own runs for its
-      # later pushes, which skip what an earlier push already executed. Forks
-      # upload nothing, so they skip it.
-      TUIST_COVERAGE_EVIDENCE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
       SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -222,7 +215,6 @@ jobs:
       (github.event_name == 'push' || github.event.pull_request.draft == false)
     env:
       MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
-      TUIST_COVERAGE_EVIDENCE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
       SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
     steps:
       - uses: actions/checkout@v4

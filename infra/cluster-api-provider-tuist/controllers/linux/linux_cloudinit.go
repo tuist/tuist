@@ -981,7 +981,7 @@ ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo))
+`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs

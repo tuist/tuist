@@ -4,8 +4,9 @@ name: Runners Acceptance
 # way a customer's job runs: a job targets a runner label, dispatch places it
 # on a runner VM or Pod and hands it a cache endpoint, and the job builds with
 # the Xcode compilation cache through that endpoint. Each failure names the
-# layer that broke: Dispatch, Server auth, Kura reachability, Kura auth, Kura
-# data path, Xcode cache setup, Xcode build, Cache hits or Cache volumes.
+# layer that broke: Dispatch, Runner file limits, Server auth, Kura
+# reachability, Kura auth, Kura data path, Xcode cache setup, Xcode build, Cache
+# hits or Cache volumes.
 #
 # The production deploy cascade dispatches this against canary after the
 # canary deploy and gates production on it (server-production-deployment.yml,
@@ -272,6 +273,8 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts/runners-acceptance
+      - name: File limits
+        run: .github/scripts/runners-acceptance/file-limits.sh
       - name: Kura round trip
         timeout-minutes: 3
         run: .github/scripts/runners-acceptance/kura-roundtrip.sh

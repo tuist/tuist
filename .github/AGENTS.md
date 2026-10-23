@@ -43,6 +43,8 @@ agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
 through Helm, without a separate human kubectl elevation.
 
+Server CI's Format job runs `scripts/server-clickhouse.test.sh` against the real local/CI launcher with stubbed ClickHouse/HTTP commands and child-process-only file limits. Cover low soft limits, already-raised limits, restricted hard ceilings, unsupported raises and the already-running fast path. The launcher raises ClickHouse's soft limit to its available hard limit before spawning it; do not replace this safeguard with seed retries or reduce seed coverage to hide file-descriptor exhaustion.
+
 ## Server production deployment
 
 `workflows/server-production-deployment.yml` decides whether a push deploys by
@@ -52,6 +54,15 @@ replaced by a non-deployable push must still deploy. That commit is the newest
 run of this workflow in HEAD's history with a successful `… / Deploy to tuist`
 job. Do not use the deployments API: other workflows record deployments to the
 same environment. When the base cannot be resolved, the push deploys.
+
+## Atlas deployment validation
+
+`workflows/atlas-deployment-validation.yml` runs the standalone Compose/Helm
+release checks. Documentation captures use `atlas/deploy/capture-docs.mjs` with
+bounded Chrome page and process waits, rather than waiting indefinitely for
+external resources. Its regression suite includes a local never-finishing image.
+Retain screenshot PNGs and Chrome diagnostic logs on failures, but keep browser
+profiles in the disposable validation directory, outside uploaded artifacts.
 
 ## Atlas native
 
@@ -83,7 +94,8 @@ Android nightly publication is skipped rather than distributing ephemeral debug
 identities; debug CI artifacts remain. Android and simulator publication precede
 iOS device signing so a profile capability update cannot block them. iOS signing
 requires an Associated Domains-enabled profile and requests only the hosted app
-link domain. Credential-free Android signing, associated-domain and APNs capability,
+link domain. Its provisioning guard accepts Apple's scalar wildcard authorization
+as well as domain arrays, without copying a wildcard into the app signature. Credential-free Android signing, associated-domain and APNs capability,
 keychain-lifecycle and launcher-packaging tests also gate publication. Android
 builds verify locked Firebase dependencies, explicitly merged SDK manifests, and
 library R IDs against the final APK. Portable importer integrity/resource tests
@@ -335,10 +347,11 @@ a pull request the unit and app tests run selectively, acceptance as before, and
 finished, whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, then the unit and app tests run in full
 (`--no-selective-testing`) and `coverage-complete`
-follows when both passed. The unit and app tests set `TUIST_COVERAGE_EVIDENCE` on both
-(not on forks): the server carries skipped tests only from runs that recorded
-evidence, main's full runs for every selective run and a pull request's own runs
-for its later pushes. Every merge runs on its own (no queue); a new push to a
+follows when both passed. The unit and app tests record per-test evidence on both,
+since their targets link TestCoverageAttribution and every run that uploads
+coverage collects it: the server carries skipped tests only from runs that
+recorded evidence, main's full runs for every selective run and a pull request's
+own runs for its later pushes. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
 commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1

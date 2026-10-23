@@ -1,7 +1,7 @@
 # Atlas Android
 
 This app uses Kotlin platform widgets, not Compose or Gradle. Rust owns navigation,
-OAuth, JSON-schema projection and allowlisted networking. Preserve the package/JNI
+OAuth, Orbit session state, JSON-schema projection and allowlisted networking. Preserve the package/JNI
 names and the existing Once arm64/API-26 build boundary.
 
 `AtlasApplication.kt` defines the single Application class, initializes optional Firebase
