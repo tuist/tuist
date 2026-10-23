@@ -165,6 +165,7 @@ defmodule TuistEx.Cache.CompilerTest do
                grpc: [protos: [~c"proto"]],
                ct_compile_opts: [],
                covertool: [],
+               cover_print_enabled: true,
                escript_main_app: :probe
              ]
            )
