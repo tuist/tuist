@@ -1674,6 +1674,49 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              skipping(project, account, ["AppTests"])
   end
 
+  test "a percent-encoded skip identifier names a test whose suite holds a slash", %{project: project, account: account} do
+    project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+
+    CoverageFixtures.run_with_coverage(project, account, [file("lib/cart.ex", [1, 1])], %{
+      git_commit_sha: "base",
+      build_system: "mix",
+      scheme: nil,
+      test_modules: [
+        %{
+          name: "CartTest",
+          status: "success",
+          duration: 2,
+          test_cases: [
+            %{name: "rejects nil", test_suite_name: "add/2", status: "success", duration: 1},
+            %{name: "totals", test_suite_name: "", status: "success", duration: 1}
+          ]
+        }
+      ]
+    })
+
+    CoverageFixtures.run_with_coverage(project, account, [file("lib/cart.ex", [1, 0])], %{
+      git_commit_sha: "head",
+      build_system: "mix",
+      scheme: nil,
+      partial: true,
+      test_modules: [
+        %{
+          name: "CartTest",
+          status: "success",
+          duration: 1,
+          test_cases: [%{name: "totals", test_suite_name: "", status: "success", duration: 1}]
+        }
+      ],
+      skip_test_identifiers: ["CartTest/add%2F2/rejects nil"]
+    })
+
+    # Mix records no per-test evidence, so the skipped test is a gap.
+    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:collection_off]
+  end
+
   test "carries nothing for a skip identifier that names a test no ancestor ran", %{project: project, account: account} do
     base_run(project, account)
 
