@@ -468,9 +468,9 @@ exactly those cords; before they had rows, the drill on 2026-10-06 pulled the
 minis' own cords twice. `fleet_check_power` refuses a site with transfer
 switches that names no feed for a source, or two.
 
-The prep bay runs `ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, which is the
+The prep bay ran `ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, which is the
 critical layer plus one chain: enough to fail a chain and watch the rest of the
-rack report it. `ber1-ats-2` and `ber1-pdu-a` are `planned` until the colo.
+rack report it. Chain A, `ber1-ats-2` and `ber1-pdu-a`, exists only in the colo.
 
 The drill was run on 2026-10-06 with the three M5 Pro minis on chain B and
 two CI jobs running:
@@ -512,16 +512,24 @@ disagree.
 
 Two things follow. A PDU is a `RackPDU`, adopted and kept configured by the CAPI
 provider (see "RackPDU objects" below), and a RackHost names its outlet as
-`power: {pdu: <name>, outlet: "<n>"}`; `ber1-runner-b01` to `b03` are on
-outlets 1 to 3 of `ber1-pdu-b`. And a mini's outlet and its ToR must land on
-the same chain (chain A minis on ToR A, chain B minis on ToR B), so a mini and
-its switch lose power together. Crossed, any one ATS failure takes the whole
-fleet: half the minis lose power and the other half lose their ToR. This file
-records which chain a node is on (`ats`/`pdu`), but not the outlet, which stays
-the RackHost's, so `fleet_check_rack_hosts` checks it where the two meet: a
-node whose RackHost's `power.pdu` resolves to another transfer switch than its
-data link's ToR, or names a PDU the site does not have, fails the render. An
-outlet that is not on a RackPDU (a desk plug) is not held to a chain.
+`power: {pdu: <name>, outlet: "<n>"}`; `ber1-runner-b01` to `b06`, `b15` and
+`b16` are on `ber1-pdu-b`, `b07` to `b14` on `ber1-pdu-a`. And a mini's outlet and its ToR
+must land on the same chain (chain A minis on ToR A, chain B minis on ToR B), so
+a mini never depends on the other chain. Crossed, any one ATS failure takes the
+whole fleet: half the minis lose power and the other half lose their ToR.
+`ber1-tor-b` is on chain B itself, so a chain B mini and its switch lose power
+together. `ber1-tor-a` is on the critical layer (`ber1-ats-1`) rather than on
+chain A, because it carries the live WAN fibre and every mini already depends
+on that layer for the WAN and management; a chain A mini behind it gains no
+transfer switch whose failure takes the whole fleet.
+
+This file records which chain a node is on (`ats`/`pdu`), but not the outlet,
+which stays the RackHost's, so `fleet_check_rack_hosts` checks it where the
+two meet: a node whose RackHost's `power.pdu` resolves to another chain's
+transfer switch than its data link's ToR, or names a PDU the site does not
+have, fails the render. A ToR on a transfer switch that feeds no PDU, the
+critical layer, passes with a mini on either chain. An outlet that is not on a
+RackPDU (a desk plug) is not held to a chain.
 
 An outlet's number is the card's (`/powerDistributions/1/outlets/<n>`), and
 it is the printed label's: outlet `n` reports `identification.physicalName`
@@ -568,9 +576,33 @@ A power node may carry `mac`, its management card's MAC in lower case, like a
 switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
 factory card, which asks for DHCP, lands on its address with the edge as its
 router and nobody at it; an unknown MAC still gets the provisioning range. A
-node without one (today `ber1-pdu-b`, until someone reads it off the unit) is
+node without one (today `ber1-pdu-a`, whose label shows only its serial) is
 rendered all the same, gets no reservation, and its RackPDU reports
 `AddressReserved=False`.
+
+**A card whose MAC nobody could read off the unit** is cabled to its
+management port anyway, and the edge's DHCP log gives its MAC:
+
+1. The card asks for DHCP and takes a provisioning address (`.100` to `.150`
+   of `management.edge.provisioning`, a one-hour lease). The controller does
+   not find it there: it dials only `spec.address`, and the edges advertise,
+   and the tailnet policy grants, only the power nodes' management /32s.
+2. Read the MAC from the switches' dnsmasq on the edge holding the management
+   address (`kubectl -n omada logs rack-edge-<site>-<edge> -c dhcp`). Each
+   Eaton card names itself: a PDU's vendor class is `Eaton Rack PDU Network
+   Management Controller` and its host name `enmc2-<MAC>`, a transfer switch's
+   `Eaton Gigabit Network Card 3` and `ups-<MAC>`. With every other power node's
+   MAC recorded, the one Eaton client in the provisioning range is the card
+   on the port.
+3. Record the MAC as the node's `mac`, render, and merge. The edge rollout
+   restarts dnsmasq with the reservation, and at the card's next renewal, at
+   most 30 minutes later, dnsmasq refuses its provisioning address (`DHCPNAK
+   ... static lease available`, its answer to a client renewing one address
+   while another is reserved for it). The card starts over and gets
+   `mgmt_address`. No restart of the card is needed. To move it sooner,
+   bounce its port on `ber1-mgmt` from the Omada controller.
+4. Check the controller adopted the card it expected: `kubectl get rackpdu
+   <name> -o wide` (or `rackats`) shows the serial the card reports.
 
 ### RackATS objects
 
@@ -578,11 +610,10 @@ Each transfer switch (`eats16n`) with a `mgmt_address` is rendered the same way
 as a `RackATS` into `k8s/<site>/<ats>.yaml` by `fleet_render_ats` (both go
 through `fleet_render_power`): its site, model, `mac`, address, `managedBy`
 (controller once `installed`) and `preferredSource`, and its card's passwords
-are derived the same way. The ones the controller adopts today are
-`ber1-ats-1` and `ber1-ats-3`; `ber1-ats-2` has no address until the colo. Neither has a `mac`
-recorded yet, so neither has a DHCP reservation, and both RackATSes report
-`AddressReserved=False`; the reservation rule is the PDUs', since both are
-installed power nodes behind the edge.
+are derived the same way. The controller adopts all three.
+A transfer switch without a `mac` has no DHCP reservation and its RackATS
+reports `AddressReserved=False`; the reservation rule is the PDUs', since both
+are installed power nodes behind the edge.
 
 Every transfer switch carries `preferred_source`, 1 or 2: the source the
 switch powers the load from whenever it is good. Source 1 is feed A and

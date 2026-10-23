@@ -612,10 +612,7 @@ extension UploadResultBundleService {
             // test target skipped because nothing it depends on changed.
             let selectiveTestingSkippedTargets = await RunMetadataStorage.current.selectiveTestingCacheItems.values
                 .contains { $0.values.contains { $0.source != .miss } }
-            let skippedQuarantinedTests = await RunMetadataStorage.current.skippedQuarantinedTestIdentifiers
-            let partial = !onlyTestIdentifiers.isEmpty
-                || skipTestIdentifiers.contains { !skippedQuarantinedTests.contains($0) }
-                || selectiveTestingSkippedTargets
+            let partial = !onlyTestIdentifiers.isEmpty || !skipTestIdentifiers.isEmpty || selectiveTestingSkippedTargets
 
             return XcodeCoverageManifest(
                 rootDirectories: rootSpellings,

@@ -1,6 +1,6 @@
 # Atlas iOS
 
-SwiftUI owns presentation; Rust owns OAuth and allowlisted Automation networking.
+SwiftUI owns presentation; Rust owns OAuth, Orbit session state and allowlisted Automation networking.
 Keep shared section strings/routes in the Rust navigation catalog. Do not add a web
 view, source interpreter or independent networking/token-refresh implementation.
 

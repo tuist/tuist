@@ -2708,13 +2708,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         // What the caller narrowed the run to: Tuist's `--test-targets` and `--skip-test-targets`,
         // and the `-only-testing`/`-skip-testing` passed straight to xcodebuild, which a run's
         // coverage has to be marked partial for just the same. `tuist xcodebuild test` records the
-        // passthrough ones already.
+        // passthrough ones already. The quarantined tests Tuist skipped aren't the caller's: they are
+        // outside the suite, as `tuist xcodebuild test` records them, so coverage neither carries them
+        // nor counts them as missing.
         let onlyTestIdentifiers = Self.merging(
             onlyTestIdentifiers,
             XcodeBuildTestCommandService.testIdentifiers(for: "-only-testing", in: xcodebuildArguments)
         )
+        let skippedQuarantinedTests = await RunMetadataStorage.current.skippedQuarantinedTestIdentifiers
         let skipTestIdentifiers = Self.merging(
-            skipTestIdentifiers,
+            skipTestIdentifiers.filter { !skippedQuarantinedTests.contains($0) },
             XcodeBuildTestCommandService.testIdentifiers(for: "-skip-testing", in: xcodebuildArguments)
         )
 

@@ -200,6 +200,15 @@ defmodule AtlasWeb.Router do
   scope "/api/native", AtlasWeb do
     pipe_through :native
 
+    get "/orbit/threads", NativeOrbitController, :index
+    post "/orbit/threads", NativeOrbitController, :create
+    post "/orbit/threads/private", NativeOrbitController, :private
+    get "/orbit/threads/:id/messages", NativeOrbitController, :messages
+    post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
+    post "/orbit/threads/:id/participants", NativeOrbitController, :add_participant
+    delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
+    post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
+
     get "/profile", NativeController, :profile
     get "/:resource", NativeController, :index
     post "/:resource", NativeController, :create

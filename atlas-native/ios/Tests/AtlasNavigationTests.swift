@@ -114,7 +114,8 @@ struct AtlasNavigationTests {
         navigation.open(task, server: server)
         #expect(navigation.revisions["accounts"] == accountRevision)
         #expect(navigation.destinations["accounts"] == account)
-        #expect(navigation.destinations["tasks"] == task)
+        #expect(navigation.destinations["browse"] == task)
+        #expect(navigation.selection == "browse")
         navigation.open(account, server: server)
         let revision = navigation.revision
         navigation.resolve(server: server)
@@ -142,7 +143,7 @@ struct AtlasNavigationTests {
         navigation.resolve(server: server)
         #expect(navigation.destination == nil)
         #expect(navigation.pending == nil)
-        #expect(navigation.selection == "tasks")
+        #expect(navigation.selection == "orbit")
     }
 
     @MainActor @Test func hiddenTabProtectionStillRejectsLinksAndCanShowARootNotice() throws {

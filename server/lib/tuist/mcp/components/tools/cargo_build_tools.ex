@@ -64,6 +64,11 @@ defmodule Tuist.MCP.Components.Tools.CargoBuildTools do
     |> Map.merge(%{
       "id" => %{"type" => "string"},
       "actor" => Tool.report_actor_schema(),
+      "custom_metadata" =>
+        object(%{
+          "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
+          "values" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}}
+        }),
       "status" => %{"type" => "string", "enum" => ["success", "failure"]},
       "duration_ms" => %{"type" => "integer"},
       "is_ci" => %{"type" => "boolean"},

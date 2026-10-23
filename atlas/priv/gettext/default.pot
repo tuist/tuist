@@ -12115,3 +12115,24 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "with self-hosted deployments"
 msgstr ""
+
+#: lib/atlas_web/live/admin/inference_helpers.ex:161
+#: lib/atlas_web/live/admin/inference_helpers.ex:172
+#, elixir-autogen, elixir-format
+msgid "Orbit"
+msgstr ""
+
+#: lib/atlas_web/live/admin/inference_profile_live.ex:778
+#, elixir-autogen, elixir-format
+msgid "Profile is no longer used for Orbit."
+msgstr ""
+
+#: lib/atlas_web/live/admin/inference_profile_live.ex:774
+#, elixir-autogen, elixir-format
+msgid "Profile will be used for Orbit."
+msgstr ""
+
+#: lib/atlas_web/live/admin/inference_profile_live.ex:441
+#, elixir-autogen, elixir-format
+msgid "Use for Orbit"
+msgstr ""
