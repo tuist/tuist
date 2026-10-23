@@ -42,9 +42,9 @@ site_with_vlans_and_lag() {
     [ "$status" -eq 0 ]
     [[ "$output" == *$'vlan 20\n name "storage"'* ]]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c \$'\\tswitchport general allowed vlan 20 tagged\$'"
-    # 32 ports less port 11, which names no VLANs, and ports 2 to 7 and 9, whose runners are on
+    # 32 ports less port 11, which names no VLANs, and ports 2 to 9, whose runners are on
     # the machines segment, plus the lag's own interface
-    [ "$output" = "25" ]
+    [ "$output" = "24" ]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c '^interface ten-gigabitEthernet 1/0/11	switchport'"
     [ "$output" = "0" ]
 }
@@ -1070,7 +1070,7 @@ STUB
     [[ "$(tagged_on 10 <<<"$output")" == *"1/0/25, "*"1/0/26, "* ]]
     [ "$(tagged_on 10 <<<"$output")" = "$(tagged_on 4000 <<<"$output")" ]
     # on ToR A the chain A minis and the storage node sit on the segment
-    [ "$(awk '/^interface /{port = $3} /allowed vlan 10 untagged/ {printf "%s, ", port}' <<<"$output")" = "1/0/2, 1/0/3, 1/0/4, 1/0/5, 1/0/6, 1/0/7, 1/0/8, 1/0/9, 1/0/10, 1/0/27, " ]
+    [ "$(awk '/^interface /{port = $3} /allowed vlan 10 untagged/ {printf "%s, ", port}' <<<"$output")" = "1/0/2, 1/0/3, 1/0/4, 1/0/5, 1/0/6, 1/0/7, 1/0/8, 1/0/9, 1/0/27, " ]
     run fleet_render "$SITE_FILE" ber1-mgmt
     [[ "$output" != *"vlan 10"* ]]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b | yq -o=json '.spec.config' | jq -c '[(.ports[] | select(.port == 2) | {nativeVlan, taggedVlans}), ([.vlans[].id])]'"

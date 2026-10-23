@@ -786,8 +786,8 @@
       "status": "installed",
       "links": [
         {
-          "switch": "ber1-tor-a",
-          "port": 10,
+          "switch": "ber1-tor-b",
+          "port": 8,
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
