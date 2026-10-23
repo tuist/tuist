@@ -5,7 +5,7 @@ defmodule Mix.Tasks.Tuist.Test do
   Runs `mix test` with the Tuist analytics ExUnit formatter installed, then
   submits the test run to your Tuist dashboard.
 
-      mix tuist.test [--url URL] [--project ACCOUNT/PROJECT] [--retries N] [ARGS...]
+      mix tuist.test [--url URL] [--project ACCOUNT/PROJECT] [--retries N] [--no-quarantine] [ARGS...]
 
   Every other argument is forwarded to `mix test` as is, so the task can stand
   in for it. Alias it in your `mix.exs` and `mix test` reports to Tuist without
@@ -63,6 +63,14 @@ defmodule Mix.Tasks.Tuist.Test do
   that sets its own `test_coverage` tool, such as excoveralls, and a runtime
   without the JIT, which cannot count natively, use Mix's coverage tool.
 
+  ## Quarantined tests
+
+  Before the run, the task reads the tests the project quarantines in Tuist.
+  Skipped tests are left out of the run with an `--exclude test:NAME` filter
+  per test, and a complete run whose only failures are muted tests passes.
+  `--no-quarantine` runs every test and counts every failure. A run that
+  cannot read the quarantined tests runs every test.
+
   ## Retrying failed tests
 
   ExUnit runs every test once, so a test that fails intermittently looks the
@@ -88,6 +96,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.GitHistory
   alias TuistEx.Analytics.Isolated
+  alias TuistEx.Analytics.Quarantine
   alias TuistEx.Analytics.Report
   alias TuistEx.Analytics.Shards
   alias TuistEx.Analytics.Subprocess
@@ -121,7 +130,8 @@ defmodule Mix.Tasks.Tuist.Test do
         options =
           Keyword.merge(options,
             coverage: Coverage.requested?(test_args),
-            coverage_partial: Coverage.partial?(test_args)
+            coverage_partial: Coverage.partial?(test_args),
+            coverage_narrowed: Coverage.narrowed?(test_args)
           )
 
         case shard(options, test_args) do
@@ -131,13 +141,20 @@ defmodule Mix.Tasks.Tuist.Test do
             if options[:prepare_only] do
               :ok
             else
+              options = quarantine(options, test_args)
+
               case retries_for(options, test_args) do
                 0 ->
-                  if options[:coverage] or GitHistory.enabled?(false) do
-                    run_deferred(options, test_args)
-                  else
-                    configure(options)
-                    run_test(test_args, options)
+                  cond do
+                    options[:mute] ->
+                      run_with_retries(options, test_args, 0)
+
+                    options[:coverage] or GitHistory.enabled?(false) ->
+                      run_deferred(options, test_args)
+
+                    true ->
+                      configure(options)
+                      run_test(test_args, options)
                   end
 
                 retries ->
@@ -327,7 +344,83 @@ defmodule Mix.Tasks.Tuist.Test do
 
   defp prepared?(options), do: options[:no_download] == true
 
+  # Reads the tests Tuist quarantines for the project. Without a project or
+  # credentials there is nothing to read, and a run that cannot read them
+  # runs every test and counts every failure: the policy is never applied in
+  # part, and a server that cannot answer never stops the tests.
+  defp quarantine(options, test_args) do
+    analytics_options = Keyword.take(options, [:url, :project])
+
+    if options[:no_quarantine] == true or Auth.network_publishing?(analytics_options) do
+      options
+    else
+      case Quarantine.fetch(analytics_options) do
+        {:ok, policy} ->
+          if Quarantine.empty?(policy),
+            do: options,
+            else: apply_quarantine(options, test_args, policy)
+
+        {:error, reason} when is_binary(reason) ->
+          Report.debug("tuist analytics: quarantine not applied: " <> reason)
+          options
+
+        {:error, reason} ->
+          Mix.shell().info(
+            "warning: Tuist could not read the project's quarantined tests (#{inspect(reason)}), " <>
+              "so every test runs and every failure counts."
+          )
+
+          options
+      end
+    end
+  end
+
+  defp apply_quarantine(options, test_args, policy) do
+    skipped = MapSet.size(policy.skipped)
+    muted = MapSet.size(policy.muted)
+
+    if skipped > 0 do
+      Mix.shell().info(
+        "Tuist: skipping #{Shards.count(skipped, "quarantined test")}:\n" <>
+          Enum.map_join(Enum.sort(policy.skipped), "\n", &("  " <> Quarantine.describe(&1)))
+      )
+    end
+
+    # Telling a muted failure apart needs the run to raise when it fails, as
+    # retrying does, and the same runs cannot.
+    mute? =
+      muted > 0 and
+        cond do
+          "--warnings-as-errors" in test_args ->
+            Mix.shell().info(
+              "warning: Tuist does not apply muted tests when `--warnings-as-errors` is given; " <>
+                "their failures fail the run."
+            )
+
+            false
+
+          Mix.Project.umbrella?() ->
+            Mix.shell().info(
+              "warning: Tuist does not apply muted tests from an umbrella's root yet; " <>
+                "their failures fail the run. Run the tests inside one of its applications."
+            )
+
+            false
+
+          true ->
+            Mix.shell().info(
+              "Tuist: #{Shards.count(muted, "muted test")} run, and their failures do not fail the run."
+            )
+
+            true
+        end
+
+    Keyword.merge(options, quarantine: policy, mute: mute?)
+  end
+
   defp run_test(args, options) do
+    args = args ++ Quarantine.exclude_args(options[:quarantine])
+
     if prepared?(options),
       do: Mix.Tasks.Test.run(args),
       else: Args.run_wrapped("test", Mix.Tasks.Test, args)
@@ -357,7 +450,7 @@ defmodule Mix.Tasks.Tuist.Test do
     try do
       run_test(test_args, options)
     after
-      submit_runs(summarize_coverage(ExUnitFormatter.take_deferred()), [], options, history)
+      submit_runs(summarize_coverage(ExUnitFormatter.take_deferred()), options, history)
     end
   end
 
@@ -377,7 +470,7 @@ defmodule Mix.Tasks.Tuist.Test do
 
     {suite, attempts} =
       cond do
-        suite != :failed or not complete? ->
+        suite != :failed or not complete? or retries == 0 ->
           {suite, []}
 
         # Tests that all ran out of time point at what they wait on, such as
@@ -394,11 +487,38 @@ defmodule Mix.Tasks.Tuist.Test do
           retry(test_args, retries, options)
       end
 
-    submit_runs(deferred, attempts, options, history)
+    deferred =
+      Enum.map(deferred, fn {payload, opts, aborted?} ->
+        {ExUnitFormatter.merge_retries(payload, attempts), opts, aborted?}
+      end)
+
+    {suite, deferred} = unmute(suite, complete?, deferred, options)
+    submit_runs(deferred, options, history)
 
     if suite == :failed, do: fail(test_args)
     :ok
   end
+
+  # A complete run whose only failures are muted tests passes, and is
+  # reported as passing; each muted test keeps its own failure.
+  defp unmute(:failed, true, deferred, options) do
+    if options[:mute] == true and
+         Enum.all?(deferred, fn {payload, _opts, _aborted?} ->
+           payload.status == "success" or
+             Quarantine.only_muted_failed?(payload, options[:quarantine])
+         end) do
+      Mix.shell().info("Tuist: only muted tests failed, so the run passes.")
+
+      {:passed,
+       Enum.map(deferred, fn {payload, opts, aborted?} ->
+         {%{payload | status: "success"}, opts, aborted?}
+       end)}
+    else
+      {:failed, deferred}
+    end
+  end
+
+  defp unmute(suite, _complete?, deferred, _options), do: {suite, deferred}
 
   # A run counting natively leaves Mix's coverage tool out, so its summary
   # and threshold are printed and checked here, from the counts the formatter
@@ -424,12 +544,11 @@ defmodule Mix.Tasks.Tuist.Test do
   # The commits and branch heads go up before the runs, whose ingestion reads
   # which commits the default branch reached; the commit's listing once the
   # runs exist.
-  defp submit_runs(deferred, attempts, options, history) do
+  defp submit_runs(deferred, options, history) do
     upload_history(history, &GitHistory.publish/2)
 
     for {payload, opts, _aborted?} <- deferred do
       payload
-      |> ExUnitFormatter.merge_retries(attempts)
       |> with_coverage(options, opts, history)
       |> ExUnitFormatter.submit(opts)
     end
@@ -492,9 +611,14 @@ defmodule Mix.Tasks.Tuist.Test do
   defp do_with_coverage(payload, snapshot, options, opts, history) do
     payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
 
+    # Tests a filter left out, other than the ones Tuist skips for quarantine,
+    # make the run partial even when its own arguments did not ask for it:
+    # the test helper's exclusions, or a test sharing a skipped test's name.
+    partial? =
+      options[:coverage_partial] == true or Map.has_key?(payload, :skip_test_identifiers)
+
     with snapshot when is_list(snapshot) <- snapshot,
-         {:ok, coverage} <-
-           Coverage.build(snapshot, File.cwd!(), options[:coverage_partial] == true),
+         {:ok, coverage} <- Coverage.build(snapshot, File.cwd!(), partial?),
          {:ok, payload} <-
            Isolated.run(fn -> Coverage.attach(payload, coverage, opts) end, 600_000) do
       payload
@@ -568,7 +692,12 @@ defmodule Mix.Tasks.Tuist.Test do
   defp retry_once(test_args, path, options) do
     case System.find_executable("mix") do
       mix when is_binary(mix) ->
-        args = ["tuist.test", "--failed" | retry_args(test_args)]
+        # `--failed` also reruns tests that failed before they were skipped:
+        # ExUnit keeps a failure on record until the test passes.
+        args =
+          ["tuist.test", "--failed" | retry_args(test_args)] ++
+            Quarantine.exclude_args(options[:quarantine])
+
         status = Subprocess.run(mix, args, retry_env(path, options))
         {:ok, status, ExUnitFormatter.read_collected(path)}
 
@@ -707,7 +836,11 @@ defmodule Mix.Tasks.Tuist.Test do
     {options, forwarded} = Args.split(args, @own_switches)
 
     Enum.reduce(
-      [prepare_only: "--prepare-only", no_download: "--no-download"],
+      [
+        prepare_only: "--prepare-only",
+        no_download: "--no-download",
+        no_quarantine: "--no-quarantine"
+      ],
       {options, forwarded},
       fn
         {key, flag}, {options, forwarded} ->
