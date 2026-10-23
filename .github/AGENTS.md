@@ -53,6 +53,15 @@ run of this workflow in HEAD's history with a successful `… / Deploy to tuist`
 job. Do not use the deployments API: other workflows record deployments to the
 same environment. When the base cannot be resolved, the push deploys.
 
+## Atlas deployment validation
+
+`workflows/atlas-deployment-validation.yml` runs the standalone Compose/Helm
+release checks. Documentation captures use `atlas/deploy/capture_docs.py` with
+bounded Chrome page and process waits, rather than waiting indefinitely for
+external resources. Its regression suite includes a local never-finishing image.
+Retain screenshot PNGs and Chrome diagnostic logs on failures, but keep browser
+profiles in the disposable validation directory, outside uploaded artifacts.
+
 ## Atlas native
 
 `workflows/atlas-mobile.yml` builds Android, iOS and the Rust CLI through Once
