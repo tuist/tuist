@@ -16,6 +16,8 @@ The account setup tools require user authentication. They are not available to p
 
 Tuist implements the [2026-07-28 protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http). Requests are stateless: clients send their protocol metadata with each request and can call tools directly without initialization. `server/discover` returns the server's identity, capabilities, supported versions, and instructions. There are no session identifiers or independent event streams. Clients using the 2025-06-18 or 2025-03-26 initialization flow remain supported; they also operate without server sessions.
 
+Tuist implements the [2026-07-28 protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http). Requests are stateless: clients send their protocol metadata with each request and can call tools directly without initialization. `server/discover` returns the server's identity, capabilities, supported versions, and instructions. There are no session identifiers or independent event streams. Clients using the 2025-06-18 or 2025-03-26 initialization flow remain supported; they also operate without server sessions.
+
 ## Model Context Protocol versus skills
 
 Model Context Protocol tools and <.localized_link href="/guides/features/agentic-coding/skills">skills</.localized_link> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently instead of mixing both in the same flow.

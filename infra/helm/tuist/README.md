@@ -224,3 +224,27 @@ clickhouse:
       ttlDays: 7
       level: warning
 ```
+
+## Scaling the server
+
+Enable `server.cluster.enabled` before adding web replicas or enabling autoscaling. The chart rejects multiple replicas when discovery is disabled. Each web node is named `<applicationName>@<pod-address>` and libcluster discovers peer addresses through the release's headless service, including pods that are still starting. This works for both hosted and self-hosted installations.
+
+The chart creates one `<release>-tuist-server-cluster` Secret containing a shared Erlang cookie. It reuses that value on upgrades through Helm's `lookup`. For deployment tools that render charts offline, supply a pre-existing Secret through `server.cluster.cookieExistingSecret` and `server.cluster.cookieExistingSecretKey`; offline rendering cannot recover an existing generated cookie. All replicas must use the same cookie, including during rolling upgrades. Do not rotate it independently on each pod. To rotate it, replace the shared Secret and restart all web nodes together during a maintenance window.
+
+Offline `helm template` renders generate a fresh default cookie each time, so use the externally managed Secret option for reproducible manifests. Keep `cookieExistingSecretKey` stable across upgrades: changing it to a missing key in the generated Secret fails rather than silently generating a new cookie. To rename the key without rotating credentials, first prepare an external Secret containing the same cookie under the new key, then update both Secret values together. Do not mix pods using different cookies.
+
+Distribution uses port `server.cluster.distributionPort` (9100 by default) and Erlang's port mapper on 4369. When the server network policy is enabled, both ports are admitted only between this release's server pods. Keep these ports private. The release environment pins the Erlang distribution listener to the configured port; exposing only the port mapper is insufficient.
+
+Processor fleets stay outside the web cluster. They consume durable database-backed jobs and enqueue broadcasts for the web tier. The Model Context Protocol endpoint is stateless, while Phoenix publish/subscribe and marketing statistics use Erlang node connectivity. Image generation uses bounded node-local coalescing; duplicate generation across nodes remains possible. A surviving single web node remains useful; requiring a peer for readiness would make one failed node remove the other from service.
+
+Check every running web pod with the release's `rpc 'Node.list()'` command. With two healthy replicas, each should list the other pod-address node. Check the cookie Secret reference and private network rules if the list stays empty. Check a rolling restart and a node departure before increasing traffic. The isolated local cluster-formation probe is:
+
+```sh
+cd server
+MIX_ENV=test elixir --name formation_$$@127.0.0.1 --cookie formation_verification \
+  -S mix run --no-start verification/cluster_formation.exs
+```
+
+Production rate limits continue using shared Valkey and deny shared-store failures by default. Only explicitly selected dashboard and authenticated MCP callers may use reduced local outage budgets. Installations without Valkey retain approximate in-memory rate limits; publish/subscribe replication does not serialize admission. Sensitive authentication operations use fresh authoritative state; allowlisted ordinary routes may reuse absolute, non-sliding subject snapshots for at most 60 seconds, capped by credential expiry. Display invalidation does not flush authentication proofs or subjects.
+
+Required test-ingestion staging completes synchronously before acknowledgement. Optional followups remain best-effort detached tasks, not durable acknowledgements or a supervised drain guarantee. Hard node loss can still discard buffered analytics before a flush; Erlang clustering does not turn local buffers into durable storage.
