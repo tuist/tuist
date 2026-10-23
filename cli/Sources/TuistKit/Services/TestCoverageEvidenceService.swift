@@ -55,10 +55,13 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 public protocol TestCoverageEvidenceServicing {
     func prepare(platform: TestCoverageEvidencePlatform?, config: Tuist) async -> TestCoverageEvidenceSession?
 
+    /// `reports` are the coverage export's `llvm-cov` reports of the same run, read instead of
+    /// exporting the same images again; their directory is removed once read.
     func record(
         session: TestCoverageEvidenceSession,
         resultBundlePath: AbsolutePath?,
-        derivedDataDirectory: AbsolutePath?
+        derivedDataDirectory: AbsolutePath?,
+        reports: CoverageReports?
     ) async -> TestCoverageEvidence?
 }
 
@@ -96,11 +99,15 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     public func record(
         session: TestCoverageEvidenceSession,
         resultBundlePath: AbsolutePath?,
-        derivedDataDirectory: AbsolutePath?
+        derivedDataDirectory: AbsolutePath?,
+        reports: CoverageReports?
     ) async -> TestCoverageEvidence? {
-        defer { try? FileManager.default.removeItem(atPath: session.directory.pathString) }
+        defer {
+            try? FileManager.default.removeItem(atPath: session.directory.pathString)
+            if let reports { try? FileManager.default.removeItem(atPath: reports.directory.pathString) }
+        }
         guard let resultBundlePath, (try? await fileSystem.exists(resultBundlePath)) == true else { return nil }
-        let evidence = await collect(session: session, derivedDataDirectory: derivedDataDirectory)
+        let evidence = await collect(session: session, derivedDataDirectory: derivedDataDirectory, reports: reports)
         do {
             try evidence.write(toResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))
         } catch {
@@ -112,9 +119,11 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     /// What the test processes recorded, reduced to files and lines; without scopes, its status
     /// says why there is none.
-    private func collect(session: TestCoverageEvidenceSession, derivedDataDirectory: AbsolutePath?) async
-        -> TestCoverageEvidence
-    {
+    private func collect(
+        session: TestCoverageEvidenceSession,
+        derivedDataDirectory: AbsolutePath?,
+        reports: CoverageReports?
+    ) async -> TestCoverageEvidence {
         do {
             // TestCoverageAttribution makes a directory per test process as it loads, and removes
             // what it wrote there when recording fails.
@@ -124,21 +133,22 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 Logger.current.debug("No test process recorded coverage evidence: no test target links TestCoverageAttribution")
                 return TestCoverageEvidence(paths: [], scopes: [], status: .notLinked)
             }
-            let outputs = processes
+            let recorded = processes
                 .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("images.tsv").path) }
-                .compactMap { try? CoverageObserverOutput(directory: $0) }
-            guard !outputs.isEmpty else {
-                Logger.current.debug("TestCoverageAttribution is linked, but no test process recorded coverage evidence")
-                return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
-            }
-            guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory) else {
+            guard !recorded.isEmpty else { return Self.nothingRecorded() }
+            guard let profilePath = try await profilePath(derivedDataDirectory: derivedDataDirectory) else {
                 Logger.current.debug("No Coverage.profdata under the derived data; no coverage evidence")
                 return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
             }
+            let profile = await profile(at: profilePath)
+            let outputs = recorded.compactMap { try? CoverageObserverOutput(
+                directory: $0,
+                namesByReference: profile.namesByReference
+            ) }
+            guard !outputs.isEmpty else { return Self.nothingRecorded() }
 
             var filesByFunction: [String: [String: Set<String>]] = [:]
             var mappings: [String: VerifiedCoverageMapping] = [:]
-            let profileCounts = await profileCounts(profile: profile)
             // Xcode's prefix mapping records `/^src/…` in the images and in llvm-cov's report
             // alike; both are mapped back through the image's target before the files are tied
             // to the repository, so the evidence names the same paths the coverage does.
@@ -146,10 +156,14 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             for image in Set(outputs.flatMap { $0.images.values.map(\.path) }) {
                 let target = CompilationPrefixMaps.targetName(ofProduct: image)
                 let remap: (String) -> String = { prefixMaps.remap($0, target: target) }
-                let table = await lcovTable(image: image, profile: profile, remap: remap)
+                let table = if let report = reports?.report(ofImage: image, profile: profilePath) {
+                    lcovTable(report: report, remap: remap)
+                } else {
+                    await lcovTable(image: image, profile: profilePath, remap: remap)
+                }
                 filesByFunction[image] = table.filesByFunction
                 if let mapping = CoverageMapping(imagePath: image)?.remappingFiles(remap) {
-                    mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
+                    mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profile.counts)
                 }
             }
             var evidence = Self.reduce(outputs: outputs, filesByFunction: filesByFunction, mappings: mappings)
@@ -159,6 +173,11 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             Logger.current.debug("The run's coverage evidence could not be recorded: \(error.localizedDescription)")
             return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
         }
+    }
+
+    private static func nothingRecorded() -> TestCoverageEvidence {
+        Logger.current.debug("TestCoverageAttribution is linked, but no test process recorded coverage evidence")
+        return TestCoverageEvidence(paths: [], scopes: [], status: .failed)
     }
 
     // MARK: - Reduction
@@ -260,8 +279,29 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         private(set) var executableLines: [String: IndexSet] = [:]
         private(set) var coveredLines: [String: IndexSet] = [:]
         private var file: String?
+        private var pending: [UInt8] = []
         /// Applied to each file's path as its section opens.
         var remap: (String) -> String = { $0 }
+
+        /// Reads a report as it comes, split on bytes: a chunk may end inside a multibyte
+        /// character of a path. `finish` reads what follows the last newline.
+        mutating func read(bytes: some Collection<UInt8>) {
+            var lineStart = bytes.startIndex
+            while let newline = bytes[lineStart...].firstIndex(of: 0x0A) {
+                pending += bytes[lineStart ..< newline]
+                if Self.reads(pending) {
+                    read(Substring(String(decoding: pending, as: UTF8.self)))
+                }
+                pending.removeAll(keepingCapacity: true)
+                lineStart = bytes.index(after: newline)
+            }
+            pending += bytes[lineStart...]
+        }
+
+        mutating func finish() {
+            read(Substring(String(decoding: pending, as: UTF8.self)))
+            pending.removeAll()
+        }
 
         /// Whether a line is one of the two kinds kept, told from its bytes so the rest (one line
         /// per executable line of the image) is never decoded.
@@ -291,10 +331,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         var table = LCOVFunctionTable()
         table.remap = remap
         do {
-            // Split on bytes: a chunk may end inside a multibyte character of a path. Dependency
-            // checkouts are left out at the source: Git cannot vouch for them, so they never
-            // become evidence, and they are most of a statically linked test bundle.
-            var pending: [UInt8] = []
+            // Dependency checkouts are left out at the source: Git cannot vouch for them, so they
+            // never become evidence, and they are most of a statically linked test bundle.
             let command = [
                 "/usr/bin/xcrun", "llvm-cov", "export", "-format=lcov",
                 "-ignore-filename-regex=/(\\.build|DerivedData|SourcePackages|Pods|Carthage)/",
@@ -302,42 +340,58 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             ]
             for try await event in commandRunner.run(arguments: command, environment: Environment.current.variables) {
                 guard case let .standardOutput(bytes) = event else { continue }
-                var lineStart = bytes.startIndex
-                while let newline = bytes[lineStart...].firstIndex(of: 0x0A) {
-                    pending += bytes[lineStart ..< newline]
-                    if LCOVFunctionTable.reads(pending) {
-                        table.read(Substring(String(decoding: pending, as: UTF8.self)))
-                    }
-                    pending.removeAll(keepingCapacity: true)
-                    lineStart = bytes.index(after: newline)
-                }
-                pending += bytes[lineStart...]
+                table.read(bytes: bytes)
             }
-            table.read(Substring(String(decoding: pending, as: UTF8.self)))
+            table.finish()
         } catch {
             Logger.current.debug("llvm-cov could not read \(image): \(error.localizedDescription)")
         }
         return table
     }
 
-    /// The run's counter values per function, from the merged profile as text: what the decoded
-    /// coverage mapping is checked with against `llvm-cov`'s report of the same profile.
-    private func profileCounts(profile: AbsolutePath) async -> [CoverageMapping.FunctionKey: [UInt64]] {
+    /// The coverage export's report of an image: the same `llvm-cov` export, with the same
+    /// filter, but `-skip-branches`, whose branch lines this table drops anyway.
+    private func lcovTable(report: AbsolutePath, remap: @escaping (String) -> String) -> LCOVFunctionTable {
+        var table = LCOVFunctionTable()
+        table.remap = remap
+        do {
+            let handle = try FileHandle(forReadingFrom: URL(fileURLWithPath: report.pathString))
+            defer { try? handle.close() }
+            while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+                table.read(bytes: chunk)
+            }
+            table.finish()
+        } catch {
+            Logger.current
+                .debug("The coverage export's report \(report.pathString) could not be read: \(error.localizedDescription)")
+        }
+        return table
+    }
+
+    /// The merged profile's functions: their counter values, what the decoded coverage mapping is
+    /// checked with against `llvm-cov`'s report of the same profile, and their names by the
+    /// reference the images' `__llvm_prf_data` knows them by.
+    struct Profile: Equatable {
+        var counts: [CoverageMapping.FunctionKey: [UInt64]] = [:]
+        var namesByReference: [UInt64: String] = [:]
+    }
+
+    private func profile(at path: AbsolutePath) async -> Profile {
         do {
             let text = try await commandRunner
-                .run(arguments: ["/usr/bin/xcrun", "llvm-profdata", "merge", "--text", profile.pathString, "-o", "-"])
+                .run(arguments: ["/usr/bin/xcrun", "llvm-profdata", "merge", "--text", path.pathString, "-o", "-"])
                 .concatenatedString()
-            return Self.profileCounts(text: text)
+            return Self.profile(text: text)
         } catch {
-            Logger.current.debug("llvm-profdata could not read \(profile.pathString): \(error.localizedDescription)")
-            return [:]
+            Logger.current.debug("llvm-profdata could not read \(path.pathString): \(error.localizedDescription)")
+            return Profile()
         }
     }
 
     /// A text profile lists each function as its name, `# Func Hash:` and the hash, `# Num
     /// Counters:` and how many, `# Counter Values:` and one value per line.
-    static func profileCounts(text: String) -> [CoverageMapping.FunctionKey: [UInt64]] {
-        var result: [CoverageMapping.FunctionKey: [UInt64]] = [:]
+    static func profile(text: String) -> Profile {
+        var result = Profile()
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         var index = 0
         while index + 5 < lines.count {
@@ -348,10 +402,11 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 index += 1
                 continue
             }
-            let key = CoverageMapping.FunctionKey(
-                reference: CoverageObserverOutput.nameReference(String(lines[index])), hash: hash
-            )
-            result[key] = lines[(index + 6) ..< (index + 6 + count)].map { UInt64($0) ?? 0 }
+            let name = String(lines[index])
+            let reference = CoverageObserverOutput.nameReference(name)
+            result.counts[CoverageMapping.FunctionKey(reference: reference, hash: hash)] =
+                lines[(index + 6) ..< (index + 6 + count)].map { UInt64($0) ?? 0 }
+            result.namesByReference[reference] = name
             index += 6 + count
         }
         return result
