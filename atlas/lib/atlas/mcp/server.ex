@@ -850,6 +850,9 @@ defmodule Atlas.MCP.Server do
   @doc "MCP protocol revisions this server can speak, newest first."
   def supported_protocol_versions, do: @supported_protocol_versions
 
+  @doc "Static Atlas tool modules, before per-caller filtering."
+  def tool_modules, do: @static_tools
+
   def handle_message(conn, raw) when is_binary(raw) do
     case JSON.decode(raw) do
       {:ok, request} -> handle_message(conn, request)
@@ -987,12 +990,20 @@ defmodule Atlas.MCP.Server do
           conn
           |> mcp_claim_metadata()
           |> Map.merge(%{
-            arguments: audit_arguments(name, arguments),
+            arguments: audit_arguments(conn, name, arguments),
             status: tool_call_status(response)
           })
       })
     end
   end
+
+  defp audit_arguments(conn, name, arguments)
+
+  # Orbit tool arguments can quote private thread content, which must not
+  # become readable through the audit trail. The thread itself keeps the
+  # rendered call for its participants.
+  defp audit_arguments(%{assigns: %{mcp_claims: %{"orbit_run_id" => _}}}, _name, _arguments), do: %{}
+  defp audit_arguments(_conn, name, arguments), do: audit_arguments(name, arguments)
 
   defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do
     Map.drop(arguments, ["bearer_token", :bearer_token])

@@ -610,11 +610,13 @@ end
 # `#errors` in the Tuist company workspace.
 default_alert_slack_channel = System.get_env("ATLAS_DEFAULT_ALERT_SLACK_CHANNEL", "C061VCZC2V8")
 
-config :atlas, :default_alert_slack_channel, default_alert_slack_channel
-
+# Display name of the thread assistant served to clients. Generic by
 # Slack app credentials. Atlas keeps one company Slack app. The signing
+# default so self-hosted deployments carry no organization-specific naming.
 # secret is app-wide; the bot token can be captured through the install
 # flow and persisted in `slack_installations`.
+config :atlas, :default_alert_slack_channel, default_alert_slack_channel
+
 config :atlas, :slack,
   client_id: System.get_env("ATLAS_SLACK_CLIENT_ID"),
   client_secret: System.get_env("ATLAS_SLACK_CLIENT_SECRET"),

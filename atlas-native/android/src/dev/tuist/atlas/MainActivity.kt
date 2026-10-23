@@ -39,7 +39,12 @@ class MainActivity : Activity() {
     private var presence: AtlasPresenceModel? = null
     private var people: AtlasPeopleScreen? = null
     private var restorePeople = false
-    private var tab = "tasks"
+    private var orbit: AtlasOrbitModel? = null
+    private var threadScreen: AtlasOrbitScreen? = null
+    private var tab = "orbit"
+
+    // Tasks live under Browse; Browse shows the Tasks screen instead of the directory while this is set.
+    private var browseTasks = false
     private var unregisterBack: (() -> Unit)? = null
     private lateinit var router: AtlasDestinationRouter
     private var linkDialog: AlertDialog? = null
@@ -56,6 +61,8 @@ class MainActivity : Activity() {
         val presence: AtlasPresenceModel?,
         val router: AtlasDestinationRouter,
         val appearance: AtlasAppearance,
+        val orbit: AtlasOrbitModel?,
+        val browseTasks: Boolean,
         val notifications: AtlasPushNotifications,
     )
 
@@ -80,9 +87,11 @@ class MainActivity : Activity() {
         profile = retained?.profile
         holidays = retained?.holidays
         presence = retained?.presence
+        orbit = retained?.orbit
         router = retained?.router ?: AtlasDestinationRouter()
         businesses = retained?.businesses ?: mutableMapOf()
-        tab = retained?.tab ?: savedInstanceState?.getString("tab")?.takeIf { it in tabIds } ?: "tasks"
+        tab = retained?.tab ?: savedInstanceState?.getString("tab")?.takeIf { it in tabIds } ?: "orbit"
+        browseTasks = retained?.browseTasks ?: (savedInstanceState?.getBoolean("browse_tasks") == true)
         navigation = retained?.navigation ?: catalogNavigation(savedInstanceState?.getString("workspace_group"))
         restoreTimeOff = savedInstanceState?.getBoolean("time_off") == true
         restorePeople = savedInstanceState?.getBoolean("people") == true
@@ -96,7 +105,21 @@ class MainActivity : Activity() {
     }
 
     override fun onRetainNonConfigurationInstance(): Any =
-        Retained(authentication, accounts, profile, holidays, navigation, businesses, tab, presence, router, appearance, notifications)
+        Retained(
+            authentication,
+            accounts,
+            profile,
+            holidays,
+            navigation,
+            businesses,
+            tab,
+            presence,
+            router,
+            appearance,
+            orbit,
+            browseTasks,
+            notifications,
+        )
 
     override fun onStart() {
         super.onStart()
@@ -106,10 +129,12 @@ class MainActivity : Activity() {
         render()
         notifications.refresh()
         presence?.setActive(authentication.server != null)
+        orbit?.setActive(authentication.server != null)
     }
 
     override fun onStop() {
         presence?.setActive(false)
+        orbit?.setActive(false)
         if (authentication.listener === authListener) authentication.listener = null
         appearance.listener = null
         notifications.listener = null
@@ -119,6 +144,7 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("workspace_group", navigation?.groupId)
         outState.putString("tab", tab)
+        outState.putBoolean("browse_tasks", browseTasks)
         outState.putBoolean("time_off", timeOff != null || restoreTimeOff)
         outState.putBoolean("people", people != null || restorePeople)
         outState.putString("chatgpt_login_id", accounts?.pendingLoginId ?: recoveredLoginId)
@@ -211,10 +237,12 @@ class MainActivity : Activity() {
             // Browse is the parent of these screens, so Back returns there rather than to the previous tab.
             "time-off" -> {
                 tab = "browse"
+                browseTasks = false
                 showTimeOff(AtlasCore().sections().first { it.screen == "time-off" }.title)
             }
             "people" -> {
                 tab = "browse"
+                browseTasks = false
                 showPeople()
             }
             "profile" -> {
@@ -223,8 +251,14 @@ class MainActivity : Activity() {
                 showHome()
             }
             else -> {
-                tab = destination.screen
-                val model = businesses.getOrPut(tab) { AtlasBusinessModel(tab, authentication::business) }
+                // Tasks moved into Browse, so its links open there and Back returns to the directory.
+                if (destination.screen == "tasks") {
+                    tab = "browse"
+                    browseTasks = true
+                } else {
+                    tab = destination.screen
+                }
+                val model = businesses.getOrPut(destination.screen) { AtlasBusinessModel(destination.screen, authentication::business) }
                 destination.recordId?.let(model::open) ?: model.showList()
                 showHome()
             }
@@ -264,7 +298,8 @@ class MainActivity : Activity() {
             if (!authentication.busy) {
                 restoreTimeOff = false
                 navigation = null
-                tab = "tasks"
+                tab = "orbit"
+                browseTasks = false
             }
             updateBack()
             setActionBar(null)
@@ -302,7 +337,7 @@ class MainActivity : Activity() {
         val catalog = navigation ?: catalogNavigation().also { navigation = it }
         val titles =
             linkedMapOf(
-                "tasks" to catalog.sections.first { it.screen == "tasks" }.title,
+                "orbit" to "Orbit",
                 "accounts" to catalog.sections.first { it.screen == "accounts" }.title,
                 "invoices" to catalog.groups.first { it.id == "finance" }.title,
                 "browse" to "Browse",
@@ -310,21 +345,42 @@ class MainActivity : Activity() {
             )
         val content =
             when (tab) {
-                "browse" -> {
+                "orbit" -> {
                     presence?.show()
-                    val screen =
-                        AtlasWorkspaceScreen(this, catalog, Uri.parse(server).host.orEmpty(), { section ->
-                            when (section.screen) {
-                                "automation" -> startActivity(Intent(this, AtlasAutomationActivity::class.java))
-                                "people" -> showPeople()
-                                "time-off" -> showTimeOff(section.title)
-                                "tasks", "accounts", "invoices" -> selectTab(section.screen)
-                            }
-                        }, ::updateBack, authentication.errorMessage)
-                    workspace = screen
+                    val model =
+                        orbit ?: AtlasOrbitModel(authentication::orbitSession).also {
+                            orbit = it
+                            it.setActive(true)
+                            it.open()
+                        }
+                    val screen = AtlasOrbitScreen(this, titles.getValue(tab), model, presence, ::updateBack, appearance)
+                    threadScreen = screen
                     setActionBar(screen.toolbar)
                     screen.view
                 }
+                "browse" ->
+                    if (browseTasks) {
+                        businessScreen("tasks", catalog.sections.first { it.screen == "tasks" }.title)
+                    } else {
+                        presence?.show()
+                        val screen =
+                            AtlasWorkspaceScreen(this, catalog, Uri.parse(server).host.orEmpty(), { section ->
+                                when (section.screen) {
+                                    "automation" -> startActivity(Intent(this, AtlasAutomationActivity::class.java))
+                                    "people" -> showPeople()
+                                    "time-off" -> showTimeOff(section.title)
+                                    "tasks" -> {
+                                        closeScreen()
+                                        browseTasks = true
+                                        showHome()
+                                    }
+                                    "accounts", "invoices" -> selectTab(section.screen)
+                                }
+                            }, ::updateBack, authentication.errorMessage)
+                        workspace = screen
+                        setActionBar(screen.toolbar)
+                        screen.view
+                    }
                 "profile" -> {
                     presence?.show("profile")
                     val model = accounts ?: AtlasAIAccountsModel(recoveredLoginId, authentication::aiAccounts).also { accounts = it }
@@ -336,7 +392,8 @@ class MainActivity : Activity() {
                                 closeScreen()
                                 clearModels()
                                 navigation = null
-                                tab = "tasks"
+                                tab = "orbit"
+                                browseTasks = false
                                 router.reset()
                                 notifications.disable { authentication.signOut() }
                             }
@@ -359,21 +416,7 @@ class MainActivity : Activity() {
                     )
                     screen.view
                 }
-                else -> {
-                    val model = businesses.getOrPut(tab) { AtlasBusinessModel(tab, authentication::business) }
-                    val screen =
-                        AtlasBusinessScreen(
-                            this,
-                            titles.getValue(tab),
-                            model,
-                            ::updateBack,
-                            presence,
-                            webPage = { id -> openWebPage(model.resource, id) },
-                        )
-                    business = screen
-                    setActionBar(screen.toolbar)
-                    screen.view
-                }
+                else -> businessScreen(tab, titles.getValue(tab))
             }
         val shell = AtlasHomeScreen(this, content, titles, tab, ::selectTab)
         home = shell
@@ -381,7 +424,36 @@ class MainActivity : Activity() {
         updateBack()
         business?.load()
         settings?.load()
+        threadScreen?.load()
     }
+
+    private fun businessScreen(
+        resource: String,
+        title: String,
+    ): View {
+        val model = businesses.getOrPut(resource) { AtlasBusinessModel(resource, authentication::business) }
+        val screen =
+            AtlasBusinessScreen(
+                this,
+                title,
+                model,
+                ::updateBack,
+                presence,
+                webPage = { id -> openWebPage(model.resource, id) },
+            )
+        business = screen
+        setActionBar(screen.toolbar)
+        return screen.view
+    }
+
+    // The business model shown in the current tab, if any.
+    private val businessResource: String?
+        get() =
+            when {
+                tab == "browse" && browseTasks -> "tasks"
+                tab == "accounts" || tab == "invoices" -> tab
+                else -> null
+            }
 
     private fun toggleNotifications() {
         if (notifications.busy) return
@@ -410,7 +482,16 @@ class MainActivity : Activity() {
     }
 
     private fun selectTab(value: String) {
-        if (value == tab || value !in tabIds || businesses[tab]?.saving == true) return
+        if (value !in tabIds || businessResource?.let { businesses[it] }?.saving == true) return
+        if (value == tab) {
+            // Reselecting Browse returns from Tasks to the directory unless that would discard work.
+            if (tab == "browse" && browseTasks && businesses["tasks"]?.draft == null) {
+                closeScreen()
+                browseTasks = false
+                showHome()
+            }
+            return
+        }
         appearance.showingSettings = false
         closeScreen()
         tab = value
@@ -422,6 +503,8 @@ class MainActivity : Activity() {
         people = null
         settings?.close(cancelPending)
         settings = null
+        threadScreen?.close()
+        threadScreen = null
         timeOff?.close()
         timeOff = null
         business?.close()
@@ -435,6 +518,8 @@ class MainActivity : Activity() {
         presence?.setActive(false)
         presence?.listener = null
         presence = null
+        orbit?.close()
+        orbit = null
         businesses.values.forEach { it.clear() }
         businesses.clear()
         profile?.clear()
@@ -469,8 +554,14 @@ class MainActivity : Activity() {
             }
             settings?.back() == true -> Unit
             business?.back() == true -> Unit
+            business != null && tab == "browse" && browseTasks -> {
+                closeScreen()
+                browseTasks = false
+                showHome()
+            }
+            threadScreen?.back() == true -> Unit
             workspace?.back() == true -> Unit
-            authentication.server != null && tab != "tasks" -> selectTab("tasks")
+            authentication.server != null && tab != "orbit" -> selectTab("orbit")
             else -> return false
         }
         updateBack()
@@ -508,14 +599,20 @@ class MainActivity : Activity() {
         if (tab == "profile" && settings != null) {
             presence?.show(if (settings?.isDetail != true) "profile" else null)
         }
+        val businessModel = businessResource?.let { businesses[it] }
         val canUp =
             people != null || timeOff != null || (tab == "profile" && settings?.isDetail == true) ||
-                (business != null && businesses[tab]?.canBack == true) || (workspace != null && navigation?.canBack == true)
+                (business != null && (businessModel?.canBack == true || tab == "browse")) ||
+                (workspace != null && navigation?.canBack == true) ||
+                (threadScreen != null && orbit?.canBack == true)
         actionBar?.setDisplayHomeAsUpEnabled(canUp)
-        home?.fullScreen(businesses[tab]?.draft != null || (tab == "profile" && settings?.isDetail == true))
+        home?.fullScreen(
+            businessModel?.draft != null || (tab == "profile" && settings?.isDetail == true) ||
+                (threadScreen != null && orbit?.canBack == true),
+        )
         unregisterBack?.invoke()
         unregisterBack = null
-        if (Build.VERSION.SDK_INT >= 33 && authentication.server != null && (canUp || tab != "tasks")) {
+        if (Build.VERSION.SDK_INT >= 33 && authentication.server != null && (canUp || tab != "orbit")) {
             val callback = OnBackInvokedCallback { back() }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
             unregisterBack = { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback) }
@@ -557,6 +654,6 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private val tabIds = setOf("tasks", "accounts", "invoices", "browse", "profile")
+        private val tabIds = setOf("orbit", "accounts", "invoices", "browse", "profile")
     }
 }
