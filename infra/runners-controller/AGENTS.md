@@ -248,16 +248,20 @@ independent workqueues:
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), or past `idleHostReservationGrace` (30s) when the best
-    candidate holds only idle runners and no seat in flight (draining it
-    waits on no job, and with a warm runner per rack image every host of a
-    quiet fleet can hold one), the RunnerPool reconciler taints one eligible host
-    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
-    the fewest running jobs and, among those, one already holding the
-    pool's golden image. Every runner Pod
+    candidate clears at once (draining it waits on no job): it holds only
+    idle runners and no seat in flight, or, on Linux, the starved Pod's
+    request plus RuntimeClass overhead fits beside the host's jobs, seats in
+    flight and non-runner Pods once its idle runners are retired. Pods
+    outside the runners namespace are not counted. The RunnerPool reconciler
+    then taints one eligible host
+    `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring a host that
+    clears at once, then the fewest running jobs and, among those, one
+    already holding the pool's golden image. Every runner Pod
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
-    waited out, never evicted; only idle Pods of other pools are
-    retired, and only once their seat is no longer in flight
+    waited out, never evicted; only idle runner Pods of other pools are
+    retired (never the cache-volume agent DaemonSet that shares the
+    namespace), and only once their seat is no longer in flight
     (`seatInFlight`). A Pod that bound within `seatGrace` (2m) is the
     seat some other reservation just produced, and dispatch has not yet
     reached it. A macOS Pod is in flight while it is bound and Pending,
