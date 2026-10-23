@@ -47,6 +47,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
     private let packageSettingsLoader: PackageSettingsLoading
     private let manifestFilesLocator: ManifestFilesLocating
     private let localPackageCoverageTargetsValidator: LocalPackageCoverageTargetsValidating
+    private let testCoverageAttributionLinker = TestCoverageAttributionLinker()
 
     public init(
         manifestLoader: ManifestLoading,
@@ -130,29 +131,35 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         var allManifests = try await recursiveManifestLoader.loadWorkspace(at: path, disableSandbox: disableSandbox)
         let isSPMProjectOnly = allManifests.projects.isEmpty
         let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
+        let attributesCoverageToTests = config.testInsights.coverage.attributeToTests && !isSPMProjectOnly
 
         // Load DependenciesGraph
 
         let dependenciesGraph: XcodeGraph.DependenciesGraph
         let packageSettings: TuistCore.PackageSettings?
+        var packageManifestPath: AbsolutePath?
         let swiftPackageManagerScratchDirectory: AbsolutePath?
         var spmLintingIssues: [LintingIssue] = []
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
         if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
-           isSPMProjectOnly || hasExternalDependencies
+           isSPMProjectOnly || hasExternalDependencies || attributesCoverageToTests
         {
+            packageManifestPath = packagePath
             let swiftPackageManagerArguments = config.project.generatedProject?.installOptions
                 .passthroughSwiftPackageManagerArguments ?? []
             swiftPackageManagerScratchDirectory = try await self.swiftPackageManagerScratchDirectory(
                 packagePath: packagePath.parentDirectory,
                 arguments: swiftPackageManagerArguments
             )
-            let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
+            var loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins,
                 disableSandbox: disableSandbox
             )
+            if attributesCoverageToTests {
+                loadedPackageSettings = testCoverageAttributionLinker.packageSettings(loadedPackageSettings)
+            }
 
             let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
@@ -195,12 +202,19 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         try lintingIssues.printAndThrowErrorsIfNeeded()
 
         // Convert to models
-        let projectsModels = try await convert(
+        var localProjectsModels = try await convert(
             projects: manifestProjects,
             plugins: plugins,
             externalDependencies: dependenciesGraph.externalDependencies
-        ) +
-            dependenciesGraph.externalProjects.values
+        )
+        if attributesCoverageToTests {
+            localProjectsModels = try testCoverageAttributionLinker.link(
+                projects: localProjectsModels,
+                externalDependencies: dependenciesGraph.externalDependencies,
+                packageManifestPath: packageManifestPath
+            )
+        }
+        let projectsModels = localProjectsModels + dependenciesGraph.externalProjects.values
 
         // Check circular dependencies
         try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)

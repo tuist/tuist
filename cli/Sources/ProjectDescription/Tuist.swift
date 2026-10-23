@@ -106,11 +106,20 @@ public struct Tuist: Codable, Equatable, Sendable {
             /// Set to `false` to upload test runs without their coverage.
             public let upload: Bool
 
+            /// When `true`, generated projects link the
+            /// [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) package into their unit test
+            /// targets, so test runs can record which code each test executed. The package must be declared in
+            /// `Tuist/Package.swift`. Defaults to `false`.
+            public let attributeToTests: Bool
+
             /// Creates code coverage options.
-            /// - Parameter upload: Whether to upload the code coverage a test run gathered. Defaults to `true`.
-            ///   The `TUIST_COVERAGE_UPLOAD` environment variable takes precedence over this value.
-            public static func coverage(upload: Bool = true) -> Self {
-                Coverage(upload: upload)
+            /// - Parameters:
+            ///   - upload: Whether to upload the code coverage a test run gathered. Defaults to `true`.
+            ///     The `TUIST_COVERAGE_UPLOAD` environment variable takes precedence over this value.
+            ///   - attributeToTests: Whether generated projects link TestCoverageAttribution into their unit test
+            ///     targets. Defaults to `false`.
+            public static func coverage(upload: Bool = true, attributeToTests: Bool = false) -> Self {
+                Coverage(upload: upload, attributeToTests: attributeToTests)
             }
         }
 
