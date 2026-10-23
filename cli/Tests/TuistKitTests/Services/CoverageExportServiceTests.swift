@@ -466,22 +466,11 @@ struct CoverageExportServiceTests {
         let withoutIntermediates = CompilationPrefixMaps(derivedDataDirectory: nil, buildSources: buildSources)
         #expect(withoutIntermediates.remap("/^src/A.swift", target: "Lib") == "/build-job/Lib/A.swift")
 
-        // The products were compiled by the build that recorded them, so its maps win over the
-        // derived data's; the derived data's still map the targets the build recorded none for.
-        let maps = CompilationPrefixMaps(
-            derivedDataDirectory: directory,
-            buildSources: CoverageBuildSources(
-                rootDirectories: ["/build-job"],
-                files: [:],
-                prefixMaps: ["Lib": ["/^src": "/build-job/Lib"]]
-            )
-        )
-        #expect(maps.remap("/^src/A.swift", target: "Lib") == "/build-job/Lib/A.swift")
+        // The derived data's map wins for a target it has one for; the test products' maps cover
+        // the rest.
+        let maps = CompilationPrefixMaps(derivedDataDirectory: directory, buildSources: buildSources)
         #expect(maps.remap("/^src/A.swift", target: "Local") == "/test-job/Local/A.swift")
-        #expect(
-            CompilationPrefixMaps(derivedDataDirectory: directory, buildSources: buildSources)
-                .remap("/^src/A.swift", target: "Local") == "/build-job/Local/A.swift"
-        )
+        #expect(maps.remap("/^src/A.swift", target: "Lib") == "/build-job/Lib/A.swift")
     }
 
     @Test(.inTemporaryDirectory) func writesMappedFilesUnderThePathTheyMapBackTo() async throws {
