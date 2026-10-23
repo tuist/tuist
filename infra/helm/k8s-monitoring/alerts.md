@@ -4141,7 +4141,10 @@ connections whose request bytes arrive before Kura accepts them. The node
 journal shows `Possible SYN flooding on port 0.0.0.0:4001. Sending cookies.`
 in the same second. Kura bound its public, HTTPS and gateway gRPC listeners
 with tokio's default backlog of 128, which a single burst exceeds, until it
-moved them to 4096.
+moved them to 1024. A burst of more than about a thousand new upstream
+connections can still overflow 1024: that shows as nginx upstream connect times
+of about one second with no 502s, so this rule stays quiet, and the journal
+line above only returns if the overflow reaches SYN cookies again.
 
 A 502 on an upload (`POST` or `PUT`) with upstream status 502 and 0 upstream
 bytes is a connection Kura closed with request bytes still unread. The paired

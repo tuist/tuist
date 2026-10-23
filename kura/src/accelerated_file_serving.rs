@@ -66,9 +66,11 @@ const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 // simultaneous handshakes. At tokio's default backlog of 128 the kernel drops
 // the excess SYNs (clients retry after a second) and then falls back to SYN
 // cookies, resetting connections whose request bytes arrive before Kura
-// accepts them: 502s at the gateway that Kura never sees. The kernel still
-// caps this at `net.core.somaxconn` (4096 by default in a pod).
-const PUBLIC_LISTEN_BACKLOG: u32 = 4096;
+// accepts them: 502s at the gateway that Kura never sees. 1024 absorbs those
+// bursts without the cookie fallback. It stays well below `net.core.somaxconn`
+// because a queued connection keeps its first request window (about 64 KiB)
+// in node kernel memory, outside the pod's limit, until Kura accepts it.
+const PUBLIC_LISTEN_BACKLOG: u32 = 1024;
 const NX_NAMESPACE_ID: &str = "nx";
 const METRO_NAMESPACE_ID: &str = "metro";
 const TENANT_SCOPE_NAMESPACE_ID: &str = "";
