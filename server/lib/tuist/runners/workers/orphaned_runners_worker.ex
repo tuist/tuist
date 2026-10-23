@@ -558,49 +558,11 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
           workflow_job_id: workflow_job_id,
           account: account.name,
           pod: pod_name,
-          signal: signal
+          reason: signal
         )
 
         false
     end
-  end
-
-  defp busy_signal(:aged_out, workflow_job_id, pod_name) do
-    cond do
-      Claims.executing?(workflow_job_id) -> "executing"
-      runner_started?(pod_name) -> "pod"
-      true -> nil
-    end
-  end
-
-  defp busy_signal(_evidence, _workflow_job_id, _pod_name), do: nil
-
-  # Whether the Pod reports that its runner was started. A macOS guest
-  # writes the `claimed` heartbeat once dispatch handed it a runner
-  # credential (tart-kubelet republishes it on the Pod); a Linux Pod's
-  # dispatch poller is an init container that exits at that moment. A
-  # Pod that is being deleted, that cannot be read, or that reports
-  # neither, as one on a host without the heartbeat does, is not busy on
-  # this evidence.
-  defp runner_started?(pod_name) when is_binary(pod_name) and pod_name != "" do
-    case K8sClient.get_pod(Environment.runners_namespace(), pod_name) do
-      {:ok, %{"metadata" => metadata} = pod} ->
-        is_nil(metadata["deletionTimestamp"]) and
-          (get_in(metadata, ["annotations", @runner_heartbeat_state_annotation]) == @runner_heartbeat_claimed or
-             poller_exited?(pod))
-
-      _ ->
-        false
-    end
-  end
-
-  defp runner_started?(_pod_name), do: false
-
-  defp poller_exited?(pod) do
-    pod
-    |> get_in(["status", "initContainerStatuses"])
-    |> List.wrap()
-    |> Enum.any?(&(&1["name"] == "poller" and is_map(get_in(&1, ["state", "terminated"]))))
   end
 
   defp handle_gh_status("in_progress", _conclusion, _orphan, _account, _evidence, _stage), do: false
@@ -653,6 +615,44 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     )
 
     false
+  end
+
+  defp busy_signal(:aged_out, workflow_job_id, pod_name) do
+    cond do
+      Claims.executing?(workflow_job_id) -> "executing"
+      runner_started?(pod_name) -> "pod"
+      true -> nil
+    end
+  end
+
+  defp busy_signal(_evidence, _workflow_job_id, _pod_name), do: nil
+
+  # Whether the Pod reports that its runner was started. A macOS guest
+  # writes the `claimed` heartbeat once dispatch handed it a runner
+  # credential (tart-kubelet republishes it on the Pod); a Linux Pod's
+  # dispatch poller is an init container that exits at that moment. A
+  # Pod that is being deleted, that cannot be read, or that reports
+  # neither, as one on a host without the heartbeat does, is not busy on
+  # this evidence.
+  defp runner_started?(pod_name) when is_binary(pod_name) and pod_name != "" do
+    case K8sClient.get_pod(Environment.runners_namespace(), pod_name) do
+      {:ok, %{"metadata" => metadata} = pod} ->
+        is_nil(metadata["deletionTimestamp"]) and
+          (get_in(metadata, ["annotations", @runner_heartbeat_state_annotation]) == @runner_heartbeat_claimed or
+             poller_exited?(pod))
+
+      _ ->
+        false
+    end
+  end
+
+  defp runner_started?(_pod_name), do: false
+
+  defp poller_exited?(pod) do
+    pod
+    |> get_in(["status", "initContainerStatuses"])
+    |> List.wrap()
+    |> Enum.any?(&(&1["name"] == "poller" and is_map(get_in(&1, ["state", "terminated"]))))
   end
 
   # Unique per claim so the sweep, the pod-gone arm and targeted mode
