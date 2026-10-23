@@ -176,10 +176,12 @@ Tuist's upload resolves the mapped paths, but Xcode's coverage report and `xccov
 
 ### Skipped tests {#skipped-tests}
 
-When selective testing skips a test target, or a test is skipped through quarantine or `-skip-testing`, Tuist reuses the coverage those tests had in an earlier run, wherever it provably still applies:
+When selective testing skips a test target, or a test is skipped with `--skip-test-targets` or `-skip-testing`, Tuist reuses the coverage those tests had in an earlier run, wherever it provably still applies:
 
 - **A skipped target** takes its coverage from an earlier passing run of the target with the same selective-testing hash. The hash covers the target's sources, its tests and all its dependencies, so the same hash means the same tests over the same code.
 - **A skipped test** takes its coverage from an earlier run in which the files the test executed were the same as in this commit.
+
+Tests that quarantine skips aren't part of the coverage at all: Tuist neither carries them nor marks the commit **Incomplete** for them.
 
 Both need [test-level coverage](#test-level-coverage). Run the whole suite on your default branch regularly, without selective testing, so there's always a recent run to carry from:
 
