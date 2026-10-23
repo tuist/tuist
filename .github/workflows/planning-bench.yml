@@ -1,0 +1,76 @@
+name: Planning bench (temporary)
+
+on:
+  push:
+    branches: [claude/planning-bench-ab]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  dylibs:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build the fixed and the baseline plugin, both logging every remote resolve
+        working-directory: cas-plugin
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.94.1 --profile minimal
+          debug_log() {
+            perl -0pi -e 's/(    let _demand_guard = DemandWaitGuard \{ state, started: std::time::Instant::now\(\) \};\n)/    log_line(&format!("DEBUG resolve globally={} local_stays_local={}", globally, state.local_lookups_stay_local));\n$1/' src/lib.rs
+            grep -q 'DEBUG resolve globally' src/lib.rs
+          }
+          cp src/lib.rs "$RUNNER_TEMP/lib.rs"
+          debug_log
+          cargo +1.94.1 build --release --lib
+          mkdir -p "$RUNNER_TEMP/dylibs/fix" "$RUNNER_TEMP/dylibs/base"
+          cp target/release/libtuist_cas_plugin.dylib "$RUNNER_TEMP/dylibs/fix/"
+          perl -0pi -e 's/proxy_failure::running_in_build_service\(\),\n        \),/false,\n        ),/' src/lib.rs
+          grep -q 'running_in_build_service(),' src/lib.rs && exit 1
+          cargo +1.94.1 build --release --lib
+          cp target/release/libtuist_cas_plugin.dylib "$RUNNER_TEMP/dylibs/base/"
+          cp "$RUNNER_TEMP/lib.rs" src/lib.rs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dylibs
+          path: ${{ runner.temp }}/dylibs
+
+  ab:
+    needs: dylibs
+    runs-on: tuist-${{ matrix.environment }}-macos
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging]
+    env:
+      TUIST_URL: https://${{ matrix.environment }}.tuist.dev
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: dylibs
+          path: ${{ runner.temp }}/dylibs
+      - uses: ./.github/actions/mise-install
+        with:
+          install: tuist
+          cache: "false"
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: A/B
+        env:
+          DYLIBS: ${{ runner.temp }}/dylibs
+        run: bash .github/scripts/planning-bench/ab.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: planning-ab-${{ matrix.environment }}
+          path: ${{ runner.temp }}/planning-ab/out
