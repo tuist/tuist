@@ -471,6 +471,8 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		"tuist.dev/kata-runtime=true",
 		kataSharedMemoryScript,
 		kataSharedMemoryUnit,
+		kataVirtiofsSysctl,
+		kataVirtiofsDropIn,
 		// Set on the handler itself: the earlier rewrite only touches what the
 		// generated default emitted, and this block is appended after it.
 		"SystemdCgroup = true",
@@ -508,7 +510,7 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 
 	// Cache fleets: nothing kata anywhere, including the node labels.
 	withoutKata := renderLinuxBootstrapScript(opts)
-	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime", "tuist-kata-shared-memory"} {
+	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime", "tuist-kata-shared-memory", "tuist-kata-virtiofs", "tuist-virtiofs"} {
 		if strings.Contains(withoutKata, unwanted) {
 			t.Errorf("cache-fleet render must not contain %q", unwanted)
 		}

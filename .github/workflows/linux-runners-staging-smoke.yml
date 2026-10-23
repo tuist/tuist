@@ -177,6 +177,30 @@ jobs:
           set -euo pipefail
           test "${SMOKE_VALUE:-}" = "ok" || { echo "ERROR: GITHUB_ENV did not round-trip"; exit 1; }
 
+  # virtiofsd holds a host descriptor for every inode the guest caches, so its
+  # file budget caps how many files a job can keep on the rootfs and volumes.
+  # Kata's default is about one million; past it opens fail with EMFILE no
+  # matter what the process rlimit says. Runner hosts raise it (see
+  # kata_virtiofs.go in infra/cluster-api-provider-tuist); this keeps more files
+  # than the default allows and fails on a host still running with it.
+  file-budget:
+    if: ${{ !inputs.gradle_cache }}
+    runs-on: tuist-staging-linux
+    timeout-minutes: 15
+    steps:
+      - name: Keep 1.2 million files on the rootfs
+        run: |
+          set -euo pipefail
+          mkdir -p ~/file-budget && cd ~/file-budget
+          for d in $(seq 1 120); do
+            mkdir "$d"
+            if ! (cd "$d" && seq 1 10000 | xargs touch); then
+              echo "::error::Creating files failed after $(( (d - 1) * 10000 )): the host still runs virtiofsd with Kata's default file budget"
+              exit 1
+            fi
+          done
+          echo "Kept 1.2 million files without exhausting virtiofsd's file budget."
+
   gradle-cache:
     if: ${{ inputs.gradle_cache }}
     permissions:
