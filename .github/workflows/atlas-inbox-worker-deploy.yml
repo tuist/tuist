@@ -18,6 +18,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     environment:
       name: production

@@ -42,7 +42,7 @@ jobs:
 
   lint-swift:
     name: Lint Swift
-    if: github.event.pull_request.draft != true
+    if: github.repository == 'tuist/tuist' && github.event.pull_request.draft != true
     runs-on: tuist-macos-27-0
     timeout-minutes: 10
     env:
@@ -70,7 +70,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.platform }})
-    if: github.event.pull_request.draft != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
+    if: github.repository == 'tuist/tuist' && github.event.pull_request.draft != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     permissions:
       contents: read
       id-token: write
@@ -128,7 +128,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.platform }})
-    if: github.event.pull_request.draft != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
+    if: github.repository == 'tuist/tuist' && github.event.pull_request.draft != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     permissions:
       contents: read
       id-token: write
@@ -200,7 +200,7 @@ jobs:
 
   test-native-ui:
     name: Test native iOS UI
-    if: github.event.pull_request.draft != true
+    if: github.repository == 'tuist/tuist' && github.event.pull_request.draft != true
     runs-on: tuist-macos-27-0
     timeout-minutes: 40
     env:
