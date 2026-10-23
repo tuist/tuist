@@ -8,16 +8,39 @@ config=$(jq -ce '
   select(type == "object" and (keys == ["volumes"])) |
   select(.volumes | type == "array" and length > 0 and length <= 8) |
   select(all(.volumes[];
-    type == "object" and (keys == ["key", "path"]) and (.key | valid) and
-    (.path | if type == "array" then length > 0 and all(.[]; valid) else valid end)))
+    type == "object" and has("key") and has("path") and (keys - ["key", "path", "size"] == []) and
+    (.key | valid) and
+    ((has("size") | not) or (.size | valid)) and
+    (.path | if type == "array" then length > 0 and length <= 16 and all(.[]; valid) else valid end)))
 ' <<< "$plugin_config") || {
-  echo "Tuist cache volumes: expected one to eight volumes, each with a key and one or more paths." >&2
+  echo "Tuist cache volumes: expected one to eight volumes, each with a key, one to sixteen paths and an optional size." >&2
   exit 1
 }
+reserved=$(jq -r '[.volumes[].key | select(ascii_downcase | startswith("tuist-"))][0] // empty' <<< "$config")
+if [ -n "$reserved" ]; then
+  echo "Tuist cache volumes: keys starting with tuist- are reserved for Tuist ($reserved). Choose another key." >&2
+  exit 1
+fi
+invalid_size=$(jq -r '
+  def valid_size: if test("^[0-9]{1,3}gb$"; "i") then .[:-2] | tonumber | . >= 1 and . <= 100 else false end;
+  [.volumes[].size // empty | select(valid_size | not)][0] // empty
+' <<< "$config")
+if [ -n "$invalid_size" ]; then
+  echo "Tuist cache volumes: invalid cache volume size \"$invalid_size\": use a whole number of GB from 1gb to 100gb, such as 50gb." >&2
+  exit 1
+fi
 command -v tuist-cache-volume >/dev/null || {
   echo "Tuist cache volumes require a Tuist Linux or macOS runner." >&2
   exit 1
 }
+size_supported=false
+if jq -e 'any(.volumes[]; has("size"))' <<< "$config" >/dev/null; then
+  usage=$(tuist-cache-volume -h 2>&1 || true)
+  case "$usage" in
+    *-size*) size_supported=true ;;
+    *) echo "Tuist cache volumes: this runner image does not support size yet; volumes keep their current size." >&2 ;;
+  esac
+fi
 count=$(jq '.volumes | length' <<< "$config")
 for ((index = 0; index < count; index++)); do
   key=$(jq -r --argjson index "$index" '.volumes[$index].key' <<< "$config")
@@ -25,5 +48,9 @@ for ((index = 0; index < count; index++)); do
   while IFS= read -r path; do
     arguments+=(--path "$path")
   done < <(jq -r --argjson index "$index" '.volumes[$index].path | if type == "array" then .[] else . end' <<< "$config")
+  size=$(jq -r --argjson index "$index" '.volumes[$index].size // empty' <<< "$config")
+  if [ -n "$size" ] && [ "$size_supported" = true ]; then
+    arguments+=(--size "$size")
+  fi
   tuist-cache-volume "${arguments[@]}"
 done

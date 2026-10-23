@@ -61,6 +61,15 @@ const (
 	// somewhere) resolves in well under a second.
 	reservationGrace = 2 * time.Minute
 
+	// idleHostReservationGrace is the shorter wait for a host whose
+	// other occupants are all idle runners: clearing it retires warm Pods
+	// and waits on no job, so it costs those Pods a cold start and nothing
+	// else. Every rack image keeps a warm runner, so on a quiet fleet each
+	// host can hold one, and a 12 vCPU job would otherwise wait the full
+	// reservationGrace behind runners nobody is using. It matches
+	// preemptionWait, the same judgement for a same-shape sibling.
+	idleHostReservationGrace = 30 * time.Second
+
 	// reservationTimeout bounds how long one host stays held. The Pods a
 	// reservation waits on are customer jobs, which can legitimately run
 	// for hours; past this point the seats already cleared are worth more
@@ -91,6 +100,20 @@ const (
 	// without this the seat it produced is retirable before dispatch has
 	// reached the Pod and labelled it owned.
 	seatGrace = 2 * time.Minute
+
+	// macOSProvisioningGrace is how long a bound macOS Pod still creating
+	// its VM counts as busy. A host without the image's golden base pulls
+	// it before cloning, which takes 6 to 13 minutes on the rack, and a host
+	// may first finish provisioning another Pod. Retiring the Pod part-way
+	// throws that pull away while its pool's queued job waits for a
+	// replacement to pull again. The bound keeps a Pod whose VM never comes
+	// up from being protected forever.
+	macOSProvisioningGrace = 20 * time.Minute
+
+	// macOSClaimGrace is how long after its VM starts a macOS Pod counts as
+	// busy: the guest boots, gets an IP and claims a queued job on its first
+	// dispatch poll, seconds after it starts polling.
+	macOSClaimGrace = 3 * time.Minute
 
 	// maxFleetReservations is how many hosts may be held at once. The
 	// count is taken over the pool's OWN fleet nodes, so each fleet gets
@@ -161,7 +184,7 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		}
 	}
 
-	if !starved {
+	if starvedFor < idleHostReservationGrace {
 		return nil
 	}
 	if reservationCount(nodes) >= maxFleetReservations {
@@ -225,7 +248,7 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		return nil
 	}
 
-	target, err := r.pickReservationTarget(ctx, pool, fresh, now)
+	target, busy, err := r.pickReservationTarget(ctx, pool, fresh, now)
 	if err != nil {
 		return err
 	}
@@ -233,6 +256,12 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 		// No host in the fleet could seat this shape even empty. That is
 		// a capacity or catalog problem, not something a drain can fix,
 		// and the pool's queue-age metric already carries the signal.
+		return nil
+	}
+	// Before reservationGrace, only a host holding nothing but idle
+	// runners is worth taking: it clears at once. A host that would have
+	// to wait out a job keeps the full grace.
+	if !starved && busy > 0 {
 		return nil
 	}
 
@@ -413,32 +442,34 @@ func shapeSeatableOnFleet(nodes []corev1.Node, shape podShape) bool {
 // otherwise healthy.
 //
 // Preference is the host that will converge soonest — fewest Pods
-// running customer jobs, since those are the ones a reservation can only
-// wait for. Idle Pods are not counted; retiring them is immediate. Among
+// running customer jobs or still turning their seat into a runner, since
+// those are the ones a reservation can only wait for. Other idle Pods are
+// not counted; retiring them is immediate. Among
 // hosts that converge equally soon, one already holding the pool's golden
 // image wins, so the starved job clones it instead of pulling it. Holding
 // the image never outranks convergence, since a customer job can run longer
 // than a pull. Remaining ties break on name so a reservation does not
-// wander between reconciles.
+// wander between reconciles. The second result is how many such Pods the
+// chosen host holds.
 func (r *RunnerPoolReconciler) pickReservationTarget(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
 	nodes []corev1.Node,
 	now time.Time,
-) (*corev1.Node, error) {
+) (*corev1.Node, int, error) {
 	shape := podShape{cpuMilli: pool.Spec.PodCPUMilli, memoryMB: pool.Spec.PodMemoryMB}
 	if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 
 	siblings, err := r.fleetShapes(ctx, pool)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var fleetPods corev1.PodList
 	if err := r.List(ctx, &fleetPods, client.InNamespace(pool.Namespace)); err != nil {
-		return nil, fmt.Errorf("list pods for reservation target: %w", err)
+		return nil, 0, fmt.Errorf("list pods for reservation target: %w", err)
 	}
 
 	owned := map[string]int{}
@@ -451,13 +482,13 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		// This pool's own Pods are never retired by the reaper, so for
 		// the purposes of this reservation they are permanent occupants
 		// and have to come off the candidate's usable seats. Other
-		// pools' Pods do not: idle ones are retired immediately and
-		// running ones are waited out.
+		// pools' Pods do not: idle ones are retired immediately, and
+		// running ones and seats still in flight are waited out.
 		if pod.Labels["tuist.dev/runner-pool"] == pool.Name {
 			ownPool[pod.Spec.NodeName]++
 			continue
 		}
-		if !isIdle(pod) {
+		if !isIdle(pod) || seatInFlight(pod, now) {
 			owned[pod.Spec.NodeName]++
 		}
 	}
@@ -500,7 +531,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		candidates = append(candidates, node)
 	}
 	if len(candidates) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 
 	golden := podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)
@@ -515,7 +546,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		}
 		return candidates[a].Name < candidates[b].Name
 	})
-	return candidates[0], nil
+	return candidates[0], owned[candidates[0].Name], nil
 }
 
 // retireIdlePodsOnReservedNode clears the seats a reservation can clear
@@ -523,10 +554,11 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 // a cold start and nothing else.
 //
 // This pool's own Pods are left alone — an idle one here is the seat the
-// reservation was taken to produce. So is any Pod that bound within
-// `seatGrace`, which is that same seat one reservation earlier. Pods
-// running customer jobs are never touched; the reservation waits them
-// out, or times out.
+// reservation was taken to produce. So is any Pod whose seat is still in
+// flight (`seatInFlight`): one that bound within `seatGrace`, which is that
+// same seat one reservation earlier, or a macOS Pod still creating its VM
+// or only just booted. Pods running customer jobs are never touched; the
+// reservation waits them out, or times out.
 //
 // Idleness is read through `isIdle`, matching the node-drain path: the
 // owner label alone is best-effort and can be missing on a Pod that is
@@ -552,10 +584,7 @@ func (r *RunnerPoolReconciler) retireIdlePodsOnReservedNode(
 		if pod.Labels["tuist.dev/runner-pool"] == pool.Name {
 			continue
 		}
-		if !isIdle(pod) {
-			continue
-		}
-		if seatedAt, ok := linuxProvisioningStartedAt(pod); ok && now.Sub(seatedAt) < seatGrace {
+		if !isIdle(pod) || seatInFlight(pod, now) {
 			continue
 		}
 		if err := r.reapRunner(ctx, pod); err != nil {
@@ -564,6 +593,50 @@ func (r *RunnerPoolReconciler) retireIdlePodsOnReservedNode(
 		logger.Info("retired idle pod to clear a reserved node", "pod", pod.Name, "node", node.Name)
 	}
 	return nil
+}
+
+// seatInFlight reports whether an idle Pod is still turning its seat into a
+// runner that can take a job, so retiring it would throw that work away while
+// its pool's job waits for a replacement to start over.
+func seatInFlight(pod *corev1.Pod, now time.Time) bool {
+	if isMacOSPod(pod) {
+		return macOSSeatInFlight(pod, now)
+	}
+	boundAt, ok := linuxProvisioningStartedAt(pod)
+	return ok && now.Sub(boundAt) < seatGrace
+}
+
+// macOSSeatInFlight is true for a bound macOS Pod that is still creating its
+// VM, up to `macOSProvisioningGrace`, or whose VM started within
+// `macOSClaimGrace`. False for any other Pod.
+func macOSSeatInFlight(pod *corev1.Pod, now time.Time) bool {
+	if !isMacOSPod(pod) || pod.Spec.NodeName == "" {
+		return false
+	}
+	if pod.Status.Phase == corev1.PodPending {
+		return now.Sub(macOSProvisioningStartedAt(pod)) < macOSProvisioningGrace
+	}
+	if pod.Status.Phase != corev1.PodRunning || pod.Status.StartTime == nil {
+		return false
+	}
+	return now.Sub(pod.Status.StartTime.Time) < macOSClaimGrace
+}
+
+// macOSProvisioningStartedAt is when a bound macOS Pod began provisioning.
+// tart-kubelet replaces the Pod's conditions once its VM starts, which drops
+// PodScheduled, so the VM start time stands in from then on.
+func macOSProvisioningStartedAt(pod *corev1.Pod) time.Time {
+	if boundAt, ok := linuxProvisioningStartedAt(pod); ok {
+		return boundAt
+	}
+	if pod.Status.StartTime != nil {
+		return pod.Status.StartTime.Time
+	}
+	return pod.CreationTimestamp.Time
+}
+
+func isMacOSPod(pod *corev1.Pod) bool {
+	return pod.Spec.NodeSelector["kubernetes.io/os"] == "darwin"
 }
 
 func (r *RunnerPoolReconciler) reserveNode(

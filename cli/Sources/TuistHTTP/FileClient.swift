@@ -9,11 +9,24 @@ import Path
 #endif
 
 #if canImport(TuistHAR)
-    enum FileClientError: LocalizedError, FatalError {
+    enum FileClientError: LocalizedError, FatalError, HTTPStatusCodeError {
         case urlSessionError(URLRequest, Error, AbsolutePath?)
         case serverSideError(URLRequest, HTTPURLResponse, AbsolutePath?)
         case invalidResponse(URLRequest, AbsolutePath?)
         case noLocalURL(URLRequest)
+
+        // MARK: - HTTPStatusCodeError
+
+        var httpStatusCode: Int {
+            guard case let .serverSideError(_, response, _) = self else { return 0 }
+            return response.statusCode
+        }
+
+        /// Only a status the server answered with can make a repeated transfer pointless.
+        var isRetryable: Bool {
+            guard case .serverSideError = self else { return true }
+            return !HTTPRetryPolicy.isPermanentClientError(statusCode: httpStatusCode)
+        }
 
         // MARK: - FatalError
 
@@ -92,7 +105,8 @@ import Path
                     let downloadedPath = try AbsolutePath(validating: localUrl.path)
                     try await fileSystem.move(from: downloadedPath, to: destination)
                 } else {
-                    throw FileClientError.invalidResponse(request, nil)
+                    try? FileManager.default.removeItem(at: localUrl)
+                    throw FileClientError.serverSideError(request, httpResponse, nil)
                 }
             } catch let error as FileClientError {
                 throw error

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -137,5 +139,103 @@ func writeFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A job that fetched full history (actions/checkout's fetch-depth: 0) still
+// exports something the host can index: the host's master is shallow at the
+// base, so it holds the base's tree but none of its history.
+func TestCheckoutExportFromAFullHistoryCheckoutIndexesOnAShallowHost(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("requires git")
+	}
+	env := append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+	gitIn := func(dir string, stdin io.Reader, args ...string) string {
+		t.Helper()
+		command := exec.Command("git", args...)
+		command.Dir, command.Env, command.Stdin = dir, env, stdin
+		out, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	workspace := t.TempDir()
+	gitIn(workspace, nil, "init", "-q", "-b", "main", ".")
+	writeFile(t, filepath.Join(workspace, "kept.txt"), "kept")
+	writeFile(t, filepath.Join(workspace, "old", "removed.txt"), "only in history")
+	gitIn(workspace, nil, "add", ".")
+	gitIn(workspace, nil, "commit", "-q", "-m", "old")
+	old := gitIn(workspace, nil, "rev-parse", "HEAD")
+	gitIn(workspace, nil, "rm", "-q", "-r", "old")
+	gitIn(workspace, nil, "commit", "-q", "-m", "base")
+	base := gitIn(workspace, nil, "rev-parse", "HEAD")
+	// The job checks out a release branch that forked before the base.
+	gitIn(workspace, nil, "checkout", "-q", "-b", "release", old)
+	writeFile(t, filepath.Join(workspace, "release.txt"), "release")
+	gitIn(workspace, nil, "add", ".")
+	gitIn(workspace, nil, "commit", "-q", "-m", "release")
+	head := gitIn(workspace, nil, "rev-parse", "HEAD")
+
+	// The host's master: the base commit and its tree, shallow at the base.
+	host := t.TempDir()
+	gitIn(host, nil, "init", "-q", ".")
+	writeFile(t, filepath.Join(host, ".git", "shallow"), base+"\n")
+	baseObjects := gitIn(workspace, nil, "rev-list", "--objects", "--no-walk", base)
+	basePack := filepath.Join(t.TempDir(), "base.pack")
+	packFile, _ := os.Create(basePack)
+	command := exec.Command("git", "pack-objects", "--stdout", "-q")
+	command.Dir, command.Env, command.Stdin, command.Stdout = workspace, env, strings.NewReader(baseObjects+"\n"), packFile
+	if err := command.Run(); err != nil {
+		t.Fatal(err)
+	}
+	packFile.Close()
+	data, _ := os.ReadFile(basePack)
+	gitIn(host, bytes.NewReader(data), "index-pack", "--strict", "--stdin")
+
+	state := filepath.Join(t.TempDir(), "state.json")
+	stateJSON, _ := json.Marshal(checkoutState{Workspace: workspace, Base: base})
+	writeFile(t, state, string(stateJSON))
+	share := t.TempDir()
+	if result := exportCheckoutAt(context.Background(), state, share, gitCommand); !strings.HasPrefix(result, "exported") {
+		t.Fatal(result)
+	}
+	export := filepath.Join(share, "checkout-export")
+
+	// What the host does with it: record the shallow boundary, then index the
+	// pack strictly, then require every object of the commit.
+	shallow, _ := os.ReadFile(filepath.Join(export, "shallow"))
+	hostShallow, _ := os.ReadFile(filepath.Join(host, ".git", "shallow"))
+	writeFile(t, filepath.Join(host, ".git", "shallow"), string(hostShallow)+string(shallow))
+	exported, _ := os.ReadFile(filepath.Join(export, "pack"))
+	gitIn(host, bytes.NewReader(exported), "index-pack", "--strict", "--stdin")
+	gitIn(host, nil, "rev-list", "--quiet", "--objects", head)
+}
+
+func TestCachePathsTheCachedCheckoutProvidesAreLeftOut(t *testing.T) {
+	workspace := t.TempDir()
+	writeFile(t, filepath.Join(workspace, ".git", "lfs", "objects", "aa", "bb", strings.Repeat("a", 64)), "object")
+	writeFile(t, filepath.Join(workspace, "Sources", "App.swift"), "app")
+	if err := os.MkdirAll(filepath.Join(workspace, ".git", "empty"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	targets := []string{filepath.Join(workspace, ".git", "lfs"), filepath.Join(workspace, ".git", "empty"), filepath.Join(workspace, "Sources"), filepath.Join(workspace, "DerivedData")}
+	state := filepath.Join(t.TempDir(), "state.json")
+	if err := recordCheckout(state, workspace, true); err != nil {
+		t.Fatal(err)
+	}
+	kept := withoutCheckoutPaths(targets, state)
+	if strings.Join(kept, ",") != strings.Join(targets[1:], ",") {
+		t.Fatalf("kept %v", kept)
+	}
+	// Without a mounted checkout the job's own .git is no exception.
+	if err := recordCheckout(state, workspace, false); err != nil {
+		t.Fatal(err)
+	}
+	if kept := withoutCheckoutPaths(targets, state); len(kept) != len(targets) {
+		t.Fatalf("kept %v", kept)
+	}
+	if kept := withoutCheckoutPaths(targets, filepath.Join(t.TempDir(), "missing.json")); len(kept) != len(targets) {
+		t.Fatalf("kept %v", kept)
 	}
 }

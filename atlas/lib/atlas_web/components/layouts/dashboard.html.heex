@@ -1,5 +1,5 @@
 <main class="layout">
-  <AtlasWeb.AccountMenu.headerbar current_user={@current_user} />
+  <AtlasWeb.AccountMenu.headerbar current_user={@current_user} current_path={@current_path} />
   <.line_divider />
   <section class="layout__main">
     <.sidebar>
@@ -170,6 +170,14 @@
         collapsible={false}
       >
         <.sidebar_item
+          :if={!Atlas.Demo.enabled?()}
+          id="sidebar-people-directory"
+          label={gettext("Directory")}
+          icon="users"
+          navigate={~p"/people"}
+          selected={@current_path == ~p"/people"}
+        />
+        <.sidebar_item
           id="sidebar-time-off"
           label={gettext("Time off")}
           icon="calendar_week"
@@ -211,6 +219,50 @@
             selected={String.starts_with?(@current_path, "/operations/hardware/financings")}
           />
         </.sidebar_group>
+      </.sidebar_group>
+      <.sidebar_group
+        :if={Atlas.Users.has_scope?(@current_user, "automation:read")}
+        id="sidebar-automation"
+        label={gettext("Automation")}
+        icon="schema"
+        collapsible={false}
+      >
+        <.sidebar_item
+          label={gettext("Workflows")}
+          icon="schema"
+          navigate={~p"/automation/workflows"}
+          selected={String.starts_with?(@current_path, "/automation/workflows")}
+        />
+        <.sidebar_item
+          label={gettext("Behaviors")}
+          icon="devices_code"
+          navigate={~p"/automation/behaviors"}
+          selected={String.starts_with?(@current_path, "/automation/behaviors")}
+        />
+        <.sidebar_item
+          label={gettext("Executions")}
+          icon="history"
+          navigate={~p"/automation/executions"}
+          selected={String.starts_with?(@current_path, "/automation/executions")}
+        />
+        <.sidebar_item
+          label={gettext("Schedules")}
+          icon="calendar_week"
+          navigate={~p"/automation/schedules"}
+          selected={String.starts_with?(@current_path, "/automation/schedules")}
+        />
+        <.sidebar_item
+          label={gettext("Webhooks")}
+          icon="webhook"
+          navigate={~p"/automation/webhooks"}
+          selected={String.starts_with?(@current_path, "/automation/webhooks")}
+        />
+        <.sidebar_item
+          label={gettext("Approvals")}
+          icon="circle_check"
+          navigate={~p"/automation/approvals"}
+          selected={String.starts_with?(@current_path, "/automation/approvals")}
+        />
       </.sidebar_group>
       <.sidebar_group
         id="sidebar-library"
@@ -284,6 +336,23 @@
       </.sidebar_group>
     </.sidebar>
     <div class="layout__content">
+      <div
+        :if={!Atlas.Demo.enabled?()}
+        id="presence-visibility"
+        phx-hook="Presence"
+        phx-update="ignore"
+      >
+      </div>
+      <div :if={@presence_here != []} id="also-here" data-part="also-here" role="status">
+        <span>{gettext("Also here")}</span>
+        <.avatar
+          :for={person <- @presence_here}
+          id={"here-#{person.id}"}
+          name={person.name}
+          size="small"
+        />
+        <span>{Enum.map_join(@presence_here, ", ", & &1.name)}</span>
+      </div>
       {@inner_content}
     </div>
   </section>

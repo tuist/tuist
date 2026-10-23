@@ -1,18 +1,8 @@
-import Foundation
-import TuistTesting
-import XCTest
-
+import Testing
 @testable import TuistCache
 
-final class CacheVersionFetcherTests: TuistUnitTestCase {
-    func test_return_the_right_version() {
-        // Given
-        let subject = CacheVersionFetcher()
-
-        // When
-        let got = subject.version()
-
-        // Then
-        XCTAssertEqual(got, .version7)
+struct CacheVersionFetcherTests {
+    @Test func returnsCurrentArtifactFormatVersion() {
+        #expect(CacheVersionFetcher().version() == .version9)
     }
 }

@@ -81,7 +81,7 @@
         max-width: 100%;
       }
 
-      & > :is([data-part="connection-card-section"], [data-part="installation-card-section"]) {
+      & > [data-part="connection-card-section"] {
         display: flex;
         flex-grow: 1;
         flex-direction: column;

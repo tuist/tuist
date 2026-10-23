@@ -179,8 +179,12 @@
               data-part="metadata"
               data-field="requested-tasks"
             >
-              <div data-part="title">{dgettext("dashboard_gradle", "Requested tasks")}</div>
-              <span data-part="label">{Enum.join(@build.requested_tasks, " ")}</span>
+              <div id="requested-tasks-label" data-part="title">
+                {dgettext("dashboard_gradle", "Requested tasks")}
+              </div>
+              <ul id="requested-tasks" aria-labelledby="requested-tasks-label" role="list">
+                <li :for={task <- @build.requested_tasks}><code>{task}</code></li>
+              </ul>
             </div>
             <div data-part="metadata">
               <div data-part="title">

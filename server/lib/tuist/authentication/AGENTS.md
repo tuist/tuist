@@ -13,6 +13,7 @@ This context owns authentication flows and token handling.
 - Never cache authorization booleans: same-account credentials can have different scopes/project restrictions. Evaluate permissions using the actual bounded subject. User role queries need database/pool observation.
 - Streams inherit the original snapshot deadline, not a new interval. Failed refresh is unavailable (HTTP 503 / gRPC unavailable), not invalid credentials or an indefinitely stale grant. Negative results/errors are not retained.
 - Refresh tokens while updating `preferred_username` claims; encode tokens with recent accessible project handles.
+- `RefreshReplays` makes refresh-token exchanges (`POST /api/auth/refresh_token` and the OAuth `refresh_token` grant) replayable for 60 seconds: presenting a spent token again, with the same OAuth client credentials and scope, returns the first response. Exchanges of one token are serialized with a transaction-scoped advisory lock so concurrent duplicates mint one pair. Rows in `refresh_token_replays` are keyed by a SHA-256 of the token and hold the Cloak-encrypted response; never key or log by the raw token.
 
 ## Guardrails
 - Production-cost proof coverage runs in ExUnit with explicit rounds 12 and one real verification for 2,000 lookups at concurrency 64 using `Mimic.call_original/3` inside the initialized counting mock. No shared bcrypt configuration mutation, VM tracing or latency assertions. Pre-mock sanity checks call Bcrypt directly.

@@ -33,7 +33,7 @@ func TestMacRetriesATransientAttachFailure(t *testing.T) {
 		}
 		return nil
 	}
-	if _, _, _, err := acquireMacAt(context.Background(), "key", share, mount, command); err != nil {
+	if _, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachUnenlarged(command)); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Join(calls, ",") != "attach,detach,attach" {
@@ -59,7 +59,7 @@ func TestMacRecordsTheReasonWhenAttachKeepsFailing(t *testing.T) {
 		}
 		return nil
 	}
-	_, _, _, err := acquireMacAt(context.Background(), "key", share, mount, command)
+	_, _, _, err := acquireMacAt(context.Background(), "key", 0, share, mount, attachUnenlarged(command))
 	if err == nil || !strings.Contains(err.Error(), "Resource busy") || attaches != macAttachAttempts {
 		t.Fatal(err, attaches)
 	}
@@ -108,5 +108,15 @@ func TestMacDetachWithholdsAVolumeWhoseImageCannotBeFlushed(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(share, scope, name)); !os.IsNotExist(err) {
 			t.Fatal("unflushed volume marked for publication:", name)
 		}
+	}
+}
+
+// attachUnenlarged attaches through command an image the host did not enlarge.
+func attachUnenlarged(command func(...string) error) func(string, string) error {
+	unenlarged := func(context.Context, []byte, string, ...string) ([]byte, error) {
+		return nil, errors.New("no image info")
+	}
+	return func(image, mountPoint string) error {
+		return attachMacVolume(context.Background(), image, mountPoint, unenlarged, command)
 	}
 }

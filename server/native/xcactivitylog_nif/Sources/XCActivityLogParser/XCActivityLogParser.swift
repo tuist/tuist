@@ -90,6 +90,7 @@ public struct XCActivityLogParser: Sendable {
         let logs = BuildStepLog(root: activityLog.mainSection)
         var targets = [String: (String, String)]()
         var events = [BuildStepData]()
+        var swiftJobs = Set<String>()
         for (index, step) in steps.enumerated() {
             let inherited = targets[step.parentIdentifier] ?? ("", "")
             let target = step.type == .target && step.title.hasPrefix("Build target ")
@@ -99,16 +100,26 @@ public struct XCActivityLogParser: Sendable {
             let project = signatureProject.isEmpty ? inherited.1 : signatureProject
             targets[step.identifier] = (target, project)
 
+            if swiftJobs.contains(step.parentIdentifier) {
+                swiftJobs.insert(step.identifier)
+                continue
+            }
             // Container steps include their children's time. Emitting only leaf
             // operations avoids counting Swift driver and target wrappers twice.
-            guard step.type == .detail, step.subSteps.isEmpty,
+            // Swift jobs are the exception: Xcode 27 records their frontend
+            // work only on the job, with a near-instant child at its end, so the
+            // job is emitted and its children are folded into it.
+            let isSwiftJob = step.type == .detail && !step.subSteps.isEmpty && buildStepCategory(step) == "swiftCompilation"
+            if isSwiftJob { swiftJobs.insert(step.identifier) }
+            guard step.type == .detail, step.subSteps.isEmpty || isSwiftJob,
                   let (start, duration) = BuildStepData.interval(
                       start: step.startTimestamp, end: step.endTimestamp,
                       buildStart: build.startTimestamp, buildEnd: build.endTimestamp
                   )
             else { continue }
 
-            let log = logs.extract(step: step)
+            let folded = isSwiftJob ? flattenBuildSteps([step]) : [step]
+            let log = logs.extract(steps: folded)
             let event = BuildStepData(
                 event_id: index,
                 title: String(step.title.prefix(1000)),
@@ -117,7 +128,7 @@ public struct XCActivityLogParser: Sendable {
                 category: buildStepCategory(step),
                 start_ms: start,
                 duration_ms: duration,
-                status: (step.errors ?? []).contains { $0.severity == 2 } ? "failure" : "success",
+                status: folded.contains { ($0.errors ?? []).contains { $0.severity == 2 } } ? "failure" : "success",
                 log: log.text,
                 log_truncated: log.truncated
             )

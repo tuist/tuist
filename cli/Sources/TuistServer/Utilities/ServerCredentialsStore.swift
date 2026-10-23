@@ -216,14 +216,11 @@ public enum ServerCredentialsStoreBackend: Sendable {
                     guard try await fileSystem.exists(path) else { return nil }
                     let data = try await fileSystem.readFile(at: path)
 
-                    if ServerReportPublishingMode.enabled {
-                        do {
-                            return try JSONDecoder().decode(ServerCredentials.self, from: data)
-                        } catch {
-                            throw ServerReportPublishingError.invalidCredentials
-                        }
+                    do {
+                        return try JSONDecoder().decode(ServerCredentials.self, from: data)
+                    } catch {
+                        throw ServerReportPublishingError.invalidCredentials
                     }
-                    return try? JSONDecoder().decode(ServerCredentials.self, from: data)
             #endif
             }
         }
@@ -347,14 +344,11 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 guard try await fileSystem.exists(path) else { return nil }
                 let data = try await fileSystem.readFile(at: path)
 
-                if ServerReportPublishingMode.enabled {
-                    do {
-                        return try JSONDecoder().decode(ServerCredentials.self, from: data)
-                    } catch {
-                        throw ServerReportPublishingError.invalidCredentials
-                    }
+                do {
+                    return try JSONDecoder().decode(ServerCredentials.self, from: data)
+                } catch {
+                    throw ServerReportPublishingError.invalidCredentials
                 }
-                return try? JSONDecoder().decode(ServerCredentials.self, from: data)
             }
         }
 

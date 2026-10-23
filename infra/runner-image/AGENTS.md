@@ -187,7 +187,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   deletes when the job ends — hence a `pre-exit` hook rather than
   anything later. `pre-exit` also writes the job's outcome as it sees it
   (`succeeded`, `failed` or `canceled`) to `job-result` in its state
-  directory, ahead of the credential check, for the cache-volume promote gate
+  directory, ahead of the credential check, for the cache-volume save gate
   below. Only the macOS teardown reads it, and only together with the agent's
   exit status (see below). `canceled` comes from `BUILDKITE_JOB_CANCELLED`,
   which the executor sets for the hooks that run after a cancel.
@@ -215,84 +215,46 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
-  `dispatch-poll.sh` also drives the **cache-volume** flow, one volume per
-  repository (per account for a job with no repository), materialized after
-  dispatch. The guest never learns which volume it got: the server stamps it on
-  the Pod and resolves it from there on every promote. tart-kubelet attaches
-  an *empty* per-VM branch directory as a writable virtio-fs share at
-  `/Volumes/My Shared Files/cache`. The cache itself is a **sparse APFS disk
-  image** (`cache.sparseimage`) inside that share, not files on it: virtio-fs
-  cannot set xattrs on symlinks, and macOS frameworks are versioned bundles
-  whose symlinks carry the CLI's signature xattrs, so caching any macOS slice
-  onto the share fails (ELOOP). Inside an image the filesystem is real APFS and
-  only one regular file crosses virtio-fs.
-  The share is empty until dispatch: once the server stamps the pod's account
-  and cache-volume labels, the host clonefiles that volume's master image (or,
-  for a repository with no master on the host yet, the account's `tuist-cache`
-  master at base generation 0) into the branch and
-  writes a `cache-ready` marker. After receiving the JIT and before `./run.sh`,
-  the guest calls `wait_for_cache_ready` — a bounded (~60s) wait on that marker
-  — then `attach_cache_image` (`hdiutil attach … -owners off`, which maps the
-  contents to the guest user and so retires any host/guest uid reconciliation),
-  points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
-  (`/Users/runner/.tuist-cache-volume`), divides the budget the host stages for
-  both caches between them by use (`set_cache_limits`, described with the
-  compilation cache below) and exports the binary cache's limit as
-  `TUIST_CACHE_MAX_BYTES` for the CLI's LRU prune and download admission, reads
-  the host-staged base generation
-  (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
-  used as the fast-forward base at promote — and snapshots the pre-job inventory.
-  The host also stages its Kubernetes `node-name` there at VM create, which the
-  guest relays with its promote so the HEAD row records WHICH host published a
-  generation — the Node name rather than `TUIST_RUNNER_POD_NAME`, because the Pod
-  is gone minutes later while the Node name is what the
-  `tuist.dev/cache-master-<account_id>[.<volume>]` advertisements and the volume affinities
-  are keyed on. Attribution only: nothing in the fast-forward reads it, and an
-  unstaged name reports empty rather than falling back to the Pod name, since a
-  column holding two kinds of name identifies neither. Every value the guest takes
-  off the share is sanitised to its own alphabet and length before it reaches a
-  request body.
-  Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
-  still gets an *empty* image — the guest can only attach what is there, and no
-  image would kill the job rather than cost it warmth.
-  **Opt-in caches.** When the dispatch response carries `"automatic_caches":
-  false` (every macOS dispatch since the server stopped sending automatic
-  caches), everything above still runs, but `stage_runner_caches` moves the
-  module cache's (`TUIST_XDG_CACHE_HOME`, `TUIST_CACHE_MAX_BYTES`) and the
-  Xcode cache's (`XCODE_XCCONFIG_FILE`, `TUIST_COMPILATION_CACHE_CAS_PATH`,
-  `TUIST_CAS_DRAINED_STORE`) environment out of the runner's into
-  `/Users/runner/.tuist-runner-caches/{module,xcode}.env` and drops the
-  attach-time `cache-usage.json`. The `tuist/module-cache` and
-  `tuist/xcode-cache` actions, Buildkite plugins and GitLab snippets
-  (`ci/runner-caches/`) run `/usr/local/bin/tuist-runner-cache activate
-  <cache>`, which prints that file for the action to export, chains a
-  workflow-set `XCODE_XCCONFIG_FILE` last, and leaves `<cache>.used`. A job
-  with neither marker reports no usage and cannot promote (`CACHE_PASSED=0`).
-  `mode` (`automatic` or `opt-in`) tells the helper which case it is in; an
-  absent `mode` means a runner that never staged caches. If the directory
-  cannot be created, the job keeps automatic caches. A workflow's relative
-  `XCODE_XCCONFIG_FILE` is resolved against the step's working directory. Keep the helper's env
-  contract in step with these exports. Run `runner-caches_test.sh`.
-  **Managed cache volumes.** When the response also carries
-  `"managed_cache_volumes": true`, the job never attaches the built-in image.
-  `stage_managed_cache_volumes` writes `<cache>.volume` (key and path:
-  `tuist-xcode` at `MANAGED_XCODE_CACHE`, `tuist-module` at
-  `MANAGED_MODULE_CACHE`), the environment pointing each cache there, and its own
-  xcconfig bounding the compilation cache to `MANAGED_XCODE_CACHE_LIMIT_BYTES`.
-  `tuist-runner-cache activate` attaches the volume with `tuist-cache-volume`
-  once per job (`<cache>.attached`) before printing the environment, and exits 3
-  without exporting anything when the attach fails. At teardown, a job that used
-  the compilation cache drains its publications from that store (every job) and
-  prunes it (successful jobs) through `CAS_STORE_ROOT` before
-  `tuist-cache-volume --detach-all`; an undrained store withholds the job's
-  volumes. The server sizes `tuist-xcode` at 30 GB and `tuist-module` at 20 GB;
-  keep the limits under the 99% fill at which a volume is no longer saved.
-  Only a job that **succeeded** promotes. The gate is `CACHE_PASSED`, which is
-  `JOB_PASSED` (zero exit AND a job result of `succeeded`) for any job that
-  reached the caches, not the runner's exit status. `run.sh` folds
-  every Listener code except a restart into 0, and the GitLab executor exits 0
-  for job outcomes by design. Gating on the exit status promoted failed and
-  cancelled jobs, about one in ten of one account's HEAD publishes in a week.
+  **Caches.** The Xcode compilation cache and the Tuist module cache each live
+  on a managed custom volume, `tuist-xcode` at `MANAGED_XCODE_CACHE` and
+  `tuist-module` at `MANAGED_MODULE_CACHE`; the runner image has no other cache
+  path. After dispatch and before the runner starts, `stage_runner_caches`
+  writes `mode` (`opt-in`) and, through `stage_managed_cache_volumes`, each
+  cache's `<cache>.volume` (key and path), its environment in
+  `/Users/runner/.tuist-runner-caches/{module,xcode}.env`
+  (`TUIST_XDG_CACHE_HOME` and `TUIST_CACHE_MAX_BYTES`; `XCODE_XCCONFIG_FILE`,
+  `TUIST_COMPILATION_CACHE_CAS_PATH` and `TUIST_CAS_DRAINED_STORE`), and the
+  compilation cache's own xcconfig bounding its store to
+  `MANAGED_XCODE_CACHE_LIMIT_BYTES`. Nothing reaches the runner's environment
+  until a job asks: the `tuist/module-cache` and `tuist/xcode-cache` actions,
+  Buildkite plugins and GitLab snippets (`ci/runner-caches/`) run
+  `/usr/local/bin/tuist-runner-cache activate <cache> [--size NGB]`, which
+  attaches the volume with `tuist-cache-volume`, passing the size, once per job
+  (`<cache>.attached`), prints the
+  environment for the integration to export, chains a workflow-set
+  `XCODE_XCCONFIG_FILE` last (a relative one resolved against the step's
+  working directory), and leaves `<cache>.used`. It exits 3 without exporting
+  anything when the attach fails or the cache was not staged. An absent `mode`
+  means a runner that never staged caches, including one whose directory could
+  not be created; the helper then exits 0 and the job runs without them. Keep
+  the helper's env contract in step with these files, and run
+  `runner-caches_test.sh`. After the attach the helper reads the volume's
+  capacity (`df` on the path, which links into the mounted image) and rewrites
+  `TUIST_CACHE_MAX_BYTES` in `module.env` or `COMPILATION_CACHE_LIMIT_SIZE` in
+  the xcconfig to the capacity less max(2 GB, 20%), at most half of it: 24 GB at
+  the default 30 GB, 16 GB at 20 GB. A path left as a local directory (the
+  volume was unavailable) keeps the staged limits of a default-sized volume. The
+  teardown prune bounds the store at the limit the xcconfig gave the compiler
+  (`managed_xcode_cache_limit`), so both follow the capacity the job set with
+  `size` (the server's defaults: 30 GB `tuist-xcode`, 20 GB `tuist-module`).
+  Keep the limits under the 99% fill at which a volume is no longer saved. The
+  runner image reads nothing from the host's `cache` share and calls none of
+  the server's volume HEAD routes, so it works with hosts that still offer that
+  share and with hosts that do not.
+  Only a job that **succeeded** saves its cache volumes. The gate is
+  `JOB_PASSED` (zero exit AND a job result of `succeeded`), not the runner's
+  exit status. `run.sh` folds every Listener code except a restart into 0, and
+  the GitLab executor exits 0 for job outcomes by design.
   GitHub's verdict is the Listener's `_diag/Runner_*.log` line `finish job
   request for job <id> with result: <Result>`, matched only at a `JobDispatcher`
   trace header, because a later line echoes the job's display name. The Listener
@@ -306,9 +268,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   upload, or a repository or plugin `pre-exit` hook. The status alone misses a
   cancel. The script still exits 0 for any job the hook saw, because the
   runners-controller reads a non-zero runner exit as a runner death. A
-  failed, cancelled or missing verdict withholds every promote-only step:
-  teardown prune, compaction, dirty marker and HEAD publish. The drain still runs
-  for every job. Three sources that look usable are not:
+  failed, cancelled or missing verdict withholds the teardown prune and
+  `tuist-cache-volume --detach-all`. The drain still runs for every job that
+  used the compilation cache. Three sources that look usable are not:
   - the Worker's `Job result after all job steps finish` line is never written
     when a job fails to initialize or its Worker crashes;
   - `ACTIONS_RUNNER_RETURN_JOB_RESULT_FOR_HOSTED` returns 100 + the result, but
@@ -316,150 +278,23 @@ added to catch that failed on `admin`'s unwritable cache instead.
     its dispatch throws;
   - `ACTIONS_RUNNER_HOOK_JOB_COMPLETED` runs as a job step before the result is
     settled, and no status variable reaches it.
-  Teardown order is load-bearing: **wait for the compilation cache's
-  publications to reach the remote** (`drain_cas_publications`, below), sample
-  the signals that need a live mount (fill
-  %, which also withholds an image at 98% full or holding more than the staged
-  cache budget, since a master over the budget leaves the next job less than the
-  reserve to build in), then **detach**, then measure the SETTLED image for the digest this job
-  publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
-  the same view the verifying host uses), then write `cache-dirty` (only after both
-  a clean detach and a successful measurement — its absence is what tells the host
-  to discard, the safe default for any teardown that reaches neither). The digest
-  must NOT be read through the job's own read-write mount, which is what this
-  replaced: it is both the HEAD's `tree_digest` and the immutable object key, so it
-  is a claim about the bytes the upload sends, and anything writing to the image
-  between the measurement and the detach breaks that claim permanently. The window
-  is why `detach_cache_image` polls and then forces at all — processes outlive the
-  runner (a lingering build service, the compilation cache's own asynchronous store
-  flush/prune, busiest for the largest caches) and every `~cas/` line carries a file
-  SIZE, so one late append is enough. A HEAD published from a pre-detach snapshot
-  names bytes no host can reproduce: convergence verifies the downloaded object and
-  declines, so no promote can build on that HEAD — base 0 is rejected while a HEAD
-  exists, and a host left at an older generation is rejected for a stale base — and
-  the account is stuck fleet-wide (seen in production: one account cold on all nine
-  hosts for days). When a host does hit that, it stages the disproved digest as
-  `volume-head-unverifiable` in the `status` share and the guest relays it as
-  `unverifiable_digest` with BOTH promote requests, which is what lets the server
-  retire a HEAD nothing can adopt, from either base — it rides the mint request too,
-  or the pre-flight would 409 the only promote that can unwedge the account.
-  Between the inventory and the content hash, a successful job whose image changed
-  runs `compact_cache_image`: a prune frees blocks inside the image's filesystem
-  and none in the image file, so without `hdiutil compact` a master costs the host
-  the most it ever held. It leaves the capacity alone. Shrinking the capacity
-  instead was measured and dropped: it moves every live block past the new end
-  (92 s for 3.6 GiB of live data) and frees nothing compaction does not. It
-  rewrites the file, which is why it sits before the content hash and after the
-  inventory, which it does not change.
-  Alongside the inventory digest, `capture_content_digest` hashes the settled
-  image FILE (SHA-256, after the read-only measuring attach detaches and after the
-  compaction) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a
-  bit flipped INSIDE a cached file sails through it, and the content digest is the
-  end-to-end byte claim. It rides both promote requests; the mint response echoes
-  the base64 the server signed into the presigned PUT as `checksum_sha256`, the
-  guest sends it as `x-amz-checksum-sha256` (only when echoed — the URL's
-  signature covers it), the object store verifies the payload at ingest, and the
-  converging host verifies the download against the HEAD row's digest before
-  adopting (a mismatch stages `volume-head-unverifiable` exactly like an inventory
-  mismatch). All of it is optional per hop, so images and servers roll
-  independently: no digest, no echoed checksum, or a HEAD row without one just
-  degrades to the pre-hash behaviour. Promotion is a **fast-forward
-  compare-and-swap**, not a direct host clone: the guest uploads the detached
-  image to a content-addressed key and reports the HEAD with `base_generation`,
-  and the server advances the HEAD only if it is still at that base (200,
-  returning the accepted generation) or rejects a stale base (409). The guest
-  captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
-  and a transport error into one failure) and relays the outcome into the
-  `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
-  or `error`. Most promotes lose that race, and the upload blocks the VM halt and
-  the host's slot, so the guest sends `base_generation` when MINTING the upload
-  URL too and the server 409s there — pre-empting the transfer for a promote that
-  cannot win. That pre-check may only ever skip doomed work: it is racy by
-  construction (another host can win during the upload), so the bump's
-  compare-and-swap stays the authority, an absent `base_generation` disables it
-  for older runner images, and any other failure falls back to
-  upload-then-arbitrate. The host's `Finalize` installs the branch as the
-  account's local master (a whole-image replace) ONLY on `accepted` — so the local
-  master and the HEAD advance together. A `conflict` (a stale base another host
-  advanced past) or an `error` (upload/network/control-plane failure — kept
-  distinct so an outage is not mistaken for cross-host contention) discards the
-  branch and lets convergence re-warm it. A rejected promote that got as far as
-  uploading leaves an object no HEAD points at, so the server records it as an
-  orphan and reclaims it after the URL-TTL grace; a pre-empted one never wrote
-  anything to reclaim. The
-  host clones the promoted image and cannot tell a torn snapshot from a good one,
-  so a mount torn down by the VM halting would poison the account's master; if the
-  detach fails even with `-force`, the guest withdraws the image from both
-  promotion and publication.
-  Before any detach, after the drain and the teardown prune (both ask the
-  proxy), `stop_tuist_launch_agents` boots out every `tuist.*` launch agent the
-  CLI installed during the job (the image's own agents are `dev.tuist.*`) and
-  waits up to 10 s for each process to exit, since `launchctl bootout` returns
-  first. These agents outlive the runner's process cleanup and restart on an
+  Teardown order is load-bearing. For a job that left `xcode.used`, teardown
+  points `CAS_STORE_ROOT` at the compilation cache and first **waits for its
+  publications to reach the remote** (`drain_cas_publications`), then prunes it
+  (`prune_cas_stores teardown`, successful jobs only). Then
+  `stop_tuist_launch_agents` boots out every `tuist.*` launch agent the CLI
+  installed during the job (the image's own agents are `dev.tuist.*`) and waits
+  up to 10 s for each process to exit, since `launchctl bootout` returns first.
+  These agents outlive the runner's process cleanup and restart on an
   unsuccessful exit, so they are booted out, not killed. The proxy holds the
   compilation-cache store open, and a Tuist installed onto a custom volume (for
-  example mise's install directory) runs from it; either keeps a volume busy, so its clean detach fails with
-  EBUSY.
-  The server also delivers a `cache_signing_grant` in
-  the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
-  artifacts with the account scope instead of the machine MAC — which is what
-  lets a clonefiled master validate across the account's VMs. The Xcode
-  compilation cache (CAS) is **folded INTO the cache image**: a
-  `CompilationCache.noindex` store dir beside `tuist/` inside the one mounted
-  image, so it rides the binary cache's whole lifecycle — clone, promote,
-  fast-forward HEAD, convergence — with no separate image, mount, or promote
-  gate. (It works because the store is on the block-device image, not the
-  virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
-  the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
-  `setup_cas_store`, called after the attach-time prune (which can be what makes a full image's store writable), creates
-  the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
-  exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
-  gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
-  guard) covers it. A compile-only job still persists its CAS because the
-  inventory digest includes one `~cas/<relpath>\t<size>` line per store file (a
-  content identity, computed identically host- and guest-side), so CAS growth
-  flips the digest → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)
-  out of the multi-GB store. Absent marker ⇒ the compilation cache runs VM-local
-  (cold), unchanged. The CAS shares the volume cap with the binary cache, so size
-  `--cache-volume-cap-gib` for both and keep HEAD uploads fast
-  (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
-  blocks slot reclaim).
-  **The two caches share one budget.** The host stages `cache-budget-bytes`:
-  the image less a reserve of max(2 GiB, 20% of the cap), 24 GiB at a 30 GiB
-  cap, and the reserve is the room a job grows into before anything prunes.
-  `set_cache_limits` divides it between `tuist/` and `CompilationCache.noindex/`
-  by their allocated `du` sizes, with the rule the stores are divided by
-  (`split_by_use`, below) and a 2 GiB floor per cache
-  (`CACHE_SPLIT_FLOOR_BYTES`). The floor matters for the binary cache, which the
-  CLI holds to its limit for the whole job (a download that does not fit is
-  rebuilt from source), so a cache that holds nothing yet next to a busy one
-  still gets 2 GiB and doubles from there; two caches that each hold under a
-  quarter of the budget split it evenly. It runs twice: at attach, before the
-  attach prune, and at teardown, before the teardown prune, because the binary
-  cache may have grown to its attach-time share during the job and nothing
-  prunes it at teardown. Neither cache is handed room the other still holds
-  (`within_room`): the compilation cache's limit is capped at the budget less
-  what `tuist/` holds, and `limit_binary_cache` exports the binary cache's
-  after the attach prune, capped at the budget less what the store holds once
-  pruned, since a prune keeps a store's newest generations even past a limit
-  that just shrank. The two
-  limits therefore never add up to more than the budget. A cache that stops
-  being used gives its space back only as fast as its own pruner collects it:
-  the CLI's LRU and 7-day age prune for `tuist/`, a rotation for the store. A
-  host whose tart-kubelet predates `cache-budget-bytes` stages only the fixed
-  split (`cache-max-bytes`, and the `cas-enabled` figure), and
-  `set_cache_limits` applies that as is, so the two components roll out in
-  either order.
-  Each division is staged back for the host in `cache-limits`
-  (`stage_cache_limits`), one `<when>\t<cache>\t<held>\t<limit>` line per cache
-  at attach and at teardown, which the host exports as
-  `tart_kubelet_cache_volume_cache_bytes` and
-  `tart_kubelet_cache_volume_cache_limit_bytes`. Those sizes are the only
-  per-cache measurement the fleet has, and they are what the rule and its floors
-  are retuned from: this log carries the same numbers, but the host re-emits only
-  a bounded tail of it, so a verbose job's attach lines never reach the log
-  store. Staged at attach AFTER `limit_binary_cache`, so what is recorded is the
-  limit that was applied.
+  example mise's install directory) runs from it; either keeps a volume busy,
+  so its clean detach fails with EBUSY. Only then do the checkout export and
+  `tuist-cache-volume --detach-all` run.
+  The server also delivers a `cache_signing_grant` in the dispatch 200, exported
+  as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs artifacts with the account
+  scope instead of the machine MAC, which is what lets a saved volume's binaries
+  validate across the account's VMs.
   `cas_proxy_client` resolves an explicit proxy override, the installed agent's
   configured override or CLI bundle, PATH, then the image fallback. For stable
   `/bin/sh` agents it reads the JSON launch target from ProgramArguments[2];
@@ -467,98 +302,63 @@ added to catch that failed on `admin`'s unwritable cache instead.
   ProgramArguments[4]. Legacy agents still name the CLI in Program. Run
   `bash infra/runner-image/tests/cas-proxy-client-test.sh` on macOS to cover
   all discovery modes without starting the dispatch loop.
-  The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
-  job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
-  llcas rotates (new primary, old one demoted) when the chain is over the limit
-  and its last handle closes, and only `llcas_cas_prune_ondisk_data` deletes what
-  falls off — which no part of a build ever calls, so the store grew without
-  bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
-  CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
-  days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
-  because the per-machine proxy holds a handle per path for its lifetime and
-  only the holder can rotate a store. A store no proxy holds is pruned on its
-  generation dirs under the store's `lock` without opening it, so it works on a
-  full volume and on stores the compilers or another Xcode wrote. Every lane is
-  swept (`plugin`, and `builtin`/`generic` from builds without our plugin),
-  discovered by their `v1.N` generation dirs, and the compilation cache's limit
-  is SPLIT between them: it budgets the CAS as a whole while llcas only takes a
-  per-generation bound per store, so handing each the full figure would let a
-  multi-lane job occupy a multiple of the CAS the image was sized for. The split
-  is by use (`cas_store_budgets` over `split_by_use`): a store whose need, twice
-  its allocated size and at least 256 MiB, is under an even share gets that
-  need, and the stores that need more split the rest. An even split gave the few-KB `generic` store,
-  present on every volume, half the budget and capped `plugin` at half of what
-  the host staged. Teardown is the only place that can count the
-  lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
-  The teardown pass (second, after the drain) bounds what the FLEET inherits: the
-  image is measured and promoted right after it. The attach pass bounds what THIS
-  job inherits, and covers the case teardown cannot reach — a master that is
-  already over budget can fill the volume mid-build and fail the job, and a
-  failed job never promotes, so teardown is skipped and no replacement is ever
-  published. That is the wedge that ends in a manual reset; pruning at attach
-  gives the job the headroom to succeed so its own teardown publishes the fix.
-  The attach pass runs AFTER `CACHE_INVENTORY_BEFORE` is snapshotted, and that
-  order is load-bearing: pruning first folds the collection into the baseline, so
-  a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
-  (verified both ways — same digest when reversed). Taking the baseline first
-  makes the collection itself the change that earns the promote, the same
-  reasoning that puts `reclaim_cas_if_disabled` at teardown. The compiler is
-  given the compilation cache's whole limit, not half: llcas and the prune
-  rotate a store once its primary passes half the limit, so the limit already
-  covers the primary and the demoted upstream, which is the warm cache.
-  `setup_cas_store` also exports
-  `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
-  `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
-  build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
-  on the VM's boot volume and died with it. It exports
-  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every cache
-  put wait for its upload, because off a runner the store goes away with the job,
-  and `drain_cas_publications` does that wait at teardown for spools under this
-  directory, after the job has reported its result. The plugin uploads in the
-  background only when its own store is inside that path, so a job whose xcconfig
-  or command line moves `COMPILATION_CACHE_CAS_PATH` elsewhere keeps waiting, and
-  so does every job whose store is VM-local.
-  The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
-  teardown (the prune is second, and in that order deliberately: a prune deletes
-  objects, and deleting one the spool still owed would strand the association
-  naming it). The store's objects are uploaded to the remote cache
+  The store is bounded by `prune_cas_stores` and by nothing else.
+  `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory: llcas
+  rotates (new primary, old one demoted) when the chain is over the limit and
+  its last handle closes, and only `llcas_cas_prune_ondisk_data` deletes what
+  falls off, which no part of a build ever calls. The prune runs through
+  `tuist-cas-proxy --prune`, not this shell, because the per-machine proxy holds
+  a handle per path for its lifetime and only the holder can rotate a store. A
+  store no proxy holds is pruned on its generation dirs under the store's
+  `lock` without opening it, so it works on a full volume and on stores the
+  compilers or another Xcode wrote. Every lane is swept (`plugin`, and
+  `builtin`/`generic` from builds without our plugin), discovered by their
+  `v1.N` generation dirs, and the compilation cache's limit is SPLIT between
+  them: it budgets the CAS as a whole while llcas only takes a per-generation
+  bound per store, so handing each the full figure would let a multi-lane job
+  occupy a multiple of the volume. The split is by use (`cas_store_budgets` over
+  `split_by_use`): a store whose need, twice its allocated size and at least
+  256 MiB, is under an even share gets that need, and the stores that need more
+  split the rest. Teardown is the only place that can count the lanes, since
+  `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
+  The staged environment exports `TUIST_COMPILATION_CACHE_CAS_PATH`, because
+  `tuist cache` passes `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND
+  LINE and a command-line build setting BEATS `XCODE_XCCONFIG_FILE`. It exports
+  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every
+  cache put wait for its upload, because off a runner the store goes away with
+  the job, and `drain_cas_publications` does that wait at teardown for spools
+  under this directory, after the job has reported its result. The plugin
+  uploads in the background only when its own store is inside that path, so a
+  job whose xcconfig or command line moves `COMPILATION_CACHE_CAS_PATH`
+  elsewhere keeps waiting.
+  The drain exists because the store's objects are uploaded to the remote cache
   asynchronously, through the CAS plugin's spool, while the associations naming
-  them are written into the store immediately — so a promote that outruns those
-  uploads publishes a master whose keys name objects nothing can produce, for
-  every host that later clones it, permanently (the compiler's CAS ABI has no
-  delete, and re-putting a key with a different value is refused, so such a key
-  fails until the store generation rolls). The gate asks the running proxy
-  (`tuist-cas-proxy --drain`, exit 0 drained / 3 owed / anything else "could not
-  ask") and falls back to watching `<cas dir>/tuist-spool` itself when no client
-  can be found — a record is deleted only by a publication that SUCCEEDED, so an
-  empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
-  because that computes the digest this image is promoted under, and before the
-  detach because the spool is inside the image; it runs on a failed job too,
-  whose uploads the next job still needs even though its verdict gates nothing
-  (a failed job never promotes), and is a no-op for a job that never published,
-  which includes every plain `xcodebuild` using Xcode's builtin lane. Not
-  draining within `CAS_DRAIN_TIMEOUT` (120s) withholds a passing job's promote via
-  `mark_cache_not_promotable`: the account keeps its previous master and loses
-  this job's warm set, which is the same trade every other teardown that cannot
-  reach a safe state already makes. It cannot be complete — a host that panics or
-  a job cancelled mid-upload promotes without reaching it — so it complements,
-  and does not replace, the plugin's read-side check on a local hit.
+  them are written into the store immediately. Saving the volume ahead of those
+  uploads hands every later job keys naming objects nothing can produce,
+  permanently (the compiler's CAS ABI has no delete, and re-putting a key with
+  a different value is refused, so such a key fails until the store generation
+  rolls). The gate asks the running proxy (`tuist-cas-proxy --drain`, exit 0
+  drained / 3 owed / anything else "could not ask") and falls back to watching
+  `<cas dir>/tuist-spool` itself when no client can be found; a record is
+  deleted only by a publication that SUCCEEDED, so an empty spool is the proof
+  either way. It runs on a failed job too, whose uploads the next job still
+  needs, and is a no-op for a job that never published, which includes every
+  plain `xcodebuild` using Xcode's builtin lane. Not draining within
+  `CAS_DRAIN_TIMEOUT` (120 s) withholds the job's volumes. It cannot be
+  complete, so it complements, and does not replace, the plugin's read-side
+  check on a local hit.
   `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
-  `xcodebuild build` against a project Tuist never generated and never wraps —
+  `xcodebuild build` against a project Tuist never generated and never wraps,
   which the generate-time project mapper and the `tuist xcodebuild` wrapper both
-  miss. It is the one layer every xcodebuild invocation honors. (Measured on
-  staging: `COMPILATION_CACHE_*` exported as plain env vars does nothing —
-  xcodebuild does not read build settings from the environment.) Consequences to
-  know: the xcconfig deliberately does **not** set
-  `COMPILATION_CACHE_ENABLE_CACHING` (enabling the cache stays the project's
-  opt-in; this only says *where* an already-caching build keeps its store); it
-  chains a pre-existing `XCODE_XCCONFIG_FILE` via `#include` rather than
-  clobbering it, but a workflow exporting that variable *after* us wins and the
-  CAS falls back to VM-local; and `XCODE_XCCONFIG_FILE` is an OVERRIDES layer
-  (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
-  project/target-defined settings — a stray target-level `COMPILATION_CACHE_CAS_PATH`
-  does NOT win. The escape hatch is a workflow's own xcconfig, which we `#include`
-  LAST, so anything it sets explicitly (the CAS path included) still wins.
+  miss. It is the one layer every xcodebuild invocation honors
+  (`COMPILATION_CACHE_*` exported as plain env vars does nothing). The xcconfig
+  deliberately does **not** set `COMPILATION_CACHE_ENABLE_CACHING`: enabling the
+  cache stays the project's opt-in, and this only says *where* an
+  already-caching build keeps its store. `XCODE_XCCONFIG_FILE` is an OVERRIDES
+  layer (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
+  project/target-defined settings. The escape hatch is a workflow's own
+  xcconfig, which `tuist-runner-cache` `#include`s LAST, so anything it sets
+  explicitly (the CAS path included) still wins.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
@@ -670,7 +470,15 @@ CI:
      (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
      carried profile's pools, warm Pods and host goldens stay as they
      were. A profile tag that cannot be resolved fails the deploy.
-  5. `deploy` dispatches `server-production-deployment.yml`, which
+  5. `announce` writes each profile's standalone and stacked digest into
+     the `tuist-upcoming-runner-images` ConfigMap of canary and
+     production, so their macOS hosts pull the images their pools move
+     to, and waits until they hold them (see "stages" in
+     `infra/tart-kubelet/AGENTS.md`). Every deploy holds a pool on its
+     current image until then, for up to an hour; dispatch the release
+     with `skip_staging` to move the pools at once. A failure in
+     `announce` does not hold the deploy.
+  6. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
   `macos-xcode-image.yml` dispatches the workflow after publishing a
@@ -957,19 +765,24 @@ semantics; this doc is just about the VM image.
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - The job-started hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
-  before the first step. It mounts the job's cached checkout at the workspace
-  only when the host serves one and the workspace is empty, and otherwise leaves
-  it untouched, so actions/checkout clones as before. It never fails the job.
+  before the first step. It mounts the job's cached checkout only when the host
+  serves one, the workspace is empty and its parent holds nothing else, and
+  otherwise leaves it untouched, so actions/checkout clones as before. It never
+  fails the job. The image mounts at the workspace's parent and the guest moves
+  the tree into the workspace: the workspace must not be a volume root, because
+  Foundation stages safe saves in `<volume root>/.TemporaryItems` and Xcode's
+  task sandbox refuses writes there inside the project (CoreML compilation into
+  a DerivedData under the workspace fails with "compile failed to write partial
+  plist"). `tuist-cache-volume --key` leaves out a path in the mounted
+  checkout's `.git` that already holds data (such as `.git/lfs`) with a notice,
+  instead of refusing it as non-empty.
   When the host granted a checkout (mounted, or `cold`, `capacity`, `timeout`)
   it records the workspace and the mounted master's commit and LFS objects in
   `/Users/runner/.tuist-checkout.json`. The teardown then runs
   `tuist-cache-volume --checkout-export`, which packs what the job's checkout added
-  and copies its new LFS objects into the share's `checkout-export/` (45 s budget)
+  (the job commit and the objects of its tree the master's tip tree lacks; see
+  `infra/linux-runner-image/AGENTS.md`) and copies its new LFS objects into the share's `checkout-export/` (45 s budget)
   for the host to verify and build from. Neither step fails the job.
 
-- `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
-  size, mount time/duration and host-staged warm/cold source. Stage once at attach
-  and again before detach; never estimate sparse-image filesystem usage from the
-  image file's host size. The host adds scope/outcome and authenticates reporting.
 - Failed custom-volume detach must emit a warning that publication is skipped;
   preserve the job's exit status and never force-detach a publishable image.

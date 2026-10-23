@@ -37,9 +37,9 @@ defmodule Atlas.MCP.Tools.CreateBlogPostIdea do
     attrs =
       args
       |> Map.take(["title", "description", "status"])
-      |> Map.put("created_by_agent", "mcp")
+      |> Map.put("created_by_agent", Tool.agent_source(conn))
 
-    case GTM.create_blog_post_idea(attrs, Tool.current_user(conn), announce: true) do
+    case GTM.create_blog_post_idea(attrs, Tool.current_user(conn), announce: Tool.audit_interface(conn) != "worker") do
       {:ok, idea} ->
         {:ok, %{blog_post_idea: GTMSerializer.blog_post_idea(idea)}}
 

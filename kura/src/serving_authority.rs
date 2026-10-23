@@ -30,7 +30,20 @@ pub struct Grant {
     pub barrier: Option<crate::handover::Receipt>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resume_epoch: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_resume: Option<ExitResume>,
 }
+
+/// The kubelet-attested exited holder whose unclean volume a restarted
+/// container in the same pod takes the writer over from.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ExitResume {
+    pub epoch: u64,
+    pub holder: Holder,
+}
+
+const UNCLEAN_VOLUME: &str = "unclean primary volume: quarantine and rebuild before rejoining; never delete its marker to bypass fencing";
+const TERMINATION_LOG: &str = "/dev/termination-log";
 
 struct Active {
     grant: Grant,
@@ -47,6 +60,10 @@ pub struct ServingAuthority {
     pub(crate) handover_preparation: tokio::sync::Mutex<()>,
     pub(crate) preparation: Mutex<Option<crate::handover::Preparation>>,
     marker: Option<std::path::PathBuf>,
+    // The exited holder that left this pod's volume marked. Until its exit
+    // resume installs, no other grant may open the volume.
+    inherited: Mutex<Option<Holder>>,
+    exit_attested: std::sync::atomic::AtomicBool,
     revoked_epoch: std::sync::atomic::AtomicU64,
     // These attestations exist only in the process that owned the writer. They
     // never authorize another incarnation to open an unclean volume.
@@ -92,6 +109,8 @@ impl ServingAuthority {
             handover_preparation: tokio::sync::Mutex::new(()),
             preparation: Mutex::new(None),
             marker: None,
+            inherited: Mutex::new(None),
+            exit_attested: std::sync::atomic::AtomicBool::new(false),
             revoked_epoch: std::sync::atomic::AtomicU64::new(0),
             owned_epoch: std::sync::atomic::AtomicU64::new(0),
             fenced_epoch: std::sync::atomic::AtomicU64::new(0),
@@ -252,23 +271,57 @@ impl ServingAuthority {
                 );
             }
         }
+        let mut inherited = self
+            .inherited
+            .lock()
+            .map_err(|_| "inherited holder poisoned")?;
+        if active.is_none() && inherited.is_some() {
+            // A restarted container in the exited holder's own pod takes the
+            // writer over only through a grant naming that exact predecessor.
+            // Without an inherited volume the binding authorizes nothing, and a
+            // grant still carrying an earlier one follows the ordinary rules.
+            let exit = grant.exit_resume.as_ref();
+            if resuming
+                || exit.map(|exit| &exit.holder) != inherited.as_ref()
+                || exit.is_none_or(|exit| {
+                    exit.holder.pod_uid != self.identity.pod_uid
+                        || exit.holder.host != self.identity.host
+                        || exit.holder.incarnation == self.identity.incarnation
+                        || exit.epoch >= grant.epoch
+                })
+                || grant.phase != "Serving"
+                || grant.handover.is_some()
+                || grant.barrier.is_some()
+                || self.mutations() != 0
+            {
+                return Err(
+                    "unclean primary volume accepts only an exit resume from its own exited holder"
+                        .into(),
+                );
+            }
+        }
         if active.is_none()
             && !resuming
             && let Some(marker) = &self.marker
         {
-            use std::io::Write;
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(marker)
-                .map_err(|e| format!("primary volume needs quarantine: {e}"))?;
-            file.write_all(&serde_json::to_vec(&grant).map_err(|e| e.to_string())?)
-                .and_then(|_| file.sync_all())
-                .map_err(|e| e.to_string())?;
-            std::fs::File::open(marker.parent().ok_or("missing marker parent")?)
-                .and_then(|f| f.sync_all())
-                .map_err(|e| e.to_string())?;
+            if inherited.is_some() {
+                replace_marker(marker, &grant)?;
+            } else {
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(marker)
+                    .map_err(|e| format!("primary volume needs quarantine: {e}"))?;
+                file.write_all(&serde_json::to_vec(&grant).map_err(|e| e.to_string())?)
+                    .and_then(|_| file.sync_all())
+                    .map_err(|e| e.to_string())?;
+                std::fs::File::open(marker.parent().ok_or("missing marker parent")?)
+                    .and_then(|f| f.sync_all())
+                    .map_err(|e| e.to_string())?;
+            }
         }
+        *inherited = None;
         // Re-reading the same document must never extend its monotonic deadline.
         let deadline = Instant::now() + Duration::from_millis(grant.expires_ms - now - 2_000);
         let deadline = active
@@ -316,6 +369,26 @@ impl ServingAuthority {
 
     pub fn identity(&self) -> &Holder {
         &self.identity
+    }
+    /// An inherited unclean volume serves nothing until its exit resume installs,
+    /// and after another holder is promoted it never will.
+    pub fn awaiting_exit_resume(&self) -> bool {
+        self.inherited
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
+    }
+    /// kubelet reports this file as the terminated container's message however
+    /// the process ended, naming the exact incarnation that no longer runs.
+    fn attest_incarnation(&self, path: &std::path::Path) {
+        let attested = std::fs::write(
+            path,
+            format!("kura-incarnation={}", self.identity.incarnation),
+        );
+        if let Err(error) = &attested {
+            tracing::warn!(event.name = "kura.serving_authority.exit_attestation_unavailable", %error);
+        }
+        self.exit_attested.store(attested.is_ok(), Ordering::SeqCst);
     }
     pub fn bind_store(&self, store: Arc<crate::store::Store>) {
         *self.store.lock().expect("store binding poisoned") = Some(store);
@@ -372,8 +445,22 @@ impl ServingAuthority {
             "epoch": active.as_ref().map_or(0, |a| a.grant.epoch), "valid": valid,
             "remaining_ms": active.as_ref().map_or(0, |a| a.grant.expires_ms.saturating_sub(now_ms() + 2000)),
             "preparation_supported": true, "preparation": *self.preparation.lock().unwrap_or_else(|e| e.into_inner()),
-            "automatic_partition_promotion": false, "observed": self.intent(), "mutations": self.mutations(), "revoked_epoch": self.revoked_epoch.load(Ordering::SeqCst), "fenced_epoch": self.fenced_epoch.load(Ordering::SeqCst), "barrier": *self.barrier.lock().unwrap_or_else(|e| e.into_inner())})
+            "automatic_partition_promotion": false, "observed": self.intent(), "mutations": self.mutations(), "revoked_epoch": self.revoked_epoch.load(Ordering::SeqCst), "fenced_epoch": self.fenced_epoch.load(Ordering::SeqCst), "barrier": *self.barrier.lock().unwrap_or_else(|e| e.into_inner()),
+            "exit_attested": self.exit_attested.load(Ordering::SeqCst), "exit_resume": *self.inherited.lock().unwrap_or_else(|e| e.into_inner())})
     }
+}
+
+fn replace_marker(marker: &std::path::Path, grant: &Grant) -> Result<(), String> {
+    use std::io::Write;
+    let staged = marker.with_extension("exit-resume");
+    let mut file = std::fs::File::create(&staged).map_err(|e| e.to_string())?;
+    file.write_all(&serde_json::to_vec(grant).map_err(|e| e.to_string())?)
+        .and_then(|_| file.sync_all())
+        .map_err(|e| e.to_string())?;
+    std::fs::rename(&staged, marker).map_err(|e| e.to_string())?;
+    std::fs::File::open(marker.parent().ok_or("missing marker parent")?)
+        .and_then(|f| f.sync_all())
+        .map_err(|e| e.to_string())
 }
 
 fn validate(active: &Active, epoch: u64) -> Result<(), String> {
@@ -470,25 +557,45 @@ pub struct AuthorityConfig {
 }
 
 impl AuthorityConfig {
+    /// Returns the exited holder when the volume is this pod's own unclean
+    /// primary volume. Only that holder's exit resume may reopen it; any other
+    /// pod, or a legacy start, must quarantine and rebuild.
     pub fn validate_volume(
         data_dir: &std::path::Path,
         config: Option<&Self>,
-    ) -> Result<(), String> {
+    ) -> Result<Option<Holder>, String> {
         use std::io::Write;
-        if data_dir.join(".kura.primary-unclean").exists() {
-            return Err("unclean primary volume: quarantine and rebuild before rejoining; never delete its marker to bypass fencing".into());
-        }
+        let inherited = match (
+            std::fs::read(data_dir.join(".kura.primary-unclean")),
+            config,
+        ) {
+            (Err(error), _) if error.kind() == std::io::ErrorKind::NotFound => None,
+            (Err(error), _) => return Err(error.to_string()),
+            (Ok(marker), Some(config)) => match serde_json::from_slice::<Grant>(&marker) {
+                Ok(grant)
+                    if grant.holder.instance_uid == config.instance_uid
+                        && grant.holder.pod_uid == config.pod_uid
+                        && grant.holder.host == config.host =>
+                {
+                    Some(grant.holder)
+                }
+                _ => return Err(UNCLEAN_VOLUME.into()),
+            },
+            (Ok(_), None) => return Err(UNCLEAN_VOLUME.into()),
+        };
         let floor = data_dir.join(".kura.serving-floor");
         match (std::fs::read_to_string(&floor), config) {
-            (Ok(uid), Some(config)) if uid == config.instance_uid => Ok(()),
+            (Ok(uid), Some(config)) if uid == config.instance_uid => Ok(inherited),
             (Ok(_), _) => Err("volume requires its original serving authority; legacy startup and identity reset are forbidden".into()),
             (Err(error), _) if error.kind() != std::io::ErrorKind::NotFound => Err(error.to_string()),
-            (Err(_), None) => Ok(()),
+            (Err(_), None) => Ok(None),
+            (Err(_), Some(_)) if inherited.is_some() => Err(UNCLEAN_VOLUME.into()),
             (Err(_), Some(config)) => {
                 std::fs::create_dir_all(data_dir).map_err(|e| e.to_string())?;
                 let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(floor).map_err(|e| e.to_string())?;
                 file.write_all(config.instance_uid.as_bytes()).and_then(|_| file.sync_all()).map_err(|e| e.to_string())?;
-                std::fs::File::open(data_dir).and_then(|f| f.sync_all()).map_err(|e| e.to_string())
+                std::fs::File::open(data_dir).and_then(|f| f.sync_all()).map_err(|e| e.to_string())?;
+                Ok(None)
             }
         }
     }
@@ -514,7 +621,11 @@ impl AuthorityConfig {
         }))
     }
 
-    pub fn start(&self, data_dir: &std::path::Path) -> Result<Arc<ServingAuthority>, String> {
+    pub fn start(
+        &self,
+        data_dir: &std::path::Path,
+        inherited: Option<Holder>,
+    ) -> Result<Arc<ServingAuthority>, String> {
         let mut authority = ServingAuthority::new(
             Holder {
                 instance_uid: self.instance_uid.clone(),
@@ -524,9 +635,12 @@ impl AuthorityConfig {
             },
             true,
         );
-        Arc::get_mut(&mut authority)
-            .expect("unshared authority")
-            .marker = Some(data_dir.join(".kura.primary-unclean"));
+        {
+            let unshared = Arc::get_mut(&mut authority).expect("unshared authority");
+            unshared.marker = Some(data_dir.join(".kura.primary-unclean"));
+            *unshared.inherited.get_mut().expect("unshared inheritance") = inherited;
+        }
+        authority.attest_incarnation(std::path::Path::new(TERMINATION_LOG));
         let ca = std::fs::read("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
             .map_err(|e| e.to_string())?;
         let certificate = reqwest::Certificate::from_pem(&ca).map_err(|e| e.to_string())?;
@@ -577,6 +691,7 @@ mod tests {
             handover: None,
             barrier: None,
             resume_epoch: None,
+            exit_resume: None,
         }
     }
     #[test]
@@ -862,5 +977,167 @@ mod tests {
         assert!(AuthorityConfig::validate_volume(dir.path(), None).is_err());
         config.instance_uid.push('x');
         assert!(AuthorityConfig::validate_volume(dir.path(), Some(&config)).is_err());
+    }
+
+    fn restarted(previous: &ServingAuthority, marker: std::path::PathBuf) -> Arc<ServingAuthority> {
+        let mut identity = previous.identity.clone();
+        identity.incarnation.push_str("-restarted");
+        let mut restarted = ServingAuthority::new(identity, true);
+        let unshared = Arc::get_mut(&mut restarted).unwrap();
+        unshared.marker = Some(marker);
+        *unshared.inherited.get_mut().unwrap() = Some(previous.identity.clone());
+        restarted
+    }
+
+    fn exit_resume(restarted: &ServingAuthority, previous: &Holder, epoch: u64) -> Grant {
+        let mut grant = grant(restarted, epoch + 1);
+        grant.exit_resume = Some(ExitResume {
+            epoch,
+            holder: previous.clone(),
+        });
+        grant
+    }
+
+    #[test]
+    fn only_the_same_pod_inherits_its_unclean_volume() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = AuthorityConfig {
+            instance: "i".into(),
+            namespace: "n".into(),
+            instance_uid: "i".into(),
+            pod_uid: "p".into(),
+            host: "h".into(),
+        };
+        assert_eq!(
+            AuthorityConfig::validate_volume(dir.path(), Some(&config)).unwrap(),
+            None
+        );
+        let mut a = authority();
+        Arc::get_mut(&mut a).unwrap().marker = Some(dir.path().join(".kura.primary-unclean"));
+        a.install(grant(&a, 1)).unwrap();
+        assert_eq!(
+            AuthorityConfig::validate_volume(dir.path(), Some(&config)).unwrap(),
+            Some(a.identity.clone())
+        );
+        assert!(AuthorityConfig::validate_volume(dir.path(), None).is_err());
+        for field in 0..3 {
+            let mut other = config.clone();
+            match field {
+                0 => other.pod_uid.push('x'),
+                1 => other.host.push('x'),
+                _ => other.instance_uid.push('x'),
+            }
+            assert!(AuthorityConfig::validate_volume(dir.path(), Some(&other)).is_err());
+        }
+    }
+
+    #[test]
+    fn a_restarted_container_takes_over_only_from_its_exited_holder() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join(".kura.primary-unclean");
+        let mut a = authority();
+        Arc::get_mut(&mut a).unwrap().marker = Some(marker.clone());
+        a.install(grant(&a, 4)).unwrap();
+        let b = restarted(&a, marker.clone());
+        assert!(!b.peer_safe());
+        assert!(b.awaiting_exit_resume());
+        assert_eq!(b.report()["exit_resume"]["incarnation"], "r");
+
+        assert!(
+            b.install(grant(&b, 5)).is_err(),
+            "an ordinary grant reopened an unclean volume"
+        );
+        let mut wrong_holder = a.identity.clone();
+        wrong_holder.incarnation.push('x');
+        assert!(b.install(exit_resume(&b, &wrong_holder, 4)).is_err());
+        let mut not_newer = exit_resume(&b, &a.identity, 4);
+        not_newer.epoch = 4;
+        assert!(b.install(not_newer).is_err());
+        let mut quiescing = exit_resume(&b, &a.identity, 4);
+        quiescing.phase = "Quiescing".into();
+        assert!(b.install(quiescing).is_err());
+        assert!(b.admit().is_err());
+
+        let resume = exit_resume(&b, &a.identity, 4);
+        b.install(resume.clone()).unwrap();
+        b.install(resume).unwrap();
+        assert!(b.admit().unwrap().is_some());
+        assert!(b.peer_safe());
+        assert!(b.report()["exit_resume"].is_null());
+        assert!(!b.awaiting_exit_resume());
+        let rewritten: Grant = serde_json::from_slice(&std::fs::read(&marker).unwrap()).unwrap();
+        assert_eq!(
+            rewritten.holder, b.identity,
+            "the marker must name the current writer"
+        );
+
+        let c = restarted(&b, marker.clone());
+        assert!(
+            c.install(exit_resume(&c, &a.identity, 5)).is_err(),
+            "a stale predecessor resumed"
+        );
+        c.install(exit_resume(&c, &b.identity, 5)).unwrap();
+        assert!(c.admit().unwrap().is_some());
+    }
+
+    #[test]
+    fn an_exit_resume_never_opens_a_marked_volume_this_process_did_not_inherit() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join(".kura.primary-unclean");
+        let mut previous = authority();
+        Arc::get_mut(&mut previous).unwrap().marker = Some(marker.clone());
+        previous.install(grant(&previous, 1)).unwrap();
+        let mut other = authority();
+        Arc::get_mut(&mut other).unwrap().marker = Some(marker);
+        assert!(
+            other
+                .install(exit_resume(&other, &previous.identity, 1))
+                .is_err()
+        );
+        assert!(other.admit().is_err());
+    }
+
+    #[test]
+    fn a_live_writer_resumes_through_a_grant_still_naming_an_earlier_exit() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join(".kura.primary-unclean");
+        let mut exited = authority();
+        Arc::get_mut(&mut exited).unwrap().marker = Some(marker.clone());
+        exited.install(grant(&exited, 8)).unwrap();
+        let writer = restarted(&exited, marker);
+        let resumed = exit_resume(&writer, &exited.identity, 8);
+        writer.install(resumed.clone()).unwrap();
+
+        // A later interruption fences this live writer; the next epoch can still
+        // carry the earlier binding from a controller that kept it.
+        writer.active.lock().unwrap().as_mut().unwrap().deadline = Instant::now();
+        let mut fence = resumed.clone();
+        fence.phase = "Fencing".into();
+        writer.install(fence.clone()).unwrap();
+        writer.install(fence).unwrap();
+        assert_eq!(writer.report()["fenced_epoch"], 9);
+        let mut resume = resumed;
+        resume.epoch = 10;
+        resume.resume_epoch = Some(9);
+        resume.expires_ms = now_ms() + 15000;
+        writer.install(resume).unwrap();
+        assert!(
+            writer.admit().unwrap().is_some(),
+            "a stale exit binding refused the live writer"
+        );
+    }
+
+    #[test]
+    fn the_incarnation_is_attested_for_the_terminated_container_message() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = authority();
+        a.attest_incarnation(&dir.path().join("termination-log"));
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("termination-log")).unwrap(),
+            "kura-incarnation=r"
+        );
+        assert_eq!(a.report()["exit_attested"], true);
+        a.attest_incarnation(&dir.path().join("missing/termination-log"));
+        assert_eq!(a.report()["exit_attested"], false);
     }
 }

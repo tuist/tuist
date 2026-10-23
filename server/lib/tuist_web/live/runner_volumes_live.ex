@@ -153,7 +153,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   defp request_action(socket, id, action) do
     volume = CacheVolumes.get(socket.assigns.selected_account.id, id)
 
-    if (socket.assigns.can_manage and volume) && is_nil(volume.builtin_name) do
+    if socket.assigns.can_manage and volume do
       {:noreply,
        socket |> assign(:pending_action, {action, id}) |> push_event("open-modal", %{id: "volume-confirm-#{action}"})}
     else
@@ -377,25 +377,38 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   def stats(data, volume), do: Map.get(data.stats, volume.id, %{})
 
-  def full_snapshot?(%{builtin_name: nil}, stats),
-    do: CacheVolumes.full?(stats[:saved_bytes], stats[:saved_capacity_bytes])
+  # A saved snapshot is nearly full against the capacity the next job gets, so
+  # a larger requested size clears the warning.
+  def full_snapshot?(%{head_id: head_id} = volume, stats) when not is_nil(head_id),
+    do: CacheVolumes.full?(stats[:saved_bytes], next_volume_bytes(volume, stats))
 
   def full_snapshot?(_volume, _stats), do: false
 
-  def full_snapshot_description(stats) do
+  def full_snapshot_description(volume, stats) do
     dgettext(
       "dashboard_runners",
       "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot.",
       used: bytes(stats[:saved_bytes]),
-      capacity: bytes(stats[:saved_capacity_bytes])
+      capacity: bytes(next_volume_bytes(volume, stats))
     )
   end
 
-  # Managed caches show what they hold rather than their storage key; the
-  # Xcode and module caches share the built-in volume.
-  def display_name(%{builtin_name: name}) when is_binary(name),
-    do: dgettext("dashboard_runners", "Xcode and module caches")
+  defp next_volume_bytes(volume, stats), do: CacheVolumes.next_volume_bytes(volume, stats[:head_volume_bytes])
 
+  def volume_capacity(volume, stats), do: CacheVolumes.volume_bytes(volume, stats[:head_volume_bytes])
+
+  def pending_volume_bytes(volume, stats), do: CacheVolumes.pending_volume_bytes(volume, stats[:head_volume_bytes])
+
+  def pending_size_description(volume, stats) do
+    dgettext(
+      "dashboard_runners",
+      "Saved at %{capacity}. New contents will use %{pending} after the next clear.",
+      capacity: bytes(volume_capacity(volume, stats)),
+      pending: bytes(pending_volume_bytes(volume, stats))
+    )
+  end
+
+  # Managed caches show what they hold rather than their storage key.
   def display_name(%{key: "tuist-xcode"}), do: dgettext("dashboard_runners", "Xcode cache")
   def display_name(%{key: "tuist-module"}), do: dgettext("dashboard_runners", "Module cache")
   def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
@@ -416,9 +429,12 @@ defmodule TuistWeb.RunnerVolumesLive do
   def storage_bytes(%{retained_copies: 0}, _field), do: bytes(0)
   def storage_bytes(stats, field), do: bytes(stats[field])
 
-  def storage_capacity(%{retained_copies: 0}), do: bytes(0)
-  def storage_capacity(%{retained_capacity_bytes: capacity}) when not is_nil(capacity), do: bytes(capacity)
-  def storage_capacity(_stats), do: dgettext("dashboard_runners", "Not reported")
+  def storage_capacity(_volume, %{retained_copies: 0}), do: bytes(0)
+  def storage_capacity(_volume, %{retained_capacity_bytes: capacity}) when not is_nil(capacity), do: bytes(capacity)
+
+  def storage_capacity(volume, stats), do: bytes(volume_capacity(volume, stats))
+
+  def detail_capacity(volume, stats), do: bytes(volume_capacity(volume, stats))
 
   def used_space(%{head_id: nil, deleted_at: nil}, %{retained_bytes: nil}), do: bytes(0)
   def used_space(%{head_id: nil, deleted_at: nil}, stats) when map_size(stats) == 0, do: bytes(0)

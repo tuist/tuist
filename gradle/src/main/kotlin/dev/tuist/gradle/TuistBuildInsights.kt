@@ -28,6 +28,7 @@ import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStep
 import org.gradle.internal.time.Time
 import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -155,7 +156,6 @@ abstract class TuistBuildInsightsService :
         val requestedTasks: ListProperty<String>
         val backgroundUpload: Property<Boolean>
         val actorId: Property<String>
-        val networkTrustedPublishing: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -319,8 +319,7 @@ abstract class TuistBuildInsightsService :
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = projectDir,
-            httpClients = httpClients,
-            allowNetworkTrustedPublishing = parameters.networkTrustedPublishing.getOrElse(false)
+            httpClients = httpClients
         )
 
         val httpClient = TuistHttpClient(
@@ -352,7 +351,7 @@ abstract class TuistBuildInsightsService :
             startedAt = formatTimestamp(reportStartedAt),
             gradleVersion = parameters.gradleVersion.orNull,
             rootProjectName = parameters.rootProjectName.orNull,
-            requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
+            requestedTasks = parameters.requestedTasks.getOrElse(emptyList()),
             ciDetector = ciDetector,
             gitInfoProvider = reportGitInfoProvider(),
             customMetadata = executionTelemetry.cacheSavings.metadata(executionTelemetry.failures.metadata(buildCustomMetadata(
@@ -371,37 +370,45 @@ abstract class TuistBuildInsightsService :
                 projectDir = projectDir
             )
             val url = URI(resolvedUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
-                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
-                }
+            // Every attempt sends the same build id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another build).
+            httpClient.retrying("Build insights request", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                    }
 
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    val body = if (config.token.isEmpty()) report.copy(gitRemoteUrlOrigin = null) else report
-                    Gson().toJson(body, writer)
-                }
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        val body = if (config.token.isEmpty()) report.copy(gitRemoteUrlOrigin = null) else report
+                        Gson().toJson(body, writer)
+                    }
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_CREATED -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, BuildReportResponse::class.java)
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_CREATED -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, BuildReportResponse::class.java)
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            val message = "Build insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
+                            if (status in TuistRetry.RETRYABLE_STATUSES) {
+                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
+                            }
+                            logger.warn("Tuist: $message")
+                            null
                         }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn("Tuist: Build insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                        null
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
 
@@ -528,7 +535,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
             parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
             config.actorId?.let { parameters.actorId.set(it) }
-            parameters.networkTrustedPublishing.set(config.networkTrustedBuildPublishing)
         }
 
         // A provider can have only one subscription. An operation-only service also

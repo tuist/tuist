@@ -34,25 +34,28 @@ defmodule Tuist.Release do
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
   @grafana_query_log_view "grafana_query_log"
 
-  # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
+  # Exact column allowlist for the Grafana role behind the "Tuist Product Usage"
+  # dashboard and the "Runner cache volume warm rate low" alert rule.
   # Column-level rather than table-level because every table below sits next to a
   # secret in the same row: table-level SELECT would hand the dashboard's
   # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
   # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
   # `organizations.oauth2_encrypted_client_secret`. `users` is the clearest case:
-  # the dashboard needs only the signup timestamp.
+  # the dashboard needs only the signup timestamp. The runner cache volume
+  # columns leave out the account, repository and pod the rows belong to.
   #
-  # Adding a column to a panel is a deliberate change here, not something a
-  # dashboard edit widens silently. Keep in sync with
+  # Adding a column to a panel or rule is a deliberate change here, not something
+  # a Grafana edit widens silently. Keep in sync with
   # infra/cnpg/tuist-grafana-ro-grants.sql (a test asserts this).
   @grafana_read_columns [
-    {"accounts",
-     ~w(id name billing_email organization_id current_month_remote_cache_hits_count current_month_remote_cache_hits_count_updated_at)},
+    {"accounts", ~w(id name billing_email organization_id)},
     {"bundles", ~w(project_id inserted_at git_ref)},
     {"organizations", ~w(id created_at)},
     {"previews", ~w(project_id inserted_at)},
     {"projects", ~w(id name account_id created_at build_system)},
     {"roles", ~w(id resource_id resource_type)},
+    {"runner_cache_volume_uses", ~w(volume_id base_generation warm attached_at)},
+    {"runner_cache_volumes", ~w(id key platform)},
     {"subscriptions", ~w(account_id status)},
     {"users", ~w(created_at)},
     {"users_roles", ~w(user_id role_id)}
@@ -419,7 +422,9 @@ defmodule Tuist.Release do
     # are wider than the ops role's, but still capped so a panel cannot take the
     # memory or cores the application's own queries need. The slow-query
     # alert reads every replica's query log through the `grafana_query_log`
-    # view, which the database grant covers.
+    # view, which the database grant covers on the replica it reaches. The
+    # other replicas run their part as this role rather than as the view's
+    # definer, so it also reads `system.query_log` itself.
     readonly_clickhouse_identity_queries(
       username,
       role,
@@ -431,7 +436,7 @@ defmodule Tuist.Release do
         max_memory_usage = 8589934592 MIN 1 MAX 8589934592,
         max_threads = 8 MIN 1 MAX 8
       """,
-      ["#{database}.*", "system.tables", "system.columns"]
+      ["#{database}.*", "system.tables", "system.columns", "system.query_log"]
     )
   end
 

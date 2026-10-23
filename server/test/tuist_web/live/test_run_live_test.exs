@@ -13,6 +13,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
+  alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -141,7 +142,7 @@ defmodule TuistWeb.TestRunLiveTest do
     project: project
   } do
     {:ok, test_run} =
-      Tuist.Tests.create_test(%{
+      Tests.create_test(%{
         id: UUIDv7.generate(),
         project_id: project.id,
         account_id: organization.account.id,
@@ -472,6 +473,35 @@ defmodule TuistWeb.TestRunLiveTest do
     # Then
     assert has_element?(lv, "a", "Download result")
     assert has_element?(lv, "a[href*='/runs/#{command_event.id}/download']")
+  end
+
+  test "immutable runs expose a canonical download link for a shard's original bundle", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 1, reporting_version: 1)
+    source_id = String.upcase(UUIDv7.generate())
+    stub(Tuist.Tasks, :run_async, fn _ -> :ok end)
+
+    assert {:ok, _} =
+             Tests.create_test(%{
+               id: source_id,
+               project_id: project.id,
+               account_id: organization.account.id,
+               shard_plan_id: plan.id,
+               shard_index: 0,
+               status: "success",
+               duration: 1,
+               is_ci: true,
+               test_modules: []
+             })
+
+    key = "#{organization.account.name}/#{project.name}/runs/#{source_id}/result_bundle.zip"
+    stub(Storage, :object_exists?, fn object_key, _ -> object_key == key end)
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{plan.id}")
+    render_async(lv)
+    assert has_element?(lv, "a[href*='/runs/#{plan.id}/download']", "Download result")
   end
 
   test "hides download button when test run has no result bundle", %{

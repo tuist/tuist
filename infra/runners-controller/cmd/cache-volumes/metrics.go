@@ -5,12 +5,16 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
+
+// signedURL matches a URL in an error, which may carry a signature.
+var signedURL = regexp.MustCompile(`https?://[^\s"']+`)
 
 type volumeMetrics struct {
 	registry    *prometheus.Registry
@@ -49,10 +53,14 @@ func (m *volumeMetrics) observe(o cachevolumes.Observation) {
 	// Successful maintenance runs every 30s; only lifecycle operations and failures need logs.
 	if o.Operation != "maintenance" || o.Err != nil {
 		level := slog.LevelInfo
-		if o.Err != nil {
+		if o.Err != nil && !errors.Is(o.Err, cachevolumes.ErrReleasePending) {
 			level = slog.LevelWarn
 		}
 		fields := []any{"operation", o.Operation, "source", o.Source, "result", result, "duration_ms", o.Duration.Milliseconds()}
+		if o.Err != nil {
+			fields = append(fields, "error", signedURL.ReplaceAllString(o.Err.Error(), "<url>"))
+		}
+		fields = append(fields, o.Subject.Fields()...)
 		var remote *cachevolumes.RemoteError
 		if errors.As(o.Err, &remote) {
 			fields = append(fields, "remote_operation", remote.Operation, "http_status", remote.StatusCode)

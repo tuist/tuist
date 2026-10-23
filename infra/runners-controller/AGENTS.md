@@ -60,6 +60,15 @@ independent workqueues:
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
+  A tier that cannot be funded in full is split proportionally to cost,
+  and the whole Pods the rounding leaves go one per pool per round to the
+  pools with the largest target (which includes the hourly peak), then by
+  name (`grantRemainder`). Every rack image keeps a one-Pod floor, and
+  without this one queued job past capacity rounded every floor to zero:
+  all images went cold for one job, and the freed slots sat unassigned.
+  Now only as many floors yield as the load needs, least recently used
+  image first.
+
   **Cross-pool preemption** (`controllers/preemption.go`). The cooldown
   damps a pool's own oscillation, but it must not hold idle runners
   while a sibling's queued jobs cannot be placed. When a pool is inside
@@ -238,16 +247,25 @@ independent workqueues:
     allocator's cross-pool reclaim already arranges it.
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
-    (2m), the RunnerPool reconciler taints one eligible host
+    (2m), or past `idleHostReservationGrace` (30s) when the best
+    candidate holds only idle runners and no seat in flight (draining it
+    waits on no job, and with a warm runner per rack image every host of a
+    quiet fleet can hold one), the RunnerPool reconciler taints one eligible host
     `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
     the fewest running jobs and, among those, one already holding the
     pool's golden image. Every runner Pod
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
-    retired, and only once they have been bound longer than `seatGrace`
-    (2m) — a Pod that bound more recently is the seat some other
-    reservation just produced, and dispatch has not yet reached it. The
+    retired, and only once their seat is no longer in flight
+    (`seatInFlight`). A Pod that bound within `seatGrace` (2m) is the
+    seat some other reservation just produced, and dispatch has not yet
+    reached it. A macOS Pod is in flight while it is bound and Pending,
+    up to `macOSProvisioningGrace` (20m), because tart-kubelet may be
+    pulling the image for minutes before the VM exists, and for
+    `macOSClaimGrace` (3m) after its VM starts, so the guest's first
+    dispatch poll can claim the job it was created for. Candidate
+    ranking counts those seats as occupants to wait out. The
     taint is removed when the Pod lands or after
     `reservationTimeout` (15m), and at most one host is held per fleet
     (`maxFleetReservations`; the count is taken over the pool's own
@@ -323,6 +341,23 @@ independent workqueues:
   A pool with an unrecognised `OS` (or without autoscaling enabled)
   skips the allocator entirely.
 
+  A macOS Pod is placed before any job is assigned to it, so it also
+  prefers a host holding the custom cache volumes of the queued job it is
+  created for. The signals carry `preferred_nodes`
+  (`VolumeAffinities.preferred_nodes/3`): one Node per oldest queued job,
+  in queue order, that holds the job's predicted volumes and whose cache
+  disk still has room for them after the jobs already on it. The server
+  spends a Node's room as it assigns jobs, so a Node repeats only once per
+  job it fits. Idle Pods take the oldest queued jobs, so `createRunner`
+  gives the Pod for queue position `len(idleAlive) + i` that position's
+  Node as one `metadata.name` term at weight 20 beside the golden
+  preference at weight 100 (`podtemplate.PreferCacheVolumeNode`). The
+  image still decides and the volume breaks ties. Two Pods created
+  together are never both steered to a host whose cache disk holds only
+  one job's volumes, which would send the second job's attach cold. The
+  term is in no revision, so it never makes a Pod stale, and a Pod past
+  the list or created without signals keeps only the golden preference.
+
   RuntimeClass overhead is copied into `Pod.spec.overhead` only when
   Kubernetes admits a Pod. Helm therefore hashes the Linux RuntimeClass
   name and fixed processor and memory overhead into
@@ -335,6 +370,17 @@ independent workqueues:
   This deliberately follows maximum-unavailable semantics: a scale-up
   can pause a roll rather than letting the controller remove another
   warm Pod while serving capacity is already unavailable.
+
+  An image roll leaves a stale macOS Pod alone while its seat is in
+  flight (`macOSSeatInFlight`): reaping it mid-pull, or draining it
+  before its first poll, makes the job it was created for wait for a
+  replacement to pull the new image. It runs that job on the old image
+  and exits like any single-shot runner.
+
+  An image change moves the replaced image to `status.previousImage`.
+  tart-kubelet reads it to pull the new image on hosts that hold the old
+  one before its GC reaps the old golden, so a release costs those hosts
+  the overlay rather than the whole image (see `../tart-kubelet/AGENTS.md`).
 
   `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
   retirement signal. The controller does not apply or clear it. The
@@ -1112,6 +1158,31 @@ Shape:
   starts dockerd to cover dockerd's own fd budget. Kata's
   microVM kernel defaults nofile=1024; without both, a docker
   build that walks a non-trivial `node_modules` tree EMFILEs.
+
+### Open-file limits for job steps
+
+The `runner` container needs no setting of its own: measured on
+production and canary (2026-10-22), job steps, every process up
+to `run-job.sh`, and Docker containers all get `RLIMIT_NOFILE`
+soft=hard=1048576 inside the guest. That is above the 65536
+GitHub-hosted runners give, and runners acceptance fails with
+`Runner file limits` if it ever drops below
+(`.github/scripts/runners-acceptance/file-limits.sh`).
+
+The limit a file-heavy job actually hits is on the host:
+virtiofsd, which serves the Pod's rootfs and volumes to the
+guest, holds one host descriptor per inode the guest has cached
+and answers EMFILE once its budget is spent, whatever the guest
+process's rlimit says. Kata's default budget is about one
+million; a server `Seed` job peaked at ~888k cached inodes
+(831k of them ClickHouse part files) and intermittently failed
+with ClickHouse `Too many open files` (errno 24). Runner hosts
+raise the budget through the CAPI provider (`kata_virtiofs.go`,
+see `../cluster-api-provider-tuist/AGENTS.md`). The manual
+`linux-runners-staging-smoke.yml` `file-budget` job keeps 1.2
+million files on the rootfs to prove a host carries it; it is
+not in the canary gate because warm Pods started before a host
+converged keep the old budget.
 
 ### Why stage externals? (job `container:` support)
 

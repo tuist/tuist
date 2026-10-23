@@ -33,6 +33,10 @@ func (a *agent) allocate(ctx context.Context, url string, body []byte, result an
 		if err != nil || status == http.StatusOK {
 			return err
 		}
+		// The volume is larger than this host's maximum. Retrying cannot help.
+		if status == http.StatusInsufficientStorage {
+			return cachevolumes.ErrCapacity
+		}
 		if status != http.StatusTooEarly {
 			return fmt.Errorf("authorization rejected: %d", status)
 		}
@@ -58,7 +62,7 @@ func (a *agent) allocateOnce(ctx context.Context, url string, body []byte, resul
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
-	response, err := a.http.Do(req)
+	response, err := cachevolumes.DoServer(a.http, req, a.log)
 	if err != nil {
 		return 0, err
 	}

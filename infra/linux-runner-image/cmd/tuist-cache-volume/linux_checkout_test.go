@@ -150,7 +150,7 @@ func TestLinuxCheckoutExportStreamsTheExportAndCleansUp(t *testing.T) {
 	if !strings.HasPrefix(result, "exported") {
 		t.Fatal(result)
 	}
-	if strings.TrimSpace(entries["head"]) != head || entries["pack"] == "" || entries["lfs/"+oid] != "object" || len(entries) != 3 {
+	if strings.TrimSpace(entries["head"]) != head || entries["pack"] == "" || entries["lfs/"+oid] != "object" || strings.TrimSpace(entries["shallow"]) != head || len(entries) != 4 {
 		t.Fatalf("streamed %v", entries)
 	}
 	if _, err := os.Stat(scratch); !os.IsNotExist(err) {

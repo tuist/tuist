@@ -13,7 +13,7 @@ Native clients for Atlas, with a shared Rust core and builds powered by
 | Internal distribution | [tuist/atlas-mobile](https://tuist.dev/tuist/atlas-mobile) |
 
 The app signs in to hosted or self-hosted Atlas using its existing browser login
-page, then presents Accounts, Tasks and Notes using the shared Rust catalog.
+page, then presents a native workspace using the shared Rust catalog.
 Rust owns OAuth discovery, dynamic public-client registration, S256 PKCE, token
 exchange and refresh. iOS presents a system authentication session and stores
 credentials in Keychain; Android opens the system browser and encrypts credentials
@@ -26,10 +26,70 @@ and the same Tuist mark used by Atlas's web login and dashboard. They offer Atla
 selection happens on the server's login page. Light and dark assets share a
 checked-in generator under `resources/`.
 
-Selecting a section still opens its Atlas page in the system browser, which may
-ask for a separate browser sign-in. Native OAuth tokens do not create browser
-cookies. The app does not yet fetch workspace data or provide offline editing;
-this is a foundation for native features, not a WebView wrapper.
+Tasks, sales accounts, manual invoice bookkeeping, employee time off, People and
+Profile use native screens and authenticated APIs. Browse displays implemented
+native destinations only; the shared catalog/CLI also retain browser routes.
+Native OAuth tokens do not create browser cookies. The app is not a WebView
+wrapper and does not provide offline editing.
+
+## Object navigation
+
+Both clients accept server-bound native object links for Tasks, Accounts, Finance,
+Time off, People and Profile. A link can open a task, account or invoice directly
+by UUID, independently of loaded list pages. Notifications, other systems and UI
+agents use the same read-only destination contract and normal authentication.
+Supported hosted HTTPS links use iOS Universal Links and Android App Links, with
+explicit **Open in Atlas** and browser fallback actions on the web. Native screens
+also offer **Open in browser** for richer web functionality. Automatic handoff
+requires an installed build and verified signing/domain setup; self-hosted
+instances use the server-bound custom scheme.
+The shared allowlist in `core/src/destinations.rs` defines six stable screen keys:
+`tasks`, `accounts`, `invoices`, `time-off`, `people`, and `profile`. Only the first
+three accept a record ID. Notifications should carry a `destination_url` using
+this grammar, without credentials, titles, API paths, or mutation actions:
+
+```text
+dev.tuist.atlas://navigate/<screen>[/<lowercase-uuid>]?server=<encoded-https-origin>
+https://atlas.tuist.dev/open/<screen>[/<lowercase-uuid>]
+```
+
+Hosted handoff also supports the ordinary pages `/tasks`,
+`/commercial/sales/accounts` and its UUID detail, `/people`, `/people/time-off`,
+and `/settings`. Matching is exact, not a claim on their descendants. The broader
+`/commercial/finance` dashboard stays in the browser; its header can explicitly
+open native invoices. Canonical share URLs always use `/open`, while the native
+browser escape opens a real web page. Account records have a browser detail;
+task and invoice records fall back to their collections.
+
+Links never select a server, initiate login, or grant access. A signed-out link
+waits for normal sign-in, then must match its HTTPS origin. Pending links are
+latest-wins and memory-only, retained across Android rotation but not process
+death or session end. Drafts, saves, and AI setup reject navigation with an
+explanation; finish or discard the work and reopen the link. Back returns to the
+native parent without replacing unrelated feature models.
+
+Queries and fragments on HTTPS links are ignored, never forwarded. Custom-scheme
+links require exactly one `server` query parameter. Credentials, encoded paths,
+unsupported routes, and noncanonical UUIDs are rejected. Server origins allow
+only HTTPS, an ASCII/punycode host, an optional port, and an empty/root path.
+Host case and default port 443 are equivalent; other ports must match.
+
+Agents use normal OS ingress on an already authenticated simulator/emulator:
+
+```sh
+xcrun simctl openurl booted \
+  'https://atlas.tuist.dev/open/tasks/123e4567-e89b-12d3-a456-426614174000'
+adb shell am start -W -a android.intent.action.VIEW \
+  -d 'dev.tuist.atlas://navigate/accounts?server=https%3A%2F%2Fatlas.tuist.dev%2F' \
+  dev.tuist.atlas
+```
+
+Installation, verified domain/signing setup, browser context, and user preferences
+control OS handoff. Same-domain browsing and typed URLs may stay in the browser;
+the explicit web action covers these cases. Custom schemes are not verified and
+can be registered by other apps. Fixture navigation tests do not prove live
+verification. Operator setup lives in the existing
+[deployment guidance](../atlas/deploy/AGENTS.md#native-app-links).
 
 ## Develop
 
@@ -117,8 +177,9 @@ adb shell am start -n dev.tuist.atlas/.MainActivity
 ```
 
 The APK includes `libatlas_core.so` for `arm64-v8a` and supports Android 8.0+.
-Use an arm64 emulator or device. Once signs previews with a debug key; these are
-not Play Store release bundles.
+Use an arm64 emulator or device. Local/CI builds use a debug key; protected nightly
+distribution uses a separately provisioned stable key so Android App Links can
+verify the app identity. These are not Play Store release bundles.
 
 ### iOS
 
@@ -145,7 +206,8 @@ Tuist app's existing profile cannot sign Atlas.
 
 One-time setup in Apple Developer (Tuist GmbH, team `U6LC622NKF`):
 
-1. Register the explicit app identifier `dev.tuist.atlas`.
+1. Register the explicit app identifier `dev.tuist.atlas` and enable its
+   **Associated Domains** capability before generating the profile.
 2. Register each team iPhone/iPad's UDID (or select the devices already registered
    for the Tuist app).
 3. Create an **Ad Hoc** profile named **Atlas App Ad Hoc** for that identifier,
@@ -224,16 +286,18 @@ mise run build:android
   artifacts for 14 days. The CLI archive preserves executable permissions and
   its artifact name identifies the build host's OS and architecture.
 - Uses shared caching in trusted jobs when authentication succeeds, except for
-  device builds. Device builds use only the local cache so distribution signing
+  Android and iOS device builds. These use only the local cache so distribution signing
   never consumes outputs from the shared cache used by pull requests. Forks also
   use only the local cache and have no OIDC permission.
 - Publishes the APK, simulator app and signed device IPA to Tuist's `nightly`
   preview track only after all main-branch build, test and lint jobs pass.
   A manual dispatch on `main` also publishes previews. Device signing requires
   the one-time profile setup above and fails visibly if credentials are missing.
-  Signing completes before any previews are uploaded, so signing failures do not
-  publish a simulator-only nightly. Credential-free keychain and icon-packaging
-  tests also gate publication. Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION`
+  Android distribution requires a stable signing identity; until configured,
+  debug APKs remain CI artifacts rather than nightly downloads. Android and
+  simulator publication precede device signing, so an iOS provisioning-profile
+  update does not prevent the other previews from publishing. Credential-free
+  signing guards, keychain and icon-packaging tests also gate publication. Simulator uploads use `TUIST_PREVIEW_BUILD_VERSION`
   with a fresh timestamp so cached binaries and delivery reruns do not collide
   with an existing preview. This changes only preview metadata, leaving the app's
   internal build version and signature unchanged. Device packaging already stamps

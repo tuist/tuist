@@ -7,8 +7,13 @@ defmodule AtlasWeb.NativeControllerTest do
 
   alias Atlas.Accounts
   alias Atlas.Accounts.Account
+  alias Atlas.Accounts.Event
+  alias Atlas.Accounts.ExchangeRates
+  alias Atlas.Accounts.Term
   alias Atlas.Audit.Activity
+  alias Atlas.Documents.Document
   alias Atlas.Finance.Invoice
+  alias Atlas.OAuth.AccessTokens
   alias Atlas.Repo
   alias Atlas.Tasks
   alias Atlas.Tasks.Task
@@ -34,7 +39,8 @@ defmodule AtlasWeb.NativeControllerTest do
 
     assert json_response(response, 200) == %{
              "server_version" => to_string(Application.spec(:atlas, :vsn)),
-             "user" => %{"name" => user.name, "email" => user.email}
+             "user" => %{"name" => user.name, "email" => user.email},
+             "push_notifications" => %{"ios" => false, "android" => false}
            }
 
     assert get_resp_header(response, "cache-control") == ["no-store"]
@@ -156,6 +162,173 @@ defmodule AtlasWeb.NativeControllerTest do
       assert unscoped |> get("/api/native/#{resource}") |> json_response(403)
       assert unscoped |> get("/api/native/#{resource}/#{id}") |> json_response(403)
     end
+  end
+
+  test "account details include related data and derived contract value without exposing storage or restricted contents" do
+    {reader, _user} = api_user(["accounts:read"])
+    {document_reader, _user} = api_user(["accounts:read", "documents:read"])
+    {:ok, account} = Accounts.create_manual_account(%{name: "Detailed account", current_value: "5", currency: "EUR"})
+    {:ok, other} = Accounts.create_manual_account(%{name: "Unrelated account"})
+
+    {:ok, contact} =
+      Accounts.create_contact(account, %{full_name: "Taylor", email: "taylor@example.org", is_primary: true})
+
+    {:ok, _contact} = Accounts.create_contact(other, %{full_name: "Not related", email: "other@example.org"})
+
+    term =
+      Repo.insert!(%Term{
+        account_id: account.id,
+        source: "atlas",
+        payment: "yearly",
+        start_date: ~D[2020-01-01],
+        total: Decimal.new("1234.56"),
+        currency: "USD"
+      })
+
+    Repo.insert!(%Event{
+      account_id: account.id,
+      author_id: nil,
+      external_id: Ecto.UUID.generate(),
+      source: "atlas",
+      kind: "note",
+      title: "Follow up",
+      body: "Sales context",
+      occurred_at: ~U[2026-10-20 12:00:00Z]
+    })
+
+    document =
+      Repo.insert!(%Document{
+        account_id: account.id,
+        title: "Contract",
+        original_filename: "contract.pdf",
+        source: "upload",
+        content_type: "application/pdf",
+        storage_bucket: "private",
+        storage_key: Ecto.UUID.generate(),
+        status: "ready",
+        summary: "Restricted document contents"
+      })
+
+    response = reader |> get("/api/native/accounts/#{account.id}") |> json_response(200)
+
+    assert %{"item" => %{"can_edit" => false, "can_delete" => false, "fields" => fields, "details" => details}} =
+             response
+
+    assert Decimal.equal?(Decimal.new(fields["current_value"]), Decimal.new("5"))
+    assert fields["contract_value"] == "1234.56"
+    assert fields["contract_currency"] == "USD"
+    assert [%{"id" => contact_id, "fields" => %{"full_name" => "Taylor", "is_primary" => "true"}}] = details["contacts"]
+    assert contact_id == contact.id
+    assert [%{"id" => term_id, "fields" => %{"total" => "1234.56", "start_date" => "2020-01-01"}}] = details["terms"]
+    assert term_id == term.id
+    assert [%{"fields" => %{"body" => "Sales context", "author_name" => ""}}] = details["events"]
+    assert [%{"id" => document_id, "fields" => %{"title" => "Contract"} = document_fields}] = details["documents"]
+    assert document_id == document.id
+    refute Map.has_key?(document_fields, "summary")
+    refute Jason.encode!(response) =~ "storage_key"
+    refute Jason.encode!(response) =~ "Restricted document contents"
+    refute Jason.encode!(response) =~ "Not related"
+
+    full = document_reader |> get("/api/native/accounts/#{account.id}") |> json_response(200)
+    assert hd(full["item"]["details"]["documents"])["fields"]["summary"] == "Restricted document contents"
+    assert reader |> get("/api/native/invoices") |> json_response(403) == %{"error" => "forbidden"}
+    assert document_reader |> get("/api/native/invoices") |> json_response(403) == %{"error" => "forbidden"}
+  end
+
+  test "revoked OAuth grants immediately deny account details and finance overview", %{api: api} do
+    {:ok, account} = Accounts.create_manual_account(%{name: "Private account"})
+    paths = ["/api/native/accounts/#{account.id}", "/api/native/invoices"]
+    for path <- paths, do: assert(api |> get(path) |> json_response(200))
+    ["Bearer " <> value] = get_req_header(api, "authorization")
+    assert {:ok, _revoked} = value |> then(&AccessTokens.get_by(value: &1)) |> AccessTokens.revoke()
+
+    for path <- paths do
+      response = get(api, path)
+      assert json_response(response, 401)["error"] == "invalid_token"
+      assert get_resp_header(response, "cache-control") == ["no-store"]
+    end
+  end
+
+  test "finance overview unifies bank currencies, excludes transfers, and ignores invoice filters" do
+    stub(DateTime, :utc_now, fn -> ~U[2026-10-22 12:00:00.000000Z] end)
+    {api, _user} = api_user(["finance:read"])
+
+    stub(ExchangeRates, :latest_rates, fn _ ->
+      {:ok, %{published_on: ~D[2026-10-21], rates: %{"USD" => Decimal.new("2"), "GBP" => Decimal.new("0.5")}}}
+    end)
+
+    source = insert_finance_source!()
+    eur = insert_finance_account!(source, %{available_balance_value: Decimal.new("900")})
+
+    usd =
+      insert_finance_account!(source, %{
+        currency: "USD",
+        available_balance_currency: "USD",
+        available_balance_value: Decimal.new("200")
+      })
+
+    gbp =
+      insert_finance_account!(source, %{
+        currency: "GBP",
+        available_balance_currency: "GBP",
+        available_balance_value: Decimal.new("50")
+      })
+
+    for {account, amount, direction, occurred_at, runway?} <- [
+          {eur, "1", "debit", ~U[2026-01-01 12:00:00Z], true},
+          {usd, "240", "debit", ~U[2026-09-30 23:59:59Z], true},
+          {eur, "10", "credit", ~U[2026-10-01 00:00:00Z], true},
+          {usd, "80", "credit", ~U[2026-10-20 12:00:00Z], true},
+          {gbp, "75", "debit", ~U[2026-10-20 12:00:00Z], true},
+          {usd, "40", "debit", ~U[2026-10-20 12:00:00Z], true},
+          {eur, "9999", "credit", ~U[2026-10-20 12:00:00Z], false}
+        ] do
+      insert_finance_transaction!(account, %{
+        amount_value: Decimal.new(amount),
+        direction: direction,
+        settled_at: occurred_at,
+        booked_at: occurred_at,
+        affects_runway: runway?
+      })
+    end
+
+    insert_finance_invoice!(%{total_amount_value: Decimal.new("99999"), invoice_date: ~D[2026-10-20]})
+    response = get(api, "/api/native/invoices?query=no-match&status=failed")
+    assert get_resp_header(response, "cache-control") == ["no-store"]
+    assert %{"items" => [], "can_write" => false, "finance_overview" => overview} = json_response(response, 200)
+    assert overview["currency"] == "EUR"
+    assert overview["as_of"] == "2026-10-22"
+    assert overview["fx_published_on"] == "2026-10-21"
+    assert overview["account_count"] == 3
+    assert overview["excluded_currencies"] == []
+    assert Decimal.equal?(Decimal.new(overview["available_cash"]), Decimal.new("1100"))
+    assert Decimal.equal?(Decimal.new(overview["monthly_burn"]), Decimal.new("40"))
+    assert Decimal.equal?(Decimal.new(overview["runway_months"]), Decimal.new("27.5"))
+
+    assert Enum.take(overview["months"], -2) == [
+             %{"month" => "2026-09", "income" => "0", "expense" => "120.00"},
+             %{"month" => "2026-10", "income" => "50.00", "expense" => "170.00"}
+           ]
+
+    assert api |> get("/api/native/accounts/#{Ecto.UUID.generate()}") |> json_response(403)
+  end
+
+  test "finance does not present missing accounts or incomplete currency conversion as valid totals", %{api: api} do
+    empty = api |> get("/api/native/invoices") |> json_response(200) |> Map.fetch!("finance_overview")
+    assert empty["account_count"] == 0
+    assert empty["available_cash"] == nil
+    assert empty["months"] == []
+    stub(ExchangeRates, :latest_rates, fn _ -> {:error, :unavailable} end)
+    insert_finance_account!(insert_finance_source!(), %{currency: "USD", available_balance_currency: "USD"})
+    missing = api |> get("/api/native/invoices") |> json_response(200) |> Map.fetch!("finance_overview")
+    assert missing["excluded_currencies"] == ["USD"]
+
+    assert Map.take(missing, ~w(available_cash monthly_burn runway_months months)) == %{
+             "available_cash" => nil,
+             "monthly_burn" => nil,
+             "runway_months" => nil,
+             "months" => []
+           }
   end
 
   test "manual invoice CRUD owns provenance, while document-less imported invoices remain read-only", %{

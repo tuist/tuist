@@ -1,8 +1,27 @@
-# Management node Talos patches
+# Management node Talos patches and Hetzner resources
 
-The management cluster is a single Talos node (`tuist-mgmt`). These files are
-Talos machine config patches, applied by hand with `talosctl`. Nothing in CI
-or Flux applies them.
+The management cluster is a single Talos node (`tuist-mgmt`) in Hetzner Cloud
+project `tuist-mgmt`.
+
+- `hetzner.yaml` declares the Hetzner resources around it: the private network,
+  and the `tuist-mgmt-api` load balancer in front of the Kubernetes API with a
+  primary IPv4 of the same name, so its address survives a load balancer
+  recreate. The `hetzner` job in `.github/workflows/mgmt-cluster-apply.yml`
+  reconciles it on merge to main with
+  `infra/mise/tasks/mgmt/reconcile-hetzner.sh`, after printing the planned
+  changes. The token lives in the `tuist-k8s-mgmt-hetzner` vault, which only
+  that job's `mgmt-hetzner` environment can read.
+- The other files are Talos machine config patches, applied by hand with
+  `talosctl`. Nothing in CI or Flux applies them.
+
+To preview the Hetzner changes locally (`CI=1` keeps the repo's mise
+postinstall hook from running `tuist setup`; `op run` passes the token to
+this one command only):
+
+```bash
+HCLOUD_TOKEN=op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential \
+  CI=1 op run -- mise exec -- infra/mise/tasks/mgmt/reconcile-hetzner.sh
+```
 
 The operator talosconfig is the `talosconfig: tuist-mgmt` document in the
 1Password `Development` vault. The node is reachable over the tailnet at

@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // RunnerHostAudience is the audience of the token a host presents to list the
@@ -41,21 +43,17 @@ const (
 // know where the server is.
 var errPrefetchUnavailable = errors.New("cache master prefetch endpoint unknown")
 
-// PrefetchMaster is one HEAD the server wants this host to hold. A custom
-// volume's HEAD (Kind "custom") names the use that published it and its scope
-// instead of a volume and download URL; the custom-volume agent fetches it.
+// PrefetchMaster is one HEAD the server wants this host to hold; only Kind "custom" is fetched.
 type PrefetchMaster struct {
 	Kind          string `json:"kind"`
 	ID            string `json:"id"`
 	AccountID     int64  `json:"account_id"`
-	Volume        string `json:"volume"`
 	Scope         string `json:"scope"`
 	Generation    int    `json:"generation"`
-	Digest        string `json:"digest"`
 	ImageDigest   string `json:"image_digest"`
 	ContentDigest string `json:"content_digest"`
-	DownloadURL   string `json:"download_url"`
 	VolumeBytes   int64  `json:"volume_bytes"`
+	HeadSizeBytes int64  `json:"head_size_bytes"`
 }
 
 // PrefetchSource lists the masters the server wants this host to hold, most
@@ -205,4 +203,112 @@ func serviceAccountFromUsername(username string) (namespace, name string, ok boo
 		return "", "", false
 	}
 	return namespace, name, true
+}
+
+const (
+	prefetchPollInterval    = 15 * time.Second
+	prefetchRefreshInterval = 10 * time.Minute
+)
+
+// PrefetchPoller hands the custom-volume HEADs the server lists for this host's fleet to the custom-volume agent.
+type PrefetchPoller struct {
+	Source PrefetchSource
+	Custom interface {
+		PrefetchMaster(cachevolumes.Identity) bool
+	}
+
+	pollInterval    time.Duration
+	refreshInterval time.Duration
+	now             func() time.Time
+
+	mu          sync.Mutex
+	lastRefresh time.Time
+}
+
+// ObservePod lets the source learn where the server is from the runner Pods this host runs.
+func (p *PrefetchPoller) ObservePod(pod *corev1.Pod) {
+	if p == nil {
+		return
+	}
+	if observer, ok := p.Source.(interface{ ObservePod(*corev1.Pod) }); ok {
+		observer.ObservePod(pod)
+	}
+}
+
+// Start implements manager.Runnable.
+func (p *PrefetchPoller) Start(ctx context.Context) error {
+	interval := p.pollInterval
+	if interval <= 0 {
+		interval = prefetchPollInterval
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		p.refresh(ctx)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-t.C:
+		}
+	}
+}
+
+func (p *PrefetchPoller) clock() time.Time {
+	if p.now != nil {
+		return p.now()
+	}
+	return time.Now()
+}
+
+// refresh lists the HEADs at most once per refresh interval, and as soon as the server is known.
+func (p *PrefetchPoller) refresh(ctx context.Context) {
+	if p.Source == nil || p.Custom == nil || ctx.Err() != nil {
+		return
+	}
+	interval := p.refreshInterval
+	if interval <= 0 {
+		interval = prefetchRefreshInterval
+	}
+	now := p.clock()
+	p.mu.Lock()
+	due := p.lastRefresh.IsZero() || now.Sub(p.lastRefresh) >= interval
+	if due {
+		p.lastRefresh = now
+	}
+	p.mu.Unlock()
+	if !due {
+		return
+	}
+	masters, err := p.Source.CacheMasters(ctx)
+	if errors.Is(err, errPrefetchUnavailable) {
+		p.mu.Lock()
+		p.lastRefresh = time.Time{}
+		p.mu.Unlock()
+		return
+	}
+	if err != nil {
+		log.Log.WithName("custom-cache-volumes").Error(err, "list the custom cache masters to prefetch")
+		return
+	}
+	for _, master := range masters {
+		if master.Kind != "custom" {
+			continue
+		}
+		p.Custom.PrefetchMaster(cachevolumes.Identity{
+			ID: master.ID, Account: master.AccountID, Scope: master.Scope, BaseGeneration: int64(master.Generation),
+			ImageDigest: master.ImageDigest, ContentDigest: master.ContentDigest, VolumeBytes: master.VolumeBytes, HeadSizeBytes: master.HeadSizeBytes,
+		})
+	}
+}
+
+// masterDownloadClient refuses redirects: a presigned object-storage URL is
+// served directly, so following one could only bounce this host to an address
+// the server never vetted.
+var masterDownloadClient = &http.Client{
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ResponseHeaderTimeout: time.Minute,
+		TLSHandshakeTimeout:   30 * time.Second,
+	},
 }

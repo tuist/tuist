@@ -747,6 +747,34 @@ func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 	}
 }
 
+// cacheVolumePreferenceWeight keeps the volume preference below the golden
+// one: a host without the image pulls it for minutes, while a host without a
+// volume only starts that volume cold.
+const cacheVolumePreferenceWeight = 20
+
+// PreferCacheVolumeNode adds a soft preference for `nodeName`, a host the
+// server picked because it holds the custom cache volumes of the queued job
+// this Pod is created for and has cache disk room for them. An empty name
+// leaves the Pod alone.
+func PreferCacheVolumeNode(pod *corev1.Pod, nodeName string) {
+	if nodeName == "" {
+		return
+	}
+	if pod.Spec.Affinity == nil {
+		pod.Spec.Affinity = &corev1.Affinity{}
+	}
+	if pod.Spec.Affinity.NodeAffinity == nil {
+		pod.Spec.Affinity.NodeAffinity = &corev1.NodeAffinity{}
+	}
+	node := pod.Spec.Affinity.NodeAffinity
+	node.PreferredDuringSchedulingIgnoredDuringExecution = append(node.PreferredDuringSchedulingIgnoredDuringExecution, corev1.PreferredSchedulingTerm{
+		Weight: cacheVolumePreferenceWeight,
+		Preference: corev1.NodeSelectorTerm{MatchFields: []corev1.NodeSelectorRequirement{{
+			Key: "metadata.name", Operator: corev1.NodeSelectorOpIn, Values: []string{nodeName},
+		}}},
+	})
+}
+
 // schedulingFor returns the nodeSelector + tolerations for a pool's
 // substrate.
 //

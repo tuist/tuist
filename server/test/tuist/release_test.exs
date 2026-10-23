@@ -88,6 +88,7 @@ defmodule Tuist.ReleaseTest do
                "GRANT SELECT ON `tuist`.* TO `tuist_grafana_readonly`",
                "GRANT SELECT ON system.tables TO `tuist_grafana_readonly`",
                "GRANT SELECT ON system.columns TO `tuist_grafana_readonly`",
+               "GRANT SELECT ON system.query_log TO `tuist_grafana_readonly`",
                """
                CREATE USER IF NOT EXISTS `tuist_grafana`
                IDENTIFIED WITH sha256_hash BY '#{String.duplicate("b", 64)}'
@@ -158,15 +159,16 @@ defmodule Tuist.ReleaseTest do
                ~s|ALTER DEFAULT PRIVILEGES IN SCHEMA "public" REVOKE ALL ON TABLES FROM "tuist_grafana_ro"|
     end
 
-    test "grants exactly the columns the dashboard reads" do
+    test "grants exactly the columns the dashboard and the alert rules read" do
       assert granted_columns(Enum.join(statements(), "\n"), ~s|"public"|) == %{
-               "accounts" => Enum.sort(~w(id name billing_email organization_id current_month_remote_cache_hits_count
-                    current_month_remote_cache_hits_count_updated_at)),
+               "accounts" => Enum.sort(~w(id name billing_email organization_id)),
                "bundles" => Enum.sort(~w(project_id inserted_at git_ref)),
                "organizations" => Enum.sort(~w(id created_at)),
                "previews" => Enum.sort(~w(project_id inserted_at)),
                "projects" => Enum.sort(~w(id name account_id created_at build_system)),
                "roles" => Enum.sort(~w(id resource_id resource_type)),
+               "runner_cache_volume_uses" => Enum.sort(~w(volume_id base_generation warm attached_at)),
+               "runner_cache_volumes" => Enum.sort(~w(id key platform)),
                "subscriptions" => Enum.sort(~w(account_id status)),
                "users" => ["created_at"],
                "users_roles" => Enum.sort(~w(user_id role_id))

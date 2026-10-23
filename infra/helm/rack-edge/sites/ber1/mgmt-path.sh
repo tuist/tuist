@@ -53,6 +53,7 @@ table ip tuist_mgmt_path {
     oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
     iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.17,192.168.0.16 } masquerade
     oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade
+    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent
     oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
     oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade
   }

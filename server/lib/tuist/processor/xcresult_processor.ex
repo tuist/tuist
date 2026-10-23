@@ -303,6 +303,8 @@ defmodule Tuist.Processor.XCResultProcessor do
     if is_nil(account_handle) or is_nil(project_handle) or is_nil(test_run_id) do
       {:ok, parsed_data}
     else
+      parsed_data = identify_attachments(parsed_data, opts)
+
       all_attachments =
         parsed_data
         |> Map.get("test_modules", [])
@@ -320,7 +322,7 @@ defmodule Tuist.Processor.XCResultProcessor do
         |> Enum.zip(all_attachments)
         |> Enum.reduce(%{}, fn
           {{:ok, {:ok, uploaded}}, original}, acc ->
-            Map.put(acc, original["file_path"], uploaded)
+            Map.put(acc, original["attachment_id"], uploaded)
 
           {{:ok, :error}, original}, acc ->
             Logger.error("Failed to upload attachment: #{original["file_name"]}")
@@ -350,7 +352,7 @@ defmodule Tuist.Processor.XCResultProcessor do
   defp replace_test_case_attachments(test_case, uploaded_map) do
     Map.update(test_case, "attachments", [], fn attachments ->
       Enum.flat_map(attachments, fn att ->
-        case Map.fetch(uploaded_map, att["file_path"]) do
+        case Map.fetch(uploaded_map, att["attachment_id"]) do
           {:ok, uploaded} -> [uploaded]
           :error -> []
         end
@@ -358,10 +360,57 @@ defmodule Tuist.Processor.XCResultProcessor do
     end)
   end
 
+  defp identify_attachments(parsed_data, opts) do
+    scope = %{
+      test_run_id: Keyword.get(opts, :test_run_id),
+      source_test_run_id: Keyword.get(opts, :source_test_run_id) || Keyword.get(opts, :test_run_id),
+      shard_index: Keyword.get(opts, :shard_index),
+      shard_attempt: Keyword.get(opts, :shard_attempt) || 0,
+      shard_report_revision: Keyword.get(opts, :shard_report_revision) || 0,
+      artifact: Keyword.get(opts, :artifact, :main)
+    }
+
+    modules =
+      parsed_data
+      |> Map.get("test_modules", [])
+      |> Enum.map(fn module ->
+        cases =
+          module
+          |> Map.get("test_cases", [])
+          |> Enum.with_index()
+          |> Enum.map(fn {test_case, case_index} ->
+            attachments =
+              test_case
+              |> Map.get("attachments", [])
+              |> Enum.with_index()
+              |> Enum.map(fn {attachment, occurrence} ->
+                identity =
+                  {scope, module["name"], case_index, test_case["test_suite_name"], test_case["name"], occurrence,
+                   Map.drop(attachment, ["file_path", "attachment_id"])}
+
+                Map.put(attachment, "attachment_id", attachment_uuid(identity))
+              end)
+
+            Map.put(test_case, "attachments", attachments)
+          end)
+
+        Map.put(module, "test_cases", cases)
+      end)
+
+    Map.put(parsed_data, "test_modules", modules)
+  end
+
+  defp attachment_uuid(identity) do
+    namespace = Ecto.UUID.dump!("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+    name = :erlang.term_to_binary({:tuist_xcresult_attachment, identity}, [:deterministic])
+    <<a::48, _::4, b::12, _::2, c::62, _::binary>> = :crypto.hash(:sha, namespace <> name)
+    Ecto.UUID.cast!(<<a::48, 5::4, b::12, 2::2, c::62>>)
+  end
+
   defp upload_attachment(attachment, bucket, account_handle, project_handle, test_run_id) do
     file_path = Map.get(attachment, "file_path")
     file_name = Map.get(attachment, "file_name")
-    attachment_id = Ecto.UUID.generate()
+    attachment_id = Map.fetch!(attachment, "attachment_id")
 
     if file_path && File.exists?(file_path) do
       s3_key =

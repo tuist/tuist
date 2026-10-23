@@ -611,6 +611,122 @@ func TestReservation_DoesNotRetireAFreshlySeatedPod(t *testing.T) {
 	}
 }
 
+func macOSPod(pod *corev1.Pod) *corev1.Pod {
+	pod.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "darwin"}
+	return pod
+}
+
+// provisioningMacOSPod is bound to a host whose tart-kubelet is still
+// pulling the image or creating the VM: Pending, with only the scheduler's
+// PodScheduled condition on it.
+func provisioningMacOSPod(name, pool, node string, boundAt time.Time) *corev1.Pod {
+	pod := macOSPod(seatedPod(name, pool, node, boundAt))
+	pod.Status.Phase = corev1.PodPending
+	return pod
+}
+
+// bootedMacOSPod's VM is up. tart-kubelet has replaced its conditions and
+// stamped the VM start as the Pod's start time.
+func bootedMacOSPod(name, pool, node string, vmStartedAt time.Time) *corev1.Pod {
+	pod := macOSPod(placedPod(name, pool, node, ""))
+	startedAt := metav1.NewTime(vmStartedAt)
+	pod.Status.StartTime = &startedAt
+	return pod
+}
+
+func reservedM4Node(name string, pool *tuistv1.RunnerPool) *corev1.Node {
+	node := m4Node(name)
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+	return node
+}
+
+func remainingPodNames(t *testing.T, r *RunnerPoolReconciler) map[string]bool {
+	t.Helper()
+	remaining := &corev1.PodList{}
+	if err := r.List(context.Background(), remaining, client.InNamespace("runners")); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	names := map[string]bool{}
+	for i := range remaining.Items {
+		names[remaining.Items[i].Name] = true
+	}
+	return names
+}
+
+// A cold image pull keeps a macOS Pod Pending for many minutes after it
+// binds. Retiring it then throws the pull away while the job it was created
+// for waits for a replacement to pull again.
+func TestReservation_DoesNotRetireAMacOSPodStillCreatingItsVM(t *testing.T) {
+	pool := largePool()
+	node := reservedM4Node("m4-0", pool)
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	pulling := provisioningMacOSPod("small-pulling", "macos-26-6", "m4-0", reservationNow.Add(-14*time.Minute))
+	wedged := provisioningMacOSPod("small-wedged", "macos-26-6", "m4-0", reservationNow.Add(-macOSProvisioningGrace-time.Minute))
+
+	r := reservationReconciler(pool, smallPool(), node, starved, pulling, wedged)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	names := remainingPodNames(t, r)
+	if !names["small-pulling"] {
+		t.Error("a macOS Pod still creating its VM must not be retired")
+	}
+	if names["small-wedged"] {
+		t.Error("a macOS Pod that has not come up within the provisioning grace should be retired")
+	}
+}
+
+// The VM is up, but the guest has not had time to claim the job queued for
+// it. Retiring it now loses the job's seat just as it is about to be used.
+func TestReservation_DoesNotRetireAMacOSPodThatJustBooted(t *testing.T) {
+	pool := largePool()
+	node := reservedM4Node("m4-0", pool)
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	booted := bootedMacOSPod("small-booted", "macos-26-6", "m4-0", reservationNow.Add(-time.Minute))
+	warm := bootedMacOSPod("small-warm", "macos-26-6", "m4-0", reservationNow.Add(-time.Hour))
+
+	r := reservationReconciler(pool, smallPool(), node, starved, booted, warm)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	names := remainingPodNames(t, r)
+	if !names["small-booted"] {
+		t.Error("a macOS Pod whose VM just started must get its first dispatch poll")
+	}
+	if names["small-warm"] {
+		t.Error("a macOS Pod idle long after booting should still be retired")
+	}
+}
+
+// A host whose idle Pod is still creating its VM cannot be cleared straight
+// away, so it must not rank as the host that converges soonest.
+func TestReservation_PrefersAHostWithoutAProvisioningPod(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		provisioningMacOSPod("small-pulling", "macos-26-6", "m4-0", reservationNow.Add(-5*time.Minute)),
+		bootedMacOSPod("small-warm", "macos-26-6", "m4-1", reservationNow.Add(-time.Hour)),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the host with a Pod still creating its VM should not be reserved")
+	}
+	if !isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("the host whose idle Pod can be retired now should be reserved")
+	}
+}
+
 func TestReservation_NeverTakesTheFleetsLastHost(t *testing.T) {
 	pool := linuxLargePool()
 	node := ax162Node("bm-0")
@@ -1085,5 +1201,51 @@ func TestReservation_DoesNotYieldToAnUnseatableShape(t *testing.T) {
 
 	if !isReserved(nodeByName(t, r, "ax-0")) && !isReserved(nodeByName(t, r, "ax-1")) {
 		t.Fatal("blocked forever behind a shape no drain could ever serve")
+	}
+}
+
+// Every image keeps a warm runner, so on a quiet fleet each host can hold an
+// idle one. A host holding only idle runners clears at once, so the starved
+// shape takes it after idleHostReservationGrace rather than reservationGrace.
+func TestReservation_TakesAnIdleHostEarly(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 45*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		bootedMacOSPod("small-warm-0", "macos-26-6", "m4-0", reservationNow.Add(-time.Hour)),
+		bootedMacOSPod("small-warm-1", "macos-26-6", "m4-1", reservationNow.Add(-time.Hour)),
+		placedPod("small-owned", "macos-26-6", "m4-1", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the host holding only an idle runner should be reserved before reservationGrace")
+	}
+	if isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("the host running a job should not be reserved")
+	}
+}
+
+// A host that would have to wait out a job is only worth draining once the
+// Pod has waited the full reservationGrace.
+func TestReservation_WaitsTheFullGraceForABusyHost(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 45*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		placedPod("small-owned-0", "macos-26-6", "m4-0", "acme"),
+		placedPod("small-owned-1", "macos-26-6", "m4-1", "acme"),
+		bootedMacOSPod("small-booted", "macos-26-6", "m4-1", reservationNow.Add(-time.Minute)),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"m4-0", "m4-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Errorf("%s was reserved before reservationGrace although it runs a job", name)
+		}
 	}
 }

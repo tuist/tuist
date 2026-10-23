@@ -1,7 +1,7 @@
 [
   {
     "annotations": {
-      "description": "An instance with desired replicas has no Ready backend for at least two minutes. Treat this as unavailable cache service, not reduced redundancy. Check the public /ready endpoint, pod and node conditions, Cilium and DNS. Correlate other instances on the same node. Do not delete local data volumes to treat a node network partition; preserve data and diagnose connectivity first.",
+      "description": "An instance with desired replicas has no Ready backend for at least two minutes. StatefulSets created in the last ten minutes are excluded while they bootstrap. Treat this as unavailable cache service, not reduced redundancy. Check the public /ready endpoint, pod and node conditions, Cilium and DNS. Correlate other instances on the same node. Do not delete local data volumes to treat a node network partition; preserve data and diagnose connectivity first.",
       "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-instance-has-no-ready-replicas",
       "summary": "Kura instance {{ $labels.statefulset }} has no ready replicas in {{ $labels.cluster }}"
     },
@@ -11,7 +11,7 @@
         "datasourceUid": "grafanacloud-prom",
         "model": {
           "editorMode": "code",
-          "expr": "(max by (cluster, namespace, statefulset) (kube_statefulset_replicas{namespace=\"kura\"}) > bool 0) * on (cluster, namespace, statefulset) (max by (cluster, namespace, statefulset) (kube_statefulset_status_replicas_ready{namespace=\"kura\"}) == bool 0)",
+          "expr": "(max by (cluster, namespace, statefulset) (kube_statefulset_replicas{namespace=\"kura\"}) > bool 0) * on (cluster, namespace, statefulset) (max by (cluster, namespace, statefulset) (kube_statefulset_status_replicas_ready{namespace=\"kura\"}) == bool 0) * on (cluster, namespace, statefulset) (max by (cluster, namespace, statefulset) (time() - kube_statefulset_created{namespace=\"kura\"}) > bool 600)",
           "instant": true,
           "intervalMs": 1000,
           "legendFormat": "__auto",
