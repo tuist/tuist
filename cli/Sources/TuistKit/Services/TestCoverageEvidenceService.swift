@@ -146,7 +146,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             // alike; both are mapped back through the image's target before the files are tied
             // to the repository, so the evidence names the same paths the coverage does.
             let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
-            let targets = await processTargets(
+            // Independent of the package's records, so it runs while they are reduced.
+            async let targetsFromProcesses = processTargets(
                 session: session,
                 profile: profile,
                 resultBundlePath: resultBundlePath,
@@ -155,6 +156,7 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             )
 
             guard !outputs.isEmpty else {
+                let targets = await targetsFromProcesses
                 guard !targets.isEmpty else {
                     Logger.current.debug(processes.isEmpty
                         ? "No test process recorded coverage evidence: no test target links TestCoverageAttribution"
@@ -178,7 +180,12 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                     mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
                 }
             }
-            var evidence = Self.reduce(outputs: outputs, filesByFunction: filesByFunction, mappings: mappings, targets: targets)
+            var evidence = Self.reduce(
+                outputs: outputs,
+                filesByFunction: filesByFunction,
+                mappings: mappings,
+                targets: await targetsFromProcesses
+            )
             evidence.status = evidence.scopes.isEmpty ? .failed : .collected
             return evidence
         } catch {
@@ -429,7 +436,7 @@ extension TestCoverageEvidenceService {
         // The session's directory is made right before the test action starts.
         let createdAt = (try? FileManager.default.attributesOfItem(atPath: session.directory.pathString)[.creationDate] as? Date)
             ?? .distantPast
-        let result = await TestTargetProcessCoverage(commandRunner: commandRunner).collect(
+        let result = await TestTargetProcessCoverage(fileSystem: fileSystem, commandRunner: commandRunner).collect(
             profileDirectory: profile.parentDirectory,
             createdAfter: createdAt,
             bundles: bundles,

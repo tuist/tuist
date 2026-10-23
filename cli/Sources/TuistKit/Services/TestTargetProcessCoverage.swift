@@ -1,7 +1,9 @@
+import FileSystem
 import Foundation
 import Path
 import TuistLogging
 import TuistProcess
+import TuistSupport
 
 /// Which files and lines each test target's processes executed, read from the raw profiles Xcode
 /// leaves beside the run's merged profile, so a run has `target` evidence whether or not its test
@@ -33,6 +35,7 @@ struct TestTargetProcessCoverage {
         var exports = 0
     }
 
+    let fileSystem: FileSysteming
     let commandRunner: CommandRunning
 
     /// `images` are every instrumented image of the run, the bundles' included; `remap` maps a
@@ -81,38 +84,30 @@ struct TestTargetProcessCoverage {
         }
         guard !profilesByModule.isEmpty else { return result }
 
-        let directory: AbsolutePath
-        do {
-            directory = try AbsolutePath(validating: NSTemporaryDirectory())
-                .appending(component: "tuist-target-coverage-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(atPath: directory.pathString, withIntermediateDirectories: true)
-        } catch {
-            return result
+        let reports = try? await fileSystem.runInTemporaryDirectory(prefix: "tuist-target-coverage") { directory in
+            let merged = await concurrentMap(profilesByModule.sorted { $0.key < $1.key }) { module, profiles in
+                let output = directory.appending(component: "\(module).profdata")
+                let merged = await run(["/usr/bin/xcrun", "llvm-profdata", "merge", "-sparse", "-o", output.pathString]
+                    + profiles.map(\.pathString)) != nil
+                return (module, merged ? output : nil)
+            }
+            // A process loads one test bundle, so the other bundles are left out even where they link
+            // the same code statically: `llvm-cov` counts a function by its name, so this bundle's
+            // copy already reports it.
+            let bundleImages = Set(bundles.map(\.image))
+            let exports = merged.flatMap { module, profile -> [(module: String, image: String, profile: AbsolutePath)] in
+                guard let profile, let executed = executedByModule[module] else { return [] }
+                let own = bundles.filter { $0.module == module }.map(\.image)
+                return (own + allImages.filter { !bundleImages.contains($0) })
+                    .filter { !(referencesByImage[$0] ?? []).isDisjoint(with: executed) }
+                    .map { (module, $0, profile) }
+            }
+            return await concurrentMap(exports) { export in
+                (export.module, export.image, await lines(image: export.image, profile: export.profile))
+            }
         }
-        defer { try? FileManager.default.removeItem(atPath: directory.pathString) }
-
-        let merged = await concurrentMap(profilesByModule.sorted { $0.key < $1.key }) { module, profiles in
-            let output = directory.appending(component: "\(module).profdata")
-            let merged = await run(["/usr/bin/xcrun", "llvm-profdata", "merge", "-sparse", "-o", output.pathString]
-                + profiles.map(\.pathString)) != nil
-            return (module, merged ? output : nil)
-        }
-        // A process loads one test bundle, so the other bundles are left out even where they link the
-        // same code statically: `llvm-cov` counts a function by its name, so this bundle's copy
-        // already reports it.
-        let bundleImages = Set(bundles.map(\.image))
-        let exports = merged.flatMap { module, profile -> [(module: String, image: String, profile: AbsolutePath)] in
-            guard let profile, let executed = executedByModule[module] else { return [] }
-            let own = bundles.filter { $0.module == module }.map(\.image)
-            return (own + allImages.filter { !bundleImages.contains($0) })
-                .filter { !(referencesByImage[$0] ?? []).isDisjoint(with: executed) }
-                .map { (module, $0, profile) }
-        }
-        result.exports = exports.count
-        let reports = await concurrentMap(exports) { export in
-            (export.module, export.image, await lines(image: export.image, profile: export.profile))
-        }
-        for (module, image, files) in reports {
+        result.exports = reports?.count ?? 0
+        for (module, image, files) in reports ?? [] {
             for (file, covered) in files {
                 result.targets[module, default: [:]][remap(file, image), default: IndexSet()].formUnion(covered)
             }
@@ -191,24 +186,13 @@ struct TestTargetProcessCoverage {
         }
     }
 
-    private func concurrentMap<Input: Sendable, Output: Sendable>(
+    /// As many at a time as there are cores, in the order given.
+    private func concurrentMap<Input, Output>(
         _ inputs: [Input],
-        _ transform: @escaping @Sendable (Input) async -> Output
+        _ transform: @escaping (Input) async -> Output
     ) async -> [Output] {
-        let limit = max(1, ProcessInfo.processInfo.activeProcessorCount)
-        var results: [(Int, Output)] = []
-        await withTaskGroup(of: (Int, Output).self) { group in
-            for (index, input) in inputs.enumerated() {
-                if index >= limit, let finished = await group.next() {
-                    results.append(finished)
-                }
-                group.addTask { (index, await transform(input)) }
-            }
-            for await finished in group {
-                results.append(finished)
-            }
-        }
-        return results.sorted { $0.0 < $1.0 }.map(\.1)
+        (try? await inputs.concurrentMap(maxConcurrentTasks: max(1, ProcessInfo.processInfo.activeProcessorCount), transform))
+            ?? []
     }
 }
 
