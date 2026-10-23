@@ -528,10 +528,11 @@ defmodule TuistEx.DependencyCacheTest do
   end
 
   @tag wall_clock: true
-  test "rebar3 dependencies and their Mix dependents restore without compilation", %{
-    project: project,
-    dir: dir
-  } do
+  test "rebar3 dependencies with cover reporting and their Mix dependents restore without compilation",
+       %{
+         project: project,
+         dir: dir
+       } do
     rebar_fixture!(project, dir)
     first = run!(project)
     assert first["value"] == 7
@@ -2223,7 +2224,12 @@ defmodule TuistEx.DependencyCacheTest do
     repo = Path.join(dir, "erlang_probe")
     File.mkdir_p!(Path.join(repo, "src"))
     File.mkdir_p!(Path.join(repo, "include"))
-    File.write!(Path.join(repo, "rebar.config"), "{erl_opts, [debug_info]}.\n{deps, []}.\n")
+
+    File.write!(
+      Path.join(repo, "rebar.config"),
+      "{erl_opts, [debug_info]}.\n{deps, []}.\n{cover_print_enabled, true}.\n"
+    )
+
     File.write!(Path.join(repo, "include/value.hrl"), "-define(VALUE, 7).\n")
 
     File.write!(

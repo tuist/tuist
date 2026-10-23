@@ -5,7 +5,7 @@ defmodule TuistEx.Cache.Compiler do
 
   # Only options consumed by bare compilation, or inert without their skipped
   # project plugins. Build plugins and hooks still require a builder contract.
-  @rebar_options ~w(erl_opts deps profiles overrides src_dirs extra_src_dirs erl_first_files project_plugins minimum_otp_vsn min_otp_version xref_checks xref_extra_paths xref_ignores shell hex ex_doc edoc_opts eunit_opts ct_opts ct_compile_opts cover_enabled cover_opts cover_export_enabled covertool dialyzer dialyzer_opts escript_main_app escript_incl_apps escript_emu_args escript_name grpc relx alias pre_hooks post_hooks)a
+  @rebar_options ~w(erl_opts deps profiles overrides src_dirs extra_src_dirs erl_first_files project_plugins minimum_otp_vsn min_otp_version xref_checks xref_extra_paths xref_ignores shell hex ex_doc edoc_opts eunit_opts ct_opts ct_compile_opts cover_enabled cover_opts cover_print_enabled cover_export_enabled covertool dialyzer dialyzer_opts escript_main_app escript_incl_apps escript_emu_args escript_name grpc relx alias pre_hooks post_hooks)a
 
   @native_environment ~w(PATH CC CXX CPP AR AS LD RANLIB STRIP CFLAGS CXXFLAGS CPPFLAGS LDFLAGS MAKE MAKEFLAGS PKG_CONFIG PKG_CONFIG_PATH PKG_CONFIG_LIBDIR SDKROOT DEVELOPER_DIR MACOSX_DEPLOYMENT_TARGET RUSTC RUSTFLAGS RUSTC_WRAPPER CARGO CARGO_BUILD_TARGET CARGO_ENCODED_RUSTFLAGS SOURCE_DATE_EPOCH)
 
