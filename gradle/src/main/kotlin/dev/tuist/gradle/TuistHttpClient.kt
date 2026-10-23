@@ -32,8 +32,8 @@ class TuistHttpClient(
     }
 
     /** Runs one request with [TuistRetry]; see there for what [replaySafe] allows. */
-    internal fun <T> retrying(description: String, replaySafe: Boolean, deadlineNanos: Long? = null, attempt: () -> T): T =
-        TuistRetry.run(description, replaySafe, retryPolicy, deadlineNanos, attempt)
+    internal fun <T> retrying(description: String, replaySafe: Boolean, attempt: () -> T): T =
+        TuistRetry.run(description, replaySafe, retryPolicy, attempt = attempt)
 
     fun <T> execute(operation: (CacheConfiguration) -> T): T {
         val config = getOrFetchConfig()

@@ -13,7 +13,12 @@ import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.TestDescriptor
 import org.gradle.api.tasks.testing.TestListener
 import org.gradle.api.tasks.testing.TestResult
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
+import java.net.URI
 import java.util.UUID
 import javax.inject.Inject
 
@@ -390,7 +395,6 @@ abstract class TuistTestInsightsService :
         val gitCommitSha: Property<String>
         val gitRef: Property<String>
         val gitRemoteUrlOrigin: Property<String>
-        val reportOutboxDirectory: DirectoryProperty
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
@@ -564,27 +568,53 @@ abstract class TuistTestInsightsService :
             gitHistory = gitHistory?.payload
         )
 
-        val createdAtMs = System.currentTimeMillis()
         val response = httpClient.execute { config ->
-            val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get())
-            val outgoingReport = if (config.token.isBlank()) report.copy(
-                gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
-                gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
-                isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
-                historySource = null, historyFallbackReason = null
-            ) else report
-            val result = publishReport(
-                outbox = parameters.reportOutboxDirectory.orNull?.let { ReportOutbox(it.asFile) },
-                httpClient = httpClient, config = config, baseUrl = baseUrl,
-                kind = ReportKind.TEST_RUN, id = report.id, createdAtMs = createdAtMs, body = Gson().toJson(outgoingReport),
-                actorId = ActorIdentifier.resolve(override = parameters.actorId.orNull),
-                description = "Test insights request"
-            )
-            if (result.status == HttpURLConnection.HTTP_OK) {
-                Gson().fromJson(result.body, TestResponse::class.java)
-            } else {
-                logger.warn("Tuist: Test insights request failed with HTTP ${result.status}: ${result.body ?: "(no response body)"}")
-                null
+            val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get()).trimEnd('/')
+            val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
+            // Every attempt sends the same report id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another run).
+            httpClient.retrying("Test insights request", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                    }
+
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        val outgoingReport = if (config.token.isBlank()) report.copy(
+                            gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                            gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
+                            isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
+                            historySource = null, historyFallbackReason = null
+                        ) else report
+                        Gson().toJson(outgoingReport, writer)
+                    }
+
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_OK -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, TestResponse::class.java)
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            val message = "Test insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
+                            if (status in TuistRetry.RETRYABLE_STATUSES) {
+                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
+                            }
+                            logger.warn("Tuist: $message")
+                            null
+                        }
+                    }
+                } finally {
+                    connection.disconnect()
+                }
             }
         }
 
@@ -632,7 +662,6 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.gitCommitSha.set(gitInfo.commitSha())
             parameters.gitRef.set(gitInfo.ref())
             parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
-            parameters.reportOutboxDirectory.set(ReportOutbox.directory(project.gradle.gradleUserHomeDir))
         }
 
         val repetition = config.stressRepetition
