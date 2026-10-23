@@ -79,7 +79,13 @@
     & #build-entity-inventory {
       & th:first-child,
       & td:first-child {
-        width: 50%;
+        box-sizing: border-box;
+        width: 320px;
+        max-width: 320px;
+      }
+
+      & td:first-child [data-part="cell"] {
+        max-width: 320px;
       }
     }
 
