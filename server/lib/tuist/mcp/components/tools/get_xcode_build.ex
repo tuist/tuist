@@ -30,6 +30,14 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "xcode_version" => %{"type" => "string"},
         "macos_version" => %{"type" => "string"},
         "model_identifier" => %{"type" => "string"},
+        "custom_metadata" => %{
+          "type" => "object",
+          "properties" => %{
+            "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
+            "values" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}}
+          },
+          "required" => ["tags", "values"]
+        },
         "is_ci" => %{"type" => "boolean"},
         "git_branch" => %{"type" => "string"},
         "git_commit_sha" => %{"type" => "string"},
@@ -115,6 +123,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
          xcode_version: build.xcode_version,
          macos_version: build.macos_version,
          model_identifier: build.model_identifier,
+         custom_metadata: %{tags: Map.get(build, :custom_tags) || [], values: Map.get(build, :custom_values) || %{}},
          is_ci: build.is_ci,
          git_branch: build.git_branch,
          git_commit_sha: build.git_commit_sha,

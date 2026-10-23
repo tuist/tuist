@@ -22,13 +22,15 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 
 ## Documentation Sync
 
+- Build-detail tools expose the same string-valued `custom_metadata: {tags, values}` concept across Xcode, Gradle, Bazel, Mix and Cargo. Preserve arbitrary keys and align Cargo's strict output schemas with shared query serialization. Reported infrastructure is untrusted and missing observations are not backfilled. Once requires an external protocol update. See `server/docs/build-metadata.md`.
+
 - When MCP server behavior or capabilities change, update `server/priv/docs/en/guides/features/agentic-coding/mcp.md` in the same pull request.
 - Server initialization and server-card instructions describe OAuth 2.0 with dynamic client registration and the standard browser authorization flow inline. Keep this block factual: describe tool capabilities, revision-pinned links, result limits, and authentication boundaries without directing answer style, citations, tool selection, or verification workflows. Tool-specific setup and authentication checks belong in integration guides and prompts. Do not direct clients to fetch or follow external authentication documents from this instructions block.
 - The separate `auth_md` field in unauthorized responses and `agent_auth.skill` authorization-server metadata continue to expose the WorkOS auth.md flow served by `/auth.md`; keep documentation for those capabilities aligned with their implementation.
 
 ## Versioning
 
-- When MCP client-visible behavior changes (tools, prompts, responses, auth/discovery behavior), bump `serverInfo.version` in `server/lib/tuist/mcp/server.ex` in the same PR.
+- When MCP client-visible behavior changes (tools, prompts, responses, auth/discovery behavior), bump `serverInfo.version` in `server/lib/tuist/mcp/server.ex` in the same PR. After integrating newer changes from `main`, keep this version newer than `main` and synchronize the server and server-card version assertions.
 - Do not bump `protocolVersion` unless the implementation is intentionally updated to a newer MCP specification revision and compatibility has been validated.
 
 ## Related Context

@@ -262,7 +262,7 @@ defmodule TuistWeb.API.TestsController do
                values: %Schema{
                  type: :object,
                  additionalProperties: %Schema{type: :string, maxLength: 500},
-                 maxProperties: 20
+                 maxProperties: 64
                }
              }
            },
