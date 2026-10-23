@@ -17,7 +17,7 @@ defmodule TuistWeb.DocsLive do
   alias TuistWeb.Marketing.StructuredMarkup
 
   @noora_icons_path Path.expand("../../../../noora/lib/noora/icons", __DIR__)
-  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
+  @copy_check_icon @noora_icons_path |> Path.join("check.svg") |> File.read!() |> String.trim()
 
   @overview_headings [
     %{id: "learn-more", text: "Explore Tuist's capabilities", level: 2},

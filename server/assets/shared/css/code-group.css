@@ -1,3 +1,5 @@
+@import "./copy-sweep.css";
+
 .code-group {
   display: flex;
   flex-direction: column;
@@ -207,5 +209,16 @@
         }
       }
     }
+  }
+}
+
+/* Copy confirmation (see copy-sweep.css): the header's copy button sweeps the
+   code box of the visible panel. The box itself is styled by code-window.css. */
+@media (prefers-reduced-motion: no-preference) {
+  .code-group:has(> [data-part="header"] > [data-part="copy"][data-copied])
+    [data-part="panel"]:not([data-hidden="true"])
+    .code-window
+    > [data-part="code"] {
+    animation: copy-sweep var(--copy-sweep-duration) var(--ease-out-cubic);
   }
 }

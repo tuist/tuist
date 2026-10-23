@@ -34,9 +34,8 @@ defmodule Tuist.Marketing.MDExConverter do
       unsafe: true
     ],
     syntax_highlight: [
-      # light-dark() token colors so code blocks follow the page's
-      # color-scheme, same as the docs (see Tuist.DocsLoader).
-      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+      # CSS classes, colored with Noora tokens by assets/shared/css/syntax.css.
+      formatter: :html_linked
     ]
   ]
 

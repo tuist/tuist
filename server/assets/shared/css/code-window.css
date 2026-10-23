@@ -1,3 +1,6 @@
+@import "./copy-sweep.css";
+@import "./syntax.css";
+
 .code-window {
   display: flex;
   flex-direction: column;
@@ -120,10 +123,16 @@
      curve). */
   clip-path: inset(-8px 0 0 0 round 0 0 8px 8px);
   box-shadow: var(--noora-light-border-default);
+  /* Copy confirmation sweep (see copy-sweep.css). The padding gives back
+     the border's 1px so the layout is unchanged. */
+  border: 1px solid transparent;
   /* Flush with the shell's edges, so the corners match its 8px radius. */
   border-radius: 8px;
-  background: var(--noora-surface-background-tertiary);
-  padding: 16px 12px;
+  background:
+    linear-gradient(var(--noora-surface-background-tertiary), var(--noora-surface-background-tertiary)) padding-box,
+    var(--copy-sweep),
+    linear-gradient(var(--noora-surface-background-tertiary), var(--noora-surface-background-tertiary)) border-box;
+  padding: 15px 11px;
   overflow-x: auto;
   /* Scrollbar styled after Noora's table (see noora/css/table.css). Reset the
      inherited globals first: any non-auto `scrollbar-color` (the marketing
@@ -142,6 +151,12 @@
   @supports (scrollbar-width: thin) and (not selector(::-webkit-scrollbar)) {
     scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600)) transparent;
     scrollbar-width: thin;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .code-window:has(> [data-part="bar"] > [data-part="copy"][data-copied]) > [data-part="code"] {
+    animation: copy-sweep var(--copy-sweep-duration) var(--ease-out-cubic);
   }
 }
 

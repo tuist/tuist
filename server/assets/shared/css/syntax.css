@@ -1,0 +1,69 @@
+/* Syntax highlighting in Noora colors, for every code block highlighted by
+   MDEx/Lumis with the `:html_linked` formatter (the blog, the docs, and the
+   Noora documentation). Lumis tags each token with a tree-sitter capture
+   name, prefixed `l-` (`l-keyword-import`, `l-function-call`,
+   `l-string-special-symbol`…), so prefix selectors color whole families and
+   the more specific rules after them refine a few members. Every color is a
+   light/dark pair of palette steps, so code follows the color scheme. */
+.lumis {
+  color: var(--noora-surface-label-primary);
+
+  & [class^="l-comment"] {
+    color: var(--noora-surface-label-tertiary);
+  }
+
+  & [class^="l-punctuation"],
+  & [class^="l-operator"],
+  & [class^="l-tag-delimiter"] {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  & [class^="l-keyword"],
+  & [class^="l-conditional"],
+  & [class^="l-repeat"],
+  & [class^="l-include"],
+  & [class^="l-exception"] {
+    color: light-dark(var(--noora-pink-600), var(--noora-pink-300));
+  }
+
+  & [class^="l-function"],
+  & [class^="l-method"],
+  & [class^="l-constructor"],
+  & [class^="l-tag"] {
+    color: light-dark(var(--noora-purple-600), var(--noora-purple-300));
+  }
+
+  & [class^="l-string"],
+  & [class^="l-character"] {
+    color: light-dark(var(--noora-green-700), var(--noora-green-400));
+  }
+
+  & [class^="l-number"],
+  & [class^="l-float"],
+  & [class^="l-boolean"],
+  & [class^="l-constant"] {
+    color: light-dark(var(--noora-orange-700), var(--noora-orange-300));
+  }
+
+  & [class^="l-module"],
+  & [class^="l-type"],
+  & [class^="l-namespace"] {
+    color: light-dark(var(--noora-azure-700), var(--noora-azure-300));
+  }
+
+  /* Attributes, properties, and keyword keys (`do:`, `name:`) read as the
+     names of things being set. */
+  & [class^="l-property"],
+  & [class^="l-attribute"],
+  & [class^="l-tag-attribute"],
+  & [class^="l-variable-member"],
+  & [class^="l-variable-parameter"],
+  & [class^="l-label"],
+  & [class^="l-string-special-symbol"] {
+    color: light-dark(var(--noora-blue-600), var(--noora-blue-300));
+  }
+
+  & [class^="l-tag-delimiter"] {
+    color: var(--noora-surface-label-secondary);
+  }
+}

@@ -2,13 +2,13 @@ defmodule TuistWeb.Noora.Code do
   @moduledoc """
   Highlights the code shown on the Noora documentation pages.
 
-  Uses the same light and dark themes as the blog, so code samples follow the
-  page's color scheme.
+  Emits CSS classes, colored with Noora tokens by
+  `assets/shared/css/syntax.css`, the same as the blog and the docs.
   """
 
   @mdex_options [
     syntax_highlight: [
-      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+      formatter: :html_linked
     ]
   ]
 
