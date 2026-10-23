@@ -39,7 +39,8 @@ defmodule AtlasWeb.NativeControllerTest do
 
     assert json_response(response, 200) == %{
              "server_version" => to_string(Application.spec(:atlas, :vsn)),
-             "user" => %{"name" => user.name, "email" => user.email}
+             "user" => %{"name" => user.name, "email" => user.email},
+             "push_notifications" => %{"ios" => false, "android" => false}
            }
 
     assert get_resp_header(response, "cache-control") == ["no-store"]

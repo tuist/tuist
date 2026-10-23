@@ -54,8 +54,17 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     refute run.coverage_enabled
     assert run.coverage_evidence_status == ""
     assert %{total_count: 1} = Tuist.Tests.Analytics.get_test_run_metrics(run)
-    assert {:ok, %{rows: [[0]]}} = ClickHouseRepo.query("SELECT count() FROM coverage_files")
-    assert {:ok, %{rows: [[0]]}} = ClickHouseRepo.query("SELECT count() FROM coverage_runs")
+
+    assert {:ok, %{rows: [[0]]}} =
+             ClickHouseRepo.query("SELECT count() FROM coverage_files WHERE project_id = {project_id:Int64}", %{
+               project_id: project.id
+             })
+
+    assert {:ok, %{rows: [[0]]}} =
+             ClickHouseRepo.query("SELECT count() FROM coverage_runs WHERE project_id = {project_id:Int64}", %{
+               project_id: project.id
+             })
+
     assert :skipped = Coverage.publish(run, %{}, 0, 1)
     assert :skipped = Coverage.enqueue_publish(run, %{storage_key: "ignored"}, 0, 1)
     assert :skipped = Tuist.Tests.Coverage.Evidence.record(run, %{paths: ["Sources/App.swift"]}, 0)
@@ -439,7 +448,12 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     assert [replay_case] = replay.test_case_runs
     assert first_case.id == replay_case.id
     assert Tuist.UUIDv7.valid?(first_case.id)
-    assert {:ok, %{rows: [[1]]}} = ClickHouseRepo.query("SELECT uniqExact(fact_set_id) FROM shard_test_reports")
+
+    assert {:ok, %{rows: [[1]]}} =
+             ClickHouseRepo.query(
+               "SELECT uniqExact(fact_set_id) FROM shard_test_reports WHERE project_id = {project_id:Int64}",
+               %{project_id: project.id}
+             )
   end
 
   test "dictionary-derived module and suite ordering cannot change fact identities", %{project: project} do
@@ -465,7 +479,13 @@ defmodule Tuist.Shards.ImmutableReportsTest do
       end
 
     assert Enum.map(first.test_case_runs, & &1.id) == Enum.map(replay.test_case_runs, & &1.id)
-    assert {:ok, %{rows: [[1]]}} = ClickHouseRepo.query("SELECT uniqExact(fact_set_id) FROM shard_test_reports")
+
+    assert {:ok, %{rows: [[1]]}} =
+             ClickHouseRepo.query(
+               "SELECT uniqExact(fact_set_id) FROM shard_test_reports WHERE project_id = {project_id:Int64}",
+               %{project_id: project.id}
+             )
+
     assert %{total_count: 4} = Tuist.Tests.Analytics.get_test_run_metrics(replay)
   end
 

@@ -53,7 +53,7 @@ defmodule Noora.TextArea do
 
   attr(:disabled, :boolean, default: false, doc: "Whether the textarea is disabled.")
 
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(autocomplete autocorrect))
 
   slot(:overlay,
     doc: "Decorative content behind the textarea. Hidden until enabled by a client hook; callers own its styling."

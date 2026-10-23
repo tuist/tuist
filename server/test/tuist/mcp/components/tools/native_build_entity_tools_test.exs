@@ -11,7 +11,7 @@ defmodule Tuist.MCP.Components.Tools.NativeBuildEntityToolsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.API.BuildEntityResources
 
-  @kinds [:gradle_tasks, :xcode_modules, :once_actions, :mix_files, :mix_modules]
+  @kinds [:gradle_tasks, :xcode_modules, :once_actions, :mix_files, :mix_modules, :bazel_actions]
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -37,7 +37,7 @@ defmodule Tuist.MCP.Components.Tools.NativeBuildEntityToolsTest do
     refute Map.has_key?(Tools.ListBuildEntities.input_schema()["properties"], "id")
   end
 
-  for key <- [:gradle_tasks, :xcode_modules, :once_actions, :mix_files, :mix_modules] do
+  for key <- @kinds do
     test "#{key} returns schema-valid list, detail and history results", %{conn: conn, user: user} do
       key = unquote(key)
       resource = BuildEntityResources.fetch!(key)

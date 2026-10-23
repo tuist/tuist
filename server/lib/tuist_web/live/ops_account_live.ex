@@ -59,7 +59,6 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp assign_free_tier(socket, account) do
     socket
-    |> assign(:free_tier_hits, account.current_month_remote_cache_hits_count || 0)
     |> assign(:free_tier_egress_megabytes, account.current_month_cache_egress_megabytes || 0)
     |> assign(:free_tier_requests, account.current_month_cache_requests || 0)
     |> assign(:free_tier_reset_at, account.free_tier_reset_at)

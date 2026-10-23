@@ -365,37 +365,15 @@ func TestRenderLaunchdPlist_OmitsRunnerCacheWhenDisabled(t *testing.T) {
 }
 
 func TestRenderLaunchdPlist_RendersRunnerCacheRoot(t *testing.T) {
-	out := renderLaunchdPlist(Config{
-		NodeName:                "n1",
-		SSHUser:                 "m1",
-		RunnerCacheVolumeGiB:    400,
-		CacheVolumeMasterCapGiB: 25,
-		CacheVolumeCASGiB:       8,
-	})
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
 	if !strings.Contains(out, "<string>--runner-cache-root="+runnerCacheMountPoint+"</string>") {
 		t.Fatalf("expected --runner-cache-root in plist\n%s", out)
 	}
 	if !strings.Contains(out, "<string>--runner-cache-budget-gib=400</string>") {
 		t.Fatalf("expected --runner-cache-budget-gib in plist\n%s", out)
 	}
-	if !strings.Contains(out, "<string>--cache-volume-cap-gib=25</string>") {
-		t.Fatalf("expected --cache-volume-cap-gib in plist\n%s", out)
-	}
-	if !strings.Contains(out, "<string>--cache-volume-cas-gib=8</string>") {
-		t.Fatalf("expected --cache-volume-cas-gib in plist\n%s", out)
-	}
-}
-
-func TestRenderLaunchdPlist_OmitsCapGiBWhenDefault(t *testing.T) {
-	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
-	if !strings.Contains(out, "--runner-cache-root=") {
-		t.Fatalf("expected --runner-cache-root when volume enabled\n%s", out)
-	}
-	if strings.Contains(out, "--cache-volume-cap-gib") {
-		t.Fatalf("expected --cache-volume-cap-gib omitted when cap is 0 (tart-kubelet default)\n%s", out)
-	}
-	if strings.Contains(out, "--cache-volume-cas-gib") {
-		t.Fatalf("expected --cache-volume-cas-gib omitted when CAS budget is 0 (compilation cache VM-local)\n%s", out)
+	if strings.Contains(out, "--cache-volume-cap-gib") || strings.Contains(out, "--cache-volume-cas-gib") {
+		t.Fatalf("expected no built-in cache image flags in plist\n%s", out)
 	}
 }
 
@@ -418,19 +396,6 @@ func TestHostConfigHash_ChangesWithRunnerCacheVolume(t *testing.T) {
 	changed.RunnerCacheVolumeGiB = 400
 	if HostConfigHash(base) == HostConfigHash(changed) {
 		t.Fatalf("HostConfigHash must change when the runner-cache volume is enabled")
-	}
-}
-
-// The CAS budget must be part of the fleet fingerprint: if it were omitted, a
-// roll that enables the compilation cache would leave the canonical hash
-// unchanged, so hosts would look already-applied and never re-push the launchd
-// config that turns the CAS on.
-func TestHostConfigHash_ChangesWithCASGiB(t *testing.T) {
-	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin"), RunnerCacheVolumeGiB: 400}
-	changed := base
-	changed.CacheVolumeCASGiB = 8
-	if HostConfigHash(base) == HostConfigHash(changed) {
-		t.Fatalf("HostConfigHash must change when the CAS budget is set")
 	}
 }
 

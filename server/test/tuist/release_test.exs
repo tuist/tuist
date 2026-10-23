@@ -161,8 +161,7 @@ defmodule Tuist.ReleaseTest do
 
     test "grants exactly the columns the dashboard and the alert rules read" do
       assert granted_columns(Enum.join(statements(), "\n"), ~s|"public"|) == %{
-               "accounts" => Enum.sort(~w(id name billing_email organization_id current_month_remote_cache_hits_count
-                    current_month_remote_cache_hits_count_updated_at)),
+               "accounts" => Enum.sort(~w(id name billing_email organization_id)),
                "bundles" => Enum.sort(~w(project_id inserted_at git_ref)),
                "organizations" => Enum.sort(~w(id created_at)),
                "previews" => Enum.sort(~w(project_id inserted_at)),

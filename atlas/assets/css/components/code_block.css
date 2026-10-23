@@ -1,0 +1,26 @@
+[data-part="code-block"] {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--noora-surface-border-primary);
+  border-radius: var(--noora-radius-4);
+  background: var(--noora-surface-background-primary);
+  color: var(--noora-surface-label-primary);
+
+  & > pre {
+    margin: 0;
+    max-height: 25rem;
+    overflow: auto;
+    padding: var(--noora-spacing-5);
+    font: var(--noora-font-code-large);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  & code {
+    font: inherit;
+  }
+
+  & [data-line] {
+    display: inline;
+  }
+}

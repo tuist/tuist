@@ -48,8 +48,7 @@ defmodule Tuist.Release do
   # a Grafana edit widens silently. Keep in sync with
   # infra/cnpg/tuist-grafana-ro-grants.sql (a test asserts this).
   @grafana_read_columns [
-    {"accounts",
-     ~w(id name billing_email organization_id current_month_remote_cache_hits_count current_month_remote_cache_hits_count_updated_at)},
+    {"accounts", ~w(id name billing_email organization_id)},
     {"bundles", ~w(project_id inserted_at git_ref)},
     {"organizations", ~w(id created_at)},
     {"previews", ~w(project_id inserted_at)},

@@ -3,8 +3,10 @@ package dev.tuist.gradle
 import com.google.gson.Gson
 import org.gradle.api.tasks.testing.TestResult
 import org.junit.jupiter.api.Test
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -36,6 +38,18 @@ class TuistTestInsightsTest {
         assertEquals("https://github.com/tuist/tuist.git", report.gitRemoteUrlOrigin)
         assertNull(report.gradleBuildId)
         assertTrue(report.testModules.isEmpty())
+    }
+
+    @Test
+    fun `buildReport gives every report its own id`() {
+        val collector = TestReportCollector()
+
+        val ids = List(2) {
+            Gson().toJsonTree(collector.buildReport(10, true, "app", "main", "head", null, null, null)).asJsonObject["id"]?.asString
+        }
+
+        ids.forEach { assertEquals(it, it?.let { id -> UUID.fromString(id).toString() }, "Got $ids") }
+        assertNotEquals(ids[0], ids[1])
     }
 
     @Test

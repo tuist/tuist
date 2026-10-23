@@ -4,6 +4,7 @@ defmodule TuistWeb.API.GradleController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
+  alias Tuist.IdempotentRequests
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -253,14 +254,32 @@ defmodule TuistWeb.API.GradleController do
     }
   )
 
+  # A client retries a build whose response it lost. Builds and their tasks go to
+  # tables that don't deduplicate, so a request carrying an id claims it first and
+  # a retry gets the first request's response back without writing anything or
+  # publishing `build.failed` again. Only authenticated requests keep their id.
   def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
-    case Gradle.create_build(build_attributes(conn, project, body)) do
-      {:ok, build_id} ->
-        if TuistWeb.Authentication.authenticated?(conn), do: enqueue_vcs_pull_request_comment(body, project)
+    authenticated? = TuistWeb.Authentication.authenticated?(conn)
+    request_id = if authenticated?, do: body[:id]
 
+    create = fn ->
+      with {:ok, build_id} <- Gradle.create_build(build_attributes(conn, project, body)) do
+        if authenticated?, do: enqueue_vcs_pull_request_comment(body, project)
+        {:ok, %{id: build_id, actor: ReportActorPlug.actor(conn)}}
+      end
+    end
+
+    case IdempotentRequests.run("gradle_build", project.id, request_id, create) do
+      {result, response} when result in [:ok, :replayed] ->
         conn
         |> put_status(:created)
-        |> json(%{id: build_id, actor: ReportActorPlug.actor(conn)})
+        |> json(response)
+
+      {:error, :in_progress} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> put_resp_header("retry-after", "1")
+        |> json(%{message: "A build with this id is still being created; retry this request"})
 
       {:error, _reason} ->
         conn

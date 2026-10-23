@@ -32,6 +32,17 @@ name: Mgmt Cluster Apply
 #     tuist-k8s-mgmt vault, where the mgmt cluster's kubeconfig is
 #     stored as `kubeconfig: tuist-mgmt` and the Grafana Cloud metrics
 #     token is stored as `PROMETHEUS_TOKEN`.
+#
+# Required secrets (on the mgmt-hetzner GitHub Environment, used by the
+# `hetzner` job only):
+#   OP_SERVICE_ACCOUNT_TOKEN - 1Password SA scoped read-only to the
+#     tuist-k8s-mgmt-hetzner vault, which holds `hetzner-tuist-mgmt`, the
+#     Hetzner Cloud API token for project tuist-mgmt. Nothing else reads
+#     that vault, including External Secrets on the mgmt cluster.
+#
+# Both environments should allow only the main branch; the jobs also
+# check `github.ref`, so a workflow_dispatch from another branch applies
+# nothing.
 
 on:
   push:
@@ -46,6 +57,8 @@ on:
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - 'infra/k8s/mgmt/observability-namespace.yaml'
+      - 'infra/k8s/mgmt/talos/hetzner.yaml'
+      - 'infra/mise/tasks/mgmt/**'
       - 'infra/helm/k8s-monitoring/**'
       - '.github/workflows/mgmt-cluster-apply.yml'
   # Manual re-runs only apply the declarative state, e.g. to force a
@@ -61,9 +74,38 @@ concurrency:
 permissions: {}
 
 jobs:
+  hetzner:
+    name: Hetzner resources
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # A separate environment and vault from the kubectl job: the Hetzner
+    # token can snapshot, rescue or rebuild the mgmt server outside
+    # Kubernetes, so only this job may read it. `op run` hands it to the
+    # one command that needs it instead of exporting it to the job.
+    environment:
+      name: mgmt-hetzner
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked hcloud jq yq"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Planned changes
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HCLOUD_TOKEN: op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential
+        run: op run -- infra/mise/tasks/mgmt/reconcile-hetzner.sh
+      - name: Apply
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HCLOUD_TOKEN: op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential
+        run: op run -- infra/mise/tasks/mgmt/reconcile-hetzner.sh --apply
+
   apply:
     name: kubectl apply
-    if: github.repository == 'tuist/tuist'
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     # The self-hosted tuist-linux runners are customer runner Pods
     # governed by a NetworkPolicy that only allows public egress on
     # ports 80/443. The mgmt apiserver is reached on 6443, so this

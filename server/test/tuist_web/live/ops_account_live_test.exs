@@ -1314,7 +1314,6 @@ defmodule TuistWeb.OpsAccountLiveTest do
     test "shows the usage against the limits and when it was last reset", %{conn: conn, user: user} do
       user.account
       |> Ecto.Changeset.change(
-        current_month_remote_cache_hits_count: 42,
         current_month_cache_egress_megabytes: 1_500,
         current_month_cache_requests: 2_500
       )
@@ -1325,7 +1324,6 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "Free tier"
       assert lv |> element("[data-part='free-tier-egress']") |> render() =~ "1.5 GB of 100.0 GB"
       assert lv |> element("[data-part='free-tier-requests']") |> render() =~ "2,500 of 1M"
-      assert lv |> element("[data-part='free-tier-hits']") |> render() =~ "42"
       assert html =~ "Never"
     end
 

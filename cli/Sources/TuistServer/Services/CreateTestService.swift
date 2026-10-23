@@ -107,6 +107,8 @@ import TuistHTTP
             coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
+            // Generated once, so a replay of the request carries the same id and the server records the run once.
+            let id = id ?? UUIDv7.generate()
             let client = makeClient(serverURL, networkTrusted)
             let handles = try fullHandleService.parse(fullHandle)
 

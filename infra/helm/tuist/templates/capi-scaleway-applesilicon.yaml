@@ -517,22 +517,13 @@ spec:
             - --tartkubelet-guest-capacity={{ .Values.macosFleet.tartKubelet.guestCapacity | default 1 }}
             {{- with .Values.macosFleet.runnerCacheVolume }}
             {{- if .gib }}
-            # Per-account cache volumes: bootstrap provisions a
+            # Runner cache volumes: bootstrap provisions a
             # quota-bounded APFS volume of this many GiB on each Mac mini
             # (the aggregate ceiling that keeps cache volumes from ever
             # starving the VM image path) and turns the feature on in
             # tart-kubelet. Operator-wide, like the other fleet flags;
-            # 0/unset leaves the feature off and every VM boots cold.
+            # 0/unset leaves the feature off.
             - --runner-cache-volume-gib={{ .gib }}
-            {{- with .masterCapGib }}
-            - --cache-volume-master-cap-gib={{ . }}
-            {{- end }}
-            {{- with .casGib }}
-            # Folded Xcode compilation-cache (CAS) budget within each
-            # per-account cache image. 0/unset keeps the compilation cache
-            # VM-local; the binary cache is unaffected.
-            - --cache-volume-cas-gib={{ . }}
-            {{- end }}
             {{- end }}
             {{- end }}
             {{- if .Values.runnersFleet.customCacheVolumes.enabled }}

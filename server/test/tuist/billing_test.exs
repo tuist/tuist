@@ -2125,14 +2125,6 @@ defmodule Tuist.BillingTest do
       assert Billing.cache_access_blocked?(%{under | current_month_cache_requests: 1_000_000})
     end
 
-    test "never gates an Air account on remote cache hits" do
-      %{account: account} =
-        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 10_000, preload: [:account])
-
-      refute Billing.cache_access_blocked?(account)
-      assert Billing.cache_blocked_account_ids([account]) == MapSet.new()
-    end
-
     test "reads cache counters the nightly refresh has not written yet as unused" do
       %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
 
@@ -2196,8 +2188,7 @@ defmodule Tuist.BillingTest do
 
   describe "reset_free_tier/1" do
     test "zeroes the counters so the account is no longer blocked" do
-      %{account: account} =
-        AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 500, preload: [:account])
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
 
       account = with_cache_usage(account, 150_000, 2_000_000)
 
@@ -2206,17 +2197,12 @@ defmodule Tuist.BillingTest do
       {:ok, account} = Billing.reset_free_tier(account)
 
       assert {account.current_month_cache_egress_megabytes, account.current_month_cache_requests} == {0, 0}
-      assert account.current_month_remote_cache_hits_count == 0
       refute Billing.cache_access_blocked?(Repo.preload(account, :subscriptions))
     end
 
     test "moves the counting window forward so the nightly recount does not undo it" do
       # Given
-      %{account: account} =
-        AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: 500,
-          preload: [:account]
-        )
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
 
       before = DateTime.utc_now() |> DateTime.add(-1, :second) |> DateTime.truncate(:second)
 
