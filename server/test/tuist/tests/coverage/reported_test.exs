@@ -1129,6 +1129,60 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{covered_lines: 3, executable_lines: 4} = files["Sources/Text.swift"]
   end
 
+  test "keeps a compiled file's own lines when a source run's unbuilt lookup also matches its hash", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("s1", ["base"], 2)])
+
+    source =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          file("Sources/Text.swift", [1, 1, 1, 0], targets: ["TextKit"]),
+          file("Sources/Trim.swift", [1, 0], targets: ["TextKit"])
+        ],
+        %{
+          git_commit_sha: "s1",
+          git_branch: "feature/text",
+          recompute: false,
+          test_modules: [
+            %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
+          ],
+          coverage_evidence: %{
+            paths: ["Sources/Text.swift", "Sources/Trim.swift"],
+            scopes: [
+              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [0, 1], lines: [[1, 3], [1, 1]]}
+            ]
+          }
+        }
+      )
+
+    selective_testing(project, source, [{"TextKitTests", :miss, "text"}])
+    CoverageFixtures.recompute_commit(source)
+
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Text.swift", "Sources/Trim.swift"])
+
+    head =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [file("Sources/Text.swift", [0, 0, 0, 0, 0, 0], targets: ["TextKit"])],
+        %{git_commit_sha: "head", git_branch: "feature/skipped", partial: true, test_modules: []}
+      )
+
+    selective_testing(project, head, [{"TextKitTests", :local, "text"}])
+
+    # Text.swift is carried and compiled at the head; only Trim.swift is looked
+    # up in the source run, and Text.swift's hash rides along with it.
+    collide_with("Sources/Text.swift")
+
+    assert %{carried_tests_count: 1, files: files} = Reported.compute(project, "head")
+    assert %{covered_lines: 3, executable_lines: 6} = files["Sources/Text.swift"]
+    assert %{covered_lines: 1, executable_lines: 2} = files["Sources/Trim.swift"]
+  end
+
   test "keeps the carried files no run at the commit compiled past what one query binds", %{
     project: project,
     account: account
