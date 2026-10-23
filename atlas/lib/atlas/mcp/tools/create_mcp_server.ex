@@ -5,10 +5,12 @@ defmodule Atlas.MCP.Tools.CreateMCPServer do
     name: "create_mcp_server",
     schema: %{
       "type" => "object",
-      "required" => ["name", "url", "authorization_url", "token_url"],
+      "required" => ["name", "url"],
       "properties" => %{
         "name" => %{"type" => "string"},
         "url" => %{"type" => "string"},
+        "auth_type" => %{"type" => "string", "enum" => ["oauth2", "bearer_token"], "default" => "oauth2"},
+        "bearer_token" => %{"type" => "string", "description" => "Shared API key, without the Bearer prefix."},
         "authorization_url" => %{"type" => "string"},
         "token_url" => %{"type" => "string"},
         "registration_url" => %{"type" => "string"},
@@ -39,7 +41,9 @@ defmodule Atlas.MCP.Tools.CreateMCPServer do
 
   @impl EMCP.Tool
   def description do
-    "Add a read-only upstream server with per-user authorization. Requires administrator write access. " <>
+    "Add a read-only upstream server with per-user OAuth (default; requires authorization_url and token_url) " <>
+      "or a shared API key (auth_type: bearer_token; requires bearer_token). Shared keys grant all Atlas callers " <>
+      "the same upstream access. Requires administrator write access. " <>
       "Deployment-managed servers and privileged identity headers cannot be changed here."
   end
 
@@ -58,7 +62,7 @@ defmodule Atlas.MCP.Tools.CreateMCPServer do
 
   defp server_attrs(args) do
     args
-    |> Map.take(~w(name url authorization_url token_url registration_url))
+    |> Map.take(~w(name url auth_type bearer_token authorization_url token_url registration_url))
     |> Map.put("scope_list", args |> Map.get("scopes", []) |> Enum.join(" "))
   end
 end

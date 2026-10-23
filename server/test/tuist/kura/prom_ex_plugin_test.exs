@@ -161,12 +161,16 @@ defmodule Tuist.Kura.PromExPluginTest do
       assert Map.fetch!(scraped, [:tuist, :kura, :capacity, :admission_headroom, :gibibytes]) == [:region]
     end
 
-    test "reports what admission can still place: the pressure line less the larger reservation" do
+    test "reports what admission can still place: the pressure line less what each instance reserves" do
+      server = instance(account())
+
+      replica =
+        Map.put(reserved_pod(8), "metadata", %{"labels" => %{"app.kubernetes.io/instance" => server.provisioner_node_ref}})
+
       stub_region_nodes([{@region, List.duplicate(@node_allocatable_bytes, 2)}],
-        pods: [reserved_pod(50), reserved_pod(50)]
+        pods: [replica, replica, reserved_pod(84)]
       )
 
-      instance(account())
       pressure_line = trunc(trunc(2 * @node_allocatable_bytes / @gib) * 0.85)
 
       ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
@@ -185,6 +189,22 @@ defmodule Tuist.Kura.PromExPluginTest do
       PromExPlugin.execute_admission_headroom_telemetry_event()
 
       assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 42}, %{region: @region}}
+    end
+
+    test "reports the private runner-cache regions too, which admission governs the same way" do
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "ber1-runners"] end)
+
+      stub(Capacity, :admission_headroom_gib, fn
+        %Regions{id: @region} -> 42
+        %Regions{id: "ber1-runners"} -> 7
+      end)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :capacity, :admission]])
+
+      PromExPlugin.execute_admission_headroom_telemetry_event()
+
+      assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 42}, %{region: @region}}
+      assert_received {[:tuist, :kura, :capacity, :admission], ^ref, %{headroom_gib: 7}, %{region: "ber1-runners"}}
     end
 
     test "reports zero when the region cannot be read, because admission then refuses every instance" do
@@ -519,6 +539,7 @@ defmodule Tuist.Kura.PromExPluginTest do
   end
 
   defp stub_region_pods(pods) do
+    stub(Client, :list_persistent_volumes, fn _opts -> {:ok, []} end)
     stub(Client, :list_pods, fn _namespace, _selector -> {:ok, pods} end)
   end
 

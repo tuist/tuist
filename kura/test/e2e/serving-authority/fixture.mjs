@@ -8,7 +8,7 @@ export async function fixture(
   image,
   mode,
   output,
-  { limitedTarget = false } = {},
+  { limitedTarget = false, backfillBatchBytes, standbyImage = image } = {},
 ) {
   fs.mkdirSync(output, { recursive: true });
   const prefix = `spec98-mesh-${process.pid}`,
@@ -22,13 +22,31 @@ export async function fixture(
   const created = [],
     api = `${prefix}-api`,
     urls = ports.map((p) => `http://127.0.0.1:${p}`);
+  // Observations can race normal connection aging. Keep retries restricted to
+  // idempotent reads; workload writes and stale-channel probes remain exact.
+  const observe = async (url) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(5000),
+        });
+        assert.equal(response.status, 200);
+        return await response.text();
+      } catch (error) {
+        if (
+          attempt === 1 ||
+          !["UND_ERR_SOCKET", "ECONNRESET"].includes(
+            error.cause?.code ?? error.code,
+          )
+        )
+          throw error;
+        await sleep(100);
+      }
+    }
+  };
   const report = async (i) =>
     JSON.parse(
-      await (
-        await fetch(`${urls[i]}/status/rollout`, {
-          signal: AbortSignal.timeout(5000),
-        })
-      ).text(),
+      await observe(`${urls[i]}/status/rollout`),
       (_key, value, context) =>
         typeof value === "number" && !Number.isSafeInteger(value)
           ? JSON.rawJSON(context.source)
@@ -41,10 +59,7 @@ export async function fixture(
       path.join(output, "grant.json"),
     );
   };
-  const metric = async (i) =>
-    await (
-      await fetch(`${urls[i]}/metrics`, { signal: AbortSignal.timeout(5000) })
-    ).text();
+  const metric = async (i) => observe(`${urls[i]}/metrics`);
   const snapshot = () =>
     names.map((name) => ({
       name,
@@ -183,6 +198,9 @@ export async function fixture(
       };
       if (limited)
         Object.assign(env, {
+          // Leave one GiB of logical repair headroom over the source once
+          // pressure is removed; fragmented full rings need space to converge.
+          KURA_CAS_CAPACITY_BYTES: "4294967296",
           KURA_MEMORY_SOFT_LIMIT_BYTES: "6442450944",
           KURA_MEMORY_HARD_LIMIT_BYTES: "6979321856",
         });
@@ -194,6 +212,8 @@ export async function fixture(
           POD_UID: names[i],
           POD_NODE_NAME: `fixture-host-${i}`,
         });
+      if (backfillBatchBytes)
+        env.KURA_BACKFILL_BATCH_BYTES = String(backfillBatchBytes);
       const args = [
         "run",
         "-d",
@@ -208,14 +228,14 @@ export async function fixture(
         `127.0.0.1:${ports[i]}:4000`,
         ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
       ];
-      if (limited) args.push("--tmpfs", "/data:rw,size=5g");
+      if (limited) args.push("--tmpfs", "/data:rw,size=6g");
       if (mode === "active")
         args.push(
           "-v",
           `${output}:/var/run/secrets/kubernetes.io/serviceaccount:ro`,
         );
       created.push(names[i]);
-      docker(...args, image);
+      docker(...args, i === 0 ? image : standbyImage);
     }
     for (let i = 0; i < 2; i++) {
       let ready = false;
@@ -271,7 +291,13 @@ export async function fixture(
 
 export async function handover(
   f,
-  { id = `resource-${process.pid}`, deadlineMs = 300000 } = {},
+  {
+    id = `resource-${process.pid}`,
+    deadlineMs = 300000,
+    preparationDeadlineMs = 1200000,
+    beforePromotion,
+    prepare,
+  } = {},
 ) {
   const { identities, names, grant, report } = f;
   const intent = {
@@ -281,6 +307,61 @@ export async function handover(
     source_url: `http://${names[0]}:7443`,
     deadline_ms: Date.now() + deadlineMs,
   };
+  if (prepare) {
+    assert.equal(
+      (await report(1)).serving_authority.preparation_supported,
+      true,
+    );
+    assert(
+      Number.isFinite(preparationDeadlineMs) &&
+        preparationDeadlineMs > 0 &&
+        preparationDeadlineMs <= 1200000,
+    );
+    intent.deadline_ms = Date.now() + preparationDeadlineMs;
+    grant({
+      epoch: 1,
+      holder: identities[0],
+      phase: "Serving",
+      handover: intent,
+      renew: true,
+    });
+    let complete = false;
+    while (Date.now() < intent.deadline_ms) {
+      const [source, target] = await Promise.all(
+        [0, 1].map(async (i) => (await report(i)).serving_authority),
+      );
+      assert.equal(
+        source.valid,
+        true,
+        "preparation must keep the source serving",
+      );
+      assert.equal(
+        target.valid,
+        false,
+        "preparation must not authorize the standby",
+      );
+      assert.equal(source.barrier, null);
+      assert.equal(target.barrier, null);
+      await prepare();
+      const status = target.preparation;
+      if (status?.intent.id === id) {
+        assert.deepEqual(status.intent, intent);
+        assert.deepEqual(status.source, identities[0]);
+        assert.equal(status.epoch, 1);
+        assert.equal(status.error, null);
+        if (status.complete) {
+          complete = true;
+          break;
+        }
+      }
+      await sleep(1000);
+    }
+    assert(
+      complete,
+      "standby preparation did not complete before its fixed deadline",
+    );
+    intent.deadline_ms = Date.now() + deadlineMs;
+  }
   grant({
     epoch: 1,
     holder: identities[0],
@@ -299,6 +380,7 @@ export async function handover(
   }
   if (source.barrier?.id !== id || target.barrier?.id !== id) return null;
   assert.deepEqual(source.barrier, target.barrier);
+  if (beforePromotion) await beforePromotion(source.barrier);
   grant({
     epoch: 1,
     holder: identities[0],

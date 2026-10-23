@@ -381,6 +381,108 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       refute Map.has_key?(attachment, "file_path")
     end
 
+    test "native module order cannot change attachment identities or reorder legacy payloads" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+      stub(Tuist.Storage, :upload_file, fn _path, _key, :system, _opts -> {:ok, :uploaded} end)
+
+      parsed = fn names, root ->
+        modules =
+          Enum.map(names, fn name ->
+            path = Path.join(root, name <> ".png")
+            File.write!(path, name)
+
+            %{
+              "name" => name,
+              "test_suites" => Enum.map(names, &%{"name" => &1}),
+              "test_cases" => [
+                %{"name" => "test_one", "attachments" => [%{"file_path" => path, "file_name" => name <> ".png"}]}
+              ]
+            }
+          end)
+
+        {:ok, %{"test_modules" => modules}}
+      end
+
+      expect(XCResultNIF, :parse, fn _path, root -> parsed.(["B", "A"], root) end)
+      expect(XCResultNIF, :parse, fn _path, root -> parsed.(["A", "B"], root) end)
+      opts = [test_run_id: "run", account_handle: "org", project_handle: "project"]
+      assert {:ok, first} = XCResultProcessor.process_local(fixture_zip, opts)
+      assert {:ok, replay} = XCResultProcessor.process_local(fixture_zip, opts)
+
+      attachments = fn data ->
+        Map.new(data["test_modules"], fn module ->
+          {module["name"], hd(module["test_cases"])["attachments"]}
+        end)
+      end
+
+      assert attachments.(first) == attachments.(replay)
+      assert Enum.map(first["test_modules"], & &1["name"]) == ["B", "A"]
+      assert Enum.map(replay["test_modules"], & &1["name"]) == ["A", "B"]
+    end
+
+    test "attachment identities and storage keys survive fresh exports and preserve occurrences" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+      parent = self()
+
+      stub(Tuist.Storage, :upload_file, fn path, key, :system, _opts ->
+        assert File.read!(path) == "attachment"
+        send(parent, {:uploaded, key})
+        {:ok, :uploaded}
+      end)
+
+      stub(XCResultNIF, :parse, fn _path, root ->
+        path = Path.join(root, "screenshot.png")
+        File.write!(path, "attachment")
+        attachment = %{"file_path" => path, "file_name" => "screenshot.png"}
+
+        {:ok,
+         %{
+           "test_modules" => [
+             %{
+               "name" => "Tests",
+               "test_cases" => [%{"name" => "test_one", "attachments" => [attachment, attachment]}]
+             }
+           ]
+         }}
+      end)
+
+      opts = [test_run_id: "run", source_test_run_id: "upload", account_handle: "org", project_handle: "project"]
+      assert {:ok, first} = XCResultProcessor.process_local(fixture_zip, opts)
+      assert_receive {:uploaded, first_key}
+      assert_receive {:uploaded, second_key}
+      refute first_key == second_key
+
+      assert {:ok, replay} = XCResultProcessor.process_local(fixture_zip, Enum.reverse(opts))
+      assert replay == first
+      assert_receive {:uploaded, replay_key}
+      assert_receive {:uploaded, replay_second_key}
+      assert MapSet.new([replay_key, replay_second_key]) == MapSet.new([first_key, second_key])
+
+      assert {:ok, correction} = XCResultProcessor.process_local(fixture_zip, opts ++ [shard_report_revision: 1])
+      refute correction == first
+
+      stress_opts = opts ++ [artifact: :stress, shard_index: 0, shard_attempt: 1]
+      assert {:ok, stress} = XCResultProcessor.process_local(fixture_zip, stress_opts)
+      assert {:ok, stress_replay} = XCResultProcessor.process_local(fixture_zip, stress_opts)
+      assert stress == stress_replay
+      refute stress == first
+
+      assert {:ok, next_attempt} =
+               XCResultProcessor.process_local(fixture_zip, Keyword.put(stress_opts, :shard_attempt, 2))
+
+      refute next_attempt == stress
+
+      assert {:ok, next_source} =
+               XCResultProcessor.process_local(
+                 fixture_zip,
+                 Keyword.put(stress_opts, :source_test_run_id, "another-upload")
+               )
+
+      refute next_source == stress
+    end
+
     test "uploads an empty part for zero-byte attachments" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)

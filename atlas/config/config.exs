@@ -10,6 +10,7 @@ import Config
 alias Atlas.Accounts.Workers.ScheduleOverviewSummaries
 alias Atlas.Accounts.Workers.ScheduleServiceLevelExtractions
 alias Atlas.Accounts.Workers.ScheduleStripeInvoiceReconciliations
+alias Atlas.Automations.Workers.ScheduleRuns
 alias Atlas.Briefs.Workers.ScheduleBriefs
 alias Atlas.Documents.Workers.EnsureDocumentClassifications
 alias Atlas.Documents.Workers.ExpirePendingUploads
@@ -20,6 +21,7 @@ alias Atlas.Finance.Workers.CategorizeTransactions
 alias Atlas.Finance.Workers.ScheduleSourceSyncs
 alias Atlas.Granola.Workers.SyncNotes
 alias Atlas.GTM.Workers.ResumeStalledDeliveries
+alias Atlas.Letters.Workers.ScheduleDeliveryChecks
 alias Atlas.Licenses.RateLimiter
 alias Atlas.Licenses.Workers.NotifyExpiringLicenses
 alias Atlas.MCP.Workers.RefreshOAuthSessions
@@ -31,11 +33,15 @@ alias Atlas.Nudges.Workers.RefreshAnalyticsSnapshots, as: RefreshNudgeAnalyticsS
 alias Atlas.Nudges.Workers.RefreshFeatureFirstSeen, as: RefreshNudgeFeatureFirstSeen
 alias Atlas.OAuth.AccessTokens
 alias Atlas.OAuth.Clients
+alias Atlas.OAuth.NoCache
 alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
+alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
+alias Atlas.TimeOff.SyncPublicHolidays
+alias Atlas.Workers.PruneRateLimits
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Local
 
@@ -50,8 +56,6 @@ llm_receive_timeout = :timer.minutes(5)
 
 # Configure esbuild (the version is required)
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
-
-# Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
 config :atlas, Atlas.ClickHouseRepo, read_only: true
 
 # Default to reading contract templates from the on-disk placeholder stubs
@@ -59,6 +63,10 @@ config :atlas, Atlas.ClickHouseRepo, read_only: true
 # once the shared object storage bucket is configured.
 config :atlas, Atlas.Contracts, source: :disk
 config :atlas, Atlas.Mailer, adapter: Local
+
+# Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
+# SQL bind values can contain OAuth credentials and workflow payloads.
+config :atlas, Atlas.Repo, log: false
 
 config :atlas, Atlas.Vault,
   ciphers: [
@@ -82,11 +90,14 @@ config :atlas, AtlasWeb.Endpoint,
 # Configure Oban
 config :atlas, Oban,
   repo: Atlas.Repo,
-  notifier: Oban.Notifiers.PG,
-  queues: [default: 10, briefs: 2, mailing: 5],
+  notifier: Oban.Notifiers.Postgres,
+  peer: Oban.Peers.Database,
+  queues: [default: 10, briefs: 2, mailing: 5, automation: 2, push: 10],
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [
+       {"@reboot", SyncPublicHolidays},
+       {"0 2 * * *", SyncPublicHolidays},
        {"0 3 * * *", ScheduleOverviewSummaries},
        {"15 3 * * *", RefreshNudgeAnalyticsSnapshots},
        {"45 3 * * *", RefreshNudgeFeatureFirstSeen},
@@ -98,6 +109,7 @@ config :atlas, Oban,
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},
        {"35 */6 * * *", EnsureDocumentClassifications},
        {"*/10 * * * *", RefreshOAuthSessions},
+       {"*/5 * * * *", ScheduleDeliveryChecks},
        {"*/30 * * * *", ScheduleSourceSyncs},
        {"20 4 * * *", CategorizeTransactions},
        {"40 4 * * *", BackfillQontoInvoices},
@@ -114,10 +126,14 @@ config :atlas, Oban,
        # Deletes document rows and reserved storage objects for uploads the
        # client never finalized.
        {"*/15 * * * *", ExpirePendingUploads},
+       {"*/5 * * * *", PruneRateLimits},
+       # Retires push registrations not refreshed for 60 days and deletes old tombstones.
+       {"50 3 * * *", PrunePushInstallations},
        # Reconciles the engineering error summary. The worker no-ops when
        # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
        # schedule in every environment.
        {"* * * * *", ErrorsSummaryWorker},
+       {"* * * * *", ScheduleRuns},
        # Weekly digest of inbound emails the classifier silenced so
        # the team stays aware of what was filtered.
        {"0 9 * * 1", SupportInboxWeeklyDigest}
@@ -128,8 +144,7 @@ config :atlas, Oban,
 
 config :atlas, RateLimiter,
   max_attempts: 60,
-  window_milliseconds: :timer.minutes(1),
-  max_buckets: 10_000
+  window_milliseconds: :timer.minutes(1)
 
 config :atlas, :allowed_email_domain, "tuist.dev"
 config :atlas, :brave_search, api_key: nil
@@ -198,6 +213,7 @@ config :atlas,
 
 config :boruta, Boruta.Oauth,
   repo: Atlas.Repo,
+  cache_backend: NoCache,
   contexts: [
     resource_owners: ResourceOwners,
     clients: Clients,
@@ -234,11 +250,24 @@ config :guardian, Guardian.DB,
 # Configure Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :domain]
+  metadata: [
+    :request_id,
+    :domain,
+    :search_record_id,
+    :automation_run_id,
+    :automation_step_id,
+    :trace_id,
+    :span_id,
+    :automation_event
+  ]
 
 config :mdex_native, syntax_highlighter: :lumis
 
-config :phoenix, :filter_parameters, ["password", "token", "secret", "key"]
+config :opentelemetry,
+  traces_exporter: :none,
+  resource: [service: [name: "atlas", namespace: "tuist"]]
+
+config :phoenix, :filter_parameters, ["password", "token", "secret", "key", "input", "payload", "outputs", "source"]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

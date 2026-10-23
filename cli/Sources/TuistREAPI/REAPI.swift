@@ -90,6 +90,7 @@ public enum REAPICall: String, Sendable {
     case updateActionResult = "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult"
     case findMissingBlobs = "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs"
     case batchUpdateBlobs = "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs"
+    case spliceBlob = "/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob"
     case byteStreamWrite = "/google.bytestream.ByteStream/Write"
 
     var service: String {
@@ -119,11 +120,16 @@ extension REAPI {
 public struct REAPIBlobUpload: Sendable {
     /// Blobs the cache holds now, whether this upload sent them or they were already present.
     public var available: Set<REAPI.Digest>
+    /// Blobs transferred by this operation, or nil when the implementation cannot distinguish presence from transfer.
+    public var uploaded: Set<REAPI.Digest>?
     /// Why each blob outside `available` is missing from the cache.
     public var failures: [REAPI.Digest: String]
 
-    public init(available: Set<REAPI.Digest>, failures: [REAPI.Digest: String] = [:]) {
+    public init(
+        available: Set<REAPI.Digest>, failures: [REAPI.Digest: String] = [:], uploaded: Set<REAPI.Digest>? = nil
+    ) {
         self.available = available
+        self.uploaded = uploaded
         self.failures = failures
     }
 }

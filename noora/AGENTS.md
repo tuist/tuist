@@ -33,12 +33,17 @@ Web component metadata and documentation are generated from `components/*.json` 
 Do not bootstrap the npm package from a local machine. The first automated release reads a granular access token with permission to publish under the `@tuist` scope from `op://tuist/NPM_TOKEN/password` using `OP_SERVICE_ACCOUNT_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `noora-release.yml` workflow, allow `npm publish`, verify a release, revoke the long-lived token, and remove its 1Password item.
 
 ## Conventions
+- Phoenix sidebars persist vertical scroll per sidebar ID in tab-scoped session storage by default (`persist_scroll={false}` opts out). `NooraScrollArea` uses `data-scroll-persist-key` to opt in; ordinary scroll areas remain unpersisted. Restore again as child collapsibles hydrate, stop pending restoration on user input, and never overwrite desktop positions while the sidebar is hidden on mobile. Storage failures must not break scrolling, and teardown must remove persistence listeners.
+- Phoenix selects initialize Zag with the server's selected value and synchronize explicit server value changes (such as cancelling a form). Do not reset a newer client selection from an unchanged server echo. Keep the native hidden select and visible trigger label in sync so untouched preselected values are submitted.
+- Phoenix textareas forward native `autocomplete` and `autocorrect` attributes so code and other structured fields can disable browser text assistance without changing ordinary textareas.
+- Phoenix toggles render their ignored root label with Zag's `switch:<id>` ID from the start. If mounting the hook changes that ID, LiveView can replace the label/input on the next patch and lose keyboard focus.
+- Phoenix textareas accept an optional decorative `overlay` slot. It starts hidden and is inert/aria-hidden; consumers own its styling and enhancement hook. Keep native textarea behavior unchanged when no overlay is supplied.
 - Phoenix text inputs forward the native `readonly` attribute so canonical values can remain selectable without being editable. Their suffix-help tooltip triggers are keyboard-focusable and use `bottom-end` placement to open inward from the field's right edge. Keep tooltip content in normal flow inside its positioner so Zag can measure its full size for viewport collision handling.
 - Icon transition hooks restore their visual state after LiveView patches, including patches that leave the watched ancestor's state unchanged.
 - Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
 
 - `Noora.Icon` tracks each SVG as an `@external_resource` and recompiles on added or removed icons through `__mix_recompile__?/0`. Don't declare the `icons` directory itself as an external resource: Mix can't digest a directory, so every fresh checkout would recompile `Noora.Icon` and everything that depends on Noora.
-- Brand icons use monochrome filled `currentColor` SVGs in `lib/noora/icons/` (for example `brand-gitlab.svg`, `brand-docker.svg`, `brand-gradle.svg`), exposed as `brand_<name>/1`. Regenerate `js/web-components/icons.json` with `aube run generate:web-components` after adding or replacing one.
+- Brand icons use monochrome filled `currentColor` SVGs in `lib/noora/icons/` (for example `brand-gitlab.svg`, `brand-docker.svg`, `brand-gradle.svg`, `brand-rust.svg`), exposed as `brand_<name>/1`. Regenerate `js/web-components/icons.json` with `aube run generate:web-components` after adding or replacing one.
 
 - Use `noora` as the conventional commit scope for changes in this directory
 - The Tuist server depends on noora via a local path dependency (`{:noora, path: "../noora"}`)
@@ -49,4 +54,4 @@ Do not bootstrap the npm package from a local machine. The first automated relea
   listeners once per hook lifetime rather than once per render.
 
 - Chart tooltips take `dateFormat: "day" | "week" | "month"` to title a point by the calendar period it stands for (its date is the period's start, formatted in UTC; a week reads as a range), besides `"minute"` and `"hour"`.
-- Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Explicit unit formatters and category/time axes retain their formats; series values remain numeric.
+- Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Percentage tooltip templates round to at most one decimal in both series rows and scatter titles without rounding the underlying data. Explicit unit formatters and category/time axes retain their formats; series values remain numeric.

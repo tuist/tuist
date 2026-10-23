@@ -1,0 +1,202 @@
+<section id="account-workload-identities">
+  <.card_section id="oidc-trust-policies" data-part="oidc-card-section">
+    <div data-part="header">
+      <div data-part="heading">
+        <.toggle
+          id="oidc-configuration-toggle"
+          label={dgettext("dashboard_account", "Show configuration")}
+          checked={@oidc_configuration_visible}
+          data-on-checked-change="toggle_oidc_configuration"
+          aria-controls="oidc-trust-policy-form"
+          aria-expanded={to_string(@oidc_configuration_visible)}
+        />
+        <span id="oidc-workload-title" data-part="title">
+          {dgettext("dashboard_account", "Workload identities")}
+        </span>
+      </div>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_account",
+          "Allow trusted workloads to access all current and future projects in this account without long-lived tokens."
+        )}
+      </span>
+      <.link
+        id="oidc-workload-guide"
+        href="/en/docs/guides/server/authentication#workload-identity-trust-policies"
+        data-part="documentation"
+      >
+        {dgettext("dashboard_account", "Set up workload authentication")}
+      </.link>
+    </div>
+    <div data-part="content" hidden={not @oidc_configuration_visible}>
+      <.form
+        for={@oidc_trust_policy_form}
+        id="oidc-trust-policy-form"
+        data-part="form"
+        hidden={not @oidc_configuration_visible}
+        aria-labelledby="oidc-workload-title"
+        phx-change="change_oidc_trust_policy"
+        phx-submit="create_oidc_trust_policy"
+      >
+        <.alert
+          :for={error <- @form_errors}
+          status="error"
+          type="secondary"
+          size="small"
+          title={error}
+        />
+        <div id="oidc-template" data-part="template-picker">
+          <span data-part="template-label">{dgettext("dashboard_account", "Template")}</span>
+          <.select
+            id={"oidc-template-select-#{@oidc_template}"}
+            name="oidc_template"
+            label={dgettext("dashboard_account", "Template")}
+            value={@oidc_template}
+            on_value_change="select_oidc_template"
+          >
+            <:item value="custom" label={dgettext("dashboard_account", "Custom provider")} />
+            <:item value="fly" label="Fly.io Machines" />
+          </.select>
+        </div>
+        <.text_input
+          label={dgettext("dashboard_account", "Name")}
+          field={@oidc_trust_policy_form[:name]}
+          error={field_error(@oidc_trust_policy_form[:name])}
+          type="basic"
+          placeholder={dgettext("dashboard_account", "Production service")}
+        />
+        <div :if={@oidc_template == "fly"} id="oidc-fly-template" data-part="template-fields">
+          <.text_input
+            id="oidc-fly-organization-slug"
+            label={dgettext("dashboard_account", "Organization slug")}
+            name="fly_template[organization_slug]"
+            value={@fly_template["organization_slug"]}
+            type="basic"
+            placeholder="my-organization"
+            required
+          />
+          <div data-part="template-ids">
+            <.text_input
+              id="oidc-fly-organization-id"
+              label={dgettext("dashboard_account", "Organization ID")}
+              name="fly_template[organization_id]"
+              value={@fly_template["organization_id"]}
+              type="basic"
+              placeholder="123"
+              inputmode="numeric"
+              required
+            />
+            <.text_input
+              id="oidc-fly-application-id"
+              label={dgettext("dashboard_account", "Application ID")}
+              name="fly_template[application_id]"
+              value={@fly_template["application_id"]}
+              type="basic"
+              placeholder="456"
+              inputmode="numeric"
+              required
+            />
+          </div>
+        </div>
+        <.text_input
+          label={dgettext("dashboard_account", "Audience")}
+          field={@oidc_trust_policy_form[:audience]}
+          error={field_error(@oidc_trust_policy_form[:audience])}
+          type="basic"
+          placeholder="tuist"
+        />
+        <.alert
+          :if={@oidc_template == "fly" and @identity_overridden?}
+          id="oidc-template-overrides"
+          status="warning"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_account",
+              "Your manual changes override this template. Review the advanced configuration."
+            )
+          }
+        />
+        <.identity_fields
+          :if={@oidc_template == "custom"}
+          form={@oidc_trust_policy_form}
+          claims_input={@claims_input}
+        />
+        <details
+          :if={@oidc_template == "fly"}
+          data-part="advanced"
+          open={identity_errors?(@oidc_trust_policy_form) or @identity_overridden?}
+        >
+          <summary>{dgettext("dashboard_account", "Advanced configuration")}</summary>
+          <.identity_fields form={@oidc_trust_policy_form} claims_input={@claims_input} />
+        </details>
+        <.button
+          type="submit"
+          variant="primary"
+          label={dgettext("dashboard_account", "Add trust policy")}
+        />
+      </.form>
+    </div>
+    <div
+      :if={@oidc_trust_policies != []}
+      id="oidc-trust-policy-cards"
+      data-part="policies"
+    >
+      <article
+        :for={policy <- @oidc_trust_policies}
+        id={"oidc-trust-policy-#{policy.id}"}
+        data-part="policy"
+        aria-labelledby={"oidc-trust-policy-#{policy.id}-title"}
+      >
+        <div data-part="policy-header">
+          <div data-part="policy-title">
+            <h3 id={"oidc-trust-policy-#{policy.id}-title"}>{policy.name}</h3>
+            <.badge label="OIDC" color="focus" size="large" />
+          </div>
+          <.button
+            icon_only
+            variant="secondary"
+            size="small"
+            phx-click="delete_oidc_trust_policy"
+            phx-value-policy-id={policy.id}
+            aria-label={dgettext("dashboard_account", "Remove %{name}", name: policy.name)}
+          >
+            <.icon name="trash" />
+          </.button>
+        </div>
+        <dl data-part="configuration">
+          <div data-field="issuer">
+            <dt>{dgettext("dashboard_account", "Issuer URL")}</dt>
+            <dd>{policy.issuer}</dd>
+          </div>
+          <div data-field="jwks">
+            <dt>{dgettext("dashboard_account", "JWKS URL")}</dt>
+            <dd>{policy.jwks_url}</dd>
+          </div>
+          <div data-field="audience">
+            <dt>{dgettext("dashboard_account", "Audience")}</dt>
+            <dd>{policy.audience}</dd>
+          </div>
+          <div data-field="claims">
+            <dt>{dgettext("dashboard_account", "Claims")}</dt>
+            <dd><pre>{format_claims(policy.claims)}</pre></dd>
+          </div>
+        </dl>
+        <div data-part="policy-footer">
+          <p data-scope="account">
+            {dgettext(
+              "dashboard_account",
+              "Access: all current and future projects in this account."
+            )}
+          </p>
+          <time datetime={DateTime.to_iso8601(policy.inserted_at)}>
+            {dgettext("dashboard_account", "Created %{time}",
+              time: Tuist.Utilities.DateFormatter.from_now(policy.inserted_at)
+            )}
+          </time>
+        </div>
+      </article>
+    </div>
+  </.card_section>
+</section>

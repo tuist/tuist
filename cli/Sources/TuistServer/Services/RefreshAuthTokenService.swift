@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
+import TuistHTTP
 
 @Mockable
 public protocol RefreshAuthTokenServicing: Sendable {
@@ -10,10 +11,25 @@ public protocol RefreshAuthTokenServicing: Sendable {
     ) async throws -> ServerAuthenticationTokens
 }
 
-public enum RefreshAuthTokenServiceError: LocalizedError, Equatable {
+public enum RefreshAuthTokenServiceError: LocalizedError, Equatable, HTTPStatusCodeError {
     case unknownError(Int)
     case unauthorized(String)
     case badRequest
+
+    public var httpStatusCode: Int {
+        switch self {
+        case let .unknownError(statusCode): statusCode
+        case .unauthorized: 401
+        case .badRequest: 400
+        }
+    }
+
+    /// Only a status the server can resolve on its own is worth refreshing again for: a rejected or malformed refresh
+    /// is answered the same way every time.
+    public var isRetryable: Bool {
+        guard case let .unknownError(statusCode) = self else { return false }
+        return statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
+    }
 
     public var errorDescription: String? {
         switch self {

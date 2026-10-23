@@ -37,6 +37,46 @@ defmodule Tuist.Authentication.SubjectCacheTest do
     assert {:ok, %{subject: :after}} = SubjectCache.fetch("token", opts)
   end
 
+  test "delayed stale readers reuse a newer refill without deleting it or refilling again", %{clock: clock, opts: opts} do
+    fills = count_snapshot_fills(false)
+    assert {:ok, %{subject: :before}} = SubjectCache.fetch("token", opts)
+    readers = park_stale_readers(opts)
+
+    Agent.update(clock, fn {_, wall} -> {60_000, wall} end)
+    assert {:ok, %{subject: :after, valid_until: 120_000} = fresh} = SubjectCache.fetch("token", opts)
+
+    for reader <- readers do
+      send(reader.pid, :resume_after_refill)
+      assert Task.await(reader) == {:ok, fresh}
+    end
+
+    assert SubjectCache.fetch("token", opts) == {:ok, fresh}
+    assert Agent.get(fills, & &1) == 2
+  end
+
+  test "delayed stale readers preserve a valid refill during an outage, but not beyond its original deadline", %{
+    clock: clock,
+    opts: opts
+  } do
+    fills = count_snapshot_fills(true)
+    assert {:ok, %{subject: :before}} = SubjectCache.fetch("token", opts)
+    readers = park_stale_readers(opts)
+
+    Agent.update(clock, fn {_, wall} -> {60_000, wall} end)
+    assert {:ok, %{subject: :after, valid_until: 120_000} = fresh} = SubjectCache.fetch("token", opts)
+
+    for reader <- readers do
+      send(reader.pid, :resume_after_refill)
+      assert Task.await(reader) == {:ok, fresh}
+    end
+
+    assert SubjectCache.fetch("token", opts) == {:ok, fresh}
+    assert Agent.get(fills, & &1) == 2
+    Agent.update(clock, fn {_, wall} -> {120_000, wall} end)
+    assert SubjectCache.fetch("token", opts) == {:error, :unavailable}
+    assert Agent.get(fills, & &1) == 3
+  end
+
   test "verified expiry caps the deadline and wall-clock jumps cannot bypass it", %{clock: clock, opts: opts} do
     expect(Authentication, :authenticated_subject_snapshot, fn "token" -> %{subject: :valid, expires_at: 1_005} end)
     expect(Authentication, :authenticated_subject_snapshot, fn "token" -> nil end)
@@ -132,5 +172,49 @@ defmodule Tuist.Authentication.SubjectCacheTest do
     assert {:ok, %{subject: :valid}} = SubjectCache.fetch("token", opts)
     Cachex.clear(:tuist)
     assert {:ok, %{subject: :valid}} = SubjectCache.fetch("token", opts)
+  end
+
+  defp count_snapshot_fills(fail_after_refill?) do
+    fills = start_supervised!({Agent, fn -> 0 end})
+
+    stub(Authentication, :authenticated_subject_snapshot, fn "token" ->
+      count = Agent.get_and_update(fills, fn count -> {count + 1, count + 1} end)
+      if fail_after_refill? and count > 2, do: raise(DBConnection.ConnectionError, "offline")
+      %{subject: if(count == 1, do: :before, else: :after), expires_at: nil}
+    end)
+
+    fills
+  end
+
+  defp park_stale_readers(opts) do
+    parent = self()
+
+    readers =
+      for _ <- 1..2 do
+        Task.async(fn ->
+          reader = self()
+          checks = :atomics.new(1, [])
+          monotonic = fn -> stale_reader_time(reader, parent, checks, opts[:monotonic]) end
+
+          SubjectCache.fetch("token", Keyword.put(opts, :monotonic, monotonic))
+        end)
+      end
+
+    for _ <- readers do
+      assert_receive {:stale_reader_ready, pid}, 5_000
+      assert Enum.any?(readers, &(&1.pid == pid))
+    end
+
+    readers
+  end
+
+  defp stale_reader_time(reader, parent, checks, monotonic) do
+    # Park after SingleFlight's warm validation, before the final use-time check.
+    if self() == reader and :atomics.add_get(checks, 1, 1) == 2 do
+      send(parent, {:stale_reader_ready, reader})
+      receive do: (:resume_after_refill -> :ok)
+    end
+
+    monotonic.()
   end
 end

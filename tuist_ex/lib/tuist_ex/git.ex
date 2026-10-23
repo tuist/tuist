@@ -2,9 +2,8 @@ defmodule TuistEx.Git do
   @moduledoc false
 
   # Reads what coverage needs from a Git checkout: the commit graph within a
-  # window, the merge base with the branch a commit merges into, the files and
-  # line ranges that changed since, a commit's file listing, and the blob each
-  # source file has. A port of the Tuist command line tool's
+  # window, the merge base with the branch a commit merges into, a commit's file
+  # listing, and the blob each source file has. A port of the Tuist command line tool's
   # `GitController+History.swift` and `GitHistoryParser.swift`; the two must
   # agree, since the server compares what both report.
 
@@ -12,8 +11,7 @@ defmodule TuistEx.Git do
     window_days: 365,
     window_commits: 5000,
     deepen_budget_seconds: 60,
-    max_changed_files: 2000,
-    max_hunks_per_file: 200
+    remote_access: :history
   }
 
   # Git must never stop to ask for credentials, and signature checks would
@@ -130,10 +128,15 @@ defmodule TuistEx.Git do
   end
 
   @doc """
-  The run's history: the object format, the merge base with `base_branch`
-  (fetching and deepening a shallow clone within the budget), the commits
-  within the window, and the files changed since the merge base with their
-  hunks. `fallback_reason` says what could not be collected.
+  The run's history: the object format, the merge base with `base_branch`,
+  the base branch's commit, and the commits within the window reachable from
+  the head and from that commit when the checkout has it. `fallback_reason`
+  says what could not be collected. `remote_access` is what may be read from
+  the remote, each call a round trip whatever it transfers: with `:history`,
+  the base branch is fetched and a shallow clone deepened within the budget
+  until the merge base is found; with `:base_head`, a checkout without the
+  base branch gets its latest commit from one `git ls-remote`; with `:none`,
+  only the checkout is read.
   """
   def history(dir, head, base_branch, limits \\ @default_limits) do
     limits = Map.merge(@default_limits, limits)
@@ -145,12 +148,25 @@ defmodule TuistEx.Git do
           _ -> "sha1"
         end
 
-      {merge_base, reasons} =
+      {merge_base, ref, reasons} =
         if base_branch,
           do: resolve_merge_base(dir, head, base_branch, limits),
-          else: {nil, ["no base branch is known"]}
+          else: {nil, nil, ["no base branch is known"]}
 
-      {changed_files, reasons} = changed_files(dir, merge_base, head, limits, reasons)
+      # Read after any deepening, which fetches the base branch again and can move it.
+      local_base_head = if ref, do: commit_sha(dir, ref)
+
+      base_head =
+        cond do
+          local_base_head ->
+            local_base_head
+
+          base_branch && limits.remote_access == :base_head ->
+            remote_head(dir, base_branch, limits)
+
+          true ->
+            nil
+        end
 
       {:ok,
        %{
@@ -158,10 +174,17 @@ defmodule TuistEx.Git do
          head_sha: head,
          base_branch: base_branch,
          merge_base_sha: merge_base,
-         commits: window_commits(dir, head, limits),
-         changed_files: changed_files,
+         base_head_sha: base_head,
+         commits: window_commits(dir, Enum.uniq([head | List.wrap(local_base_head)]), limits),
          fallback_reason: if(reasons != [], do: Enum.join(reasons, "; "))
        }}
+    end
+  end
+
+  defp commit_sha(dir, ref) do
+    case capture(dir, ["rev-parse", "--verify", "--quiet", "#{ref}^{commit}"]) do
+      {:ok, output} -> if String.trim(output) != "", do: String.trim(output)
+      :error -> nil
     end
   end
 
@@ -174,57 +197,16 @@ defmodule TuistEx.Git do
     end
   end
 
-  defp changed_files(_dir, nil, _head, _limits, reasons), do: {[], reasons}
-
-  defp changed_files(dir, merge_base, head, limits, reasons) do
-    # `--no-abbrev`: the raw format abbreviates blob ids by default, and patch
-    # coverage matches them against the full ids the coverage rows carry. The
-    # hunks are keyed by the `+++ b/<path>` headers, so they must not depend on
-    # the user's config: prefixes and quoting.
-    with {:ok, raw} <-
-           capture(dir, ["diff", "--raw", "--no-abbrev", "-z", "-M", merge_base, head]),
-         {:ok, unified} <-
-           capture(dir, [
-             "-c",
-             "core.quotePath=false",
-             "diff",
-             "-U0",
-             "-M",
-             "--no-color",
-             "--no-ext-diff",
-             "--src-prefix=a/",
-             "--dst-prefix=b/",
-             merge_base,
-             head
-           ]) do
-      {files, dropped} = parse_changed_files(raw, unified, limits)
-
-      reasons =
-        if dropped > 0,
-          do:
-            reasons ++
-              [
-                "#{dropped} changed files beyond the first #{limits.max_changed_files} were left out"
-              ],
-          else: reasons
-
-      {files, reasons}
-    else
-      :error -> {[], reasons ++ ["the changes since the merge base could not be read"]}
-    end
-  end
-
   # `git log` lists a shallow clone's boundary commits without parents, so
   # theirs are read from the commit objects, which the raw format prints
   # regardless of the shallow grafts. When they cannot be read, the boundary
   # commits are left out rather than stored as roots.
-  defp window_commits(dir, head, limits) do
+  defp window_commits(dir, heads, limits) do
     case capture(dir, [
            "log",
            "--format=%H %P %ct",
            "--max-count=#{limits.window_commits}",
-           "--since=#{limits.window_days}.days.ago",
-           head
+           "--since=#{limits.window_days}.days.ago" | heads
          ]) do
       {:ok, output} -> output |> parse_commits() |> with_boundary_parents(dir)
       :error -> []
@@ -271,49 +253,61 @@ defmodule TuistEx.Git do
   # every fetch: without a refspec git fetches what the checkout's config
   # says, which for `actions/checkout` is every branch. Deepening steps add up
   # and stop at the window, and never continue past a fetch that failed.
+  # Returns the merge base, the base branch's ref it was resolved against, and
+  # why either is missing.
   defp resolve_merge_base(dir, head, base_branch, limits) do
     deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
     shallow? = capture(dir, ["rev-parse", "--is-shallow-repository"]) == {:ok, "true\n"}
     refspec = "+#{base_branch}:refs/remotes/origin/#{base_branch}"
 
-    {ref, timed_out?} =
-      case base_ref(dir, base_branch) do
-        nil ->
+    {ref, fetch_problem} =
+      case {base_ref(dir, base_branch), limits.remote_access} do
+        {nil, :history} ->
           fetch =
             ["fetch", "--quiet", "--no-tags", "--filter=blob:none"] ++
               if(shallow?, do: ["--depth=1"], else: [])
 
           case run_until(dir, fetch ++ ["origin", refspec], deadline) do
-            :timed_out -> {nil, true}
-            _ -> {base_ref(dir, base_branch), false}
+            :timed_out -> {nil, :timed_out}
+            _ -> {base_ref(dir, base_branch), nil}
           end
 
-        ref ->
-          {ref, false}
+        {nil, _remote_access} ->
+          {nil, :not_fetched}
+
+        {ref, _remote_access} ->
+          {ref, nil}
       end
 
     cond do
-      timed_out? ->
-        {nil,
+      fetch_problem == :not_fetched ->
+        {nil, nil, ["the base branch #{base_branch} is not in the checkout"]}
+
+      fetch_problem == :timed_out ->
+        {nil, nil,
          [
            "the base branch #{base_branch} is not in the checkout and could not be fetched within #{limits.deepen_budget_seconds}s"
          ]}
 
       is_nil(ref) ->
-        {nil, ["the base branch #{base_branch} is not in the checkout and could not be fetched"]}
+        {nil, nil,
+         ["the base branch #{base_branch} is not in the checkout and could not be fetched"]}
 
       sha = merge_base(dir, ref, head) ->
-        {sha, []}
+        {sha, ref, []}
 
       not shallow? ->
-        {nil,
+        {nil, ref,
          ["#{String.slice(head, 0, 12)} and #{base_branch} share no history in the checkout"]}
 
+      limits.remote_access != :history ->
+        {nil, ref, ["shallow clone: the merge base with #{base_branch} is not in the checkout"]}
+
       sha = deepen(dir, ref, head, refspec, deadline, max(limits.window_commits, 50), 0, 50) ->
-        {sha, []}
+        {sha, ref, []}
 
       true ->
-        {nil,
+        {nil, ref,
          [
            "shallow clone: the merge base with #{base_branch} was not found within #{limits.deepen_budget_seconds}s"
          ]}
@@ -324,19 +318,22 @@ defmodule TuistEx.Git do
     step = min(step, max_depth - depth)
 
     if System.monotonic_time(:millisecond) < deadline and depth < max_depth and
-         run_until(
-           dir,
-           [
-             "fetch",
-             "--quiet",
-             "--no-tags",
-             "--filter=blob:none",
-             "--deepen=#{step}",
-             "origin",
-             refspec
-           ],
-           deadline
-         ) == :succeeded do
+         match?(
+           {:succeeded, _},
+           run_until(
+             dir,
+             [
+               "fetch",
+               "--quiet",
+               "--no-tags",
+               "--filter=blob:none",
+               "--deepen=#{step}",
+               "origin",
+               refspec
+             ],
+             deadline
+           )
+         ) do
       merge_base(dir, ref, head) ||
         deepen(dir, ref, head, refspec, deadline, max_depth, depth + step, step * 2)
     end
@@ -352,6 +349,26 @@ defmodule TuistEx.Git do
     case capture(dir, ["merge-base", ref, head]) do
       {:ok, output} -> if String.trim(output) != "", do: String.trim(output)
       :error -> nil
+    end
+  end
+
+  # The branch's latest commit as the remote has it: one `git ls-remote`,
+  # which transfers no objects, killed like a fetch when it outlasts the budget.
+  defp remote_head(dir, branch, limits) do
+    deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
+    ref = "refs/heads/#{branch}"
+
+    case run_until(dir, ["ls-remote", "origin", ref], deadline) do
+      {:succeeded, output} ->
+        Enum.find_value(String.split(output, "\n"), fn line ->
+          case String.split(line, "\t") do
+            [sha, ^ref] -> sha
+            _ -> nil
+          end
+        end)
+
+      _ ->
+        nil
     end
   end
 
@@ -372,16 +389,16 @@ defmodule TuistEx.Git do
         ])
 
       os_pid = port |> Port.info(:os_pid) |> elem(1)
-      await_port(port, os_pid, deadline)
+      await_port(port, os_pid, deadline, [])
     end
   end
 
-  defp await_port(port, os_pid, deadline) do
+  defp await_port(port, os_pid, deadline, output) do
     remaining = max(deadline - System.monotonic_time(:millisecond), 0)
 
     receive do
-      {^port, {:data, _}} -> await_port(port, os_pid, deadline)
-      {^port, {:exit_status, 0}} -> :succeeded
+      {^port, {:data, data}} -> await_port(port, os_pid, deadline, [output, data])
+      {^port, {:exit_status, 0}} -> {:succeeded, IO.iodata_to_binary(output)}
       {^port, {:exit_status, _}} -> :failed
     after
       remaining ->
@@ -427,151 +444,6 @@ defmodule TuistEx.Git do
     end)
     |> elem(0)
   end
-
-  @doc """
-  The files of a `git diff --raw -z -M` listing joined with the hunks of the
-  matching `git diff -U0`. Returns the files kept and how many were dropped
-  past the limit.
-  """
-  def parse_changed_files(raw, unified, limits) do
-    hunks = parse_hunks(unified)
-
-    raw
-    |> String.split(<<0>>)
-    |> raw_entries([])
-    |> Enum.reduce({[], 0}, fn {fields, paths}, {files, dropped} ->
-      if length(files) >= limits.max_changed_files do
-        {files, dropped + 1}
-      else
-        {[changed_file(fields, paths, hunks, limits) | files], dropped}
-      end
-    end)
-    |> then(fn {files, dropped} -> {Enum.reverse(files), dropped} end)
-  end
-
-  # `:<old mode> <new mode> <old blob> <new blob> <status>` then one path, or
-  # two for a rename or copy.
-  defp raw_entries([":" <> header | rest], acc) do
-    fields = String.split(header, " ", trim: true)
-    two_paths? = match?([_, _, _, _, <<status, _::binary>>] when status in [?R, ?C], fields)
-
-    case {two_paths?, rest} do
-      {true, [previous, path | rest]} -> raw_entries(rest, [{fields, {previous, path}} | acc])
-      {false, [path | rest]} -> raw_entries(rest, [{fields, {nil, path}} | acc])
-      _ -> Enum.reverse(acc)
-    end
-  end
-
-  defp raw_entries([_ | rest], acc), do: raw_entries(rest, acc)
-  defp raw_entries([], acc), do: Enum.reverse(acc)
-
-  defp changed_file([_, _, _, blob, status | _], {previous, path}, hunks, limits) do
-    status =
-      case status do
-        "A" <> _ -> "added"
-        "D" <> _ -> "deleted"
-        "R" <> _ -> "renamed"
-        _ -> "modified"
-      end
-
-    file_hunks = Map.get(hunks, path, [])
-
-    %{
-      path: path,
-      previous_path: previous,
-      status: status,
-      git_blob_id: if(!(status == "deleted" or String.trim(blob, "0") == ""), do: blob),
-      hunks: Enum.take(file_hunks, limits.max_hunks_per_file),
-      truncated: length(file_hunks) > limits.max_hunks_per_file
-    }
-  end
-
-  @doc """
-  The head-side line ranges of each file's hunks in a unified diff: `+++
-  b/<path>` names the file, `@@ -a,b +c,d @@` covers lines c..c+d-1; a hunk
-  with d = 0 only removed lines. A `+++ ` line only names the file right after
-  the `--- ` line of a `diff --git` header: in a hunk it is an added line.
-  """
-  def parse_hunks(unified) do
-    unified
-    |> String.split(~r/\r?\n/)
-    |> Enum.reduce({%{}, nil, false, false}, fn line, {hunks, path, header?, old_name?} ->
-      cond do
-        String.starts_with?(line, "diff --git ") ->
-          {hunks, nil, true, false}
-
-        header? and String.starts_with?(line, "--- ") ->
-          {hunks, path, header?, true}
-
-        header? and old_name? and String.starts_with?(line, "+++ ") ->
-          {hunks, header_path(binary_part(line, 4, byte_size(line) - 4)), false, false}
-
-        path && String.starts_with?(line, "@@ ") ->
-          {add_hunk(hunks, path, line), path, header?, old_name?}
-
-        true ->
-          {hunks, path, header?, old_name?}
-      end
-    end)
-    |> elem(0)
-    |> Map.new(fn {path, ranges} -> {path, Enum.reverse(ranges)} end)
-  end
-
-  defp add_hunk(hunks, path, line) do
-    case Regex.run(~r/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/, line) do
-      [_, start] ->
-        prepend_hunk(hunks, path, String.to_integer(start), 1)
-
-      [_, start, count] ->
-        prepend_hunk(hunks, path, String.to_integer(start), String.to_integer(count))
-
-      nil ->
-        hunks
-    end
-  end
-
-  defp prepend_hunk(hunks, _path, _start, 0), do: hunks
-
-  defp prepend_hunk(hunks, path, start, count),
-    do:
-      Map.update(
-        hunks,
-        path,
-        [%{start: start, end: start + count - 1}],
-        &[%{start: start, end: start + count - 1} | &1]
-      )
-
-  # Git ends the name with a tab when it has a space, and quotes it, C-style,
-  # when it has a character `core.quotePath=false` still escapes.
-  defp header_path(name) do
-    name = String.trim_trailing(name, "\t")
-
-    path =
-      if String.starts_with?(name, "\"") and String.ends_with?(name, "\"") and
-           byte_size(name) >= 2,
-         do: name |> binary_part(1, byte_size(name) - 2) |> unquote_c(),
-         else: name
-
-    cond do
-      name == "/dev/null" -> nil
-      String.starts_with?(path, "b/") -> binary_part(path, 2, byte_size(path) - 2)
-      true -> path
-    end
-  end
-
-  @escapes %{?a => 7, ?b => 8, ?t => 9, ?n => 10, ?v => 11, ?f => 12, ?r => 13}
-
-  defp unquote_c(quoted), do: unquote_c(quoted, <<>>)
-
-  defp unquote_c(<<?\\, a, b, c, rest::binary>>, acc)
-       when a in ?0..?7 and b in ?0..?7 and c in ?0..?7,
-       do: unquote_c(rest, <<acc::binary, (a - ?0) * 64 + (b - ?0) * 8 + (c - ?0)>>)
-
-  defp unquote_c(<<?\\, next, rest::binary>>, acc),
-    do: unquote_c(rest, <<acc::binary, Map.get(@escapes, next, next)>>)
-
-  defp unquote_c(<<byte, rest::binary>>, acc), do: unquote_c(rest, <<acc::binary, byte>>)
-  defp unquote_c(<<>>, acc), do: acc
 
   @doc """
   The entries of `git ls-tree -r -z`: `<mode> <type> <object>\\t<path>`,

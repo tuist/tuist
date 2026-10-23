@@ -14,44 +14,6 @@ public struct GitHistoryCommit: Equatable, Sendable {
     }
 }
 
-/// An inclusive range of changed lines in a file at the head of a diff.
-public struct GitHunk: Equatable, Sendable {
-    public let start: Int
-    public let end: Int
-
-    public init(start: Int, end: Int) {
-        self.start = start
-        self.end = end
-    }
-}
-
-/// A file changed between the merge base and the head.
-public struct GitChangedFile: Equatable, Sendable {
-    public enum Status: String, Sendable {
-        case added, modified, deleted, renamed
-    }
-
-    /// The path at the head, relative to the repository root.
-    public let path: String
-    /// The path before a rename.
-    public let previousPath: String?
-    public let status: Status
-    /// The file's blob at the head; nil for a deleted file.
-    public let blobId: String?
-    public let hunks: [GitHunk]
-    /// Whether the hunks stop short because the file's diff exceeded the limits.
-    public let truncated: Bool
-
-    public init(path: String, previousPath: String?, status: Status, blobId: String?, hunks: [GitHunk], truncated: Bool) {
-        self.path = path
-        self.previousPath = previousPath
-        self.status = status
-        self.blobId = blobId
-        self.hunks = hunks
-        self.truncated = truncated
-    }
-}
-
 /// A file of a commit's tree with the blob it has there, as `git ls-files --stage` lists it: what
 /// the server measures coverage against, reads the project's tracked files from, and compares for
 /// evidence reuse.
@@ -88,24 +50,31 @@ public struct GitHistoryLimits: Equatable, Sendable {
     public var windowCommits: Int
     /// How long deepening a shallow clone may take before giving up on the merge base.
     public var deepenBudgetSeconds: Int
-    /// Changed files listed with hunks; the rest are dropped and the run says so.
-    public var maxChangedFiles: Int
-    /// Hunks kept per changed file; a file with more is marked truncated.
-    public var maxHunksPerFile: Int
+    /// What may be read from the remote beyond the checkout.
+    public var remoteAccess: GitHistoryRemoteAccess
 
     public init(
         windowDays: Int = 365,
         windowCommits: Int = 5000,
         deepenBudgetSeconds: Int = 60,
-        maxChangedFiles: Int = 2000,
-        maxHunksPerFile: Int = 200
+        remoteAccess: GitHistoryRemoteAccess = .history
     ) {
         self.windowDays = windowDays
         self.windowCommits = windowCommits
         self.deepenBudgetSeconds = deepenBudgetSeconds
-        self.maxChangedFiles = maxChangedFiles
-        self.maxHunksPerFile = maxHunksPerFile
+        self.remoteAccess = remoteAccess
     }
+}
+
+/// What collecting a run's history may read from the remote. Every remote call is a round trip of
+/// most of a second whatever it transfers, so only finding the merge base fetches history.
+public enum GitHistoryRemoteAccess: Equatable, Sendable {
+    /// Only what the checkout has.
+    case none
+    /// The base branch's latest commit (`git ls-remote`) when the checkout lacks the base branch.
+    case baseHead
+    /// The base branch, and a shallow clone deepened until the merge base is found.
+    case history
 }
 
 /// What a checkout can tell about a run's place in the repository's history. Anything the
@@ -117,10 +86,11 @@ public struct GitHistory: Equatable, Sendable {
     public let headSHA: String
     public let baseBranch: String?
     public let mergeBaseSHA: String?
-    /// The commits reachable from the head within the limits, newest first.
+    /// The base branch's commit as the checkout or the remote had it, nil when neither could say.
+    public let baseHeadSHA: String?
+    /// The commits reachable from the head, and from the base branch's commit when the checkout has
+    /// it, within the limits, newest first.
     public let commits: [GitHistoryCommit]
-    /// The files changed between the merge base and the head; empty without a merge base.
-    public let changedFiles: [GitChangedFile]
     public let fallbackReason: String?
 
     public init(
@@ -128,16 +98,16 @@ public struct GitHistory: Equatable, Sendable {
         headSHA: String,
         baseBranch: String?,
         mergeBaseSHA: String?,
+        baseHeadSHA: String? = nil,
         commits: [GitHistoryCommit],
-        changedFiles: [GitChangedFile],
         fallbackReason: String?
     ) {
         self.objectFormat = objectFormat
         self.headSHA = headSHA
         self.baseBranch = baseBranch
         self.mergeBaseSHA = mergeBaseSHA
+        self.baseHeadSHA = baseHeadSHA
         self.commits = commits
-        self.changedFiles = changedFiles
         self.fallbackReason = fallbackReason
     }
 }

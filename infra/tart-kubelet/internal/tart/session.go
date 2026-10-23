@@ -3,6 +3,7 @@ package tart
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,11 +20,13 @@ import (
 // immediately with `VZErrorDomain Code=-9 / Failed to create new
 // HostKey` and the Pod stalls in TartCreateFailed forever. The
 // bootstrap pass at provisioning time configures /etc/kcpassword +
-// autoLoginUser and SIGHUPs loginwindow once, but the Aqua session
-// can be torn down later (idle auto-logout, WindowServer crash,
-// manual logout) and we hit the same wall on every subsequent VM
-// start. Re-establishing the session before each Run makes the
-// kubelet self-healing on this exact failure.
+// autoLoginUser and verifies the Aqua session, restarting the host
+// once if it has to, but the session can be torn down later (idle
+// auto-logout, WindowServer crash, manual logout) and we hit the
+// same wall on every subsequent VM start. Re-establishing the
+// session before each Run makes the kubelet self-healing on this
+// exact failure. A console Setup Assistant still holds is the one
+// state a kick cannot fix; the error then says to restart the host.
 //
 // Idempotent: when Aqua is already up the call is a single
 // `launchctl print` and returns immediately. Otherwise it sudos a
@@ -51,7 +54,7 @@ func EnsureRealGUISession(ctx context.Context) error {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("Aqua session for uid %d did not come up within 30s after SIGHUP loginwindow", uid)
+			return guiSessionTimeoutError(uid, consoleOwner(ctx))
 		}
 		select {
 		case <-ctx.Done():
@@ -89,4 +92,33 @@ func kickLoginwindow(ctx context.Context) error {
 		return fmt.Errorf("%w (output: %s)", err, bytes.TrimSpace(out))
 	}
 	return nil
+}
+
+// setupAssistantUser is the account Setup Assistant runs as on first boot.
+const setupAssistantUser = "_mbsetupuser"
+
+// guiSessionTimeoutError names who holds the console, which decides the
+// recovery. A host whose console Setup Assistant still holds from its first
+// boot (an ADE-enrolled mini bootstrapped without a restart since) never gets
+// the session from a loginwindow kick: auto-login only applies at boot.
+func guiSessionTimeoutError(uid int, console string) error {
+	msg := fmt.Sprintf("Aqua session for uid %d did not come up within 30s after SIGHUP loginwindow", uid)
+	switch console {
+	case "":
+		return errors.New(msg)
+	case setupAssistantUser:
+		return fmt.Errorf("%s: the console is held by %s, Setup Assistant's first-boot session, which loginwindow does not hand over; auto-login only applies at boot, so restart the host", msg, console)
+	default:
+		return fmt.Errorf("%s (console held by %s)", msg, console)
+	}
+}
+
+// consoleOwner returns the user owning /dev/console, or "" when it cannot be
+// read. Needs no sudo.
+func consoleOwner(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, "stat", "-f", "%Su", "/dev/console").Output()
+	if err != nil {
+		return ""
+	}
+	return string(bytes.TrimSpace(out))
 }

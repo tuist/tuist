@@ -223,6 +223,7 @@ mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credenti
 mise run rack:write-install-usb <disk> --host <node>   # a stick that makes a rack Linux host a node (infra/rack-nodes)
 mise run rack:omada controller|devices|inform|adopt|apply|api [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
+mise run rack:fleet-test render edge        # the files a site definition change touches
 ```
 
 The suite runs in CI on any change under `infra/rack-switch-fleet/` or
@@ -236,6 +237,17 @@ A note on reading its output: a test runner's prose is a convenience and its
 exit code is the fact. Three of these tests were red for several rounds of work
 because the tail of the `bats` output looked green.
 
+The suite is one bats file per subject under `tests/` (`render`, `edge`,
+`session`, `replace`, `recover`, `apply`, `resolve`, `save`, `omada`, `ztp`),
+sharing `tests/helpers.bash`. `rack:fleet-test` runs the files side by side and
+prints each file's output whole, with how long it took; names run a subset.
+Each file runs against its own copy of this directory and `infra/helm`, made
+in `setup_file`, and each test takes the lock in its own `FLEET_LOCK_DIR`, so a
+test may render into, edit or add to the committed files without touching the
+checkout or another file. Most of the suite's time is fake switches waiting
+out the session driver's quiet window, so a new test that drives a session
+belongs in a file of its own subject rather than in `render`.
+
 `--site` selects the rack and defaults to `ber1`.
 
 Shell and `ssh`, like `rack:prep-switch` beside it. `fleet.sh` is the
@@ -243,6 +255,18 @@ implementation and `mise/tasks/rack/fleet.sh` the operator entry point; the
 pieces worth testing on their own are in `lib/`. Rendering needs `jq`,
 normalising is `awk`, and the diff is `diff -u`, so there is no interpreter to
 install and nothing to build.
+
+A render's cost is the number of `jq` and `yq` processes it starts, so a
+function reads the fields it needs from the site in one `jq` call (joined with
+`\x1f` and split with `read`) rather than one call per field, per node or per
+port, and reads the tuist chart's values file with one `yq` call. `render`
+runs the site-wide checks once (`fleet_check_site`) and the edge checks once
+(`fleet_edge_check`), and sets `FLEET_SITE_CHECKED` and `FLEET_EDGE_CHECKED`
+to the site file so each device's and file's render skips them; when they fail
+it leaves the variables empty and every render runs and reports them as
+before. `fleet_render_k8s` takes the switch's rendered configuration as an
+optional third argument and digests it for `configRevision` instead of
+rendering it again.
 
 ## What the site definition is for
 
@@ -304,7 +328,7 @@ one:
   yet, which is most of them today, and a node with no links is a node that is
   reached some other way.
 - **`devices[].ports`** carries only what is neither a machine nor an appliance:
-  the ISL and the router uplink.
+  the ISL and the WAN ports.
 
 An appliance is a node like any other. Giving the PDU and the KVMs their own
 concept would put them back where the compute ports started, as port numbers
@@ -503,7 +527,15 @@ An outlet's number is the card's (`/powerDistributions/1/outlets/<n>`), and
 it is the printed label's: outlet `n` reports `identification.physicalName`
 `An`, read off `ber1-pdu-b` on 2026-10-05, the letter being the PDU's one
 input. Its `measures` give each outlet's draw, which tells which outlets have
-a load without switching anything. The even outlets are hybrid C13/C19
+a load without switching anything. The CAPI provider's RackPDU controller reads
+every outlet's into the RackPDU's `status.outlets[]` and the
+`capt_rackpdu_outlet_*` metrics, whatever is plugged in. Only a RackHost names
+its outlet, so only a mini's reading is tied to a node: its `HostDrawing`
+condition tells an empty outlet (0 VA) from a mini plugged in and powered off
+(about 0.1 W and 4 to 6 VA), whose power button someone has to press, since an
+outlet cycle does not start a mini our bootstrap has not set
+`pmset autorestart 1` on. The ToR's, edge's and storage node's outlets are
+read but stay unnamed, since outlets are not modelled here. The even outlets are hybrid C13/C19
 sockets, so every outlet takes the minis' C14 cord.
 
 **Cord colour is the chain.** Chain B's mini cords are blue, and chain A's are
@@ -567,6 +599,20 @@ in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)
 That observation replaces an SNMP exporter: nothing polls these switches over
 SNMP.
 
+### RackSite object
+
+Each site is rendered as a `RackSite` into `k8s/<site>/<site>.yaml` by
+`fleet_render_site`, named after the site and applied with the rest of the
+directory. Its `spec.contractedPower` comes from the site definition's
+`contracted_power`: the power the colocation contract allows, as
+`{"from": "YYYY-MM-DD", "watts": N}` steps, each in effect from that day (UTC)
+until the next one's. When the contract changes, add a step here. Don't edit the
+alert. `fleet_check_contracted_power` refuses a `from` that is not a real day, a
+`watts` that is not a whole number above 0, and two steps on one day. A site
+without `contracted_power` still gets its object, with no steps. What the
+controller does with it is "RackSite" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+
 ### The seam between two inventories, and how it is joined
 
 This file's site definition and `rackFleet.hosts` describe overlapping things.
@@ -606,8 +652,8 @@ the committed objects are stale. The object names the 1Password item holding the
 login and never carries the login.
 
 **They live in the rack's cluster.** Each site names its namespace
-(`kubernetes.namespace`); BER1 is `tuist-staging`, beside its `RackHost`, while
-the rack is at home, and moves to production with the rack. The namespace is
+(`kubernetes.namespace`); BER1 is `tuist`, production's, beside its `RackHost`
+(it was `tuist-staging` while the rack was built at home). The namespace is
 also what names the rack's env, by the tuist chart's convention (`tuist-<env>`,
 or `tuist` for production; `mise run rack:fleet env`): the Rack Switches
 workflow's objects, `omada-deployment.yml`, the install stick, the card
@@ -852,9 +898,11 @@ is in the data center. Where that stands on 2026-09-23:
 ## The edge nodes
 
 A site has two edge nodes, active and standby: `ber1-edge-a`, which is preferred,
-and `ber1-edge-b`. Each is a node of the rack's cluster that runs one pod: the
-rack-edge DaemonSet ([`infra/helm/rack-edge`](../helm/rack-edge)), deployed with
-the Omada controller by `omada-deployment.yml`. The pod runs what
+and `ber1-edge-b`. Each is a node of the rack's cluster that runs one pod, a
+kubelet static pod that the rack-edge DaemonSet
+([`infra/helm/rack-edge`](../helm/rack-edge)), deployed with the Omada
+controller by `omada-deployment.yml`, writes onto the node (see "Cold boot"
+below). The pod runs what
 `rack:fleet render` writes into `infra/helm/rack-edge/sites/<site>/` from the
 site definition (`lib/edge.sh`), and `render --check` in CI fails when those
 files no longer match it:
@@ -866,9 +914,10 @@ files no longer match it:
   gateway) without its prefix route, the provisioning address, a host route
   to each switch marked `behind_edge` and to each installed power device whose
   management link is on one, and the machines' gateway, as a /32 (see
-  "The machines segment" below). The Cogent /31 (`management.edge.wan`) is
-  empty until the data center has it; set, it floats the same way, so the
-  standby holds no WAN address until it takes over. The first member is
+  "The machines segment" below). The WAN address (`management.edge.wan`), its
+  IPv6 address and the default routes through them float the same way, so the
+  standby holds no WAN address until it takes over (see "The WAN" below). The
+  first member is
   preferred and takes the addresses back a minute after it returns, and an edge
   whose switch port has no link never becomes master. An advert counts only
   from the other edge's VRRP address and with the site's password, which the
@@ -876,7 +925,9 @@ files no longer match it:
   every upgrade. Only the edges are on the VRRP VLAN, so a device that can send
   to an edge cannot read it. Delete the Secret and upgrade to rotate it: until
   both edges restart, each ignores the other and both hold the addresses.
-- `mgmt-path.sh`, what each edge needs whether it is master or not: the VRRP
+- `mgmt-path.sh`, what each edge needs whether it is master or not: the
+  uplinks' rings at 4096 RX and TX descriptors (i40e's 512 overflowed on the
+  WAN's bursts, counted as `rx_missed_errors` in `ethtool -S`), the VRRP
   VLAN as an active-backup bond (`vrrp0`) over one VLAN interface per uplink,
   so VRRP survives losing either ToR, with this edge's own VRRP address, the
   machines VLAN as a second bond (`machines0`) with this edge's own address on
@@ -884,7 +935,12 @@ files no longer match it:
   and the provisioning range, into tailscale0, clamps the MSS of what it
   forwards, and translates the provisioning range and the machines onto the
   uplinks; one addresses DHCP replies to each known switch's MAC; one keeps
-  the machines away from everything but the internet. It runs at pod
+  the machines away from everything but the internet. With a WAN it also
+  bonds the WAN VLAN (`wan0`), routes out through the other edge at a metric
+  keepalived's default route beats, routes the ToRs' management addresses over
+  the uplinks, translates the standby and the management segment onto the
+  WAN, and adds a fourth table that closes the WAN to everything the rack did
+  not start. It runs at pod
   start and again every five minutes, with the pod's node name picking its
   VRRP address, and refuses a port that carries the node's default route. What
   it installs stays in the kernel when the pod goes; the floating addresses go
@@ -896,6 +952,11 @@ files no longer match it:
   `mac`, gets its site address and the edge address as router,
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
+- `dhcp.sh`, what runs that dnsmasq: only while the node holds the edge
+  address on the switch port, stopping it when keepalived moves the address
+  away and starting it again when it exits. A dnsmasq started before the node
+  held the address served nothing once it arrived, and an edge's pod starts
+  before keepalived holds anything.
 - `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
   is not authoritative, since both edges answer there (see "The machines
   segment" below). Each serves one interface, which is what lets the two share
@@ -922,10 +983,9 @@ files no longer match it:
 The VLANs the edges talk over are `carried_by: edges` in the site's `vlans`:
 the switches tag them only on the ports facing an edge's data links and on the
 ISL, and declare them only where a port carries them. That is the VRRP VLAN and
-the machines VLAN. `management.edge.vrrp`
+the machines VLAN and the WAN VLAN. `management.edge.vrrp`
 names the VLAN, its prefix and the members, in order of preference, and every
-edge of the site has to be a member. The WAN-DMZ VLAN joins them the same way
-once it has an ID.
+edge of the site has to be a member.
 
 The pod uses host networking, with NET_ADMIN (and NET_RAW for keepalived and
 dnsmasq, and NET_BIND_SERVICE for dnsmasq) rather than privileged. The kernel
@@ -957,7 +1017,7 @@ its InternalIP, and keeps it converged; see
 `10.254.254.0/24`, used by nothing, so it reports Ready, and its kubelet hands
 host-network pods systemd-resolved's stub, which answers tailnet names. An
 edge's own networks sit inside the pod CIDR (staging gave `192.168.0.0/24`, the
-house network, to a runner node), and a Cilium agent would route them into the
+management prefix, to a runner node), and a Cilium agent would route them into the
 tunnel and cut the node off. The operator refuses to join it until the
 cluster's Cilium agent stays off that label. The site definition names the node
 the fleet commands jump through (`management.edge.ssh`), and the addresses the
@@ -965,7 +1025,7 @@ edges share (`.interface`, `.address`).
 
 Both edges advertise the same Tailscale subnet routes, the machines' /32s, so
 the tailnet fails over between them too. The management prefix is never
-advertised: at home it is the house network.
+advertised, so the tailnet reaches only the addresses the site names.
 
 **Reading the pod's logs.** `kubectl logs` and `exec` reach the edges' kubelets
 through a proxy Pod per node (see "Logs and exec" in
@@ -986,6 +1046,171 @@ it, so lines the collector catches up on after an outage are stamped late;
 dnsmasq's own time is at the start of each line. On the node itself:
 `sudo crictl -r unix:///run/containerd/containerd.sock logs <container>`.
 
+**An offer in the log with no request after it** is not a reply that went
+missing on its own. What the switch-port dnsmasq does with a client in the
+provisioning range:
+
+- It pings the address before offering it and hears no other DHCP packet
+  while it waits, so `DHCPDISCOVER` is logged up to three seconds after the
+  packet arrived (the `available DHCP range` line beside it carries the
+  arrival), and a second client queued behind it waits its turn.
+- It unicasts the offer: it puts the address and the client's MAC in the
+  node's neighbor table and sends to the address out the switch port. A
+  `FAILED` neighbor entry for an offered address afterwards is only that entry
+  ageing out.
+- `tuist_rack_dhcp` changes the destination MAC of a reply to a known switch
+  and nothing else; a test pins that it has no verdict and no policy.
+- An installer is a Linux DHCP client, not firmware: it sends no client
+  architecture and no iPXE user class, so it gets the plain provisioning
+  offer, and `dhcp-no-override` and `dhcp-authoritative` change nothing for it.
+
+None of that loses an offer: Ubuntu's live installer, booted from its ISO with
+the stick's seed behind this dnsmasq, its nft table and the edge's start order,
+took both provisioning leases and reached the boot server on every run
+(2026-10-11). A client that goes quiet after one `DHCPDISCOVER` has stopped
+asking. An installer stops when subiquity applies the install's own network
+section, DHCP on the uplinks only, which unmanages its 2.5G ports about nine
+seconds after they come up (the journals of `ber1-edge-b`'s and
+`ber1-store-a`'s installers, kept in `/var/log/installer/installer-journal.txt`
+of the system they installed, show it).
+
+`ber1-mgmt` logs every port's link changes, which tells how long a client was
+on the segment: `show logging buffer` in a session opened the way
+`read_live_config` in `fleet.sh` opens one, through the edge. Its clock is
+UTC+1 (`no system-time dst`). On 2026-10-10 `ber1-edge-b`'s ports 2 and 47
+came up at 10:01:05 UTC and stayed up until a power cycle at 10:05:18, while
+its any-host stick waited for the boot server; each port got one
+`DHCPDISCOVER` through, seven to ten seconds after coming up, and nothing
+more. Neither the edge nor the
+installer's software reproduces that.
+
+### The WAN
+
+The rack's only way to the internet is its upstream's handoff, a static
+address with no DHCP: Cogent's `149.6.170.31/31` behind `149.6.170.30`, and
+`2001:978:2:b::4:11/127` behind `::4:10`, the upstream's addresses, over which
+the site announces prefixes of its own (below).
+`management.edge.wan` names the VLAN it rides (4001, `carried_by: edges`), the
+addresses and the gateways.
+
+- **The switches.** A port with `purpose: wan` carries the WAN VLAN untagged
+  and nothing else, with no spanning tree towards the upstream, so the
+  upstream sees the edges and nothing of the rack; without a WAN in the site
+  it stays on the management VLAN. `ber1-tor-a` 30 is the Cogent optic,
+  `ber1-tor-b` 30 holds the spare, so a failover is moving the LC jumper, and
+  `ber1-tor-a` 24 is a copper WAN port for standing in an upstream on the
+  bench (a laptop on `149.6.170.30/31` that translates onto its own uplink),
+  with nothing in it at the colo. The edges' trunks and the ISL tag the WAN
+  VLAN like the edges' other VLANs.
+- **One address, floated.** keepalived holds the WAN addresses and the default
+  routes through them on the master, so exactly one edge answers for the
+  address, and the upstream learns a failover from keepalived's gratuitous ARP
+  and unsolicited neighbour advertisement. The IPv6 address rides
+  `virtual_ipaddress_excluded`, since an IPv4 instance's adverts carry only
+  IPv4 addresses. An edge whose WAN bond has no link never becomes master.
+  The upstream's own link is not tracked: there is one, and the standby has no
+  address to test it from.
+- **The standby goes out through the master.** Every edge routes out through
+  the other's VRRP address at metric 200, which keepalived's default route
+  beats on the master; the master translates the VRRP prefix onto the WAN.
+  That is how the standby stays on the tailnet and in the cluster. The route
+  is `proto static`, the protocol networkd gives the same route on an edge
+  installed with it (below): with any other, a networkd restart adds a second
+  copy beside the pod's.
+- **No DHCP on the uplinks.** The operator's converge gives an edge's X710
+  uplinks no address and no DHCP, global resolvers and no router
+  advertisements (see "Rack-owned Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
+  The switches' gateway is still the edge address: the master answers ARP for
+  it on its uplinks, and `mgmt-path.sh` routes the ToRs' management addresses
+  over both uplinks, the node skipping a nexthop whose link is down. The
+  management segment reaches the internet translated onto the WAN.
+- **A reinstalled edge goes out through the other one.** With no DHCP
+  anywhere, a fresh install would reach nothing, the tailnet included, and so
+  never be converged. `render` also writes `infra/helm/tuist/rack-sites/<site>.yaml`
+  (`fleet_edge_install`): each edge's uplinks, in the order its data links are
+  listed (the order `mgmt-path.sh` stacks the edge VLANs in), the VRRP VLAN,
+  its VRRP address and the other edge's. The tuist chart puts that on the
+  edge's RackLinuxHost (`spec.edge`), and the operator's install builds the
+  VRRP bond from it the way `edge_vlan_bond` does, with the standby's default
+  route through the master, so the pod later finds it in place. A site with no
+  WAN lists no edges there, and its edges' installs keep DHCP on their
+  uplinks. It needs the other edge up as master: reinstall one edge at a
+  time.
+- **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
+  started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
+  41641 for direct tailnet paths, and drops everything else arriving on
+  `wan0`, except what the edge translated itself (`ct status dnat`): the
+  cluster ports of the site's cluster-network storage host, from the
+  cluster's nodes only, in the `tuist_cluster_forwards` table the CAPI operator
+  renders into the edge's node configuration (see "A storage node on the
+  cluster network" in `infra/rack-nodes/AGENTS.md`). The edges' SSH, kubelets
+  and boot server are reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
+  no room for the machines.
+- **The site's own prefixes.** `management.edge.wan.bgp` names the site's AS
+  (`asn`, AS218377), the upstream's (`peer_asn`, Cogent's AS174) and the
+  prefixes it announces (`95.130.119.0/24` and `2a11:83c0::/29`, registered to
+  Tuist GmbH with RIPE route objects and ROAs for AS218377). `render` writes
+  `bird.conf` (`fleet_edge_bgp`), and the static pod runs BIRD on both edges
+  with it: one session per family to the WAN gateways, bound to the WAN
+  addresses and `direct`, so only the master has sessions and they move with
+  keepalived. A failover drops the sessions; the new master's connect within
+  seconds, and graceful restart asks the upstream to keep the routes
+  meanwhile. Each prefix is a blackhole in BIRD's own table and nothing BIRD
+  learns goes into the node's routes, so the default through the WAN stays
+  keepalived's and announcing changes nothing the rack sends on its own: what
+  moves machines onto the prefix is the egress below. Of what the upstream sends, only
+  a default route is kept. `birdc -s /run/bird/bird.ctl show protocols` in
+  the pod's `bgp` container shows the sessions. CI parses every site's
+  `bird.conf` with the BIRD the edge image installs.
+- **Egress from the site's own prefix.** `management.edge.wan.egress.prefix`
+  is an IPv4 block inside a prefix `bgp` announces (`95.130.119.16/28`), and
+  the Mac minis on the machines segment go out to the WAN translated into it
+  instead of onto the WAN address: one `snat ... persistent` rule in
+  `mgmt-path.sh`, ahead of the segment's masquerade, so a mini keeps the same
+  address of the block across its connections. The upstream routes the
+  announced prefix to the WAN address, and the replies are untranslated by
+  conntrack before routing, so the edges hold no address of the block.
+  `egress.nodes` limits it to the named minis, for moving them over one env
+  at a time: `ber1-runner-b01` (staging's lent mini) first, then
+  `ber1-runner-b02` (canary's), then the key dropped so every mini moves.
+  The storage nodes never move: their cluster addresses are the WAN address,
+  forwarded to them by the edges, and their egress has to match. `render`
+  refuses a block outside the announced prefixes and a node that is not a
+  Mac mini on the segment (`fleet_edge_check_egress`).
+
+### Cold boot
+
+The edges' workload has to come back with nothing else up, because the WAN it
+brings up is how every node reaches the API server: a pod the kubelet only
+learns from the API server would never start after a power loss. So it is a
+kubelet static pod (`templates/_static-pod.tpl` in the chart). The rack-edge
+DaemonSet only installs it: it copies the rendered files to
+`/etc/rack-edge/<hash>` and the VRRP password to `/etc/rack-edge-vrrp`, then
+writes the manifest naming that directory into the kubelet's static pod path,
+`/etc/kubernetes/manifests`, which the operator configures on every rack node.
+The hash covers the site files and the manifest, so a change to either is a
+new manifest and the kubelet replaces the pod. The DaemonSet's pod is ready
+once the static pod's path has run with its hash (`/run/rack-edge/started`),
+and rolls one edge at a time, 90 seconds apart. `omada-deployment.yml` installs
+the release without waiting on it, like the other releases on rack nodes, since
+a dark edge would hold the wait. A configuration nothing runs any more is
+deleted once the new one runs.
+
+The static pod outlives the DaemonSet: deleting the release, or an edge's
+label, leaves it running, which is what keeps an edge up while its installer
+restarts. Taking the workload off an edge is deleting
+`/etc/kubernetes/manifests/rack-edge-<site>.yaml` there. Rolled out for the
+first time, the operator has to have given the edge its static pod path before
+the chart changes: otherwise the old pod goes and nothing starts the new one,
+and the rollout stops at the first edge, whose partner keeps the rack up.
+
+Tested in kind on 2026-10-09, on a worker named `ber1-edge-a` with dummy
+interfaces for its NICs: with the control plane stopped and every pod sandbox
+on the worker stopped, a kubelet restart brought the static pod back from its
+manifest, and keepalived put back the WAN address and the default route. A
+second configuration replaced the pod and removed the first's directory.
+
 ### Power devices on the tailnet
 
 The operator switches the minis' outlets through the PDUs' REST API, from a
@@ -996,16 +1221,16 @@ tailnet too. Three things make that path work, all rendered from the site:
 
 - **Only the master advertises them.** `ber1-mgmt` is reached only through the
   edges' switch ports, and only the master holds the edge address there and
-  the host routes to the devices behind it; the standby's route to the
-  management prefix leads to the house network. `tailnet-routes.sh` adds the
+  the host routes to the devices behind it; the standby reaches the
+  management segment only through the master. `tailnet-routes.sh` adds the
   power /32s only when the node holds the edge address on the switch port, so
   after a failover they follow the master on the script's next run, within
   15 seconds (`routesReapplySeconds`). At the management path's five minutes,
   an edge deploy left the cluster with no remote power for that long
   (measured 2026-10-05).
 - **The master translates what it forwards to them.** A power device
-  configured by hand has whatever gateway it was given (`ber1-pdu-b`'s is the
-  house router), so its reply to a tailnet address would leave on the wrong
+  configured by hand has whatever gateway it was given (`ber1-pdu-b`'s was set
+  by hand), so its reply to a tailnet address would leave on the wrong
   network. `mgmt-path.sh` masquerades
   connections from `tailscale0` to them on the switch port, so they arrive
   from the edge address, which is on-link for the device. Tailscale's own
@@ -1048,7 +1273,7 @@ service range (`10.128.0.0/12`) and the VRRP link.
   (the runners) is a machine. Its ToR port carries the machines VLAN untagged,
   as its native VLAN, and nothing tagged, so a machine never sees the
   management VLAN. The VLAN is `carried_by: edges`: tagged only on the edges'
-  ports and the ISL, and never on the router uplink. The controller writes the
+  ports and the ISL, and never on a WAN port. The controller writes the
   port's native VLAN through the Open API; its configuration-text form
   (`switchport general allowed vlan 10 untagged`, `switchport pvid 10`,
   `no switchport general allowed vlan 1`) has not been read off a switch yet.
@@ -1080,6 +1305,13 @@ service range (`10.128.0.0/12`) and the VRRP link.
   rather than the prefix, for the reason the ACL file gives: under its
   catch-all grant, whatever is advertised is reachable from every device on
   the tailnet.
+- **The rack's caches** are on the segment too, on its storage nodes: the
+  Kura gateway the VMs reach (`rackFleet.vmCacheGatewayCIDRs`) and the VM
+  image cache the hosts pull golden bases from (`rackFleet.imageCache.nodes`,
+  see "The rack's VM image cache" in `infra/rack-nodes/AGENTS.md`). The render
+  refuses either unless it names a storage node of the site that is in the
+  rack, at its RackLinuxHost's address, so moving a storage node moves its
+  caches in the same change.
 
 Moving a host that is already on another network onto the segment: its SSH
 guard admits only the sources its RackHost lists, and the RackHost changes
@@ -1152,7 +1384,7 @@ Switches are applied one at a time, in the order `apply_order` gives:
 1. `ber1-tor-b`. No WAN path lands on it, so a bad change costs one half of the
    rack's redundancy rather than the site's connectivity. It is also the only
    switch a change is tried on.
-2. `ber1-tor-a`. Carries the WAN optic and the router uplink, so a bad change
+2. `ber1-tor-a`. Carries the WAN ports, so a bad change
    takes the site off the internet and takes the path used to fix it along with
    it.
 3. `ber1-mgmt`, alone and last. There is one management switch and it is the

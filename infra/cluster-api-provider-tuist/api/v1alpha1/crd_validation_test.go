@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -122,6 +123,101 @@ func TestRackPDUAdmission(t *testing.T) {
 	} {
 		if errs := admits(t, structural, validator, pdu(spec)); len(errs) == 0 {
 			t.Errorf("%s was admitted", name)
+		}
+	}
+}
+
+func TestRackSiteAdmission(t *testing.T) {
+	structural, validator := generatedCRD(t, "infrastructure.cluster.x-k8s.io_racksites.yaml")
+	site := func(steps ...map[string]any) map[string]any {
+		contracted := make([]any, 0, len(steps))
+		for _, s := range steps {
+			contracted = append(contracted, s)
+		}
+		return map[string]any{
+			"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha1", "kind": "RackSite",
+			"metadata": map[string]any{"name": "ber1"},
+			"spec":     map[string]any{"contractedPower": contracted},
+		}
+	}
+	paths, err := filepath.Glob("../../../rack-switch-fleet/k8s/*/*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered := 0
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		obj := map[string]any{}
+		if err := yaml.Unmarshal(raw, &obj); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if obj["kind"] != "RackSite" {
+			continue
+		}
+		rendered++
+		if errs := admits(t, structural, validator, obj); len(errs) != 0 {
+			t.Errorf("%s was refused: %v", path, errs)
+		}
+	}
+	if rendered == 0 {
+		t.Fatal("no committed RackSite objects under infra/rack-switch-fleet/k8s")
+	}
+	for name, step := range map[string]map[string]any{
+		"a day-first date": {"from": "05.10.2026", "watts": int64(3000)},
+		"no watts":         {"from": "2026-10-05", "watts": int64(0)},
+		"no date":          {"watts": int64(3000)},
+	} {
+		if errs := admits(t, structural, validator, site(step)); len(errs) == 0 {
+			t.Errorf("%s was admitted", name)
+		}
+	}
+}
+
+func TestRackLinuxHostEdgeAdmission(t *testing.T) {
+	structural, validator := generatedCRD(t, "infrastructure.cluster.x-k8s.io_racklinuxhosts.yaml")
+	host := func(role string, edge map[string]any) map[string]any {
+		spec := map[string]any{
+			"hostname": "ber1-edge-b", "role": role, "online": true,
+			"location": map[string]any{"site": "ber1"},
+			"tailnet":  map[string]any{"tags": []any{"tag:tuist-rack-edge"}},
+		}
+		if edge != nil {
+			spec["edge"] = edge
+		}
+		return map[string]any{
+			"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha1", "kind": "RackLinuxHost",
+			"metadata": map[string]any{"name": "04450c00-63f4-11f1-81f4-3582298d5c00"}, "spec": spec,
+		}
+	}
+	edge := func(mutate func(map[string]any)) map[string]any {
+		e := map[string]any{
+			"uplinks": []any{"enp2s0f1np1", "enp2s0f0np0"},
+			"vrrp":    map[string]any{"vlan": int64(4000), "address": "10.255.255.2/29", "peer": "10.255.255.1"},
+		}
+		if mutate != nil {
+			mutate(e)
+		}
+		return e
+	}
+	for name, c := range map[string]struct {
+		obj map[string]any
+		ok  bool
+	}{
+		"an edge with its network":    {host("edge", edge(nil)), true},
+		"an edge without one":         {host("edge", nil), true},
+		"a storage node with one":     {host("storage", edge(nil)), false},
+		"no uplinks":                  {host("edge", edge(func(e map[string]any) { e["uplinks"] = []any{} })), false},
+		"three uplinks":               {host("edge", edge(func(e map[string]any) { e["uplinks"] = []any{"eth0", "eth1", "eth2"} })), false},
+		"an uplink that is no name":   {host("edge", edge(func(e map[string]any) { e["uplinks"] = []any{"enp2s0f1np1; reboot"} })), false},
+		"a VLAN out of range":         {host("edge", edge(func(e map[string]any) { e["vrrp"].(map[string]any)["vlan"] = int64(4095) })), false},
+		"an address with no length":   {host("edge", edge(func(e map[string]any) { e["vrrp"].(map[string]any)["address"] = "10.255.255.2" })), false},
+		"a peer with a prefix length": {host("edge", edge(func(e map[string]any) { e["vrrp"].(map[string]any)["peer"] = "10.255.255.1/29" })), false},
+	} {
+		if errs := admits(t, structural, validator, c.obj); (len(errs) == 0) != c.ok {
+			t.Errorf("%s: errors %v, want admitted=%t", name, errs, c.ok)
 		}
 	}
 }

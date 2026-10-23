@@ -3,7 +3,7 @@ import Path
 public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public let compatibleXcodeVersions: CompatibleXcodeVersions
     public let plugins: [PluginLocation]
-    public let generationOptions: GenerationOptions
+    public var generationOptions: GenerationOptions
     public let installOptions: InstallOptions
     public let cacheOptions: CacheOptions
 
@@ -97,6 +97,18 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             case xcproj
         }
 
+        public struct Coverage: Codable, Hashable, Equatable, Sendable {
+            /// Whether the project's own targets read and warm the instrumented variant of the binary cache.
+            /// Generators read the value the run resolved (`TUIST_COVERAGE_ENABLED` > the manifest).
+            public var enabled: Bool
+            public var prefixMapping: Bool
+
+            public init(enabled: Bool = false, prefixMapping: Bool = false) {
+                self.enabled = enabled
+                self.prefixMapping = prefixMapping
+            }
+        }
+
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
@@ -112,6 +124,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let disableSandbox: Bool
         public let includeGenerateScheme: Bool
         public let enableCaching: Bool
+        public var coverage: Coverage
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
         public let defaultSwiftVersion: String
@@ -133,6 +146,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             disableSandbox: Bool,
             includeGenerateScheme: Bool,
             enableCaching: Bool = false,
+            coverage: Coverage = Coverage(),
             registryEnabled: Bool = false,
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
@@ -153,6 +167,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.disableSandbox = disableSandbox
             self.includeGenerateScheme = includeGenerateScheme
             self.enableCaching = enableCaching
+            self.coverage = coverage
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
             self.defaultSwiftVersion = defaultSwiftVersion
@@ -177,6 +192,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disableSandbox: Bool = true,
                 includeGenerateScheme: Bool = true,
                 enableCaching: Bool = false,
+                coverage: Coverage = Coverage(),
                 registryEnabled: Bool = false,
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
                 defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
@@ -198,6 +214,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     disableSandbox: disableSandbox,
                     includeGenerateScheme: includeGenerateScheme,
                     enableCaching: enableCaching,
+                    coverage: coverage,
                     registryEnabled: registryEnabled,
                     warningsAsErrors: warningsAsErrors,
                     defaultSwiftVersion: defaultSwiftVersion,

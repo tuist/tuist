@@ -551,11 +551,6 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
 
     linear(account, ~w(base head))
 
-    tests = [
-      %{module: "AppTests", suite: "MathTests", name: "testAdd()"},
-      %{module: "AppTests", suite: "TextTests", name: "testTrim()"}
-    ]
-
     test_case = fn name, suite -> %{name: name, test_suite_name: suite, status: "success", duration: 1} end
     modules = fn cases -> [%{name: "AppTests", status: "success", duration: 1, test_cases: cases}] end
 
@@ -566,7 +561,6 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
       [file("Sources/Math.swift", [1, 1, 0]), file("Sources/Text.swift", [1, 1, 1, 0])],
       %{
         test_modules: modules.([test_case.("testAdd()", "MathTests"), test_case.("testTrim()", "TextTests")]),
-        enumerated_tests: tests,
         coverage_evidence: %{
           paths: ["Sources/Math.swift", "Sources/Text.swift"],
           scopes: [
@@ -586,7 +580,7 @@ defmodule Tuist.Tests.Coverage.DeltasTest do
       %{
         partial: true,
         test_modules: modules.([test_case.("testAdd()", "MathTests")]),
-        enumerated_tests: tests
+        skip_test_identifiers: ["AppTests/TextTests/testTrim()"]
       }
     )
 

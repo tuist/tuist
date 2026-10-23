@@ -1,6 +1,7 @@
 # Bazel commands
 
 - `setup` configures remote caching and build insights for ordinary Bazel commands. Remote Asset dependency downloads are enabled by default; `--no-remote-downloader` opts out and removes generated downloader settings on the next setup. The server is deployed ahead of the CLI, so setup does not perform Remote Asset discovery. Credential-helper refresh must never backfill an absent downloader. Use the cache endpoint and credentials for the remote downloader, explicitly enable local fallback for rolling Kura upgrades, and preserve custom/disabled downloader and fallback preferences when refreshing configuration. Origin credential propagation stays opt-in. A repository downloader preference must not block the managed import; insert the import before downloader preferences so their option precedence survives setup.
+- Setup with genuinely absent credentials discovers the self-hosted control plane's report publishing policy through `/.well-known/tuist.json`, without a client opt-in. When enabled, it requires an explicit self-hosted BES endpoint (missing configuration retains sign-in guidance) and generates reporting-only options: no remote cache/downloader, credential helper, cache readiness probe, or artifact-upload strategy. Disable lifecycle events; Kura ignores unsigned lifecycle IDs. The mode grants BES telemetry only, not quarantine reads or artifact permissions. Ordinary Bazel test invocations publish target-level outcomes; detailed JUnit/CAS processing remains authenticated. Regenerate the managed configuration when changing modes. Reporting-only success output must not promise caching; explain that sign-in and another setup run are needed to enable the remote cache.
 - `test` fetches every page of quarantined test cases before executing Bazel.
   Skipped cases exclude their entire target, including healthy cases. Muted
   cases run; only complete local reports proving every failure belongs to a
@@ -21,3 +22,5 @@
 - Warn when a failed case matches an older suite-based mute but now reports a
   different class identity. Do not transfer that policy automatically: multiple
   classes may have shared the old identity.
+
+- Setup probes and credential-helper responses use project-scoped cache-token exchange, preserving the signed origin used by cold activation. Bound returned token expiry with the existing safety margin. The server is upgraded ahead of the CLI, so exchange failures propagate without raw-credential fallback. Exchange is required even when no project handle is configured. Self-hosted discovery returns one main URL; known hosted servers use local derivation without discovery. Neither path registers demand or measures latency. Hosted private/custom endpoints use the explicit override.

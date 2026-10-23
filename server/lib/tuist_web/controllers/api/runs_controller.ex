@@ -29,6 +29,7 @@ defmodule TuistWeb.API.RunsController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
 
@@ -183,7 +184,7 @@ defmodule TuistWeb.API.RunsController do
       {start_cursor, end_cursor} = Flop.Cursor.get_cursors(command_events, @cursor_order_fields)
 
       json(conn, %{
-        runs: Enum.map(command_events, &run_json(&1, selected_project)),
+        runs: Enum.map(Tuist.ReportActor.preload(command_events), &run_json(&1, selected_project)),
         pagination_metadata: %{
           has_next_page: meta.has_next_page?,
           has_previous_page: meta.has_previous_page?,
@@ -241,12 +242,14 @@ defmodule TuistWeb.API.RunsController do
       event.ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
     )
     |> Map.put(:ran_by, ran_by)
+    |> Map.put(:actor, Tuist.ReportActor.actor(event, event.user_account_name))
   end
 
   operation(:create,
     summary: "Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.",
     deprecated: true,
     parameters: [
+      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -856,6 +859,7 @@ defmodule TuistWeb.API.RunsController do
       body_params
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case Map.get(body_params, :type, "build") do
       "build" ->
@@ -873,6 +877,7 @@ defmodule TuistWeb.API.RunsController do
             |> json(%{
               type: "build",
               id: build.id,
+              actor: build |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
               duration: build.duration,
               project_id: build.project_id,
               url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
@@ -890,6 +895,7 @@ defmodule TuistWeb.API.RunsController do
             |> json(%{
               type: "test",
               id: test_run.id,
+              actor: test_run |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
               duration: test_run.duration,
               project_id: test_run.project_id,
               url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}")
@@ -923,6 +929,9 @@ defmodule TuistWeb.API.RunsController do
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.ran_by_account.id,
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
@@ -978,6 +987,9 @@ defmodule TuistWeb.API.RunsController do
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
           account_id: params.ran_by_account.id,
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

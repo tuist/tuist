@@ -10,11 +10,17 @@ import (
 // DaemonSet on the node afterwards.
 type RackNodeConfig struct {
 	// Hash fingerprints the configuration. The node records the one it last
-	// applied, and restarts containerd and the kubelet when it changes.
+	// applied, and restarts containerd and the kubelet when it changes, and
+	// systemd-networkd and systemd-resolved when the configuration carries
+	// files of theirs.
 	Hash string `json:"hash"`
 
 	// Hostname is the host's OS hostname, its Node's name.
 	Hostname string `json:"hostname"`
+
+	// Directories are created, with their parents, when missing.
+	// +optional
+	Directories []string `json:"directories,omitempty"`
 
 	// Files are written, in order, when their content or mode differs.
 	// +optional
@@ -43,11 +49,30 @@ type RackNodeConfig struct {
 
 	// Kubelet is the exact kubelet release installed, never downgraded.
 	Kubelet RackNodeKubelet `json:"kubelet"`
+
+	// ClusterNodeSets are nftables sets the node agent keeps equal to the
+	// IPv4 InternalIPs and ExternalIPs of the cluster's Cilium nodes, every
+	// apply and whenever they change. The addresses are not in the configuration, so a
+	// node joining or leaving the cluster changes no hash and restarts nothing
+	// here. A file in Nftables declares each set without flushing it.
+	// +optional
+	ClusterNodeSets []RackNodeNftSet `json:"clusterNodeSets,omitempty"`
+}
+
+// RackNodeNftSet names an nftables set of IPv4 addresses.
+type RackNodeNftSet struct {
+	// +kubebuilder:validation:Enum=ip;inet
+	Family string `json:"family"`
+	Table  string `json:"table"`
+	Name   string `json:"name"`
 }
 
 // RackNodeFile is one file on a rack node. Group names what a change to it
-// takes: modules, sysctl, network (networkd reloaded), systemd (systemd
-// re-executed), containerd or kubelet (restarted), or none.
+// takes: modules, sysctl, network (networkd reloaded), networkd or resolved
+// (systemd-networkd or systemd-resolved restarted, for their own
+// configuration), systemd (systemd re-executed), units (systemd reloaded, for
+// unit drop-ins, which leaves the units running), containerd or kubelet
+// (restarted), or none.
 type RackNodeFile struct {
 	Path string `json:"path"`
 	// +optional

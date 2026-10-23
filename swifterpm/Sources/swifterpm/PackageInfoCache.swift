@@ -108,7 +108,9 @@ enum PackageInfoCacheWriter {
             do {
                 _ = try await cachedOrDumpPackageJSON(
                     packageDir: packagePath, destination: packageInfoPath,
-                    disableSandbox: disableSandbox)
+                    disableSandbox: disableSandbox,
+                    manifestCacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: packageDir, packageDir: packagePath)
+                )
             } catch {
                 throw ToolError.message(
                     """
@@ -179,41 +181,17 @@ enum PackageInfoCacheWriter {
     }
 
     private static func cachedOrDumpPackageJSON(
-        packageDir: URL, destination: URL, disableSandbox: Bool
+        packageDir: URL, destination: URL, disableSandbox: Bool, manifestCacheFile: URL? = nil
     ) async throws -> Data {
-        if try await isFreshPackageInfo(destination: destination, packageDir: packageDir) {
-            return try await fileSystem.readFile(at: destination.absolutePath)
+        let inputs = try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+        if let inputs, let cached = await ManifestCache.read(at: destination, inputs: inputs) {
+            return cached
         }
-        let data = try await ManifestLoader.dumpPackageJSON(
-            packageDir: packageDir, disableSandbox: disableSandbox)
-        try await fileSystem.atomicWrite(data, to: destination)
-        if let destinationPath = try? destination.absolutePath {
-            try? await ManifestEnvironmentFingerprint.write(forCacheFile: destinationPath, packageDir: packageDir)
-        }
-        return data
-    }
-
-    private static func isFreshPackageInfo(destination: URL, packageDir: URL) async throws -> Bool {
-        let destinationPath = try destination.absolutePath
-        guard
-            let cacheDate = try await fileSystem.fileMetadata(at: destinationPath)?.lastModificationDate,
-            let manifestDate = try await fileSystem.fileMetadata(
-                at: packageDir.appendingPathComponent("Package.swift").absolutePath
-            )?.lastModificationDate
-        else {
-            return false
-        }
-        guard cacheDate >= manifestDate else { return false }
-        // A missing sidecar means the destination predates environment fingerprinting, so
-        // the environment it was produced under is unknown. Treat it as stale (see
-        // `ManifestLoader.readCachedManifest`) so an upgrade re-dumps under the current
-        // environment instead of reusing contents of unknown provenance.
-        switch try await ManifestEnvironmentFingerprint.validate(forCacheFile: destinationPath, packageDir: packageDir) {
-        case .matching:
-            return true
-        case .mismatching, .missing:
-            return false
-        }
+        let evaluation = try await ManifestLoader.dumpPackageJSON(
+            packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: manifestCacheFile, inputs: inputs
+        )
+        try await ManifestCache.write(evaluation.data, at: destination, inputs: evaluation.inputs)
+        return evaluation.data
     }
 
     private static func packageEntry(pin: ResolvedPin, packagePath: URL, packageInfoPath: URL)
@@ -231,7 +209,8 @@ enum PackageInfoCacheWriter {
     }
 
     private static func entryHash(_ pin: ResolvedPin) -> String {
-        let input = "\(pin.location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
+        let location = SourceControlLocations.canonicalLocation(pin.location)
+        let input = "\(location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
         return String(Hashing.stable(input).prefix(16))
     }
 }

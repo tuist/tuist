@@ -18,6 +18,7 @@ import (
 var fleetWideConfigFields = map[string]bool{
 	"TartKubeletBinary":         true,
 	"TartTarball":               true,
+	"TartVersion":               true,
 	"TailscaleBinaries":         true,
 	"TailscaleTags":             true,
 	"TailscaleAcceptRoutes":     true,
@@ -37,8 +38,6 @@ var fleetWideConfigFields = map[string]bool{
 	"CustomCacheURL":            true,
 	"CustomCacheNamespace":      true,
 	"CustomCacheServiceAccount": true,
-	"CacheVolumeMasterCapGiB":   true,
-	"CacheVolumeCASGiB":         true,
 	"VNCRelayPort":              true,
 	"VNCRelayPortCount":         true,
 	"MinGoldensKept":            true,
@@ -47,6 +46,7 @@ var fleetWideConfigFields = map[string]bool{
 	// fleet config, so it is hashed like every other field here.
 	"TailscalePersistentDevice": true,
 	"VMCacheGatewayCIDRs":       true,
+	"ImageMirrors":              true,
 }
 
 // Every Config field is either fleet-wide or per-host, and PerHost is the

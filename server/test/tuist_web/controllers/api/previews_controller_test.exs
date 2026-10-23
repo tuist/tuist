@@ -5,6 +5,8 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -20,6 +22,31 @@ defmodule TuistWeb.PreviewsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/previews/start" do
+    for build_system <- [:once, :bazel, :mix, :cargo] do
+      @build_system build_system
+      test "accepts previews from #{@build_system}", %{conn: conn, user: user, project: project, account: account} do
+        {:ok, project} = Projects.update_project(project, %{build_system: @build_system})
+        expect(Storage, :multipart_start, fn _object_key, _actor -> {:ok, "upload-id"} end)
+
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+            type: "ipa",
+            display_name: "Atlas",
+            supported_platforms: ["ios"],
+            version: "0.1.0",
+            bundle_identifier: "dev.tuist.atlas"
+          )
+
+        response = json_response(conn, :ok)
+        assert response["status"] == "success"
+        assert AppBuilds.has_previews?(project)
+        assert Repo.get!(Project, project.id).build_system == @build_system
+      end
+    end
+
     test "starts multipart upload", %{conn: conn, user: user, project: project, account: account} do
       # Given
       upload_id = "upload-id"
@@ -77,6 +104,41 @@ defmodule TuistWeb.PreviewsControllerTest do
              }
     end
 
+    test "old and future upload payloads reuse annotated previews without clearing notes", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      stub(Storage, :multipart_start, fn _object_key, _actor -> {:ok, "upload-id"} end)
+      base = %{display_name: "App", bundle_identifier: "dev.tuist.app", version: "1.0.0", git_commit_sha: "commit-sha"}
+
+      payloads = [
+        Map.put(base, :release_notes, "Fix sign-in"),
+        base,
+        Map.put(base, :release_notes, nil),
+        Map.put(base, :release_notes, ""),
+        Map.merge(base, %{release_notes: "  \n", future_metadata: %{title: "Ignored safely"}})
+      ]
+
+      preview_ids =
+        for payload <- payloads do
+          response =
+            conn
+            |> Authentication.put_current_user(user)
+            |> put_req_header("content-type", "application/json")
+            |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start", payload)
+            |> json_response(:ok)
+
+          {:ok, build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"], preload: [:preview])
+          assert build.preview.release_notes == "Fix sign-in"
+          assert build.preview.track == ""
+          build.preview.id
+        end
+
+      assert length(Enum.uniq(preview_ids)) == 1
+    end
+
     test "starts multipart upload with track", %{conn: conn, user: user, project: project, account: account} do
       # Given
       upload_id = "upload-id"
@@ -92,7 +154,8 @@ defmodule TuistWeb.PreviewsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
           display_name: "name",
-          track: "beta"
+          track: "beta",
+          release_notes: "Fix the sign-in flow\nReady for QA"
         )
 
       # Then
@@ -103,6 +166,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         AppBuilds.app_build_by_id(response["data"]["preview_id"], preload: [:preview])
 
       assert app_build.preview.track == "beta"
+      assert app_build.preview.release_notes == "Fix the sign-in flow\nReady for QA"
     end
 
     test "starts multipart upload of a bundle app build", %{
@@ -653,6 +717,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                "git_commit_sha" => "commit-sha",
                "git_branch" => "main",
                "track" => "",
+               "release_notes" => nil,
                "version" => "1.0.0",
                "builds" => [
                  %{
@@ -984,7 +1049,200 @@ defmodule TuistWeb.PreviewsControllerTest do
     end
   end
 
+  describe "GET /api/projects/:account_handle/:project_handle/previews/tracks" do
+    test "lists all project tracks beyond a preview page, excluding untracked builds and other projects", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      tracks = Enum.map(1..25, &"track-#{String.pad_leading(to_string(&1), 2, "0")}")
+      Enum.each(tracks, &AppBuildsFixtures.preview_fixture(project: project, track: &1))
+      AppBuildsFixtures.preview_fixture(project: project, track: "QA")
+      AppBuildsFixtures.preview_fixture(project: project, track: "qa")
+      AppBuildsFixtures.preview_fixture(project: project, track: "")
+      AppBuildsFixtures.preview_fixture(track: "private-other-project")
+      AppBuildsFixtures.preview_fixture(project: project, track: "hidden", bundle_identifier: nil)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+        |> json_response(:ok)
+
+      assert response["total_count"] == 28
+      assert Enum.map(response["tracks"], &String.downcase(&1["name"])) == ["qa" | tracks]
+      assert hd(response["tracks"])["count"] == 2
+      assert Enum.all?(tl(response["tracks"]), &(&1["count"] == 1))
+    end
+
+    test "returns an empty list when a project has no named tracks", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      AppBuildsFixtures.preview_fixture(project: project, track: "")
+
+      assert conn
+             |> Authentication.put_current_user(user)
+             |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+             |> json_response(:ok) == %{"total_count" => 1, "tracks" => []}
+    end
+
+    test "requires preview-read authorization", %{conn: conn, project: project, account: account} do
+      other_user = AccountsFixtures.user_fixture()
+      AppBuildsFixtures.preview_fixture(project: project, track: "secret")
+
+      response =
+        conn
+        |> Authentication.put_current_user(other_user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+        |> json_response(:forbidden)
+
+      assert response["message"] =~ "not authorized to read preview"
+    end
+  end
+
   describe "GET /api/projects/:account_handle/:project_handle/previews" do
+    test "search matches display names before pagination and combines with a track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      matches =
+        Enum.map(1..22, fn _ ->
+          AppBuildsFixtures.preview_fixture(project: project, display_name: "Blueprint App", track: "QA")
+        end)
+
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Blueprint App", track: "beta")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Other App", track: "QA")
+      AppBuildsFixtures.preview_fixture(display_name: "Blueprint App", track: "QA")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{
+          "search" => "BLUEprint",
+          "track" => "qa",
+          "page" => 2,
+          "page_size" => 20
+        })
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["total_count"] == 22
+      assert length(response["previews"]) == 2
+      assert Enum.all?(response["previews"], &(&1["id"] in Enum.map(matches, fn preview -> preview.id end)))
+    end
+
+    test "search matches full release notes before pagination and combines with a track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      matches =
+        Enum.map(1..22, fn _ ->
+          AppBuildsFixtures.preview_fixture(
+            project: project,
+            display_name: "Atlas",
+            track: "QA",
+            release_notes: "Build 204\nFix CHECKOUT"
+          )
+        end)
+
+      AppBuildsFixtures.preview_fixture(project: project, track: "beta", release_notes: "Fix checkout")
+      AppBuildsFixtures.preview_fixture(project: project, track: "QA", release_notes: nil)
+      AppBuildsFixtures.preview_fixture(track: "QA", release_notes: "Fix checkout")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{
+          "search" => "checkout",
+          "track" => "qa",
+          "page" => 2,
+          "page_size" => 20
+        })
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["total_count"] == 22
+      assert length(response["previews"]) == 2
+      assert Enum.all?(response["previews"], &(&1["id"] in Enum.map(matches, fn preview -> preview.id end)))
+    end
+
+    test "search treats wildcard characters literally and an empty search returns all names", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Build 100%_ready")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Other App", release_notes: "Build 100%_ready")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Unrelated", release_notes: "Build 100XXready")
+      authenticated = Authentication.put_current_user(conn, user)
+
+      filtered =
+        authenticated
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"search" => "%_"})
+        |> json_response(:ok)
+
+      assert filtered["pagination_metadata"]["total_count"] == 2
+      assert Enum.sort(Enum.map(filtered["previews"], & &1["display_name"])) == ["Build 100%_ready", "Other App"]
+
+      unfiltered =
+        authenticated
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"search" => ""})
+        |> json_response(:ok)
+
+      assert unfiltered["pagination_metadata"]["total_count"] == 3
+    end
+
+    test "omitting track or sending an empty track returns all tracks", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      untracked = AppBuildsFixtures.preview_fixture(project: project, track: "")
+      AppBuildsFixtures.preview_fixture(project: project, track: "beta")
+      authenticated_conn = Authentication.put_current_user(conn, user)
+      all = authenticated_conn |> get(~p"/api/projects/#{account.name}/#{project.name}/previews") |> json_response(:ok)
+      assert all["pagination_metadata"]["total_count"] == 2
+
+      untracked_response =
+        authenticated_conn
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"track" => ""})
+        |> json_response(:ok)
+
+      assert untracked_response["pagination_metadata"]["total_count"] == 2
+      assert untracked.id in Enum.map(untracked_response["previews"], & &1["id"])
+    end
+
+    test "filters tracks before pagination and returns build notes", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      qa = AppBuildsFixtures.preview_fixture(project: project, track: "QA", release_notes: "Test sign-in")
+      AppBuildsFixtures.preview_fixture(project: project, track: "beta")
+      AppBuildsFixtures.preview_fixture(project: project, track: "")
+      AppBuildsFixtures.preview_fixture(track: "QA")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews?track=QA&page_size=1")
+        |> json_response(:ok)
+
+      assert [%{"id" => id, "track" => "QA", "release_notes" => "Test sign-in"}] = response["previews"]
+      assert id == qa.id
+      assert response["pagination_metadata"]["total_count"] == 1
+      refute response["pagination_metadata"]["has_next_page"]
+    end
+
     test "lists a single latest preview for a given display name", %{
       conn: conn,
       user: user,
@@ -1058,6 +1316,7 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "git_commit_sha" => "commit-sha-two",
                  "git_branch" => "main",
                  "track" => "",
+                 "release_notes" => nil,
                  "version" => "1.0.0",
                  "builds" => [
                    %{

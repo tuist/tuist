@@ -1,9 +1,12 @@
 name: Runners Staging Smoke Test
 
 # Manual smoke test for the staging Tuist Runners pool. Targets
-# `runs-on: tuist-staging-macos` so the staging tier's warm Pods
-# (configured in infra/helm/tuist/values-managed-staging.yaml as
-# `runnersFleet.replicas: 2`) pick up this job.
+# `runs-on: tuist-staging-macos`, which resolves to the 26.6 pool on the
+# BER1 rack host production lends staging (`rackFleet.runners` in
+# infra/helm/tuist/values-managed-staging.yaml keeps one guest warm).
+# Staging rents no macOS hosts, so a job waits while that host is
+# cordoned or down. `environment: canary` runs the same jobs on
+# `tuist-canary-macos`, canary's 26.6 pool on the rack host it borrows.
 #
 # Use this to validate, end-to-end:
 #   1. workflow_job: queued webhook reaches the staging server.
@@ -16,8 +19,9 @@ name: Runners Staging Smoke Test
 #   6. After completion the Pod terminates and the reconciler's
 #      next 60 s tick creates a replacement.
 #   7. When the account runs a private runner-cache Kura node, the
-#      VM reaches it over the Scaleway PN (TUIST_CACHE_ENDPOINT),
-#      proving the macOS runner-cache data plane end-to-end.
+#      VM reaches it (TUIST_CACHE_ENDPOINT), proving the macOS
+#      runner-cache data plane end-to-end. Staging's rack pools have
+#      none, so this step skips there.
 #
 # Triggered manually only — we don't want every push to staging
 # burning runner cycles.
@@ -25,10 +29,69 @@ name: Runners Staging Smoke Test
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: Env whose `tuist-<env>-macos` runners run the smoke (canary runs on the BER1 rack host production lends it)
+        type: choice
+        options: [staging, canary]
+        default: staging
       custom_cache_apfs:
         description: Run the candidate custom cache APFS tests inside a staging Mac VM
         type: boolean
         default: false
+      cache_volume_sizes:
+        description: Attach sized, multi-path custom cache volumes with this branch's client and action
+        type: boolean
+        default: false
+      cache_volume_platform:
+        description: Runner platform for the cache volume sizes smoke
+        type: choice
+        options: [macos, linux, both]
+        default: macos
+      cache_volume_phase:
+        description: "seed: cold volumes; verify: warm, retained and sized (raise the size to check growth); fail: discard a failed job's writes"
+        type: choice
+        options: [seed, verify, fail]
+        default: seed
+      cache_volume_key:
+        description: Key prefix of the sized volume; use a fresh one per seed
+        type: string
+        default: sizes-smoke-v1
+      cache_volume_size:
+        description: Size of the multi-path volume, from 1gb to 100gb
+        type: string
+        default: 50gb
+      cache_volume_fill_gb:
+        description: GB of incompressible data the seed writes across the volume's paths (more than 20 proves the larger size)
+        type: string
+        default: "0"
+      managed_cache_sizes:
+        description: Attach the managed Xcode and module caches with this branch's actions and tuist-runner-cache
+        type: boolean
+        default: false
+      managed_cache_size:
+        description: Size for both managed caches, from 1gb to 100gb; empty keeps their current size
+        type: string
+        default: ""
+      managed_cache_phase:
+        description: "seed: write a sentinel into both caches; verify: the sentinels survived (and change both caches so they are saved)"
+        type: choice
+        options: [seed, verify]
+        default: seed
+      vm_isolation:
+        description: Probe, from inside a staging runner VM, that the host, its networks and link-local are unreachable while the internet and the cache carve-outs work
+        type: boolean
+        default: false
+      host_addresses:
+        description: >-
+          Space-separated addresses of the runner host besides its vmnet gateway
+          and public egress address, which the probe finds itself (e.g. its
+          tailnet and Private Network addresses)
+        required: false
+        default: ""
+      private_targets:
+        description: Space-separated host:port pairs on private networks the VM must not reach
+        required: false
+        default: ""
       hold_seconds:
         description: >-
           Seconds to hold the runner busy before finishing. Defaults to 0,
@@ -65,12 +128,13 @@ permissions: {}
 
 jobs:
   smoke:
-    if: github.repository == 'tuist/tuist'
+    # The cache volume sizes smoke needs the environment's few macOS slots.
+    if: github.repository == 'tuist/tuist' && !inputs.cache_volume_sizes && !inputs.managed_cache_sizes
     # Single-label form. `tuist-staging-macos` is the pool's unique
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the
     # runner but isn't an authorization boundary).
-    runs-on: tuist-staging-macos
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
     timeout-minutes: 10
     steps:
       - name: Show environment
@@ -103,6 +167,18 @@ jobs:
           # somewhere we can curl from the workflow.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
 
+      # GitHub-hosted runners set ImageOS, and setup actions read it to
+      # pick a prebuilt binary; erlef/setup-beam fails outright without it.
+      - name: ImageOS reaches steps
+        run: |
+          set -euo pipefail
+          echo "ImageOS: ${ImageOS:-<unset>}"
+          [ -n "${ImageOS:-}" ] || { echo "::error::ImageOS is not set in the step environment"; exit 1; }
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
       - name: Hold the runner to produce a billable window
         if: >-
           github.event_name == 'workflow_dispatch' &&
@@ -133,7 +209,7 @@ jobs:
 
   custom-cache-apfs:
     if: github.repository == 'tuist/tuist' && inputs.custom_cache_apfs
-    runs-on: tuist-staging-macos
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
     timeout-minutes: 15
     permissions:
       contents: read
@@ -144,3 +220,315 @@ jobs:
           go-version-file: infra/tart-kubelet/go.mod
       - name: Exercise real APFS and custom cache lifecycle
         run: go test -race -v ./infra/runner-cache/... ./infra/tart-kubelet/internal/podagent ./infra/linux-runner-image/cmd/tuist-cache-volume
+
+  # Sized and multi-path custom cache volumes, with this branch's
+  # client (built into the job, ahead of the image's on PATH) and this branch's
+  # action. The server must run the matching branch. Run seed, then verify after
+  # the seed's publication; verify again with a larger size to check growth.
+  cache-volume-sizes:
+    if: github.repository == 'tuist/tuist' && inputs.cache_volume_sizes
+    name: cache volume sizes (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.cache_volume_platform == 'both' && '["macos", "linux"]' || format('["{0}"]', inputs.cache_volume_platform)) }}
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-${{ matrix.platform }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      PHASE: ${{ inputs.cache_volume_phase }}
+      SIZE: ${{ inputs.cache_volume_size }}
+      FILL_GB: ${{ inputs.cache_volume_fill_gb }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/linux-runner-image/go.mod
+          cache: false
+      - name: Put this branch's client first on PATH
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd infra/linux-runner-image && go build -o "$RUNNER_TEMP/bin/tuist-cache-volume" ./cmd/tuist-cache-volume)
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/cache-volume
+        id: sized
+        with:
+          key: ${{ inputs.cache_volume_key }}-${{ matrix.platform }}
+          size: ${{ inputs.cache_volume_size }}
+          path: |
+            .tuist-sizes-smoke/one
+            .tuist-sizes-smoke/two
+            ~/.tuist-sizes-smoke
+      - uses: ./.github/actions/cache-volume
+        id: small
+        with:
+          key: ${{ inputs.cache_volume_key }}-${{ matrix.platform }}-small
+          size: 5gb
+          path: .tuist-sizes-smoke/small
+      - name: Verify sizes, paths and retained contents
+        env:
+          SIZED_HIT: ${{ steps.sized.outputs.cache-hit }}
+          SMALL_HIT: ${{ steps.small.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          test "$(command -v tuist-cache-volume)" = "$RUNNER_TEMP/bin/tuist-cache-volume"
+          requested=$(( ${SIZE%[gG][bB]} * 1000000000 ))
+          paths=(.tuist-sizes-smoke/one .tuist-sizes-smoke/two "$HOME/.tuist-sizes-smoke")
+          capacity() { echo $(( $(df -Pk "$1/" | awk 'NR == 2 { print $2 }') * 1024 )); }
+          sized=$(capacity "${paths[0]}")
+          small=$(capacity .tuist-sizes-smoke/small)
+          for path in "${paths[@]:1}"; do
+            test "$(capacity "$path")" = "$sized"
+          done
+          {
+            echo "### Cache volume sizes: $PHASE on $RUNNER_OS"
+            echo "- Sized volume: hit $SIZED_HIT, requested $SIZE, filesystem $((sized / 1000000)) MB"
+            echo "- Small volume: hit $SMALL_HIT, requested 5gb, filesystem $((small / 1000000)) MB"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$sized" -lt $(( requested * 9 / 10 )) ]; then
+            echo "::error::the sized volume holds $sized bytes for a $SIZE request; is the server on this branch?"
+            exit 1
+          fi
+          if [ "$SIZED_HIT" = false ] && [ "$sized" -gt $(( requested * 102 / 100 )) ]; then
+            echo "::error::a new volume holds $sized bytes for a $SIZE request"
+            exit 1
+          fi
+          test "$small" -ge 4500000000
+          if [ "$RUNNER_OS" = macOS ]; then
+            root=$(dirname "$(cd -P "${paths[0]}" && pwd)")
+            test -s "$root/.tuist-paths"
+            # The manifest records paths as written, so `~` stays literal.
+            # shellcheck disable=SC2088
+            for spelling in .tuist-sizes-smoke/one .tuist-sizes-smoke/two '~/.tuist-sizes-smoke'; do
+              grep -qF "\"$spelling\"" "$root/.tuist-paths"
+            done
+          fi
+          case "$PHASE" in
+            seed)
+              test "$SIZED_HIT" = false
+              for path in "${paths[@]}"; do
+                test -z "$(ls -A "$path/")"
+                printf '%s' "$path" > "$path/sentinel"
+              done
+              printf 'retained' > .tuist-sizes-smoke/small/sentinel
+              for (( i = 1; i <= FILL_GB; i++ )); do
+                head -c 1000000000 /dev/urandom > "${paths[$(( i % 3 ))]}/fill-$i"
+              done
+              printf '%s' "$FILL_GB" > "${paths[0]}/fill-count"
+              ;;
+            verify|fail)
+              test "$SIZED_HIT" = true
+              test "$SMALL_HIT" = true
+              for path in "${paths[@]}"; do
+                test "$(cat "$path/sentinel")" = "$path"
+              done
+              test "$(cat .tuist-sizes-smoke/small/sentinel)" = retained
+              count=$(cat "${paths[0]}/fill-count")
+              for (( i = 1; i <= count; i++ )); do
+                test "$(wc -c < "${paths[$(( i % 3 ))]}/fill-$i" | tr -d ' ')" = 1000000000
+              done
+              echo "- Retained $count GB of fill and every sentinel" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+          esac
+          if [ "$PHASE" = fail ]; then
+            printf 'must-not-publish' > "${paths[0]}/sentinel"
+            sync
+            exit 1
+          fi
+          sync
+      - name: Detach with this branch's client
+        # Runner images released before the guest flushed detached images through
+        # the VM share can lose the job's last writes. Detaching here keeps the
+        # smoke independent of the image; its own teardown then finds nothing.
+        if: runner.os == 'macOS'
+        run: tuist-cache-volume --detach-all
+
+  # The managed Xcode and module caches at a requested size, with this branch's
+  # actions and tuist-runner-cache (ahead of the image's on PATH). The server
+  # must run the matching branch. Each cache's limit must follow the capacity
+  # its volume attached at, and so must the teardown prune, which reads the
+  # limit back from the xcconfig. Seed, then verify with a larger size to check
+  # growth keeps the contents, then verify without a size to check it never
+  # shrinks.
+  managed-cache-sizes:
+    if: github.repository == 'tuist/tuist' && inputs.managed_cache_sizes
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      PHASE: ${{ inputs.managed_cache_phase }}
+      SIZE: ${{ inputs.managed_cache_size }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put this branch's tuist-runner-cache first on PATH
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          install -m 0755 infra/runner-image/tuist-runner-cache "$RUNNER_TEMP/bin/tuist-runner-cache"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/xcode-cache
+        with:
+          size: ${{ inputs.managed_cache_size }}
+      - uses: ./.github/actions/module-cache
+        with:
+          size: ${{ inputs.managed_cache_size }}
+      - name: Verify capacities, limits and retained contents
+        run: |
+          set -euo pipefail
+          test "$(command -v tuist-runner-cache)" = "$RUNNER_TEMP/bin/tuist-runner-cache"
+          capacity() { echo $(( $(df -Pk "$1/" | awk 'NR == 2 { print $2 }') * 1024 )); }
+          expected_limit() { awk -v c="$1" 'BEGIN { r = c / 5; if (r < 2e9) r = 2e9; if (r > c / 2) r = c / 2; printf "%.0f", c - r }'; }
+          eval "$(awk '/^managed_xcode_cache_limit\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' infra/runner-image/dispatch-poll.sh)"
+          xcode=$(capacity "$TUIST_COMPILATION_CACHE_CAS_PATH")
+          module=$(capacity "$TUIST_XDG_CACHE_HOME")
+          xcode_limit=$(sed -n 's/^COMPILATION_CACHE_LIMIT_SIZE = //p' "$XCODE_XCCONFIG_FILE" | head -n 1)
+          teardown_limit=$(MANAGED_XCCONFIG="$XCODE_XCCONFIG_FILE" MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000 managed_xcode_cache_limit)
+          {
+            echo "### Managed cache sizes: $PHASE, requested ${SIZE:-nothing}"
+            echo "- Xcode cache: filesystem $((xcode / 1000000)) MB, xcconfig limit $xcode_limit, teardown prune limit $teardown_limit"
+            echo "- Module cache: filesystem $((module / 1000000)) MB, TUIST_CACHE_MAX_BYTES $TUIST_CACHE_MAX_BYTES"
+          } >> "$GITHUB_STEP_SUMMARY"
+          test "$xcode_limit" = "$(expected_limit "$xcode")"
+          test "$teardown_limit" = "$xcode_limit"
+          test "$TUIST_CACHE_MAX_BYTES" = "$(expected_limit "$module")"
+          if [ -n "$SIZE" ]; then
+            requested=$(( ${SIZE%[gG][bB]} * 1000000000 ))
+            for bytes in "$xcode" "$module"; do
+              if [ "$bytes" -lt $(( requested * 9 / 10 )) ]; then
+                echo "::error::a cache holds $bytes bytes for a $SIZE request; is the server on this branch?"
+                exit 1
+              fi
+            done
+          fi
+          case "$PHASE" in
+            seed)
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_COMPILATION_CACHE_CAS_PATH/sizes-smoke-sentinel"
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_XDG_CACHE_HOME/sizes-smoke-sentinel"
+              ;;
+            verify)
+              echo "- Sentinels from run $(cat "$TUIST_COMPILATION_CACHE_CAS_PATH/sizes-smoke-sentinel") and $(cat "$TUIST_XDG_CACHE_HOME/sizes-smoke-sentinel")" >> "$GITHUB_STEP_SUMMARY"
+              # An unchanged volume is never saved, so a grown one would not keep its size.
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_COMPILATION_CACHE_CAS_PATH/sizes-smoke-verified"
+              printf '%s' "$GITHUB_RUN_ID" > "$TUIST_XDG_CACHE_HOME/sizes-smoke-verified"
+              ;;
+          esac
+          sync
+
+  # A runner VM runs customer code, so it must reach the internet and its
+  # cache carve-outs and nothing else: not the host's own listeners on any of
+  # its addresses, not the networks the host sits on, not link-local. A TCP
+  # connect that completes or is refused reached its target; one that times
+  # out was dropped. Only a target with something listening tells the two
+  # apart, which is why the host's own addresses are the core of the probe.
+  vm-isolation:
+    if: github.repository == 'tuist/tuist' && inputs.vm_isolation
+    runs-on: tuist-${{ inputs.environment || 'staging' }}-macos
+    timeout-minutes: 15
+    env:
+      HOST_ADDRESSES: ${{ inputs.host_addresses }}
+      PRIVATE_TARGETS: ${{ inputs.private_targets }}
+    steps:
+      - name: Guest network
+        run: |
+          ifconfig en0 | grep -E "inet6? " || true
+          netstat -rn -f inet | grep -E "^default" || true
+          netstat -rn -f inet6 | grep -E "^default" || true
+          scutil --dns | grep nameserver | sort -u || true
+
+      - name: Internet and carve-outs reachable
+        run: |
+          set -uo pipefail
+          failed=0
+          curl -fsS -m 15 -o /dev/null https://github.com && echo "ok   https://github.com" || { echo "FAIL https://github.com"; failed=1; }
+          dig +short +time=3 +tries=1 github.com | grep -q . && echo "ok   DNS through the vmnet gateway" || { echo "FAIL DNS through the vmnet gateway"; failed=1; }
+          if [ -f /etc/resolver/cluster.local ]; then
+            dns=$(awk '/^nameserver/{print $2; exit}' /etc/resolver/cluster.local)
+            dig +short +time=3 +tries=1 "@${dns}" kubernetes.default.svc.cluster.local | grep -q . \
+              && echo "ok   cluster DNS ${dns}" || { echo "FAIL cluster DNS ${dns}"; failed=1; }
+          fi
+          endpoint="${TUIST_CACHE_ENDPOINT:-}"
+          if [ -n "${endpoint}" ]; then
+            code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "${endpoint%/}/up" || true)
+            [ "${code}" = "200" ] && echo "ok   cache ${endpoint%/}/up" || { echo "FAIL cache ${endpoint%/}/up -> ${code}"; failed=1; }
+          else
+            echo "skip cache: TUIST_CACHE_ENDPOINT unset"
+          fi
+          exit "${failed}"
+
+      - name: Host, private networks and link-local unreachable
+        # Runs even when a reachability check fails: a missing carve-out
+        # must not hide what the guest can still reach.
+        if: always()
+        run: |
+          set -uo pipefail
+          gateway=$(route -n get default | awk '/gateway/{print $2}')
+          router6=$(route -n get -inet6 default 2>/dev/null | awk '/gateway/{print $2}')
+          public=$(curl -fsS -m 10 https://api.ipify.org || true)
+          echo "vmnet gateway ${gateway} ${router6}, public egress ${public:-unknown}"
+
+          reached=0
+          probe() {
+            # shellcheck disable=SC2086
+            if out=$(nc ${family:-} -z -G 3 -w 3 "$1" "$2" 2>&1); then verdict="open"
+            elif echo "${out}" | grep -qi "refused"; then verdict="refused"
+            else verdict="dropped"; fi
+            printf '%-8s %s %s\n' "${verdict}" "$1:$2" "$(echo "${out}" | tail -1)"
+            if [ "${verdict}" != "dropped" ]; then reached=1; fi
+          }
+
+          # DNS on the vmnet gateway is the guest's resolver and stays open; the
+          # previous step asserts it.
+          for port in 22 88 3283 5900 5901 8080 8081 9100 10250; do
+            probe "${gateway}" "${port}"
+          done
+          for address in ${public} ${HOST_ADDRESSES}; do
+            for port in 22 53 88 3283 5900 5901 8080 8081 9100 10250; do
+              probe "${address}" "${port}"
+            done
+          done
+          if [ -n "${router6}" ]; then
+            for port in 22 88 3283 5900 8081; do
+              family=-6 probe "${router6}" "${port}"
+            done
+          fi
+          probe 100.100.100.100 53
+          probe 169.254.169.254 80
+          probe 169.254.42.42 80
+          # The cache answers on its carve-out only.
+          cache_host=$(echo "${TUIST_CACHE_ENDPOINT:-}" | sed -E 's#^[a-z]+://([^/:]+).*#\1#')
+          cache_ip=""
+          if [ -n "${cache_host}" ]; then
+            cache_ip=$(dig +short "${cache_host}" 2>/dev/null | grep -E '^[0-9.]+$' | tail -1 || true)
+          fi
+          case "${cache_ip}" in
+            10.*|172.*|192.168.*) probe "${cache_ip}" 22; probe "${cache_ip}" 10250 ;;
+          esac
+          # Sibling guests on the same host run sshd. The ARP table shows
+          # which siblings answered at layer 2, so a drop is not just an
+          # empty subnet.
+          self_ip=$(ipconfig getifaddr en0 || true)
+          siblings=$(mktemp)
+          for n in $(seq 2 254); do
+            ip="192.168.64.${n}"
+            [ "${ip}" = "${self_ip}" ] && continue
+            ( if nc -z -G 2 -w 2 "${ip}" 22 >/dev/null 2>&1; then echo "${ip}" >> "${siblings}"; fi ) &
+          done
+          wait
+          echo "siblings at layer 2: $(arp -an | awk -v self="(${self_ip})" '/192\.168\.64\./ && !/incomplete/ && $2 != self && $2 != "(192.168.64.1)" {print $2}' | tr '\n' ' ')"
+          if [ -s "${siblings}" ]; then
+            sed 's/^/open     sibling /;s/$/:22/' "${siblings}"
+            reached=1
+          else
+            echo "dropped  every sibling guest on :22"
+          fi
+          for target in ${PRIVATE_TARGETS}; do
+            probe "${target%:*}" "${target##*:}"
+          done
+
+          if [ "${reached}" -ne 0 ]; then
+            echo "::error::the runner VM reached the host or a private network"
+            exit 1
+          fi

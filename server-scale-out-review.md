@@ -1,5 +1,7 @@
 # Restoring replica-safe servers after the authentication brownout
 
+> Historical integration notes from before this branch merged current `main`. The behavior and measurements below describe that earlier implementation, not validation of the merged tree. Current runtime contracts include bounded authentication-subject snapshots, local image coalescing, connection-only discovery and detached optional tasks. Follow the subsystem `AGENTS.md` files for current behavior; the legacy full-server harness requires corresponding updates before qualification.
+
 ## Incident
 
 PR [#13658](https://github.com/tuist/tuist/pull/13658) was merged on September 29, 2026. Eduardo reverted it in [#13722](https://github.com/tuist/tuist/pull/13722) after production throughput fell approximately 30-fold. CPU increased while PostgreSQL stayed idle, and Kura introspection timed out. Erlang membership flapped and invalidated local caches. Some CLI refresh requests completed after client timeouts, leaving those clients with revoked refresh tokens.
@@ -36,7 +38,7 @@ On the first rollout, old nodes can reject modern requests until replacement com
 
 This restoration does not change refresh-token rotation semantics or claim to make in-memory analytics buffers durable after hard node loss. PostgreSQL, ClickHouse and object storage remain the authorities for persistent state. Network partitions can duplicate regenerable display/image work.
 
-## Local validation performed
+## Historical local validation performed
 
 Validation used the repository's pinned dependency versions, disposable databases, and owned local server processes. No live cluster was inspected or modified.
 

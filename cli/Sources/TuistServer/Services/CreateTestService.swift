@@ -34,7 +34,8 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult?,
             gitHistory: TestRunGitHistory?,
-            coverageUpload: XcodeCoverageUpload?
+            coverage: TestRunCoverage?,
+            coverageEnabled: Bool?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -58,13 +59,23 @@ import TuistHTTP
         }
     }
 
+    // swiftlint:disable:next type_body_length
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
+        private let makeClient: @Sendable (URL, Bool) -> Client
 
         public init(
             fullHandleService: FullHandleServicing = FullHandleService()
         ) {
+            self.init(fullHandleService: fullHandleService, makeClient: { Client.reporting(serverURL: $0, networkTrusted: $1) })
+        }
+
+        init(
+            fullHandleService: FullHandleServicing = FullHandleService(),
+            makeClient: @escaping @Sendable (URL, Bool) -> Client
+        ) {
             self.fullHandleService = fullHandleService
+            self.makeClient = makeClient
         }
 
         // swiftlint:disable:next function_body_length
@@ -92,9 +103,13 @@ import TuistHTTP
             skipTestIdentifiers: [String],
             stressNewTests: Components.Schemas.StressNewTestsResult? = nil,
             gitHistory: TestRunGitHistory? = nil,
-            coverageUpload: XcodeCoverageUpload? = nil
+            coverage: TestRunCoverage? = nil,
+            coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
-            let client = Client.authenticated(serverURL: serverURL)
+            let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
+            // Generated once, so a replay of the request carries the same id and the server records the run once.
+            let id = id ?? UUIDv7.generate()
+            let client = makeClient(serverURL, networkTrusted)
             let handles = try fullHandleService.parse(fullHandle)
 
             let status = statusPayload(for: testSummary.status)
@@ -105,7 +120,7 @@ import TuistHTTP
             // what lets the dashboard say which executions were solicited. Remote runs send
             // no test cases here; their bundle carries the same information instead.
             let stressRepetitionsByTestCase = Dictionary(
-                (stressNewTests?.test_cases ?? []).map { candidate in
+                ((networkTrusted ? nil : stressNewTests)?.test_cases ?? []).map { candidate in
                     (
                         StressRepetitionKey(
                             module: candidate.module_name,
@@ -271,38 +286,35 @@ import TuistHTTP
                     body: .json(
                         .init(
                             git_branch: gitBranch,
-                            xcode_coverage_storage_key: coverageUpload?.storageKey,
                             execution_mode: testSummary.executionMode.flatMap { .init(rawValue: $0) },
-                            git_object_format: history.objectFormat,
+                            git_object_format: networkTrusted ? nil : history.objectFormat,
                             scheme: testSummary.testPlanName,
-                            merge_base_sha: gitHistory?.mergeBaseSHA,
+                            merge_base_sha: networkTrusted ? nil : gitHistory?.mergeBaseSHA,
                             ci_host: ciHost,
-                            git_remote_url_origin: gitRemoteURLOrigin,
-                            history_fallback_reason: gitHistory?.fallbackReason,
-                            is_pull_request: gitHistory?.isPullRequest,
+                            git_remote_url_origin: networkTrusted ? nil : gitRemoteURLOrigin,
+                            history_fallback_reason: networkTrusted ? nil : gitHistory?.fallbackReason,
+                            is_pull_request: networkTrusted ? nil : gitHistory?.isPullRequest,
                             status: status,
-                            shard_index: shardIndex,
-                            only_test_identifiers: onlyTestIdentifiers,
-                            coverage_evidence: testSummary.coverageEvidencePayload,
-                            git_dirty: gitHistory?.dirty,
-                            history_source: history.source,
-                            build_run_id: buildRunId,
-                            skip_test_identifiers: skipTestIdentifiers,
+                            shard_index: networkTrusted ? nil : shardIndex,
+                            only_test_identifiers: networkTrusted ? [] : onlyTestIdentifiers,
+                            coverage_evidence: networkTrusted ? nil : testSummary.coverageEvidencePayload,
+                            git_dirty: networkTrusted ? nil : gitHistory?.dirty,
+                            history_source: networkTrusted ? nil : history.source,
+                            coverage: networkTrusted ? nil : coveragePayload(coverage, toolVersion: xcodeVersion),
+                            build_run_id: networkTrusted ? nil : buildRunId,
+                            skip_test_identifiers: networkTrusted ? [] : skipTestIdentifiers,
                             git_ref: gitRef,
-                            base_branch: gitHistory?.baseBranch,
+                            base_branch: networkTrusted ? nil : gitHistory?.baseBranch,
                             model_identifier: modelIdentifier,
                             ci_run_id: ciRunId,
                             ci_provider: ciProviderPayload,
                             ci_project_handle: ciProjectHandle,
-                            pull_request_number: gitHistory?.pullRequestNumber,
-                            stress_new_tests: stressNewTests,
-                            xcode_coverage_partial: coverageUpload?.partial,
-                            enumerated_tests: testSummary.enumeratedTestsPayload,
+                            pull_request_number: networkTrusted ? nil : gitHistory?.pullRequestNumber,
+                            coverage_enabled: networkTrusted ? nil : coverageEnabled,
+                            stress_new_tests: networkTrusted ? nil : stressNewTests,
                             macos_version: macOSVersion,
                             id: id,
-                            changed_files: history.changedFiles,
-                            xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
-                            shard_plan_id: shardPlanId,
+                            shard_plan_id: networkTrusted ? nil : shardPlanId,
                             duration: testSummary.duration ?? 0,
                             xcode_version: xcodeVersion,
                             git_commit_sha: gitCommitSHA,
@@ -490,16 +502,18 @@ import TuistHTTP
     // run page reads failures from. Without it a stressed test keeps its status and duration
     // and loses what it said when it broke.
 
-    private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
-        report.map { report in
-            Components.Schemas.XcodeCoverage(
-                files: report.files.map { file in
-                    Components.Schemas.XcodeCoverage.filesPayloadPayload(
+    /// The build-system-neutral coverage block: the tool that measured the run, the Xcode that
+    /// provides it as the version, and the files inline or the key of their upload.
+    private func coveragePayload(_ coverage: TestRunCoverage?, toolVersion: String?) -> Components.Schemas.Coverage? {
+        coverage.map { coverage in
+            Components.Schemas.Coverage(
+                files: coverage.files?.map { file in
+                    Components.Schemas.Coverage.filesPayloadPayload(
                         covered_lines: file.coveredLines,
                         executable_lines: file.executableLines,
                         execution_counts: file.executionCounts,
                         functions: file.functions.map { function in
-                            Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload(
+                            Components.Schemas.Coverage.filesPayloadPayload.functionsPayloadPayload(
                                 covered_lines: function.coveredLines,
                                 executable_lines: function.executableLines,
                                 execution_count: function.executionCount,
@@ -514,7 +528,10 @@ import TuistHTTP
                         targets: file.targets
                     )
                 },
-                partial: report.partial
+                partial: coverage.partial,
+                storage_key: coverage.storageKey,
+                tool: coverage.tool,
+                tool_version: toolVersion
             )
         }
     }
@@ -532,25 +549,12 @@ import TuistHTTP
     private struct GitHistoryPayloads {
         typealias Body = Operations.createTest.Input.Body.jsonPayload
 
-        let changedFiles: [Body.changed_filesPayloadPayload]?
         let objectFormat: Body.git_object_formatPayload?
         let source: Body.history_sourcePayload?
 
         init(_ gitHistory: TestRunGitHistory?) {
-            changedFiles = gitHistory.map { history in history.changedFiles.map(Self.changedFile) }
             objectFormat = gitHistory?.objectFormat.flatMap { .init(rawValue: $0) }
             source = gitHistory.map { $0.source == "client" ? .client : .none }
-        }
-
-        private static func changedFile(_ file: TestRunGitHistory.ChangedFile) -> Body.changed_filesPayloadPayload {
-            .init(
-                git_blob_id: file.blobId,
-                hunks: file.hunks.map { Body.changed_filesPayloadPayload.hunksPayloadPayload(end: $0.end, start: $0.start) },
-                path: file.path,
-                previous_path: file.previousPath,
-                status: .init(rawValue: file.status) ?? .modified,
-                truncated: file.truncated
-            )
         }
     }
 #endif
@@ -591,11 +595,6 @@ private func stressFailures(
 
 #if canImport(TuistXCResultService)
     extension TestSummary {
-        fileprivate var enumeratedTestsPayload: Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayload? {
-            enumeratedTests?
-                .map { .init(enabled: $0.enabled, function: $0.function, module: $0.module, name: $0.name, suite: $0.suite) }
-        }
-
         fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {
             coverageEvidence.map { evidence in
                 .init(

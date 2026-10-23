@@ -33,12 +33,26 @@ import TuistSupport
         public var invokedDownloadCount = 0
         public var invokedDownloadParameters: (url: URL, destination: AbsolutePath)?
         public var invokedDownloadParametersList = [(url: URL, destination: AbsolutePath)]()
+        /// Thrown by successive downloads, one each, before downloads start succeeding.
+        public var stubbedDownloadErrors: [Error] = []
 
         public func download(url: URL, to destination: AbsolutePath) async throws {
             invokedDownload = true
             invokedDownloadCount += 1
             invokedDownloadParameters = (url, destination)
             invokedDownloadParametersList.append((url, destination))
+            if !stubbedDownloadErrors.isEmpty {
+                throw stubbedDownloadErrors.removeFirst()
+            }
+        }
+    }
+
+    /// A failure carrying the status code of the response that caused it.
+    public struct MockHTTPStatusCodeError: HTTPStatusCodeError, Equatable {
+        public let httpStatusCode: Int
+
+        public init(httpStatusCode: Int) {
+            self.httpStatusCode = httpStatusCode
         }
     }
 

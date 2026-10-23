@@ -2,6 +2,7 @@
     import Foundation
     import Noora
     import Path
+    import TuistAlert
     import TuistConfigLoader
     import TuistCore
     import TuistEnvironment
@@ -33,7 +34,11 @@
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
-            let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+            let generator = generatorFactory.defaultGenerator(
+                config: config,
+                includedTargets: [],
+                coverage: .resolved(config: config)
+            )
             let graph = try await generator.load(
                 path: path,
                 options: config.project.generatedProject?.generationOptions
@@ -82,9 +87,10 @@
                     throw InspectImportsServiceError.issuesFound(implicit: implicitIssues, redundant: redundantIssues)
                 }
 
-                Logger.current.log(
-                    level: .info,
-                    "We did not find any dependency issues in your project (checked: \(checksRun.joined(separator: ", ")))."
+                AlertController.current.success(
+                    .alert(
+                        "We did not find any dependency issues in your project (checked: \(checksRun.joined(separator: ", ")))."
+                    )
                 )
             }
         }

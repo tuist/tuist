@@ -12,9 +12,9 @@
   <div :if={@selected} data-part="header">
     <div data-part="title">
       <div data-part="volume-icon"><.database /></div>
-      <h1>{@selected.key}</h1>
+      <h1>{display_name(@selected)}</h1>
     </div>
-    <div :if={@can_manage and is_nil(@selected.builtin_name)} data-part="actions">
+    <div :if={@can_manage} data-part="actions">
       <.button
         variant="secondary"
         size="medium"
@@ -64,6 +64,7 @@
       <div data-part="widgets">
         <.widget
           id="storage-volumes"
+          legend_color={metric_color("volumes")}
           trend_value={storage_trend(data.storage_history, :volumes, @analytics_period).value}
           trend_value_label={
             storage_trend(data.storage_history, :volumes, @analytics_period).value_label
@@ -84,6 +85,7 @@
         />
         <.widget
           id="storage-used"
+          legend_color={metric_color("used_bytes")}
           trend_value={storage_trend(data.storage_history, :used_bytes, @analytics_period).value}
           trend_value_label={
             storage_trend(data.storage_history, :used_bytes, @analytics_period).value_label
@@ -101,6 +103,7 @@
         />
         <.widget
           id="storage-hit-rate"
+          legend_color={metric_color("hit_rate")}
           trend_value={
             hit_rate_trend(data.activity.hit_rate, data.previous_activity.hit_rate).value
           }
@@ -200,7 +203,7 @@
             patch={sort_patch(assigns, "volume")}
             sort_order={@sort_by == "volume" && @sort_order}
           >
-            <.text_cell label={volume.key} />
+            <.text_cell label={volume_name(volume)} title={display_name(volume)} />
           </:col>
           <:col
             :let={volume}
@@ -235,7 +238,7 @@
             sort_order={@sort_by == "capacity" && @sort_order}
           >
             <.text_cell
-              label={storage_capacity(stats(data, volume))}
+              label={storage_capacity(volume, stats(data, volume))}
               title={measurement_coverage(stats(data, volume)[:unmeasured_capacity_copies])}
             />
           </:col>
@@ -292,6 +295,24 @@
     </.card>
     <div :for={volume <- if(@selected, do: data.volumes, else: [])} data-part="tab-panel">
       <% metrics = stats(data, volume) %>
+      <.alert
+        :if={full_snapshot?(volume, metrics)}
+        id="volume-full-alert"
+        status="warning"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_runners", "This volume is almost full")}
+        description={full_snapshot_description(volume, metrics)}
+      />
+      <.alert
+        :if={pending_volume_bytes(volume, metrics)}
+        id="volume-pending-size-alert"
+        status="information"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_runners", "A smaller size was requested")}
+        description={pending_size_description(volume, metrics)}
+      />
       <.card
         title={dgettext("dashboard_runners", "Volume details")}
         icon="database"
@@ -321,7 +342,8 @@
               ><.history />{relative_time(volume.last_used_at)}</span>
             </div>
             <div id="volume-capacity" data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_runners", "Capacity")}</div><span data-part="label">{storage_capacity(
+              <div data-part="title">{dgettext("dashboard_runners", "Capacity")}</div><span data-part="label">{detail_capacity(
+                volume,
                 metrics
               )}</span>
             </div>
@@ -356,10 +378,23 @@
           />
         </:actions>
         <div data-part="widgets">
+          <% used_change = storage_trend(data.analytics.storage, :used_bytes, @analytics_period) %>
+          <% hit_rate_change =
+            hit_rate_trend(
+              data.analytics.activity.hit_rate,
+              data.analytics.previous_activity.hit_rate
+            ) %>
+          <% uses_change =
+            uses_trend(data.analytics.activity.uses, data.analytics.previous_activity.uses) %>
           <.widget
             id="volume-used"
+            legend_color={metric_color("used_bytes")}
             title={dgettext("dashboard_runners", "Used space")}
             value={storage_value(data.analytics.storage, :used_bytes)}
+            trend_value={used_change.value}
+            trend_value_label={used_change.value_label}
+            trend_label={used_change.label}
+            trend_type={:neutral}
             description={
               storage_description(List.last(data.analytics.storage) || %{}, :unmeasured_copies)
             }
@@ -369,8 +404,13 @@
           />
           <.widget
             id="volume-hit-rate"
+            legend_color={metric_color("hit_rate")}
             title={dgettext("dashboard_runners", "Hit rate")}
             value={percentage(data.analytics.activity.hit_rate)}
+            trend_value={hit_rate_change.value}
+            trend_value_label={hit_rate_change.value_label}
+            trend_label={hit_rate_change.label}
+            trend_type={:regular}
             description={
               dgettext(
                 "dashboard_runners",
@@ -383,8 +423,13 @@
           />
           <.widget
             id="volume-uses"
+            legend_color={metric_color("uses")}
             title={dgettext("dashboard_runners", "Job runs")}
             value={count(data.analytics.activity.uses)}
+            trend_value={uses_change.value}
+            trend_value_label={uses_change.value_label}
+            trend_label={uses_change.label}
+            trend_type={:neutral}
             description={
               dgettext(
                 "dashboard_runners",
@@ -449,13 +494,20 @@
             <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
               <.badge_cell
                 label={
-                  case usage.warm do
-                    true -> dgettext("dashboard_runners", "Hit")
-                    false -> dgettext("dashboard_runners", "Miss")
-                    nil -> "—"
+                  cond do
+                    CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                    usage.warm == true -> dgettext("dashboard_runners", "Hit")
+                    usage.warm == false -> dgettext("dashboard_runners", "Miss")
+                    true -> "—"
                   end
                 }
-                color={if usage.warm, do: "success", else: "neutral"}
+                color={
+                  cond do
+                    CacheVolumes.older_copy?(usage) -> "warning"
+                    usage.warm -> "success"
+                    true -> "neutral"
+                  end
+                }
                 style="light-fill"
               />
             </:col>

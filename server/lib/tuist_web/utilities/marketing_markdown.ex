@@ -21,7 +21,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
   @guide_patterns [
     Path.join(@guide_directory, "[a-z]*.md"),
     Path.join(@guide_directory, "solutions/[a-z]*.md"),
-    Path.join(@guide_directory, "compare/[a-z]*.md")
+    Path.join(@guide_directory, "compare/[a-z]*.md"),
+    Path.join(@guide_directory, "build-systems/[a-z]*.md")
   ]
   @policy_pattern Path.expand("../../../priv/marketing/pages/*.md", __DIR__)
   @patterns [@policy_pattern | @guide_patterns]
@@ -50,6 +51,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
               case slug do
                 "home" -> "/"
                 "compare/index" -> "/compare"
+                "build-systems/index" -> "/build-systems"
                 _ -> "/" <> slug
               end
 
@@ -60,7 +62,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
 
   @decision_guides @guides
                    |> Enum.filter(fn {path, _markdown} ->
-                     path == "/compare" or String.starts_with?(path, ["/solutions/", "/compare/"])
+                     path in ["/compare", "/build-systems"] or
+                       String.starts_with?(path, ["/solutions/", "/compare/", "/build-systems/"])
                    end)
                    |> Map.new(fn {path, markdown} ->
                      [heading, description | _rest] = String.split(markdown, "\n\n")

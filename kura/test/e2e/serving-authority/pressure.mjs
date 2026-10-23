@@ -14,8 +14,7 @@ const url = (i, key) =>
   `${urls[i]}/api/cache/cas/pressure-${key}?tenant_id=default&namespace_id=pressure`;
 let collecting = true,
   collector,
-  collectorError,
-  targetRestarting = false;
+  collectorError;
 const samples = [];
 try {
   docker(
@@ -25,7 +24,7 @@ try {
     "if=/dev/zero",
     "of=/data/metadata-pressure",
     "bs=1M",
-    "count=1280",
+    "count=2304",
     "status=none",
   );
   const before = snapshot();
@@ -33,16 +32,7 @@ try {
     while (collecting) {
       samples.push({
         time: Date.now(),
-        metrics: await Promise.all(
-          [0, 1].map(async (i) => {
-            try {
-              return await metric(i);
-            } catch (error) {
-              if (i === 1 && targetRestarting) return null;
-              throw error;
-            }
-          }),
-        ),
+        metrics: await Promise.all([0, 1].map(metric)),
       });
       await sleep(2000);
     }
@@ -97,8 +87,8 @@ try {
   });
   await write.arrayBuffer();
   assert.equal(write.status, 204);
-  // Capture what the source actually retains; capacity churn is allowed to miss
-  // older cache entries, but a handover must preserve every retained record.
+  // Exercise hot reads after pressure. These can promote and evict records;
+  // only the later frozen-corpus snapshot defines the handover guarantee.
   for (let i = 0; i < 512; i++) {
     const r = await fetch(url(0, i), { signal: AbortSignal.timeout(30000) });
     const data = Buffer.from(await r.arrayBuffer());
@@ -106,27 +96,55 @@ try {
     assert.equal(r.status, 200);
     body.writeUInt32BE(i);
     assert(data.equals(body));
-    retained.push(i);
   }
   docker("exec", names[1], "rm", "/data/metadata-pressure");
-  targetRestarting = true;
-  docker("restart", names[1]);
-  let ready = false;
-  for (let i = 0; i < 90; i++) {
-    try {
-      const r = await report(1);
-      ready = r.ready && r.backfill_initial_cycle === "complete";
-      if (ready) {
-        f.identities[1] = r.serving_authority.identity;
-        break;
+  // Recovery must repair the existing caught-up standby, without a restart
+  // that would hide the hole behind a fresh bootstrap pass.
+  const beforeRepair = (await report(1)).serving_authority.identity;
+  const receipt = await handover(f, {
+    id: "capacity-restored",
+    beforePromotion: async (barrier) => {
+      // Both receipts now exist and the source hold prevents these reads from
+      // promoting/evicting an earlier member of the expected corpus.
+      for (let i = 0; i < 512; i++) {
+        const r = await fetch(url(0, i), { signal: AbortSignal.timeout(30000) });
+        const data = Buffer.from(await r.arrayBuffer());
+        if (r.status === 404) continue;
+        assert.equal(r.status, 200);
+        body.writeUInt32BE(i);
+        assert(data.equals(body));
+        retained.push(i);
       }
-    } catch {}
-    await sleep(1000);
-  }
-  targetRestarting = false;
-  assert(ready, "replacement did not complete bootstrap");
-  const receipt = await handover(f, { id: "capacity-restored" });
+      assert.equal(
+        barrier.records,
+        retained.length + 1,
+        "snapshot must cover the full frozen corpus, including after-abort",
+      );
+      fs.writeFileSync(
+        `${output}/frozen-corpus.json`,
+        JSON.stringify({ retained, barrier }),
+      );
+    },
+  });
   assert(receipt, "complete corpus did not hand over after pressure removal");
+  assert.deepEqual((await report(1)).serving_authority.identity, beforeRepair);
+  const repair = f.logs(names[1])
+    .split("\n")
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line)];
+      } catch {
+        return [];
+      }
+    })
+    .find((event) =>
+      event["event.name"] === "kura.handover.reconciled" &&
+      event.id === "capacity-restored",
+    );
+  assert(
+    repair?.applied > 0,
+    "fixture must repair missing retained bodies on the same process",
+  );
   for (const i of retained) {
     const r = await fetch(url(1, i), { signal: AbortSignal.timeout(30000) });
     const data = Buffer.from(await r.arrayBuffer());
@@ -154,6 +172,9 @@ try {
     retainedRecords: retained.length,
     incompleteHandoverRejected: true,
     sourceResumedAfterAbort: true,
+    repairedWithoutRestart: true,
+    repairedRecords: repair.applied,
+    repairedBytes: repair.bytes,
     receipt,
     before,
     pressureState,
@@ -167,6 +188,9 @@ try {
       retainedRecords: retained.length,
       incompleteHandoverRejected: true,
       sourceResumedAfterAbort: true,
+      repairedWithoutRestart: true,
+      repairedRecords: repair.applied,
+      repairedBytes: repair.bytes,
       completedEpoch: 2,
     }),
   );

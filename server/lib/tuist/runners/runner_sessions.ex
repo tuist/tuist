@@ -51,6 +51,7 @@ defmodule Tuist.Runners.RunnerSessions do
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.WorkflowJob
 
   require Logger
 
@@ -313,34 +314,6 @@ defmodule Tuist.Runners.RunnerSessions do
   end
 
   @doc """
-  The `%{account_id, repository}` pairs that ran the most jobs in the
-  `fleet_names` pools since `since`, most first, at most `limit`. A macOS host
-  prefetches the cache masters these jobs use, so the next one it is handed can
-  start warm.
-
-  `:node_names` limits it to jobs that ran on those Nodes.
-  """
-  def recent_demand(fleet_names, %DateTime{} = since, limit, opts \\ [])
-      when is_list(fleet_names) and is_integer(limit) and limit > 0 do
-    query =
-      from(s in RunnerSession,
-        where: s.fleet_name in ^fleet_names and s.started_at >= ^since and not is_nil(s.account_id),
-        group_by: [s.account_id, s.repository],
-        order_by: [desc: count(s.id), desc: max(s.started_at), asc: s.account_id, asc: s.repository],
-        limit: ^limit,
-        select: %{account_id: s.account_id, repository: s.repository}
-      )
-
-    query =
-      case Keyword.fetch(opts, :node_names) do
-        {:ok, node_names} -> where(query, [s], s.node_name in ^node_names)
-        :error -> query
-      end
-
-    Repo.all(query)
-  end
-
-  @doc """
   Open sessions per fleet that have already passed the six-hour safety
   bound — the rows `p95_concurrent_last_hour/1` clamps out of the
   forecast and that `occupied_counts_per_fleet/0` has stopped counting.
@@ -554,6 +527,25 @@ defmodule Tuist.Runners.RunnerSessions do
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id, _job_window), do: :unknown_runner
 
+  @doc """
+  The workflow_job that ran on the runner named `runner_name` within
+  `account_id`: the one `record_execution/4` bound, or, until GitHub reports
+  it, the one the runner was minted for.
+
+  Reads the session because it is the one record of a runner that a later
+  mint never rewrites. `runner_workflow_jobs.runner_name` is overwritten each
+  time a job's row is minted again, so it cannot say which runner ran a job.
+  """
+  def workflow_job_id_for_runner(runner_name, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(account_id) do
+    case session_for_runner(runner_name, account_id) do
+      nil -> :error
+      %RunnerSession{} = session -> {:ok, session.executed_workflow_job_id || session.workflow_job_id}
+    end
+  end
+
+  def workflow_job_id_for_runner(_runner_name, _account_id), do: :error
+
   # Prefer the open session; fall back to the most recent closed one so a
   # `completed` backstop can still bind after a fast job's pod is gone.
   # Same policy as `latest_for_pod/1`, expressed once — see
@@ -717,5 +709,34 @@ defmodule Tuist.Runners.RunnerSessions do
       nil -> :error
       session -> {:ok, session}
     end
+  end
+
+  @doc """
+  The jobs whose runners still occupy `node_names`: one per open session, from
+  committed dispatch through post-job cache work and Pod teardown, so it covers
+  a job before it attaches its cache volumes and while it publishes them. Each
+  is the job the runner executed, or the one it was dispatched for until GitHub
+  says which it ran.
+  """
+  def open_jobs_on_nodes([]), do: []
+
+  def open_jobs_on_nodes(node_names) when is_list(node_names) do
+    since = DateTime.add(DateTime.utc_now(), -@max_session_lifetime_seconds, :second)
+
+    Repo.all(
+      from(s in RunnerSession,
+        left_join: j in WorkflowJob,
+        on: j.workflow_job_id == coalesce(s.executed_workflow_job_id, s.workflow_job_id) and j.account_id == s.account_id,
+        where: is_nil(s.ended_at) and s.node_name in ^node_names and s.started_at >= ^since,
+        select: %{
+          node_name: s.node_name,
+          account_id: s.account_id,
+          workflow_job_id: coalesce(s.executed_workflow_job_id, s.workflow_job_id),
+          repository: coalesce(j.repository, s.repository),
+          workflow_name: coalesce(j.workflow_name, s.workflow_name),
+          job_name: j.job_name
+        }
+      )
+    )
   end
 end

@@ -8,6 +8,9 @@ import TuistHTTP
 /// Refreshes the token pair issued by the OAuth authorization server, such as the one the
 /// Tuist app obtains when signing in through the browser. Those tokens can only be refreshed
 /// through the `refresh_token` grant of `/oauth2/token`; `/api/auth/refresh_token` rejects them.
+///
+/// A refresh that fails with a transport error or a 408, 429 or 5xx response is sent again with the same refresh
+/// token, which the server answers with the same tokens within 60 seconds of exchanging it.
 @Mockable
 public protocol RefreshOAuthTokenServicing: Sendable {
     func refreshTokens(
@@ -46,17 +49,25 @@ public struct RefreshOAuthTokenService: RefreshOAuthTokenServicing {
         request.addRequestIDHeader()
         ClientFeatureFlags.addHeader(to: &request)
 
+        let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL)
+        let clientID = credentials?.refreshToken == refreshToken ? credentials?.oauthClientID : nil
         var body = URLComponents()
         body.queryItems = [
             URLQueryItem(name: "grant_type", value: "refresh_token"),
             URLQueryItem(name: "refresh_token", value: refreshToken),
-            URLQueryItem(name: "client_id", value: serverEnvironmentService.oauthClientId()),
+            URLQueryItem(name: "client_id", value: clientID ?? serverEnvironmentService.oauthClientId()),
         ]
         request.httpBody = body.percentEncodedQuery?
             .replacingOccurrences(of: "+", with: "%2B")
             .data(using: .utf8)
 
-        let (data, response) = try await perform(request)
+        return try await HTTPRetryPolicy().run { [perform, request] in
+            try Self.tokens(from: try await perform(request))
+        }
+    }
+
+    private static func tokens(from result: (Data, URLResponse)) throws -> ServerAuthenticationTokens {
+        let (data, response) = result
         guard let httpResponse = response as? HTTPURLResponse else {
             throw RefreshAuthTokenServiceError.unknownError(0)
         }

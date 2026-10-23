@@ -15,7 +15,7 @@ defmodule Tuist.License.CacheTest do
     :ok
   end
 
-  test "transient validation errors are retried instead of retained for a day" do
+  test "validation errors back off briefly, then recover without a day-long failure entry" do
     atlas = License.get_validation_url()
     keygen = License.get_keygen_validation_url()
     expect(Req, :post, fn ^atlas, _opts -> {:ok, %{status: 503}} end)
@@ -38,8 +38,12 @@ defmodule Tuist.License.CacheTest do
        }}
     end)
 
-    assert {:error, _} = License.get_license()
+    assert {:error, _} = error = License.get_license()
+    assert License.get_license() == error
     assert License.get_cached_license() == nil
+    retry_key = "Elixir.Tuist.License-validation"
+    assert Cachex.ttl(:license, retry_key) in 1..10_000
+    Cachex.del(:license, retry_key)
     assert {:ok, %License{id: "recovered", valid: true}} = License.get_license()
     assert {:ok, %License{id: "recovered"}} = License.get_license()
     Cachex.clear(:tuist)

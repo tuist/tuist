@@ -50,6 +50,7 @@ defmodule Tuist.Kubernetes.Client do
   def patch(path, operations, opts \\ []) when is_binary(path) and is_list(operations) do
     request(:patch, path,
       opts: opts,
+      timeout: opts[:timeout],
       body: JSON.encode!(operations),
       headers: [{"content-type", "application/json-patch+json"}]
     )
@@ -326,9 +327,23 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  Reads a Node. Dispatch uses this to read the cache-master labels
-  tart-kubelet advertises on each macOS host, so it can hand a polling
-  runner a job whose account's cache is already resident there. The
+  LISTs PersistentVolumes, which are cluster-scoped. Kura capacity reads them to
+  find node-local volumes no pod requests any more, such as a quarantined
+  replica's retained volume, whose bytes still sit on a cache node's disk. The
+  server SA is granted `persistentvolumes: [list]` by its cluster-reads
+  ClusterRole.
+  """
+  def list_persistent_volumes(opts \\ []) do
+    case request(:get, "/api/v1/persistentvolumes", timeout: opts[:timeout]) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  Reads a Node. Dispatch uses this to read the cache-volume labels
+  runner hosts advertise, so it can hand a polling runner a job whose
+  cache volumes are already resident there. The
   server SA is granted `nodes: [get, list]` by the runners-fleet-reader
   ClusterRole.
   """

@@ -195,6 +195,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
           test_runtime: Keyword.get(opts, :test_runtime),
           destinations: Keyword.get(opts, :destinations, []),
           binary_cache_hit: binary_cache_hit,
+          binary_cache_instrumented: Keyword.get(opts, :binary_cache_instrumented),
           selective_testing_hash: selective_testing_hash,
           selective_testing_hit: selective_testing_hit,
           product: Keyword.get(opts, :product, ""),

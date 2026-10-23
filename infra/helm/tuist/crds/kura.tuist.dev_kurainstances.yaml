@@ -425,6 +425,8 @@ spec:
                   format: int32
                 message:
                   type: string
+                imageHold:
+                  type: string
                 nodeAddress:
                   type: string
                 nodePortCache:

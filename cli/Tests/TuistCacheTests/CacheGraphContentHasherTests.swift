@@ -54,9 +54,90 @@ struct CacheGraphContentHasherTests {
             configuration: nil,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
         #expect(result[graphTarget]?.binaryCacheFingerprints.count == (legacy ? 0 : 3))
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        arguments: [
+            (BinaryCacheCoverage.off, "Debug", false),
+            (.on, "Debug", true),
+            (.on, "Release", false),
+        ]
+    ) func keysRepositoryTargetsOnCoverage(
+        coverage: BinaryCacheCoverage,
+        configuration: String,
+        instrumented: Bool
+    ) async throws {
+        // Given
+        let settings = Settings(configurations: [.debug("Debug"): nil, .release("Release"): nil])
+        let local = Target.test(name: "Local", product: .framework)
+        let localProject = Project.test(path: "/local", settings: settings, targets: [local])
+        let external = Target.test(name: "External", product: .framework)
+        let externalProject = Project.test(
+            path: "/external", settings: settings, targets: [external], type: .external(hash: "revision")
+        )
+        // A package the manifest references by path resolves without a hash: its code is the repository's.
+        let localPackage = Target.test(name: "LocalPackage", product: .framework)
+        let localPackageProject = Project.test(
+            path: "/local-package", settings: settings, targets: [localPackage], type: .external(hash: nil)
+        )
+        let graph = Graph.test(
+            projects: [
+                localProject.path: localProject,
+                externalProject.path: externalProject,
+                localPackageProject.path: localPackageProject,
+            ]
+        )
+        given(graphContentHasher)
+            .contentHashes(for: .any, include: .any, destination: .any, additionalStrings: .any)
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn(configuration)
+        given(try #require(SwiftVersionProvider.mocked)).swiftlangVersion().willReturn("5.10.0")
+        given(try #require(XcodeController.mocked)).selectedBuildVersion().willReturn("16C5032a")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: configuration,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: coverage
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .matching { additionalStrings in
+                    let localStrings = additionalStrings(GraphTarget(
+                        path: localProject.path,
+                        target: local,
+                        project: localProject
+                    ))
+                    let externalStrings = additionalStrings(
+                        GraphTarget(path: externalProject.path, target: external, project: externalProject)
+                    )
+                    let localPackageStrings = additionalStrings(
+                        GraphTarget(path: localPackageProject.path, target: localPackage, project: localPackageProject)
+                    )
+                    return localStrings.contains(CacheGraphContentHasher.coverageDimension) == instrumented
+                        && localPackageStrings.contains(CacheGraphContentHasher.coverageDimension) == instrumented
+                        && !externalStrings.contains(CacheGraphContentHasher.coverageDimension)
+                        && localStrings.contains(configuration) && externalStrings.contains(configuration)
+                }
+            )
+            .called(1)
     }
 
     @Test(
@@ -107,7 +188,8 @@ struct CacheGraphContentHasherTests {
             configuration: requestedConfigurationName,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -172,7 +254,8 @@ struct CacheGraphContentHasherTests {
             configuration: nil,
             defaultConfiguration: defaultConfigurationName,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -232,7 +315,8 @@ struct CacheGraphContentHasherTests {
             configuration: nil,
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -285,7 +369,8 @@ struct CacheGraphContentHasherTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -337,7 +422,8 @@ struct CacheGraphContentHasherTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: ["Excluded"],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -396,7 +482,8 @@ struct CacheGraphContentHasherTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: ["Excluded"],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -461,7 +548,8 @@ struct CacheGraphContentHasherTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -525,7 +613,8 @@ struct CacheGraphContentHasherTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -590,7 +679,8 @@ struct CacheGraphContentHasherTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -655,7 +745,8 @@ struct CacheGraphContentHasherTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then

@@ -2,6 +2,12 @@ defmodule Tuist.FeatureFlags do
   @moduledoc false
 
   alias Tuist.Environment
+  alias Tuist.Projects.Project
+
+  @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
+  def immutable_shard_reports_enabled?(account) do
+    FunWithFlags.enabled?(:immutable_shard_reports, for: account) and not xcode_coverage_enabled?(account)
+  end
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account) do
@@ -9,11 +15,17 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether the account may advertise and receive its managed stable cache
-  hostname. Canary is automatically enabled. Every other environment requires
-  the `:kura_stable_hostname` flag for the account or for everyone. The same
-  flag controls advertising intent and URL hand-out; readiness still gates
-  publication and endpoint selection.
+  Default-off account opt-in to placement reading what each region served, not
+  only where runs report from. Off, placement decides exactly as it did before.
+  """
+  def kura_placement_served_signal_enabled?(account) do
+    FunWithFlags.enabled?(:kura_placement_served_signal, for: account)
+  end
+
+  @doc """
+  Whether legacy endpoint discovery may hand out the stable hostname. Canary
+  enables this automatically; other environments use the account/global flag.
+  DNS publication is independent because new CLIs derive that hostname locally.
   """
   def kura_stable_hostname_enabled?(account) do
     Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
@@ -51,6 +63,21 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether the account's macOS profile jobs run at a site: dispatch routes a
+  profile to the same Xcode and shape racked at a site
+  (`Tuist.Runners.Catalog.site_pool_name/1`) when one is and the site can
+  serve it (`Tuist.Runners.Sites`), and to the rented fleet otherwise; a site
+  job queued while the site is down moves to the rented fleet
+  (`Tuist.Runners.Workers.SiteSpilloverWorker`). The account also gets a
+  node in the site's runner-cache region, as `:runner_site_cache` gives one.
+  Staging and canary run their macOS jobs at a site, so it is on for every
+  account there.
+  """
+  def runner_site_enabled?(account) do
+    Environment.env() in [:stag, :can] or FunWithFlags.enabled?(:runner_site, for: account)
+  end
+
+  @doc """
   Whether code coverage (Xcode's and Mix's) is ingested, processed and shown
   for the given account. Canary and production require an explicit `:xcode_coverage`
   FunWithFlags toggle for the account while the feature is in early access, so
@@ -61,52 +88,6 @@ defmodule Tuist.FeatureFlags do
 
   def xcode_coverage_enabled?(account) do
     Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:xcode_coverage, for: account)
-  end
-
-  @doc """
-  Whether the account is on usage-based pricing: the usage page shows its
-  cache and test insights charges, and the nightly Stripe sync reports the
-  cache egress, cache request, and passing test case meters for it
-  instead of the remote cache hit meter. Off unless the
-  `:usage_based_pricing` FunWithFlags toggle is enabled for the account.
-  """
-  def usage_based_pricing_enabled?(account) do
-    FunWithFlags.enabled?(:usage_based_pricing, for: account)
-  end
-
-  @doc """
-  Whether the switch worker may move this account's subscription onto the
-  usage-based meters at its next renewal. Off unless
-  `:usage_based_pricing_switch` is enabled for the account or for everyone,
-  which is what paces the migration: an account is only switched once its
-  notice period has passed.
-  """
-  def usage_based_pricing_switch_enabled?(account) do
-    FunWithFlags.enabled?(:usage_based_pricing_switch, for: account)
-  end
-
-  @doc """
-  Whether the pricing page shows usage-based pricing. Anonymous visitors see
-  it once the `:usage_based_pricing_page` flag is enabled for everyone; a
-  signed-in user sees it once the flag is enabled for them, so the page can be
-  previewed before it goes public.
-  """
-  def usage_based_pricing_page_enabled?(nil), do: FunWithFlags.enabled?(:usage_based_pricing_page)
-  def usage_based_pricing_page_enabled?(user), do: FunWithFlags.enabled?(:usage_based_pricing_page, for: user)
-
-  @doc """
-  Whether dispatch stamps a job's repository cache volume on its Pod. Canary and
-  production require an explicit `:runner_cache_volumes_per_repository` toggle,
-  so a deploy never starts stamping while replicas of the previous version are
-  still serving. Those replicas resolve every promote and upload URL under the
-  account's `tuist-cache` volume, so a repository-labelled Pod whose upload one
-  of them mints and whose promote a new replica accepts would publish a HEAD
-  pointing at an object under the other volume's prefix, which no host can then
-  download. Turn it on once the rollout is complete; the host side has its own
-  gate (`tuist.dev/cache-volumes-per-repository`).
-  """
-  def runner_cache_volumes_per_repository_enabled? do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_cache_volumes_per_repository)
   end
 
   @doc """
@@ -151,6 +132,18 @@ defmodule Tuist.FeatureFlags do
   def public_page_challenge_enabled? do
     Environment.public_page_challenge_required?() and
       not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
+  end
+
+  @doc """
+  Persistent build inventories are opt-in per project. The kill switch stops
+  derivation and hides the new surfaces without changing native ingestion.
+  """
+  def build_entities_enabled?(project_id) when is_integer(project_id),
+    do: build_entities_enabled?(%Project{id: project_id})
+
+  def build_entities_enabled?(%Project{} = project) do
+    not FunWithFlags.enabled?(:build_entities_kill_switch) and
+      FunWithFlags.enabled?(:build_entities, for: project)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

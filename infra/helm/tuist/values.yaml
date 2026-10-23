@@ -198,6 +198,7 @@ kuraController:
     enabled: false
   namespace: kura
   replicaCount: 2
+  nodeSelector: {}
   tolerations: []
   image:
     repository: ghcr.io/tuist/kura-controller
@@ -725,11 +726,30 @@ server:
       role: tuist_ops_readonly
       existingSecret: ""
       passwordKey: password
+    # The bounded ClickHouse identity Grafana Cloud's data source signs in
+    # as, through the PDC agent (add the ClickHouse Service to
+    # `pdcAgent.permitRemoteOpen`). Reconciled by the migration Job like
+    # `opsClickHouse`. The password comes from 1Password (`item`/`field`
+    # through the managed external secrets, so `managedSecrets` must be on)
+    # because the same value is entered on the Grafana data source.
+    grafanaClickHouse:
+      enabled: false
+      username: tuist_grafana
+      role: tuist_grafana_readonly
+      item: CLICKHOUSE_GRAFANA
+      field: password
     # Newsletter signups go to Atlas, which is our own deployment. Only the
     # environment that owns the production audience should write to it, so
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Origin app identity. Enable only after the registered App ID and its
+    # signing key exist together in the environment's vault.
+    originAppKey:
+      enabled: false
+      item: ORIGIN_APP
+      appIdField: app_id
+      field: private_key
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -845,6 +865,16 @@ server:
     # a Secret and preserves its cookie with lookup during upgrades.
     cookieExistingSecret: ""
     cookieExistingSecretKey: release-cookie
+    # Optional ESO-owned cookie Secret. Requires cookieExistingSecret and an
+    # existing SecretStore. No ESO dependency for ordinary self-hosted installs.
+    externalSecret:
+      enabled: false
+      # Sync only on ExternalSecret metadata/spec changes, never on a timer.
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: SERVER_CLUSTER_COOKIE
+      field: password
   serviceAccount:
     # Workload identity / Kubernetes API identity for server pods and the migration job.
     # Set annotations when integrating with a cloud IAM system or custom RBAC.
@@ -1314,16 +1344,29 @@ xcresultProcessor:
   # xcresult ingestion silently no-ops for them (acceptable — Linux-only
   # deployments don't have xcresult uploads to ingest in the first place).
   enabled: false
+  # Leave the Deployment and PDB out of this release so that
+  # infra/helm/xcresult-processor can install them in a release of its own,
+  # under the same names and labels. Managed envs do this so the server
+  # deploy's `helm upgrade --atomic --wait` never waits on a processor; see
+  # infra/helm/xcresult-processor/Chart.yaml.
+  ownRelease: false
   replicaCount: 2
   # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
   queueConcurrency: 4
   image:
-    # Built by .github/workflows/xcresult-processor-image.yml — Tart
-    # VM image with the Tuist server release and the macOS-only
-    # xcresult NIF baked in.
+    # Tart VM image with macOS, Xcode and the boot scripts, released by the
+    # production cascade from infra/xcresult-processor-image. It carries no
+    # server release: the guest downloads `release` below at boot.
     repository: ghcr.io/tuist/tuist-xcresult-processor
     tag: ""  # Set by CI to the commit SHA.
     pullPolicy: IfNotPresent
+  # The macOS server release the guest boots: the single `release.tar.gz`
+  # layer of an OCI artifact in `repository`, pulled anonymously and pinned
+  # by its layer digest. The deploy sets the digest to the release built for
+  # the server image it ships, so a new digest rolls the Pods.
+  release:
+    repository: ghcr.io/tuist/tuist-xcresult-processor-release
+    digest: ""
   # When the chart's `processor.managedSecrets` is true (managed cloud)
   # the build processor's ExternalSecret already syncs the
   # tuist_processor role's DATABASE_URL into a Secret — we reuse that
@@ -1361,6 +1404,25 @@ xcresultProcessor:
     authKeySecretName: ""
     authKeySecretKey: "auth-key"
   extraEnv: []
+  # Evaluated by tart-kubelet against the guest's `GET /ready` on port
+  # 9092 (Tuist.Readiness.Plug). The delay counts from VM launch, which
+  # precedes the tailnet join and the BEAM boot; probes before the BEAM
+  # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
+  # soon as the VM has an IP.
+  #
+  # A release that waits on its resources waits on this Deployment too, so
+  # one NotReady processor (a shared Postgres or ClickHouse outage, or a host
+  # that cannot reach its guest) holds that release's upgrade. Managed envs
+  # set `ownRelease` so the server release never waits on it; a self-hosted
+  # install that keeps the processor in its release and upgrades with
+  # `--wait` should weigh that before leaving this on.
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
   # keeps at least one queue consumer up across voluntary disruptions
@@ -1613,6 +1675,36 @@ rackFleet:
   enabled: false
   name: ""             # default: <release>-rack-fleet
 
+  # This env's name (staging, canary, production). Every push to a rack host
+  # claims the host's runner runtime for it, and a host this env lends names
+  # it as the lender. Required to lend or borrow a host. See "A host lent to
+  # another env" in infra/cluster-api-provider-tuist/AGENTS.md.
+  env: ""
+
+  # The envs this env lends rack hosts to (`hosts[].lendTo`), by name. Each
+  # needs the borrowing chart's rack-lender kubeconfig in this env's vault:
+  #
+  #   borrowers:
+  #     staging:
+  #       kubeconfigItem: RACK_BORROWER_STAGING_KUBECONFIG  # field `kubeconfig`
+  #       namespace: tuist-staging   # where staging's operator watches leases
+  #
+  # An entry without kubeconfigItem renders nothing, so it can be declared
+  # before the item exists.
+  borrowers: {}
+
+  # Rack hosts another env lends this one. This env runs their runner
+  # runtime from its own operator, as it does its rented minis, and its rack
+  # catalog pools (`runners` below, with `name` as their fleet) place runners
+  # on them. Enabled, the chart renders the rack-lender identity the lending
+  # env writes this env's RackHostLeases with. Not for an env with `enabled`,
+  # which owns its rack.
+  borrow:
+    enabled: false
+    # RackHost names this env runs when they are lent to it. A lease for any
+    # other host is refused.
+    hosts: []
+
   # Default rack site for hosts that don't name their own. Load-bearing: it
   # composes the providerID, so it must be stable for the life of a host.
   site: ""
@@ -1635,6 +1727,66 @@ rackFleet:
   # VMs may reach on TCP 443 through the VM egress firewall. Every other
   # private destination stays blocked. Empty passes none.
   vmCacheGatewayCIDRs: []
+
+  # The rack's VM image cache: a zot registry on each of the rack's storage
+  # nodes that mirrors the runner images, so an image crosses the WAN once per
+  # rack instead of once per mini. Rendered by the rack-nodes chart
+  # (infra/helm/rack-nodes/templates/image-cache.yaml), which a deploy does not
+  # wait on. See "The rack's VM image cache" in infra/rack-nodes/AGENTS.md.
+  imageCache:
+    # Runs the cache on each of `nodes` and keeps `prewarm` synced.
+    enabled: false
+    # The rack hosts (`hosts[].name`) whose tart-kubelet pulls golden bases
+    # through the caches (`--image-mirror`), in the order of `nodes`, before
+    # the upstream; `"*"` routes every host. A cache that is down, does not
+    # hold the image or fails the pull falls back to the upstream. Adding or
+    # removing a host drifts that host only, so one host can carry the cache
+    # before the rest.
+    routeHosts: []
+    # The registry the caches mirror. Only images from it are routed.
+    upstream: ghcr.io
+    # The repositories the caches serve, as zot sync prefixes.
+    repositories:
+      - tuist/tuist-runner
+    # Each storage node that runs a cache, by Node name, and its address on
+    # the machines segment, which the cache binds and the minis pull from.
+    #   - name: ber1-store-a
+    #     address: 10.10.0.11
+    nodes: []
+    port: 5000
+    # The cache's volume on the node's XFS /data (a quota-bounded local-path
+    # volume), also requested as ephemeral-storage so the Kura region on the
+    # same node places its instances around it.
+    storageClass: scw-local-nvme
+    sizeGi: 400
+    # Catalog Xcode versions (`runnersFleet.xcodeVersions`) the caches fetch
+    # as soon as a release names them, rather than on the first pull. Every
+    # other image of `repositories` is fetched on its first pull, which the
+    # hosts that want it wait for together.
+    prewarm: []
+    # How often the prewarm set is asked for again, which is how a release's
+    # new tags reach the cache once a deploy names them.
+    syncInterval: 10m
+    # Tags neither in `prewarm` nor pulled within this long are deleted, and
+    # their blobs collected, so a release's previous images go once the rack
+    # has rolled off them.
+    keepPulledWithin: 24h
+    image:
+      repository: ghcr.io/project-zot/zot-linux-amd64
+      tag: v2.1.22@sha256:46f688dc26315a35a247e1784368829e66a67bf91de94c7d8d1645044fac1d5b
+      pullPolicy: IfNotPresent
+    # The prewarm loop's wget. From ECR Public, so the rack's one egress IP
+    # spends nothing of Docker Hub's anonymous budget.
+    prewarmImage:
+      repository: public.ecr.aws/docker/library/busybox
+      tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
 
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
@@ -1671,7 +1823,32 @@ rackFleet:
   #     parked: false           # keeps the box declared with no Machine (bench
   #                             # work, an RMA, a box that is off); parking a
   #                             # host deletes its Node undrained
+  #     lendTo: ""              # lends the host's runner runtime to another env
+  #                             # (a `borrowers` key): that env's operator runs
+  #                             # it and this one keeps the site. Clearing it
+  #                             # returns the host once the borrower drained it.
+  #     nodeFleet: ""           # (the manual lend, replaced by lendTo)
+  #                             # lends the host to another fleet's runner pools:
+  #                             # its Node's tuist.dev/fleet label, which the
+  #                             # rack fleet's own pools then skip
+  #     nodeCluster:            # lends the host to another env: its Node
+  #       kubeconfigItem: ""    # registers in that env's cluster with the
+  #       cacheVolumesURL: ""   # kubeconfig in this 1Password item (field
+  #                             # `kubeconfig`; see "Lending a host to another
+  #                             # env" in infra/rack-nodes/AGENTS.md); drain
+  #                             # the Node first.
+  #                             # cacheVolumesURL is that env's server's
+  #                             # cache-volumes endpoint, empty for none
   hosts: []
+
+  # The manual lend, which `borrow` replaces. Rack hosts another env lends
+  # this cluster, by Machine name: each gets the node identity its
+  # tart-kubelet registers with here (templates/rack-joining-nodes.yaml). The
+  # lending env sets the host's `nodeCluster` to a kubeconfig built from its
+  # token. This env runs the rack catalog's pools on them through `runners`
+  # below, with `name` set to the hosts' `nodeFleet`, and does not enable the
+  # fleet itself.
+  joiningNodes: []
 
   # Each host's node sizing. Each field falls back to the operator's global
   # default when unset.
@@ -1685,6 +1862,61 @@ rackFleet:
     # host" (the only setting that fits a 256 GB prototype box) and is
     # deliberately distinguishable from unset, which inherits the global.
     runnerCacheVolumeGiB: null
+
+  # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
+  # entry renders a second macOS pool, on the catalog's default shape, that
+  # selects this fleet: `<release>-runner-pool-macos-<site>-<xcode-dashes>`,
+  # with the same image as the rented fleet's pool for that Xcode. Accounts on
+  # the server's `runner_site` flag have their profiles routed to these pools,
+  # and the server falls back to the rented fleet for a profile the site has no
+  # pool for. The pools select only this fleet, so the runners-controller
+  # apportions this fleet's guest slots among them and among any explicit
+  # `runnersFleet.pools` entry that selects it and autoscales. A Tart guest
+  # cannot be newer than its host: every catalog image has to fit the hosts'
+  # macOS.
+  runners:
+    enabled: false
+    # Run each Xcode's stacked runner image (`runnersFleet
+    # .runnerImageStackedDigests`) on this fleet, so a release on an unchanged
+    # base pulls only its overlay. Every host of the fleet, and every host it
+    # borrows, must run macOS 27 and Tart 2.36 or newer: older hosts can pull a
+    # stacked image but not boot it. An Xcode without a stacked digest, or with
+    # an `imageTag` override, keeps its standalone image.
+    stackedImages: false
+    # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
+    # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
+    # guestCapacity); the allocator caps the pools' joint sum.
+    autoscaling: {}
+    #   enabled: true
+    #   minWarmPoolFloor: 0
+    #   maxReplicas: 18
+    # rollout:
+    #   maxConcurrentPercent: 5
+    # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
+    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
+    # from `guestShapes` below.
+    xcodeOverrides: {}
+    # A bigger guest on this fleet for a catalog shape, keyed
+    # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
+    # shape still route to it and its jobs are recorded, billed and counted
+    # against concurrency limits at the shape; only its Pods grow. Size the
+    # hosts' `machine` for the guests, and keep memory per vCPU the same across
+    # this fleet's guests so memory binds guest count where CPU does. A guest
+    # smaller than its shape fails the render.
+    guestShapes: {}
+    #   6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    #   12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
+    # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
+    # each with its `autoscaling` (and optional `rollout`). A shape not named
+    # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
+    # one, as on the rented fleet.
+    shapes: {}
+    #   12vcpu-28gb:
+    #     autoscaling:
+    #       enabled: true
+    #       minWarmPoolFloor: 0
+    #       maxReplicas: 9
 
   # The fleet SSH key + the service account's password, synced from 1Password.
   # NOT optional: the controller never mints a replacement, because a credential
@@ -1778,11 +2010,20 @@ rackLinuxFleet:
   #     rack: r1
   #     positionU: 10
   #     online: true             # false powers it off through AMT
+  #     address: 10.10.0.11      # its address on the machines segment
+  #     publicAddress: 149.6.170.31   # the site's WAN address: the host joins the
+  #                              # cluster's Cilium network, and the edges forward
+  #                              # its cluster ports there (8472/udp, 4240/tcp,
+  #                              # 10250/tcp) from the cluster's nodes only. One
+  #                              # host per address; needs `address`, not an edge.
   #     reinstallGeneration: 1   # raise it to reinstall the host
   #     amt:
   #       activate: false        # default: amt.products decides
   #       address: 192.168.50.21/24   # default: one from amt.addressRange
   #       gateway: 192.168.50.1  # default: amt.gateway
+  # An edge's way out on the first boot of an install (spec.edge) comes from
+  # rack-sites/<site>.yaml, which `mise run rack:fleet render` writes from the
+  # site definition, not from here.
   hosts: []
 
   # Intel AMT. The operator activates, in admin control mode, the AMT of each
@@ -1810,6 +2051,8 @@ rackLinuxFleet:
   # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
   # the host installs itself when it netboots or boots its stick. The site
   # definition's management.edge.netboot points the edge node's DHCP here.
+  # The rack-nodes chart (infra/helm/rack-nodes) renders its DaemonSet, and the
+  # rack node agent's, from these values; this chart configures the operator.
   boot:
     enabled: false
     site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
@@ -1849,6 +2092,8 @@ macosFleet:
     # but not production.
     tag: ""
     pullPolicy: IfNotPresent
+  # Placement of the provider Deployment, not of the Mac minis.
+  operatorNodeSelector: {}
   # External URL of the cluster API server that Mac minis dial when
   # joining. Auto-discovered from the kube-public/cluster-info
   # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
@@ -1880,6 +2125,14 @@ macosFleet:
   # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is
   # baked into the operator's own image — bumping
   # `macosFleet.image.tag` rolls a new kubelet.
+  # Tart on every Mac mini this release manages, rented and rack. It
+  # must be one of the releases the operator image carries (TART_RELEASES
+  # in infra/cluster-api-provider-tuist/Dockerfile); empty runs the image's
+  # TART_DEFAULT_VERSION. A change reaches existing hosts in place through
+  # the host-config drift loop, without draining them. Annotate one machine
+  # `tuist.dev/tart-version=<version>` to move it ahead of the rest first.
+  tart:
+    version: ""
   tartKubelet:
     # Capacity advertised by each Mac mini when it registers its Node.
     # Matches the default `macosFleet.machine.type = M2-L` on Scaleway
@@ -1933,27 +2186,16 @@ macosFleet:
     # bootstraps every macOS fleet in the cluster, so raising the global
     # over-provisions every single-guest host in all of them.
     guestCapacity: 1
-  # Per-account cache volumes. When gib > 0, bootstrap
+  # Runner cache volumes. When gib > 0, bootstrap
   # provisions a quota-bounded APFS volume of that many GiB on each Mac
-  # mini to hold per-account cache-volume images, and turns the feature on
+  # mini to hold the runner cache volumes, and turns the feature on
   # in tart-kubelet (--runner-cache-root). The quota is the aggregate
   # ceiling for all cache volumes on the host — the filesystem bound that
   # keeps them from ever starving the VM image path. Operator-wide (the
   # provider applies it to every Mac it bootstraps); 0 (default) leaves the
-  # feature off and every runner VM boots on the status-quo cold path.
+  # feature off.
   runnerCacheVolume:
     gib: 0
-    # Per-account master image cap (GiB). The image is sparse so this is a
-    # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
-    masterCapGib: 0
-    # Turns on the Xcode compilation cache (CAS) folded into each per-account
-    # cache image (> 0). The CAS and the binary cache share masterCapGib less a
-    # reserve of max(2 GiB, 20% of the cap), which the guest divides by what
-    # each holds. This value is the CAS's share of the fixed split that runner
-    # images older than that division apply, the binary cache getting the rest.
-    # 0 (default) leaves the compilation cache VM-local (dies with the VM); the
-    # binary cache is unaffected.
-    casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set
@@ -2327,11 +2569,7 @@ runnersFleet:
     # Keep it equal to what those two actually admit.
     guestCapacity: ~
     # Per-SKU override of `macosFleet.runnerCacheVolume.gib`. The right
-    # quota tracks the SKU's disk, and these differ by 4x. Resident
-    # cache masters scale as `gib/masterCapGib - (liveBranches + 1)`
-    # and a dual-guest host can hold two live branches, so a host
-    # running two guests needs a LARGER quota than a single-guest one
-    # just to keep the same number of accounts hot. The provisioning
+    # quota tracks the SKU's disk, and these differ by 4x. The provisioning
     # script never resizes, so this only takes effect on a fresh host.
     #
     # Unlike the fields above, this one reads on PRESENCE: null (or
@@ -2452,8 +2690,8 @@ runnersFleet:
     #     minWarmPoolFloor: 0
     #     maxReplicas: 2          # hosts that can fit it, not fleet slots
   # macOS Xcode catalog. Each entry renders a `RunnerPool` CR named
-  # `<release>-runner-pool-macos-<xcode-dashes>` with image
-  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # `<release>-runner-pool-macos-<xcode-dashes>` with that Xcode's runner
+  # image (see `runnerImageDigests` below).
   # Customers route via account-scoped Runner Profiles; the server
   # resolves (account, requested-label) → profile → pool. Keep this
   # list in sync with `infra/runner-image/profiles.json` — the list
@@ -2496,28 +2734,44 @@ runnersFleet:
     #     - self-hosted
     #     - macOS
     #     - ARM64
-    #   imageTag: ""                   # Optional pin to a specific tag, bypassing `runnerImageSemver`.
-  # Per-pool runner image template. `runner-pool.yaml` constructs each
-  # macOS pool's `spec.image` as
-  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
-  # so a runner image release only bumps `runnerImageSemver`
-  # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
-  # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
-  # an out-of-rotation Xcode refreshed via `runner-image.yml`).
+    #   imageTag: ""                   # Optional pin to a specific tag, bypassing `runnerImageDigests` and `runnerImageSemver`.
+  # Each macOS pool's `spec.image` is, in order: the Xcode's
+  # `xcodeOverrides[].imageTag` pin (e.g. a SHA tag for an out-of-rotation
+  # Xcode refreshed via `runner-image.yml`), else
+  # `<runnerImageRepository>@<runnerImageDigests[xcode]>`, else
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
   runnerImageRepository: "ghcr.io/tuist/tuist-runner"
-  # Required when `xcodeVersions` is non-empty (the template fails the
-  # render otherwise). Resolved from the latest `runner-image@` tag at
-  # deploy time; managed envs override this with the live version.
+  # Required when `xcodeVersions` is non-empty and an Xcode has neither a
+  # digest nor an `imageTag` (the template fails the render otherwise).
+  # Resolved from the latest `runner-image@` tag at deploy time; managed
+  # envs override this with the live version.
   runnerImageSemver: ""
+  # Manifest digest (`sha256:<hex>`) of each Xcode's
+  # `macos-<xcode-dashes>-<runnerImageSemver>` tag, keyed by `xcodeVersion`.
+  # `server-deployment.yml` resolves them for the profiles the
+  # `runner-image@<runnerImageSemver>` release published. A release re-tags
+  # the profiles it did not rebuild, so naming the digest keeps an unchanged
+  # image's ref, and with it its pools' Pods and each host's golden, across
+  # releases. Tart-kubelet names goldens after the ref string and the
+  # runners-controller rolls Pods whose ref differs from the pool's.
+  runnerImageDigests: {}
+  # Manifest digest of each Xcode's stacked image
+  # (`macos-<xcode-dashes>-<runnerImageSemver>-stacked`), keyed by
+  # `xcodeVersion`, for the rack pools `rackFleet.runners.stackedImages`
+  # turns on. `server-deployment.yml` resolves the ones the release
+  # published. An Xcode with no entry runs its standalone image everywhere.
+  runnerImageStackedDigests: {}
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.
   pools: []
     # Example entry. Defaults are applied per field; only `name`,
-    # `runnerImage`, and `dispatchLabel` are required.
+    # `runnerImage` (or `xcodeVersion`), and `dispatchLabel` are required.
     # - name: default          # Suffix for the RunnerPool CR name.
     #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
-    #   runnerImage: ""        # Required. Digest-pinned in production.
+    #   runnerImage: ""        # Required unless xcodeVersion is set. Digest-pinned in production.
+    #   xcodeVersion: ""       # Instead of runnerImage: the catalog image for this Xcode,
+    #                          # which follows runnerImageSemver and xcodeOverrides[].imageTag.
     #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
     #   # GitHub runner labels stamped at JIT-mint time, in addition
     #   # to `dispatchLabel` (always appended). Defaults per-OS in
@@ -2580,6 +2834,7 @@ runnersFleetLinux:
     maxSlots: 100
     minFreeGB: 40 # Includes room for a private image and its publication archive.
     volumeGB: 20
+    maxVolumeGB: 32 # Largest volume this host accepts; the server never allocates more.
     provisioning:
       enabled: false
       sizeGB: 200
@@ -2890,6 +3145,7 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+  nodeSelector: {}
 # The standalone cache service is deprecated for new deployments. Hosted
 # Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
 # and disables this workload (`cache.enabled: false` in
@@ -3193,6 +3449,12 @@ postgresql:
         # tailnet's ACL only permits Tuist-scoped tags; set this to the
         # env's permitted tag (e.g. "tag:tuist-k8s-production").
         tags: ""
+        # Name of a Tailscale ProxyGroup of type `ingress` to serve the pooler
+        # as the Tailscale Service `svc:<hostname>` instead of a standalone
+        # proxy, from a Service of its own. The tailnet policy must
+        # auto-approve that Service for the ProxyGroup's tag and grant the
+        # macOS fleet access to it.
+        proxyGroup: ""
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"
@@ -3307,20 +3569,13 @@ clickhouse:
   # embedded | external | managed
   #
   # `embedded` is one unreplicated pod for self-hosters and previews.
-  # `external` points at a URL somebody else operates (ClickHouse Cloud today).
+  # `external` points at a URL somebody else operates.
   # `managed` makes the in-cluster server below the system of record: every
-  # workload gets TUIST_CLICKHOUSE_URL from its credentials Secret, and nothing
-  # is mirrored. It requires `managed.enabled`, and it replaces ClickHouse Cloud
-  # without copying anything, so run the migration steps before switching.
+  # workload gets TUIST_CLICKHOUSE_URL from its credentials Secret. It requires
+  # `managed.enabled`.
   mode: embedded
   # In-cluster ClickHouse operated by Tuist: replicated tables on bare metal
   # with a Keeper quorum. See `templates/clickhouse-managed.yaml`.
-  #
-  # Deliberately gated on its own `enabled` rather than on `mode`, because the
-  # migration needs both at once: during the dual-run the application still
-  # reads and writes ClickHouse Cloud (`mode: external`) while this workload
-  # runs alongside it, taking backfilled history and shadow writes. Flipping
-  # `mode` is the last step, not the first.
   managed:
     enabled: false
     # ClickHouse replicas, each on its own node from
@@ -3334,15 +3589,6 @@ clickhouse:
     # `ENGINE = Replicated`, and `default` already exists as an ordinary
     # Atomic database on a fresh server.
     database: tuist
-    # Mirror every ClickHouse write onto the in-cluster server as well as the
-    # system of record. Switched on separately from the URL, and after the
-    # schema clone: a destination with no tables rejects every mirrored write,
-    # so a single switch would fill the logs on the deploy that first brings
-    # the server up. Cloud stays the system of record either way; a failed
-    # mirror is counted and ignored, never surfaced to a request. Ignored in
-    # `managed` mode, where there is nothing left to mirror to.
-    shadowWrites:
-      enabled: false
     # Backups of the in-cluster server to object storage, as a weekly full and
     # a daily incremental based on that week's full. See
     # `templates/clickhouse-backup.yaml` for why the chain is two long, why the
@@ -3362,9 +3608,12 @@ clickhouse:
       # Under the default object-storage bucket, then the namespace, so
       # environments sharing a bucket cannot restore over each other.
       prefix: clickhouse-backups
-      # Six hours. Long enough for a full of a dataset this size, short enough
-      # that a wedged backup does not block the next one indefinitely.
-      timeoutSeconds: 21600
+      # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
+      # in W42, growing with the dataset, and a Job that hits its deadline is
+      # recorded as failed while the server finishes the backup anyway. It
+      # stays under the 24 hours to the next run, so a wedged backup still ends
+      # before Tuesday's incremental looks for the week's full.
+      timeoutSeconds: 72000
       # Memory budget for the `backup` user the jobs run as, which is separate
       # from the application's `clickhouse.maxMemoryUsageForUserBytes`. Empty
       # leaves the user unbounded below the server's own ceiling.
@@ -3375,68 +3624,6 @@ clickhouse:
           memory: 256Mi
         limits:
           memory: 1Gi
-    # One step of the migration off ClickHouse Cloud, run as a post-upgrade
-    # hook. An operator advances the migration by changing `task` and
-    # deploying, so each step is recorded in the release history.
-    #
-    #   Tuist.Release.clone_clickhouse_schema  copy the schema across
-    #   Tuist.Release.backfill_clickhouse      copy the rows that exist
-    #   Tuist.Release.check_clickhouse_parity  assert the two agree
-    #
-    # All three are idempotent and safe to re-run: the clone emits
-    # `IF NOT EXISTS`, the backfill skips chunks its ledger records as done,
-    # and the parity check only reads.
-    migration:
-      enabled: false
-      # Part of the Job's name, so changing the task creates a new Job rather
-      # than colliding with the immutable pod template of the previous one.
-      name: schema-clone
-      task: Tuist.Release.clone_clickhouse_schema
-      # The instant the backfill copies up to, and the one shadow writes take
-      # over from. Set it to when the deploy that enabled shadow writes
-      # finished rolling out, and enable shadow writes first: the backfill
-      # covers what came before, the dual write covers what comes after, and
-      # naming the boundary is what stops the two from either overlapping or
-      # leaving a gap between them. RFC 3339, for example
-      # "2026-09-04T07:30:00Z". The backfill refuses to run without it.
-      cutoff: ""
-      # BROKEN under helm 4, and left here only so the values keep their shape
-      # while a replacement is chosen. Do not set it to true.
-      #
-      # The intent was to run the step as an ordinary Job rather than a deploy
-      # hook, so the release would not wait for it: waiting is what makes the
-      # deploy's result meaningful for the schema clone and the parity checks,
-      # which take seconds to minutes, and is the opposite of what a
-      # production-sized copy wants.
-      #
-      # That relied on helm 3, whose `--wait` covered pods and workloads but
-      # not Jobs. Helm 4 waits on Jobs too, so an ordinary Job is not
-      # background at all: the release blocks on it, and a Job that fails
-      # fails the release. Arming it on canary rolled back three releases in a
-      # row on `resource Job/... not ready. status: Failed`.
-      #
-      # The task takes an advisory lock, so a second deploy while a copy is
-      # running starts a Job that exits immediately rather than a second copy.
-      background: false
-      # Only used by a background Job, which is not deleted by the deploy that
-      # follows it. Long enough to read the logs of one that failed overnight.
-      ttlSecondsAfterFinished: 86400
-      # How many five-second attempts the init container makes at reaching the
-      # server before giving up. Five minutes covers a StatefulSet rolling a
-      # replica, which is what this exists for, and still fails inside the
-      # step's own deadline if the server is genuinely down.
-      waitAttempts: 60
-      # No retries. These steps are resumable, so a failure should be read
-      # and re-run deliberately rather than repeated automatically against a
-      # database.
-      backoffLimit: 0
-      activeDeadlineSeconds: 21600
-      resources:
-        requests:
-          cpu: 200m
-          memory: 512Mi
-        limits:
-          memory: 2Gi
     image:
       repository: clickhouse/clickhouse-server
       # Pin an LTS. 26.3 is the current one; the ingest migrations need 26.1 or
@@ -3474,9 +3661,7 @@ clickhouse:
     # Reachability for writers that are not on the pod network. The macOS
     # fleet's xcresult-processor runs in a Tart VM with a tailnet address, not
     # a pod IP, so it cannot resolve the in-cluster Service name the `url`
-    # secret carries. It wrote the whole test family to ClickHouse Cloud and
-    # mirrored none of it, which parity saw as six tables holding zero rows on
-    # the destination while the source had data.
+    # secret carries.
     #
     # Same mechanism the CNPG pooler already uses for the same fleet: the
     # Tailscale operator watches for `tailscale.com/expose` and fronts the
@@ -3613,9 +3798,8 @@ clickhouse:
       # Dropping needs no extra disk, and runs as DROP ... SYNC so the space
       # comes back at once rather than after the Atomic engine's deferred-drop
       # delay. There is deliberately no option to copy the rows back into the
-      # live table: ClickHouse Cloud does not do it either, and it would need
-      # transient disk plus a schema match that a ClickHouse upgrade
-      # breaks.
+      # live table: it would need transient disk plus a schema match that a
+      # ClickHouse upgrade breaks.
       supersededTables: ignore
     database: tuist
     username: default
@@ -3762,3 +3946,16 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
+
+# One global wildcard fallback; explicit account Route53 records take precedence.
+# Enable in one cluster only after validation. No PVCs or Kubernetes API token.
+kuraActivation:
+  enabled: false
+  nodeSelector: {}
+  # Both protocols must share this load balancer. The main nginx class sends
+  # Connection: close upstream, which Go correctly rejects on HTTP/2.
+  ingressClassName: nginx-grpc
+  servers:
+    production: https://tuist.dev
+    canary: https://canary.tuist.dev
+    staging: https://staging.tuist.dev

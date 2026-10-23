@@ -32,7 +32,7 @@ defmodule Tuist.Authentication.SubjectCache do
     }
 
     context.cache
-    |> SingleFlight.fetch(context.key, fn -> load(token, context) end)
+    |> SingleFlight.fetch(context.key, fn -> load(token, context) end, valid?: &valid?(&1, context))
     |> result(token, opts, context)
   rescue
     _ -> {:error, :unavailable}
@@ -74,17 +74,16 @@ defmodule Tuist.Authentication.SubjectCache do
     if valid?(snapshot, context) do
       {:ok, snapshot}
     else
-      refresh(token, opts, context)
+      refresh(token, opts)
     end
   end
 
   defp result(_error, _token, _opts, _context), do: {:error, :unavailable}
 
-  defp refresh(token, opts, context) do
+  defp refresh(token, opts) do
     if Keyword.get(opts, :refreshed, false) do
       {:error, :unavailable}
     else
-      Cachex.del(context.cache, context.key)
       fetch(token, Keyword.put(opts, :refreshed, true))
     end
   end

@@ -2,7 +2,8 @@ defmodule Tuist.Kura.StorageTelemetry do
   @moduledoc """
   Persists and queries the storage telemetry Kura nodes attach to their usage
   batches: evictions shed under ring size pressure, and ring-occupancy
-  snapshots. The inputs of claim sizing.
+  snapshots. The inputs of claim sizing, and with the hits each instance
+  served, of placement.
   """
 
   import Ecto.Query
@@ -12,6 +13,7 @@ defmodule Tuist.Kura.StorageTelemetry do
   alias Tuist.Kura.EvictionEvent
   alias Tuist.Kura.Identity
   alias Tuist.Kura.StorageSnapshot
+  alias Tuist.Kura.UsageEvent
 
   @max_events_per_batch 5_000
 
@@ -129,7 +131,16 @@ defmodule Tuist.Kura.StorageTelemetry do
         select: fragment("toDate(?)", s.captured_at)
       )
 
-    (ClickHouseRepo.all(evicted) ++ ClickHouseRepo.all(captured))
+    served =
+      from(e in UsageEvent,
+        where: e.inserted_at >= ^since,
+        where: fragment("toDate(?)", e.window_start) >= ^earliest_date,
+        where: fragment("toDate(?)", e.window_start) <= ^latest_date,
+        group_by: fragment("toDate(?)", e.window_start),
+        select: fragment("toDate(?)", e.window_start)
+      )
+
+    (ClickHouseRepo.all(evicted) ++ ClickHouseRepo.all(captured) ++ ClickHouseRepo.all(served))
     |> Enum.uniq()
     |> Enum.sort({:asc, Date})
   end
@@ -289,6 +300,82 @@ defmodule Tuist.Kura.StorageTelemetry do
           max_live_segment_bytes: fragment("max(?)", s.live_segment_bytes),
           last_ring_budget_bytes: fragment("argMax(?, ?)", s.ring_budget_bytes, s.captured_at),
           min_ring_budget_bytes: fragment("minIf(?, ? > 0)", s.ring_budget_bytes, s.ring_budget_bytes)
+        }
+      )
+    )
+  end
+
+  @doc """
+  Per-day hit counts for every account-region on `dates`: the download
+  requests each instance answered, deduplicated by event id.
+
+  A download is what a usage report records when an instance returned an
+  artifact, so this counts the cache doing its job and leaves out misses and
+  uploads. It is what placement weighs a region by.
+  """
+  def hit_day_aggregates([]), do: []
+
+  def hit_day_aggregates(dates) do
+    deduped =
+      from(e in UsageEvent,
+        where: fragment("toDate(?)", e.window_start) in ^dates,
+        where: e.account_id > 0,
+        group_by: e.event_id,
+        select: %{
+          account_id: fragment("argMax(?, ?)", e.account_id, e.inserted_at),
+          region: fragment("argMax(?, ?)", e.region, e.inserted_at),
+          direction: fragment("argMax(?, ?)", e.direction, e.inserted_at),
+          window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
+          request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(e in subquery(deduped),
+        where: e.direction == "egress",
+        group_by: [e.account_id, e.region, fragment("toDate(?)", e.window_start)],
+        select: %{
+          account_id: e.account_id,
+          region: e.region,
+          date: fragment("toDate(?)", e.window_start),
+          hit_count: fragment("toUInt64(sum(?))", e.request_count)
+        }
+      )
+    )
+  end
+
+  @doc """
+  Per-day hit counts for every account and origin on `dates`, from the regions
+  not in `excluded_regions`, deduplicated by event id. Rollups whose credential
+  carried no origin are left out rather than counted under an empty one.
+  """
+  def origin_hit_day_aggregates([], _excluded_regions), do: []
+
+  def origin_hit_day_aggregates(dates, excluded_regions) do
+    deduped =
+      from(e in UsageEvent,
+        where: fragment("toDate(?)", e.window_start) in ^dates,
+        where: e.account_id > 0,
+        group_by: e.event_id,
+        select: %{
+          account_id: fragment("argMax(?, ?)", e.account_id, e.inserted_at),
+          region: fragment("argMax(?, ?)", e.region, e.inserted_at),
+          origin: fragment("argMax(?, ?)", e.origin, e.inserted_at),
+          direction: fragment("argMax(?, ?)", e.direction, e.inserted_at),
+          window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
+          request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(e in subquery(deduped),
+        where: e.direction == "egress" and e.origin != "" and e.region not in ^excluded_regions,
+        group_by: [e.account_id, e.origin, fragment("toDate(?)", e.window_start)],
+        select: %{
+          account_id: e.account_id,
+          origin: e.origin,
+          date: fragment("toDate(?)", e.window_start),
+          hit_count: fragment("toUInt64(sum(?))", e.request_count)
         }
       )
     )

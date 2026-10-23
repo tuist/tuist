@@ -36,12 +36,22 @@ type agent struct {
 	store                                  *cachevolumes.Store
 	kube                                   kubernetes.Interface
 	namespace, node, kubelet, authorizeURL string
+	root                                   string
 	http                                   *http.Client
 	requests                               chan struct{}
 	tokenPath                              string
 	runtime                                runtimeapi.RuntimeServiceClient
 	observe                                cachevolumes.Observer
 	prefetch                               *prefetcher
+	checkouts                              *cachevolumes.Checkouts
+	space                                  *checkoutSpace
+	grants                                 checkoutGrants
+	exports                                chan struct{}
+	checkoutRequests                       chan struct{}
+	// maxVolumeBytes is the largest volume this host accepts.
+	maxVolumeBytes int64
+	// log receives server request retries; nil is slog.Default.
+	log *slog.Logger
 }
 type request struct {
 	PodName      string `json:"pod_name"`
@@ -49,16 +59,26 @@ type request struct {
 	Key          string `json:"key"`
 	Architecture string `json:"architecture"`
 	UID          int    `json:"uid"`
+	// RequestedVolumeBytes is forwarded only when valid; anything else is dropped.
+	RequestedVolumeBytes cachevolumes.RequestedSize `json:"requested_volume_bytes"`
 }
 
 func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" || r.URL.Path != "/acquire" {
+	switch {
+	case r.Method == "POST" && r.URL.Path == "/checkout":
+		a.serveCheckout(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/checkout-export":
+		a.serveCheckoutExport(w, r)
+		return
+	case r.Method != "POST" || r.URL.Path != "/acquire":
 		http.NotFound(w, r)
 		return
 	}
 	outcome := errors.New("invalid acquisition")
-	acquired := a.observe.Start("acquire", "none")
-	defer func() { acquired(outcome) }()
+	var subject cachevolumes.Subject
+	start := time.Now()
+	defer func() { a.observe.With(subject).Report("acquire", "none", start, outcome) }()
 	if a.requests != nil {
 		select {
 		case a.requests <- struct{}{}:
@@ -75,31 +95,50 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", 400)
 		return
 	}
+	subject.Pod = input.PodName
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
-	pod, err := a.kube.CoreV1().Pods(a.namespace).Get(ctx, input.PodName, metav1.GetOptions{})
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if err != nil || pod.Spec.NodeName != a.node || string(pod.UID) != input.PodUID || pod.Status.PodIP != ip || ip == "" || pod.Labels["tuist.dev/runner"] != "true" || pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning {
+	if !a.runnerPod(ctx, r, input.PodName, input.PodUID) {
 		http.Error(w, "unavailable", 403)
 		return
 	}
 	// The agent authenticates to the server. Repository and publication rights
 	// come from the job GitHub actually assigned to this live runner.
-	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID})
-	authorized := a.observe.Start("authorize", "none")
+	fields := map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID, "max_volume_bytes": a.maxVolumeBytes}
+	if input.RequestedVolumeBytes > 0 {
+		fields["requested_volume_bytes"] = int64(input.RequestedVolumeBytes)
+	}
+	body, _ := json.Marshal(fields)
+	authorizing := time.Now()
 	identity, err := a.authorize(ctx, body)
-	authorized(err)
+	identity.ManagedKey = cachevolumes.ManagedKey(input.Key)
+	if err == nil {
+		subject = cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity, PodName: input.PodName})
+	}
+	a.observe.With(subject).Report("authorize", "none", authorizing, err)
 	outcome = err
+	if errors.Is(err, cachevolumes.ErrExecutionPending) {
+		log.Printf("cache authorization timed out: GitHub has not reported the job running on pod %s", input.PodName)
+		http.Error(w, "execution pending", http.StatusTooEarly)
+		return
+	}
+	if errors.Is(err, cachevolumes.ErrCapacity) {
+		log.Printf("cache volume for pod %s is larger than this host holds", input.PodName)
+		http.Error(w, "unavailable", 503)
+		return
+	}
 	if err != nil {
 		http.Error(w, "unavailable", 403)
 		return
 	}
 	warm, err := a.store.Acquire(ctx, identity, input.PodName, input.PodUID)
 	outcome = err
+	// A job that mounted an older copy, started empty or timed out fetches the
+	// saved version in the background for the next job on this host.
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		a.prefetch.start(identity)
+	}
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			a.prefetch.start(identity)
-		}
 		log.Printf("cache acquire failed: %v", err)
 		http.Error(w, "unavailable", 503)
 		return
@@ -133,6 +172,8 @@ func (a *agent) reconcile() error {
 	for _, pod := range pods.Items {
 		live[string(pod.UID)] = true
 	}
+	a.grants.forget(live)
+	a.checkouts.Maintain()
 	if err := a.store.CleanPods(func(uid string) (bool, error) {
 		if live[uid] {
 			return false, nil
@@ -145,10 +186,35 @@ func (a *agent) reconcile() error {
 	}); err != nil {
 		return err
 	}
-	labels := map[string]any{"tuist.dev/linux-cache-volumes": "local-images-v1"}
-	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": labels}})
+	node, err := a.kube.CoreV1().Nodes().Get(ctx, a.node, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	masters, err := cachevolumes.MasterNodeLabels(a.root)
+	if err != nil {
+		return err
+	}
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": nodeLabels(node.Labels, masters)}})
 	_, err = a.kube.CoreV1().Nodes().Patch(ctx, a.node, types.MergePatchType, patch, metav1.PatchOptions{})
 	return err
+}
+
+const readinessLabel, readinessValue = "tuist.dev/linux-cache-volumes", "local-images-v1"
+
+// nodeLabels is the merge patch advertising this node's readiness and the
+// lineages it holds a master of. A master evicted since the last patch has its
+// label removed.
+func nodeLabels(current, masters map[string]string) map[string]any {
+	labels := map[string]any{readinessLabel: readinessValue}
+	for key := range current {
+		if strings.HasPrefix(key, cachevolumes.MasterNodeLabelPrefix) {
+			labels[key] = nil
+		}
+	}
+	for key, value := range masters {
+		labels[key] = value
+	}
+	return labels
 }
 func main() {
 	root := flag.String("root", "/cache", "Dedicated cache filesystem")
@@ -159,13 +225,15 @@ func main() {
 	node := flag.String("node", os.Getenv("NODE_NAME"), "Local node")
 	maxSlots := flag.Int("max-slots", 100, "Maximum active clones on this host")
 	minFreeGB := flag.Int("min-free-gb", 40, "Free filesystem reserve before creating a branch")
-	sizeGB := flag.Int("volume-gb", 20, "Capacity of each new volume in decimal GB")
+	sizeGB := flag.Int("volume-gb", 20, "Capacity of a new volume the server sends no size for, in decimal GB")
+	maxGB := flag.Int("max-volume-gb", cachevolumes.DefaultMaxVolumeBytes/1_000_000_000, "Largest volume this host accepts, in decimal GB")
 	runtimeEndpoint := flag.String("runtime-endpoint", "unix:///run/host-containerd.sock", "Host CRI endpoint for writer teardown verification")
 	tokenPath := flag.String("token-path", "/var/run/secrets/kubernetes.io/serviceaccount/token", "Storage agent token")
 	flag.Parse()
-	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB {
+	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB || *maxGB < *sizeGB {
 		log.Fatal("invalid configuration")
 	}
+	maxBytes := int64(*maxGB) * 1_000_000_000
 	// A full cache must never fill the kubelet/root filesystem. This check is
 	// intentional even though both paths are bind mounts in the DaemonSet.
 	if err := dedicatedFilesystem(*root, *kubelet, *rootDevice); err != nil {
@@ -179,14 +247,26 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// The timeout bounds metadata requests; archive transfers drop it and end on a stall instead.
 	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: int64(*sizeGB) * 1_000_000_000}
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
-	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
+	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes, Log: metrics.logger}
+	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Log: metrics.logger, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
+	// A master another host superseded is refreshed in the background when it was
+	// used within the last day, so this host's next job attaches locally.
+	backend.RefreshWithin = 24 * time.Hour
+	// Checkout masters share the cache filesystem, its reserve and this agent.
+	checkouts := &cachevolumes.Checkouts{Root: filepath.Join(*root, "checkouts"), Images: &cachevolumes.Ext4CheckoutImages{}, Path: checkoutPath, Tools: pinnedGitLFS(gitLFSCommand), Observe: metrics.observe, Log: metrics.logger,
+		// Checkout images are larger than custom ones, so their archives get their own bound.
+		Transfer: &imageTransfer{URL: transfer.URL, Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Log: metrics.logger}}
+	space := &checkoutSpace{root: *root, reserve: backend.MinFreeBytes, checkouts: checkouts}
+	checkouts.Room = space.room
+	backend.Seed, backend.FreeBytesContext, backend.Reclaim = checkouts.Seed, space.free, space.reclaim
 	store, err := cachevolumes.Open(*root, backend)
 	if err != nil {
 		log.Fatal(err)
 	}
+	checkouts.InUse, backend.InUse = store.InUse, store.InUse
 	defer store.Close()
 	// Lock survives requests and prevents an overlapping/restarted DaemonSet from
 	// allocating the same directory. Kubernetes rollout uses maxSurge=0 as well.
@@ -202,7 +282,8 @@ func main() {
 		log.Fatal(err)
 	}
 	store.MaxSlots = *maxSlots
-	a := &agent{prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	store.MaxVolumeBytes = maxBytes
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -215,17 +296,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("runtime teardown verification unavailable: %v", err)
 	}
+	// Without git and git-lfs the worker logs why and retries; the host answers
+	// denied meanwhile, so runners export nothing.
+	go checkouts.Start(context.Background())
 	go func() {
 		for {
 			start := time.Now()
 			err := a.reconcile()
 			metrics.observe(cachevolumes.Observation{Operation: "maintenance", Source: "none", Duration: time.Since(start), Err: err})
+			metrics.checkouts.Set(map[bool]float64{true: 1}[checkouts.Ready()])
 			if available, capacity, e := cachevolumes.FilesystemSpace(*root); e == nil {
 				metrics.free.Set(float64(available))
 				metrics.capacity.Set(float64(capacity))
-			}
-			if err != nil {
-				log.Printf("cache maintenance failed: %v", err)
 			}
 			time.Sleep(30 * time.Second)
 		}
@@ -256,7 +338,7 @@ func dedicatedFilesystem(root string, references ...string) error {
 
 func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	state := slot.State
-	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS})
+	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot)})
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(a.authorizeURL, "/authorize")+"/report", bytes.NewReader(body))
@@ -269,7 +351,7 @@ func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := a.http.Do(req)
+	resp, err := cachevolumes.DoServer(a.http, req, a.log)
 	if err != nil {
 		return "", err
 	}
@@ -278,8 +360,29 @@ func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 		return "", fmt.Errorf("report status %d", resp.StatusCode)
 	}
 	var result struct {
-		Action string `json:"action"`
+		Action      string `json:"action"`
+		ColdPublish bool   `json:"cold_publish"`
 	}
 	err = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&result)
+	// Only an explicit server decision lets a branch that started empty replace
+	// the saved version; a plain seal keeps withholding it.
+	if result.Action == "seal" && result.ColdPublish {
+		return "publish", err
+	}
 	return result.Action, err
+}
+
+func mountedGeneration(slot cachevolumes.Slot) any {
+	if slot.MountedGeneration <= 0 {
+		return nil
+	}
+	return slot.MountedGeneration
+}
+
+// runnerPod reports whether the request comes from the live runner pod it names
+// on this node: the caller's address must be that pod's.
+func (a *agent) runnerPod(ctx context.Context, r *http.Request, name, uid string) bool {
+	pod, err := a.kube.CoreV1().Pods(a.namespace).Get(ctx, name, metav1.GetOptions{})
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return err == nil && pod.Spec.NodeName == a.node && string(pod.UID) == uid && pod.Status.PodIP == ip && ip != "" && pod.Labels["tuist.dev/runner"] == "true" && pod.DeletionTimestamp == nil && pod.Status.Phase == corev1.PodRunning
 }

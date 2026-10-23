@@ -87,6 +87,8 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         .array([
             "$(inherited)",
             #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)/Tuist/.build=/^spm""#,
+            #""$(OBJROOT)=/^intermediates""#,
+            #""$(SYMROOT)=/^products""#,
             #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
         ])
     }
@@ -109,6 +111,73 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
             #expect(project.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"] == rootMappings)
             #expect(project.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == rootMappings)
         }
+    }
+
+    @Test(.withMockedXcodeController)
+    func map_whenMultipleProjectsOptOut_usesAnUnambiguousSharedSourceNamespace() async throws {
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let secondPath = repository.appending(component: "Library")
+        let secondProject = Project.test(path: secondPath, sourceRootPath: secondPath, name: "Library")
+        var projects: [Project] = []
+        for var project in [appProject, secondProject] {
+            project.settings = project.settings.with(base: [
+                "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+                "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+            ])
+            let (mapped, _) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
+            projects.append(mapped)
+        }
+
+        let (mapped, _) = try await makeSubject().map(
+            workspace: WorkspaceWithProjects(workspace: workspace, projects: projects)
+        )
+
+        for project in mapped.projects {
+            for language in ["SWIFT", "CLANG"] {
+                #expect(project.settings.base["\(language)_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
+                #expect(project.settings.base["\(language)_OTHER_PREFIX_MAPPINGS"] == .array([
+                    "$(inherited)",
+                    #""$(OBJROOT)=/^intermediates""#,
+                    #""$(SYMROOT)=/^products""#,
+                    #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
+                ]))
+            }
+        }
+    }
+
+    @Test(.withMockedXcodeController)
+    func map_whenProjectsAreOutsideTheRoot_preservesDefaultProjectMapping() async throws {
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let siblingPath = repository.parentDirectory.appending(components: "shared", "Library")
+        let sibling = Project.test(path: siblingPath, sourceRootPath: siblingPath, name: "Library")
+        var projects: [Project] = []
+        for project in [appProject, sibling] {
+            let (mapped, _) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
+            projects.append(mapped)
+        }
+
+        let (mapped, _) = try await makeSubject().map(
+            workspace: WorkspaceWithProjects(workspace: workspace, projects: projects)
+        )
+
+        for project in mapped.projects {
+            #expect(project.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
+            #expect(project.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
+            #expect(project.settings.base["TUIST_PREFIX_MAPPING_ROOT_DIR"] == .string(repository.pathString))
+        }
+        #expect(mapped.projects.contains { $0.path == siblingPath })
     }
 
     /// `tuist generate --path App` generates the workspace below the root, while the
@@ -157,7 +226,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
     /// Without packages there is no scratch directory to map, but first-party sources
     /// outside their own project directory still need the root mapping.
     @Test(.withMockedXcodeController)
-    func map_whenNoExternalProjects_mapsOnlyTheRootDirectory() async throws {
+    func map_whenNoExternalProjects_mapsBuildAndRootDirectories() async throws {
         // Given
         try stubXcodeVersion(Version(27, 0, 0))
         let subject = makeSubject()
@@ -170,7 +239,12 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         #expect(
             mapped.projects.first?.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"]
-                == .array(["$(inherited)", #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#])
+                == .array([
+                    "$(inherited)",
+                    #""$(OBJROOT)=/^intermediates""#,
+                    #""$(SYMROOT)=/^products""#,
+                    #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
+                ])
         )
     }
 
@@ -192,7 +266,12 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         #expect(
             mapped.projects.first?.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"]
-                == .array(["/opt/shared=/^shared", #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#])
+                == .array([
+                    "/opt/shared=/^shared",
+                    #""$(OBJROOT)=/^intermediates""#,
+                    #""$(SYMROOT)=/^products""#,
+                    #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
+                ])
         )
     }
 
@@ -237,6 +316,8 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
             mapped.projects.first?.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == .array([
                 "$(inherited)",
                 #""/Volumes/Shared Cache/say \"hi\"/.build=/^spm""#,
+                #""$(OBJROOT)=/^intermediates""#,
+                #""$(SYMROOT)=/^products""#,
                 #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
             ])
         )

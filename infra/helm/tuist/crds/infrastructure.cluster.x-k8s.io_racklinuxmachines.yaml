@@ -200,8 +200,11 @@ spec:
                       items:
                         description: |-
                           RackNodeFile is one file on a rack node. Group names what a change to it
-                          takes: modules, sysctl, network (networkd reloaded), systemd (systemd
-                          re-executed), containerd or kubelet (restarted), or none.
+                          takes: modules, sysctl, network (networkd reloaded), networkd or resolved
+                          (systemd-networkd or systemd-resolved restarted, for their own
+                          configuration), systemd (systemd re-executed), units (systemd reloaded, for
+                          unit drop-ins, which leaves the units running), containerd or kubelet
+                          (restarted), or none.
                         properties:
                           content:
                             type: string
@@ -215,6 +218,31 @@ spec:
                           - path
                         type: object
                       type: array
+                    clusterNodeSets:
+                      description: |-
+                        ClusterNodeSets are nftables sets the node agent keeps equal to the
+                        IPv4 InternalIPs and ExternalIPs of the cluster's Cilium nodes, every
+                        apply and whenever they change. The addresses are not in the configuration, so a
+                        node joining or leaving the cluster changes no hash and restarts nothing
+                        here. A file in Nftables declares each set without flushing it.
+                      items:
+                        description: RackNodeNftSet names an nftables set of IPv4 addresses.
+                        properties:
+                          family:
+                            enum:
+                              - ip
+                              - inet
+                            type: string
+                          name:
+                            type: string
+                          table:
+                            type: string
+                        required:
+                          - family
+                          - name
+                          - table
+                        type: object
+                      type: array
                     containerd:
                       description: |-
                         Containerd is installed, and its configuration is its default with the
@@ -225,13 +253,21 @@ spec:
                       required:
                         - configPath
                       type: object
+                    directories:
+                      description: Directories are created, with their parents, when missing.
+                      items:
+                        type: string
+                      type: array
                     files:
                       description: Files are written, in order, when their content or mode differs.
                       items:
                         description: |-
                           RackNodeFile is one file on a rack node. Group names what a change to it
-                          takes: modules, sysctl, network (networkd reloaded), systemd (systemd
-                          re-executed), containerd or kubelet (restarted), or none.
+                          takes: modules, sysctl, network (networkd reloaded), networkd or resolved
+                          (systemd-networkd or systemd-resolved restarted, for their own
+                          configuration), systemd (systemd re-executed), units (systemd reloaded, for
+                          unit drop-ins, which leaves the units running), containerd or kubelet
+                          (restarted), or none.
                         properties:
                           content:
                             type: string
@@ -248,7 +284,9 @@ spec:
                     hash:
                       description: |-
                         Hash fingerprints the configuration. The node records the one it last
-                        applied, and restarts containerd and the kubelet when it changes.
+                        applied, and restarts containerd and the kubelet when it changes, and
+                        systemd-networkd and systemd-resolved when the configuration carries
+                        files of theirs.
                       type: string
                     hostname:
                       description: Hostname is the host's OS hostname, its Node's name.

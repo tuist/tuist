@@ -14,9 +14,19 @@ Git repositories are the centerpiece of the vast majority of software projects o
 You will need to install the Tuist GitHub app in the `Integrations` tab of your organization:
 ![An image that shows the integrations tab](/images/guides/integrations/gitforge/github/integrations.png)
 
+You can also install the app directly from GitHub. Log in to Tuist if needed, authorize the GitHub App so Tuist can verify your access to the installation, and choose the Tuist organization to connect. You must own the GitHub organization (or the personal GitHub account) where the app is installed. Only Tuist organizations you administer and your personal Tuist account are available. If only one account is available, Tuist connects it automatically without showing the chooser. When you start from Tuist, the organization is already selected and this step is skipped.
+
 After that, you can add a project connection between your GitHub repository and your Tuist project:
 
 ![An image that shows adding the project connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
+
+Once the app is installed, you can also link a project without the dashboard:
+
+- **CLI:** `tuist project repository connect owner/name`, and `tuist project repository disconnect` to remove the link.
+- **REST API:** `PUT` and `DELETE` on `/api/projects/{account_handle}/{project_handle}/vcs-connection`.
+- **Model Context Protocol:** the `connect_project_repository` and `disconnect_project_repository` tools.
+
+The repository must be one the GitHub App installation can access, and the project adopts the repository's default branch. Account tokens need the `project:admin:write` scope.
 
 > [!TIP]
 > **Ip Allowlisting**
@@ -30,6 +40,20 @@ Tuist also integrates with self-hosted GitHub Enterprise Server (GHES) instances
 Because GitHub Apps are scoped to a single GitHub instance, Tuist cannot reuse its github.com App on your GHES — instead, the install button takes you through GitHub's [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest): GHES walks your administrator through registering a fresh Tuist App on the instance, then hands the new App's credentials back to Tuist. Tuist stores those credentials encrypted per-installation and uses them for every API call, webhook signature, and link to your repositories from then on.
 
 No additional Tuist server configuration is needed; the manifest flow generates and provisions everything automatically.
+
+#### App permissions and webhook events {#github-app-permissions}
+
+Tuist requires the following **repository permissions** for PR comments and bundle-size checks:
+
+| Permission | Access | Used for |
+|---|---|---|
+| Metadata (`metadata`) | Read-only | Basic repository metadata; required by GitHub for every App |
+| Pull requests (`pull_requests`) | Read and write | Reading pull requests, including their head commit SHA, and listing, posting, and updating PR comments |
+| Checks (`checks`) | Read and write | Creating and updating check runs, including bundle-size pass/fail checks |
+
+Tuist uses the `check_run` webhook event to handle bundle-size check actions. The manifest flow configures this subscription automatically.
+
+For manual App setup on github.com with a self-hosted Tuist server, see <.localized_link href="/guides/server/self-host/server#platform-github-registering-the-app">the self-hosting guide</.localized_link>.
 
 #### Separate browser and API URLs {#separate-browser-and-api-urls}
 

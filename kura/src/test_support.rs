@@ -69,7 +69,6 @@ where
             chunk_bytes: 1024 * 1024,
         },
         action_cache_eviction_cascade_enabled: true,
-        reapi_blob_chunking_enabled: true,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,
@@ -138,11 +137,12 @@ where
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )
     .expect("failed to create test io controller");
-    let memory = MemoryController::with_runtime_limit(
+    let memory = MemoryController::with_anon_budget(
         metrics.clone(),
         config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
+        config.anon_admission_budget_bytes(),
     );
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,

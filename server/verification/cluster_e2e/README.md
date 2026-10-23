@@ -1,5 +1,7 @@
 # Complete two-server verification
 
+> Historical integration harness: the instructions and results below predate the merge of current `main`. The complete scenario is not qualified for the merged branch. Port its immediate cached-subject revocation, distributed image exclusion, discovery-driven disconnect and supervised-task draining assertions to the current contracts before using it as an acceptance gate. Do not infer current validation from the recorded runs.
+
 This standalone harness boots two complete server processes and sends requests
 through a round-robin proxy. It uses the real router, authentication, tool
 handlers, database, image renderer, object storage, and shared rate limiter.

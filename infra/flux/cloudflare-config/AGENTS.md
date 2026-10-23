@@ -11,8 +11,14 @@ These resources are reconciled by Flux through the Cloudflare operator. Editing 
 - Re-enabling the legacy `public-dashboard-bot-protection` custom rule challenges unverified crawlers again even on cached roots. Its phase is not skipped by this exemption.
 - Canonical project roots have no trailing slash. The guarded root clause deliberately excludes trailing slashes rather than accidentally exempting public-account paths.
 
+## Crawlable documentation and Markdown
+
+- GET/HEAD requests to legacy docs redirects, localized HTML/Markdown docs, `/marketing-markdown[/...]`, and crawler discovery/export endpoints skip SBFM. Locale docs roots already match the guarded two-segment clause; explicit trailing-slash prefixes cover their descendants. Keep those prefixes aligned with `Tuist.Locale`.
+- Do not use a wildcard locale for docs: it would also match dashboards of a project named `docs`. Public content exemptions must not broaden the anonymous deep-dashboard bypass or skip custom firewall/rate-limit phases.
+- Deeper public project dashboards retain the origin Turnstile gate after the scraper-driven ClickHouse overload. Removing SBFM alone does not make them machine-readable; opening them requires bounded data loading like the cached overview.
+
 ## Validation
 
-- Run `python3 infra/flux/cloudflare-config/test_skip_sbfm.py` from the repository root for root-scope regression coverage. `.github/workflows/cloudflare-config-tests.yml` runs this credential-free check on pull requests and main changes.
+- Run `python3 infra/flux/cloudflare-config/test_skip_sbfm.py` from the repository root for complete-rule scope regression coverage (public docs/Markdown, project roots, protected dashboards, methods and existing machine paths). `.github/workflows/cloudflare-config-tests.yml` runs this credential-free check on pull requests and main changes.
 - Render with `kubectl kustomize infra/flux/cloudflare-config` and validate the expression with Cloudflare during rollout. The local regression test checks wildcard/guard semantics, not Cloudflare's API parser or live zone state.
-- Verify a real search crawler and social unfurler after deployment, plus filtered/deeper challenges and edge rate limits. A spoofed Googlebot user agent does not demonstrate verified-bot behavior.
+- Verify cookie-free docs/Markdown GET/HEAD requests, a real search crawler and social unfurler after deployment, plus filtered/deeper challenges and edge rate limits. A spoofed Googlebot user agent does not demonstrate verified-bot behavior.

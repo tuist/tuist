@@ -60,6 +60,36 @@ spec:
   {{- if $host.parked }}
   parked: true
   {{- end }}
+  {{- /* A host lent to another fleet's runner pools: its Node carries this
+  `tuist.dev/fleet` instead of the rack fleet's, so the rack's own pools
+  leave it alone. */}}
+  {{- with $host.nodeFleet }}
+  nodeFleet: {{ . | quote }}
+  {{- end }}
+  {{- /* A host lent to another env: its Node registers in that env's cluster,
+  with the kubeconfig that env issued (`rackFleet.joiningNodes` there), synced
+  from 1Password by the ExternalSecret below. */}}
+  {{- /* A host lent to another env: that env's operator runs its runtime,
+  and this one keeps the site (see "A host lent to another env" in
+  infra/cluster-api-provider-tuist/AGENTS.md). */}}
+  {{- with $host.lendTo }}
+  {{- if or $host.nodeCluster $host.nodeFleet }}
+  {{- fail (printf "rackFleet.hosts[%s]: lendTo replaces nodeCluster and nodeFleet; set one or the other" $hostName) }}
+  {{- end }}
+  {{- if not (dig . "kubeconfigItem" "" ($.Values.rackFleet.borrowers | default dict)) }}
+  {{- fail (printf "rackFleet.hosts[%s].lendTo is %q, which rackFleet.borrowers has no kubeconfigItem for" $hostName .) }}
+  {{- end }}
+  lendTo: {{ . | quote }}
+  {{- end }}
+  {{- with $host.nodeCluster }}
+  nodeCluster:
+    {{- /* Named after the item, so a new item is a new Secret, which drifts the
+    host onto the rotated kubeconfig. */}}
+    kubeconfigSecret: {{ include "tuist.rackNodeKubeconfigSecret" (dict "host" $hostName "item" .kubeconfigItem) | quote }}
+    {{- with .cacheVolumesURL }}
+    cacheVolumesURL: {{ . | quote }}
+    {{- end }}
+  {{- end }}
   location:
     {{- /* site composes the providerID, so the controller does not bootstrap a
     host without one. Required here rather than in the CRD: a required CRD
@@ -96,6 +126,29 @@ spec:
   machine:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- with $host.nodeCluster }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ include "tuist.rackNodeKubeconfigSecret" (dict "host" $hostName "item" .kubeconfigItem) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-fleet
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ $.Values.rackFleet.sshExternalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ $.Values.rackFleet.sshExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ include "tuist.rackNodeKubeconfigSecret" (dict "host" $hostName "item" .kubeconfigItem) }}
+    creationPolicy: Owner
+  data:
+    - secretKey: kubeconfig
+      remoteRef:
+        key: "{{ required (printf "rackFleet.hosts[%s].nodeCluster.kubeconfigItem is required: the 1Password item holding the kubeconfig the other cluster issued" $hostName) .kubeconfigItem }}/kubeconfig"
+{{- end }}
 {{- end }}
 ---
 {{- /*

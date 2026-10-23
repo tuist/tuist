@@ -8,6 +8,7 @@ defmodule Tuist.Tests.Test do
 
   import Ecto.Changeset
 
+  alias Tuist.Accounts.Account
   alias Tuist.Tests.StressNewTests
 
   @derive {
@@ -20,11 +21,22 @@ defmodule Tuist.Tests.Test do
       :xcode_version,
       :macos_version,
       :account_id,
+      :verified_actor,
+      :claimed_actor_id,
       :is_ci,
       :build_system,
       :ran_at
     ],
-    sortable: [:ran_at, :duration, :inserted_at]
+    sortable: [:ran_at, :duration, :inserted_at],
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -60,6 +72,10 @@ defmodule Tuist.Tests.Test do
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :bazel_invocation_id, Ch, type: "String", default: ""
@@ -70,8 +86,10 @@ defmodule Tuist.Tests.Test do
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
     field :build_system, Ch, type: "LowCardinality(String)", default: "xcode"
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
+    field :reporting_version, Ch, type: "UInt8", default: 0
     field :only_test_identifiers, Ch, type: "Array(String)", default: []
     field :skip_test_identifiers, Ch, type: "Array(String)", default: []
+    field :coverage_enabled, Ch, type: "Nullable(Bool)"
     field :stress_mode, Ch, type: "LowCardinality(String)", default: ""
     field :stress_outcome, Ch, type: "LowCardinality(String)", default: ""
     field :stress_skip_reason, Ch, type: "LowCardinality(String)", default: ""
@@ -80,14 +98,24 @@ defmodule Tuist.Tests.Test do
     field :stress_excluded_count, Ch, type: "UInt32", default: 0
     field :stress_known_count, Ch, type: "UInt32", default: 0
 
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    belongs_to :ran_by_account, Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
     belongs_to :shard_plan, Tuist.Shards.ShardPlan, foreign_key: :shard_plan_id, define_field: false
-    has_many :test_case_runs, Tuist.Tests.TestCaseRun, foreign_key: :test_run_id
-    has_many :run_destinations, Tuist.Tests.TestRunDestination, foreign_key: :test_run_id
+    has_many :test_case_runs, {"reported_test_case_runs", Tuist.Tests.TestCaseRun}, foreign_key: :test_run_id
+
+    has_many :run_destinations, {"reported_test_run_destinations", Tuist.Tests.TestRunDestination},
+      foreign_key: :test_run_id
 
     field :inserted_at, Ch, type: "DateTime64(6)"
+  end
+
+  def query do
+    Ecto.Queryable.to_query({"test_run_summaries", __MODULE__})
+  end
+
+  def immutable_query do
+    Ecto.Queryable.to_query({"reported_test_run_summaries", __MODULE__})
   end
 
   def create_changeset(test_run, attrs) do
@@ -102,6 +130,9 @@ defmodule Tuist.Tests.Test do
       :scheme,
       :project_id,
       :account_id,
+      :actor_account_id,
+      :claimed_actor_id,
+      :submission_auth,
       :status,
       :is_flaky,
       :git_branch,
@@ -130,8 +161,10 @@ defmodule Tuist.Tests.Test do
       :ci_provider,
       :build_system,
       :shard_plan_id,
+      :reporting_version,
       :only_test_identifiers,
       :skip_test_identifiers,
+      :coverage_enabled,
       :stress_mode,
       :stress_outcome,
       :stress_skip_reason,
@@ -151,7 +184,7 @@ defmodule Tuist.Tests.Test do
       :build_system
     ])
     |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
-    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "once", "mix"])
+    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "once", "mix", "cargo"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
     |> validate_inclusion(:stress_mode, ["" | StressNewTests.modes()])
     |> validate_inclusion(:stress_outcome, ["" | StressNewTests.run_outcomes()])

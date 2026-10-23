@@ -309,6 +309,12 @@ type KuraInstanceStatus struct {
 	Message                    string       `json:"message,omitempty"`
 	LastReconciledAt           *metav1.Time `json:"lastReconciledAt,omitempty"`
 
+	// ImageHold names the operator procedure a requested image waits on
+	// (FencedImagePin, FencedReplacement, RecoveryRolloutHold), empty when
+	// the controller converges it alone. The rollout gate does not wait for
+	// held instances.
+	ImageHold string `json:"imageHold,omitempty"`
+
 	// RolloutHealth is the aggregate of the per-pod `/status/rollout`
 	// reports, published for the control plane's health-gated progressive
 	// rollout. Absent until at least one reconcile has sampled the pods.

@@ -20,6 +20,7 @@
         "cas-plugin/**/*",
         "server/native/xcresult_nif/Sources/XCResultParser/**/*",
         "mise/tasks/cli/**/*",
+        "mise/utilities/install_static_linux_sdk.sh",
         ".github/workflows/cli-release.yml",
         ".github/workflows/cli-build-publish.yml",
         ".github/workflows/cli-rc.yml",
@@ -141,6 +142,34 @@
       ]
     },
     {
+      "name": "runner-caches",
+      "tag_prefix": "runner-caches@",
+      "tag_regex": "^runner-caches@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "ci/runner-caches/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/xcode-cache/**/*",
+        ".github/actions/module-cache/**/*",
+        ".github/actions/gradle-cache/**/*",
+        "ci/runner-caches/**/*",
+        ".github/workflows/runner-cache-actions.yml",
+        "ci/cache-volume/publish.sh"
+      ]
+    },
+    {
+      "name": "install-action",
+      "tag_prefix": "install-action@",
+      "tag_regex": "^install-action@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": ".github/actions/install/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/install/**/*",
+        ".github/workflows/install-action.yml",
+        "ci/cache-volume/publish.sh",
+        "mise/tasks/release/check.sh"
+      ]
+    },
+    {
       "name": "noora",
       "tag_prefix": "noora@",
       "tag_regex": "^noora@[0-9]+\\.[0-9]+\\.[0-9]+$",
@@ -176,13 +205,7 @@
       "tag_regex": "^xcresult-processor-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/xcresult-processor-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": [
-        "infra/xcresult-processor-image/**/*",
-        "server/lib/tuist/**/*",
-        "server/native/xcresult_nif/**/*",
-        "server/mix.exs",
-        "server/mix.lock"
-      ]
+      "include_paths": ["infra/xcresult-processor-image/**/*"]
     },
     {
       "name": "runner-image",

@@ -16,7 +16,7 @@ defmodule Tuist.Runners.VolumeHead do
   alias Tuist.Accounts.Account
 
   schema "runner_volume_heads" do
-    field :volume_name, :string, default: "tuist-cache"
+    field :volume_name, :string
     # Monotonic version counter, bumped on every promote report. Cheap "am I
     # behind" check; the digest is the authoritative content comparison.
     field :generation, :integer, default: 0

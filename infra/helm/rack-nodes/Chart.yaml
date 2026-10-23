@@ -1,0 +1,15 @@
+apiVersion: v2
+name: rack-nodes
+description: >
+  What runs on a rack's Linux nodes for the rack Linux fleet the tuist chart
+  declares: the rack node agent on every one and the boot server on the edges,
+  both from the CAPI provider's image.
+
+  A release of its own, installed by .github/workflows/server-deployment.yml
+  after the tuist release, with the tuist chart's values, and never waited on:
+  a dark rack node keeps its DaemonSet pods unready, and a waited release
+  holding them would roll every deploy back. See "Deploys and the rack's
+  health" in infra/rack-nodes/AGENTS.md.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

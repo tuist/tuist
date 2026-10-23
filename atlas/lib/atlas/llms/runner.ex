@@ -62,6 +62,36 @@ defmodule Atlas.LLMs.Runner do
     |> Keyword.put(:retry, false)
   end
 
+  @doc """
+  Supplies reply events to a consumer while owning the transient agent session.
+
+  ReqLLM's streaming transport uses Finch directly and ignores Req's Plug
+  adapter. Local mode must use the buffered model path so the sentinel URL
+  never reaches the network. Condukt still executes the full model/tool loop;
+  only incremental text and tool-status delivery are unavailable in this mode.
+  """
+  def with_reply_stream(llm, agent_module, prompt, opts, fun) do
+    Condukt.Session.with_transient(agent_module, opts, fn agent ->
+      events =
+        case llm do
+          %{mode: :local} -> buffered_reply_events(agent, prompt, opts)
+          _ -> Condukt.stream(agent, prompt)
+        end
+
+      fun.(events)
+    end)
+  end
+
+  defp buffered_reply_events(agent, prompt, opts) do
+    Stream.flat_map([prompt], fn prompt ->
+      case Condukt.run(agent, prompt, opts) do
+        {:ok, text} when is_binary(text) -> [{:text, text}, :done]
+        {:ok, _other} -> [{:error, :empty_response}]
+        {:error, reason} -> [{:error, reason}]
+      end
+    end)
+  end
+
   defp build_model(%{model: model}) do
     case String.split(model, ":", parts: 2) do
       [provider_name, model_id] ->

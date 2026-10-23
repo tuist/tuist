@@ -15,6 +15,10 @@
 # backup restored there) and live in 1Password, in tuist-k8s-production, under
 # the names management.controller names.
 omada-controller-helm:
+  # Off the processor pool, which has no memory to spare beside the processor.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+
   service:
     annotations:
       tailscale.com/expose: "true"

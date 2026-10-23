@@ -7,6 +7,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Kura
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
@@ -699,6 +700,39 @@ defmodule TuistWeb.OpsAccountLiveTest do
     refute html =~ "kura-egress-limits-form"
   end
 
+  test "offers the open source plan only to an account with no subscription", %{conn: conn, user: user} do
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    assert html =~ "Start open source plan"
+
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    refute html =~ "Start open source plan"
+  end
+
+  test "starts the open source plan and reloads the account", %{conn: conn, user: user} do
+    expect(Billing, :start_open_source_plan, fn account ->
+      assert account.id == user.account.id
+      {:ok, %{id: "sub_fake"}}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv |> element("button", "Start open source plan") |> render_click()
+
+    flash = assert_redirect(lv, ~p"/ops/accounts/#{user.account.id}")
+    assert flash["info"] == "#{user.account.name} is now on the Open Source plan."
+  end
+
+  test "reports an account that already has a subscription", %{conn: conn, user: user} do
+    stub(Billing, :start_open_source_plan, fn _account -> {:error, :subscription_exists} end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert render_hook(lv, "start_open_source_plan", %{}) =~
+             "#{user.account.name} already has an active subscription."
+  end
+
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
     stub(Stripe.Customer, :retrieve, fn _customer_id ->
       {:ok,
@@ -1277,15 +1311,19 @@ defmodule TuistWeb.OpsAccountLiveTest do
   end
 
   describe "free tier" do
-    test "shows the usage against the limit and when it was last reset", %{conn: conn, user: user} do
+    test "shows the usage against the limits and when it was last reset", %{conn: conn, user: user} do
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: 42)
+      |> Ecto.Changeset.change(
+        current_month_cache_egress_megabytes: 1_500,
+        current_month_cache_requests: 2_500
+      )
       |> Repo.update!()
 
-      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       assert html =~ "Free tier"
-      assert html =~ "42 of 200"
+      assert lv |> element("[data-part='free-tier-egress']") |> render() =~ "1.5 GB of 100.0 GB"
+      assert lv |> element("[data-part='free-tier-requests']") |> render() =~ "2,500 of 1M"
       assert html =~ "Never"
     end
 
@@ -1293,10 +1331,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
       refute has_element?(lv, "#free-tier-blocked-alert")
 
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+      |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests())
       |> Repo.update!()
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -1304,10 +1340,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
 
     test "resetting unblocks the account and clears the warning", %{conn: conn, user: user} do
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold * 2)
+      |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests() * 2)
       |> Repo.update!()
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -1319,7 +1353,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "starts over from now"
 
       account = Repo.reload!(user.account)
-      assert account.current_month_remote_cache_hits_count == 0
+      assert account.current_month_cache_requests == 0
       assert account.free_tier_reset_at
     end
 

@@ -1,9 +1,12 @@
 defmodule TuistWeb.RateLimit do
   @moduledoc """
-  Applies shared rate limits using Valkey. Credential-guessing surfaces fail closed;
-  availability-oriented callers may opt into a reduced node-local outage budget.
+  Applies shared rate limits using Valkey. Shared failures deny by default;
+  explicitly selected fixed-window callers may use a reduced node-local outage budget.
   Installations without Valkey use an approximate in-memory limiter.
 
+  Set `:fallback` to false to distinguish configured Valkey backend failures
+  from quota denials. Such failures return `{:error, :unavailable}` and never
+  use a local outage budget, even when `:failure_policy` is `:local`.
   Fixed-window limits use the `:limit` and `:window` options. Token-bucket
   limits use the `:capacity`, `:refill_rate`, and optional `:cost` options.
   """
@@ -80,7 +83,7 @@ defmodule TuistWeb.RateLimit do
 
     with_failure_denial(
       fn -> PersistentFixedWindow.hit(key, window, limit, increment) end,
-      fn -> on_failure(:fixed_window, key, opts, window) end
+      fn -> fixed_window_failure(key, opts, window) end
     )
   end
 
@@ -91,7 +94,11 @@ defmodule TuistWeb.RateLimit do
 
     with_failure_denial(
       fn -> PersistentTokenBucket.hit(key, refill_rate, capacity, cost) end,
-      fn -> on_failure(:token_bucket, key, opts, ceil(cost / refill_rate * 1000)) end
+      fn ->
+        shared_failure(:token_bucket, :deny, fn ->
+          if opts[:fallback] == false, do: {:error, :unavailable}, else: {:deny, ceil(cost / refill_rate * 1000)}
+        end)
+      end
     )
   end
 
@@ -114,29 +121,65 @@ defmodule TuistWeb.RateLimit do
   end
 
   defp with_failure_denial(persistent, fallback) do
-    persistent.()
-  rescue
-    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> fallback.()
-  catch
-    :exit, _reason -> fallback.()
+    result =
+      try do
+        persistent.()
+      rescue
+        _error in [MatchError, Redix.ConnectionError, Redix.Error] -> :unavailable
+      catch
+        :exit, _reason -> :unavailable
+      end
+
+    case result do
+      {:allow, count} when is_integer(count) and count >= 0 -> result
+      {:deny, retry_after} when is_integer(retry_after) and retry_after >= 0 -> result
+      _other -> fallback.()
+    end
   end
 
-  defp on_failure(algorithm, key, opts, retry_after) do
-    if Keyword.get(opts, :failure_policy, :deny) == :local do
-      replicas = max(Application.get_env(:tuist, :rate_limit_fallback_replicas, 5), length(Node.list()) + 1)
-      bound = if algorithm == :fixed_window, do: :limit, else: :capacity
-      budget = div(Keyword.fetch!(opts, bound), replicas)
+  defp fixed_window_failure(key, opts, window) do
+    policy = if opts[:failure_policy] == :local and opts[:fallback] != false, do: :local, else: :deny
+
+    shared_failure(:fixed_window, policy, fn ->
+      cond do
+        opts[:fallback] == false -> {:error, :unavailable}
+        policy == :local -> hit_local(key, opts, window)
+        true -> {:deny, window}
+      end
+    end)
+  end
+
+  defp hit_local(key, opts, window) do
+    configured = Environment.rate_limit_fallback_replicas()
+
+    if is_integer(configured) and configured >= 5 do
+      replicas = max(configured, length(Node.list()) + 1)
+      budget = div(Keyword.fetch!(opts, :limit), replicas)
 
       if budget > 0 do
-        opts = Keyword.put(opts, bound, budget)
-        opts = if algorithm == :token_bucket, do: Keyword.update!(opts, :refill_rate, &(&1 / replicas)), else: opts
-        hit_in_memory(algorithm, "fallback:#{key}", opts)
+        InMemory.Local.hit({:fallback, key}, window, budget, Keyword.get(opts, :increment, 1))
       else
-        {:deny, retry_after}
+        {:deny, window}
       end
     else
-      {:deny, retry_after}
+      {:deny, window}
     end
+  rescue
+    ArgumentError -> {:deny, window}
+  catch
+    :exit, _reason -> {:deny, window}
+  end
+
+  defp shared_failure(algorithm, policy, fallback) do
+    {outcome, _value} = result = fallback.()
+
+    :telemetry.execute([:tuist, :rate_limit, :shared_failure], %{count: 1}, %{
+      algorithm: algorithm,
+      policy: policy,
+      outcome: outcome
+    })
+
+    result
   end
 
   defp requester_key(conn) do

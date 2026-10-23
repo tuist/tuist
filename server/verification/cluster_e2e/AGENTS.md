@@ -1,5 +1,7 @@
 # Complete server cluster verification
 
+This is the historical integration harness, not a qualified current-server gate. Before running it as an acceptance test, reconcile its assertions with current bounded subject caches, local image coalescing, connection-only discovery and detached optional tasks. See the parent [verification guidance](../AGENTS.md).
+
 - Follow `README.md` for dedicated service setup and execution. This is a standalone verification harness, not an automatically discovered ExUnit suite.
 - Keep two ordinary full application processes behind the round-robin proxy. Do not replace request paths, storage, rendering, or admission with mocks.
 - Preserve the hidden observer, actual address records, fixed distribution listeners, and documented differences from deployed pod networking and production ingestion. Replace existing call tracing before changing the observer and flush trace delivery before reading counters.

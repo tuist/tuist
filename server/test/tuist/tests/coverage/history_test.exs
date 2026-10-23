@@ -6,8 +6,10 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup do
     account = AccountsFixtures.user_fixture(preload: [:account]).account
@@ -235,6 +237,18 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       assert Enum.map(back.commits, & &1.git_commit_sha) == ["c5", "c2"]
       assert {back.has_previous_page?, back.has_next_page?} == {false, true}
 
+      first = History.commit_cursor_page(project, "main", page_size: 2, status: "measured")
+      assert Enum.map(first.commits, & &1.git_commit_sha) == ["c6", "c4"]
+      assert {first.has_previous_page?, first.has_next_page?} == {false, true}
+
+      second = History.commit_cursor_page(project, "main", page_size: 2, status: "measured", after: first.end_cursor)
+      assert Enum.map(second.commits, & &1.git_commit_sha) == ["c3", "c1"]
+      assert {second.has_previous_page?, second.has_next_page?} == {true, false}
+
+      back = History.commit_cursor_page(project, "main", page_size: 2, status: "measured", before: second.start_cursor)
+      assert Enum.map(back.commits, & &1.git_commit_sha) == ["c6", "c4"]
+      assert {back.has_previous_page?, back.has_next_page?} == {false, true}
+
       assert Enum.map(History.commit_cursor_page(project, "main", status: "complete").commits, & &1.git_commit_sha) ==
                ["c4"]
 
@@ -272,6 +286,9 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       # Labelled commits are all measured.
       assert History.commit_cursor_page(project, "main", status: "not-measured").commits == []
 
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "measured").commits, & &1.git_commit_sha) ==
+               ["c", "b", "a"]
+
       assert Enum.map(History.commit_cursor_page(project, "main", status: "in-progress").commits, & &1.git_commit_sha) ==
                [
                  "c",
@@ -293,7 +310,7 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c2"}])
 
       run(project, account, %{git_commit_sha: "c0"}, [1, 0, 0, 0])
-      # A selective run whose skipped tests nothing listed: its figure is incomplete.
+      # A selective run nothing says the skips of: its figure is incomplete.
       run(project, account, %{git_commit_sha: "c1", partial: true}, [0, 0, 0, 0])
       run(project, account, %{git_commit_sha: "c2"}, [1, 1, 0, 0])
       for sha <- ~w(c0 c1 c2), do: Commits.signal_complete(project, sha)
@@ -315,6 +332,80 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
                "c2",
                "c0"
              ]
+    end
+
+    test "list a commit whose runs measured no product line of their own as incomplete", %{
+      project: project,
+      account: account
+    } do
+      CoverageFixtures.seed_history(
+        account,
+        [CoverageFixtures.commit("c0", [], 0), CoverageFixtures.commit("c1", ["c0"], 1)],
+        branch_heads: [{"main", "c1"}]
+      )
+
+      run(project, account, %{git_commit_sha: "c0"}, [1, 0, 0, 0])
+
+      # Every product target came from the binary cache without counters: the
+      # run lists only its test file, and the gap is what the list has to say.
+      plain =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [CoverageFixtures.file("Tests/ATests.swift", [1], is_test: true)],
+          %{git_commit_sha: "c1"}
+        )
+
+      event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: plain.id)
+      XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "A", binary_cache_hit: :local)
+      for sha <- ~w(c0 c1), do: Commits.signal_complete(project, sha)
+
+      assert %{reported_kind: "partial", executable_lines: 0} = Commits.summary(project.id, "c1")
+
+      page = History.commit_cursor_page(project, "main")
+
+      assert Enum.map(page.commits, &{&1.git_commit_sha, Commits.status(&1), &1.change}) == [
+               {"c1", :incomplete, nil},
+               {"c0", :complete, nil}
+             ]
+
+      assert shas(History.trend_points(project, "main")) == ["c0"]
+
+      assert Enum.map(History.commit_cursor_page(project, "main", status: "incomplete").commits, & &1.git_commit_sha) == [
+               "c1"
+             ]
+
+      assert History.commit_cursor_page(project, "main", status: "not-measured").commits == []
+      # The branch page describes its newest listed commit, as it does any incomplete one.
+      assert History.head_commit(project, "main").git_commit_sha == "c1"
+    end
+  end
+
+  describe "a branch whose only commits measured no product line" do
+    test "has a head commit and is listed, so its page opens on the commit's gap", %{
+      project: project,
+      account: account
+    } do
+      CoverageFixtures.seed_history(account, [CoverageFixtures.commit("c0", [], 0)], branch_heads: [{"feature", "c0"}])
+
+      plain =
+        CoverageFixtures.run_with_coverage(
+          project,
+          account,
+          [CoverageFixtures.file("Tests/ATests.swift", [1], is_test: true)],
+          %{git_commit_sha: "c0", git_branch: "feature"}
+        )
+
+      event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: plain.id)
+      XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "A", binary_cache_hit: :local)
+      Commits.signal_complete(project, "c0")
+
+      assert %{git_commit_sha: "c0", reported_kind: "partial", coverage: coverage} =
+               History.head_commit(project, "feature")
+
+      assert coverage == 0.0
+      assert "feature" in History.branches(project)
+      assert Enum.map(History.commit_cursor_page(project, "feature").commits, &Commits.status/1) == [:incomplete]
     end
   end
 
@@ -391,6 +482,36 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       publish(project, Enum.map(0..2, &DateTime.add(@epoch, &1, :day)))
 
       assert shas(History.trend_points(project, "main", since: DateTime.add(@epoch, 1, :day))) == ["c1", "c2"]
+    end
+  end
+
+  describe "latest_complete_commit/2" do
+    test "is the newest commit on the branch's graph that chains into its trend", %{
+      project: project,
+      account: account
+    } do
+      commits =
+        for index <- 0..3,
+            do: CoverageFixtures.commit("c#{index}", if(index == 0, do: [], else: ["c#{index - 1}"]), index)
+
+      CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c3"}])
+
+      run(project, account, %{git_commit_sha: "c0"}, [1, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "c1"}, [1, 1, 0, 0])
+      run(project, account, %{git_commit_sha: "c2", partial: true}, [0, 0, 0, 0])
+      run(project, account, %{git_commit_sha: "c3"}, [1, 1, 1, 0])
+      for sha <- ~w(c0 c1 c2), do: Commits.signal_complete(project, sha)
+
+      assert History.latest_complete_commit(project, "main") == "c1"
+      assert History.latest_complete_commit(project, "main") == List.last(shas(History.trend_points(project, "main")))
+      assert History.head_commit(project, "main").git_commit_sha == "c3"
+      assert History.latest_complete_commit(project, "other") == nil
+    end
+
+    test "is the newest complete commit labelled with the branch when its ref owns none", %{project: project} do
+      publish(project, Enum.map(0..3, &DateTime.add(@epoch, &1, :hour)), ["c3"])
+
+      assert History.latest_complete_commit(project, "main") == "c2"
     end
   end
 

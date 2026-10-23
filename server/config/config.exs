@@ -14,7 +14,7 @@ build_path = Mix.Project.build_path()
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
-  cache_backend: Tuist.OAuth.NoCache,
+  cache_backend: Tuist.OAuth.AuthoritativeCache,
   max_ttl: [authorization_code: 300],
   # `access_tokens` is deliberately absent: it defaults to
   # `Boruta.Ecto.AccessTokens`. A local copy of that adapter used to be
@@ -146,6 +146,7 @@ config :logger, :console,
     :route,
     :request_path,
     :status,
+    :cache_outcome,
     :duration_ms,
     :auth_account_handle,
     # Source of the request. A failed authentication carries no account, so
@@ -292,7 +293,13 @@ config :money,
 
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 
-config :phoenix, :filter_parameters, ["password", "secret", "token", "credential"]
+config :phoenix, :filter_parameters, [
+  "password",
+  "secret",
+  "token",
+  "credential",
+  "installation_receipt"
+]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

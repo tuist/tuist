@@ -4,7 +4,6 @@ defmodule Tuist.Authentication.TokenVerificationCacheTest do
 
   alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Authentication.UnavailableError
-  alias Tuist.KeyValueStore.Invalidator
 
   setup :set_mimic_global
 
@@ -133,18 +132,13 @@ defmodule Tuist.Authentication.TokenVerificationCacheTest do
     assert TokenVerificationCache.verify_pass("secret", "hash", cache: cache)
   end
 
-  test "display invalidations and membership flapping do not evict proofs", %{cache: cache} do
+  test "clearing display views does not evict proofs", %{cache: cache} do
     display_cache = String.to_atom("display_#{UUIDv7.generate()}")
     start_supervised!({Cachex, [display_cache, []]}, id: :display_cache)
-    invalidator = start_supervised!({Invalidator, cache: display_cache, name: nil})
     expect(Bcrypt, :verify_pass, 1, fn "secret", "hash" -> true end)
     assert TokenVerificationCache.verify_pass("secret", "hash", cache: cache)
 
-    for _ <- 1..50, event <- [:nodeup, :nodedown] do
-      send(invalidator, {event, :flapping_peer})
-    end
-
-    :sys.get_state(invalidator)
+    for _ <- 1..100, do: Cachex.clear(display_cache)
     assert TokenVerificationCache.verify_pass("secret", "hash", cache: cache)
   end
 

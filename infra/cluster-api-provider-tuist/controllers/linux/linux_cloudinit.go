@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 // linuxCloudInitOptions parameterizes the self-join bootstrap across the two
@@ -127,6 +130,13 @@ kernel.panic = 10
 RuntimeWatchdogSec=30s
 RebootWatchdogSec=5min
 `
+
+	// The sshd start-limit drop-ins (internal/sshd), which rack hosts' installs
+	// and converges write too.
+	sshServiceDropInPath    = sshd.ServiceDropInPath
+	sshServiceDropInContent = sshd.ServiceDropInContent
+	sshSocketDropInPath     = sshd.SocketDropInPath
+	sshSocketDropInContent  = sshd.SocketDropInContent
 
 	// dockerHubMirrorHostsContent is the containerd registry-host config that
 	// routes docker.io pulls through mirror.gcr.io, sidestepping Docker Hub's
@@ -350,7 +360,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[8]s
 %[2]ssysctl -p /etc/sysctl.d/99-tuist-hardening.conf 2>/dev/null || true
 %[9]s
-%[2]ssystemctl daemon-reexec || true
+%[12]s%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
 %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs
@@ -385,7 +395,18 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
 		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn,
-		containerdQuota, kataSetup)
+		containerdQuota, kataSetup, sshStartLimitDropIns(sudo, writeFile))
+}
+
+// sshStartLimitDropIns writes the sshd start-limit drop-ins. The caller reloads
+// systemd afterwards. Shared by the self-join and the kubelet config re-push,
+// which is how nodes joined before the drop-ins existed receive them.
+func sshStartLimitDropIns(sudo string, writeFile func(producer, path string) string) string {
+	return fmt.Sprintf("%[1]smkdir -p %[2]s %[3]s\n%[4]s\n%[5]s\n",
+		sudo, path.Dir(sshServiceDropInPath), path.Dir(sshSocketDropInPath),
+		writeFile("printf '%s' "+shellSingleQuote(sshServiceDropInContent), sshServiceDropInPath),
+		writeFile("printf '%s' "+shellSingleQuote(sshSocketDropInContent), sshSocketDropInPath),
+	)
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
@@ -610,7 +631,7 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
-%[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+%[8]s%[12]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
 # Turn project quotas on for /data before anything mounts off it: XFS only takes
 # quota accounting at mount time, and the bind below would pin the filesystem
 # busy. Aborts the join on a box whose /data cannot carry per-account quotas.
@@ -626,7 +647,7 @@ set -euxo pipefail
 %[5]s
 %[6]s
 %[7]s
-`,
+%[13]s`,
 		sudo,
 		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
@@ -638,7 +659,35 @@ set -euxo pipefail
 		dataKubeletMount(sudo),
 		caWrite,
 		dataProjectQuotaSetup(sudo, writeFile),
+		joinedGuard(sudo, opts.NodeName),
+		joinedMarker(sudo, opts.NodeName),
 	)
+}
+
+// joinedMarkerPath records the node name a completed self-join registered as.
+const joinedMarkerPath = "/var/lib/tuist/joined-node"
+
+// joinedGuard makes the SSH self-join a no-op on a host that already joined as
+// this node. A controller only records a successful bootstrap in the Machine's
+// status patch, so a manager restart between the SSH run and that patch makes
+// the next reconcile dial the host again. Re-running the join on a live node
+// deletes Cilium's sysctl overrides, re-applies the distribution's rp_filter
+// defaults, and restarts containerd under the running pods. The marker is
+// keyed by node name, so a box re-adopted under a new Machine still joins, and
+// a run that failed before the marker was written still retries in full.
+func joinedGuard(sudo, nodeName string) string {
+	return fmt.Sprintf(`if [ "$(%[1]scat %[2]s 2>/dev/null || true)" = %[3]s ] && systemctl is-active --quiet kubelet; then
+  echo "already joined as "%[3]s"; skipping the self-join"
+  exit 0
+fi
+`, sudo, joinedMarkerPath, shellSingleQuote(nodeName))
+}
+
+// joinedMarker writes the marker joinedGuard reads, as the last step of a
+// successful self-join.
+func joinedMarker(sudo, nodeName string) string {
+	return fmt.Sprintf("%[1]smkdir -p %[2]s\nprintf '%%s\\n' %[3]s | %[1]stee %[4]s > /dev/null\n",
+		sudo, path.Dir(joinedMarkerPath), shellSingleQuote(nodeName), joinedMarkerPath)
 }
 
 // dataProjectQuotaPath is where the self-join drops the script that turns

@@ -8,6 +8,28 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "immutable_shard_reports_enabled?/1" do
+    test "coverage-enabled accounts cannot create immutable plans" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+
+      for coverage? <- [true, false] do
+        stub(FunWithFlags, :enabled?, fn
+          :immutable_shard_reports, [for: ^account] -> true
+          :xcode_coverage, [for: ^account] -> coverage?
+        end)
+
+        assert FeatureFlags.immutable_shard_reports_enabled?(account) == not coverage?
+      end
+    end
+
+    test "environments with coverage enabled by default remain on legacy plans" do
+      stub(Environment, :env, fn -> :stag end)
+      expect(FunWithFlags, :enabled?, fn :immutable_shard_reports, _ -> true end)
+      refute FeatureFlags.immutable_shard_reports_enabled?(%Account{id: 42, name: "tuist"})
+    end
+  end
+
   describe "kura_stable_hostname_enabled?/1" do
     test "staging and production require an explicit account or global flag" do
       account = %Account{id: 42, name: "tuist"}
@@ -93,28 +115,25 @@ defmodule Tuist.FeatureFlagsTest do
     assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
   end
 
-  describe "runner_cache_volumes_per_repository_enabled?/0" do
-    test "requires the flag in canary and production" do
-      for env <- [:can, :prod] do
+  describe "runner_site_enabled?/1" do
+    test "is on for every account in staging and canary" do
+      for env <- [:stag, :can] do
         stub(Environment, :env, fn -> env end)
-        expect(FunWithFlags, :enabled?, fn :runner_cache_volumes_per_repository -> false end)
+        reject(FunWithFlags, :enabled?, 2)
 
-        refute FeatureFlags.runner_cache_volumes_per_repository_enabled?()
+        assert FeatureFlags.runner_site_enabled?(%Account{id: 42, name: "tuist"})
       end
     end
 
-    test "is on once the flag is enabled" do
-      stub(Environment, :env, fn -> :prod end)
-      expect(FunWithFlags, :enabled?, fn :runner_cache_volumes_per_repository -> true end)
+    test "uses the flag in production and development" do
+      account = %Account{id: 42, name: "tuist"}
 
-      assert FeatureFlags.runner_cache_volumes_per_repository_enabled?()
-    end
+      for env <- [:prod, :dev] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :runner_site, [for: ^account] -> false end)
 
-    test "is on elsewhere without consulting the flag" do
-      stub(Environment, :env, fn -> :stag end)
-      reject(FunWithFlags, :enabled?, 1)
-
-      assert FeatureFlags.runner_cache_volumes_per_repository_enabled?()
+        refute FeatureFlags.runner_site_enabled?(account)
+      end
     end
   end
 

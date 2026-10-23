@@ -52,26 +52,65 @@ defmodule TuistWeb.RateLimitTest do
     test "availability traffic uses a divided local budget when Valkey exits" do
       window = to_timeout(minute: 1)
       stub(Environment, :redis_url, fn -> "redis://example" end)
-      expect(PersistentFixedWindow, :hit, fn "key", ^window, 100, 1 -> exit(:noproc) end)
-      expect(InMemory, :hit, fn "fallback:key", ^window, 20, 1 -> {:allow, 1} end)
-      assert RateLimit.hit("key", limit: 100, window: window, failure_policy: :local) == {:allow, 1}
+      key = "local:#{UUIDv7.generate()}"
+      stub(PersistentFixedWindow, :hit, fn ^key, ^window, 100, 1 -> exit(:noproc) end)
+      assert RateLimit.hit(key, limit: 100, window: window, failure_policy: :local) == {:allow, 1}
     end
 
     test "an outage budget smaller than the replica allowance denies instead of multiplying the limit" do
       window = to_timeout(minute: 1)
       stub(Environment, :redis_url, fn -> "redis://example" end)
       expect(PersistentFixedWindow, :hit, fn "key", ^window, 1, 1 -> exit(:noproc) end)
-      reject(InMemory, :hit, 4)
+      reject(InMemory.Local, :hit, 4)
       assert RateLimit.hit("key", limit: 1, window: window, failure_policy: :local) == {:deny, window}
     end
 
-    test "availability token buckets divide both capacity and refill on failure" do
+    test "token buckets deny on failure even if a caller requests local fallback" do
       stub(Environment, :redis_url, fn -> "redis://example" end)
       expect(PersistentTokenBucket, :hit, fn "key", 10, 100, 1 -> exit(:noproc) end)
-      expect(InMemory, :hit_token_bucket, fn "fallback:key", 2.0, 20, 1 -> {:allow, 19} end)
+      reject(InMemory, :hit_token_bucket, 4)
 
       assert RateLimit.hit("key", algorithm: :token_bucket, capacity: 100, refill_rate: 10, failure_policy: :local) ==
-               {:allow, 19}
+               {:deny, 100}
+    end
+
+    test "fixed-window strict quotas return backend failures without falling back" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      reject(InMemory, :hit, 4)
+      expect(PersistentFixedWindow, :hit, fn _, _, _, _ -> raise Redix.ConnectionError, reason: :timeout end)
+      assert RateLimit.hit("strict", limit: 10, window: 60_000, fallback: false) == {:error, :unavailable}
+      expect(PersistentFixedWindow, :hit, fn _, _, _, _ -> exit(:quota_backend_down) end)
+      assert RateLimit.hit("strict", limit: 10, window: 60_000, fallback: false) == {:error, :unavailable}
+    end
+
+    test "strict quotas override local fallback and reject unexpected backend responses" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      reject(InMemory, :hit, 4)
+      reject(InMemory.Local, :hit, 4)
+      expect(PersistentFixedWindow, :hit, fn _, _, _, _ -> {:error, :timeout} end)
+
+      assert RateLimit.hit("strict", limit: 10, window: 60_000, fallback: false, failure_policy: :local) ==
+               {:error, :unavailable}
+    end
+
+    test "strict quotas preserve healthy shared denials without using local counters" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      reject(InMemory.Local, :hit, 4)
+      expect(PersistentFixedWindow, :hit, fn _, _, _, _ -> {:deny, 123} end)
+      assert RateLimit.hit("strict", limit: 10, window: 60_000, fallback: false) == {:deny, 123}
+      expect(PersistentTokenBucket, :hit, fn _, _, _, _ -> {:deny, 456} end)
+
+      assert RateLimit.hit("strict", algorithm: :token_bucket, refill_rate: 1, capacity: 10, fallback: false) ==
+               {:deny, 456}
+    end
+
+    test "token-bucket strict quotas also disable the in-memory fallback" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      reject(InMemory, :hit_token_bucket, 4)
+      expect(PersistentTokenBucket, :hit, fn _, _, _, _ -> raise Redix.ConnectionError, reason: :timeout end)
+
+      assert RateLimit.hit("strict", algorithm: :token_bucket, refill_rate: 1, capacity: 10, fallback: false) ==
+               {:error, :unavailable}
     end
 
     test "uses the token-bucket in-memory limiter when Valkey is not configured" do

@@ -144,6 +144,43 @@ container.
     inset 0 0 0 1px var(--noora-surface-border-hover);
 }
 
+[data-part="widget"][data-variant="analytics"] {
+  min-height: 154px;
+
+  & > [data-part="header"] { min-height: 32px; }
+
+  & [data-part="legend"][data-color="flaky"] { background-color: var(--noora-chart-flaky); }
+
+  & [data-part="background"] {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    & > svg { width: 100%; height: 100%; }
+  }
+
+  &[data-empty="true"] {
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: var(--noora-spacing-7);
+
+    & > [data-part="header"] > [data-part="title"] {
+      color: var(--noora-surface-label-secondary);
+    }
+
+    & > [data-part="empty-label"] {
+      align-self: center;
+      padding-top: var(--noora-spacing-5);
+      padding-bottom: 30px;
+      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+    }
+  }
+}
+
+[data-part="widget-link"][data-variant="analytics"][data-selected] [data-part="widget"] {
+  box-shadow: var(--noora-border-light-focus);
+  background-color: var(--noora-surface-background-primary);
+}
+
 [data-part="widget-link"]:focus-visible [data-part="widget"] {
   box-shadow: var(--noora-border-light-focus);
 }

@@ -541,6 +541,82 @@ func TestReconcile_LeavesStaleRunningPodAlone(t *testing.T) {
 	}
 }
 
+// An image roll lands while a macOS Pod is still pulling the old image for
+// a queued job. Reaping it makes that job wait for a replacement to pull the
+// new image from scratch; letting it finish runs the job on the old image.
+func TestReconcile_LeavesStaleMacOSPodCreatingItsVMAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	now := time.Date(2026, 10, 21, 10, 17, 56, 0, time.UTC)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	pulling := newRunnerPod("p-runner-pulling", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	pulling.Spec.NodeName = "mini-0"
+	pulling.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "darwin"}
+	pulling.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(now.Add(-6 * time.Minute)),
+	}}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, pulling).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch", Now: func() time.Time { return now }}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(pods.Items) != 1 || pods.Items[0].Name != "p-runner-pulling" {
+		t.Fatalf("expected the provisioning stale pod to survive with no replacement, got %v", podNames(pods.Items))
+	}
+}
+
+// A stale macOS Pod whose VM just started gets its first dispatch poll
+// before the roll drains it, so it can claim the job it was created for.
+// One that has been warm for longer is drained as before.
+func TestReconcile_DrainsStaleMacOSPodOnlyAfterItsFirstPoll(t *testing.T) {
+	scheme := mustScheme(t)
+	now := time.Date(2026, 10, 21, 10, 17, 56, 0, time.UTC)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 2)
+	booted := func(name string, vmStartedAt time.Time) *corev1.Pod {
+		pod := newRunnerPod(name, "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodRunning, "p")
+		pod.Spec.NodeName = "mini-0"
+		pod.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "darwin"}
+		startedAt := metav1.NewTime(vmStartedAt)
+		pod.Status.StartTime = &startedAt
+		return pod
+	}
+	fresh := booted("p-runner-fresh", now.Add(-time.Minute))
+	warm := booted("p-runner-warm", now.Add(-time.Hour))
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, fresh, warm).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch", Now: func() time.Time { return now }}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	for name, wantDrained := range map[string]bool{"p-runner-fresh": false, "p-runner-warm": true} {
+		pod := &corev1.Pod{}
+		if err := c.Get(context.Background(), nn("tuist-runners", name), pod); err != nil {
+			t.Fatalf("get %s: %v", name, err)
+		}
+		if drained := pod.Labels[drainEligibleLabel] == "true"; drained != wantDrained {
+			t.Errorf("%s drain-eligible = %v, want %v", name, drained, wantDrained)
+		}
+	}
+}
+
 // TestReconcile_NoDeletionWhenImageMatches is the regression test
 // for the obvious worry: the new stale-image branch should be a
 // no-op when the Pod's image already matches the pool's image.
@@ -753,6 +829,9 @@ func TestReconcile_StampsImageRolledAtOnFirstReconcile(t *testing.T) {
 	if updated.Status.ImageRolledAt.IsZero() {
 		t.Fatalf("ImageRolledAt is zero, expected stamp on first reconcile")
 	}
+	if updated.Status.PreviousImage != "" {
+		t.Fatalf("PreviousImage = %q, want empty for a pool that has run one image", updated.Status.PreviousImage)
+	}
 }
 
 // TestReconcile_BumpsImageRolledAtOnSpecImageChange covers the
@@ -794,6 +873,9 @@ func TestReconcile_BumpsImageRolledAtOnSpecImageChange(t *testing.T) {
 	}
 	if !updated.Status.ImageRolledAt.After(previousRoll.Time) {
 		t.Fatalf("ImageRolledAt = %v, expected to be after previous %v", updated.Status.ImageRolledAt, previousRoll)
+	}
+	if updated.Status.PreviousImage != oldImage {
+		t.Fatalf("PreviousImage = %q, want %q so hosts holding it follow the release", updated.Status.PreviousImage, oldImage)
 	}
 }
 

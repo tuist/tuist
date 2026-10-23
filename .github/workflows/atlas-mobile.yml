@@ -1,0 +1,352 @@
+name: Atlas Native
+
+on:
+  push:
+    branches: [main]
+    paths: [atlas-native/**]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: [atlas-native/**]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-native-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_GITHUB_ATTESTATIONS: "0"
+  MISE_AUTO_INSTALL: "0"
+
+defaults:
+  run:
+    working-directory: atlas-native
+
+jobs:
+  lint-rust:
+    name: Lint Rust
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          working-directory: atlas-native
+          install: rust
+      - run: mise exec -- rustup component add clippy rustfmt
+      - run: mise run lint:rust
+
+  lint-swift:
+    name: Lint Swift
+    if: github.event.pull_request.draft != true
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 10
+    env:
+      ONCE_CACHE_PROVIDER: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          working-directory: atlas-native
+          install: rust swiftlint github:tuist/once
+      - run: mise run lint:swift
+
+  lint-kotlin:
+    name: Lint Kotlin
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          working-directory: atlas-native
+          install: java github:ktlint/ktlint
+      - run: mise run lint:kotlin
+
+  build:
+    name: Build (${{ matrix.platform }})
+    if: github.event.pull_request.draft != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            runner: ubuntu-24.04
+          - platform: ios
+            runner: tuist-macos-27-0
+          - platform: ios-device
+            runner: tuist-macos-27-0
+          - platform: cli
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - uses: ./.github/actions/atlas-native
+        with:
+          platform: ${{ matrix.platform }}
+          operation: build
+          authenticated: ${{ github.repository == 'tuist/tuist' && matrix.platform != 'ios-device' && matrix.platform != 'android' }}
+
+  build-fork:
+    name: Build fork (${{ matrix.platform }})
+    if: github.event.pull_request.draft != true && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            runner: ubuntu-24.04
+          - platform: ios
+            runner: tuist-macos-27-0
+          - platform: ios-device
+            runner: tuist-macos-27-0
+          - platform: cli
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - uses: ./.github/actions/atlas-native
+        with:
+          platform: ${{ matrix.platform }}
+          operation: build
+
+  test:
+    name: Test (${{ matrix.platform }})
+    if: github.event.pull_request.draft != true && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: core
+            runner: ubuntu-24.04
+          - platform: ios
+            runner: tuist-macos-27-0
+          - platform: cli
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - uses: ./.github/actions/atlas-native
+        with:
+          platform: ${{ matrix.platform }}
+          operation: test
+          authenticated: ${{ github.repository == 'tuist/tuist' }}
+
+  test-fork:
+    name: Test fork (${{ matrix.platform }})
+    if: github.event.pull_request.draft != true && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: core
+            runner: ubuntu-24.04
+          - platform: ios
+            runner: tuist-macos-27-0
+          - platform: cli
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - uses: ./.github/actions/atlas-native
+        with:
+          platform: ${{ matrix.platform }}
+          operation: test
+
+  test-distribution:
+    name: Test preview packaging
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test signing keychain lifecycle
+        run: python3 ios/distribution/keychain_test.py
+      - name: Test Android signing publication guard without credentials
+        run: python3 android/distribution/sign_test.py
+      - name: Check launcher icon packaging
+        run: python3 resources/app_icons_test.py
+      - name: Test Firebase dependency integrity and manifest/resource gates
+        run: python3 android/push/push_test.py
+      - name: Check signing script syntax
+        run: for script in ios/distribution/{bundle,keychain,associated-domains,push}.sh android/distribution/sign.sh; do bash -n "$script"; done
+
+  test-native-ui:
+    name: Test native iOS UI
+    if: github.event.pull_request.draft != true
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 40
+    env:
+      ONCE_CACHE_PROVIDER: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          working-directory: atlas-native
+          install: rust github:tuist/once
+      - run: mise exec -- rustup target add aarch64-apple-ios-sim
+      - run: mise run prepare:rust
+      - name: Test associated-domain provisioning guard without credentials
+        run: python3 ios/distribution/associated_domains_test.py
+      - name: Test APNs provisioning guard without credentials
+        run: python3 ios/distribution/push_test.py
+      - name: Build isolated native UI fixtures
+        run: mise exec -- once build AtlasSettingsUITests
+      - name: Verify preview SDK and deployment minimum
+        run: bash modules/check-sdk.sh iphonesimulator .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app/AtlasSettingsPreview
+      - name: Exercise native CRUD and navigation
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable and (.name | startswith("iPhone")))][0].udid')
+          xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
+          xcrun simctl bootstatus "$device" -b
+          mkdir -p ui-evidence
+          # Fresh checkouts need whole-target discovery; retain failures while collecting evidence.
+          once_status=0
+          ONCE_APPLE_SIMULATOR_UDID="$device" mise exec -- once test AtlasSettingsUITests || once_status=$?
+          cp -R .once/out/AtlasSettingsUITests/test ui-evidence/once-test
+          result=$(sed -n 's/^[[:space:]]*\(\/.*\.xcresult\)$/\1/p' ui-evidence/once-test/xctest.log | tail -1)
+          if [ -d "$result" ]; then cp -R "$result" ui-evidence/once-ui.xcresult; fi
+          ui_status=0
+          xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/native-lists.mov" &
+          recording=$!
+          trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
+          xcodebuild test-without-building \
+            -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
+            -destination "id=$device" \
+            -collect-test-diagnostics never \
+            -only-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
+            -resultBundlePath "$PWD/ui-evidence/task-crud.xcresult" || ui_status=$?
+          xcodebuild test-without-building \
+            -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
+            -destination "id=$device" \
+            -collect-test-diagnostics never \
+            -only-testing:AtlasSettingsUITests/AtlasBusinessUITests \
+            -only-testing:AtlasSettingsUITests/AtlasWorkspaceUITests \
+            -only-testing:AtlasSettingsUITests/AtlasNavigationUITests \
+            -skip-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
+            -resultBundlePath "$PWD/ui-evidence/native-ui.xcresult" || ui_status=$?
+          kill -INT "$recording"
+          wait "$recording" || true
+          trap - EXIT
+          if [ "$once_status" -ne 0 ]; then exit "$once_status"; fi
+          exit "$ui_status"
+      - name: Export native screenshots
+        if: always()
+        run: |
+          for result in ui-evidence/*.xcresult; do
+            [ -d "$result" ] || continue
+            xcrun xcresulttool export attachments --path "$result" --output-path "${result%.xcresult}-attachments"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-native-ui-evidence
+          path: atlas-native/ui-evidence/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  previews:
+    name: Publish internal previews
+    needs: [build, test, test-native-ui, test-distribution, lint-rust, lint-swift, lint-kotlin]
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 20
+    environment: atlas-mobile-previews
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-mobile-android
+          path: atlas-native/delivery/android
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-mobile-ios
+          path: atlas-native/delivery/ios
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-mobile-ios-device
+          path: atlas-native/delivery/ios-device
+      - uses: ./.github/actions/mise-install
+        with:
+          working-directory: atlas-native
+          install: tuist 1password-cli jq java
+      - name: Install Android build tools for APK inspection
+        uses: android-actions/setup-android@v3
+        with:
+          packages: build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - name: Authenticate with Tuist
+        run: mise exec -- tuist auth login
+      - name: Sign Android distribution with the verified App Links identity
+        if: vars.ATLAS_ANDROID_KEYSTORE_REF != ''
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          ATLAS_ANDROID_KEYSTORE_REF: ${{ vars.ATLAS_ANDROID_KEYSTORE_REF }}
+          ATLAS_ANDROID_KEYSTORE_PASSWORD_REF: ${{ vars.ATLAS_ANDROID_KEYSTORE_PASSWORD_REF }}
+          ATLAS_ANDROID_KEY_ALIAS: ${{ vars.ATLAS_ANDROID_KEY_ALIAS }}
+          ATLAS_ANDROID_APP_LINK_SHA256: ${{ vars.ATLAS_ANDROID_APP_LINK_SHA256 }}
+        run: mise exec -- bash android/distribution/sign.sh delivery/android/AtlasAndroid.apk delivery/android-distribution/Atlas.apk
+      - name: Publish Android preview
+        if: vars.ATLAS_ANDROID_KEYSTORE_REF != ''
+        run: |
+          mise exec -- tuist share delivery/android-distribution/Atlas.apk --track nightly
+          mise exec -- tuist inspect bundle delivery/android-distribution/Atlas.apk
+      - name: Android distribution setup required
+        if: vars.ATLAS_ANDROID_KEYSTORE_REF == ''
+        run: echo '::warning::Android preview publication is disabled until a stable distribution key and matching Atlas App Links fingerprints are configured. Debug APKs remain available as CI artifacts.'
+      - name: Publish iOS simulator preview
+        run: |
+          ditto -x -k delivery/ios/Atlas-ios-simulator.zip delivery/ios
+          device=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable)][0].udid')
+          xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" delivery/ios/Atlas.app
+          xcrun simctl launch "$device" dev.tuist.atlas
+          TUIST_PREVIEW_BUILD_VERSION=$(date +%s) mise exec -- tuist share delivery/ios/Atlas.app --track nightly
+          mise exec -- tuist inspect bundle delivery/ios/Atlas.app
+      - name: Sign iOS device preview
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p .once/out/AtlasIOSDevice
+          ditto -x -k delivery/ios-device/Atlas-ios-device.zip .once/out/AtlasIOSDevice
+          mise run bundle:ios
+      - name: Publish iOS device preview
+        run: |
+          mise exec -- tuist share delivery/ios-device/Atlas.ipa --track nightly
+          mise exec -- tuist inspect bundle delivery/ios-device/Atlas.ipa
+      - name: Link to previews
+        run: echo 'Internal builds are available in [tuist/atlas-mobile](https://tuist.dev/tuist/atlas-mobile/previews).' >> "$GITHUB_STEP_SUMMARY"

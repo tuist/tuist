@@ -88,6 +88,7 @@ func TestLocalMastersWarmReuseAndPrivateBranches(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	if err := os.WriteFile(b.image(slot), []byte("saved cache"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -144,10 +145,8 @@ func TestFailedAndRejectedUploadsDoNotInstallMaster(t *testing.T) {
 		})
 	}
 }
-func TestColdHostDownloadsOnceAndRestartDoesNotReformat(t *testing.T) {
+func TestColdHostStartsEmptyAndRestartDoesNotReformat(t *testing.T) {
 	b, r := newLocal(t)
-	r.source = filepath.Join(t.TempDir(), "master")
-	os.WriteFile(r.source, []byte("remote bytes"), 0600)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
 	slot.BaseGeneration = 4
 	slot.ContentDigest = strings.Repeat("a", 64)
@@ -160,7 +159,7 @@ func TestColdHostDownloadsOnceAndRestartDoesNotReformat(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(b.image(slot))
-	if string(data) != "job writes" || r.downloads != 1 {
+	if string(data) != "job writes" || r.downloads != 0 || !b.Cold(slot) {
 		t.Fatal("retry lost writes", r.downloads)
 	}
 }
@@ -208,6 +207,45 @@ func TestDeferredLoopDetachCannotPublishOrDeleteAnImage(t *testing.T) {
 	}
 }
 
+// Kubelet unmounts a pod's subPath mounts only on its next retry after the agent
+// unmounts the volume, so the loop device often outlives the agent's unmount by
+// up to half a minute. The verified branch waits for it instead of being discarded.
+func TestLingeringLoopReferenceDelaysPublicationWithoutDiscardingTheBranch(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	jobWrote(t, path)
+	lingering := true
+	run := b.Run
+	b.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if lingering && name == "losetup" && args[0] == "--json" {
+			return []byte(`{"loopdevices":[{"name":"/dev/loop17"}]}`), nil
+		}
+		return run(ctx, name, args...)
+	}
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) || errors.Is(err, ErrPoisoned) {
+		t.Fatal(err)
+	}
+	b.Check = func(string, string) error { t.Fatal("rechecked an unmounted filesystem"); return nil }
+	b.MeasureFS = func(string) (int64, int64, error) { return 0, 0, errors.New("volume not mounted") }
+	if err := b.Seal(slot, path); !errors.Is(err, ErrReleasePending) {
+		t.Fatal(err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("uploaded while another mount held the image")
+	}
+	lingering = false
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if remote.uploads != 1 {
+		t.Fatal(remote.uploads)
+	}
+}
+
 func TestRefusesLegacyJournalInsteadOfTreatingRBDLeaseAsLocal(t *testing.T) {
 	b, _ := newLocal(t)
 	os.Remove(filepath.Join(b.Root, ".backend"))
@@ -220,14 +258,16 @@ func TestRefusesLegacyJournalInsteadOfTreatingRBDLeaseAsLocal(t *testing.T) {
 
 type invalidatedTransfer struct{ *testTransfer }
 
-func (invalidatedTransfer) IsCurrent(Slot) (bool, error) { return false, nil }
+func (invalidatedTransfer) Head(Slot) (Identity, error) { return Identity{BaseGeneration: 2}, nil }
 func TestInvalidatedLocalMasterIsEvictedWithoutTouchingActiveClone(t *testing.T) {
 	b, r := newLocal(t)
 	slot := Slot{Identity: identity(first), PodUID: "p"}
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Seal(slot, t.TempDir()); err != nil {
+	jobWrote(t, path)
+	if err := b.Seal(slot, path); err != nil {
 		t.Fatal(err)
 	}
 	b.Transfer = invalidatedTransfer{r}
@@ -250,6 +290,7 @@ func TestWriteBackFailureSurvivesRestartAndCannotPublish(t *testing.T) {
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	checks := 0
 	b.Check = func(string, string) error { checks++; return errors.New("ENOSPC") }
 	if err := b.Seal(slot, path); !errors.Is(err, ErrPoisoned) {
@@ -265,6 +306,7 @@ func TestWriteBackFailureSurvivesRestartAndCannotPublish(t *testing.T) {
 		t.Fatal(checks, remote.uploads)
 	}
 	os.Remove(filepath.Join(path, ".tuist-volume"))
+	os.RemoveAll(filepath.Join(path, "data"))
 	if err := restarted.Delete(slot, path); err != nil {
 		t.Fatal(err)
 	}
@@ -280,6 +322,7 @@ func TestVerifiedImageRetriesUploadWithoutRecheckingUnmountedFilesystem(t *testi
 	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
+	jobWrote(t, path)
 	remote.fail = true
 	if err := b.Seal(slot, path); err == nil {
 		t.Fatal("ignored upload failure")
@@ -321,19 +364,17 @@ func (*cancelledDownload) Download(ctx context.Context, _ Slot, path string) err
 	<-ctx.Done()
 	return ctx.Err()
 }
-func TestRestoreDeadlineRemovesPartialImagesWithoutMounting(t *testing.T) {
+func TestPrefetchDeadlineInstallsNoPartialMaster(t *testing.T) {
 	b, _ := newLocal(t)
 	b.Transfer = &cancelledDownload{}
-	b.Mount = func(string, string) error { t.Fatal("mounted incomplete restore"); return nil }
-	slot := Slot{Identity: identity(first), PodUID: "pod"}
-	slot.BaseGeneration = 1
-	slot.ContentDigest = strings.Repeat("b", 64)
+	slot := warmSlot(first, "")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if err := b.Attach(ctx, slot, t.TempDir()); !errors.Is(err, context.DeadlineExceeded) {
+	if err := b.Prefetch(ctx, slot); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal(err)
 	}
-	for _, path := range []string{b.master(slot), b.master(slot) + ".tmp", b.image(slot), b.image(slot) + ".tmp"} {
+	staged, _ := filepath.Glob(filepath.Join(b.Root, "staging", "*"))
+	for _, path := range append(staged, b.master(slot), b.master(slot)+".json") {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("left restore artifact %s: %v", path, err)
 		}
@@ -391,15 +432,17 @@ func TestRestoreDeadlineCancelsFormatting(t *testing.T) {
 	}
 }
 
-func TestAttachmentTelemetryDistinguishesEmptyLocalAndRemote(t *testing.T) {
+func TestAttachmentTelemetryDistinguishesEmptyLocalOlderAndCold(t *testing.T) {
 	b, remote := newLocal(t)
 	var observations []Observation
 	b.Observe = func(o Observation) { observations = append(observations, o) }
 	slot := Slot{Identity: identity(first), PodUID: "pod"}
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	path := t.TempDir()
+	if err := b.Attach(context.Background(), slot, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Seal(slot, t.TempDir()); err != nil {
+	jobWrote(t, path)
+	if err := b.Seal(slot, path); err != nil {
 		t.Fatal(err)
 	}
 	masters, _ := filepath.Glob(filepath.Join(b.Root, "masters", slot.Scope, "*.img"))
@@ -409,19 +452,23 @@ func TestAttachmentTelemetryDistinguishesEmptyLocalAndRemote(t *testing.T) {
 	slot.ID = second
 	slot.BaseGeneration = 1
 	slot.ContentDigest = strings.TrimSuffix(strings.SplitN(filepath.Base(masters[0]), "-", 2)[1], ".img")
-	remote.source = filepath.Join(t.TempDir(), "remote")
-	if err := os.WriteFile(remote.source, []byte("remote contents"), 0600); err != nil {
+	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	newer := slot
+	newer.ID, newer.BaseGeneration = third, 2
+	if err := b.Attach(context.Background(), newer, t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(masters[0]); err != nil {
 		t.Fatal(err)
 	}
-	slot.ID = third
-	if err := b.Attach(context.Background(), slot, t.TempDir()); err != nil {
+	newer.ID = fourth
+	if err := b.Attach(context.Background(), newer, t.TempDir()); err != nil {
 		t.Fatal(err)
+	}
+	if remote.downloads != 0 {
+		t.Fatal("downloaded inside an attach")
 	}
 	var sources []string
 	for _, o := range observations {
@@ -432,7 +479,7 @@ func TestAttachmentTelemetryDistinguishesEmptyLocalAndRemote(t *testing.T) {
 			}
 		}
 	}
-	if strings.Join(sources, ",") != "empty,local,remote" {
+	if strings.Join(sources, ",") != "empty,local,older,cold" {
 		t.Fatal(sources)
 	}
 }

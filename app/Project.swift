@@ -184,6 +184,22 @@ let project = Project(
             ]
         ),
         .target(
+            name: "TuistPreviewsTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.previews-tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistPreviewsTests/**"],
+            dependencies: [
+                .target(name: "TuistPreviews"),
+                .target(name: "TuistAppStorage"),
+                .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistSimulator", path: "../"),
+                .external(name: "Mockable"),
+            ]
+        ),
+        .target(
             name: "TuistNoora",
             destinations: .iOS,
             product: .staticFramework,
@@ -231,6 +247,7 @@ let project = Project(
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
             dependencies: [
+                .target(name: "TuistAuthentication"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
@@ -291,6 +308,11 @@ let project = Project(
         ),
     ],
     schemes: [
+        .scheme(
+            name: "TuistPreviews",
+            buildAction: .buildAction(targets: [.target("TuistPreviews")]),
+            testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
+        ),
         .scheme(
             name: "TuistApp",
             buildAction: .buildAction(

@@ -346,6 +346,18 @@ public struct PackageInfoMapper: PackageInfoMapping {
         return ResolvedExternalDependencies(products: externalDependencies, packageProducts: packageProducts)
     }
 
+    /// Returns the products of the package a product dependency names. A registry package overridden by a local package is
+    /// no longer part of the graph, so a `scope.name` reference to it falls back to the package that goes by `name`.
+    private static func products(
+        ofPackage package: String,
+        in packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
+    ) -> [String: [ProjectDescription.TargetDependency]]? {
+        let reference = package.lowercased()
+        if let products = packageProducts[reference] { return products }
+        guard let scopeSeparator = reference.firstIndex(of: ".") else { return nil }
+        return packageProducts[String(reference[reference.index(after: scopeSeparator)...])]
+    }
+
     /// Maps the manifest name and the name part of a registry identity of each package to its lowercased identity, skipping
     /// the ones that several packages share.
     private static func packageReferenceAliases(packageInfos: [(key: String, value: PackageInfo)]) -> [String: String] {
@@ -458,7 +470,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
         let targetToProducts = mutableTargetToProducts
-        let prebuiltEligibleTargets = prebuiltEligibleTargets(packageInfo: packageInfo, packageType: packageType)
+        let prebuiltEligibleTargets = prebuiltEligibleTargets(
+            packageInfo: packageInfo,
+            packageType: packageType,
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
+        )
 
         let targets: [ProjectDescription.Target] = try await packageInfo.targets
             .concurrentCompactMap { target -> ProjectDescription.Target? in
@@ -673,11 +689,16 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     private func prebuiltEligibleTargets(
         packageInfo: PackageInfo,
-        packageType: PackageType
+        packageType: PackageType,
+        includeLocalPackageTestTargets: Bool
     ) -> Set<String> {
         guard !packageType.packagePrebuilts.isEmpty else { return [] }
 
-        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
+        let includesTestTargets = packageType.includesTestTargets(
+            includeLocalPackageTestTargets: includeLocalPackageTestTargets
+        )
+        let mappedTargets = packageInfo.targets.filter { includesTestTargets || $0.type != .test }
+        let targetsByName = Dictionary(uniqueKeysWithValues: mappedTargets.map { ($0.name, $0) })
         let allTargetNames = Set(targetsByName.keys)
 
         func isHostOnlyTarget(_ targetName: String) -> Bool {
@@ -727,7 +748,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return visited
         }
 
-        let macroTargets = Set(packageInfo.targets.compactMap { target in
+        func dependsOnPrebuiltProduct(_ targetName: String) -> Bool {
+            targetsByName[targetName]?.dependencies.contains { dependency in
+                guard case let .product(name, package, _, _) = dependency else { return false }
+                return packageType.prebuilt(targetPackage: package, product: name) != nil
+            } ?? false
+        }
+
+        let macroTargets = Set(mappedTargets.compactMap { target in
             switch target.type {
             case .macro:
                 target.name
@@ -737,7 +765,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         })
 
         let macroClosure = dependencyClosure(from: macroTargets, includeHostOnlyTargets: true)
-        let macroTestTargets = Set<String>(packageInfo.targets.compactMap { target in
+        let macroTestTargets = Set<String>(mappedTargets.compactMap { target in
             guard target.type == .test else { return nil }
             return dependencyClosure(from: [target.name], includeHostOnlyTargets: true)
                 .isDisjoint(with: macroClosure) ? nil : target.name
@@ -750,11 +778,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
             includeHostOnlyTargets: false
         )
 
-        guard hostReachableTargets.isDisjoint(with: nonHostReachableTargets) else {
+        // Targets reached from both sides are built for non-host platforms too, so they can only stay on
+        // source dependencies. That conflicts with the prebuilt only when they depend on a prebuilt product.
+        let sharedTargets = hostReachableTargets.intersection(nonHostReachableTargets)
+        guard !sharedTargets.contains(where: dependsOnPrebuiltProduct) else {
             return []
         }
 
-        return hostReachableTargets
+        return hostReachableTargets.subtracting(sharedTargets)
     }
 
     // swiftlint:disable:next function_body_length
@@ -1394,7 +1425,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         // Product names are only unique within a package, so a product dependency that names its package resolves against that
         // package's products.
         if let targetPackage, moduleAliases?[name] == nil,
-           let productDependencies = packageProducts[targetPackage.lowercased()]?[name]
+           let productDependencies = Self.products(ofPackage: targetPackage, in: packageProducts)?[name]
         {
             return productDependencies.map { $0.withCondition(platformCondition) }
         }

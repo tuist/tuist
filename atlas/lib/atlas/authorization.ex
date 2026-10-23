@@ -14,6 +14,7 @@ defmodule Atlas.Authorization do
     "accounts" => "Commercial accounts, contacts, and feature interests",
     "assets" => "Hardware assets, data centers, and financings",
     "audit" => "Audit trail for changes across Atlas",
+    "automation" => "Workflows, behaviors, executions, schedules, webhooks, and approvals",
     "briefs" => "Leadership briefs and brief-driven action items",
     "contracts" => "Enterprise contract templates and generation",
     "documents" => "The document library and document downloads",
@@ -26,6 +27,7 @@ defmodule Atlas.Authorization do
     "licenses" => "Self-hosted license issuance and checkout",
     "notes" => "Shared Markdown notes",
     "support" => "Customer support threads and messages",
+    "time_off_approvals" => "Approve or reject employee holiday requests",
     "admin" => "Admin section access (users, roles, identities, sessions, MCP)"
   }
 

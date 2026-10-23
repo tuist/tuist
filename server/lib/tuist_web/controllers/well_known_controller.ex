@@ -30,6 +30,12 @@ defmodule TuistWeb.WellKnownController do
     |> send_resp(:ok, JSON.encode!(catalog))
   end
 
+  def tuist_discovery(conn, _params) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> json(%{network_trusted_report_publishing: Environment.network_trusted_report_publishing_enabled?()})
+  end
+
   def agent_skills_index(conn, _params) do
     json(conn, AgentSkillsDiscovery.index())
   end

@@ -24,4 +24,6 @@ This context owns marketing content aggregation (blog posts, case studies, chang
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
 
-- Each web node keeps a local statistics snapshot. One globally registered poller reads ClickHouse and broadcasts snapshots; followers retry election every poll interval so node loss recovers automatically. During a network partition, duplicate polling is acceptable because these are display statistics.
+## Replica-safety rollout
+
+Expensive stats polling elects one connected global registrant. Resolve partition conflicts by deterministically selecting a pid and notifying the loser, never killing a supervised Stats process. Followers consume broadcasts; cache-globe polling remains read-only and keeps its existing behavior.

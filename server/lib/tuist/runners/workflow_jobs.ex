@@ -25,7 +25,8 @@ defmodule Tuist.Runners.WorkflowJobs do
       insert) → `transition_claimed/3`
     * `Tuist.Runners.Claims.mark_running/3` → `transition_running/3`
     * `Tuist.Runners.Claims.record_execution/3` (webhook `in_progress`,
-      same transaction as the claim detach) → `transition_executing/3`
+      same transaction as the claim detach) → `transition_executing/3`,
+      `take_over_executing/4` and `hand_over/3`
     * `Tuist.Runners.Claims.release/2` and `release_pod_missing/2`
       (same transaction as the claim delete) → `requeue_by_handle/2`
     * `Tuist.Runners.Workers.UnstartedExecutionsWorker` (backstop sweep)
@@ -101,7 +102,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     else
       now = DateTime.utc_now()
 
-      insert_queued_rows([queued_row(attrs, now)], now)
+      insert_queued_rows([queued_row(attrs, now)])
     end
   end
 
@@ -131,7 +132,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     attrs_list
     |> Enum.reject(&MapSet.member?(settled, Map.fetch!(&1, :workflow_job_id)))
     |> Enum.map(&queued_row(&1, now))
-    |> insert_queued_rows(now)
+    |> insert_queued_rows()
   end
 
   defp queued_row(attrs, now) do
@@ -145,14 +146,14 @@ defmodule Tuist.Runners.WorkflowJobs do
     })
   end
 
-  defp insert_queued_rows([], _now), do: :ok
+  defp insert_queued_rows([]), do: :ok
 
-  defp insert_queued_rows(rows, now) do
+  defp insert_queued_rows(rows) do
     {:ok, _} =
       Repo.transaction(fn ->
         {_count, inserted} = Repo.insert_all(WorkflowJob, rows, on_conflict: :nothing, returning: true)
 
-        emit_transition_events(inserted, now)
+        emit_transition_events(inserted)
       end)
 
     :ok
@@ -259,6 +260,72 @@ defmodule Tuist.Runners.WorkflowJobs do
   defp finish_executing(:noop), do: :noop
 
   @doc """
+  `transition_executing/3` for a row a stale claim holds: CAS
+  `claimed | running → running` onto the executing Pod, guarded on the
+  stale claim's `claimed_at`.
+
+  Dispatch can hand out a job GitHub already started elsewhere until the
+  `in_progress` webhook proving it arrives. Moving the row off the stale
+  claim's handle keeps that claim's later detach from re-queueing a job
+  that is running, and the handle guard confines the takeover to the
+  claim the caller found naming the job.
+  """
+  def take_over_executing(workflow_job_id, runner_name, pod_name, %DateTime{} = stale_claimed_at)
+      when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
+             pod_name != "" do
+    now = DateTime.utc_now()
+
+    workflow_job_id
+    |> transition(
+      ["claimed", "running"],
+      "running",
+      [
+        runner_name: runner_name,
+        pod_name: pod_name,
+        claimed_at: now,
+        started_at: now,
+        executed_workflow_job_id: workflow_job_id
+      ],
+      claimed_at: stale_claimed_at
+    )
+    |> finish_executing()
+  end
+
+  @doc """
+  Moves a displaced job's row from the claim it was minted under to
+  `claim`, whose minted runner is idle and now reserved for it. CAS
+  `claimed | running → running` guarded on the minting claim's
+  `claimed_at`, stamping `claim`'s Pod, runner and handle so the next
+  `in_progress` webhook resolves the row to the runner that runs it.
+  `started_at` restarts too: the orphan sweep reads it as the moment the
+  row's runner was promised the job, and asks GitHub after five minutes.
+  Returns `:ok` when applied, `:noop` when the row moved on.
+  """
+  def hand_over(workflow_job_id, %DateTime{} = from_claimed_at, %Claim{
+        pod_name: pod_name,
+        runner_name: runner_name,
+        claimed_at: claimed_at
+      })
+      when is_integer(workflow_job_id) do
+    case transition(
+           workflow_job_id,
+           ["claimed", "running"],
+           "running",
+           [
+             pod_name: pod_name,
+             runner_name: runner_name,
+             claimed_at: claimed_at,
+             started_at: DateTime.utc_now(),
+             executed_workflow_job_id: nil
+           ],
+           claimed_at: from_claimed_at
+         ) do
+      {:applied, _row} -> :ok
+      :noop -> :noop
+    end
+  end
+
+  @doc """
   Batch `queued → running` for every row a live claim already records as
   the job its runner is executing, up to `limit`, oldest arrival first.
   Returns the rows it started.
@@ -299,7 +366,7 @@ defmodule Tuist.Runners.WorkflowJobs do
             {_count, rows} = Repo.update_all(start_executing_query(workflow_job_ids, now), [])
             rows = rows || []
 
-            emit_transition_events(rows, now)
+            emit_transition_events(rows)
             broadcast_running(rows)
 
             rows
@@ -476,7 +543,7 @@ defmodule Tuist.Runners.WorkflowJobs do
           )
 
         case {count, rows} do
-          {1, [applied]} -> emit_transition_event(applied, now)
+          {1, [applied]} -> emit_transition_events([applied])
           {0, _} -> :ok
         end
       end)
@@ -516,36 +583,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :ok
-
-  @doc """
-  The job that ran on `runner_name` within `account_id`.
-
-  GitHub assigns a queued job to any label-eligible runner, so the job a
-  runner was minted for is not necessarily the one it ran. The
-  `in_progress` webhook records the binding as `executed_workflow_job_id`
-  on the minting row (see `record_execution/3`); until it arrives, the
-  minting row is the best guess.
-  """
-  def get_executed_by_runner_name(account_id, runner_name)
-      when is_integer(account_id) and is_binary(runner_name) and runner_name != "" do
-    rows =
-      Repo.all(
-        from(j in WorkflowJob,
-          where: j.account_id == ^account_id and j.runner_name == ^runner_name,
-          order_by: [desc: j.updated_at]
-        )
-      )
-
-    workflow_job_id =
-      Enum.find_value(rows, & &1.executed_workflow_job_id) || Enum.find_value(rows, & &1.workflow_job_id)
-
-    case workflow_job_id && Repo.get_by(WorkflowJob, account_id: account_id, workflow_job_id: workflow_job_id) do
-      %WorkflowJob{} = row -> {:ok, row}
-      _ -> {:error, :not_found}
-    end
-  end
-
-  def get_executed_by_runner_name(_account_id, _runner_name), do: {:error, :not_found}
 
   @doc """
   Postgres twin of `Tuist.Runners.Jobs.pick_queued_top_k/5`, returning
@@ -594,6 +631,27 @@ defmodule Tuist.Runners.WorkflowJobs do
       [] -> {:error, :empty}
       candidates -> {:ok, candidates}
     end
+  end
+
+  @doc """
+  Moves `from_fleet`'s rows that are still `queued` and were enqueued
+  before `enqueued_before` onto `to_fleet`, where that fleet's runners
+  claim them and its autoscaler counts them. A row a runner claims first
+  is no longer `queued` and stays put. No outbox event: the move is not a
+  status change, and the row's next transition carries its new fleet to
+  ClickHouse. Returns the number of rows moved.
+  """
+  def move_queued(from_fleet, to_fleet, %DateTime{} = enqueued_before)
+      when is_binary(from_fleet) and is_binary(to_fleet) do
+    {moved, _} =
+      Repo.update_all(
+        from(j in WorkflowJob,
+          where: j.fleet_name == ^from_fleet and j.status == "queued" and j.enqueued_at < ^enqueued_before
+        ),
+        set: [fleet_name: to_fleet, updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
+      )
+
+    moved
   end
 
   @doc """
@@ -831,7 +889,7 @@ defmodule Tuist.Runners.WorkflowJobs do
 
         case {count, rows} do
           {1, [row]} ->
-            emit_transition_event(row, now)
+            emit_transition_events([row])
             :ok
 
           {0, _} ->
@@ -884,7 +942,7 @@ defmodule Tuist.Runners.WorkflowJobs do
 
         case {count, rows} do
           {1, [row]} ->
-            emit_transition_event(row, now)
+            emit_transition_events([row])
             {:applied, row}
 
           {0, _} ->
@@ -904,9 +962,18 @@ defmodule Tuist.Runners.WorkflowJobs do
   # One statement for the batch: emitting these per row was what still
   # made a large poll scale with the number of jobs after the inserts
   # themselves were batched.
-  defp emit_transition_events([], _transition_at), do: :ok
+  #
+  # Must run inside the transaction that wrote `rows`, after the write:
+  # the replica version is read from the database clock at that point.
+  # The write holds the rows' locks until commit, so any later writer to
+  # the same job waits for that commit and reads a later clock. A clock
+  # read before the write would not be: a completion that read its clock
+  # and then waited on a claim's row lock would commit after the claim
+  # with the older version, and the replica would keep the claim forever.
+  defp emit_transition_events([]), do: :ok
 
-  defp emit_transition_events(rows, %DateTime{} = transition_at) do
+  defp emit_transition_events(rows) do
+    transition_at = replica_version()
     inserted_at = DateTime.truncate(transition_at, :second)
 
     Repo.insert_all(
@@ -924,24 +991,15 @@ defmodule Tuist.Runners.WorkflowJobs do
     :ok
   end
 
-  defp emit_transition_event(%WorkflowJob{} = row, %DateTime{} = transition_at) do
-    Repo.insert_all(WorkflowJobTransitionEvent, [
-      %{
-        workflow_job_id: row.workflow_job_id,
-        account_id: row.account_id,
-        payload: ch_row(row, transition_at),
-        inserted_at: DateTime.truncate(transition_at, :second)
-      }
-    ])
-
-    :ok
+  defp replica_version do
+    %{rows: [[%DateTime{} = now]]} = Repo.query!("SELECT clock_timestamp()")
+    now
   end
 
   # The ClickHouse `runner_jobs` insert shape for this row's current
   # state. `updated_at` is the transition timestamp at microsecond
   # precision (the RMT version column is DateTime64(6); the row's own
-  # `updated_at` is second-truncated), so replayed rows sort correctly
-  # against the direct CH writes that remain on during rollout. Status
+  # `updated_at` is second-truncated). Status
   # `cancelled` maps back to CH's `completed` + conclusion convention.
   defp ch_row(%WorkflowJob{} = row, %DateTime{} = transition_at) do
     %{

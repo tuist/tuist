@@ -2,11 +2,11 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConfig
 import TuistCore
 import TuistEnvironment
 import TuistLogging
 import TuistProcess
-import TuistServer
 import XCResultParser
 
 /// A run that collects per-test coverage evidence: where the test processes write, and the
@@ -42,8 +42,9 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 
 /// Collects which files each test executed (`TestCoverageEvidence`).
 ///
-/// Opt-in with `TUIST_COVERAGE_EVIDENCE=1`, behind the `COVERAGE` client flag. The test targets
-/// link the TestCoverageAttribution package (https://github.com/tuist/TestCoverageAttribution),
+/// Collected whenever the run uploads coverage (`UploadResultBundleService.uploadsCoverage`,
+/// behind the `COVERAGE` client flag). The test targets opt in by linking the
+/// TestCoverageAttribution package (https://github.com/tuist/TestCoverageAttribution),
 /// which records the coverage counters each test moves; Swift Testing suites also need its
 /// `.coverageAttribution` trait. `prepare` hands back the environment that tells the test
 /// processes where to write; after the run `record` reduces what they wrote to source files,
@@ -52,7 +53,7 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 /// and a run whose targets don't link the package is a normal run.
 @Mockable
 public protocol TestCoverageEvidenceServicing {
-    func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession?
+    func prepare(platform: TestCoverageEvidencePlatform?, config: Tuist) async -> TestCoverageEvidenceSession?
 
     func record(
         session: TestCoverageEvidenceSession,
@@ -62,7 +63,6 @@ public protocol TestCoverageEvidenceServicing {
 }
 
 public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
-    static let enabledVariable = "TUIST_COVERAGE_EVIDENCE"
     /// Where TestCoverageAttribution writes; xcodebuild passes it to the test processes with the
     /// `TEST_RUNNER_` prefix.
     static let attributionDirectoryVariable = "TEST_COVERAGE_ATTRIBUTION_DIR"
@@ -75,9 +75,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         self.commandRunner = commandRunner
     }
 
-    public func prepare(platform: TestCoverageEvidencePlatform?) async -> TestCoverageEvidenceSession? {
-        guard ClientFeatureFlags.contains("COVERAGE"), Environment.current.isVariableTruthy(Self.enabledVariable)
-        else { return nil }
+    public func prepare(platform: TestCoverageEvidencePlatform?, config: Tuist) async -> TestCoverageEvidenceSession? {
+        guard UploadResultBundleService.uploadsCoverage(config: config) else { return nil }
         guard platform != nil else {
             Logger.current.debug("Coverage evidence is only collected on macOS and the iOS simulator")
             return nil
@@ -140,10 +139,16 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             var filesByFunction: [String: [String: Set<String>]] = [:]
             var mappings: [String: VerifiedCoverageMapping] = [:]
             let profileCounts = await profileCounts(profile: profile)
+            // Xcode's prefix mapping records `/^src/…` in the images and in llvm-cov's report
+            // alike; both are mapped back through the image's target before the files are tied
+            // to the repository, so the evidence names the same paths the coverage does.
+            let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
             for image in Set(outputs.flatMap { $0.images.values.map(\.path) }) {
-                let table = await lcovTable(image: image, profile: profile)
+                let target = CompilationPrefixMaps.targetName(ofProduct: image)
+                let remap: (String) -> String = { prefixMaps.remap($0, target: target) }
+                let table = await lcovTable(image: image, profile: profile, remap: remap)
                 filesByFunction[image] = table.filesByFunction
-                if let mapping = CoverageMapping(imagePath: image) {
+                if let mapping = CoverageMapping(imagePath: image)?.remappingFiles(remap) {
                     mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
                 }
             }
@@ -255,6 +260,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         private(set) var executableLines: [String: IndexSet] = [:]
         private(set) var coveredLines: [String: IndexSet] = [:]
         private var file: String?
+        /// Applied to each file's path as its section opens.
+        var remap: (String) -> String = { $0 }
 
         /// Whether a line is one of the two kinds kept, told from its bytes so the rest (one line
         /// per executable line of the image) is never decoded.
@@ -266,7 +273,7 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
         mutating func read(_ line: Substring) {
             if line.hasPrefix("SF:") {
-                file = String(line.dropFirst(3))
+                file = remap(String(line.dropFirst(3)))
             } else if line.hasPrefix("FN:"), let file, let comma = line.firstIndex(of: ",") {
                 filesByFunction[String(line[line.index(after: comma)...]), default: []].insert(file)
             } else if line.hasPrefix("DA:"), let file {
@@ -280,8 +287,9 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     // MARK: - Tools and files
 
-    private func lcovTable(image: String, profile: AbsolutePath) async -> LCOVFunctionTable {
+    private func lcovTable(image: String, profile: AbsolutePath, remap: @escaping (String) -> String) async -> LCOVFunctionTable {
         var table = LCOVFunctionTable()
+        table.remap = remap
         do {
             // Split on bytes: a chunk may end inside a multibyte character of a path. Dependency
             // checkouts are left out at the source: Git cannot vouch for them, so they never

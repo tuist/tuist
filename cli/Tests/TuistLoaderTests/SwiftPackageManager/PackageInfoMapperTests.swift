@@ -5055,6 +5055,75 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenProductDependencyNamesARegistryPackageOverriddenLocally_mapsToTheProductOfTheLocalPackage() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "acme.client/Sources/Client"))
+        )
+
+        let client = PackageInfo.test(
+            name: "Client",
+            products: [
+                .init(name: "Client", type: .library(.automatic), targets: ["Client"]),
+            ],
+            targets: [
+                .test(
+                    name: "Client",
+                    dependencies: [
+                        .product(name: "Core", package: "acme.Kit", moduleAliases: nil, condition: nil),
+                    ]
+                ),
+            ],
+            platforms: [.ios],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        // The local `../ios-Kit` checkout replaced `acme.Kit`, and an unrelated package vends a product with the same name.
+        let localKit = PackageInfo.test(
+            name: "Kit",
+            products: [.init(name: "Core", type: .library(.automatic), targets: ["KitCore"])],
+            targets: [.test(name: "KitCore")],
+            platforms: [.ios]
+        )
+        let other = PackageInfo.test(
+            name: "Other",
+            products: [.init(name: "Core", type: .library(.automatic), targets: ["OtherCore"])],
+            targets: [.test(name: "OtherCore")],
+            platforms: [.ios]
+        )
+        let packageInfos = ["acme.client": client, "ios-kit": localKit, "acme.other": other]
+        let localKitFolder = basePath.appending(component: "ios-Kit")
+        let externalDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: packageInfos,
+            packageToFolder: [
+                "acme.client": basePath.appending(component: "acme.client"),
+                "ios-kit": localKitFolder,
+                "acme.other": basePath.appending(component: "Other"),
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:],
+            packageSettings: .test()
+        )
+
+        let project = try await subject.map(
+            package: "acme.client",
+            basePath: basePath,
+            packageInfos: packageInfos,
+            packageProducts: externalDependencies.packageProducts
+        )
+
+        #expect(
+            project?.targets.first?.dependencies == [
+                .project(target: "KitCore", path: .path(localKitFolder.pathString)),
+            ]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func resolveDependencies_keysPackageProductsByIdentityManifestNameAndRegistryName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let issueReportingFolder = basePath.appending(component: "swift-issue-reporting")
@@ -8708,6 +8777,200 @@ struct PackageInfoMapperTests {
             ])
         )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenRemoteMacroPackageHasTestTargetReachingMacroThroughLibrary_usesPrebuiltSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .remote, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(name: "Library", dependencies: [.target(name: "MyMacro", condition: nil)]),
+                        .test(name: "MyMacro", type: .macro, dependencies: [swiftSyntaxProductDependency]),
+                        .test(
+                            name: "LibraryTests",
+                            type: .test,
+                            dependencies: [.target(name: "Library", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(target.dependencies.isEmpty)
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenGeneratedTestTargetReachesMacroThroughLibrary_usesPrebuiltSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .local, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(name: "Library", dependencies: [.target(name: "MyMacro", condition: nil)]),
+                        .test(name: "MyMacro", type: .macro, dependencies: [swiftSyntaxProductDependency]),
+                        .test(
+                            name: "LibraryTests",
+                            type: .test,
+                            dependencies: [.target(name: "Library", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.dependencies.isEmpty)
+        #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+        #expect(project?.targets.contains(where: { $0.name == "LibraryTests" }) == true)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenGeneratedMacroTestTargetDependsOnPrebuiltProduct_usesPrebuiltSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .local, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(name: "Library", dependencies: [.target(name: "MyMacro", condition: nil)]),
+                        .test(name: "MyMacro", type: .macro, dependencies: [swiftSyntaxProductDependency]),
+                        .test(
+                            name: "MyMacroTests",
+                            type: .test,
+                            dependencies: [.target(name: "MyMacro", condition: nil), swiftSyntaxProductDependency]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
+        )
+
+        let testTarget = try #require(project?.targets.first(where: { $0.name == "MyMacroTests" }))
+        #expect(!testTarget.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+        #expect(testTarget.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTargetSharedByMacroAndLibraryDependsOnPrebuiltProduct_keepsSourceDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Shared"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .remote, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Library",
+                            dependencies: [
+                                .target(name: "MyMacro", condition: nil),
+                                .target(name: "Shared", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "MyMacro",
+                            type: .macro,
+                            dependencies: [.target(name: "Shared", condition: nil), swiftSyntaxProductDependency]
+                        ),
+                        .test(name: "Shared", dependencies: [swiftSyntaxProductDependency]),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+        #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == nil)
+        let sharedTarget = try #require(project?.targets.first(where: { $0.name == "Shared" }))
+        #expect(sharedTarget.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+        #expect(sharedTarget.settings?.base["OTHER_LDFLAGS"] == nil)
+    }
+
+    private var swiftSyntaxProductDependency: PackageInfo.Target.Dependency {
+        .product(name: "SwiftSyntax", package: "swift-syntax", moduleAliases: nil, condition: nil)
+    }
+
+    private func swiftSyntaxPrebuiltPackageType(
+        origin: PackageType.ExternalOrigin,
+        basePath: AbsolutePath
+    ) -> PackageType {
+        .external(
+            origin: origin,
+            artifactPaths: [:],
+            packagePrebuilts: [
+                "swift-syntax": [
+                    "SwiftSyntax": SwiftPackageManagerPrebuilt(
+                        identity: "swift-syntax",
+                        version: "601.0.0",
+                        libraryName: "SwiftSyntax",
+                        path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                        checkoutPath: nil,
+                        products: ["SwiftSyntax"],
+                        includePath: nil,
+                        cModules: ["_SwiftSyntaxCShims"]
+                    ),
+                ],
+            ]
+        )
+    }
+
+    private func makeMacroPackageDirectories(basePath: AbsolutePath) async throws {
+        for path in [
+            "Package/Sources/Library",
+            "Package/Sources/MyMacro",
+            "Package/Tests/LibraryTests",
+            "Package/Tests/MyMacroTests",
+        ] {
+            try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: path)))
+        }
     }
 
     @Test(

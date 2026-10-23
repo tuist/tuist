@@ -8,7 +8,6 @@ defmodule Tuist.Telemetry.QueryErrorContext do
   @context_key {__MODULE__, :failed_query}
   @query_events [
     [:tuist, :click_house_repo, :query],
-    [:tuist, :shadow_click_house_repo, :query],
     [:tuist, :ops_click_house_repo, :query]
   ]
   @statement_limit 16_384

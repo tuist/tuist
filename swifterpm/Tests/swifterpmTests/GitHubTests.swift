@@ -19,6 +19,17 @@ struct GitHubTests {
         #expect(repo.repo == "swifterpm")
     }
 
+    @Test(arguments: [
+        "HTTPS://GitHub.com/tuist/swifterpm.git",
+        "git@GitHub.com:tuist/swifterpm.git",
+    ])
+    func parsesGitHubLocationsWithMixedCaseHosts(location: String) throws {
+        let repo = try GitHubRepo(location: location)
+
+        #expect(repo.owner == "tuist")
+        #expect(repo.repo == "swifterpm")
+    }
+
     @Test
     func rejectsNonGitHubLocations() {
         #expect(throws: (any Error).self) {
@@ -49,33 +60,33 @@ struct GitHubTests {
     }
 
     @Test
-    func canonicalResolvedFileLocationsStabilizeProviderLocations() {
+    func canonicalLocationsStabilizeProviderLocations() {
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "https://github.com/CombineCommunity/CombineExt.git"
             )
                 == "https://github.com/CombineCommunity/CombineExt"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "git@github.com:DataDog/dd-sdk-ios.git"
             )
                 == "git@github.com:DataDog/dd-sdk-ios"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "https://gitlab.com/Tuist/SwifterPM.git"
             )
                 == "https://gitlab.com/Tuist/SwifterPM"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "HTTPS://Source.Example.com/Tuist/SwifterPM.git"
             )
                 == "https://source.example.com/Tuist/SwifterPM.git"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "git@Source.Example.com:Tuist/SwifterPM.git"
             )
                 == "git@source.example.com:Tuist/SwifterPM.git"
@@ -83,18 +94,18 @@ struct GitHubTests {
     }
 
     @Test
-    func canonicalResolvedFileLocationsPreserveMixedCaseGitHubOrg() {
+    func canonicalLocationsPreserveMixedCaseGitHubOrg() {
         // Git's url.*.insteadOf rules match case-sensitively, so lowercasing
         // the path breaks CI setups that inject credentials per-org. Only the
         // scheme and host are lowercased; the path keeps its declared casing.
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "https://github.com/Fourthline-com/FourthlineSDK-iOS.git"
             )
                 == "https://github.com/Fourthline-com/FourthlineSDK-iOS"
         )
         #expect(
-            SourceControlLocations.canonicalResolvedFileLocation(
+            SourceControlLocations.canonicalLocation(
                 "https://github.com/Fourthline-com/FourthlineSDK-iOS"
             )
                 == "https://github.com/Fourthline-com/FourthlineSDK-iOS"

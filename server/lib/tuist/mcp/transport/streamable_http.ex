@@ -88,7 +88,9 @@ defmodule Tuist.MCP.Transport.StreamableHTTP do
     key = if method == "resources/read", do: "uri", else: "name"
     params = Map.get(request, "params", %{})
 
-    if is_binary(params[key]) and is_map(Map.get(params, "arguments", %{})),
+    arguments = Map.get(params, "arguments")
+
+    if is_binary(params[key]) and (is_nil(arguments) or is_map(arguments)),
       do: :ok,
       else: failure(400, -32_602, "Missing or invalid method parameters")
   end
