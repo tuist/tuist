@@ -2244,7 +2244,9 @@ infra/cluster-api-provider-tuist/
 │       ├── racklinux_candidates.go  # tidies what the rack boot servers list
 │       ├── linux_cloudinit.go       # shared self-join script + kubelet config (Layers 2+3)
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
-│       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
+│       ├── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
+│       ├── kata_shared_memory.go    # /dev/shm ceiling for Kata guest RAM + the host-config proof
+│       └── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
 │   ├── rackcard/     # a rack power card's passwords, derived from the root key
@@ -2381,16 +2383,44 @@ setup in `controllers/linux/kata_shared_memory.go` grows that ceiling to
 `MemTotal`, preserves larger custom ceilings and mount flags, and verifies the
 result. This changes a ceiling; it does not preallocate memory.
 
+virtiofsd also bounds how many files a runner job can keep. It holds one host
+descriptor for every inode the guest has cached, and Kata starts it without
+`--rlimit-nofile`, so its budget is virtiofsd's default of min(1,000,000,
+`fs.nr_open`). Once that is spent it answers the guest with EMFILE, whatever the
+guest process's own rlimit is (job steps get 1048576). Measured 2026-10-22: a
+job creating files on the rootfs failed at ~990k cached inodes while holding 7
+descriptors, and the server `Seed` job peaks at ~888k (831k ClickHouse part
+files), which is why it intermittently failed with ClickHouse
+`Too many open files`. `controllers/linux/kata_virtiofs.go` writes
+`/etc/sysctl.d/90-tuist-kata-virtiofs.conf` (`fs.nr_open = 4194304`), applies
+and verifies it, and only then installs the Kata drop-in
+`/opt/kata/share/defaults/kata-containers/config.d/50-tuist-virtiofs.toml`,
+which repeats Kata's default `virtio_fs_extra_args` and adds
+`--rlimit-nofile=4194304`. The order matters: virtiofsd exits when the value
+exceeds `fs.nr_open`, which would fail every new Kata Pod. virtiofsd reads its
+arguments when a Pod starts, so new Pods pick it up without restarting
+containerd; running Pods keep the old budget until they are replaced. Every
+cached inode also pins host kernel memory outside the Pod's cgroup, which is
+why the budget is four times the default rather than unbounded.
+
+The alternatives were rejected. A pod-template `ulimit` changes nothing, since
+the guest process limit is already high. `--inode-file-handles` would avoid the
+descriptors only for filesystems with decodable file handles, which the
+container rootfs (overlayfs without `nfs_export`) is not, and that rootfs is
+where ClickHouse keeps its data. A stricter `virtio_fs_cache` mode would slow
+every metadata-heavy build.
+
 Bootstrap installs `tuist-kata-shared-memory.service`, ordered before containerd,
-and the Ready-path repair installs and runs the same service on existing OVH
-Kata hosts without restarting containerd, kubelet, or guests. Only a successful
-repair stamps `tuist.dev/kata-shared-memory-config` on the Node with the script
-and unit hash plus `status.nodeInfo.bootID`. A changed configuration or boot
-invalidates that proof; it is not continuous detection of manual mount changes
-within the same boot. Missing proof sets `KataSharedMemoryUnverified`; a failed
-repair sets `KataRuntimeRepairFailed`, leaving the machine Ready and the existing
-runtime label intact. Non-Kata fleets are unaffected. The Hetzner worker template
-in `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
+and the virtiofsd files. The Ready-path repair installs and runs both on
+existing OVH Kata hosts without restarting containerd, kubelet, or guests. Only
+a successful repair stamps `tuist.dev/kata-host-config` on the Node with the
+hash of the shared-memory script and unit and the virtiofsd sysctl and drop-in,
+plus `status.nodeInfo.bootID`. A changed configuration or boot invalidates that
+proof; it is not continuous detection of manual changes within the same boot.
+Missing proof sets `KataHostConfigUnverified`; a failed repair sets
+`KataRuntimeRepairFailed`, leaving the machine Ready and the existing runtime
+label intact. Non-Kata fleets are unaffected. The Hetzner worker template in
+`infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
 (checked by a test); existing Hetzner workers do not use this OVH repair path.
 
 Alerts for this operator are Grafana-managed rules, created in Grafana Cloud

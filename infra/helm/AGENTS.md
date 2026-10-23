@@ -22,11 +22,14 @@ runs the mixed-version latency expression through promtool.
   post-rollout reconciliation in
   [the retirement runbook](../runner-image/xcode-27.1-retirement.md).
 
-- Production gives every Xcode image's 6 vCPU pool on the BER1 rack
-  `minWarmPoolFloor: 1` (`rackFleet.runners.autoscaling`); a rack pool without
-  a floor starts every job cold (scale-up plus VM boot, 13 to 75 s). The rented
-  fleet keeps a floor only on the default image (26.6), in
-  `runnersFleet.xcodeOverrides`.
+- Production sizes warm floors by demand: only a warm runner claims a job in
+  under 10 s, and a pool without one starts every job cold (scale-up plus VM
+  boot, 10 to 75 s), while a floor on an image without jobs holds a slot
+  other images' bursts wait for. Images with a job in most weekday working
+  hours keep one: on the BER1 rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
+  one (`rackFleet.runners.xcodeOverrides`, default 0); on the rented fleet
+  27.0 keeps two and the default image 26.6 one (`runnersFleet.xcodeOverrides`).
+  Re-measure from `tuist.runner_jobs` before changing them.
   The 12 vCPU shape pools stay at 0, because an idle one holds a whole host.
   Staging and canary run one lent rack host with two slots: staging warms
   26.6 and 27.1, and canary keeps its slots free for the runners acceptance

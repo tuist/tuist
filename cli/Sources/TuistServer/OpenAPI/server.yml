@@ -3615,6 +3615,51 @@ components:
       type: object
       x-struct:
       x-validate:
+    BazelBuildAction:
+      properties:
+        first_seen_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: Stable project-scoped identity, independent of a run.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        identity:
+          additionalProperties:
+            type: string
+            x-struct:
+            x-validate:
+          type: object
+          x-struct:
+          x-validate:
+        last_seen_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        observations:
+          description: Recorded observations in the list's selected cohort.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - identity
+        - first_seen_at
+        - last_seen_at
+      title: BazelBuildAction
+      type: object
+      x-struct:
+      x-validate:
     MissingCommitsResponse:
       properties:
         missing:
@@ -4795,7 +4840,7 @@ components:
                     x-struct:
                     x-validate:
                   volume_bytes:
-                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                     nullable: true
                     type: integer
                     x-struct:
@@ -5521,7 +5566,7 @@ components:
           x-struct:
           x-validate:
         volume_bytes:
-          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
           nullable: true
           type: integer
           x-struct:
@@ -6873,6 +6918,72 @@ components:
       title: Coverage
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.Coverage
+      x-validate:
+    BazelBuildActionObservation:
+      properties:
+        cache_status:
+          description: Observed cache result; none means no recorded cache lookup.
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          description: Recorded duration; cache-operation time is not compilation time.
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        execution_id:
+          description: Native execution identifier for drill-down.
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        is_ci:
+          nullable: true
+          type: boolean
+          x-struct:
+          x-validate:
+        observed_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        parent_id:
+          description: Recorded build, invocation or command identifier.
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: Recorded outcome; unknown does not imply success.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - parent_id
+        - execution_id
+        - status
+        - cache_status
+        - duration_ms
+        - git_branch
+        - git_commit_sha
+        - is_ci
+        - observed_at
+      title: BazelBuildActionObservation
+      type: object
+      x-struct:
       x-validate:
     GenerationsIndexBefore:
       description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
@@ -9966,7 +10077,7 @@ components:
               x-struct:
               x-validate:
             volume_bytes:
-              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
               nullable: true
               type: integer
               x-struct:
@@ -14280,7 +14391,7 @@ components:
                 x-struct:
                 x-validate:
               volume_bytes:
-                description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                 nullable: true
                 type: integer
                 x-struct:
@@ -21299,7 +21410,7 @@ paths:
                     x-struct:
                     x-validate:
                   volume_bytes:
-                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                     nullable: true
                     type: integer
                     x-struct:
@@ -25164,6 +25275,206 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/bazel/actions:
+    get:
+      callbacks: {}
+      operationId: listProjectBazelBuildActions
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Search names and identity.
+          in: query
+          name: q
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive ISO 8601 start, within the last 90 days.
+          in: query
+          name: start_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exclusive ISO 8601 end, defaulting to now.
+          in: query
+          name: end_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: environment
+          required: false
+          schema:
+            default: any
+            enum:
+              - any
+              - ci
+              - local
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact recorded branch.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            maximum: 10000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  actions:
+                    items:
+                      properties:
+                        first_seen_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: Stable project-scoped identity, independent of a run.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        identity:
+                          additionalProperties:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: object
+                          x-struct:
+                          x-validate:
+                        last_seen_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        observations:
+                          description: Recorded observations in the list's selected cohort.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - identity
+                        - first_seen_at
+                        - last_seen_at
+                      title: BazelBuildAction
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - actions
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List Bazel actions across builds.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid filters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found in this project
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Analytics query exceeded the server's resource limits
+      summary: List Bazel actions across builds.
+      tags:
+        - BazelBuildAction
   /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/file:
     get:
       callbacks: {}
@@ -26162,7 +26473,7 @@ paths:
                               x-struct:
                               x-validate:
                             volume_bytes:
-                              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                               nullable: true
                               type: integer
                               x-struct:
@@ -28895,7 +29206,7 @@ paths:
                 type: object
                 x-struct:
                 x-validate:
-          description: List recorded history for an Xcode generated-project module across builds.
+          description: List recorded history for an Xcode module across builds.
         '400':
           content:
             application/json:
@@ -28941,7 +29252,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Analytics query exceeded the server's resource limits
-      summary: List recorded history for an Xcode generated-project module across builds.
+      summary: List recorded history for an Xcode module across builds.
       tags:
         - XcodeCachedModule
   /api/projects/{account_handle}/{project_handle}/cargo/builds:
@@ -34481,7 +34792,7 @@ paths:
                 type: object
                 x-struct:
                 x-validate:
-          description: Get an Xcode generated-project module and its analytics across builds.
+          description: Get an Xcode module and its analytics across builds.
         '400':
           content:
             application/json:
@@ -34527,7 +34838,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Analytics query exceeded the server's resource limits
-      summary: Get an Xcode generated-project module and its analytics across builds.
+      summary: Get an Xcode module and its analytics across builds.
       tags:
         - XcodeCachedModule
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}:
@@ -39916,6 +40227,396 @@ paths:
       summary: Uploads a preview icon.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/bazel/actions/{action_id}:
+    get:
+      callbacks: {}
+      operationId: getProjectBazelBuildAction
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: action_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive ISO 8601 start, within the last 90 days.
+          in: query
+          name: start_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exclusive ISO 8601 end, defaulting to now.
+          in: query
+          name: end_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: environment
+          required: false
+          schema:
+            default: any
+            enum:
+              - any
+              - ci
+              - local
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact recorded branch.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  action:
+                    properties:
+                      first_seen_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      id:
+                        description: Stable project-scoped identity, independent of a run.
+                        format: uuid
+                        type: string
+                        x-struct:
+                        x-validate:
+                      identity:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                      last_seen_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      observations:
+                        description: Recorded observations in the list's selected cohort.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - name
+                      - identity
+                      - first_seen_at
+                      - last_seen_at
+                    title: BazelBuildAction
+                    type: object
+                    x-struct:
+                    x-validate:
+                  analytics:
+                    properties:
+                      points:
+                        items:
+                          properties:
+                            avg_duration_ms:
+                              description: Average recorded duration in milliseconds.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            date:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            duration_samples:
+                              description: Number of observations with a recorded duration, including genuine zero durations.
+                              minimum: 0
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            failures:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            hit_rate:
+                              description: Percentage of known cache lookups that hit; unavailable without recorded lookups.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            hits:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            misses:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            observations:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p50_duration_ms:
+                              description: Median recorded duration in milliseconds.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            p90_duration_ms:
+                              description: 90th percentile recorded duration in milliseconds.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            p99_duration_ms:
+                              description: 99th percentile recorded duration in milliseconds.
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                          required:
+                            - observations
+                            - hits
+                            - misses
+                            - failures
+                            - hit_rate
+                            - avg_duration_ms
+                            - p50_duration_ms
+                            - p90_duration_ms
+                            - p99_duration_ms
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      previous:
+                        properties:
+                          avg_duration_ms:
+                            description: Average recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          duration_samples:
+                            description: Number of observations with a recorded duration, including genuine zero durations.
+                            minimum: 0
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          failures:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          hit_rate:
+                            description: Percentage of known cache lookups that hit; unavailable without recorded lookups.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          hits:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          misses:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          observations:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          p50_duration_ms:
+                            description: Median recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          p90_duration_ms:
+                            description: 90th percentile recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          p99_duration_ms:
+                            description: 99th percentile recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                        required:
+                          - observations
+                          - hits
+                          - misses
+                          - failures
+                          - hit_rate
+                          - avg_duration_ms
+                          - p50_duration_ms
+                          - p90_duration_ms
+                          - p99_duration_ms
+                        type: object
+                        x-struct:
+                        x-validate:
+                      total:
+                        properties:
+                          avg_duration_ms:
+                            description: Average recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          duration_samples:
+                            description: Number of observations with a recorded duration, including genuine zero durations.
+                            minimum: 0
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          failures:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          hit_rate:
+                            description: Percentage of known cache lookups that hit; unavailable without recorded lookups.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          hits:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          misses:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          observations:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          p50_duration_ms:
+                            description: Median recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          p90_duration_ms:
+                            description: 90th percentile recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          p99_duration_ms:
+                            description: 99th percentile recorded duration in milliseconds.
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                        required:
+                          - observations
+                          - hits
+                          - misses
+                          - failures
+                          - hit_rate
+                          - avg_duration_ms
+                          - p50_duration_ms
+                          - p90_duration_ms
+                          - p99_duration_ms
+                        type: object
+                        x-struct:
+                        x-validate:
+                    required:
+                      - total
+                      - previous
+                      - points
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - action
+                  - analytics
+                type: object
+                x-struct:
+                x-validate:
+          description: Get a Bazel action and its analytics across builds.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid filters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found in this project
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Analytics query exceeded the server's resource limits
+      summary: Get a Bazel action and its analytics across builds.
+      tags:
+        - BazelBuildAction
   /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks:
     get:
       callbacks: {}
@@ -43493,7 +44194,7 @@ paths:
                           x-struct:
                           x-validate:
                         volume_bytes:
-                          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                           nullable: true
                           type: integer
                           x-struct:
@@ -43979,7 +44680,7 @@ paths:
                 type: object
                 x-struct:
                 x-validate:
-          description: List Xcode generated-project modules across builds.
+          description: List Xcode modules across builds.
         '400':
           content:
             application/json:
@@ -44025,7 +44726,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Analytics query exceeded the server's resource limits
-      summary: List Xcode generated-project modules across builds.
+      summary: List Xcode modules across builds.
       tags:
         - XcodeCachedModule
   /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}:
@@ -44827,6 +45528,307 @@ paths:
       summary: Get a webhook endpoint.
       tags:
         - Webhooks
+  /api/projects/{account_handle}/{project_handle}/bazel/actions/{action_id}/executions:
+    get:
+      callbacks: {}
+      operationId: listProjectBazelBuildActionHistory
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: action_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Inclusive ISO 8601 start, within the last 90 days.
+          in: query
+          name: start_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exclusive ISO 8601 end, defaulting to now.
+          in: query
+          name: end_at
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: environment
+          required: false
+          schema:
+            default: any
+            enum:
+              - any
+              - ci
+              - local
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact recorded branch.
+          in: query
+          name: branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            maximum: 10000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Opaque cursor for the next history page.
+          in: query
+          name: after
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: Opaque cursor for the previous history page.
+          in: query
+          name: before
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  executions:
+                    items:
+                      properties:
+                        cache_status:
+                          description: Observed cache result; none means no recorded cache lookup.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          description: Recorded duration; cache-operation time is not compilation time.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        execution_id:
+                          description: Native execution identifier for drill-down.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          nullable: true
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        observed_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        parent_id:
+                          description: Recorded build, invocation or command identifier.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Recorded outcome; unknown does not imply success.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - parent_id
+                        - execution_id
+                        - status
+                        - cache_status
+                        - duration_ms
+                        - git_branch
+                        - git_commit_sha
+                        - is_ci
+                        - observed_at
+                      title: BazelBuildActionObservation
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    description: Pagination metadata.
+                    properties:
+                      after:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      before:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      current_page:
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      end_cursor:
+                        description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      has_next_page:
+                        description: Whether there are more pages available.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        description: Whether there are previous pages available.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      page_size:
+                        description: Number of items per page.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      start_cursor:
+                        description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      total_count:
+                        description: Total number of items. Always `nil` when using cursor-based pagination.
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_pages:
+                        description: Total number of pages. Always `nil` when using cursor-based pagination.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - has_next_page
+                      - has_previous_page
+                      - page_size
+                    title: BuildHistoryPagination
+                    type: object
+                    x-struct: Elixir.TuistWeb.API.Schemas.PaginationMetadata
+                    x-validate:
+                required:
+                  - executions
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List recorded history for a Bazel action across builds.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid filters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found in this project
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Analytics query exceeded the server's resource limits
+      summary: List recorded history for a Bazel action across builds.
+      tags:
+        - BazelBuildAction
   /api/projects/{account_handle}/{project_handle}/builds/upload/complete:
     post:
       callbacks: {}
