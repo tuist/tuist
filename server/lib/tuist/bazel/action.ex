@@ -5,6 +5,8 @@ defmodule Tuist.Bazel.Action do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
+  alias Tuist.BuildEntities.Producers
   alias Tuist.ClickHouseRepo
   alias Tuist.Tests.Sanitizer
 
@@ -28,8 +30,7 @@ defmodule Tuist.Bazel.Action do
     rows = Enum.map(actions, &row(project, &1))
 
     if Enum.all?(rows, &is_map/1) do
-      __MODULE__.Buffer.insert_all(rows)
-      :ok
+      insert_actions(project, actions, rows)
     else
       {:error, :invalid_action}
     end
@@ -38,12 +39,17 @@ defmodule Tuist.Bazel.Action do
   def ingest(project, action) do
     case row(project, action) do
       %{} = row ->
-        __MODULE__.Buffer.insert_all([row])
-        :ok
+        insert_actions(project, [action], [row])
 
       error ->
         error
     end
+  end
+
+  defp insert_actions(project, actions, rows) do
+    __MODULE__.Buffer.insert_all(rows)
+    if BuildEntities.enabled?(project), do: Producers.bazel_actions(project, actions)
+    :ok
   end
 
   defp row(project, %{

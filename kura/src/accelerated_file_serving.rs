@@ -2794,7 +2794,9 @@ mod tests {
         assert!(line.contains("peer=127.0.0.1:"), "{line}");
         assert!(line.contains("connection_age_ms="), "{line}");
         assert!(
-            line.contains("unspecific protocol error detected"),
+            line.contains(
+                "http2 error -> connection error detected: unspecific protocol error detected"
+            ),
             "{line}"
         );
     }

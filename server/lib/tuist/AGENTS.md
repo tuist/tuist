@@ -58,9 +58,7 @@ This directory contains the core business logic and domain modules for the serve
   migrate-time processor grants and CNPG fallback SQL in sync; profile upload
   creation and expiration remain web-runtime responsibilities.
 
-- Build ingestion no longer reads `feature_flags`. Its processor read grant in
-  `Release` and `infra/cnpg/tuist-processor-grants.sql` remains for compatibility
-  with older processor releases during rolling deployments and rollbacks.
+- Xcode build ingestion reads the per-project `build_entities` feature flag before deriving compilation observations only when targets are reported. Empty target lists must skip inventory flag lookups so unrelated streamed-step/log ingestion remains flag-free. Preserve the processor read grant on `feature_flags` in `Release` and `infra/cnpg/tuist-processor-grants.sql`.
 
 - ClickHouse migrations run directly against the authoritative deployment; the Cloud mirror, read-route flag and schema-clone machinery have been removed. Immutable report consumers still require migrated views with enrollment off. Hold consumer rollout until migration and direct read-credential preflight pass on every serving replica; do not reintroduce shadow repositories as a fallback.
 - `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.

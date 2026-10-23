@@ -81,6 +81,52 @@ defmodule Tuist.BuildEntities.Producers do
   defp gradle_cache_status(_outcome, _remote_cache_miss), do: "none"
 
   @doc """
+  BEP action executions, not profile intervals or cache RPCs. Target, mnemonic
+  and configured primary output identify a logical action across builds; the
+  output retains Bazel's configuration prefix rather than merging configurations.
+  Execution start distinguishes repeated attempts in one invocation. Older Kura
+  payloads without this identity remain accepted but unindexed. Missing end-time
+  evidence stays untimed, and a measured zero remains zero.
+  """
+  def bazel_actions(project, actions) do
+    actions
+    |> Enum.flat_map(fn action ->
+      with target when is_binary(target) and byte_size(target) in 1..1024 <- action["target_label"],
+           mnemonic when is_binary(mnemonic) and byte_size(mnemonic) in 1..128 <- action["mnemonic"],
+           started when is_integer(started) and started > 0 <- action["started_at_ms"],
+           {:ok, observed_at} <- DateTime.from_unix(started, :millisecond) do
+        output = action["primary_output"]
+
+        [
+          %{
+            project_id: project.id,
+            system: :bazel,
+            kind: "action",
+            identity: %{"target_label" => target, "mnemonic" => mnemonic, "primary_output" => output},
+            name: "#{mnemonic} #{Path.basename(output)}",
+            parent_id: action["invocation_id"],
+            discriminator: started,
+            execution_id: Integer.to_string(started),
+            status: if(action["success"], do: "success", else: "failure"),
+            cache_status: "none",
+            duration_ms: integer_or_nil(action["duration_ms"]),
+            observed_at: observed_at,
+            git_branch: optional_string(action["git_branch"]),
+            git_commit_sha: optional_string(action["git_commit_sha"]),
+            is_ci: if(is_boolean(action["is_ci"]), do: action["is_ci"])
+          }
+        ]
+      else
+        _ -> []
+      end
+    end)
+    |> BuildEntities.record()
+  end
+
+  defp optional_string(value) when is_binary(value) and byte_size(value) <= 512, do: value
+  defp optional_string(_), do: nil
+
+  @doc """
   Mix compiled files and the modules they define, given the build row and
   pairs of each reported file with the `mix_compiled_files` row inserted for
   it. Module observations carry the defining file's compilation duration: Mix
@@ -184,6 +230,49 @@ defmodule Tuist.BuildEntities.Producers do
     end)
     |> BuildEntities.record()
   end
+
+  @doc """
+  Xcode targets with measured compilation work from an activity log. They share
+  the graph's project/target identity, but refer to the native build rather than
+  a command event. The execution reference distinguishes these sources without
+  treating a cache resolution as another compilation sample.
+
+  Activity logs report zero compilation time for targets that compiled no
+  sources. Omit those targets rather than pricing incremental no-work builds as
+  zero-cost compilations. Missing target outcomes remain unknown.
+  """
+  def xcode_build(build, targets) do
+    targets
+    |> Enum.filter(fn target ->
+      Map.get(target, :project) not in [nil, ""] and Map.get(target, :name) not in [nil, ""] and
+        is_integer(Map.get(target, :compilation_duration)) and target.compilation_duration > 0
+    end)
+    |> with_ordinals(&[&1.project, &1.name])
+    |> Enum.map(fn {target, ordinal} ->
+      %{
+        project_id: build.project_id,
+        system: :xcode,
+        kind: "module",
+        identity: %{"project" => target.project, "target" => target.name},
+        name: target.name,
+        parent_id: build.id,
+        discriminator: "compilation:#{ordinal}",
+        execution_id: "build_target:#{ordinal}",
+        status: xcode_build_status(Map.get(target, :status)),
+        cache_status: "none",
+        duration_ms: target.compilation_duration,
+        git_branch: build.git_branch,
+        git_commit_sha: build.git_commit_sha,
+        is_ci: build.is_ci,
+        observed_at: build.started_at || build.inserted_at
+      }
+    end)
+    |> BuildEntities.record()
+  end
+
+  defp xcode_build_status(status) when status in [:success, "success"], do: "success"
+  defp xcode_build_status(status) when status in [:failure, "failure"], do: "failure"
+  defp xcode_build_status(_status), do: "unknown"
 
   # `XcodeTarget.changeset/5` stores the hit as its Enum8 integer, and records a
   # target with module cache metadata but no hit as a miss.

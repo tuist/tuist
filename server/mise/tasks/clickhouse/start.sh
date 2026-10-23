@@ -194,6 +194,10 @@ fi
 # a new driver session, losing the sandbox transaction and its uncommitted rows.
 (
   cd "${CLICKHOUSE_RUNTIME_DIR}"
+  # Container runtimes can inherit a 1024-file soft limit. Match release startup
+  # by using the available hard limit; some local platforms reject the raise.
+  ulimit -Sn "$(ulimit -Hn)" 2>/dev/null || true
+  echo "Starting ClickHouse with open-files limit $(ulimit -Sn)"
   TZ=UTC nohup clickhouse server \
     -L "${SERVER_LOG}" \
     -E "${ERROR_LOG}" \
