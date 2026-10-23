@@ -347,6 +347,10 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   (hard-linking LFS objects where it can) and streams it as a tar to the agent's
   `/checkout-export` (3 minutes; a cold export carries the whole repository).
   The runner never gets a writable host directory.
+- The export runs git as the runner user with `safe.directory=*`: a container
+  job's actions/checkout runs as the container's root, so the workspace's
+  `.git` belongs to root and git would refuse it as dubious ownership, leaving
+  the lineage cold forever (`skipped (no commit checked out)`).
 - The export (shared with macOS, `checkout_export.go`) packs the job commit and
   the trees and blobs of its tree that the mounted master's tip tree lacks, and
   names the job commit as its only shallow boundary. It never asks git to walk
