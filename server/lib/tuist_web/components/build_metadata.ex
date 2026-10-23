@@ -86,17 +86,12 @@ defmodule TuistWeb.Components.BuildMetadata do
           data-part="content"
           hidden
         >
-          <.table id="build-environment-table" rows={@properties} row_key={fn {key, _, _} -> key end}>
-            <:col
-              :let={{_key, label, _value}}
-              label={dgettext("dashboard_builds", "Reported property")}
-            >
-              <.text_cell label={label} />
-            </:col>
-            <:col :let={{_key, _label, value}} label={dgettext("dashboard_builds", "Value")}>
-              <.text_cell label={value} />
-            </:col>
-          </.table>
+          <dl id="build-environment-grid" data-part="metadata-grid">
+            <div :for={{key, label, value} <- @properties} data-part="metadata" data-field={key}>
+              <dt data-part="title">{label}</dt>
+              <dd data-part="label">{value}</dd>
+            </div>
+          </dl>
         </.card_section>
       </.card>
     </div>

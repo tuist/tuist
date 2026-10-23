@@ -48,6 +48,8 @@ defmodule TuistWeb.Components.BuildMetadataTest do
              )
 
     assert [_] = Floki.find(document, "#build-environment-content.noora-card__section[hidden]")
+    assert [_] = Floki.find(document, "#build-environment-content > dl#build-environment-grid")
+    assert [] == Floki.find(document, "table")
     refute html =~ "custom-metadata-table"
   end
 
@@ -92,11 +94,50 @@ defmodule TuistWeb.Components.BuildMetadataTest do
       )
 
     document = Floki.parse_fragment!(html)
-    rows = Floki.find(document, "#build-environment-table tbody tr")
-    assert length(rows) == 2
-    assert Floki.text(hd(rows)) =~ "Java Version"
-    assert Floki.text(List.last(rows)) =~ "Eclipse Adoptium"
+    properties = Floki.find(document, "#build-environment-grid > [data-part=metadata]")
+    assert length(properties) == 2
+    assert properties |> hd() |> Floki.find("dt") |> Floki.text() == "Java Version"
+    assert properties |> hd() |> Floki.find("dd") |> Floki.text() == "21.0.7"
+    assert properties |> List.last() |> Floki.find("dt") |> Floki.text() == "Java vendor"
+    assert properties |> List.last() |> Floki.find("dd") |> Floki.text() == "Eclipse Adoptium"
     refute html =~ "mobile"
+  end
+
+  test "environment grid keeps label-value pairs in field order and formats observations" do
+    html =
+      render_component(&BuildMetadata.environment_metadata/1,
+        fields: [{"Gradle Version", "9.2.1"}, {"Java Version", nil}, {"Host", "linux-arm64"}],
+        values: %{
+          "tuist.jvm.max_heap_bytes" => "1073741824",
+          "tuist.cpu.available_processors" => "28",
+          "custom" => "not an environment field"
+        }
+      )
+
+    document = Floki.parse_fragment!(html)
+    properties = Floki.find(document, "#build-environment-grid > [data-part=metadata]")
+
+    assert Enum.map(properties, &(&1 |> Floki.find("dt") |> Floki.text())) == [
+             "Gradle Version",
+             "Host",
+             "Available logical processors",
+             "Maximum JVM heap"
+           ]
+
+    assert Enum.map(properties, &Floki.attribute(&1, "data-field")) == [
+             ["field:Gradle Version"],
+             ["field:Host"],
+             ["tuist.cpu.available_processors"],
+             ["tuist.jvm.max_heap_bytes"]
+           ]
+
+    assert properties |> Enum.at(2) |> Floki.find("dd") |> Floki.text() == "28"
+
+    assert properties |> List.last() |> Floki.find("dd") |> Floki.text() ==
+             Tuist.Utilities.ByteFormatter.format_bytes(1_073_741_824)
+
+    refute html =~ "Java Version"
+    refute html =~ "not an environment field"
   end
 
   test "missing existing fields are omitted rather than displaying an empty environment" do

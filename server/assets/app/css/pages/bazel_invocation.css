@@ -17,8 +17,7 @@
     text-decoration: underline;
   }
 
-  & #custom-metadata-table,
-  & #build-environment-table {
+  & #custom-metadata-table {
     & th:first-child,
     & td:first-child {
       width: 35%;
