@@ -1959,13 +1959,16 @@ runnersFleet:
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors follow demand and sum to 3 of the 16-slot budget; the remaining
-  # 13 slots are dynamically apportioned by queue depth across the pools.
-  # Only a warm runner claims a job in under 10 s. 27.0 keeps two: in the
+  # Floors follow demand and sum to 4 of the 16-slot budget; the remaining
+  # 12 slots are dynamically apportioned by queue depth across the pools.
+  # Only a warm runner claims a job in under 10 s; a cold one takes 23 to
+  # 30 s (Pod creation, clone, boot, first poll). 27.0 keeps two: in the
   # week to 2026-10-22 it had a job in 46 of the 60 weekday working hours
   # (07:00 to 18:00 UTC) and claimed only 55% of its 1,112 jobs within 10 s
-  # without a floor. Images with jobs in fewer hours (27.1 in 9, the 12 vCPU
-  # pools, older Xcodes) sit cold so an unused runner doesn't tie up a host.
+  # without a floor. 27.1 keeps one for a customer whose 158 jobs that
+  # week came mostly outside those hours. Images with fewer jobs (the
+  # 12 vCPU pools, older Xcodes) sit cold so an unused runner doesn't tie
+  # up a host.
   #
   # The default (26.6) keeps one although it had a job in only 3 of those
   # hours, since a new account's first job lands there and `tuist-macos`
@@ -1985,7 +1988,7 @@ runnersFleet:
     "27.1":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 1
         maxReplicas: 16
     "27.0":
       autoscaling:

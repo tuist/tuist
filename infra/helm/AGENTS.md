@@ -28,7 +28,8 @@ runs the mixed-version latency expression through promtool.
   other images' bursts wait for. Images with a job in most weekday working
   hours keep one: on the BER1 rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
   one (`rackFleet.runners.xcodeOverrides`, default 0); on the rented fleet
-  27.0 keeps two and the default image 26.6 one (`runnersFleet.xcodeOverrides`).
+  27.0 keeps two, and 27.1 and the default image 26.6 one
+  (`runnersFleet.xcodeOverrides`).
   Re-measure from `tuist.runner_jobs` before changing them.
   The 12 vCPU shape pools stay at 0, because an idle one holds a whole host.
   Staging and canary run one lent rack host with two slots: staging warms
