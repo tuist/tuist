@@ -40,11 +40,18 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   def handle_params(params, _url, socket) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
     all_cases = Customers.get_case_studies(locale)
-    search_query = Map.get(params, "search", "")
+
+    search_query =
+      case Map.get(params, "search") do
+        search when is_binary(search) -> search
+        _ -> ""
+      end
 
     page =
-      case Integer.parse(Map.get(params, "page", "1")) do
-        {num, ""} -> num
+      with page when is_binary(page) <- Map.get(params, "page"),
+           {num, ""} <- Integer.parse(page) do
+        num
+      else
         _ -> 1
       end
 

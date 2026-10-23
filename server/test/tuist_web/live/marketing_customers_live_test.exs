@@ -33,7 +33,15 @@ defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
     end
 
     test "falls back to the first page when the page param is not an integer", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, "/customers?page=1'%20ORDER%20BY%201--%20-")
+      for query <- ["page=1'%20ORDER%20BY%201--%20-", "page[]=1"] do
+        {:ok, _lv, html} = live(conn, "/customers?#{query}")
+
+        assert html =~ "Hyperconnect optimized its multi-service pipeline with Tuist"
+      end
+    end
+
+    test "ignores a search param that is not a string", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, "/customers?search[]=x")
 
       assert html =~ "Hyperconnect optimized its multi-service pipeline with Tuist"
     end
