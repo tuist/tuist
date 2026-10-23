@@ -51,6 +51,12 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
 /// through the functions the counters belong to and `llvm-cov`'s function-to-file table, and
 /// writes the result into the result bundle. Evidence only enriches a run: nothing here throws,
 /// and a run whose targets don't link the package is a normal run.
+///
+/// A target whose Swift Testing tests ran in parallel (`TestExecutionModes`) gets no test or suite
+/// evidence from them: the trait only sees the tests that carry it, so a test that overlapped none
+/// of those can still hold the work of an untraited test running beside it. They go up with no
+/// evidence of their own, as a test without the trait does; the target's evidence and its XCTest
+/// tests, which run one at a time per process, are kept.
 @Mockable
 public protocol TestCoverageEvidenceServicing {
     func prepare(platform: TestCoverageEvidencePlatform?, config: Tuist) async -> TestCoverageEvidenceSession?
@@ -58,7 +64,8 @@ public protocol TestCoverageEvidenceServicing {
     func record(
         session: TestCoverageEvidenceSession,
         resultBundlePath: AbsolutePath?,
-        derivedDataDirectory: AbsolutePath?
+        derivedDataDirectory: AbsolutePath?,
+        executionModes: TestExecutionModes?
     ) async -> TestCoverageEvidence?
 }
 
@@ -96,11 +103,12 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     public func record(
         session: TestCoverageEvidenceSession,
         resultBundlePath: AbsolutePath?,
-        derivedDataDirectory: AbsolutePath?
+        derivedDataDirectory: AbsolutePath?,
+        executionModes: TestExecutionModes?
     ) async -> TestCoverageEvidence? {
         defer { try? FileManager.default.removeItem(atPath: session.directory.pathString) }
         guard let resultBundlePath, (try? await fileSystem.exists(resultBundlePath)) == true else { return nil }
-        let evidence = await collect(session: session, derivedDataDirectory: derivedDataDirectory)
+        let evidence = await collect(session: session, derivedDataDirectory: derivedDataDirectory, executionModes: executionModes)
         do {
             try evidence.write(toResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))
         } catch {
@@ -112,9 +120,11 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     /// What the test processes recorded, reduced to files and lines; without scopes, its status
     /// says why there is none.
-    private func collect(session: TestCoverageEvidenceSession, derivedDataDirectory: AbsolutePath?) async
-        -> TestCoverageEvidence
-    {
+    private func collect(
+        session: TestCoverageEvidenceSession,
+        derivedDataDirectory: AbsolutePath?,
+        executionModes: TestExecutionModes?
+    ) async -> TestCoverageEvidence {
         do {
             // TestCoverageAttribution makes a directory per test process as it loads, and removes
             // what it wrote there when recording fails.
@@ -152,7 +162,12 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                     mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
                 }
             }
-            var evidence = Self.reduce(outputs: outputs, filesByFunction: filesByFunction, mappings: mappings)
+            var evidence = Self.reduce(
+                outputs: outputs,
+                filesByFunction: filesByFunction,
+                mappings: mappings,
+                executionModes: executionModes
+            )
             evidence.status = evidence.scopes.isEmpty ? .failed : .collected
             return evidence
         } catch {
@@ -165,11 +180,13 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
 
     /// A test's files are those of every attributable record it has (a parameterized test has
     /// one per argument); a suite's are what ran in the gaps around its tests; a target's are
-    /// everything its processes executed, overlapped tests included.
+    /// everything its processes executed, overlapped tests included. Swift Testing records of a
+    /// target that ran in parallel are attributable to neither a test nor a suite.
     static func reduce(
         outputs: [CoverageObserverOutput],
         filesByFunction: [String: [String: Set<String>]],
-        mappings: [String: VerifiedCoverageMapping] = [:]
+        mappings: [String: VerifiedCoverageMapping] = [:],
+        executionModes: TestExecutionModes? = nil
     ) -> TestCoverageEvidence {
         struct Key: Hashable {
             let kind: TestCoverageEvidence.Kind
@@ -189,7 +206,9 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         }
 
         for output in outputs {
-            for record in output.records {
+            let swiftTestingStart = Self.swiftTestingStart(of: output.records)
+            for (index, record) in output.records.enumerated() {
+                let attributable = index < swiftTestingStart || !Self.runsInParallel(record.module, modes: executionModes)
                 let recordLines = output.lines(of: record, mappings: mappings)
                 var recordFiles: Set<String> = []
                 for (image, functions) in output.functions(of: record) {
@@ -201,6 +220,7 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 if !record.module.isEmpty {
                     add(recordFiles, recordLines, to: Key(kind: .target, module: record.module, suite: "", name: ""))
                 }
+                guard attributable else { continue }
                 switch record.kind {
                 case .gap:
                     guard !record.suite.isEmpty else { continue }
@@ -238,6 +258,22 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             }
             .sorted { ($0.module, $0.suite, $0.name, $0.kind.rawValue) < ($1.module, $1.suite, $1.name, $1.kind.rawValue) }
         return TestCoverageEvidence(paths: paths, scopes: scopes, overlappedTests: unattributed)
+    }
+
+    /// Where a process's Swift Testing records begin: Xcode runs its XCTest tests first, and the
+    /// gap the first Swift Testing scope opens with comes right before the first Swift Testing
+    /// record, since scopes that start while another runs write nothing until they end.
+    static func swiftTestingStart(of records: [CoverageObserverOutput.Record]) -> Int {
+        guard let first = records.firstIndex(where: { $0.kind == .swiftTesting }) else { return records.count }
+        return first > 0 && records[first - 1].kind == .gap ? first - 1 : first
+    }
+
+    /// Whether the module's tests ran in parallel: its target's mode, else the run's, as the
+    /// summary reads them (`TestSummary.applying(executionModes:)`). An unknown mode is not
+    /// parallel, since nothing is guessed.
+    static func runsInParallel(_ module: String, modes: TestExecutionModes?) -> Bool {
+        guard let modes else { return false }
+        return (modes.targets[module] ?? modes.run) == TestExecutionModes.parallel
     }
 
     /// The name the result bundle gives an XCTest test, from its selector: `testAdd` and the
