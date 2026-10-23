@@ -1,0 +1,37 @@
+# Talos machine config patch for the management node (not a Kubernetes
+# manifest). Phase 1 of 2: writes the API-server metric label allow-list.
+# Apply it and confirm the file exists before applying
+# apiserver-metric-labels.yaml, which points the API server at it. See
+# README.md.
+#
+# The same flat metric,label -> allowed-value map the workload clusters get
+# from the aggregateApiServerMetrics ClusterClass variable. __none__ is never
+# emitted, so every value of these labels becomes "unexpected". Talos's root
+# filesystem is read-only outside /var, and its kube-apiserver runs as a
+# non-root user, so the file lives under /var and is world-readable.
+machine:
+  files:
+    - path: /var/lib/kube-apiserver/metric-labels.yaml
+      permissions: 0o644
+      op: create
+      content: |
+        "apiserver_request_total,component": "__none__"
+        "apiserver_request_total,dry_run": "__none__"
+        "apiserver_request_total,group": "__none__"
+        "apiserver_request_total,resource": "__none__"
+        "apiserver_request_total,scope": "__none__"
+        "apiserver_request_total,subresource": "__none__"
+        "apiserver_request_total,version": "__none__"
+        "apiserver_request_duration_seconds,component": "__none__"
+        "apiserver_request_duration_seconds,dry_run": "__none__"
+        "apiserver_request_duration_seconds,group": "__none__"
+        "apiserver_request_duration_seconds,resource": "__none__"
+        "apiserver_request_duration_seconds,scope": "__none__"
+        "apiserver_request_duration_seconds,subresource": "__none__"
+        "apiserver_request_duration_seconds,version": "__none__"
+        "apiserver_request_terminations_total,component": "__none__"
+        "apiserver_request_terminations_total,group": "__none__"
+        "apiserver_request_terminations_total,resource": "__none__"
+        "apiserver_request_terminations_total,scope": "__none__"
+        "apiserver_request_terminations_total,subresource": "__none__"
+        "apiserver_request_terminations_total,version": "__none__"

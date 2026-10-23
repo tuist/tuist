@@ -270,7 +270,8 @@ alone is not sufficient. Only then set `apiServerMetricsAggregated: true` in
 that cluster's chart overlay to remove the legacy labeldrop. Until then, old
 sources still have the existing collision problem; this gate does not repair
 it by itself. Management needs an independently verified source configuration
-before its chart gate can be enabled.
+before its chart gate can be enabled: the two-phase Talos patches in
+`infra/k8s/mgmt/talos/` (see that README).
 
 After the chart gate is enabled, disabling the ClusterClass variable preserves
 correct metric dimensions but increases billed series/DPM. Budget that emergency

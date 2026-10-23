@@ -1,0 +1,13 @@
+# Talos machine config patch for the management node (not a Kubernetes
+# manifest). Phase 2 of 2: points kube-apiserver at the allow-list that
+# apiserver-metric-labels-file.yaml wrote. Never apply it before that file
+# exists on the node: the static pod can't start with a missing mount
+# source, and this is the only API server. See README.md.
+cluster:
+  apiServer:
+    extraArgs:
+      allow-metric-labels-manifest: /var/lib/kube-apiserver/metric-labels.yaml
+    extraVolumes:
+      - hostPath: /var/lib/kube-apiserver/metric-labels.yaml
+        mountPath: /var/lib/kube-apiserver/metric-labels.yaml
+        readonly: true
