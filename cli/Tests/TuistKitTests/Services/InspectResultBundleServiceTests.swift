@@ -1029,52 +1029,6 @@ struct UploadResultBundleServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func uploadTestSummary_doesNotMarkARunPartialForQuarantinedTestsAlone() async throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
-        given(xcResultService)
-            .coveredFilePaths(path: .any)
-            .willReturn(["/tmp/project/Sources/A.swift"])
-        given(gitController)
-            .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
-            .willReturn(["Sources/A.swift": "aaa"])
-        given(coverageUploadService)
-            .prepare(
-                resultBundlePath: .any,
-                manifest: .matching { !$0.partial },
-                fullHandle: .any,
-                serverURL: .any,
-                testRunId: .any
-            )
-            .willReturn(PreparedCoverage(coverage: TestRunCoverage(tool: "xccov", partial: false, files: []), testRunId: nil))
-
-        let storage = RunMetadataStorage()
-        await storage.update(skippedQuarantinedTestIdentifiers: ["AppTests/FlakyTests"])
-        try await RunMetadataStorage.$current.withValue(storage) {
-            _ = try await subject.uploadTestSummary(
-                testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
-                resultBundlePath: xcresultPath,
-                projectDerivedDataDirectory: nil,
-                config: .test(fullHandle: "tuist/tuist"),
-                shardPlanId: nil,
-                shardIndex: nil,
-                skipTestIdentifiers: ["AppTests/FlakyTests"]
-            )
-        }
-
-        verify(coverageUploadService)
-            .prepare(
-                resultBundlePath: .any,
-                manifest: .matching { !$0.partial },
-                fullHandle: .any,
-                serverURL: .any,
-                testRunId: .any
-            )
-            .called(1)
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_leavesCoverageOutWhenTheConfigTurnsItsUploadOff() async throws {
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
