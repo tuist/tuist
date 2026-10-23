@@ -144,10 +144,6 @@ these schemas persist volume identities and per-job uses.
 - macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
-- `runner_cache_volumes.builtin_name`, `runner_cache_volume_uses.superseded_at` and
-  `runner_cache_volume_measurements.retired` are legacy columns of the removed
-  built-in volume. No schema reads them; drop them in a follow-up migration.
-
 - Allocation resolves execution binding and platform in one session query. Apply
   the platform rollout flag to that same result, including pending (425) sessions.
 
