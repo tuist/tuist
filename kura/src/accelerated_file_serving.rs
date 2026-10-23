@@ -2768,8 +2768,8 @@ mod tests {
             .await
             .unwrap();
         let mut received = Vec::new();
-        let _ = tokio::time::timeout(Duration::from_secs(5), stream.read_to_end(&mut received))
-            .await;
+        let _ =
+            tokio::time::timeout(Duration::from_secs(5), stream.read_to_end(&mut received)).await;
 
         let logged = tokio::time::timeout(Duration::from_secs(5), async {
             loop {
@@ -2793,6 +2793,9 @@ mod tests {
         assert!(line.contains(&format!("listener={addr}")), "{line}");
         assert!(line.contains("peer=127.0.0.1:"), "{line}");
         assert!(line.contains("connection_age_ms="), "{line}");
-        assert!(line.contains("PROTOCOL_ERROR"), "{line}");
+        assert!(
+            line.contains("unspecific protocol error detected"),
+            "{line}"
+        );
     }
 }
