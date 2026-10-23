@@ -220,7 +220,9 @@ defmodule Tuist.Ops.ClickHouse do
       max_threads: @max_threads,
       max_result_rows: result_limit,
       max_result_bytes: @max_result_bytes,
-      max_block_size: result_limit,
+      # Processing blocks must not shrink with the response limit: even a
+      # one-row aggregate may scan millions of rows. The outer LIMIT caps output.
+      max_block_size: @max_rows + 1,
       result_overflow_mode: "throw",
       output_format_json_quote_64bit_integers: 0
     ]

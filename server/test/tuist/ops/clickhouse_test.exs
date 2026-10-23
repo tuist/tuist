@@ -25,7 +25,7 @@ defmodule Tuist.Ops.ClickHouseTest do
       assert settings[:max_threads] == 2
       assert settings[:max_result_rows] == 3
       assert settings[:max_result_bytes] == 5 * 1024 * 1024
-      assert settings[:max_block_size] == 3
+      assert settings[:max_block_size] == 10_001
       assert settings[:result_overflow_mode] == "throw"
 
       {:ok,
@@ -54,6 +54,25 @@ defmodule Tuist.Ops.ClickHouseTest do
                params: %{"project_ids" => [10, 20]},
                limit: 2
              )
+  end
+
+  test "a one-row result limit does not force aggregation into two-row blocks" do
+    assert {:ok, %{rows: [row], num_rows: 1, truncated?: false}} =
+             ClickHouse.execute(
+               "SELECT count() AS input_rows, sum(number) AS total, max(blockSize()) AS largest_block FROM numbers(100003)",
+               limit: 1
+             )
+
+    assert row["input_rows"] == 100_003
+    assert row["total"] == 5_000_250_003
+    assert row["largest_block"] > 2
+  end
+
+  test "listing limits and truncation hold with larger processing blocks" do
+    for {input_rows, truncated?} <- [{2, false}, {7, true}] do
+      assert {:ok, %{rows: [%{"number" => 0}, %{"number" => 1}], num_rows: 2, truncated?: ^truncated?}} =
+               ClickHouse.execute("SELECT number FROM numbers(#{input_rows})", limit: 2)
+    end
   end
 
   test "rejects metadata statements" do
