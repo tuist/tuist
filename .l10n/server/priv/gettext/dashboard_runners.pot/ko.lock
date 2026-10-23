@@ -1,0 +1,23 @@
+{
+  "hash": "a221fe6c6d1b44b90ec8e098c8c276e464c3094465a12b9bf6cacc3f4525a6da",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "file": "server/L10N.md",
+        "hash": "c492c51cd80fe9f2e65f78078814f4c0450564fd840e075598276364f83073b9",
+        "locale_override": {
+          "file": "server/L10N/ko.md",
+          "hash": "246a7eeda154e1fe1173aa6f05c26415a581a6a2dae6c84f6ebc30d895537c3c"
+        }
+      },
+      "file": "L10N.md",
+      "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
+    },
+    "source": {
+      "file": "server/priv/gettext/dashboard_runners.pot",
+      "hash": "3fe5b3604112b90637307c30d0597c908755cfa15a783eec427977819096a52c"
+    }
+  },
+  "model": "hive:Translator",
+  "translated_at": "2026-10-23T08:20:11.018485Z"
+}

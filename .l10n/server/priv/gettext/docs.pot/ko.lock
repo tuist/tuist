@@ -1,19 +1,23 @@
 {
-  "hash": "a745eb2c88076fc70ea3f74cf31c43b42311822eef9eac31be9f7ef5d115d4cc",
+  "hash": "35d3a37c55ce511f3fa2628787d389eb87dc617b65b061d4967f6bf5c9bf905a",
   "hash_tree": {
     "context": {
       "child": {
         "file": "server/L10N.md",
-        "hash": "4b6d469c7014caa6766970af517055bd43685866b230e2545cce3b06044cec87"
+        "hash": "c492c51cd80fe9f2e65f78078814f4c0450564fd840e075598276364f83073b9",
+        "locale_override": {
+          "file": "server/L10N/ko.md",
+          "hash": "246a7eeda154e1fe1173aa6f05c26415a581a6a2dae6c84f6ebc30d895537c3c"
+        }
       },
       "file": "L10N.md",
       "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
     },
     "source": {
       "file": "server/priv/gettext/docs.pot",
-      "hash": "d3a8a1a18abf273b056ac39be224ff9399952d78a6d04e50a16eac1eb29ff8b1"
+      "hash": "4b17004cfebefe4beab273a950c82aa847533dc4d3574bd5bf143c6897d51387"
     }
   },
-  "model": "openai:gpt-4.1-mini",
-  "translated_at": "2026-05-11T14:18:19.594370Z"
+  "model": "hive:Translator",
+  "translated_at": "2026-10-23T08:20:02.517211Z"
 }
