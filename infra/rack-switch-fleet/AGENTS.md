@@ -1193,7 +1193,8 @@ addresses and the gateways.
   moves machines onto the prefix is the egress below. Of what the upstream sends, only
   a default route is kept. `birdc -s /run/bird/bird.ctl show protocols` in
   the pod's `bgp` container shows the sessions. CI parses every site's
-  `bird.conf` with the BIRD the edge image installs.
+  `bird.conf` with the runner's BIRD 2 from the Ubuntu archive, installed
+  with apt rather than pulled as an image.
 - **Egress from the site's own prefix.** `management.edge.wan.egress.prefix`
   is an IPv4 block inside a prefix `bgp` announces (`95.130.119.16/28`), and
   the Mac minis on the machines segment go out to the WAN translated into it
