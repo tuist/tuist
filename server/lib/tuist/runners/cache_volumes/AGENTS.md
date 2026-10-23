@@ -50,7 +50,8 @@ these schemas persist volume identities and per-job uses.
   Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.
 - An open Linux or macOS session awaiting its verified execution binding returns pending
-  (425 to the authenticated agent). The agent retries for at most 30 seconds;
+  (425 to the authenticated agent). The agent retries for at most 30 seconds
+  (the macOS agent 25 seconds per Pod, shared by its checkout and volumes);
   unknown/closed sessions and denied provider identities remain unavailable.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
   runner's `in_progress` job from GitHub's API and records it through
