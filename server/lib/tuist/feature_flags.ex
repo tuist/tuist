@@ -2,16 +2,25 @@ defmodule Tuist.FeatureFlags do
   @moduledoc false
 
   alias Tuist.Environment
+  alias Tuist.Observability
   alias Tuist.Projects.Project
 
   @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
   def immutable_shard_reports_enabled?(account) do
-    FunWithFlags.enabled?(:immutable_shard_reports, for: account) and not xcode_coverage_enabled?(account)
+    Observability.feature_flag_evaluated(
+      :immutable_shard_reports,
+      account,
+      FunWithFlags.enabled?(:immutable_shard_reports, for: account) and not xcode_coverage_enabled?(account)
+    )
   end
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account) do
-    FunWithFlags.enabled?(:kura_positive_fence, for: account)
+    Observability.feature_flag_evaluated(
+      :kura_positive_fence,
+      account,
+      FunWithFlags.enabled?(:kura_positive_fence, for: account)
+    )
   end
 
   @doc """
@@ -19,7 +28,11 @@ defmodule Tuist.FeatureFlags do
   only where runs report from. Off, placement decides exactly as it did before.
   """
   def kura_placement_served_signal_enabled?(account) do
-    FunWithFlags.enabled?(:kura_placement_served_signal, for: account)
+    Observability.feature_flag_evaluated(
+      :kura_placement_served_signal,
+      account,
+      FunWithFlags.enabled?(:kura_placement_served_signal, for: account)
+    )
   end
 
   @doc """
@@ -28,7 +41,11 @@ defmodule Tuist.FeatureFlags do
   DNS publication is independent because new CLIs derive that hostname locally.
   """
   def kura_stable_hostname_enabled?(account) do
-    Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
+    Observability.feature_flag_evaluated(
+      :kura_stable_hostname,
+      account,
+      Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
+    )
   end
 
   @doc """
@@ -42,12 +59,20 @@ defmodule Tuist.FeatureFlags do
   operator-managed switch.
   """
   def runners_enabled?(account) do
-    not runner_flag_required?() or FunWithFlags.enabled?(:runners, for: account)
+    Observability.feature_flag_evaluated(
+      :runners,
+      account,
+      not runner_flag_required?() or FunWithFlags.enabled?(:runners, for: account)
+    )
   end
 
   @doc false
   def runners_enabled?(account, %FunWithFlags.Flag{} = flag) do
-    not runner_flag_required?() or FunWithFlags.Flag.enabled?(flag, for: account)
+    Observability.feature_flag_evaluated(
+      :runners,
+      account,
+      not runner_flag_required?() or FunWithFlags.Flag.enabled?(flag, for: account)
+    )
   end
 
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
@@ -59,7 +84,11 @@ defmodule Tuist.FeatureFlags do
   `:runner_site_cache` flag enables, in every environment.
   """
   def runner_site_cache_enabled?(account) do
-    FunWithFlags.enabled?(:runner_site_cache, for: account)
+    Observability.feature_flag_evaluated(
+      :runner_site_cache,
+      account,
+      FunWithFlags.enabled?(:runner_site_cache, for: account)
+    )
   end
 
   @doc """
@@ -74,7 +103,11 @@ defmodule Tuist.FeatureFlags do
   account there.
   """
   def runner_site_enabled?(account) do
-    Environment.env() in [:stag, :can] or FunWithFlags.enabled?(:runner_site, for: account)
+    Observability.feature_flag_evaluated(
+      :runner_site,
+      account,
+      Environment.env() in [:stag, :can] or FunWithFlags.enabled?(:runner_site, for: account)
+    )
   end
 
   @doc """
@@ -84,10 +117,14 @@ defmodule Tuist.FeatureFlags do
   its data model and API can still change. Development, test, and staging
   default to enabled.
   """
-  def xcode_coverage_enabled?(nil), do: false
+  def xcode_coverage_enabled?(nil), do: Observability.feature_flag_evaluated(:xcode_coverage, :unknown, false)
 
   def xcode_coverage_enabled?(account) do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:xcode_coverage, for: account)
+    Observability.feature_flag_evaluated(
+      :xcode_coverage,
+      account,
+      Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:xcode_coverage, for: account)
+    )
   end
 
   @doc """
@@ -104,7 +141,11 @@ defmodule Tuist.FeatureFlags do
   no-deploy rollback path.
   """
   def kura_rollout_orchestration_enabled? do
-    not FunWithFlags.enabled?(:kura_rollout_orchestration_kill_switch)
+    Observability.feature_flag_evaluated(
+      :kura_rollout_orchestration,
+      nil,
+      not FunWithFlags.enabled?(:kura_rollout_orchestration_kill_switch)
+    )
   end
 
   @doc """
@@ -112,12 +153,17 @@ defmodule Tuist.FeatureFlags do
   toggle (`TUIST_TURNSTILE_ENABLED`) still decides which environments
   render the widget at all; the flag on top is a kill switch, not an
   opt-in: enabling `turnstile_kill_switch` (via /ops/flags, no deploy,
-  no rolling restart) turns the gate off immediately across every
-  replica, everywhere, without touching Helm or the running deployment.
+  no rolling restart) publishes cache invalidation across replicas without
+  touching Helm or the running deployment. Invalidation is best effort;
+  disconnected replicas can retain cached decisions during storage failures.
   This is the ops surface the 2026-09-03 outage did not have.
   """
   def turnstile_enabled? do
-    Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
+    Observability.feature_flag_evaluated(
+      :turnstile,
+      nil,
+      Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
+    )
   end
 
   @doc """
@@ -130,8 +176,12 @@ defmodule Tuist.FeatureFlags do
   everywhere so a rollout is one env-var change per environment.
   """
   def public_page_challenge_enabled? do
-    Environment.public_page_challenge_required?() and
-      not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
+    Observability.feature_flag_evaluated(
+      :public_page_challenge,
+      nil,
+      Environment.public_page_challenge_required?() and
+        not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
+    )
   end
 
   @doc """
@@ -142,8 +192,12 @@ defmodule Tuist.FeatureFlags do
     do: build_entities_enabled?(%Project{id: project_id})
 
   def build_entities_enabled?(%Project{} = project) do
-    not FunWithFlags.enabled?(:build_entities_kill_switch) and
-      FunWithFlags.enabled?(:build_entities, for: project)
+    Observability.feature_flag_evaluated(
+      :build_entities,
+      project,
+      not FunWithFlags.enabled?(:build_entities_kill_switch) and
+        FunWithFlags.enabled?(:build_entities, for: project)
+    )
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

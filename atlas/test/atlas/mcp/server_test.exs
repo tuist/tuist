@@ -4,6 +4,9 @@ defmodule Atlas.MCP.ServerTest do
 
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Server
+  alias Atlas.MCP.Tools.GetTuistFeatureFlag
+  alias Atlas.MCP.Tools.ListTuistFeatureFlags
+  alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
   alias Atlas.Users
   alias Atlas.Users.User
 
@@ -345,6 +348,58 @@ defmodule Atlas.MCP.ServerTest do
     assert Enum.any?(tools, &(&1["name"] == "create_mcp_server"))
     assert Enum.any?(tools, &(&1["name"] == "delete_mcp_server"))
     refute Enum.any?(tools, &(&1["name"] == "review_holiday"))
+  end
+
+  test "feature flag discovery and dispatch require dedicated scopes in addition to the observability group" do
+    stub(Proxy, :list_hoisted_tools, fn _conn -> [] end)
+
+    for {granted, groups, expected_names} <- [
+          {[], ["observability"], []},
+          {["admin:write"], ["observability"], []},
+          {["feature_flags:read"], [], []},
+          {["feature_flags:write"], [], []},
+          {["feature_flags:read"], ["observability"], ~w(list_tuist_feature_flags get_tuist_feature_flag)},
+          {["feature_flags:write"], ["observability"],
+           ~w(list_tuist_feature_flags get_tuist_feature_flag update_tuist_feature_flag)}
+        ] do
+      stub(Users, :has_scope?, fn %User{}, scope -> Atlas.Authorization.granted?(granted, scope) end)
+      conn = %{assigns: %{current_user: %User{}, mcp_claims: %{"mcp_tool_groups" => groups}}}
+      response = Server.handle_message(conn, %{"jsonrpc" => "2.0", "id" => 1, "method" => "tools/list"})
+      names = Enum.map(response["result"]["tools"], & &1["name"])
+
+      for name <- ~w(list_tuist_feature_flags get_tuist_feature_flag update_tuist_feature_flag) do
+        assert name in names == name in expected_names
+
+        if name not in expected_names do
+          response =
+            Server.handle_message(conn, %{
+              "jsonrpc" => "2.0",
+              "id" => 2,
+              "method" => "tools/call",
+              "params" => %{"name" => name, "arguments" => %{}}
+            })
+
+          assert response["error"]["message"] =~ "not available"
+        end
+      end
+    end
+  end
+
+  test "workflow feature flag scope declarations match execution authorization" do
+    assert Server.workflow_tool_scopes(ListTuistFeatureFlags) == ["feature_flags:read"]
+    assert Server.workflow_tool_scopes(GetTuistFeatureFlag) == ["feature_flags:read"]
+    assert Server.workflow_tool_scopes(UpdateTuistFeatureFlag) == ["feature_flags:write"]
+
+    for granted <- [[], ["feature_flags:read"], ["feature_flags:write"]] do
+      stub(Users, :has_scope?, fn %User{}, scope -> Atlas.Authorization.granted?(granted, scope) end)
+
+      for module <- [ListTuistFeatureFlags, GetTuistFeatureFlag, UpdateTuistFeatureFlag] do
+        [scope] = Server.workflow_tool_scopes(module)
+        expected = Atlas.Authorization.granted?(granted, scope)
+        assert Server.workflow_tool_allowed?(%User{}, module) == expected
+        assert Server.workflow_tool_allowed?(%User{}, module.name()) == expected
+      end
+    end
   end
 
   test "returns a controlled tool error for scalar arguments" do

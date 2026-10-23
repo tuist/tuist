@@ -10,6 +10,11 @@ defmodule Atlas.TuistServer do
   (SELECT/WITH/EXPLAIN/SHOW grammar gate + `BEGIN READ ONLY` + statement
   timeout), so this client never touches the database directly.
 
+  Feature flag inspection and mutation use `/api/internal/atlas/flags`, a
+  separate allowlisted, revision-checked and audited Tuist domain API. Writes
+  never retry automatically; callers must retain the same change ID when
+  reconciling an ambiguous transport outcome.
+
   Each call reads the token fresh from disk because the kubelet rotates the
   projected token file in place.
   """
@@ -92,6 +97,21 @@ defmodule Atlas.TuistServer do
     request(:get, path, [], opts)
   end
 
+  @doc "List persisted feature flag rules, not environment-wrapper evaluations."
+  def list_feature_flags(opts \\ []) do
+    request(:get, "/api/internal/atlas/flags", [], opts)
+  end
+
+  @doc "Inspect a feature flag's persisted rules and revision."
+  def get_feature_flag(name, opts \\ []) when is_binary(name) do
+    request(:get, "/api/internal/atlas/flags/#{encode_segment(name)}", [], opts)
+  end
+
+  @doc "Update a flag with an expected revision, idempotent change ID and trusted actor metadata."
+  def update_feature_flag(name, attrs, opts \\ []) when is_binary(name) and is_map(attrs) do
+    request(:put, "/api/internal/atlas/flags/#{encode_segment(name)}", [json: attrs, retry: false], opts)
+  end
+
   defp clickhouse_limit(opts) do
     case Keyword.get(opts, :limit) do
       limit when is_integer(limit) and limit > 0 -> limit
@@ -135,7 +155,7 @@ defmodule Atlas.TuistServer do
         {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
           {:ok, body}
 
-        {:ok, %Req.Response{status: status, body: %{"error" => error}}} ->
+        {:ok, %Req.Response{status: status, body: %{"error" => error}}} when is_binary(error) ->
           Logger.warning("Tuist internal API #{method} #{path} failed: status=#{status}")
           {:error, to_string(error)}
 
@@ -143,8 +163,8 @@ defmodule Atlas.TuistServer do
           Logger.warning("Tuist internal API #{method} #{path} failed: status=#{status}")
           {:error, "Tuist server returned status #{status}."}
 
-        {:error, reason} ->
-          Logger.warning("Tuist internal API #{method} #{path} transport error: #{inspect(reason)}")
+        {:error, _reason} ->
+          Logger.warning("Tuist internal API #{method} #{path} transport error")
           {:error, "Could not reach the Tuist server."}
       end
     end

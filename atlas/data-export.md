@@ -2,6 +2,14 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Tuist feature flag operation audits
+
+Atlas stores no local feature flag rules or evaluation snapshots. Tuist Server owns the persisted gates and authoritative, atomic change audit. Atlas sends the authenticated operator's Atlas user UUID and email, the execution interface (`mcp`, `worker`, `slack` or `api`), change UUID, reason, expected revision, operation/scope and any Tuist account/project ID or rollout percentage to the internal Tuist feature flag API. These are operator actions, not end-user analytics.
+
+`audit_activities` stores `tuist_feature_flag.listed`, `.inspected` and `.updated` request outcomes: actor identity, interface, flag-name target, status, and for updates the supplied operation/scope, account/project IDs or percentage, expected revision, reason, change UUID and resulting revision when successful. The ordinary `mcp.tool_called` audit also retains tool arguments and outcome under existing tool-audit rules. No workload tokens, raw transport errors or remote response bodies are stored in these domain events. An Atlas error outcome does not prove the remote rules were unchanged; reconcile with Tuist's audit using the change UUID.
+
+These rows follow Atlas's existing audit retention and backup policies; clearing a flag or deleting an account does not remove operator audit history. For a verified export, select `audit_activities` by `actor_id` (or actor email for historical identities), by `tuist_feature_flag` target/name, or by the relevant Tuist account/project IDs and change UUIDs in metadata. Include matching `mcp.tool_called` entries for these tool names; organizational exports must match IDs inside their argument metadata too. Retrieve authoritative rules and change audits separately from Tuist Server. There are no new Atlas tables, S3 paths or local credential copies.
+
 ## Live availability and viewing presence
 
 `presence_connections` stores a user foreign key, random connection ID, current allowlisted resource (and optional record UUID), and database-clock expiry. These are short-lived availability hints, not edit locks or a navigation log. The directory reuses `users` names and emails and exposes online/offline only. A same-page viewer receives only matching users' `here` flags, never another person's location, raw path, record name, draft, or device details. Rust's native connection handles, latest snapshots and reconnect state remain in memory; no mobile presence database is created.

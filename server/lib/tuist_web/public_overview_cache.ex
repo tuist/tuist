@@ -10,6 +10,7 @@ defmodule TuistWeb.PublicOverviewCache do
   alias Tuist.Accounts
   alias Tuist.KeyValueStore
   alias Tuist.KeyValueStore.LoadLimiter
+  alias Tuist.Observability
   alias TuistWeb.Authorization
   alias TuistWeb.Gettext, as: WebGettext
 
@@ -58,7 +59,10 @@ defmodule TuistWeb.PublicOverviewCache do
       if LiveView.connected?(socket) do
         user = socket.assigns[:current_user]
         deadline = System.monotonic_time(:millisecond) + @connected_timeout
-        connected_loader = fn -> fetch_connected(project, user, keys, loader, locale, deadline, 100) end
+
+        connected_loader =
+          propagate_context(fn -> fetch_connected(project, user, keys, loader, locale, deadline, 100) end)
+
         LiveView.assign_async(socket, keys, connected_loader)
       else
         pending = socket.private[:public_overview_loaders] || []
@@ -67,16 +71,21 @@ defmodule TuistWeb.PublicOverviewCache do
         Enum.reduce(List.wrap(keys), socket, &Component.assign(&2, &1, AsyncResult.loading()))
       end
     else
-      LiveView.assign_async(socket, keys, loader)
+      LiveView.assign_async(socket, keys, propagate_context(loader))
     end
   end
 
   def resolve_pending(socket) do
     pending = socket.private[:public_overview_loaders] || []
+    snapshot = Observability.snapshot()
 
     pending
     |> Enum.reverse()
-    |> Task.async_stream(fn {keys, loader} -> {keys, loader.()} end,
+    |> Task.async_stream(
+      fn {keys, loader} ->
+        Observability.attach(snapshot)
+        {keys, loader.()}
+      end,
       max_concurrency: max(length(pending), 1),
       timeout: :infinity
     )
@@ -92,6 +101,15 @@ defmodule TuistWeb.PublicOverviewCache do
       end)
     end)
     |> LiveView.put_private(:public_overview_loaders, [])
+  end
+
+  defp propagate_context(loader) do
+    snapshot = Observability.snapshot()
+
+    fn ->
+      Observability.attach(snapshot)
+      loader.()
+    end
   end
 
   def load(socket, key, loader) do

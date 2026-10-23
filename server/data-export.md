@@ -97,6 +97,12 @@ OAuth clears its shared key. Export only the non-credential server columns with
 the installation's configuration records when the request covers Atlas
 operations; retain them until an administrator removes them.
 
+### Feature flag rules and change audit
+
+- PostgreSQL `feature_flags` stores global, actor and percentage gates. Actor targets use `account:<numeric id>`, `project:<numeric id>` or legacy `user:<numeric id>`. Export an account's actor gates and those of its projects/users; global/percentage rules apply installation-wide and may be included as relevant configuration context.
+- `feature_flag_changes` records successful Atlas control writes atomically with the rule change: change UUID, flag name, authenticated Atlas workload principal, full validated request (operator UUID/email, interface, reason, target IDs/percentage and expected revision), before/after gates and revisions, and insertion time. Failed/conflicting requests do not insert a server change record; Atlas separately audits request outcomes. These internal incident-reconstruction records have no automatic expiry and no cascading foreign keys, so account/project deletion does not remove their history.
+- Retrieve relevant audit rows using `request->>'account_id'` or `request->>'project_id'`, or actor targets in the `before`/`after` gate arrays, including global/percentage changes that affected the requested period. Operator requests can be retrieved by `request->'actor'->>'id'` or email. Records include other actors' gate state in snapshots: filter to the requested account/project/user and redact unrelated operator/tenant details before disclosing an export. These records contain no workload tokens or API credentials.
+
 ### Error Diagnostics
 
 - Failed ClickHouse reads attach the query template (up to 16,384 characters), repository name, and execution, decoding, and pool-wait timings to the existing error event under `extra.database_query`. Bound parameter values and query results are not included. Reports use the configured Sentry-compatible destination, including Hive, and its existing retention policy. Where an event is associated with an account or project through its existing context, its diagnostic data can be retrieved with that event for an export.
@@ -638,3 +644,38 @@ reclaim the object prefix and verify all hosts, including offline hosts. See the
 [runbook](../infra/runners-controller/cache-volumes.md) for storage and recovery.
 
 Gradle custom metadata can also contain `tuist.cache_work_avoided_ms`, an automatic cumulative task-work estimate derived from cache origin timings and restoration durations. It is stored on `gradle_builds.custom_values`, follows the existing 90-day retention, and exports with the build metadata. No exception text or task source is collected.
+
+## Operational observability attribution
+
+Server logs, OpenTelemetry traces and Sentry error events can contain authenticated
+user/account/project IDs, selected account/project IDs and their existing account
+and project handles. Authentication identifies the caller; selected resources
+identify the operation's target. The existing selected billing customer ID remains
+Sentry extra context only, not a log/trace field or searchable tag.
+
+Feature evaluation telemetry records the effective feature name, boolean decision,
+actor type (`account`, `project`, `user`, `global` or `unknown`) and actor ID where
+available. Errors, spans and subsequent logs retain at most 32 observed decisions
+for the selected resource plus global decisions. Sentry exposes these as
+`feature_flag.<effective_feature>` string-boolean tags and `extra.feature_flags`, a
+list of `{flag, enabled, actor_type, actor_id}` maps. These are evaluations that
+actually happened, including environment overrides and compound gates, not a full
+flag configuration or a promise of the configuration's current state. Evaluations
+of unrelated batch actors are emitted as actor-scoped telemetry/debug records but
+never change the selected tenant or its error cohorts.
+
+HTTP and LiveView normalization and explicit background resource binding use
+already-loaded resources. Task propagation copies only allowlisted attribution and
+the OTel span, not arbitrary request assigns, Logger metadata, Sentry request
+contexts, credentials, job arguments or OTel baggage. The existing shared Oban
+exception integration still includes job arguments in error payloads; this change
+does not broaden that collection, and safe agent-facing error-context views must
+not expose those raw payloads.
+
+This metadata lives in the configured logging, tracing and error backends (and
+the internal Atlas error ingestion), not a new application table or object-store
+prefix. Backend retention and sampling continue to govern availability; no new
+retention period is imposed here. Customer exports or erasure requests should
+search those backends using selected/auth IDs and legacy handles, distinguish
+caller from target, and include retained matching flag observations. Process-local
+snapshots are ephemeral and disappear with their request, socket, task or job.

@@ -184,6 +184,73 @@ defmodule Atlas.TuistServerTest do
     end
   end
 
+  describe "feature flags" do
+    test "lists and inspects persisted rules through the internal workload-identity API" do
+      parent = self()
+      body = %{"flags" => []}
+
+      request = fn req ->
+        send(parent, {:req, req})
+        {:ok, %Req.Response{status: 200, body: body}}
+      end
+
+      opts = [token: "tok", base_url: "https://tuist.test", request: request]
+      assert {:ok, ^body} = TuistServer.list_feature_flags(opts)
+      assert_receive {:req, req}
+      assert req.method == :get
+      assert req.url.path == "/api/internal/atlas/flags"
+      assert req.options[:auth] == {:bearer, "tok"}
+
+      assert {:ok, ^body} = TuistServer.get_feature_flag("flag/../../db", opts)
+      assert_receive {:req, req}
+      assert req.method == :get
+      assert req.url.path == "/api/internal/atlas/flags/flag%2F..%2F..%2Fdb"
+    end
+
+    test "PUTs the complete mutation once with automatic retries disabled" do
+      attrs = %{
+        "operation" => "enable",
+        "scope" => "percentage",
+        "percentage" => 12.5,
+        "expected_revision" => "revision",
+        "change_id" => Ecto.UUID.generate(),
+        "reason" => "Gradual rollout",
+        "actor" => %{"id" => Ecto.UUID.generate(), "email" => "operator@tuist.dev"},
+        "interface" => "mcp"
+      }
+
+      request = fn req ->
+        assert req.method == :put
+        assert req.url.path == "/api/internal/atlas/flags/rollout"
+        assert req.options[:json] == attrs
+        assert req.options[:retry] == false
+        {:ok, %Req.Response{status: 409, body: %{"error" => "stale_revision"}}}
+      end
+
+      assert {:error, "stale_revision"} =
+               TuistServer.update_feature_flag("rollout", attrs,
+                 token: "tok",
+                 base_url: "https://tuist.test",
+                 request: request
+               )
+    end
+
+    test "does not inspect transport failures which can contain credentials" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, "Could not reach the Tuist server."} =
+                   TuistServer.update_feature_flag("rollout", %{},
+                     token: "sensitive-test-token",
+                     base_url: "https://tuist.test",
+                     request: fn req -> {:error, %{request: req, secret: "sensitive-test-token"}} end
+                   )
+        end)
+
+      assert log =~ "transport error"
+      refute log =~ "sensitive-test-token"
+    end
+  end
+
   describe "configured?/1" do
     test "false when no token is available" do
       refute TuistServer.configured?(base_url: "https://tuist.test", token_path: "/no/such/token")

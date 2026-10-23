@@ -79,6 +79,7 @@ defmodule TuistWeb do
       on_mount({TuistWeb.Locale, :assign_locale})
       on_mount(TuistWeb.CSP)
       on_mount({TuistWeb.Timezone, :assign_timezone})
+      on_mount({TuistWeb.LayoutLive, :observability})
 
       unquote(html_helpers())
     end

@@ -12,6 +12,7 @@ defmodule Tuist.Kura.Identity do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.SelfHostedClient
   alias Tuist.Kura.Server
+  alias Tuist.Observability
   alias Tuist.Repo
   alias Tuist.Time
 
@@ -53,7 +54,11 @@ defmodule Tuist.Kura.Identity do
   end
 
   def endpoint_migration_enabled?(%Account{} = account) do
-    FunWithFlags.enabled?(:kura_account_endpoint_migration, for: account)
+    Observability.feature_flag_evaluated(
+      :kura_account_endpoint_migration,
+      account,
+      FunWithFlags.enabled?(:kura_account_endpoint_migration, for: account)
+    )
   end
 
   def endpoint_migration_enabled?(_account), do: false
@@ -93,10 +98,14 @@ defmodule Tuist.Kura.Identity do
   end
 
   def rename_allowed?(account) do
-    Environment.env() not in [:can, :prod] or
-      FunWithFlags.enabled?(:kura_account_rename, for: account) or
-      not (Repo.exists?(from(s in Server, where: s.account_id == ^account.id)) or
-             Repo.exists?(from(c in SelfHostedClient, where: c.account_id == ^account.id)))
+    Observability.feature_flag_evaluated(
+      :kura_account_rename,
+      account,
+      Environment.env() not in [:can, :prod] or
+        FunWithFlags.enabled?(:kura_account_rename, for: account) or
+        not (Repo.exists?(from(s in Server, where: s.account_id == ^account.id)) or
+               Repo.exists?(from(c in SelfHostedClient, where: c.account_id == ^account.id)))
+    )
   end
 
   def account_ids(tenants) do
