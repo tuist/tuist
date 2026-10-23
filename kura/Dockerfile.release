@@ -6,7 +6,7 @@
 # The base is ubuntu:24.04 to match the glibc/libstdc++ of the runners that
 # produce those binaries.
 
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 
 ARG TARGETARCH
 
