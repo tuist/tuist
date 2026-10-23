@@ -27,6 +27,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   alias TuistEx.Analytics.HTTP
   alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.Metadata
+  alias TuistEx.Analytics.Quarantine
   alias TuistEx.Analytics.Report
 
   @deferred :deferred_test_run
@@ -38,10 +39,16 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     # ExUnit starts its formatters once the test helper has run and before
     # any test does, which is when a run of an instrumented build gets ready.
     if Keyword.get(merged, :coverage_native, false), do: prepare_native(merged)
+    quarantine = Keyword.get(merged, :quarantine)
 
     {:ok,
      %{
        tests: [],
+       quarantine: quarantine,
+       excluded_names: Quarantine.excluded_names(quarantine),
+       also_excluded: [],
+       excluded: [],
+       skipped_but_ran: [],
        aborted?: false,
        failures: nil,
        monotonic_start_ns: System.monotonic_time(),
@@ -70,14 +77,49 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
   # A test a filter left out, such as `--only` or `file:line`, was not part
   # of the run: reported as skipped, it would look like it was turned off.
-  def handle_cast({:test_finished, %ExUnit.Test{state: {:excluded, _}}}, state),
-    do: {:noreply, state}
+  # One the quarantine's name filter left out without being skipped itself
+  # shares its full name with a skipped test in another module.
+  # Every other test a filter left out is what a run with coverage names as
+  # skipped: a test Tuist skips for quarantine is left out as if removed.
+  def handle_cast({:test_finished, %ExUnit.Test{state: {:excluded, _}} = test}, state) do
+    identity = Quarantine.identity(record(test))
+
+    cond do
+      Quarantine.skipped?(state.quarantine, identity) ->
+        {:noreply, state}
+
+      MapSet.member?(state.excluded_names, Atom.to_string(test.name)) ->
+        {:noreply,
+         %{
+           state
+           | also_excluded: [identity | state.also_excluded],
+             excluded: [identity | state.excluded]
+         }}
+
+      true ->
+        {:noreply, %{state | excluded: [identity | state.excluded]}}
+    end
+  end
 
   def handle_cast({:test_finished, test}, state) do
+    record = record(test)
+    identity = Quarantine.identity(record)
+
+    record =
+      if Quarantine.quarantined?(state.quarantine, identity),
+        do: %{record | is_quarantined: true},
+        else: record
+
+    skipped_but_ran =
+      if Quarantine.skipped?(state.quarantine, identity),
+        do: [identity | state.skipped_but_ran],
+        else: state.skipped_but_ran
+
     {:noreply,
      %{
        state
-       | tests: [record(test) | state.tests],
+       | tests: [record | state.tests],
+         skipped_but_ran: skipped_but_ran,
          failures: merge_failures(state.failures, failure_kind(test.state))
      }}
   end
@@ -103,6 +145,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
             tests
             |> build_payload(duration_ms, state.ran_at, state.opts)
             |> put_coverage_snapshot(state.opts)
+            |> put_left_out(tests, state)
             |> put_coverage_lines(state.opts)
             |> put_timed_out(state.failures)
 
@@ -122,6 +165,38 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   end
 
   def handle_cast(_message, state), do: {:noreply, state}
+
+  # ExUnit stops its formatters one after another once the suite is done, so
+  # this follows the summary the CLI formatter printed.
+  def terminate(_reason, state) do
+    report_quarantine(state)
+  end
+
+  defp report_quarantine(state) do
+    notify = Keyword.get(state.opts, :notify, &IO.puts/1)
+
+    if state.skipped_but_ran != [] do
+      notify.(
+        "warning: Tuist skips these tests, but they ran: an include filter " <>
+          "(--only, --include, file:line) selected them, or they are not of type `test`:\n" <>
+          list(state.skipped_but_ran)
+      )
+    end
+
+    if state.also_excluded != [] do
+      notify.(
+        "warning: these tests did not run because a test skipped in Tuist " <>
+          "has the same name in another module:\n" <> list(state.also_excluded)
+      )
+    end
+  end
+
+  defp list(identities) do
+    identities
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.map_join("\n", &("  " <> Quarantine.describe(&1)))
+  end
 
   defp prepare_native(opts) do
     Coverage.prepare_native()
@@ -144,6 +219,38 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       _ -> payload
     end
   end
+
+  # What a run with coverage left out, as the other build systems report it,
+  # so the commit's coverage says which tests it is missing: a run its own
+  # arguments limited names the tests it ran, any other the tests a filter
+  # left out.
+  defp put_left_out(payload, tests, state) do
+    cond do
+      Keyword.get(state.opts, :coverage, false) != true ->
+        payload
+
+      Keyword.get(state.opts, :coverage_narrowed, false) ->
+        ran = tests |> Enum.map(&Quarantine.identity/1) |> Enum.uniq()
+        Map.put(payload, :only_test_identifiers, Enum.map(ran, &identifier/1))
+
+      state.excluded != [] ->
+        excluded = Enum.uniq(state.excluded)
+        Map.put(payload, :skip_test_identifiers, Enum.map(excluded, &identifier/1))
+
+      true ->
+        payload
+    end
+  end
+
+  # `Module/Suite/test`, with a `/` or `%` inside a part percent-encoded:
+  # describe names such as `create_order/2` hold one.
+  defp identifier({module, suite, name}),
+    do:
+      Enum.map_join(
+        [module, suite, name],
+        "/",
+        &URI.encode(&1, fn char -> char not in ~c"/%" end)
+      )
 
   # What the summary of a run counting natively reads, taken now for the same
   # reason: Mimic swaps its copies back after the suite, which resets their

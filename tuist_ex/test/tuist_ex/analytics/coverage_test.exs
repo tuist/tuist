@@ -34,6 +34,27 @@ defmodule TuistEx.Analytics.CoverageTest do
     end
   end
 
+  test "narrowed?/1 is true only for arguments that pick the tests to run" do
+    for args <- [
+          ["--only", "integration"],
+          ["--failed"],
+          ["--stale"],
+          ["--name-pattern=foo"],
+          ["test/a_test.exs:12"]
+        ] do
+      assert Coverage.narrowed?(args), "expected #{inspect(args)} to be narrowed"
+    end
+
+    for args <- [
+          [],
+          ["--exclude", "slow"],
+          ["--max-failures", "1"],
+          ["--include", "slow", "--cover"]
+        ] do
+      refute Coverage.narrowed?(args), "expected #{inspect(args)} not to be narrowed"
+    end
+  end
+
   describe "report/4" do
     test "keeps the repository's files, relative to its root, with their blobs and lines" do
       snapshot = [
