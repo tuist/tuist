@@ -2377,7 +2377,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 _ = await testCoverageEvidenceService.record(
                     session: evidenceSession,
                     resultBundlePath: resultBundlePath,
-                    derivedDataDirectory: projectDerivedDataDirectory
+                    derivedDataDirectory: projectDerivedDataDirectory,
+                    executionModes: await testExecutionModeResolver.record(
+                        resultBundlePath: resultBundlePath,
+                        xcodebuildArguments: passthroughXcodeBuildArguments,
+                        derivedDataPath: projectDerivedDataDirectory,
+                        schemeTargets: TestExecutionModeResolver.targets(
+                            scheme: scheme,
+                            testPlan: testPlanConfiguration?.testPlan
+                        )
+                    )
                 )
             }
             guard action != .build else { return }

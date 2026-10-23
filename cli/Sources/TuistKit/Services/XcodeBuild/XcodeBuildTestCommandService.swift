@@ -677,7 +677,13 @@ extension XcodeBuildTestCommandService {
             _ = await testCoverageEvidenceService.record(
                 session: session,
                 resultBundlePath: resultBundlePath,
-                derivedDataDirectory: derivedDataPath
+                derivedDataDirectory: derivedDataPath,
+                executionModes: await testExecutionModeResolver.record(
+                    resultBundlePath: resultBundlePath,
+                    xcodebuildArguments: arguments,
+                    derivedDataPath: derivedDataPath,
+                    schemeTargets: [:]
+                )
             )
         }
         _ = await coverageExportService.export(

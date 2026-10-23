@@ -73,6 +73,66 @@ struct TestCoverageEvidenceServiceTests {
         ))
     }
 
+    @Test(arguments: [
+        TestExecutionModes(run: TestExecutionModes.parallel, targets: ["AppTests": TestExecutionModes.parallel]),
+        TestExecutionModes(run: TestExecutionModes.parallel, targets: [:]),
+    ])
+    func attributesNoSwiftTestingTestOfATargetThatRanInParallel(modes: TestExecutionModes) {
+        let records: [CoverageObserverOutput.Record] = [
+            .init(kind: .gap, overlapped: false, module: "AppTests", suite: "MathTests", name: "", counters: [0: [3]]),
+            .init(kind: .xctest, overlapped: false, module: "AppTests", suite: "MathTests", name: "testAdd", counters: [0: [0]]),
+            // The gap the first Swift Testing scope opens with.
+            .init(kind: .gap, overlapped: false, module: "AppTests", suite: "SwiftTests", name: "", counters: [0: [3]]),
+            .init(
+                kind: .swiftTesting,
+                overlapped: false,
+                module: "AppTests",
+                suite: "SwiftTests",
+                name: "signs()",
+                counters: [0: [2]]
+            ),
+        ]
+        let filesByFunction: [String: [String: Set<String>]] = ["/products/App": [
+            "add": ["/src/Math.swift"],
+            "sign": ["/src/Sign.swift"],
+            "bootstrap": ["/src/Boot.swift"],
+        ]]
+
+        let parallel = TestCoverageEvidenceService.reduce(
+            outputs: [output(records)],
+            filesByFunction: filesByFunction,
+            executionModes: modes
+        )
+        let serial = TestCoverageEvidenceService.reduce(
+            outputs: [output(records)],
+            filesByFunction: filesByFunction,
+            executionModes: TestExecutionModes(run: TestExecutionModes.serial, targets: ["AppTests": TestExecutionModes.serial])
+        )
+
+        #expect(parallel == TestCoverageEvidence(
+            paths: ["/src/Boot.swift", "/src/Math.swift", "/src/Sign.swift"],
+            scopes: [
+                .init(kind: .target, module: "AppTests", suite: "", name: "", files: [0, 1, 2]),
+                .init(kind: .suite, module: "AppTests", suite: "MathTests", name: "", files: [0]),
+                .init(kind: .test, module: "AppTests", suite: "MathTests", name: "testAdd()", files: [1]),
+            ]
+        ))
+        #expect(serial.scopes.contains(TestCoverageEvidence.Scope(
+            kind: .test,
+            module: "AppTests",
+            suite: "SwiftTests",
+            name: "signs()",
+            files: [2]
+        )))
+        #expect(serial.scopes.contains(TestCoverageEvidence.Scope(
+            kind: .suite,
+            module: "AppTests",
+            suite: "SwiftTests",
+            name: "",
+            files: [0]
+        )))
+    }
+
     @Test func namesAnXCTestTestAsTheResultBundleDoes() {
         #expect(TestCoverageEvidenceService.testName(xctestSelector: "testAdd") == "testAdd()")
         #expect(TestCoverageEvidenceService.testName(xctestSelector: "testAddAndReturnError:") == "testAdd()")
@@ -150,7 +210,8 @@ struct TestCoverageEvidenceServiceTests {
         let evidence = await TestCoverageEvidenceService().record(
             session: TestCoverageEvidenceSession(directory: output, environment: [:]),
             resultBundlePath: bundle,
-            derivedDataDirectory: nil
+            derivedDataDirectory: nil,
+            executionModes: nil
         )
 
         // No target links TestCoverageAttribution: the bundle still says the run asked.
@@ -172,7 +233,8 @@ struct TestCoverageEvidenceServiceTests {
         let evidence = await TestCoverageEvidenceService().record(
             session: TestCoverageEvidenceSession(directory: output, environment: [:]),
             resultBundlePath: bundle,
-            derivedDataDirectory: nil
+            derivedDataDirectory: nil,
+            executionModes: nil
         )
 
         #expect(evidence == TestCoverageEvidence(paths: [], scopes: [], status: .failed))
