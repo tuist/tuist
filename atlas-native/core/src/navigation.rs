@@ -57,6 +57,13 @@ macro_rules! group {
 
 pub static GROUPS: &[Group] = &[
     group!(
+        "automation",
+        "Automation",
+        "Run, monitor, and approve versioned workflows",
+        "",
+        "workspace"
+    ),
+    group!(
         "overview",
         "Overview",
         "Company overview and team work",
@@ -270,6 +277,16 @@ pub static SECTIONS: &[Section] = &[
         "browser",
         false,
         "finance:read"
+    ),
+    section!(
+        "people-directory",
+        "People",
+        "Your team and who is active in Atlas",
+        "/people",
+        "people",
+        "people",
+        false,
+        ""
     ),
     section!(
         "content",
@@ -492,6 +509,16 @@ pub static SECTIONS: &[Section] = &[
         "admin:read"
     ),
     section!(
+        "automation",
+        "Automation",
+        "Run, monitor, and approve versioned workflows",
+        "/automation/workflows",
+        "automation",
+        "automation",
+        false,
+        "automation:read"
+    ),
+    section!(
         "inference",
         "Inference",
         "Inference providers, profiles, and usage",
@@ -590,6 +617,7 @@ mod tests {
         assert_eq!(
             roots,
             [
+                "automation",
                 "overview",
                 "commercial",
                 "outbound",

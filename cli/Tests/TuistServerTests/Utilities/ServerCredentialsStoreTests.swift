@@ -55,7 +55,7 @@ struct ServerCredentialSerializationTests {
         try await fileSystem.makeDirectory(at: credentialsDirectory)
         let path = credentialsDirectory.appending(component: filename)
         let subject = ServerCredentialsStore(backend: .fileSystem, fileSystem: fileSystem, configDirectory: directory)
-        let environment = Environment(variables: ["TUIST_NETWORK_TRUSTED_PUBLISHING": "true"], arguments: [])
+        let environment = Environment(variables: [:], arguments: [])
         try await Environment.$current.withValue(environment) {
             let rejected = ServerCredentials(accessToken: "rejected-token", refreshToken: "refresh", rejected: true)
             try JSONEncoder().encode(rejected).write(to: URL(fileURLWithPath: path.pathString))

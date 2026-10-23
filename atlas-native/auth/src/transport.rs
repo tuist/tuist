@@ -8,6 +8,9 @@ use url::Url;
 
 pub(crate) enum Body<'a> {
     Get,
+    Public {
+        failure: fn(u16, &[u8]) -> crate::AuthError,
+    },
     Json(Value),
     Form(Vec<(&'a str, &'a str)>),
     Api {
@@ -29,6 +32,15 @@ impl Transport for Network {
         let client = client()?;
         let request = match body {
             Body::Get => client.get(url.clone()),
+            Body::Public { failure } => {
+                return response_using(
+                    client
+                        .get(url.clone())
+                        .header("accept", "application/json")
+                        .send(),
+                    failure,
+                );
+            }
             Body::Json(value) => client.post(url.clone()).json(&value),
             Body::Form(parameters) => client.post(url.clone()).form(&parameters),
             Body::Api {
@@ -54,7 +66,7 @@ impl Transport for Network {
     }
 }
 
-fn client() -> Result<&'static Client> {
+pub(crate) fn client() -> Result<&'static Client> {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     if let Some(client) = CLIENT.get() {
         return Ok(client);

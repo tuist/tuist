@@ -30,3 +30,15 @@ cache_endpoint_host() {
   host="${host%%/*}"
   echo "${host%%:*}"
 }
+
+# Runs a read-only gh call, retrying through the GitHub API's transient errors
+# so a single 502 while polling does not fail a gate whose probe passed.
+gh_retry() {
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    "$@" && return 0
+    [ "${attempt}" -lt 5 ] || return 1
+    echo "::warning::gh call failed (attempt ${attempt}/5), retrying: $*" >&2
+    sleep $((attempt * 5))
+  done
+}

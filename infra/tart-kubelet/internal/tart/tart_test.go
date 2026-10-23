@@ -647,3 +647,38 @@ func TestVMUnmarshalAcrossTartVersions(t *testing.T) {
 		}
 	}
 }
+
+// A pull ahead of the Pods that clone it runs under BackgroundPull with less
+// network concurrency, so it does not slow the jobs the host is running; any
+// other pull runs as before.
+func TestBackgroundPullRunsUnderBackgroundPolicy(t *testing.T) {
+	dir := t.TempDir()
+	calls := filepath.Join(dir, "calls")
+	tartBin := filepath.Join(dir, "faketart")
+	policy := filepath.Join(dir, "policy")
+	if err := os.WriteFile(tartBin, []byte("#!/bin/sh\necho \"tart $*\" >> "+shellEscape(calls)+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(policy, []byte("#!/bin/sh\necho \"policy $1\" >> "+shellEscape(calls)+"\nshift\nexec \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := &Client{Binary: tartBin, BackgroundPull: []string{policy, "-b"}}
+
+	if err := c.PullFrom(context.Background(), "ghcr.io/tuist/tuist-runner@sha256:1", false); err != nil {
+		t.Fatalf("PullFrom: %v", err)
+	}
+	if err := c.PullFrom(InBackground(context.Background()), "ghcr.io/tuist/tuist-runner@sha256:2", true); err != nil {
+		t.Fatalf("background PullFrom: %v", err)
+	}
+
+	got, err := os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "tart pull ghcr.io/tuist/tuist-runner@sha256:1\n" +
+		"policy -b\n" +
+		"tart pull --insecure ghcr.io/tuist/tuist-runner@sha256:2 --concurrency 2\n"
+	if string(got) != want {
+		t.Fatalf("calls:\n%s\nwant:\n%s", got, want)
+	}
+}

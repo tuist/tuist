@@ -136,6 +136,15 @@ helm show values oci://ghcr.io/tuist/charts/atlas --version VERSION
 
 You can configure external services through the application Secret and environment values. If you'd prefer the chart to manage [PostgreSQL](https://www.postgresql.org/docs/18/index.html), its bundled database configuration requires [CloudNativePG](https://cloudnative-pg.io/documentation/). Managed secret synchronization requires [External Secrets Operator](https://external-secrets.io/), as do the chart's bundled vector storage and backup secret synchronization. These are choices you can make later; they're not prerequisites for the base installation.
 
+## Enable Orbit
+
+Orbit is the native apps' space for working with Pip, Atlas's assistant and mascot, in private or shared threads. Pip's name is fixed, not a deployment setting. The assistant uses an inference profile you choose for the whole workspace, not people's personal AI accounts. Until a profile is assigned, threads still work between people and the apps explain that the assistant isn't configured.
+
+1. In **Admin → Inference**, add a provider and a profile for the model you want to use.
+2. Open the profile, choose **Edit profile**, then **Use for Orbit**. Only one profile can hold this role, and Atlas never falls back to another profile.
+
+The assistant can only read Atlas data that everyone in a thread is allowed to see, and it can't change data, send messages, or browse the web.
+
 ## Enable ChatGPT sign-in
 
 To let people connect their [ChatGPT](https://chatgpt.com/) subscriptions, supply `ATLAS_CHATGPT_CLIENT_ID` in Atlas's application environment. This must be an [OAuth](https://oauth.net/2/) client authorized for Atlas with OpenAI's required device authorization flow enabled. Do not reuse Codex's or another application's client ID, and do not substitute an OpenAI API key. If you do not have an appropriately authorized client, leave ChatGPT sign-in disabled.

@@ -127,12 +127,14 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
-    crate::serving_authority::AuthorityConfig::validate_volume(
+    let inherited = crate::serving_authority::AuthorityConfig::validate_volume(
         &config.data_dir,
         config.serving_authority.as_ref(),
     )?;
     let runtime = match &config.serving_authority {
-        Some(authority) => RuntimeState::with_authority(authority.start(&config.data_dir)?),
+        Some(authority) => {
+            RuntimeState::with_authority(authority.start(&config.data_dir, inherited)?)
+        }
         None => RuntimeState::new(),
     };
     let mut bootstrap = Bootstrap::start(
@@ -559,6 +561,7 @@ async fn initialize_and_serve(
                     grpc_serving_config,
                     grpc_shutdown_rx,
                     configure_http_builder,
+                    accelerated_file_serving::ConnectionErrorLog::Warn,
                 )
                 .await
                 {
@@ -587,6 +590,7 @@ async fn initialize_and_serve(
         state.config.accelerated_file_serving.clone(),
         public_shutdown_rx,
         configure_http_builder,
+        accelerated_file_serving::ConnectionErrorLog::Debug,
     )
     .await
     .map_err(|error| format!("server error: {error}"))?;
@@ -2032,6 +2036,7 @@ mod tests {
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         // HTTP cache surface answers on the co-hosted port.
@@ -2129,6 +2134,7 @@ mod tests {
             gateway_grpc_serving_config(&state.config),
             shutdown_rx,
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         let http = reqwest::Client::new()
@@ -2288,6 +2294,7 @@ mod tests {
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         let endpoint = format!("http://{addr}");

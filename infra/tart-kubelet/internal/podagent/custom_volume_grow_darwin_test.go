@@ -28,7 +28,7 @@ func TestGrowCustomImageExtendsOnlyTheImageAndNeverShrinks(t *testing.T) {
 		t.Fatal("a smaller capacity shrank the image:", size, err)
 	}
 	// The APFS container is the guest's to grow; the image still verifies.
-	if err := verifyCustomImage(image); err != nil {
+	if _, err := verifyCustomImage(image); err != nil {
 		t.Fatal("grown image no longer verifies:", err)
 	}
 }

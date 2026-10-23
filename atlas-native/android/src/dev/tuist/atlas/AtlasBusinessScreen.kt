@@ -53,9 +53,17 @@ class AtlasBusinessScreen(
     private val title: String,
     private val model: AtlasBusinessModel,
     private val navigationChanged: () -> Unit = {},
+    private val presence: AtlasPresenceModel? = null,
     private val logoLoader: (String, (Bitmap?) -> Unit) -> (() -> Unit) = AccountLogos::load,
+    private val webPage: ((String?) -> Unit)? = null,
 ) {
     val toolbar = Toolbar(activity)
+    private val alsoHere =
+        TextView(activity).apply {
+            visibility = View.GONE
+            textSize = 14f
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
     private val search =
         SearchView(activity).apply {
             queryHint = "Search $title"
@@ -80,6 +88,7 @@ class AtlasBusinessScreen(
             isSaveEnabled = false
             isSaveFromParentEnabled = false
             addView(toolbar, LinearLayout.LayoutParams(-1, -2))
+            addView(alsoHere, LinearLayout.LayoutParams(-1, -2))
             addView(search, LinearLayout.LayoutParams(-1, -2))
             addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
             setOnApplyWindowInsetsListener { root, insets ->
@@ -100,6 +109,7 @@ class AtlasBusinessScreen(
     private val logoCancellations = mutableListOf<() -> Unit>()
     private val pendingLogos = mutableListOf<() -> Boolean>()
     private val listener: () -> Unit = { render() }
+    private val presenceListener: () -> Unit = { renderPresence() }
     private val layoutListener =
         android.view.ViewTreeObserver.OnGlobalLayoutListener {
             restoreScrollY?.let {
@@ -114,6 +124,7 @@ class AtlasBusinessScreen(
 
     init {
         model.listener = listener
+        presence?.listener = presenceListener
         search.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextChange(value: String?) = true
@@ -141,7 +152,8 @@ class AtlasBusinessScreen(
     }
 
     fun load() {
-        if (!model.loaded) model.load()
+        // A record opened by link loads by ID; the list loads when the person goes Back.
+        if (!model.loaded && model.selected == null) model.load()
     }
 
     fun back(): Boolean {
@@ -168,6 +180,19 @@ class AtlasBusinessScreen(
         pendingLogos.clear()
         if (content.viewTreeObserver.isAlive) content.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
         if (model.listener === listener) model.listener = null
+        if (presence?.listener === presenceListener) presence.listener = null
+    }
+
+    private fun renderPresence() {
+        if (closed) return
+        val names =
+            presence
+                ?.people
+                ?.filter { it.here }
+                ?.joinToString(", ") { it.name }
+                .orEmpty()
+        alsoHere.text = if (names.isEmpty()) "" else "Also here: $names"
+        alsoHere.visibility = if (names.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun render() {
@@ -176,6 +201,9 @@ class AtlasBusinessScreen(
         renderGeneration += 1
         val draft = model.draft
         val selected = model.selected
+        // Report a record only after Atlas returned it, never an unverified ID from a link.
+        presence?.show(model.resource, selected?.takeUnless { model.placeholder }?.id ?: draft?.id)
+        renderPresence()
         val changedDestination = previousDraft !== draft || previousSelection != selected?.id
         restoreScrollY =
             if (draft == null && selected == null) {
@@ -197,6 +225,7 @@ class AtlasBusinessScreen(
         search.isEnabled = true
         if (!model.busy && model.query.isEmpty() && search.query.isNotEmpty() && !search.hasFocus()) search.setQuery("", false)
         toolbar.menu.clear()
+        if (draft == null) toolbar.browserAction(webPage?.let { open -> { open(selected?.id) } })
         if (draft == null && selected == null) {
             toolbar.menu.add("Filters").apply {
                 setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
@@ -212,15 +241,17 @@ class AtlasBusinessScreen(
         pageEnd = null
         content.removeAllViews()
         model.notice?.let { text(it) }
-        model.error?.let {
+        // A record opened by link renders its own failure below the heading.
+        model.error?.takeUnless { model.placeholder }?.let {
             text(if (model.notice != null) "${model.notice} Refresh failed: $it" else it)
             if (draft == null) {
                 button("Retry refresh") {
-                    if (selected != null && model.notice == null) model.show(selected) else model.load()
+                    // A record opened by link may still need the list page that carries edit options.
+                    if (selected != null && model.notice == null && model.loaded) model.show(selected) else model.load()
                 }
             }
         }
-        if (model.busy && !model.loadingMore) text(if (model.saving) "Saving… Please wait." else "Loading…")
+        if (model.busy && !model.loadingMore && !model.placeholder) text(if (model.saving) "Saving… Please wait." else "Loading…")
         when {
             draft != null -> editor(draft)
             selected != null -> detail(selected)
@@ -315,7 +346,7 @@ class AtlasBusinessScreen(
                 val sorted = months.sortedBy { it.month }
                 content.addView(
                     HorizontalScrollView(activity).apply {
-                        addView(InvoiceChart(activity, sorted), ViewGroup.LayoutParams(-2, dp(208)))
+                        addView(AtlasInvoiceChart(activity, sorted), ViewGroup.LayoutParams(-2, dp(208)))
                     },
                     ViewGroup.LayoutParams(-1, -2),
                 )
@@ -325,6 +356,24 @@ class AtlasBusinessScreen(
     }
 
     private fun detail(value: AtlasBusinessModel.Record) {
+        if (model.placeholder) {
+            text(
+                when (model.recordFailure) {
+                    null -> "Opening ${singular()}…"
+                    "unavailable" -> "This ${singular()} isn’t available"
+                    "forbidden" -> "You don’t have access to this ${singular()}"
+                    else -> "Couldn’t open this ${singular()}"
+                },
+                true,
+            )
+            if (model.recordFailure == "unavailable") text("It may have been deleted. Go back to see the current list.")
+            if (model.recordFailure != null) {
+                model.error?.takeIf { model.recordFailure != "unavailable" }?.let { text(it) }
+                button("Retry") { model.open(value.id) }
+            }
+            button("Back to $title", !model.saving) { back() }
+            return
+        }
         if (model.resource == "accounts") content.addView(accountLogo(value))
         text(recordTitle(value), true)
         if (!value.canEdit) text("Read-only record")
@@ -334,7 +383,8 @@ class AtlasBusinessScreen(
                 else -> model.editableFields
             }
         fields.forEach { key -> text("${label(key)}\n${display(key, value[key]).ifEmpty { "Not set" }}") }
-        if (value.canEdit) button("Edit ${singular()}") { model.edit(value) }
+        // Server options arrive with the list; a record opened by link waits for them before editing.
+        if (value.canEdit) button("Edit ${singular()}", !model.busy && model.loaded) { model.edit(value) }
         if (model.resource == "tasks" && value.canEdit && value["status"] != "completed") {
             button("Complete task") { model.complete(value) }
         }
@@ -732,6 +782,7 @@ class AtlasBusinessScreen(
         content.addView(
             Button(activity).apply {
                 text = label
+                setTag(R.id.atlas_primary_action, !row)
                 isAllCaps = false
                 textSize = 16f
                 minHeight = dp(if (row) 72 else 48)
@@ -844,20 +895,29 @@ private object AccountLogos {
     }
 }
 
-private class InvoiceChart(
+class AtlasInvoiceChart(
     context: Context,
     private val months: List<AtlasBusinessModel.Month>,
 ) : View(context) {
     private val density = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val colors = context.obtainStyledAttributes(intArrayOf(android.R.attr.textColorPrimary, android.R.attr.colorAccent))
-    private val foreground = colors.getColor(0, 0xff303030.toInt())
-    private val accent = colors.getColor(1, 0xff087caa.toInt())
+    private var foreground = colors.getColor(0, 0xff303030.toInt())
+    private var accent = colors.getColor(1, 0xff087caa.toInt())
 
     init {
         colors.recycle()
         minimumWidth = (maxOf(3, months.size) * 96 * density * maxOf(1f, resources.configuration.fontScale)).toInt()
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+
+    fun setTheme(
+        foreground: Int,
+        accent: Int,
+    ) {
+        this.foreground = foreground
+        this.accent = accent
+        invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {

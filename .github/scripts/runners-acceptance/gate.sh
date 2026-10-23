@@ -16,7 +16,7 @@ gh workflow run runners-acceptance.yml --repo "${GITHUB_REPOSITORY}" --ref "${re
 
 run_id=""
 for _ in $(seq 1 36); do
-  run_id="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow runners-acceptance.yml --event workflow_dispatch \
+  run_id="$(gh_retry gh run list --repo "${GITHUB_REPOSITORY}" --workflow runners-acceptance.yml --event workflow_dispatch \
     --limit 30 --json databaseId,displayTitle \
     --jq "[.[] | select(.displayTitle | contains(\"${correlation}\"))][0].databaseId // empty")"
   [ -n "${run_id}" ] && break
@@ -28,7 +28,7 @@ echo "Runners acceptance against ${ENVIRONMENT}: ${url}"
 
 deadline=$(($(date +%s) + ${GATE_MINUTES:-35} * 60))
 while :; do
-  status="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json status --jq .status)"
+  status="$(gh_retry gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json status --jq .status)"
   [ "${status}" = completed ] && break
   if [ "$(date +%s)" -ge "${deadline}" ]; then
     gh run cancel "${run_id}" --repo "${GITHUB_REPOSITORY}" || true
@@ -37,7 +37,7 @@ while :; do
   sleep 20
 done
 
-conclusion="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json conclusion --jq .conclusion)"
+conclusion="$(gh_retry gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json conclusion --jq .conclusion)"
 {
   echo "### Runners acceptance against ${ENVIRONMENT}: ${conclusion}"
   echo
@@ -45,19 +45,20 @@ conclusion="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json concl
   echo
 } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
-jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")"
+jobs="$(gh_retry gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")"
 jq -r '.jobs[] | "- \(.name): \(.conclusion // .status)"' <<< "${jobs}" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
-# Cache volume failures are reported but never block: the volume steps run with
-# continue-on-error, so they leave the run successful, and are re-raised here
-# as warnings. Every other layer's failure fails the gate.
+# Re-raises every layer's failure, cache volumes included, as an error. A cache
+# volume GitHub had not yet reported the job for, or one an overlapping probe
+# run saved over, leaves the run successful with a `Cache volumes inconclusive`
+# warning, re-raised here as a warning: neither must block a deploy.
 jq -r '.jobs[] | select(.conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${jobs}" |
   while IFS=$'\t' read -r job_id name; do
-    gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" \
-      --jq '.[] | select(.annotation_level == "failure" and (.title // "") != "") | "\(.title)\t\(.message)"' |
-      while IFS=$'\t' read -r title message; do
+    gh_retry gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" \
+      --jq '.[] | select((.title // "") != "" and (.annotation_level == "failure" or .title == "Cache volumes inconclusive")) | "\(.annotation_level)\t\(.title)\t\(.message)"' |
+      while IFS=$'\t' read -r annotation_level title message; do
         level=error
-        [ "${title}" = "Cache volumes" ] && level=warning
+        [ "${annotation_level}" = failure ] || level=warning
         echo "::${level} title=${title} (${ENVIRONMENT})::${name}: ${message}"
         printf -- '- %s **%s** on %s: %s\n' "${level}" "${title}" "${name}" "${message}" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
       done

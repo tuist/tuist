@@ -611,7 +611,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
 
-      stub(Analytics, :get_test_run_metrics, fn "run-1" ->
+      stub(Analytics, :get_test_run_metrics, fn %{id: "run-1"} ->
         %{total_count: 50, failed_count: 2, flaky_count: 1, avg_duration: 300}
       end)
 

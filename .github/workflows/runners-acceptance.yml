@@ -4,14 +4,26 @@ name: Runners Acceptance
 # way a customer's job runs: a job targets a runner label, dispatch places it
 # on a runner VM or Pod and hands it a cache endpoint, and the job builds with
 # the Xcode compilation cache through that endpoint. Each failure names the
-# layer that broke: Dispatch, Server auth, Kura reachability, Kura auth, Kura
-# data path, Xcode cache setup, Xcode build or Cache hits.
+# layer that broke: Dispatch, Runner file limits, Server auth, Kura
+# reachability, Kura auth, Kura data path, Xcode cache setup, Xcode build, Cache
+# hits or Cache volumes.
 #
 # The production deploy cascade dispatches this against canary after the
 # canary deploy and gates production on it (server-production-deployment.yml,
 # job `runners-acceptance`, through scripts/runners-acceptance/gate.sh). The
 # hourly schedule runs it against production, which covers breakage that never
 # goes through a server deploy, such as infra and network changes.
+#
+# On canary it also round-trips cache volumes between two jobs on its one rack
+# host and gates production on them: the macOS job attaches two custom volumes
+# (one never changes after its first write) and the managed Xcode and module
+# cache volumes, seeds them, and writes a 256 MB payload as its last step;
+# `macos-volume` then requires each to be a saved copy holding exactly that.
+# Failures are titled `Cache volumes`. A volume refused because GitHub had not
+# yet reported the runner's job is a webhook delay, not a regression: it is
+# reported as `Cache volumes inconclusive` and does not fail the run. So is a
+# volume another probe run saved over this one's because their seed jobs
+# overlapped, for example a branch dispatched while a deploy gate runs.
 
 run-name: Runners acceptance (${{ inputs.environment || 'production' }}) ${{ inputs.correlation_id }}
 
@@ -127,6 +139,8 @@ jobs:
       fail-fast: false
       matrix:
         target: ${{ fromJSON(needs.plan.outputs.macos) }}
+    outputs:
+      volume_pending: ${{ steps.volumes.outputs.pending }}
     permissions:
       contents: read
       id-token: write
@@ -167,27 +181,29 @@ jobs:
         run: .github/scripts/runners-acceptance/xcode-cache.sh
       # After the build, so GitHub has reported which job this runner runs: the
       # host gives up authorizing a volume after 25 seconds, and that report can
-      # trail the job's start by longer.
-      - uses: tuist/cache-volume@v1
+      # trail the job's start by longer. A volume refused for that reason is
+      # inconclusive, never a failure.
+      - name: Attach the cache volumes
         if: matrix.target.label == needs.plan.outputs.volume_label
-        id: volume
-        with:
-          key: runners-acceptance-probe
-          path: ~/runners-acceptance-volume
-      - name: Seed the cache volume
+        id: volumes
+        timeout-minutes: 3
+        run: .github/scripts/runners-acceptance/volume.sh attach
+      - name: Seed the cache volumes
         if: matrix.target.label == needs.plan.outputs.volume_label
-        # Reported, never blocking: see gate.sh.
-        continue-on-error: true
+        timeout-minutes: 1
+        run: .github/scripts/runners-acceptance/volume.sh seed
+      # Keep this the job's last step: the host saves the volumes right after
+      # it, so the large write is what the guest's detach has to flush.
+      - name: Write the large payload
+        if: matrix.target.label == needs.plan.outputs.volume_label
         timeout-minutes: 2
-        env:
-          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
-        run: .github/scripts/runners-acceptance/volume.sh seed "$HOME/runners-acceptance-volume"
+        run: .github/scripts/runners-acceptance/volume.sh payload
 
-  # The host publishes a finished job's volume once its VM has stopped, which
+  # The host publishes a finished job's volumes once its VM has stopped, which
   # has taken up to about 90 seconds after the job ends. The wait runs on a
   # GitHub-hosted runner so it does not hold canary's only Mac.
   volume-wait:
-    name: Wait for the cache volume to be published
+    name: Wait for the cache volumes to be published
     needs: [plan, macos]
     if: needs.plan.outputs.volume_label != '' && needs.macos.result == 'success'
     runs-on: ubuntu-latest
@@ -195,31 +211,37 @@ jobs:
     steps:
       - run: sleep 120
 
-  # Runs on the same label as the seed job and requires the copy that job saved.
+  # Runs on the same label as the seed job and requires the copies that job
+  # saved.
   macos-volume:
-    name: macOS cache volume (${{ needs.plan.outputs.volume_label }})
-    needs: [plan, volume-wait]
+    name: macOS cache volumes (${{ needs.plan.outputs.volume_label }})
+    needs: [plan, macos, volume-wait]
     if: needs.volume-wait.result == 'success'
-    continue-on-error: true
     runs-on: ${{ needs.plan.outputs.volume_label }}
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          sparse-checkout: .github/scripts/runners-acceptance
-      - uses: tuist/cache-volume@v1
-        id: volume
-        with:
-          key: runners-acceptance-probe
-          path: ~/runners-acceptance-volume
-      - name: Verify the cache volume
+          sparse-checkout: |
+            .github/scripts/runners-acceptance
+            .github/actions/cache-volume
+            .github/actions/xcode-cache
+            .github/actions/module-cache
+      - name: Attach the cache volumes
+        timeout-minutes: 3
+        run: .github/scripts/runners-acceptance/volume.sh attach
+      - name: Verify the cache volumes
         timeout-minutes: 2
         env:
-          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
-        run: .github/scripts/runners-acceptance/volume.sh verify "$HOME/runners-acceptance-volume"
+          SEED_PENDING: ${{ needs.macos.outputs.volume_pending }}
+          # Tells a save lost to an overlapping probe run apart from a stale copy.
+          GH_TOKEN: ${{ github.token }}
+          VOLUME_LABEL: ${{ needs.plan.outputs.volume_label }}
+        run: .github/scripts/runners-acceptance/volume.sh verify
 
   linux:
     name: Linux ${{ matrix.target.name }} (${{ matrix.target.label }})
@@ -251,6 +273,8 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts/runners-acceptance
+      - name: File limits
+        run: .github/scripts/runners-acceptance/file-limits.sh
       - name: Kura round trip
         timeout-minutes: 3
         run: .github/scripts/runners-acceptance/kura-roundtrip.sh

@@ -380,7 +380,7 @@ load helpers
     [[ "$output" == *"| feed-b |  | ber1-ats-3 | source-2 | power | feed | installed |"* ]]
     [[ "$output" == *"| feed-a |  | ber1-ats-1 | source-1 | power | feed | installed |"* ]]
     [[ "$output" == *"| feed-b |  | ber1-ats-1 | source-2 | power | feed | installed |"* ]]
-    [[ "$output" == *"| feed-a |  | ber1-ats-2 | source-1 | power | feed | planned |"* ]]
+    [[ "$output" == *"| feed-a |  | ber1-ats-2 | source-1 | power | feed | installed |"* ]]
     [ "$(grep -c '| feed |' <<<"$output")" -eq 6 ]
 }
 
@@ -575,13 +575,13 @@ mini_site() {
 
 # --- the power appliances ----------------------------------------------------
 
-@test "the power gear is Eaton, three transfer switches and two PDUs, of which the prep bay runs two and one" {
+@test "the power gear is Eaton, three transfer switches and two PDUs, all installed" {
     run jq -r '[.nodes[] | select(.hardware == "eats16n")] | length' "$SITE_FILE"
     [ "$output" = "3" ]
     run jq -r '[.nodes[] | select(.hardware == "evmafc20a")] | length' "$SITE_FILE"
     [ "$output" = "2" ]
     run jq -r '[.nodes[] | select(.role == "power" and .status == "installed") | .name] | join(" ")' "$SITE_FILE"
-    [ "$output" = "ber1-ats-1 ber1-ats-3 ber1-pdu-b" ]
+    [ "$output" = "ber1-ats-1 ber1-ats-2 ber1-ats-3 ber1-pdu-a ber1-pdu-b" ]
 }
 
 @test "the PDU records the protocol a power driver should target" {
@@ -638,7 +638,7 @@ mini_referencing() {
 
 @test "the site's mini references its RackHost, and that validates" {
     run jq -r '[.nodes[] | select(.rack_host != null) | .rack_host] | join(" ")' "$SITE_FILE"
-    [ "$output" = "ber1-runner-b01 ber1-runner-b02 ber1-runner-b03 ber1-runner-b04 ber1-runner-b05 ber1-runner-b06 ber1-runner-b07 ber1-runner-b08 ber1-runner-b09" ]
+    [ "$output" = "ber1-runner-b01 ber1-runner-b02 ber1-runner-b03 ber1-runner-b04 ber1-runner-b05 ber1-runner-b06 ber1-runner-b07 ber1-runner-b08 ber1-runner-b09 ber1-runner-b10 ber1-runner-b11 ber1-runner-b12 ber1-runner-b13 ber1-runner-b14 ber1-runner-b15 ber1-runner-b16" ]
     run fleet_check_rack_hosts "$SITE_FILE"
     [ "$status" -eq 0 ]
 }
@@ -648,15 +648,25 @@ mini_referencing() {
     # join sees both. Crossed, one ATS failure takes the whole fleet: half the
     # minis lose power and the other half their switch.
     site="$BATS_TEST_TMPDIR/crossed.json"
-    mini_referencing "$site" ber1-runner-b01 ber1-tor-a
+    mini_referencing "$site" ber1-runner-b07 ber1-tor-b
     run fleet_check_rack_hosts "$site"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"ber1-runner-x01: its outlet on ber1-pdu-b resolves to ber1-ats-3 but its ToR ber1-tor-a to ber1-ats-1"* ]]
+    [[ "$output" == *"ber1-runner-x01: its outlet on ber1-pdu-a resolves to ber1-ats-2 but its ToR ber1-tor-b to ber1-ats-3, another chain"* ]]
     values="$BATS_TEST_TMPDIR/values.yaml"
     yq '(.rackFleet.hosts[] | select(.name == "ber1-runner-b02")).power.pdu = "ber1-pdu-a"' "$FLEET_RACK_VALUES" > "$values"
     run fleet_check_rack_hosts "$SITE_FILE" "$values"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"ber1-runner-b02: its outlet on ber1-pdu-a resolves to ber1-ats-2 but its ToR ber1-tor-b to ber1-ats-3"* ]]
+    [[ "$output" == *"ber1-runner-b02: its outlet on ber1-pdu-a resolves to ber1-ats-2 but its ToR ber1-tor-b to ber1-ats-3, another chain"* ]]
+}
+
+@test "a chain A mini on ToR A passes, ToR A being on the critical layer" {
+    # ber1-tor-a is on ber1-ats-1, which feeds no PDU. It carries the WAN and
+    # management for every mini already, so a chain A mini behind it gains no
+    # transfer switch whose failure takes the whole fleet.
+    site="$BATS_TEST_TMPDIR/chain-a.json"
+    mini_referencing "$site" ber1-runner-b07 ber1-tor-a
+    run fleet_check_rack_hosts "$site"
+    [ "$status" -eq 0 ]
 }
 
 @test "a RackHost on a PDU the site does not have is rejected" {
@@ -876,7 +886,7 @@ mini_referencing() {
 
 @test "each PDU with a management address is a RackPDU, adopted by the controller once installed" {
     run fleet_pdus "$SITE_FILE"
-    [ "$output" = "ber1-pdu-b" ]
+    [ "$output" = $'ber1-pdu-a\nber1-pdu-b' ]
     run fleet_render_pdu "$SITE_FILE" ber1-pdu-b
     [ "$status" -eq 0 ]
     [ "$(yq 'select(.kind == "RackPDU") | .metadata.name' <<<"$output")" = "ber1-pdu-b" ]
@@ -895,7 +905,7 @@ mini_referencing() {
     [ "$(yq 'select(.kind == "RackPDU") | .spec | has("mac")' <<<"$output")" = "false" ]
 
     # a PDU not installed yet is standalone
-    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.mgmt_address = "192.168.0.17")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.status = "planned")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
     run fleet_pdus "$BATS_TEST_TMPDIR/planned.json"
     [ "$output" = $'ber1-pdu-a\nber1-pdu-b' ]
     run fleet_render_pdu "$BATS_TEST_TMPDIR/planned.json" ber1-pdu-a
@@ -948,7 +958,7 @@ mini_referencing() {
 
 @test "each transfer switch with a management address is a RackATS, adopted by the controller once installed" {
     run fleet_atses "$SITE_FILE"
-    [ "$output" = $'ber1-ats-1\nber1-ats-3' ]
+    [ "$output" = $'ber1-ats-1\nber1-ats-2\nber1-ats-3' ]
     run fleet_render_ats "$SITE_FILE" ber1-ats-3
     [ "$status" -eq 0 ]
     [ "$(yq 'select(.kind == "RackATS") | .metadata.name' <<<"$output")" = "ber1-ats-3" ]
@@ -968,7 +978,7 @@ mini_referencing() {
     [ "$(yq 'select(.kind == "RackATS") | .spec | has("mac")' <<<"$output")" = "false" ]
 
     # a transfer switch not installed yet is standalone
-    jq '(.nodes[] | select(.name == "ber1-ats-2")) |= (.mgmt_address = "192.168.0.19")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
+    jq '(.nodes[] | select(.name == "ber1-ats-2")) |= (.status = "planned")' "$SITE_FILE" > "$BATS_TEST_TMPDIR/planned.json"
     run fleet_atses "$BATS_TEST_TMPDIR/planned.json"
     [ "$output" = $'ber1-ats-1\nber1-ats-2\nber1-ats-3' ]
     run fleet_render_ats "$BATS_TEST_TMPDIR/planned.json" ber1-ats-2

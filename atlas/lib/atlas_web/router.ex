@@ -4,6 +4,7 @@ defmodule AtlasWeb.Router do
   import Oban.Web.Router
   import Phoenix.LiveDashboard.Router
 
+  alias Atlas.Automations.Interfaces
   alias Atlas.MCP.Server
   alias Atlas.MCP.Transport.StreamableHTTP
   alias AtlasWeb.Plugs.AdminAuth
@@ -97,6 +98,30 @@ defmodule AtlasWeb.Router do
     get "/ready", HealthController, :ready
   end
 
+  # Native app association files and the /open landing are public. They use no
+  # Accept negotiation, session, CSRF, or user lookup: Apple's CDN and Android's
+  # verifier fetch the association files without them, and the files are 404 until
+  # the deployment configures verified app identities.
+  pipeline :native_links do
+    plug :put_secure_browser_headers
+  end
+
+  scope "/.well-known", AtlasWeb do
+    pipe_through :native_links
+
+    get "/apple-app-site-association", NativeLinksController, :apple_app_site_association
+    get "/assetlinks.json", NativeLinksController, :asset_links
+  end
+
+  # Public, credential-free landing for native links. It reads no session, user,
+  # or record, and never redirects to the custom scheme automatically.
+  scope "/open", AtlasWeb do
+    pipe_through :native_links
+
+    get "/:screen", NativeLinksController, :open
+    get "/:screen/:id", NativeLinksController, :open
+  end
+
   scope "/.well-known", AtlasWeb do
     pipe_through [:api]
 
@@ -140,6 +165,7 @@ defmodule AtlasWeb.Router do
     post "/slack/events", SlackEventsController, :handle
     post "/slack/interactions", SlackEventsController, :interactions
     post "/github/events", GitHubEventsController, :handle
+    post "/automation/hooks/:id", AutomationWebhookController, :create
     post "/inbox/emails", InboxEmailsController, :create
     post "/postal/events", PostalEventsController, :handle
     post "/email/subscriptions", GTMSubscriptionController, :create
@@ -166,7 +192,22 @@ defmodule AtlasWeb.Router do
   end
 
   scope "/api/native", AtlasWeb do
+    pipe_through :api
+
+    get "/themes", NativeThemesController, :index
+  end
+
+  scope "/api/native", AtlasWeb do
     pipe_through :native
+
+    get "/orbit/threads", NativeOrbitController, :index
+    post "/orbit/threads", NativeOrbitController, :create
+    post "/orbit/threads/private", NativeOrbitController, :private
+    get "/orbit/threads/:id/messages", NativeOrbitController, :messages
+    post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
+    post "/orbit/threads/:id/participants", NativeOrbitController, :add_participant
+    delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
+    post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
 
     get "/profile", NativeController, :profile
     get "/:resource", NativeController, :index
@@ -180,6 +221,24 @@ defmodule AtlasWeb.Router do
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
 
+    for route <- Interfaces.routes() do
+      match route.method, route.path, AutomationController, route.operation,
+        private: %{automation_parameters: route.parameters}
+    end
+
+    match :*, "/automation/*path", AutomationController, :unsupported
+
+    get "/native/automation/workflows", NativeAutomationController, :workflows
+    get "/native/automation/workflows/:id", NativeAutomationController, :workflow
+    post "/native/automation/workflows/:id/run", NativeAutomationController, :run
+    get "/native/automation/executions", NativeAutomationController, :executions
+    get "/native/automation/executions/:id", NativeAutomationController, :execution
+    get "/native/automation/executions/:id/result", NativeAutomationController, :result
+    post "/native/automation/executions/:id/control", NativeAutomationController, :control
+    get "/native/automation/approvals", NativeAutomationController, :approvals
+    get "/native/automation/approvals/:id", NativeAutomationController, :approval
+    post "/native/automation/approvals/:id/decision", NativeAutomationController, :decide
+
     get "/me/time-off", TimeOffController, :index
     post "/me/time-off", TimeOffController, :create
     patch "/me/time-off/:id", TimeOffController, :update
@@ -191,6 +250,9 @@ defmodule AtlasWeb.Router do
     post "/me/llm-providers/chatgpt/login/poll", LLMConnectionsController, :poll_chatgpt
     delete "/me/llm-providers/chatgpt/login", LLMConnectionsController, :cancel_chatgpt
     delete "/me/llm-providers/:provider", LLMConnectionsController, :delete
+
+    put "/me/push-devices/:installation_id", PushDevicesController, :update
+    delete "/me/push-devices/:installation_id", PushDevicesController, :delete
 
     get "/notes", NotesController, :index
     post "/notes", NotesController, :create
@@ -286,6 +348,7 @@ defmodule AtlasWeb.Router do
       live "/", OverviewLive, :index
       live "/demo", DemoLive, :index
       live "/tasks", TasksLive, :index
+      live "/people", PeopleLive, :index
       live "/people/time-off", TimeOffLive, :index
       live "/people/time-off/settings", TimeOffLive, :settings
       live "/commercial/sales", SalesLive, :index
@@ -328,6 +391,19 @@ defmodule AtlasWeb.Router do
       live "/commercial/sales/pocs/new", POCLive.Form, :new
       live "/commercial/sales/pocs/:id", POCLive.Show, :show
       live "/commercial/sales/pocs/:id/edit", POCLive.Form, :edit
+    end
+
+    live_session :scoped_automation,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "automation:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/automation/workflows", AutomationLive, :workflows
+      live "/automation/workflows/:id", AutomationLive, :workflow
+      live "/automation/behaviors", AutomationLive, :behaviors
+      live "/automation/executions", AutomationLive, :executions
+      live "/automation/executions/:id", AutomationLive, :execution
+      live "/automation/schedules", AutomationLive, :schedules
+      live "/automation/webhooks", AutomationLive, :webhooks
+      live "/automation/approvals", AutomationLive, :approvals
     end
 
     live_session :scoped_finance,

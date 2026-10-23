@@ -154,17 +154,17 @@ struct UploadResultBundleServiceTests {
         let bundle = directory.appending(component: "tests.xcresult")
         try await fileSystem.makeDirectory(at: bundle)
         try await fileSystem.touch(bundle.appending(component: "Info.plist"))
-        let environment = try #require(Environment.mocked)
-        environment.variables["TUIST_NETWORK_TRUSTED_PUBLISHING"] = "true"
         serverEnvironmentService.reset()
         given(serverEnvironmentService).url(configServerURL: .any)
             .willReturn(try #require(URL(string: "https://tuist.example")))
         given(authentication).authenticationToken(serverURL: .any).willReturn(nil)
         given(xcResultService).parse(path: .value(bundle), rootDirectory: .any)
             .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 42, testModules: []))
-        let result = try await subject.uploadResultBundle(
-            resultBundlePath: bundle, config: .test(fullHandle: "acme/widgets")
-        )
+        let result = try await ServerReportPublishingMode.$serverAllowsNetworkPublishing.withValue({ _ in true }) {
+            try await subject.uploadResultBundle(
+                resultBundlePath: bundle, config: .test(fullHandle: "acme/widgets")
+            )
+        }
         #expect(result.id == "test-id")
         verify(gitHistoryService)
             .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any)

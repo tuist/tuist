@@ -96,7 +96,7 @@ jobs:
         with:
           platform: ${{ matrix.platform }}
           operation: build
-          authenticated: ${{ github.repository == 'tuist/tuist' && matrix.platform != 'ios-device' }}
+          authenticated: ${{ github.repository == 'tuist/tuist' && matrix.platform != 'ios-device' && matrix.platform != 'android' }}
 
   build-fork:
     name: Build fork (${{ matrix.platform }})
@@ -189,10 +189,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test signing keychain lifecycle
         run: python3 ios/distribution/keychain_test.py
+      - name: Test Android signing publication guard without credentials
+        run: python3 android/distribution/sign_test.py
       - name: Check launcher icon packaging
         run: python3 resources/app_icons_test.py
+      - name: Test Firebase dependency integrity and manifest/resource gates
+        run: python3 android/push/push_test.py
       - name: Check signing script syntax
-        run: for script in ios/distribution/{bundle,keychain}.sh; do bash -n "$script"; done
+        run: for script in ios/distribution/{bundle,keychain,associated-domains,push}.sh android/distribution/sign.sh; do bash -n "$script"; done
 
   test-native-ui:
     name: Test native iOS UI
@@ -209,6 +213,10 @@ jobs:
           install: rust github:tuist/once
       - run: mise exec -- rustup target add aarch64-apple-ios-sim
       - run: mise run prepare:rust
+      - name: Test associated-domain provisioning guard without credentials
+        run: bash ios/distribution/test-associated-domains.sh
+      - name: Test APNs provisioning guard without credentials
+        run: python3 ios/distribution/push_test.py
       - name: Build isolated native UI fixtures
         run: mise exec -- once build AtlasSettingsUITests
       - name: Verify preview SDK and deployment minimum
@@ -242,6 +250,7 @@ jobs:
             -collect-test-diagnostics never \
             -only-testing:AtlasSettingsUITests/AtlasBusinessUITests \
             -only-testing:AtlasSettingsUITests/AtlasWorkspaceUITests \
+            -only-testing:AtlasSettingsUITests/AtlasNavigationUITests \
             -skip-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
             -resultBundlePath "$PWD/ui-evidence/native-ui.xcresult" || ui_status=$?
           kill -INT "$recording"
@@ -301,17 +310,23 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - name: Authenticate with Tuist
         run: mise exec -- tuist auth login
-      - name: Sign iOS device preview
+      - name: Sign Android distribution with the verified App Links identity
+        if: vars.ATLAS_ANDROID_KEYSTORE_REF != ''
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          mkdir -p .once/out/AtlasIOSDevice
-          ditto -x -k delivery/ios-device/Atlas-ios-device.zip .once/out/AtlasIOSDevice
-          mise run bundle:ios
+          ATLAS_ANDROID_KEYSTORE_REF: ${{ vars.ATLAS_ANDROID_KEYSTORE_REF }}
+          ATLAS_ANDROID_KEYSTORE_PASSWORD_REF: ${{ vars.ATLAS_ANDROID_KEYSTORE_PASSWORD_REF }}
+          ATLAS_ANDROID_KEY_ALIAS: ${{ vars.ATLAS_ANDROID_KEY_ALIAS }}
+          ATLAS_ANDROID_APP_LINK_SHA256: ${{ vars.ATLAS_ANDROID_APP_LINK_SHA256 }}
+        run: mise exec -- bash android/distribution/sign.sh delivery/android/AtlasAndroid.apk delivery/android-distribution/Atlas.apk
       - name: Publish Android preview
+        if: vars.ATLAS_ANDROID_KEYSTORE_REF != ''
         run: |
-          mise exec -- tuist share delivery/android/AtlasAndroid.apk --track nightly
-          mise exec -- tuist inspect bundle delivery/android/AtlasAndroid.apk
+          mise exec -- tuist share delivery/android-distribution/Atlas.apk --track nightly
+          mise exec -- tuist inspect bundle delivery/android-distribution/Atlas.apk
+      - name: Android distribution setup required
+        if: vars.ATLAS_ANDROID_KEYSTORE_REF == ''
+        run: echo '::warning::Android preview publication is disabled until a stable distribution key and matching Atlas App Links fingerprints are configured. Debug APKs remain available as CI artifacts.'
       - name: Publish iOS simulator preview
         run: |
           ditto -x -k delivery/ios/Atlas-ios-simulator.zip delivery/ios
@@ -322,6 +337,13 @@ jobs:
           xcrun simctl launch "$device" dev.tuist.atlas
           TUIST_PREVIEW_BUILD_VERSION=$(date +%s) mise exec -- tuist share delivery/ios/Atlas.app --track nightly
           mise exec -- tuist inspect bundle delivery/ios/Atlas.app
+      - name: Sign iOS device preview
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p .once/out/AtlasIOSDevice
+          ditto -x -k delivery/ios-device/Atlas-ios-device.zip .once/out/AtlasIOSDevice
+          mise run bundle:ios
       - name: Publish iOS device preview
         run: |
           mise exec -- tuist share delivery/ios-device/Atlas.ipa --track nightly

@@ -358,6 +358,7 @@ defmodule Tuist.Application do
           {Cachex, [:tuist, []]},
           Supervisor.child_spec({Cachex, [:license, []]}, id: :license),
           Supervisor.child_spec({Cachex, [:display, []]}, id: :display),
+          Tuist.OIDC.JWKSCache,
           Tuist.Authentication.TokenVerificationCache,
           Tuist.Authentication.SubjectCache,
           Tuist.OpenGraphImages,

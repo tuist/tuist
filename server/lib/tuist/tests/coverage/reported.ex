@@ -157,7 +157,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   # the coverage skipped; a run that didn't report it still counts.
   defp unmeasured_runs(project_id, sha) do
     ClickHouseRepo.all(
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.git_dirty == false,
         group_by: t.id,
         having:

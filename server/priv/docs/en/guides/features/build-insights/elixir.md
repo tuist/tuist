@@ -30,19 +30,18 @@ Identifiers must be 1–128 bytes of non-space printable ASCII. Invalid override
 
 ## Credential-free reporting on a private network {#network-trusted-publishing}
 
-After an operator configures `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restarts it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">self-hosting guide</.localized_link>, configure your destination and opt in. The instance setting covers every supported project and has no dashboard toggle:
+After an operator configures `TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING=true` on the instance and restarts it as described in the <.localized_link href="/guides/server/self-host/server#network-trusted-report-publishing">self-hosting guide</.localized_link>, configure your destination. The SDK automatically discovers whether the instance permits credential-free reporting when credentials are absent. The instance setting covers every supported project and has no dashboard toggle:
 
 ```elixir
 tuist: [
   url: "https://tuist.internal.example",
-  project: "account/project",
-  network_trusted_publishing: true
+  project: "account/project"
 ]
 ```
 
-Alternatively, set `TUIST_NETWORK_TRUSTED_PUBLISHING=true`. `mix tuist.compile` and `mix tuist.test` then publish structured reports without sign-in when credentials are genuinely absent. Present credentials, including supplied CI OIDC identity, are used or rejected, never ignored to downgrade to unsigned reporting. Blank tokens and corrupt credential files are errors and are not deleted automatically. Old servers reject unsigned reports.
+`mix tuist.compile` and `mix tuist.test` publish structured reports without sign-in when credentials are genuinely absent and discovery confirms that the server permits it. No client flag or project opt-in is required. Present credentials, including supplied CI OIDC identity, are used or rejected, never ignored to downgrade to unsigned reporting. A whitespace-only `TUIST_TOKEN` is an error. An empty `TUIST_TOKEN` can fall back to valid stored credentials or supplied OIDC, and stale stored credentials can fall back to supplied OIDC; both paths remain authenticated and never enable unsigned reporting. Unusable credentials are preserved and fail when no authenticated fallback succeeds. Upgrade every server replica to a discovery-capable version before upgrading credential-free clients; older servers without discovery, disabled instances, and discovery failures still require authentication.
 
-Unsigned runs are telemetry, not trusted flakiness, quarantine, coverage, or selective-execution evidence. Shard planning, build archives, and coverage/artifact endpoints still require credentials. Set `TUIST_NETWORK_TRUSTED_PUBLISHING=false` to disable credential-free publishing even when the project configuration enables it. Set `TUIST_ACTOR_ID=""` independently to omit the configured actor claim; verified credential identity is unaffected.
+Unsigned runs are telemetry, not trusted flakiness, quarantine, coverage, or selective-execution evidence. Shard planning, build archives, and coverage/artifact endpoints still require credentials. Set `TUIST_ACTOR_ID=""` independently to omit the configured actor claim; verified credential identity is unaffected.
 
 ## What is tracked {#what-is-tracked}
 

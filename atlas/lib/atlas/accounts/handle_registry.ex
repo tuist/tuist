@@ -67,7 +67,11 @@ defmodule Atlas.Accounts.HandleRegistry do
   tests to prime state.
   """
   def broadcast_change(payload) do
-    Phoenix.PubSub.broadcast(Atlas.PubSub, @topic, {:account_handle_changed, payload})
+    # Transactional callers must not publish a snapshot that may still roll back.
+    # The authoritative periodic reload picks up their committed changes.
+    if Repo.in_transaction?(),
+      do: :ok,
+      else: Phoenix.PubSub.broadcast(Atlas.PubSub, @topic, {:account_handle_changed, payload})
   end
 
   @doc """

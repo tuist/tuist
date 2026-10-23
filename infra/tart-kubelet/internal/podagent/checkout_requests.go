@@ -20,6 +20,7 @@ type checkoutGrant struct {
 	DefaultBranch    string `json:"default_branch"`
 	Commit           string `json:"commit"`
 	DefaultBranchJob bool   `json:"default_branch_job"`
+	MayStartMaster   bool   `json:"may_start_master"`
 	VolumeKey        string `json:"volume_key"`
 }
 
@@ -41,7 +42,7 @@ func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) 
 	}
 	task := cachevolumes.CheckoutTask{
 		Scope: grant.Scope, Generation: grant.Generation, CloneURL: grant.CloneURL, DefaultBranch: grant.DefaultBranch,
-		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
+		Commit: grant.Commit, DefaultBranchJob: grant.DefaultBranchJob, MayStartMaster: grant.MayStartMaster, Use: grant.ID, VolumeKey: grant.VolumeKey, UID: grant.UID,
 		BaseGeneration: grant.BaseGeneration, ImageDigest: grant.ImageDigest, ContentDigest: grant.ContentDigest,
 	}
 	// The job's branch is a clone of this host's master; the HEAD only restores it.
@@ -127,7 +128,7 @@ func (c *CustomVolumes) reserveCheckout(ctx context.Context, bytes uint64) (func
 		return nil, err
 	}
 	// Evict only when it can make the room: a refused build retries every reconcile.
-	if free < bytes && free+c.Checkouts.Evictable(c.Builtins.backend.allocatedBytes) >= bytes {
+	if free < bytes && free+c.Checkouts.Evictable(c.Space.backend.allocatedBytes) >= bytes {
 		c.Checkouts.Evict(func() bool {
 			free, err = c.freeBytesLocked()
 			return err == nil && free >= bytes
@@ -141,8 +142,8 @@ func (c *CustomVolumes) reserveCheckout(ctx context.Context, bytes uint64) (func
 	}
 	c.checkoutReserved += bytes
 	return func() {
-		c.Builtins.mu.Lock()
-		defer c.Builtins.mu.Unlock()
+		c.Space.mu.Lock()
+		defer c.Space.mu.Unlock()
 		c.checkoutReserved -= bytes
 	}, nil
 }

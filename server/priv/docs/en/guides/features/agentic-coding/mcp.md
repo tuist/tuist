@@ -382,8 +382,9 @@ These project-scoped tools inspect persistent build identities across runs. Star
 
 | `kind` | Toolchain | History lists |
 | --- | --- | --- |
+| `bazel_actions` | Bazel actions | BEP-reported action executions |
 | `gradle_tasks` | Gradle tasks | Task executions |
-| `xcode_modules` | Generated Xcode project modules | Module cache events |
+| `xcode_modules` | Xcode modules | Compilations and module cache events |
 | `once_actions` | Once actions | Executions |
 | `mix_files` | Mix compiled files | Compilations |
 | `mix_modules` | Mix compiled modules | Compilations |
@@ -391,6 +392,10 @@ These project-scoped tools inspect persistent build identities across runs. Star
 These tools are rolling out gradually and only return data for projects where they are enabled; for other projects they return an error instead of an empty result. A kind is only available for projects that use its build toolchain. The tools accept bounded `start_at`/`end_at` filters, `environment` (`any`, `ci`, or `local`) and an exact `branch`. `list_build_entities` accepts `q`; `list_build_entity_history` supports opaque `after`/`before` cursors. Unknown timing or cache observations remain unavailable rather than becoming zero or misses. History references the recorded parent and native execution for drill-down using the existing run tools.
 
 `get_build_entity` metrics include `duration_samples`, the number of observations with recorded timing: genuine zero durations count, missing timing does not. This count may be lower than the observation count; unavailable duration statistics remain null.
+
+Xcode module durations come from measured target compilations in build logs. Module-cache resolutions and targets without compilation work do not contribute duration samples. Compilation observations reference the Xcode build; cache events reference the generation or cache command.
+
+Bazel actions are identified by target label, mnemonic and configured primary output, keeping separate actions and configurations distinct without relying on input-dependent cache digests. History records BEP-reported executions, not cache lookups or trace-profile phases. Complete execution coverage requires `--build_event_publish_all_actions`; artifact delivery is best effort, so missing observations are not evidence that no work ran. Older Kura payloads without stable identity or execution start remain accepted but unindexed. Absent end-time measurements stay unavailable and genuine zero durations count.
 
 Mix module durations measure the containing file's compilation, not independently measured module work. Once actions use declared target/capability/index slots when the client reported the target mappings; diagnostic labels alone are not stable identities. Existing clients and run-level tools remain supported unchanged.
 

@@ -2369,7 +2369,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         // What TestCoverageAttribution recorded is reduced, and the run's coverage exported, as
         // soon as the run ends, before a stress pass runs tests over the same derived data and
         // replaces the profile both read.
-        let evidenceSession = action == .build ? nil : await testCoverageEvidenceService.prepare(platform: evidencePlatform)
+        let evidenceSession = action == .build ? nil : await testCoverageEvidenceService
+            .prepare(platform: evidencePlatform, config: config)
         let runStartedAt = Date()
         let recordCoverageEvidence = {
             if let evidenceSession {

@@ -50,6 +50,8 @@ type agent struct {
 	checkoutRequests                       chan struct{}
 	// maxVolumeBytes is the largest volume this host accepts.
 	maxVolumeBytes int64
+	// log receives server request retries; nil is slog.Default.
+	log *slog.Logger
 }
 type request struct {
 	PodName      string `json:"pod_name"`
@@ -74,8 +76,9 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	outcome := errors.New("invalid acquisition")
-	acquired := a.observe.Start("acquire", "none")
-	defer func() { acquired(outcome) }()
+	var subject cachevolumes.Subject
+	start := time.Now()
+	defer func() { a.observe.With(subject).Report("acquire", "none", start, outcome) }()
 	if a.requests != nil {
 		select {
 		case a.requests <- struct{}{}:
@@ -92,6 +95,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", 400)
 		return
 	}
+	subject.Pod = input.PodName
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 	if !a.runnerPod(ctx, r, input.PodName, input.PodUID) {
@@ -105,9 +109,13 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		fields["requested_volume_bytes"] = int64(input.RequestedVolumeBytes)
 	}
 	body, _ := json.Marshal(fields)
-	authorized := a.observe.Start("authorize", "none")
+	authorizing := time.Now()
 	identity, err := a.authorize(ctx, body)
-	authorized(err)
+	identity.ManagedKey = cachevolumes.ManagedKey(input.Key)
+	if err == nil {
+		subject = cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity, PodName: input.PodName})
+	}
+	a.observe.With(subject).Report("authorize", "none", authorizing, err)
 	outcome = err
 	if errors.Is(err, cachevolumes.ErrExecutionPending) {
 		log.Printf("cache authorization timed out: GitHub has not reported the job running on pod %s", input.PodName)
@@ -125,10 +133,12 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	warm, err := a.store.Acquire(ctx, identity, input.PodName, input.PodUID)
 	outcome = err
+	// A job that mounted an older copy, started empty or timed out fetches the
+	// saved version in the background for the next job on this host.
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		a.prefetch.start(identity)
+	}
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			a.prefetch.start(identity)
-		}
 		log.Printf("cache acquire failed: %v", err)
 		http.Error(w, "unavailable", 503)
 		return
@@ -237,17 +247,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// The timeout bounds metadata requests; archive transfers drop it and end on a stall instead.
 	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes}
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
-	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
+	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes, Log: metrics.logger}
+	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Log: metrics.logger, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
 	// A master another host superseded is refreshed in the background when it was
 	// used within the last day, so this host's next job attaches locally.
 	backend.RefreshWithin = 24 * time.Hour
 	// Checkout masters share the cache filesystem, its reserve and this agent.
 	checkouts := &cachevolumes.Checkouts{Root: filepath.Join(*root, "checkouts"), Images: &cachevolumes.Ext4CheckoutImages{}, Path: checkoutPath, Tools: pinnedGitLFS(gitLFSCommand), Observe: metrics.observe, Log: metrics.logger,
 		// Checkout images are larger than custom ones, so their archives get their own bound.
-		Transfer: &imageTransfer{URL: transfer.URL, Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000}}
+		Transfer: &imageTransfer{URL: transfer.URL, Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: cachevolumes.CheckoutCapacity + 1_000_000_000, Log: metrics.logger}}
 	space := &checkoutSpace{root: *root, reserve: backend.MinFreeBytes, checkouts: checkouts}
 	checkouts.Room = space.room
 	backend.Seed, backend.FreeBytesContext, backend.Reclaim = checkouts.Seed, space.free, space.reclaim
@@ -255,7 +266,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	checkouts.InUse = store.InUse
+	checkouts.InUse, backend.InUse = store.InUse, store.InUse
 	defer store.Close()
 	// Lock survives requests and prevents an overlapping/restarted DaemonSet from
 	// allocating the same directory. Kubernetes rollout uses maxSurge=0 as well.
@@ -272,7 +283,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, observe: metrics.observe, budget: 2 * time.Minute}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -297,9 +308,6 @@ func main() {
 			if available, capacity, e := cachevolumes.FilesystemSpace(*root); e == nil {
 				metrics.free.Set(float64(available))
 				metrics.capacity.Set(float64(capacity))
-			}
-			if err != nil {
-				log.Printf("cache maintenance failed: %v", err)
 			}
 			time.Sleep(30 * time.Second)
 		}
@@ -330,7 +338,7 @@ func dedicatedFilesystem(root string, references ...string) error {
 
 func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	state := slot.State
-	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS})
+	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot)})
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(a.authorizeURL, "/authorize")+"/report", bytes.NewReader(body))
@@ -343,7 +351,7 @@ func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := a.http.Do(req)
+	resp, err := cachevolumes.DoServer(a.http, req, a.log)
 	if err != nil {
 		return "", err
 	}
@@ -352,10 +360,23 @@ func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 		return "", fmt.Errorf("report status %d", resp.StatusCode)
 	}
 	var result struct {
-		Action string `json:"action"`
+		Action      string `json:"action"`
+		ColdPublish bool   `json:"cold_publish"`
 	}
 	err = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&result)
+	// Only an explicit server decision lets a branch that started empty replace
+	// the saved version; a plain seal keeps withholding it.
+	if result.Action == "seal" && result.ColdPublish {
+		return "publish", err
+	}
 	return result.Action, err
+}
+
+func mountedGeneration(slot cachevolumes.Slot) any {
+	if slot.MountedGeneration <= 0 {
+		return nil
+	}
+	return slot.MountedGeneration
 }
 
 // runnerPod reports whether the request comes from the live runner pod it names

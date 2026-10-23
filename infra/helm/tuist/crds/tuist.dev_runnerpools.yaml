@@ -261,6 +261,9 @@ spec:
                 observedImage:
                   type: string
                   description: spec.image value the controller last recorded an imageRolledAt for. Bumped together on every image change.
+                previousImage:
+                  type: string
+                  description: spec.image value the pool ran before observedImage. tart-kubelet pulls the current image on hosts that hold this one before its garbage collector reaps it, so a release costs those hosts only what changed.
                 imageRolledAt:
                   type: string
                   format: date-time

@@ -52,8 +52,8 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
          {:ok, identity} <- gitlab_identity(assigned, payload, remote),
          {:ok, branches} <-
            GitLabClient.cache_branches(assigned.url, payload["token"], identity.repository_id, remote["ref"]) do
-      {:ok,
-       Map.merge(identity, %{trusted: gitlab_writer?(remote, branches), writer_branch: gitlab_writer_branch(remote)})}
+      writer_branch = gitlab_writer_branch(remote) || gitlab_merge_request_writer_branch(assigned, identity, remote)
+      {:ok, Map.merge(identity, %{trusted: gitlab_writer?(remote, branches), writer_branch: writer_branch})}
     else
       _ -> {:error, :unavailable}
     end
@@ -234,6 +234,42 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   end
 
   def gitlab_writer_branch(_), do: nil
+
+  # A merge request pipeline saves under its source branch when the connection's
+  # API token shows the merge request comes from the project itself. GitLab sets
+  # the ref, so the merge request number can't be supplied by the pipeline. A
+  # missing token or a failed lookup leaves the job read-only.
+  defp gitlab_merge_request_writer_branch(assigned, identity, remote) do
+    with %GitLab.Connection{account_id: account_id, url: url, api_token: api_token} <-
+           assigned.connection_id && GitLab.get_connection(assigned.connection_id),
+         true <- account_id == assigned.account_id and url == assigned.url and is_binary(api_token) and api_token != "",
+         {:ok, iid} <- gitlab_merge_request_iid(remote),
+         {:ok, merge_request} <- GitLabClient.get_merge_request(url, api_token, identity.repository_id, iid) do
+      gitlab_merge_request_source_branch(merge_request, identity.repository_id, iid)
+    else
+      _ -> nil
+    end
+  end
+
+  def gitlab_merge_request_iid(%{"tag" => false, "ref" => ref} = remote) when is_binary(ref) do
+    with "merge_request_event" <- gitlab_pipeline_source(remote),
+         [_, iid] <- Regex.run(~r/\Arefs\/merge-requests\/([1-9][0-9]{0,9})\/(?:head|merge|train)\z/, ref) do
+      {:ok, String.to_integer(iid)}
+    else
+      _ -> :error
+    end
+  end
+
+  def gitlab_merge_request_iid(_), do: :error
+
+  def gitlab_merge_request_source_branch(
+        %{"iid" => iid, "project_id" => project_id, "source_project_id" => project_id, "source_branch" => branch},
+        project_id,
+        iid
+      )
+      when is_binary(branch) and branch != "", do: branch
+
+  def gitlab_merge_request_source_branch(_, _, _), do: nil
 
   defp gitlab_pipeline_source(%{"pipeline" => %{"source" => source}}), do: source
   defp gitlab_pipeline_source(remote), do: remote["source"]

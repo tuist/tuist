@@ -5,8 +5,10 @@ struct AtlasSettingsView: View {
     @ObservedObject var accounts: AtlasAIAccounts
     var signOut: () -> Void
     var profileRequest: (([String: Any]) async throws -> Data)?
+    var notifications: AtlasPushNotifications?
     @State private var profile: AtlasNativeProfile?
     @State private var profileError: String?
+    @Environment(\.atlasPresence) private var presence
 
     var body: some View {
         Form {
@@ -48,6 +50,17 @@ struct AtlasSettingsView: View {
                 }
             }
             Section {
+                NavigationLink {
+                    AtlasAppearanceView().onAppear { presence?.show() }
+                } label: {
+                    Label("Appearance", systemImage: "paintpalette")
+                }
+                .accessibilityIdentifier("profile-appearance")
+            }
+            if let notifications, profile?.pushNotifications?.ios == true {
+                AtlasPushSettingsView(notifications: notifications)
+            }
+            Section {
                 accountLink(.claude) { AtlasClaudeAccountView(accounts: accounts) }
                 accountLink(.chatgpt) { AtlasChatGPTAccountView(accounts: accounts) }
             } header: {
@@ -69,7 +82,9 @@ struct AtlasSettingsView: View {
             }
         }
         .navigationTitle(profileRequest == nil ? "Settings" : "Profile")
-        .tint(AtlasSettingsStyle.tint)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "profile") } }
+        .modifier(AtlasThemedContent())
+        .onAppear { presence?.show(resource: "profile") }
         .task { await accounts.load(); await loadProfile() }
         .refreshable { await accounts.load(); await loadProfile() }
     }
@@ -92,7 +107,9 @@ struct AtlasSettingsView: View {
     private func accountLink<Destination: View>(
         _ service: AtlasAIService, @ViewBuilder destination: () -> Destination
     ) -> some View {
-        NavigationLink(destination: destination) {
+        NavigationLink {
+            destination().onAppear { presence?.show() }
+        } label: {
             HStack(spacing: 12) {
                 AtlasServiceIcon(service: service)
                 VStack(alignment: .leading, spacing: 4) {
@@ -125,6 +142,11 @@ private struct AtlasNativeProfile: Decodable {
         let name: String
         let email: String
     }
+    struct PushNotifications: Decodable {
+        let ios: Bool
+        let android: Bool
+    }
     let user: User
     let serverVersion: String
+    let pushNotifications: PushNotifications?
 }

@@ -64,6 +64,7 @@ defmodule Noora.Select do
       class="noora-dropdown"
       phx-hook="NooraSelect"
       data-name={@name}
+      data-value={@value}
       data-on-value-change={@on_value_change}
     >
       <select :if={@name} data-part="hidden-select" name={@name} tabindex="-1" aria-hidden="true">

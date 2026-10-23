@@ -211,3 +211,31 @@ func TestCheckoutExportFromAFullHistoryCheckoutIndexesOnAShallowHost(t *testing.
 	gitIn(host, bytes.NewReader(exported), "index-pack", "--strict", "--stdin")
 	gitIn(host, nil, "rev-list", "--quiet", "--objects", head)
 }
+
+func TestCachePathsTheCachedCheckoutProvidesAreLeftOut(t *testing.T) {
+	workspace := t.TempDir()
+	writeFile(t, filepath.Join(workspace, ".git", "lfs", "objects", "aa", "bb", strings.Repeat("a", 64)), "object")
+	writeFile(t, filepath.Join(workspace, "Sources", "App.swift"), "app")
+	if err := os.MkdirAll(filepath.Join(workspace, ".git", "empty"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	targets := []string{filepath.Join(workspace, ".git", "lfs"), filepath.Join(workspace, ".git", "empty"), filepath.Join(workspace, "Sources"), filepath.Join(workspace, "DerivedData")}
+	state := filepath.Join(t.TempDir(), "state.json")
+	if err := recordCheckout(state, workspace, true); err != nil {
+		t.Fatal(err)
+	}
+	kept := withoutCheckoutPaths(targets, state)
+	if strings.Join(kept, ",") != strings.Join(targets[1:], ",") {
+		t.Fatalf("kept %v", kept)
+	}
+	// Without a mounted checkout the job's own .git is no exception.
+	if err := recordCheckout(state, workspace, false); err != nil {
+		t.Fatal(err)
+	}
+	if kept := withoutCheckoutPaths(targets, state); len(kept) != len(targets) {
+		t.Fatalf("kept %v", kept)
+	}
+	if kept := withoutCheckoutPaths(targets, filepath.Join(t.TempDir(), "missing.json")); len(kept) != len(targets) {
+		t.Fatalf("kept %v", kept)
+	}
+}

@@ -321,7 +321,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff"
+          install_args: "--locked git-cliff helm"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -363,9 +363,6 @@ jobs:
             exit 1
           fi
           sed -i 's/^appVersion: .*/appVersion: "'"$KURA_APPVERSION"'"/' kura/ops/helm/kura/Chart.yaml
-
-      - name: Install Helm
-        uses: azure/setup-helm@v4
 
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -1536,7 +1533,7 @@ jobs:
       # 100% of build ingestion promoted to production green on 2026-09-09, and
       # one that killed 100% of xcresult processing on 2026-09-23.
       #
-      # The worker cap matches cli.yml. It is not load-bearing while the plan
+      # The worker cap matches tuist-project-tests.yml. It is not load-bearing while the plan
       # holds two targets, since xcodebuild hands out one worker per target, but
       # it keeps the ceiling where it is if a third target is ever added here.
       - name: Test

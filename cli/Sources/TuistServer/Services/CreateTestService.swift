@@ -62,11 +62,20 @@ import TuistHTTP
     // swiftlint:disable:next type_body_length
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
+        private let makeClient: @Sendable (URL, Bool) -> Client
 
         public init(
             fullHandleService: FullHandleServicing = FullHandleService()
         ) {
+            self.init(fullHandleService: fullHandleService, makeClient: { Client.reporting(serverURL: $0, networkTrusted: $1) })
+        }
+
+        init(
+            fullHandleService: FullHandleServicing = FullHandleService(),
+            makeClient: @escaping @Sendable (URL, Bool) -> Client
+        ) {
             self.fullHandleService = fullHandleService
+            self.makeClient = makeClient
         }
 
         // swiftlint:disable:next function_body_length
@@ -97,8 +106,10 @@ import TuistHTTP
             coverage: TestRunCoverage? = nil,
             coverageEnabled: Bool? = nil
         ) async throws -> Components.Schemas.RunsTest {
-            let client = Client.reporting(serverURL: serverURL)
             let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
+            // Generated once, so a replay of the request carries the same id and the server records the run once.
+            let id = id ?? UUIDv7.generate()
+            let client = makeClient(serverURL, networkTrusted)
             let handles = try fullHandleService.parse(fullHandle)
 
             let status = statusPayload(for: testSummary.status)

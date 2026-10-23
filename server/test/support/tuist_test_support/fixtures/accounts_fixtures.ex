@@ -1,7 +1,10 @@
 defmodule TuistTestSupport.Fixtures.AccountsFixtures do
   @moduledoc false
 
+  import Ecto.Query, only: [from: 2]
+
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.Oauth2Identity
 
   def user_fixture(opts \\ []) do
@@ -15,7 +18,6 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         created_at: Keyword.get(opts, :created_at, DateTime.utc_now()),
         customer_id: Keyword.get(opts, :customer_id, "#{TuistTestSupport.Utilities.unique_integer()}"),
         setup_billing: Keyword.get(opts, :setup_billing, false),
-        current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
         current_month_remote_cache_hits_count_updated_at:
           Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
         handle: handle
@@ -23,6 +25,8 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
 
     {:ok, user} =
       Accounts.create_user(email, create_opts)
+
+    put_cache_usage(from(a in Account, where: a.user_id == ^user.id), opts)
 
     Tuist.Repo.preload(user, Keyword.get(opts, :preload, [:account]))
   end
@@ -88,9 +92,6 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     preload = Keyword.get(opts, :preload, [:account])
     setup_billing = Keyword.get(opts, :setup_billing, false)
 
-    current_month_remote_cache_hits_count =
-      Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
-
     {:ok, organization} =
       Accounts.create_organization(%{name: name, creator: creator},
         sso_provider: sso_provider,
@@ -108,11 +109,19 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         oauth2_user_info_url: oauth2_user_info_url,
         created_at: created_at,
         customer_id: customer_id,
-        setup_billing: setup_billing,
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+        setup_billing: setup_billing
       )
 
+    put_cache_usage(from(a in Account, where: a.organization_id == ^organization.id), opts)
+
     Tuist.Repo.preload(organization, preload)
+  end
+
+  defp put_cache_usage(account_query, opts) do
+    case Keyword.take(opts, [:current_month_cache_egress_megabytes, :current_month_cache_requests]) do
+      [] -> :ok
+      usage -> Tuist.Repo.update_all(account_query, set: usage)
+    end
   end
 
   def unique_user_email, do: "#{TuistTestSupport.Utilities.unique_integer(6)}@tuist.io"

@@ -2059,6 +2059,15 @@ Check `infra/kura-controller/incidents/` for a recovery that left them that
 way, and restore `RollingUpdate` one StatefulSet at a time
 (`infra/kura-controller/node-local-recovery.md`) before you resume.
 
+Instances that keep `OnDelete` by design do not cause this pause. The
+controller publishes `status.imageHold` for a positively fenced instance
+(`FencedImagePin`, `FencedReplacement`) and for a replica recovery's hold
+(`RecoveryRolloutHold`), and the rollout leaves those servers out of
+convergence, recording `server_held` in the rollout's trail and counting them
+in the waves table's Held column. They still need the operator procedure in
+`infra/kura-controller/serving-authority.md`. The canary wave pauses here when
+every canary server is held, because it then has no evidence about the target.
+
 **Why 15 minutes, and why warning.** The orchestrator itself decides when to
 pause, so there is no flapping to smooth over. The pending period only lets an
 operator who pauses on purpose resume without a notification. A pause is a
@@ -2739,6 +2748,123 @@ silent. `Tuist.Runners.Workers.StaleClaimsWorker` reaps those, and
 nothing alerts if it stops. If that is worth covering, the detector is
 claims held against work actually running — not withheld depth, which
 cannot tell a leak from a busy customer.
+
+### Runner cache volume rules
+
+Five rules in folder `Alerts`, group **Runner cache volumes**, evaluated
+every five minutes, watch the runner cache volumes (custom, managed and
+checkout volumes attached to Tuist Runners jobs). They are recorded in
+[`runner-cache-volume-alert-rules.json`](runner-cache-volume-alert-rules.json)
+and were created through `POST /api/v1/provisioning/alert-rules` with
+`X-Disable-Provenance: true`, so they stay editable in the UI like their
+siblings. Merging the file does not provision Grafana: change the live rule
+and the file together.
+
+| Rule | UID | Routing |
+| --- | --- | --- |
+| Runner cache volume saves failing | `runner-cache-volume-saves-failing` | `Incidents` (pages) |
+| Runner cache volume attaches unavailable | `runner-cache-volume-attaches-unavailable` | policy tree (`#notifications`) |
+| Runner cache volumes waiting on GitHub job binding | `runner-cache-volume-execution-pending` | policy tree (`#notifications`) |
+| Runner cache volume warm rate low | `runner-cache-volume-warm-rate-low` | policy tree (`#notifications`) |
+| Runner cache volume saves incomplete | `runner-cache-volume-saves-incomplete` | policy tree (`#notifications`) |
+
+All five are production only. The warm-rate rule reads Postgres (see its
+section); the other four read Loki (`grafanacloud-logs`), because the metric
+that carries the same fields undercounts.
+`tuist_runner_cache_volume_operations_total` (macOS hosts and the Linux
+`agent` alike) is aggregated by Adaptive Metrics with `instance` and `pod`
+removed. Until 2026-10-22 16:50 UTC it stored only a plain `sum`, so `rate()`
+and `increase()` over it returned an empty result, as with the Oban counters
+in **Ingestion jobs being discarded**. It now has an exact `sum:counter` rule
+and rates, but both agents create each `(operation, source, result)` series
+on its first increment, and that first increment is never counted (see
+`README.md`, *Metrics aggregated downstream of this chart*). Compared with the
+host logs over 17:20 to 18:20 UTC that day, the metric read 12 to 31% low on
+successes and showed neither of the hour's two isolated failures. A rule on it
+would miss exactly the first failures of a new breakage. Moving a rule to the
+metric needs the alerting series initialized to 0 in both agents, then a
+side-by-side comparison with the Loki rule. The metric also lacks `kind`, `use`
+and the macOS refusal lines that never become a cache phase.
+
+The host logs used:
+
+- macOS: `{job="tuist-macos-tart-kubelet", env="production"}`, lines with
+  `"msg":"cache phase"` and the `operation`, `source`, `result`, `kind`,
+  `use` fields, plus the refusal lines `custom cache volume ... job continues
+  cold`. The stream also carries the huge `runner log` lines, so every query
+  starts with a line filter.
+- Linux: `{cluster="tuist-production", namespace="tuist-runners",
+  service_name="agent"}`, lines with `"msg":"cache volume operation"` and the
+  same fields.
+
+Before 2026-10-21 17:00 UTC neither host logged `use` on these lines, so the
+backtests below count lines where a rule counts uses. The macOS publish path
+does not retry, so the two agree there; the Linux one retried a failing
+publish every 30 seconds, which overstates its line counts.
+
+**Cost.** The macOS stream is about 32 MB an hour and each Loki query scans its
+whole window: five and a half hours of it per evaluation across the four Loki
+rules, so roughly 50 GB of logs a day at five-minute evaluation, against about 2,600 GB a day of queries the stack already ran in
+October 2026. Do not move the group to one-minute evaluation without
+shortening the windows.
+
+#### Runner cache volume saves failing
+
+Per platform, the share of jobs whose save was refused in the last hour:
+
+```logql
+# A: uses with a failed publish (Linux is the same over the agent stream)
+count(sum by (use) (count_over_time(
+  {job="tuist-macos-tart-kubelet", env="production"}
+    |= `"msg":"cache phase"` |= `"operation":"publish"`
+    | json result="result", use="use"
+    | result=~`invalid_image|incomplete|error|timeout` [1h]))) or vector(0)
+# B: uses that published, excluding non-failures
+#    result!~`unchanged|withheld|release_pending|cancelled`
+```
+
+- Condition: `$A / $B > 0.3 && $B >= 20`
+- Pending period: 10 minutes; keep firing for 30 minutes, so a quiet hour in
+  the middle of a breakage (17:30 to 19:00 on 2026-10-21 had 4 and 12 saves)
+  does not resolve and re-page
+- Severity: critical. Routed to `Incidents` with `notification_settings`, like
+  the other paging rules: a save failure loses the job's cache for every later
+  job until it is fixed, and on 2026-10-21 nobody noticed for hours
+- **No Data: Normal**, **Error: Error**
+
+Backtest, one-hour window, hours named by their end (UTC):
+
+| Window | macOS | Linux |
+| --- | --- | --- |
+| 2026-10-17 to 10-19 | at most 21 saves an hour; 2 of 21 (9.5%) | max 8.5% |
+| 2026-10-20 | max 6% | 46%, 34% and 36% at 10:00, 12:00 and 15:00 (fires) |
+| 2026-10-21 00:00 to 17:00 | max 21% at 14 saves; max 18% above 20 saves | 35% and 39% at 15:00 and 17:00 (fires) |
+| 2026-10-21 17:00 to 23:00 | 71 to 100% (fires from 17:30 to 23:00) | 70%, 40% and 65% at 18:00, 20:00 and 21:00 (fires) |
+| 2026-10-22 00:00 to 09:30 | max 2% | 62%, 47% and 46% at 05:00, 06:00 and 08:00 (fires); 0 of 78 by 09:45 |
+
+The macOS breakage is the runner image 0.43.1 regression: the guest could not
+open its image through the VM share, every save failed write-back verification
+(`invalid_image`), and 0.44.0 at 20:37 left about two in three still failing.
+The Linux firings are real too. From 2026-10-20 until #14590 reached production
+on 10-22 at about 09:30, the agent's maintenance pass lost a race with
+kubelet's subPath unmount and poisoned about 38% of Linux custom saves
+(`invalid_image` after `loop device still has live references`). On 10-17 to
+10-19, before that, the Linux ratio stayed under 9%.
+
+The `invalid_image` share before 17:00 on 10-21 is low on macOS (1 to 5 an
+hour against 55 to 80 successes), even though the server records only about a
+third of the macOS uses that may publish as `published` from 08:00 that day.
+The host never refused those saves: 583 of the 729 discarded uses reported a
+size and were never superseded, host verdicts in that window were at least 81%
+`success` every hour, and macOS uploads logged 425 `conflict` results from 10-20 to 10-22
+as managed caches moved onto custom volumes and macOS volume use grew
+sevenfold. This rule measures host verdicts, so that gap is outside it.
+
+#### When it fires
+
+Run the first query in the description, then read `error` on a few failing
+lines. A runner image or tart-kubelet release just before the onset is the
+usual cause; roll it back. Per-account mitigation does not help.
 
 ### Node leaking cgroups
 
@@ -4014,15 +4140,28 @@ the body. Releases older than that answer first, which turns a steady fraction o
 an account's duplicate uploads into 502s while Kura's own request metrics count
 them as successes.
 
-`upstream` is the instance's HTTP backend (`kura-kura-<instance>-http`), which
-identifies the account.
+A 502 on a `-grpc` upstream whose controller error line is
+`recv() failed (104: Connection reset by peer) while reading response header from upstream`
+(upstream `grpc://<pod ip>:4001`) is Kura resetting the gateway gRPC
+connections the controller had open. It shows up as `ByteStream/Write` uploads
+from one Bazel client that hang for about a second and then fail together
+across dozens of connections, while requests a millisecond later succeed. The
+cause is not yet known. Kura logs each failed connection on the gateway gRPC
+listener at warn as `public HTTP connection failed`, with the HTTP/2 cause, the
+peer and the connection age:
+`{cluster="tuist-production", namespace="kura", service_name="kura"} |= "public HTTP connection failed"`.
+
+`upstream` is the instance's backend, which identifies the account:
+`kura-kura-<instance>-http` for the HTTP lane (pod port 4000) and
+`kura-kura-<instance>-grpc` for gateway gRPC (pod port 4001).
 
 - 503 and 504 are excluded. They come from draining pods, capacity shedding and
   upstream timeouts, arrive in bursts of thousands, and the Kura 5xx rule covers
   what Kura produces.
 - The pending period is what separates sustained breakage from a burst: one
   burst stays in the 15-minute window for three 5-minute evaluations and never
-  reaches the fourth.
+  reaches the fourth. Bursts repeating over 8 minutes or more, such as one CI
+  job's upload phase, keep the count up for four evaluations and fire.
 - The source is the access log because the controllers were not scraped. Every
   line except 2xx and 404 is kept; those two are sampled at 10%. The dedicated
   `kura-ingress-nginx` scrape in `values.yaml` now exports
@@ -4218,16 +4357,18 @@ in the fleet came close.
 
 ```promql
 max by (cluster, region, pod, kind) (
-  increase(kura_capacity_sheds_total_total{kind!~"response_stream|reapi_materialization|reapi_request_budget"}[15m])
+  increase(kura_capacity_sheds_total_total{kind!~"response_stream|reapi_materialization|reapi_request_budget|reapi_write_decode"}[15m])
   * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
 - Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
   value is the number of writes refused in the last 15 minutes
-- Excludes the two remote-execution read kinds: `reapi_materialization` has
-  its own rule (**Kura shedding remote-execution reads**), and
-  `reapi_request_budget` is not a capacity signal (see that section)
+- Excludes every remote-execution kind: `reapi_materialization` and
+  `reapi_write_decode` have their own rules (**Kura shedding remote-execution
+  reads** and **Kura shedding remote-execution writes**), and
+  `reapi_request_budget` is not a capacity signal (see the reads section).
+  What is left is the HTTP upload path, where a shed is a lost artifact.
 - Pending period: none (group `Cache` evaluates every 5 minutes)
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
@@ -4238,19 +4379,19 @@ max by (cluster, region, pod, kind) (
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused at
   least {{ $values.A.Value | printf "%.0f" }} cache writes at the
   {{ $labels.kind }} limit in the last 15 minutes ({{ $labels.cluster }})`
-- Description: `The pod refused uploads at the named limit. On the HTTP path
-  every one is an artifact lost, not a slowdown: the cache client only retries
-  GET, so a refused upload becomes a future cache miss and no build fails. On
-  the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
-  which clients retry, so read a REAPI-heavy pod as sustained backpressure.
-  upload_memory, memory_pressure_write, reapi_write_decode: the transient
-  memory budget derived from the pod's ceiling is exhausted, the lever is the
-  account's memory profile.
+- Description: `The pod refused uploads at the named limit. Every one is an
+  artifact lost, not a slowdown: the cache client only retries GET, so a
+  refused upload becomes a future cache miss and no build fails.
+  upload_memory, memory_pressure_write: the transient memory budget derived
+  from the pod's ceiling is exhausted, the lever is the account's memory
+  profile.
   tmp_staging, multipart_storage, multipart_uploads: staging disk or the
   multipart session cap (compare kura_multipart_uploads with
   kura_multipart_upload_capacity on current versions; older versions default to
   128). Orphaned sessions survive restarts until the 24-hour TTL and janitor
-  sweep reclaim them.`
+  sweep reclaim them. Remote-execution write sheds (reapi_write_decode) are
+  retried by the client and alert separately in Kura - shedding
+  remote-execution writes.`
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
@@ -4308,35 +4449,9 @@ limit in the summary, which is what the on-call needs to pick the lever:
     and that headroom both spent, or with pressure above normal closing the
     borrow. Read `kura_memory_elastic_transient_reserved_bytes` against
     `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
-    below. Older versions queued on the floor alone, so a shed there can come
-    with pressure normal and the headroom unused.
-- `reapi_write_decode`: the same budget on the remote-execution surface:
-  decoding a write's messages, decoding a compressed `BatchUpdateBlobs` item,
-  or a write whose reply the floor cannot cover, refused before it stores
-  anything. It
-  answers gRPC `RESOURCE_EXHAUSTED`, which Bazel retries, so this counter is
-  the only place it shows, and a REAPI-heavy pod firing on it continuously is
-  backpressure from a small floor rather than loss. If that proves to be steady
-  state on an instance, raise the floor or move the kind to a rate-based tier;
-  do not raise the bar for the HTTP kinds, which are loss.
-  - `reapi_write_decode` now sheds only after the elastic pool is also spent.
-    Write decoding, including a compressed `BatchUpdateBlobs` item, borrows
-    the ceiling headroom above the floor-derived budget while pressure is
-    normal, so a shed means the pod exhausted its floor *and* that headroom,
-    or it was above normal pressure and the borrow was closed. The one
-    exception is a write's reply, which never borrows: it is refused when the
-    floor cannot cover it, which happens only after that write's own decode
-    borrowed, so `transient_ceiling_headroom_borrowed` in
-    `kura_memory_actions_total_total` rises in the same window. A shed burst
-    with no borrows at normal pressure is a pod predating compressed items
-    borrowing, which refused them on a full floor with the headroom idle.
-    Read `kura_memory_elastic_transient_reserved_bytes` against
-    `kura_memory_elastic_transient_capacity_bytes` before reaching for the
-    profile: a pod resting at its elastic capacity has a floor genuinely too
-    small for its workload, while one at zero during the shed was shedding on
-    pressure, and **Kura pod under memory pressure** is the rule to read. The
-    pool is empty by construction on an instance with no published floor,
-    where the budget is already the whole headroom.
+    (see **Kura shedding remote-execution writes**). Older versions queued on
+    the floor alone, so a shed there can come with pressure normal and the
+    headroom unused.
 - `tmp_staging`: the per-upload staging reserve on disk.
 - `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
   memory-derived session cap (or an explicit fixed override). Compare occupied
@@ -4443,6 +4558,96 @@ instance's floor is too small for its read concurrency. Sheds without a
 matching rise in that counter come from the other read sites, which stay
 try-only: they are reached holding admission from another path, so waiting
 there would be hold-and-wait on the pool they are waiting for.
+
+### Kura shedding remote-execution writes
+
+Live as [rule `cg1z5gl5b2tc0e`](https://tuist.grafana.net/alerting/grafana/cg1z5gl5b2tc0e/view) since 2026-10-22.
+
+```promql
+max by (cluster, region, pod) (
+  increase(kura_capacity_sheds_total_total{kind="reapi_write_decode"}[15m])
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
+)
+```
+
+- Threshold: `> 10`, as a separate threshold expression on `A`
+- Pending period: none (group `Cache` evaluates every 5 minutes)
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, the same routing as
+  **Kura shedding cache writes by kind**; **No Data: Normal**,
+  **Error: Alerting**.
+- Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused
+  {{ $values.A.Value | printf "%.0f" }} remote-execution writes at the write
+  decoding limit in the last 15 minutes ({{ $labels.cluster }})`
+- Description: `The pod answered gRPC RESOURCE_EXHAUSTED with a RetryInfo
+  delay to remote-execution writes (ByteStream Write, BatchUpdateBlobs
+  including compressed items, UpdateActionResult, SpliceBlob) because the
+  transient memory budget for decoding and staging them was spent: the
+  floor-derived pool and the ceiling headroom it may borrow, or pressure above
+  normal closed the borrow. Nothing was stored for the refused write and
+  clients retry, so this is write backpressure rather than loss. Compare
+  kura_memory_elastic_transient_reserved_bytes with
+  kura_memory_elastic_transient_capacity_bytes and kura_memory_pressure_state:
+  a pool resting at capacity at normal pressure means the instance's floor is
+  too small for its upload concurrency, and the lever is the account's memory
+  profile. A burst shorter than one scrape leaves the gauges at zero, so also
+  check the grpc_write_decode_admission_rejected and
+  transient_ceiling_headroom_borrowed memory actions in the same window.`
+
+`reapi_write_decode` used to ride along in **Kura shedding cache writes by
+kind** at that rule's `> 0` bar, which is right for HTTP uploads (a shed there
+is a lost artifact) and wrong here. A refused remote-execution write stores
+nothing and answers `RESOURCE_EXHAUSTED` with a 1 to 10 second `RetryInfo`,
+which the client retries, so one shed is backpressure. It moved to its own
+rule for the same reason `reapi_materialization` did.
+
+#### What the kind covers
+
+The transient budget on the remote-execution surface: decoding a write's
+messages, staging a ByteStream upload, decoding a compressed `BatchUpdateBlobs`
+item, or a write whose reply the floor cannot cover, each refused before it
+stores anything. The counter is the only place it shows. ByteStream staging
+refusals (`bytestream_staging_admission_rejected`) and decode refusals
+(`grpc_write_decode_admission_rejected`) both file under this kind; the memory
+action separates them.
+
+Write decoding and staging borrow the ceiling headroom above the
+floor-derived budget while pressure is normal, so a shed means the pod spent
+its floor *and* that headroom, or it was above normal pressure and the borrow
+was closed. The one exception is a write's reply, which never borrows: it is
+refused when the floor cannot cover it, which happens only after that write's
+own decode borrowed, so `transient_ceiling_headroom_borrowed` in
+`kura_memory_actions_total_total` rises in the same window. A shed burst with
+no borrows at normal pressure is a pod predating compressed items borrowing,
+which refused them on a full floor with the headroom idle. Read
+`kura_memory_elastic_transient_reserved_bytes` against
+`kura_memory_elastic_transient_capacity_bytes` before reaching for the
+profile: a pod resting at its elastic capacity has a floor genuinely too small
+for its workload, while one at zero during the shed was shedding on pressure,
+and **Kura pod under memory pressure** is the rule to read. The pool is empty
+by construction on an instance with no published floor, where the budget is
+already the whole headroom.
+
+On the smallest profiles a single build's upload burst reaches the limit with
+the pod otherwise idle. Each ByteStream write of a blob of 16 MiB or more
+reserves a 32 MiB staging window plus its decode buffers, and each growth is
+drawn from either the floor pool or the borrowed headroom, never split across
+both. A pod with a 64 MiB floor and 128 MiB of headroom therefore refuses the
+next stream after about six concurrent large uploads, well before the two
+pools together are full.
+
+#### Threshold
+
+The threshold comes from the 30 days to 2026-10-22, the same bar as the reads
+rule. Nine 15-minute windows in production had any shed of this kind: 1, 1,
+1, 1, 2, 6, 6, 10 and 44. In every window up to 10 the transient pools peaked
+at 0 or 1% reserved across their scrapes, except the 6 on the pod that went on
+to shed 44 forty-five minutes later (23%). On 2026-10-22 one shed on a 652 MiB pod fired the old rule
+during a burst of about 490 writes (104 MiB) in one scrape, with pressure
+normal and the container at 70 MB. Only the 44-shed window, on 2026-10-18,
+had the transient pools visibly held (52% reserved at a scrape) and would fire
+here. If this rule fires repeatedly on one instance, the floor is the lever.
+Do not lower the bar for the HTTP kinds, which are loss.
 
 ### Kura replication outbox approaching its cap (retired)
 
@@ -6322,6 +6527,131 @@ sum by (cluster, namespace, method, route) (
 
 - Pending period: 2 minutes
 - Summary: `Bandit reported repeated request read timeouts for {{ $labels.route }} in {{ $labels.cluster }}`
+
+### Runner cache volume attaches unavailable
+
+Group, data source and cost are described in **Runner cache volume rules**.
+Per platform, the share of volume attaches in the last hour that were refused
+or failed, so the job ran without its volume:
+
+- macOS failures: `cache phase` lines with `operation` `attach` and a result
+  other than `success` or `cancelled` (in practice `capacity`), plus the
+  refusal lines `custom cache volume not authorized; ...` and `custom cache
+  volume larger than this host holds; ...`, which carry no result. The
+  `custom cache volume unavailable; ...` line is not counted: it repeats the
+  attach result.
+- Linux failures: `operation` `acquire` with a result other than `success`,
+  `cancelled` or `execution_pending` (`timeout` and `error`).
+- `execution_pending` is excluded on both sides because it has its own rule.
+- Condition: `$A / $B > 0.25 && $B >= 20`; pending period 10 minutes;
+  severity warning; no contact point, so the policy tree sends it to
+  `#notifications`. A cold job is slower, not broken, so this does not page.
+
+Backtest, one-hour window, hours named by their end (UTC), 2026-10-19 to
+10-22:
+
+- Linux fires at 16:00 and 17:00 on 10-19 (71 of 127 and 116 of 160 acquires
+  timed out): the agent spent its 25 second acquire budget downloading the
+  volume and the guest got `cache service returned 503`, fixed by #14589.
+  Every other hour is at most 19% (12 of 62 at 09:00 on 10-22).
+- macOS fires at 13:00 on 10-20 (9 of 31 attaches refused for `capacity`,
+  `cache capacity exhausted`). Every other hour is at most 21%. The `capacity`
+  refusals on 10-21 between 09:00 and 12:00 (9 to 11 an hour) stay under 5% of
+  that morning's volume and do not fire.
+
+Guest-side `Cache volume unavailable: <reason>` lines in the runner log
+(`service_name="tuist-runner"` on Linux) tell the same story from inside the
+job (144 in the two hours of the 10-19 timeouts), but that stream scans about
+10 million lines every two hours, so it stays an investigation query rather
+than a rule input.
+
+### Runner cache volumes waiting on GitHub job binding
+
+The number of volume and checkout attaches in the last 30 minutes, summed over
+both platforms, that the server answered with `execution_pending` (HTTP 425):
+it has not yet learned which GitHub job the runner is running, because that
+comes from the `workflow_job` `in_progress` webhook, and
+`Tuist.Runners.Workers.ExecutionLookupWorker` reading the GitHub API is only a
+fallback. The host gives up after 30 seconds and the job runs cold.
+
+```logql
+(sum(count_over_time({cluster="tuist-production", namespace="tuist-runners", service_name="agent"}
+    |= `"msg":"cache volume operation"` |= `"result":"execution_pending"`
+    |~ `"operation":"(acquire|checkout_acquire)"` [30m])) or vector(0))
++ (sum(count_over_time({job="tuist-macos-tart-kubelet", env="production"}
+    |~ `"msg":"(custom cache volume not authorized in time|[^"]*execution_pending)` [30m])) or vector(0))
+```
+
+- Threshold: `> 20`; pending period 5 minutes; severity warning; policy tree
+  (`#notifications`). It means GitHub is late, so there is nothing to page
+  anyone for; the description links githubstatus.com.
+- The host side is used rather than the server's `execution lookup found no
+  job` log line: the server stream is about 530,000 lines an hour, and the
+  host lines are what the job actually experienced.
+
+Backtest, 30-minute windows, 2026-10-17 to 10-22: at most 2 in every window
+except 2026-10-21 14:30 to 17:00, when it read 24, 160, 259, 293, 250 and 64.
+It fires at about 14:35. In the hours ending 12:00 to 18:00 the server logged
+`execution lookup found no job` 5, 6, 48, 448, 1,237, 491 and 51 times, and 0
+to 16 an hour in every other hour from 10-20 to 10-22. GitHub's delivery delay
+ran from 14:52 to 19:23. The host-side refusals stopped at about 17:00, so the
+rule resolves around 17:30, while the server kept missing a few bindings until
+about 21:00.
+
+### Runner cache volume warm rate low
+
+Per platform, among cache volume uses attached in the last two hours whose
+lineage had a saved copy (`base_generation > 0`), the share the host reported
+as warm (`runner_cache_volume_uses.warm`). It reads the **Tuist Production
+DB** datasource (`afscyehfnzg8wf`) rather than Loki because only the server
+knows the volume key, so it can leave out the `e2e-reuse-*` keys (15% of their
+macOS uses started cold from 10-20 to 10-22), the `runners-acceptance-probe` key and checkout
+volumes (key `checkout`).
+
+```sql
+-- A: warm uses; B is the same with count(*)
+SELECT v.platform AS platform, count(*) FILTER (WHERE u.warm) AS value
+FROM runner_cache_volume_uses u JOIN runner_cache_volumes v ON v.id = u.volume_id
+WHERE u.attached_at >= now() - interval '2 hours' AND u.base_generation > 0
+  AND u.warm IS NOT NULL AND v.key NOT LIKE 'e2e-reuse-%'
+  AND v.key NOT IN ('runners-acceptance-probe', 'checkout')
+GROUP BY v.platform
+```
+
+- Condition: `$A / $B < 0.8 && $B >= 50`; pending period 15 minutes;
+  severity warning; policy tree (`#notifications`)
+- The datasource connects as `tuist_grafana_ro`, which needs the column grants
+  on `runner_cache_volume_uses (volume_id, base_generation, warm, attached_at)`
+  and `runner_cache_volumes (id, key, platform)` in
+  `Tuist.Release.grafana_read_columns`. `Tuist.Release.migrate/0` applies them
+  on every deploy. None of these columns hold secrets or account identity; the
+  role still cannot read `account_id`, `repository` or `pod_name`.
+
+Backtest, two-hour window evaluated hourly, hours named by their end,
+2026-10-17 to 10-22, at least 50 uses:
+
+- Linux never went below 95%.
+- macOS's normal minimum was 86.3% (10-21 20:00), with 86.9 to 88.3% at 22:00
+  and 23:00 on 10-20 and 19:00 on 10-21.
+- On 10-21 macOS read 90.0% at 09:00, 83.0% at 10:00, 73.4% at 11:00, 71.3% at
+  12:00, 71.1% at 13:00 and 82.1% at 14:00, so it fires from about 11:00 to
+  13:30. That morning managed caches had just moved onto custom volumes and
+  macOS volume use grew sevenfold. 85% would also catch 10:00 and 14:00, but
+  sits a point and a half under the normal minimum.
+
+### Runner cache volume saves incomplete
+
+macOS only: any save in the last hour that the host withheld as `incomplete`
+because the image held fewer bytes than the guest reported writing (#14584).
+The guest's last writes never reached the image, and before #14584 such an
+image was published and the next job restored an empty volume.
+
+- Threshold: `> 0`; no pending period; severity warning; policy tree
+  (`#notifications`)
+- Backtest, 2026-10-20 to 10-22: exactly one, at 2026-10-21 23:03 UTC on rack
+  host b05 (10,249,740,288 of 10,354,028,544 bytes), so the rule fires once.
+  It also counts toward **Runner cache volume saves failing**, which needs
+  far more than one to fire.
 
 ### Runner job replica divergence
 

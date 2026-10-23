@@ -17,7 +17,8 @@ class TuistHttpClient(
     private val configurationProvider: ConfigurationProvider,
     private val httpClients: TuistHttpClients = TuistHttpClients(),
     private val connectTimeoutMs: Int = 30_000,
-    private val readTimeoutMs: Int = 60_000
+    private val readTimeoutMs: Int = 60_000,
+    private val retryPolicy: RetryPolicy = httpClients.retryPolicy
 ) {
     @Volatile
     private var cachedConfig: CacheConfiguration? = null
@@ -29,6 +30,10 @@ class TuistHttpClient(
         if (config.token.isNotEmpty()) connection.setRequestProperty("Authorization", "Bearer ${config.token}")
         return connection
     }
+
+    /** Runs one request with [TuistRetry]; see there for what [replaySafe] allows. */
+    internal fun <T> retrying(description: String, replaySafe: Boolean, attempt: () -> T): T =
+        TuistRetry.run(description, replaySafe, retryPolicy, attempt = attempt)
 
     fun <T> execute(operation: (CacheConfiguration) -> T): T {
         val config = getOrFetchConfig()

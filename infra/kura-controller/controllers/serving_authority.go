@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,7 +42,29 @@ type servingGrant struct {
 	PodName       string           `json:"pod_name"`
 	Reason        string           `json:"reason"`
 	FenceEvidence string           `json:"fence_evidence,omitempty"`
+	HolderExit    *holderExit      `json:"holder_exit,omitempty"`
+	ExitResume    *exitResume      `json:"exit_resume,omitempty"`
+	// ExitPromotedFrom is the exited holder whose ordinal still needs rebuilding.
+	ExitPromotedFrom *servingHolder `json:"exit_promoted_from,omitempty"`
 }
+
+// holderExit is kubelet's report that the exact holder process terminated.
+type holderExit struct {
+	Evidence string `json:"evidence"`
+	AtMS     int64  `json:"at_ms"`
+}
+
+// exitResume names the exited holder whose own volume a restarted container
+// in the same pod takes the writer over from.
+type exitResume struct {
+	Epoch  uint64        `json:"epoch"`
+	Holder servingHolder `json:"holder"`
+}
+
+// exitPromotionDelay bounds how long a verified exit waits for the restarted
+// container before the standby is promoted and the old volume needs a rebuild.
+const exitPromotionDelay = 60 * time.Second
+
 type handoverPreparation struct {
 	Intent   handoverIntent `json:"intent"`
 	Source   servingHolder  `json:"source"`
@@ -63,6 +86,51 @@ type servingReport struct {
 	Identity             servingHolder        `json:"identity"`
 	Epoch                uint64               `json:"epoch"`
 	Valid                bool                 `json:"valid"`
+	ExitResume           *servingHolder       `json:"exit_resume"`
+}
+
+// exitResumeCandidate returns the restarted process in the exited holder's own
+// pod. It reports itself unready until granted, so readiness is not required;
+// it must hold the writer lock and report the exact exited holder it inherited.
+func exitResumeCandidate(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, samples map[string]runtimeStatus, grant servingGrant) (servingHolder, bool) {
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Name != grant.PodName || string(pod.UID) != grant.Holder.PodUID || pod.Spec.NodeName != grant.Holder.Host || pod.DeletionTimestamp != nil {
+			continue
+		}
+		sample, fresh := samples[pod.Name]
+		report := sample.ServingAuthority
+		identity := report.Identity
+		if fresh && sample.State == "serving" && sample.WriterLockOwned && report.Enabled && report.Capability == "positive-fence-v1" && identity.InstanceUID == string(instance.UID) && identity.PodUID == string(pod.UID) && identity.Host == pod.Spec.NodeName && identity.Incarnation != "" && identity.Incarnation != grant.Holder.Incarnation && report.ExitResume != nil && *report.ExitResume == grant.Holder {
+			return identity, true
+		}
+	}
+	return servingHolder{}, false
+}
+
+// verifiedHolderExit returns kubelet's attestation that the holder's container
+// terminated. The runtime writes its incarnation to the termination log at
+// start, so the terminated message names the exact process however it ended.
+// An unreachable kubelet reports nothing, which is never evidence.
+func verifiedHolderExit(pods []corev1.Pod, holder servingHolder) (string, bool) {
+	for i := range pods {
+		pod := &pods[i]
+		if string(pod.UID) != holder.PodUID || pod.Spec.NodeName != holder.Host {
+			continue
+		}
+		for _, status := range pod.Status.ContainerStatuses {
+			if status.Name != kuraContainerName {
+				continue
+			}
+			for _, terminated := range []*corev1.ContainerStateTerminated{status.State.Terminated, status.LastTerminationState.Terminated} {
+				if terminated != nil && strings.TrimSpace(terminated.Message) == "kura-incarnation="+holder.Incarnation {
+					return fmt.Sprintf("kubelet on %s reported container %s of pod %s terminated (%s, exit code %d) at %s; it ran incarnation %s",
+						holder.Host, terminated.ContainerID, holder.PodUID, terminated.Reason, terminated.ExitCode, terminated.FinishedAt.UTC().Format(time.RFC3339), holder.Incarnation), true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 func fencedServing(instance *kurav1alpha1.KuraInstance) bool {
@@ -216,6 +284,12 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 		grant = servingGrant{Epoch: 1, Holder: holder, PodName: candidate, Phase: "Serving", ExpiresMS: now + 15000, Reason: "Initial fenced activation"}
 	case "Serving":
+		if evidence, exited := verifiedHolderExit(pods.Items, grant.Holder); exited {
+			abandonHandoverPreparation(&grant)
+			grant.Phase, grant.Reason = "Fencing", "Holder container exit verified by kubelet; restarting in place"
+			grant.HolderExit = &holderExit{Evidence: evidence, AtMS: now}
+			break
+		}
 		sourceReport := samples[grant.PodName].ServingAuthority
 		if sourceReport.Identity == grant.Holder && sourceReport.Observed != nil && sourceReport.Observed.Epoch == grant.Epoch && !sourceReport.Valid {
 			abandonHandoverPreparation(&grant)
@@ -341,6 +415,8 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		grant.Holder, grant.PodName, grant.Epoch, grant.ExpiresMS, grant.Phase, grant.Reason = grant.Handover.Destination, targetName, grant.Epoch+1, now+15000, "Serving", "Planned handover after named retained-data barrier and positive runtime revoke"
 		grant.Handover = nil
 		grant.ResumeEpoch = 0
+		grant.ExitPromotedFrom = nil
+		grant.ExitResume, grant.HolderExit = nil, nil
 	case "Fencing":
 		promotion := instance.Spec.PrimaryPromotion
 		// Only the exact existing process can resume its own retained writer.
@@ -350,7 +426,44 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		// still needs correction. Interrupted handovers require their old recovery.
 		report := samples[grant.PodName].ServingAuthority
 		holder, present := holders[grant.PodName]
-		if (promotion == nil || promotion.PreviousEpoch != grant.Epoch) && grant.Handover == nil && present && holder == grant.Holder && report.Observed != nil && report.Observed.Epoch == grant.Epoch && report.Observed.Phase == "Fencing" && report.Observed.Holder == grant.Holder && report.FencedEpoch == grant.Epoch && grant.Epoch != 0 && !report.Valid && report.Mutations == 0 {
+		operatorPromotion := promotion != nil && promotion.PreviousEpoch == grant.Epoch
+		if grant.HolderExit == nil && grant.Handover == nil {
+			if evidence, exited := verifiedHolderExit(pods.Items, grant.Holder); exited {
+				grant.HolderExit = &holderExit{Evidence: evidence, AtMS: now}
+				grant.Reason = "Holder container exit verified by kubelet; restarting in place"
+				break
+			}
+		}
+		if grant.HolderExit != nil && grant.Handover == nil && !operatorPromotion {
+			if grant.Epoch == ^uint64(0) {
+				return result, fmt.Errorf("serving epoch exhausted")
+			}
+			// The restarted container in the holder's own pod keeps every write
+			// the exited process acknowledged, so it is preferred over the standby.
+			if restarted, resumable := exitResumeCandidate(instance, pods.Items, samples, grant); resumable {
+				grant = servingGrant{Epoch: grant.Epoch + 1, Holder: restarted, PodName: grant.PodName, Phase: "Serving", ExpiresMS: now + 15000, LastHandover: grant.LastHandover,
+					Reason: "Restarted in place after kubelet-verified exit of the previous incarnation", FenceEvidence: grant.HolderExit.Evidence,
+					ExitResume: &exitResume{Epoch: grant.Epoch, Holder: grant.Holder}}
+				break
+			}
+			if now-grant.HolderExit.AtMS < exitPromotionDelay.Milliseconds() {
+				return result, nil
+			}
+			for name, candidate := range holders {
+				if name == grant.PodName || candidate.Host == grant.Holder.Host || samples[name].BackfillInitialCycle != backfillCycleComplete {
+					continue
+				}
+				exited := grant.Holder
+				grant = servingGrant{Epoch: grant.Epoch + 1, Holder: candidate, PodName: name, Phase: "Serving", ExpiresMS: now + 15000, LastHandover: grant.LastHandover,
+					Reason: "Promoted the standby after the exited holder did not restart in place; unreplicated tail may be missing", FenceEvidence: grant.HolderExit.Evidence, ExitPromotedFrom: &exited}
+				break
+			}
+			if grant.Phase == "Serving" {
+				break
+			}
+			return result, nil
+		}
+		if !operatorPromotion && grant.Handover == nil && present && holder == grant.Holder && report.Observed != nil && report.Observed.Epoch == grant.Epoch && report.Observed.Phase == "Fencing" && report.Observed.Holder == grant.Holder && report.FencedEpoch == grant.Epoch && grant.Epoch != 0 && !report.Valid && report.Mutations == 0 {
 			if grant.Epoch == ^uint64(0) {
 				return result, fmt.Errorf("serving epoch exhausted")
 			}
@@ -358,6 +471,7 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			grant.Epoch++
 			grant.Phase, grant.ExpiresMS, grant.Reason = "Serving", now+15000, "Resumed the same live writer after positive publication fencing"
 			grant.Barrier = nil
+			grant.ExitResume, grant.HolderExit = nil, nil
 			break
 		}
 		if promotion == nil || promotion.PreviousEpoch != grant.Epoch || promotion.PreviousPodUID != grant.Holder.PodUID || promotion.PreviousIncarnation != grant.Holder.Incarnation || promotion.PreviousHost != grant.Holder.Host || promotion.FenceEvidence == "" {

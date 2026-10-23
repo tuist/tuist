@@ -63,6 +63,23 @@ defmodule Atlas.LLMs.Runner do
   end
 
   @doc """
+  Builds client options that always dispatch in-process to the profile bound
+  to `role`, independent of the global `LLM_MODE`. The transport rejects the
+  request when no enabled profile carries that role; it never substitutes the
+  global inference profile.
+  """
+  def profile_client_opts(role, opts \\ []) when is_atom(role) do
+    [
+      model: ReqLLM.model!(%{id: "atlas-#{role}", provider: :openai}),
+      api_key: "local",
+      base_url: "http://atlas-local",
+      llm_request_options: [req_http_options: [plug: {LocalTransport, role: role}]]
+    ]
+    |> maybe_put(:timeout, Keyword.get(opts, :timeout))
+    |> Keyword.put(:retry, false)
+  end
+
+  @doc """
   Supplies reply events to a consumer while owning the transient agent session.
 
   ReqLLM's streaming transport uses Finch directly and ignores Req's Plug

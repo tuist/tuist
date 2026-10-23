@@ -20,7 +20,7 @@ impl MockTransport {
 impl Transport for MockTransport {
     fn request<T: serde::de::DeserializeOwned>(&self, url: &Url, body: Body<'_>) -> Result<T> {
         let value = match body {
-            Body::Get => Value::Null,
+            Body::Get | Body::Public { .. } => Value::Null,
             Body::Json(value) => value,
             Body::Api {
                 method,
