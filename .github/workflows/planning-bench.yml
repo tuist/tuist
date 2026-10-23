@@ -1,0 +1,35 @@
+name: Planning bench (temporary)
+
+on:
+  push:
+    branches: [claude/planning-bench]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  bench:
+    runs-on: tuist-staging-macos
+    timeout-minutes: 150
+    env:
+      TUIST_URL: https://staging.tuist.dev
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/xcode-cache
+      - uses: ./.github/actions/mise-install
+        with:
+          install: tuist
+          cache: "false"
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Bench
+        run: bash .github/scripts/planning-bench/bench.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: planning-bench
+          path: ${{ runner.temp }}/planning-bench/out
