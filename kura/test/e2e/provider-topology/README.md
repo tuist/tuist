@@ -4,8 +4,8 @@ Build the merge-base and changed images first, then run these sequentially on
 the same otherwise idle host with Node.js, OpenSSL and Docker on PATH:
 
 ```sh
-KURA_RESOURCE_OUTPUT=/tmp/topology-before node test/e2e/provider-topology/resources.mjs before kura:baseline
-KURA_RESOURCE_OUTPUT=/tmp/topology-after node test/e2e/provider-topology/resources.mjs after kura:after
+KURA_RESOURCE_METRICS_SOURCE=/path/to/baseline/kura/src/metrics.rs KURA_RESOURCE_OUTPUT=/tmp/topology-before node test/e2e/provider-topology/resources.mjs before kura:baseline
+KURA_RESOURCE_METRICS_SOURCE=/path/to/candidate/kura/src/metrics.rs KURA_RESOURCE_OUTPUT=/tmp/topology-after node test/e2e/provider-topology/resources.mjs after kura:after
 node test/e2e/provider-topology/summarize.mjs /tmp/topology-before /tmp/topology-after
 ```
 
@@ -35,7 +35,12 @@ two-second intervals throughout seeding, load and cooldown.
 
 The summary writes `summary.json` and aggregates simultaneous memory samples across all three nodes,
 reports peak and cooldown values, uses the doubled `_total_total` counters,
-and normalizes CPU to completed client bytes. The runtime has no CPU-seconds
+and normalizes CPU to completed client bytes. Prometheus omits unused labeled
+counter families entirely, including their TYPE lines. Only pressure transitions
+and segment refresh may start empty, after verifying their `Family<..., Counter>`
+declarations and unconditional registrations in the exact built `metrics.rs`.
+The result records that source hash/schema. Arbitrary missing metrics still
+fail; never substitute zero for an unknown gauge or renamed counter. The runtime has no CPU-seconds
 metric, so `/proc/<kura-pid>/stat` supplies that measurement. Interface transmit
 bytes include mTLS, ACKs, probes and metadata; client egress and peer applied
 payload counters are reported separately. Disk reports both apparent and allocated bytes, including metadata and segments;

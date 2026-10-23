@@ -61,7 +61,7 @@ jobs:
           working_directory: kura
           env: false
       - name: Check workload and measurement contracts
-        run: mise exec -- node --test test/e2e/provider-topology/{compare,corpus,summarize}.test.mjs
+        run: mise exec -- node --test test/e2e/provider-topology/{compare,corpus,metric-schema,summarize}.test.mjs
       - name: Install the native C/C++ toolchain
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       - uses: docker/setup-buildx-action@v3

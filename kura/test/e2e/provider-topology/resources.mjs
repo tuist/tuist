@@ -5,6 +5,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import https from "node:https";
 import { bodyFor, bodySize } from "./corpus.mjs";
+import { knownLazyCounters } from "./metric-schema.mjs";
 import { execFileSync } from "node:child_process";
 const label = process.argv[2];
 const testImage = process.argv[3];
@@ -22,6 +23,10 @@ openssl("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", certs + "/ca
 openssl("req", "-newkey", "rsa:2048", "-nodes", "-keyout", certs + "/peer.key", "-out", certs + "/peer.csr", "-subj", "/CN=kura-resource-peer");
 fs.writeFileSync(certs + "/extensions", "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth,clientAuth\nsubjectAltName=" + names.flatMap(n => ["DNS:" + n, "DNS:private-" + n]).join(",") + "\n");
 openssl("x509", "-req", "-in", certs + "/peer.csr", "-CA", certs + "/ca.pem", "-CAkey", certs + "/ca.key", "-CAcreateserial", "-out", certs + "/peer.pem", "-days", "1", "-extfile", certs + "/extensions");
+if (!process.env.KURA_RESOURCE_METRICS_SOURCE) throw Error("the exact built metrics.rs source is required");
+const metricsSource = fs.readFileSync(process.env.KURA_RESOURCE_METRICS_SOURCE, "utf8");
+const lazyCounters = knownLazyCounters(metricsSource);
+const metricsSourceSHA256 = crypto.createHash("sha256").update(metricsSource).digest("hex");
 const created = [];
 const dockerCommand = (...args) =>
   execFileSync("docker", args, { encoding: "utf8" });
@@ -252,7 +257,7 @@ await sample();
 const after = hostStats();
 fs.writeFileSync(
   `${out}/result.json`,
-  JSON.stringify({ stats, before, after, samples: sequence }, null, 2),
+  JSON.stringify({ stats, before, after, samples: sequence, knownLazyCounters: lazyCounters, metricsSourceSHA256 }, null, 2),
 );
 console.log(JSON.stringify(stats));
 if (stats.failures.length) process.exitCode = 1;

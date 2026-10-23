@@ -78,8 +78,9 @@ done
 # created and removed by the shared resource harness. No global Docker prune.
 for run in before-1 after-1 after-2 before-2; do
   image=$candidate_image
-  if [[ $run == before-* ]]; then image=$baseline_image; fi
-  KURA_RESOURCE_OUTPUT="$out/$run" "$node" test/e2e/provider-topology/resources.mjs "$run" "$image"
+  metrics_source=$repo/kura/src/metrics.rs
+  if [[ $run == before-* ]]; then image=$baseline_image; metrics_source=$work/baseline/kura/src/metrics.rs; fi
+  KURA_RESOURCE_METRICS_SOURCE="$metrics_source" KURA_RESOURCE_OUTPUT="$out/$run" "$node" test/e2e/provider-topology/resources.mjs "$run" "$image"
   "$node" test/e2e/provider-topology/summarize.mjs "$out/$run"
 done
 "$node" test/e2e/provider-topology/compare.mjs "$out/before-1" "$out/after-1" "$out/after-2" "$out/before-2" > "$out/comparison.json"

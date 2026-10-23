@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { compare } from "./compare.mjs";
+import { knownLazyCounters } from "./metric-schema.mjs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const script = fileURLToPath(new URL("./summarize.mjs", import.meta.url));
@@ -47,6 +49,28 @@ test("unknown metrics cannot silently become zero", () => fixture(directory => {
   const result = spawnSync(process.execPath, [script, directory], { encoding: "utf8" });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /missing kura_segment_refresh_bytes/);
+}));
+
+test("source-verified lazy families can be empty without weakening unknown metrics", () => fixture(directory => {
+  const source = fs.readFileSync(new URL("../../../src/metrics.rs", import.meta.url), "utf8");
+  const filename = path.join(directory, "result.json");
+  const result = JSON.parse(fs.readFileSync(filename, "utf8"));
+  result.knownLazyCounters = knownLazyCounters(source);
+  result.metricsSourceSHA256 = createHash("sha256").update(source).digest("hex");
+  fs.writeFileSync(filename, JSON.stringify(result));
+  for (const file of fs.readdirSync(directory).filter(file => file.endsWith(".prom"))) {
+    const name = path.join(directory, file);
+    fs.writeFileSync(name, fs.readFileSync(name, "utf8").replace(/^# TYPE kura_(?:memory_pressure_transitions|segment_refresh_bytes)_total counter\n/gm, ""));
+  }
+  execFileSync(process.execPath, [script, directory]);
+  const summary = JSON.parse(fs.readFileSync(path.join(directory, "summary.json"), "utf8"));
+  assert.equal(summary.pressureTransitions, 0);
+  assert.equal(summary.segmentRefreshBytes, 0);
+  const metricFile = path.join(directory, "0-4291.prom");
+  fs.writeFileSync(metricFile, fs.readFileSync(metricFile, "utf8").replace("kura_jemalloc_allocated_bytes 50\n", ""));
+  const failed = spawnSync(process.execPath, [script, directory], { encoding: "utf8" });
+  assert.notEqual(failed.status, 0);
+  assert.match(failed.stderr, /missing kura_jemalloc_allocated_bytes/);
 }));
 
 test("incomplete handshake or retained-corpus work refuses", () => fixture(directory => {

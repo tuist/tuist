@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { lazyCounterNames } from "./metric-schema.mjs";
 
 // Compare every sample, rather than hiding peaks behind the cooldown snapshot.
 for (const directory of process.argv.slice(2)) {
@@ -16,7 +17,10 @@ for (const directory of process.argv.slice(2)) {
         if (match) metrics.set(match[1], (metrics.get(match[1]) || 0) + Number(match[2]));
       }
       for (const required of ["kura_process_resident_anon_bytes", "kura_jemalloc_allocated_bytes", "kura_jemalloc_resident_bytes", "kura_memory_pressure_state", "kura_memory_transient_reserved_bytes", "kura_memory_transient_capacity_bytes", "kura_memory_pressure_transitions_total_total", "kura_capacity_sheds_total_total", "kura_artifact_write_bytes_total_total", "kura_artifact_egress_bytes_total_total", "kura_backfill_applied_bytes_total_total", "kura_segment_refresh_bytes_total_total"]) {
-        if (!metrics.has(required) && counters.has(required)) metrics.set(required, 0);
+        const sourceVerifiedEmptyFamily = lazyCounterNames.includes(required)
+          && /^[a-f0-9]{64}$/.test(result.metricsSourceSHA256 || "")
+          && result.knownLazyCounters?.includes(required);
+        if (!metrics.has(required) && (counters.has(required) || sourceVerifiedEmptyFamily)) metrics.set(required, 0);
         if (!metrics.has(required)) throw Error(`missing ${required} at ${index}/${port}`);
       }
       return metrics;
