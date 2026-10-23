@@ -1,0 +1,21 @@
+# Identity for the Jobs that infra/mise/tasks/mgmt/reconcile-talos.sh runs to
+# apply infra/k8s/mgmt/talos/patches/. Talos mints a talosconfig for the
+# ServiceAccount below into a Secret of the same name, scoped to the roles
+# listed, once the node has machine.features.kubernetesTalosAPIAccess enabled
+# for this namespace (patches/10-talos-api-access.yaml). Applied by the
+# reconcile script, not by the kubectl job.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mgmt-talos
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: talos.dev/v1alpha1
+kind: ServiceAccount
+metadata:
+  name: talos-patcher
+  namespace: mgmt-talos
+spec:
+  roles:
+    - os:admin
