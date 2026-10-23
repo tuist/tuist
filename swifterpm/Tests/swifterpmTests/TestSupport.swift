@@ -205,3 +205,43 @@ func swiftSyntaxPin(version: String) -> ResolvedPin {
         state: ResolvedState(branch: nil, revision: "abcdef1234567890", version: version)
     )
 }
+
+/// Lays out a swift-syntax prebuilt in `cacheDir` the way native SwiftPM caches it after verifying its manifest:
+/// `prebuilts/swift-syntax/<version>/<name>.json` next to `<name>-MacroSupport.zip`.
+func writeCachedSwiftSyntaxPrebuilt(
+    cacheDir: URL,
+    version: String,
+    name: String,
+    checksum: String? = nil
+) async throws {
+    let directory = cacheDir.appendingPathComponent("prebuilts/swift-syntax/\(version)")
+    let contents = directory.appendingPathComponent("contents")
+    try await fileSystem.makeDirectory(
+        at: contents.appendingPathComponent("Modules").absolutePath, options: [.createTargetParentDirectories]
+    )
+    try await fileSystem.makeDirectory(
+        at: contents.appendingPathComponent("lib").absolutePath, options: [.createTargetParentDirectories]
+    )
+    try await fileSystem.atomicWrite("module\n", to: contents.appendingPathComponent("Modules/SwiftSyntax.swiftmodule"))
+    try await fileSystem.atomicWrite("archive\n", to: contents.appendingPathComponent("lib/libMacroSupport.a"))
+    let archive = directory.appendingPathComponent("\(name)-MacroSupport.zip")
+    try await SystemProcess.run("/usr/bin/zip", ["-qry", archive.path, "Modules", "lib"], workingDirectory: contents)
+    try await fileSystem.removePath(contents)
+    let archiveChecksum = try checksum ?? Hashing.sha256Hex(fileAt: archive).uppercased()
+    try await fileSystem.atomicWrite(
+        JSONFormatter.prettyData([
+            "manifest": [
+                "libraries": [
+                    [
+                        "name": "MacroSupport",
+                        "checksum": archiveChecksum,
+                        "products": ["SwiftSyntax", "SwiftSyntaxMacros"],
+                        "includePath": ["Sources/_SwiftSyntaxCShims/include"],
+                    ],
+                ],
+            ],
+            "signature": ["signature": "verified by SwiftPM before caching"],
+        ]),
+        to: directory.appendingPathComponent("\(name).json")
+    )
+}
