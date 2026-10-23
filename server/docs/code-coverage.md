@@ -170,7 +170,7 @@ Xcode measures only the `run` scope itself. The other three come from [TestCover
 | Scope | Source | Requirements |
 | --- | --- | --- |
 | `run` | Xcode's coverage, read with `xccov` (`view --report` for targets and functions, `view --archive` for per-line execution counts), on the macOS xcresult processor for uploaded result bundles or on the client in local mode. | `-enableCodeCoverage YES`. Files compiled only into `.xctest` bundles are flagged as test code and left out of every figure. |
-| `target` | TestCoverageAttribution: everything the target's test process executed. | The package linked into the test target, and evidence collection on (`TUIST_COVERAGE_EVIDENCE=1`, which makes Tuist set `TEST_COVERAGE_ATTRIBUTION_DIR` for the test process). Works with parallel testing and with Swift Testing suites that lack the trait. |
+| `target` | TestCoverageAttribution: everything the target's test process executed. | The package linked into the test target, and a run that uploads coverage (Tuist then sets `TEST_COVERAGE_ATTRIBUTION_DIR` for the test process). Works with parallel testing and with Swift Testing suites that lack the trait. |
 | `test` | TestCoverageAttribution: one record per test. | Same as `target`. XCTest needs nothing more. Swift Testing needs the `.coverageAttribution` trait on its suites. Tests must run one at a time (`-parallel-testing-enabled NO`): a test that overlaps another is flagged as overlapped and gets no evidence of its own (`test_case_runs.coverage_evidence` = `overlapped`). |
 | `suite` | TestCoverageAttribution: the records of what ran between tests. | Same as `test`. |
 

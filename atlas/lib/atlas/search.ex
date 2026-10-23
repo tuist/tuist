@@ -21,6 +21,7 @@ defmodule Atlas.Search do
   alias Atlas.Notes.Note
   alias Atlas.Repo
   alias Atlas.Search.Record
+  alias Atlas.Search.VectorWorker
   alias Atlas.Vector
 
   require Logger
@@ -34,6 +35,36 @@ defmodule Atlas.Search do
   @rrf_k 60
 
   def source_types, do: Record.source_types()
+
+  def with_deferred_vectors(fun) do
+    previous = Process.get({__MODULE__, :defer_vectors})
+    Process.put({__MODULE__, :defer_vectors}, true)
+
+    try do
+      fun.()
+    after
+      if previous,
+        do: Process.put({__MODULE__, :defer_vectors}, previous),
+        else: Process.delete({__MODULE__, :defer_vectors})
+    end
+  end
+
+  def sync_record_vector(id) do
+    case Repo.get(Record, id) do
+      nil ->
+        :ok
+
+      record ->
+        index_record_vector(record, [])
+        :ok
+    end
+  end
+
+  def delete_record_vector(id), do: Vector.delete_vectors(["search_record:#{id}"])
+
+  defp enqueue_vector!(operation, id) do
+    %{"operation" => operation, "record_id" => id} |> VectorWorker.new() |> Oban.insert!()
+  end
 
   def index_account_event(%Event{} = event, opts \\ []) do
     upsert_record(
@@ -248,7 +279,12 @@ defmodule Atlas.Search do
         :ok
 
       record ->
-        _ = Vector.delete_vectors([vector_id(record)])
+        if Process.get({__MODULE__, :defer_vectors}) do
+          enqueue_vector!("delete", record.id)
+        else
+          _ = Vector.delete_vectors([vector_id(record)])
+        end
+
         Repo.delete(record)
         :ok
     end
@@ -311,7 +347,12 @@ defmodule Atlas.Search do
 
   defp maybe_index_record_vector(%Record{} = record, opts) do
     if Keyword.get(opts, :embed?, true) and Vector.configured?() do
-      index_record_vector(record, opts)
+      if Process.get({__MODULE__, :defer_vectors}) do
+        enqueue_vector!("upsert", record.id)
+        record
+      else
+        index_record_vector(record, opts)
+      end
     else
       record
     end
@@ -337,10 +378,8 @@ defmodule Atlas.Search do
       |> Record.embedding_changeset(model, DateTime.utc_now())
       |> Repo.update!()
     else
-      {:error, reason} ->
-        Logger.warning(
-          "Search record embedding skipped for #{record.source_type}:#{record.source_id}: #{inspect(reason)}"
-        )
+      {:error, _reason} ->
+        Logger.warning("Search record embedding skipped.", search_record_id: record.id)
 
         record
 

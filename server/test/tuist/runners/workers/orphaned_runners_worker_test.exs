@@ -18,6 +18,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
   setup do
     stub(K8sClient, :list_pods, fn _namespace, _selector -> {:ok, pod_items(["pod-1"])} end)
+    stub(K8sClient, :get_pod, fn _namespace, name -> {:ok, %{"metadata" => %{"name" => name}}} end)
 
     stub(GitHubClient, :workflow_run_status, fn _installation, _repository, _run_id ->
       {:ok, %{status: "in_progress", conclusion: nil}}
@@ -457,6 +458,131 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
       refute_enqueued(worker: OrphanedRunnersWorker)
+    end
+
+    test "leaves an aged row alone when its Pod reports its runner was started" do
+      # On 2026-10-22 GitHub's job API and its `in_progress` webhook lagged
+      # together: a job read `queued`, with nothing recorded against the
+      # claim, for minutes after its runner had started it. Releasing the
+      # claim stopped counting a working VM, and the `tuist` account ran 6
+      # macOS runners against a limit of 4.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> false end)
+
+      expect(K8sClient, :get_pod, fn _namespace, "pod-1" ->
+        {:ok, %{"metadata" => %{"name" => "pod-1", "annotations" => %{"tuist.dev/runner-heartbeat-state" => "claimed"}}}}
+      end)
+
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+      refute_enqueued(worker: OrphanedRunnersWorker)
+    end
+
+    test "leaves the row alone when its runner started before the confirmation ran" do
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :get_orphaned_running, fn _wfid -> orphan end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> false end)
+
+      expect(K8sClient, :get_pod, fn _namespace, "pod-1" ->
+        {:ok, %{"metadata" => %{"name" => "pod-1", "annotations" => %{"tuist.dev/runner-heartbeat-state" => "claimed"}}}}
+      end)
+
+      reject(&Claims.release/2)
+      reject(&WorkflowJobs.requeue_by_handle/2)
+
+      assert :ok = perform_job(OrphanedRunnersWorker, confirmation_args(orphan, "aged_out"))
+    end
+
+    test "counts a Linux Pod whose dispatch poller exited as busy" do
+      account = account_fixture()
+      orphan = candidate(account_id: account.id, fleet_name: "tuist-tuist-runner-pool-linux-4vcpu-16gb")
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> false end)
+
+      expect(K8sClient, :get_pod, fn _namespace, "pod-1" ->
+        {:ok,
+         %{
+           "metadata" => %{"name" => "pod-1"},
+           "status" => %{
+             "initContainerStatuses" => [%{"name" => "poller", "state" => %{"terminated" => %{"exitCode" => 0}}}]
+           }
+         }}
+      end)
+
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+      refute_enqueued(worker: OrphanedRunnersWorker)
+    end
+
+    test "does not count a Pod that is being deleted as busy" do
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :list_orphaned_running, fn _threshold -> [orphan] end)
+      expect(Jobs, :list_running_since, fn _threshold -> [] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _installation, _repository, _wfid ->
+        {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
+      end)
+
+      stub(Claims, :executing?, fn _wfid -> false end)
+
+      expect(K8sClient, :get_pod, fn _namespace, "pod-1" ->
+        {:ok,
+         %{
+           "metadata" => %{
+             "name" => "pod-1",
+             "deletionTimestamp" => "2026-10-22T14:19:00Z",
+             "annotations" => %{"tuist.dev/runner-heartbeat-state" => "claimed"}
+           }
+         }}
+      end)
+
+      stub_release()
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+      assert_confirmation_scheduled(orphan, "aged_out")
     end
 
     test "asks Buildkite, not GitHub, about a Buildkite row" do

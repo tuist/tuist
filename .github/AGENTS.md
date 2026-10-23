@@ -337,10 +337,11 @@ a pull request the unit and app tests run selectively, acceptance as before, and
 finished, whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, then the unit and app tests run in full
 (`--no-selective-testing`) and `coverage-complete`
-follows when both passed. The unit and app tests set `TUIST_COVERAGE_EVIDENCE` on both
-(not on forks): the server carries skipped tests only from runs that recorded
-evidence, main's full runs for every selective run and a pull request's own runs
-for its later pushes. Every merge runs on its own (no queue); a new push to a
+follows when both passed. The unit and app tests record per-test evidence on both,
+since their targets link TestCoverageAttribution and every run that uploads
+coverage collects it: the server carries skipped tests only from runs that
+recorded evidence, main's full runs for every selective run and a pull request's
+own runs for its later pushes. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
 commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1

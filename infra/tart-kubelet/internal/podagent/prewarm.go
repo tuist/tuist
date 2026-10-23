@@ -32,6 +32,10 @@ const defaultPrewarmTimeout = time.Hour
 // Pod's first VM takes.
 type goldenEnsurer interface {
 	ensureGolden(ctx context.Context, image string) (name string, materialized bool, err error)
+	// heldGoldens names the golden bases on this host's disk.
+	heldGoldens(ctx context.Context) (map[string]struct{}, error)
+	// podsAwaitGolden reports whether a Pod waits on a golden pull.
+	podsAwaitGolden() bool
 }
 
 var _ goldenEnsurer = (*Reconciler)(nil)
@@ -44,8 +48,9 @@ type PrewarmGate interface {
 
 // Prewarmer materialises the golden bases of the runner pools a freshly
 // registered host will serve, before the gate lets Pods onto it. A host that
-// was already registered is left alone: it is serving, and golden node
-// affinity already steers each pool to hosts that hold its image.
+// was already registered is not prewarmed: it is serving, and golden node
+// affinity already steers each pool to hosts that hold its image. Every host
+// then stages, in the background, the images its pools move to (stage.go).
 type Prewarmer struct {
 	K8s     client.Reader
 	Goldens goldenEnsurer
@@ -60,6 +65,17 @@ type Prewarmer struct {
 	// SyncRetry is how often an image the rack's image cache is still
 	// fetching is asked for again. Zero means defaultPrewarmSyncRetry.
 	SyncRetry time.Duration
+	// StageInterval is how often the host looks for images to stage once
+	// the gate is released. Zero disables staging.
+	StageInterval time.Duration
+	// NodeName is this host's Node, whose runner Pods staging waits for.
+	NodeName string
+	// Now is the staging clock. Nil uses time.Now.
+	Now func() time.Time
+
+	// jobsDeferredSince is when staging started waiting for this host's
+	// jobs, zero while it is not waiting.
+	jobsDeferredSince time.Time
 }
 
 // defaultPrewarmSyncRetry matches the requeue a Pod gets while the image
@@ -67,18 +83,25 @@ type Prewarmer struct {
 const defaultPrewarmSyncRetry = 30 * time.Second
 
 // Start conforms to manager.Runnable. It never returns an error: a failed
-// prewarm only costs the first Pod of each image its pull.
+// prewarm or stage only costs the first Pod of each image its pull.
 func (p *Prewarmer) Start(ctx context.Context) error {
-	logger := log.FromContext(ctx).WithName("prewarm")
-
 	held, err := p.Gate.Wait(ctx)
 	if err != nil {
 		return nil
 	}
-	defer p.Gate.Release()
-	if !held || p.Fleet == "" {
+	if held && p.Fleet != "" {
+		p.prewarm(ctx)
+	}
+	p.Gate.Release()
+	if p.Fleet == "" || p.StageInterval <= 0 {
 		return nil
 	}
+	p.stageEvery(ctx, p.StageInterval)
+	return nil
+}
+
+func (p *Prewarmer) prewarm(ctx context.Context) {
+	logger := log.FromContext(ctx).WithName("prewarm")
 
 	timeout := p.Timeout
 	if timeout <= 0 {
@@ -90,7 +113,7 @@ func (p *Prewarmer) Start(ctx context.Context) error {
 	images, err := p.images(ctx)
 	if err != nil {
 		logger.Error(err, "list runner pools; taking Pods without prewarming")
-		return nil
+		return
 	}
 	logger.Info("prewarming runner images before taking Pods", "fleet", p.Fleet, "images", images)
 	for _, image := range images {
@@ -109,7 +132,6 @@ func (p *Prewarmer) Start(ctx context.Context) error {
 		}
 		logger.Info("prewarmed runner image", "image", image, "golden", name, "pulled", materialized, "duration", time.Since(started).String())
 	}
-	return nil
 }
 
 func (p *Prewarmer) images(ctx context.Context) ([]string, error) {
@@ -144,6 +166,10 @@ func listRunnerPools(ctx context.Context, k8s client.Reader) ([]runnerPoolSpec, 
 
 // runnerPoolSpec is the slice of a RunnerPool the prewarmer and the GC read.
 type runnerPoolSpec struct {
+	Metadata struct {
+		Name   string            `json:"name"`
+		Labels map[string]string `json:"labels"`
+	} `json:"metadata"`
 	Spec struct {
 		Image         string `json:"image"`
 		OS            string `json:"os"`

@@ -62,7 +62,7 @@ func (a *agent) allocateOnce(ctx context.Context, url string, body []byte, resul
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
-	response, err := a.http.Do(req)
+	response, err := cachevolumes.DoServer(a.http, req, a.log)
 	if err != nil {
 		return 0, err
 	}

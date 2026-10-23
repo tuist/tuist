@@ -50,7 +50,10 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     2. For each, call `GET /repos/{owner}/{repo}/actions/jobs/{id}`
        on the org's GitHub App installation.
     3. If GH returns `status: 'queued'` with no runner assigned, the
-       runner may never have come up. Schedule a confirmation for the
+       runner may never have come up, unless the claim records an
+       execution or its Pod, still present, reports that its runner was
+       started: then the Pod is busy, GitHub is lagging, and the row is
+       left alone. Otherwise schedule a confirmation for the
        same claim a grace period later (see "Confirming `queued`"), and
        only if GitHub still says `queued` then, recover via
        `Claims.release/2` (with the original `claimed_at` as the
@@ -215,6 +218,8 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   @stale_after_seconds 300
   @queued_confirm_after_seconds 60
   @runner_label_selector "tuist.dev/runner=true"
+  @runner_heartbeat_state_annotation "tuist.dev/runner-heartbeat-state"
+  @runner_heartbeat_claimed "claimed"
   @evidence_by_arg %{"pod_stopped" => :pod_stopped, "aged_out" => :aged_out}
 
   @impl Oban.Worker
@@ -523,25 +528,40 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     # some job, so it's the busy signal: skip those and let the executor's
     # completion (or the Pod stopping) free the slot.
     #
+    # That proof arrives on GitHub's `in_progress` webhook, and when GitHub
+    # lags, its webhooks and its job API lag together, so the row reads
+    # `queued` with nothing recorded against it for minutes while the runner
+    # works. The Pod's own report does not depend on GitHub: a Pod whose
+    # runner was started is occupied until it stops, and releasing its
+    # claim stops counting it, so the account's concurrency limit admits
+    # one VM more than it allows. On 2026-10-21 and 10-22 this release ran
+    # up to 125 times an hour for the `tuist` account, which then held 6
+    # macOS runners against a limit of 4. A runner GitHub never gives a job
+    # exits at the pool's idle timeout, and the Pod's stop then reaches the
+    # `:pod_stopped` path.
+    #
     # Unless the Pod has already stopped, which is what `:pod_stopped`
     # carries. A gone Pod is not busy, so the guard's premise is false and
     # holding it would strand the job until the executed job's completion
     # or `PodReconciliationWorker`'s much longer confirmation. The release
     # below stays handle-guarded on `claimed_at`, so this cannot reach a
     # replacement Pod's claim.
-    if evidence == :aged_out and Claims.executing?(workflow_job_id) do
-      Logger.info("runners: orphaned running row — claim's runner is executing another job; leaving it",
-        workflow_job_id: workflow_job_id,
-        account: account.name,
-        pod: pod_name
-      )
+    case busy_signal(evidence, workflow_job_id, pod_name) do
+      nil ->
+        case stage do
+          :first_sighting -> schedule_queued_confirmation(orphan, account, evidence)
+          :confirmation -> requeue_orphan(orphan, account)
+        end
 
-      false
-    else
-      case stage do
-        :first_sighting -> schedule_queued_confirmation(orphan, account, evidence)
-        :confirmation -> requeue_orphan(orphan, account)
-      end
+      signal ->
+        Logger.info("runners: orphaned running row — claim's runner is busy; leaving it",
+          workflow_job_id: workflow_job_id,
+          account: account.name,
+          pod: pod_name,
+          reason: signal
+        )
+
+        false
     end
   end
 
@@ -595,6 +615,44 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     )
 
     false
+  end
+
+  defp busy_signal(:aged_out, workflow_job_id, pod_name) do
+    cond do
+      Claims.executing?(workflow_job_id) -> "executing"
+      runner_started?(pod_name) -> "pod"
+      true -> nil
+    end
+  end
+
+  defp busy_signal(_evidence, _workflow_job_id, _pod_name), do: nil
+
+  # Whether the Pod reports that its runner was started. A macOS guest
+  # writes the `claimed` heartbeat once dispatch handed it a runner
+  # credential (tart-kubelet republishes it on the Pod); a Linux Pod's
+  # dispatch poller is an init container that exits at that moment. A
+  # Pod that is being deleted, that cannot be read, or that reports
+  # neither, as one on a host without the heartbeat does, is not busy on
+  # this evidence.
+  defp runner_started?(pod_name) when is_binary(pod_name) and pod_name != "" do
+    case K8sClient.get_pod(Environment.runners_namespace(), pod_name) do
+      {:ok, %{"metadata" => metadata} = pod} ->
+        is_nil(metadata["deletionTimestamp"]) and
+          (get_in(metadata, ["annotations", @runner_heartbeat_state_annotation]) == @runner_heartbeat_claimed or
+             poller_exited?(pod))
+
+      _ ->
+        false
+    end
+  end
+
+  defp runner_started?(_pod_name), do: false
+
+  defp poller_exited?(pod) do
+    pod
+    |> get_in(["status", "initContainerStatuses"])
+    |> List.wrap()
+    |> Enum.any?(&(&1["name"] == "poller" and is_map(get_in(&1, ["state", "terminated"]))))
   end
 
   # Unique per claim so the sweep, the pod-gone arm and targeted mode

@@ -43,6 +43,7 @@ class MainActivity : Activity() {
     private var unregisterBack: (() -> Unit)? = null
     private lateinit var router: AtlasDestinationRouter
     private var linkDialog: AlertDialog? = null
+    private val authListener: () -> Unit = { render() }
 
     private data class Retained(
         val authentication: AtlasAuthentication,
@@ -73,7 +74,7 @@ class MainActivity : Activity() {
         )
         super.onCreate(savedInstanceState)
         title = getString(R.string.app_name)
-        authentication = retained?.authentication ?: AtlasAuthentication(this)
+        authentication = retained?.authentication ?: (application as AtlasApplication).authentication
         notifications = retained?.notifications ?: AtlasPushNotifications(applicationContext, authentication)
         accounts = retained?.accounts
         profile = retained?.profile
@@ -99,7 +100,7 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
-        authentication.listener = { render() }
+        authentication.listener = authListener
         appearance.listener = { appearanceChanged() }
         notifications.listener = { settings?.notificationsChanged() }
         render()
@@ -109,7 +110,7 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         presence?.setActive(false)
-        authentication.listener = null
+        if (authentication.listener === authListener) authentication.listener = null
         appearance.listener = null
         notifications.listener = null
         super.onStop()
@@ -131,7 +132,6 @@ class MainActivity : Activity() {
         themeLayout?.let { themeRoot?.viewTreeObserver?.removeOnGlobalLayoutListener(it) }
         if (!isChangingConfigurations) {
             clearModels()
-            authentication.close()
             appearance.close()
         }
         super.onDestroy()
@@ -315,6 +315,7 @@ class MainActivity : Activity() {
                     val screen =
                         AtlasWorkspaceScreen(this, catalog, Uri.parse(server).host.orEmpty(), { section ->
                             when (section.screen) {
+                                "automation" -> startActivity(Intent(this, AtlasAutomationActivity::class.java))
                                 "people" -> showPeople()
                                 "time-off" -> showTimeOff(section.title)
                                 "tasks", "accounts", "invoices" -> selectTab(section.screen)

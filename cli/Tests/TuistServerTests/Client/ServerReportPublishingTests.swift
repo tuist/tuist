@@ -142,7 +142,7 @@ struct ServerReportPublishingTests {
             return true
         }) {
             for _ in 0 ..< 2 {
-                await #expect(throws: ServerReportPublishingError.invalidCredentials) {
+                let thrown = await #expect(throws: CredentialAcquisitionError.self) {
                     try await middleware.intercept(
                         HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/"),
                         body: nil, baseURL: url, operationID: "createTest"
@@ -151,7 +151,9 @@ struct ServerReportPublishingTests {
                         return (HTTPResponse(status: .ok), nil)
                     }
                 }
+                #expect(thrown?.underlyingError as? ServerReportPublishingError == .invalidCredentials)
             }
+            authentication.reset()
             given(authentication).authenticationToken(serverURL: .any, refreshIfNeeded: .value(true)).willReturn(.project(" "))
             await #expect(throws: ServerReportPublishingError.invalidCredentials) {
                 try await middleware.intercept(

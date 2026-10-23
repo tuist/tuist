@@ -4840,7 +4840,7 @@ components:
                     x-struct:
                     x-validate:
                   volume_bytes:
-                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                     nullable: true
                     type: integer
                     x-struct:
@@ -5566,7 +5566,7 @@ components:
           x-struct:
           x-validate:
         volume_bytes:
-          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
           nullable: true
           type: integer
           x-struct:
@@ -10056,7 +10056,7 @@ components:
               x-struct:
               x-validate:
             volume_bytes:
-              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
               nullable: true
               type: integer
               x-struct:
@@ -14328,7 +14328,7 @@ components:
                 x-struct:
                 x-validate:
               volume_bytes:
-                description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                 nullable: true
                 type: integer
                 x-struct:
@@ -21324,7 +21324,7 @@ paths:
                     x-struct:
                     x-validate:
                   volume_bytes:
-                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                    description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                     nullable: true
                     type: integer
                     x-struct:
@@ -26387,7 +26387,7 @@ paths:
                               x-struct:
                               x-validate:
                             volume_bytes:
-                              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                              description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                               nullable: true
                               type: integer
                               x-struct:
@@ -44041,7 +44041,7 @@ paths:
                           x-struct:
                           x-validate:
                         volume_bytes:
-                          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+                          description: "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
                           nullable: true
                           type: integer
                           x-struct:

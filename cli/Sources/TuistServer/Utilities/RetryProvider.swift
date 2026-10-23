@@ -9,6 +9,10 @@ public protocol RetryProviding {
 }
 
 public struct RetryProvider: RetryProviding {
+    /// Wrapped operations often send requests that `RetryMiddleware` already retries, so this layer keeps
+    /// a shorter ladder than `HTTPRetryPolicy` to bound the attempts the two multiply into.
+    public static let defaultMaximumRetryCount = 3
+
     private let delayProvider: DelayProviding
     private let maximumRetryCount: Int
 
@@ -16,7 +20,10 @@ public struct RetryProvider: RetryProviding {
         maximumRetryCount: Int? = nil,
         delayProvider: DelayProviding = DelayProvider()
     ) {
-        self.maximumRetryCount = HTTPRetryPolicy(maximumRetryCount: maximumRetryCount).maximumRetryCount
+        self.maximumRetryCount = HTTPRetryPolicy(
+            maximumRetryCount: maximumRetryCount,
+            defaultMaximumRetryCount: Self.defaultMaximumRetryCount
+        ).maximumRetryCount
         self.delayProvider = delayProvider
     }
 

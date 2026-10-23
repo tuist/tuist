@@ -274,28 +274,33 @@ class GitHistoryService(
         }
     }
 
+    /** Every history request can be sent again: lookups only read, and uploads skip commits and heads already stored. */
     private fun <T> request(path: String, body: Any?, onSuccess: (HttpURLConnection) -> T): T =
         httpClient.execute { config ->
             val url = URI(baseUrl.trimEnd('/'))
                 .resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests/git-history/$path")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.setRequestProperty("Accept", "application/json")
-                if (body == null) {
-                    connection.requestMethod = "GET"
-                } else {
-                    connection.requestMethod = "POST"
-                    connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json")
-                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { gson.toJson(body, it) }
+            httpClient.retrying("Git history request to $path", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.setRequestProperty("Accept", "application/json")
+                    if (body == null) {
+                        connection.requestMethod = "GET"
+                    } else {
+                        connection.requestMethod = "POST"
+                        connection.doOutput = true
+                        connection.setRequestProperty("Content-Type", "application/json")
+                        OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { gson.toJson(body, it) }
+                    }
+                    when (val status = connection.responseCode) {
+                        in 200..299 -> onSuccess(connection)
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> throw TuistRetry.statusFailure(connection, status) {
+                            IOException("the server responded to $path with HTTP $status")
+                        }
+                    }
+                } finally {
+                    connection.disconnect()
                 }
-                when (val status = connection.responseCode) {
-                    in 200..299 -> onSuccess(connection)
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> throw IOException("the server responded to $path with HTTP $status")
-                }
-            } finally {
-                connection.disconnect()
             }
         }
 
