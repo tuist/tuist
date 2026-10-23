@@ -814,8 +814,8 @@ public enum CoverageExport {
 /// <target>.build/`) maps the aliases the compiler recorded (`/^src`, `/^root`, `/^built`, …)
 /// back to the directories of this build. A coverage build maps only when the project opted in
 /// (`coverage.prefixMapping`), since `xccov` drops mapped files. A run that tests products built
-/// in another job reads the maps the build wrote into the `.xctestproducts` bundle instead
-/// (``CoverageBuildSources/prefixMaps``).
+/// in another job has no intermediates and falls back to the maps the build wrote into the
+/// `.xctestproducts` bundle (``CoverageBuildSources/prefixMaps``).
 struct CompilationPrefixMaps {
     /// Each target's entries, longest alias first, so the most specific one wins.
     private(set) var mapsByTarget: [String: [(alias: String, path: String)]] = [:]
@@ -826,12 +826,12 @@ struct CompilationPrefixMaps {
         }
     }
 
-    /// The maps of the build that compiled the run's products: the ones the build recorded in
-    /// the `.xctestproducts` bundle the run tests from, which a test job's derived data never
-    /// has, and for any other target those of the derived data's intermediates.
+    /// The derived data's maps, and for a target it has none for (every target, in a test job
+    /// that did not build), the one the build recorded in the `.xctestproducts` bundle the run
+    /// tests from.
     init(derivedDataDirectory: AbsolutePath?, buildSources: CoverageBuildSources? = nil) {
         var maps = Self.maps(derivedDataDirectory: derivedDataDirectory)
-        maps.merge(buildSources?.prefixMaps ?? [:]) { _, recorded in recorded }
+        maps.merge(buildSources?.prefixMaps ?? [:]) { derived, _ in derived }
         self.init(mapsByTarget: maps)
     }
 
