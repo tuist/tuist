@@ -79,20 +79,22 @@ The run fails as usual when any test that isn't muted fails, or when ExUnit stop
 >
 > - Only recent versions of the Hex package apply quarantine. Earlier versions run muted and skipped tests like any other, so a muted test's failure still fails the run. Update `tuist_ex` before you rely on it.
 > - Muted tests are not applied with `--warnings-as-errors`, or from the root of an umbrella project. Their failures then fail the run. Run the tests inside each application of an umbrella instead.
-> - Skipping matches a test by its describe block and name, not its module. A test with the same describe block and name in another module is skipped too. See [how skipping selects tests](#how-skipping-selects-tests).
-> - A skipped test still runs when you select it with `--only`, `--include`, or `path:line`, or when it isn't declared with `test`, such as a StreamData `property`.
+> - A skipped test that isn't declared with `test`, such as a StreamData `property`, still runs.
+> - On an Elixir version where `mix test` can't skip a test by its module, it skips by describe block and name instead: a test with the same describe block and name in another module is skipped too, and `--only`, `--include`, or `path:line` can select a skipped test. See [how skipping selects tests](#how-skipping-selects-tests).
 > - If `mix test` cannot read the quarantined tests, it runs every test and counts every failure.
 > - Reading the quarantined tests requires credentials, even for a public project. A run without a `TUIST_TOKEN`, a `mix tuist.login` session, or a continuous integration identity token applies no quarantine. That includes pull requests from forks, which usually run without secrets.
 > - With `--cover`, a skipped test counts as removed: lines only it covered are reported as uncovered.
 >
-> `mix test` names the tests a skip left out by mistake, and the skipped tests that ran anyway, after its summary.
+> `mix test` names the skipped tests that ran anyway, and any test a skip left out by mistake, after its summary.
 
 ### How skipping selects tests {#how-skipping-selects-tests}
 
-A skipped test is left out with an ExUnit filter on its full name, such as `--exclude "test:test create_order/2 times out"`. ExUnit filters cannot also match the module, so:
+A skipped test is left out by its module and its full name, such as `MyApp.CheckoutTest` and `test create_order/2 times out`. A test with the same describe block and name in another module still runs. A skipped test stays out even when you select it with `--only`, `--include`, or `path:line`. Pass `--no-quarantine` to run it.
+
+ExUnit filters can't match a test's module and name together, so `mix test` adds that to ExUnit for the run, after it checks that your Elixir version works the way it expects. It has been verified on Elixir 1.18 to 1.20. Where it can't, it leaves a skipped test out with an ExUnit filter on its full name instead, such as `--exclude "test:test create_order/2 times out"`. Then:
 
 - A test with the same describe block and name in another module is left out too. `mix test` names those tests after the run.
-- A test you select with `--only`, `--include`, or `path:line` runs even when it is skipped, because ExUnit applies include filters after exclude filters. So does a test that isn't declared with `test`, such as a StreamData `property`. `mix test` names those tests after the run.
+- A test you select with `--only`, `--include`, or `path:line` runs even when it is skipped, because ExUnit applies include filters after exclude filters. `mix test` names those tests after the run.
 
 ### Running quarantined tests again {#running-quarantined-tests-again}
 

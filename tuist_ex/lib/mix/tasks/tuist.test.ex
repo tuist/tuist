@@ -66,10 +66,17 @@ defmodule Mix.Tasks.Tuist.Test do
   ## Quarantined tests
 
   Before the run, the task reads the tests the project quarantines in Tuist.
-  Skipped tests are left out of the run with an `--exclude test:NAME` filter
-  per test, and a complete run whose only failures are muted tests passes.
-  `--no-quarantine` runs every test and counts every failure. A run that
-  cannot read the quarantined tests runs every test.
+  Skipped tests are left out of the run by their module and name, even when
+  `--only`, `--include` or `path:line` selects them, and a complete run whose
+  only failures are muted tests passes. `--no-quarantine` runs every test and
+  counts every failure. A run that cannot read the quarantined tests runs
+  every test.
+
+  ExUnit has no option to leave out a test of one module only, so the task
+  adds one to ExUnit for the run. On an Elixir version it cannot add it to,
+  skipped tests are left out with an `--exclude test:NAME` filter per test
+  instead, which also leaves out a test of the same name in another module
+  and lets an include filter select a skipped test.
 
   ## Retrying failed tests
 
@@ -93,6 +100,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.Coverage
   alias TuistEx.Analytics.CoverageSummary
+  alias TuistEx.Analytics.ExcludeTestIds
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.GitHistory
   alias TuistEx.Analytics.Isolated
@@ -108,6 +116,7 @@ defmodule Mix.Tasks.Tuist.Test do
   @retry_results "TUIST_EX_RETRY_RESULTS"
   @prepared_build "TUIST_EX_PREPARED_BUILD"
   @retry_mix_path "TUIST_EX_RETRY_MIX_PATH"
+  @retry_quarantine "TUIST_EX_RETRY_QUARANTINE"
   @suite_failed "\"mix test\" failed"
 
   def run(args) do
@@ -178,6 +187,7 @@ defmodule Mix.Tasks.Tuist.Test do
           System.put_env([{"MIX_PATH", System.get_env(@retry_mix_path)}, {@retry_mix_path, nil}])
         end
 
+        options = retry_quarantine(options)
         configure(Keyword.put(options, :mode, {:collect, path}))
         run_test(test_args, options)
     end
@@ -416,11 +426,49 @@ defmodule Mix.Tasks.Tuist.Test do
             true
         end
 
-    Keyword.merge(options, quarantine: policy, mute: mute?)
+    Keyword.merge(options,
+      quarantine: policy,
+      mute: mute?,
+      quarantine_exclusion: exclusion(policy)
+    )
+  end
+
+  # By the skipped tests' exact ids where ExUnit can be patched for it, and
+  # by their names, which other modules' tests can share, where it cannot.
+  defp exclusion(policy) do
+    if MapSet.size(policy.skipped) != 0 do
+      case ExcludeTestIds.install(Quarantine.test_ids(policy)) do
+        :ok ->
+          :test_ids
+
+        {:error, reason} ->
+          Report.debug(
+            "tuist analytics: skipped tests are left out by name, as ExUnit could not be " <>
+              "patched to leave them out by module and name: #{inspect(reason)}"
+          )
+
+          :names
+      end
+    end
+  end
+
+  # A retry leaves out what its parent's run left out, with the policy its
+  # parent read: `--failed` reruns tests that failed before they were skipped.
+  defp retry_quarantine(options) do
+    with path when path not in [nil, ""] <- System.get_env(@retry_quarantine),
+         {:ok, binary} <- File.read(path),
+         %Quarantine{} = policy <- :erlang.binary_to_term(binary, [:safe]) do
+      Keyword.merge(options, quarantine: policy, quarantine_exclusion: exclusion(policy))
+    else
+      _ -> options
+    end
   end
 
   defp run_test(args, options) do
-    args = args ++ Quarantine.exclude_args(options[:quarantine])
+    args =
+      if options[:quarantine_exclusion] == :names,
+        do: args ++ Quarantine.exclude_args(options[:quarantine]),
+        else: args
 
     if prepared?(options),
       do: Mix.Tasks.Test.run(args),
@@ -627,8 +675,8 @@ defmodule Mix.Tasks.Tuist.Test do
   defp do_with_coverage(payload, snapshot, options, opts, history) do
     payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
 
-    # A test sharing a quarantined test's name was left out although the
-    # run's own arguments did not ask for it.
+    # A test the run's own `--exclude` options left out, or one sharing a
+    # quarantined test's name that the name filter left out with it.
     partial? =
       options[:coverage_partial] == true or Map.has_key?(payload, :skip_test_identifiers)
 
@@ -707,12 +755,7 @@ defmodule Mix.Tasks.Tuist.Test do
   defp retry_once(test_args, path, options) do
     case System.find_executable("mix") do
       mix when is_binary(mix) ->
-        # `--failed` also reruns tests that failed before they were skipped:
-        # ExUnit keeps a failure on record until the test passes.
-        args =
-          ["tuist.test", "--failed" | retry_args(test_args)] ++
-            Quarantine.exclude_args(options[:quarantine])
-
+        args = ["tuist.test", "--failed" | retry_args(test_args)]
         status = Subprocess.run(mix, args, retry_env(path, options))
         {:ok, status, ExUnitFormatter.read_collected(path)}
 
@@ -721,9 +764,12 @@ defmodule Mix.Tasks.Tuist.Test do
     end
   end
 
+  # `--failed` also reruns tests that failed before they were skipped:
+  # ExUnit keeps a failure on record until the test passes.
   defp retry_env(path, options) do
     env = [
       {@retry_results, path},
+      {@retry_quarantine, write_retry_quarantine(path, options[:quarantine])},
       {@prepared_build, to_string(prepared?(options))},
       {"MIX_ENV", "test"}
     ]
@@ -739,6 +785,14 @@ defmodule Mix.Tasks.Tuist.Test do
     else
       env
     end
+  end
+
+  defp write_retry_quarantine(_results_path, nil), do: nil
+
+  defp write_retry_quarantine(results_path, policy) do
+    path = Path.join(Path.dirname(results_path), "quarantine")
+    File.write!(path, :erlang.term_to_binary(policy))
+    path
   end
 
   # What `mix test` does for a failing suite, deferred until the retries are in.

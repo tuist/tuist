@@ -400,7 +400,7 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     :ok = GenServer.stop(pid)
   end
 
-  test "marks quarantined tests and names the tests the quarantine filter got wrong" do
+  test "marks quarantined tests and names the tests the quarantine name filter got wrong" do
     parent = self()
 
     quarantine = %TuistEx.Analytics.Quarantine{
@@ -413,7 +413,8 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
         environment: &environment/1,
         submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
         notify: &send(parent, {:notified, &1}),
-        quarantine: quarantine
+        quarantine: quarantine,
+        quarantine_exclusion: :names
       )
 
     send_lifecycle(pid, [
@@ -441,6 +442,44 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     assert also_excluded =~ "same name in another module"
     assert also_excluded =~ "  OtherTest: hangs"
     refute also_excluded =~ "SomeModuleTest"
+  end
+
+  test "a test left out by its exact id leaves its namesakes in other modules alone" do
+    parent = self()
+
+    quarantine = %TuistEx.Analytics.Quarantine{
+      skipped: MapSet.new([{"SomeModuleTest", "", "hangs"}, {"SomeModuleTest", "", "property"}])
+    }
+
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        submit: fn payload, _opts -> send(parent, {:submitted, payload}) && :ok end,
+        notify: &send(parent, {:notified, &1}),
+        quarantine: quarantine,
+        quarantine_exclusion: :test_ids
+      )
+
+    send_lifecycle(pid, [
+      {:suite_started, []},
+      {:test_finished,
+       new_test(name: :"test hangs", state: {:excluded, "due to Tuist quarantine"})},
+      {:test_finished, new_test(name: :"test hangs", module: OtherTest)},
+      {:test_finished,
+       new_test(name: :"property property", tags: %{test_type: :property, file: "t.exs", line: 1})},
+      {:suite_finished, %{run: 1_000}}
+    ])
+
+    :ok = GenServer.stop(pid)
+
+    assert_received {:submitted, %{test_modules: modules}}
+    assert Enum.map(modules, & &1.name) |> Enum.sort() == ["OtherTest", "SomeModuleTest"]
+
+    assert_received {:notified, ran}
+    assert ran =~ "they are not of type `test`"
+    refute ran =~ "include filter"
+    assert ran =~ "  SomeModuleTest: property"
+    refute_received {:notified, _}
   end
 
   test "a coverage run names what it left out, except the tests quarantine skips" do
@@ -497,6 +536,36 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     payload = run.([])
     refute Map.has_key?(payload, :skip_test_identifiers)
     refute Map.has_key?(payload, :only_test_identifiers)
+
+    # Left out by its exact id, the skipped test is told apart by the reason
+    # alone, and its namesake in another module ran.
+    exact = [
+      {:suite_started, []},
+      {:test_finished,
+       new_test(name: :"test hangs", state: {:excluded, "due to Tuist quarantine"})},
+      {:test_finished, new_test(name: :"test hangs", module: OtherTest)},
+      {:test_finished, new_test(name: :"test slow", state: excluded)},
+      {:suite_finished, %{run: 1_000}}
+    ]
+
+    {:ok, pid} =
+      GenServer.start_link(ExUnitFormatter,
+        environment: &environment/1,
+        submit: fn _payload, _opts -> :ok end,
+        notify: fn _ -> :ok end,
+        mode: {:defer, self()},
+        quarantine: %TuistEx.Analytics.Quarantine{},
+        quarantine_exclusion: :test_ids,
+        coverage: true,
+        # A tag named like the reason does not turn the skip into one of the
+        # run's own exclusions.
+        coverage_excluded_tags: ["integration", "Tuist quarantine"]
+      )
+
+    send_lifecycle(pid, exact)
+    :ok = GenServer.stop(pid)
+    [{payload, _opts, false}] = ExUnitFormatter.take_deferred()
+    assert payload.skip_test_identifiers == ["SomeModuleTest//slow"]
   end
 
   test "maps ExUnit outcomes onto success/failure/skipped" do

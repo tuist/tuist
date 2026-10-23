@@ -316,8 +316,9 @@ defmodule Mix.Tasks.Tuist.TestTest do
             :ok
           end)
 
-          Mimic.stub(TuistEx.Analytics.Subprocess, :run, fn _mix, args, _env ->
-            send(owner, {:retried, args})
+          Mimic.stub(TuistEx.Analytics.Subprocess, :run, fn _mix, args, env ->
+            quarantine = Map.new(env)["TUIST_EX_RETRY_QUARANTINE"]
+            send(owner, {:retried, args, :erlang.binary_to_term(File.read!(quarantine))})
             1
           end)
 
@@ -352,17 +353,45 @@ defmodule Mix.Tasks.Tuist.TestTest do
 
             assert output =~ "CartTest: add/2 hangs"
             assert output =~ "only muted tests failed" == passes?
+            # Left out by its module and name, not by a name filter.
             assert_received {:args, args}
-            assert ["--exclude", "test:test add/2 hangs"] -- args == []
+            refute "--exclude" in args
+            assert TuistEx.Analytics.ExcludeTestIds.installed?()
             assert_received {:submitted, payload}
             # The run's status is its tests'.
             assert payload.status == if(passes? or failed == [], do: "success", else: "failure")
           end
 
           # ExUnit keeps a failure on record until the test passes, so
-          # `--failed` would rerun a test that failed before it was skipped.
-          assert_received {:retried, ["tuist.test", "--failed" | retry_args]}
-          assert ["--exclude", "test:test add/2 hangs"] -- retry_args == []
+          # `--failed` would rerun a test that failed before it was skipped:
+          # the retry leaves out what this run did, with the same policy.
+          assert_received {:retried, ["tuist.test", "--failed" | retry_args], policy}
+          refute "--exclude" in retry_args
+          assert MapSet.to_list(policy.skipped) == [{"CartTest", "add/2", "hangs"}]
+
+          Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
+            options = Application.get_env(:tuist_ex, :analytics_options)
+            send(owner, {:args, args, options[:quarantine_exclusion]})
+            :ok
+          end)
+
+          retry_quarantine = Path.join(System.tmp_dir!(), "tuist-ex-retry-quarantine-#{System.unique_integer([:positive])}")
+          File.write!(retry_quarantine, :erlang.term_to_binary(policy))
+          System.put_env([{"TUIST_EX_RETRY_RESULTS", retry_quarantine <> ".results"}, {"TUIST_EX_RETRY_QUARANTINE", retry_quarantine}])
+          TuistEx.Analytics.ExcludeTestIds.uninstall()
+          ExUnit.CaptureIO.capture_io(fn -> Mix.Tasks.Tuist.Test.run(["--failed"]) end)
+          System.put_env([{"TUIST_EX_RETRY_RESULTS", ""}, {"TUIST_EX_RETRY_QUARANTINE", nil}])
+          File.rm!(retry_quarantine)
+          assert_received {:args, ["--failed"], :test_ids}
+          assert TuistEx.Analytics.ExcludeTestIds.installed?()
+
+          # Where ExUnit cannot be patched, the run falls back to a filter on
+          # the skipped test's full name.
+          TuistEx.Analytics.ExcludeTestIds.uninstall()
+          Mimic.stub(TuistEx.Analytics.ExcludeTestIds, :install, fn _ids -> {:error, :unsupported} end)
+          ExUnit.CaptureIO.capture_io(fn -> Mix.Tasks.Tuist.Test.run([]) end)
+          assert_received {:args, args, :names}
+          assert ["--exclude", "test:test add/2 hangs"] -- args == []
 
           Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
             send(owner, {:args, args})
