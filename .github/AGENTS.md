@@ -56,7 +56,7 @@ same environment. When the base cannot be resolved, the push deploys.
 ## Atlas deployment validation
 
 `workflows/atlas-deployment-validation.yml` runs the standalone Compose/Helm
-release checks. Documentation captures use `atlas/deploy/capture_docs.py` with
+release checks. Documentation captures use `atlas/deploy/capture-docs.mjs` with
 bounded Chrome page and process waits, rather than waiting indefinitely for
 external resources. Its regression suite includes a local never-finishing image.
 Retain screenshot PNGs and Chrome diagnostic logs on failures, but keep browser

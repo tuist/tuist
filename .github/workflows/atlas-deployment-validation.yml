@@ -30,7 +30,7 @@ jobs:
           bash infra/helm/atlas/test-chatgpt-config.sh
           bash atlas/deploy/test-sandbox-retention.sh
       - name: Test documentation capture bounds and diagnostics
-        run: python3 atlas/deploy/capture_docs_test.py
+        run: node --test atlas/deploy/capture-docs.test.mjs
       - uses: helm/kind-action@v1.14.0
         with:
           install_only: true

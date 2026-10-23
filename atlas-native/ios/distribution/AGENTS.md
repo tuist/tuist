@@ -24,7 +24,7 @@ profile-validation framework.
 - Only the protected main-branch publication job receives distribution secrets.
   Device enrollment and vault references are in the [README](../../README.md).
 - Validate with `python3 ios/distribution/keychain_test.py`,
-  `python3 ios/distribution/associated_domains_test.py` (macOS), `bash -n`, ShellCheck
+  `bash ios/distribution/test-associated-domains.sh` (16 macOS fixtures), `bash -n`, ShellCheck
   and an actual signing run. The credential-free tests cover ordered search-list
   restoration, paths with spaces, an empty list, and setup/import failures.
   Signature verification does not establish installation on a registered physical device.

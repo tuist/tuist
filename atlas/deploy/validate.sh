@@ -72,7 +72,7 @@ curl --fail --insecure https://localhost:18443/docs/self-hosting > "$work/compos
 grep -q 'Docker Compose' "$work/compose-docs.html"
 if [ -n "${ATLAS_SCREENSHOT_DIR:-}" ]; then
   mkdir -p "$ATLAS_SCREENSHOT_DIR"
-  python3 "$root/atlas/deploy/capture_docs.py" "$ATLAS_SCREENSHOT_DIR" "${ATLAS_CHROME_PATH:-google-chrome}" "$work"
+  node "$root/atlas/deploy/capture-docs.mjs" "$ATLAS_SCREENSHOT_DIR" "${ATLAS_CHROME_PATH:-google-chrome}" "$work"
 fi
 "${compose[@]}" down --volumes
 
