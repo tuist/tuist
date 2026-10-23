@@ -47,6 +47,15 @@ defmodule TuistEx.Analytics.Coverage do
   end
 
   @doc """
+  The tags the run's own `--exclude` options filter on, as ExUnit names
+  them in an exclusion's reason (`"due to <tag> filter"`).
+  """
+  def excluded_tags(test_args) do
+    {options, _rest, _invalid} = OptionParser.parse(test_args, switches: [exclude: :keep])
+    for {:exclude, filter} <- options, do: filter |> String.split(":", parts: 2) |> hd()
+  end
+
+  @doc """
   Whether the run's own arguments left tests out on purpose: a filter, or
   explicit test files or lines.
   """

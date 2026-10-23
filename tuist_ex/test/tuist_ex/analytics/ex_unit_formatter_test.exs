@@ -450,11 +450,13 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
       payload
     end
 
-    assert run.(coverage: true).skip_test_identifiers == [
-             "SomeModuleTest/add%2F2/100%25 rejects nil"
-           ]
+    caller = [coverage: true, coverage_excluded_tags: ["integration"]]
 
-    refute Map.has_key?(run.(coverage: true), :only_test_identifiers)
+    assert run.(caller).skip_test_identifiers == ["SomeModuleTest/add%2F2/100%25 rejects nil"]
+    refute Map.has_key?(run.(caller), :only_test_identifiers)
+
+    # The test helper's own exclusions define the suite: nothing is missing.
+    refute Map.has_key?(run.(coverage: true), :skip_test_identifiers)
 
     assert run.(coverage: true, coverage_narrowed: true).only_test_identifiers == [
              "SomeModuleTest//passes"
