@@ -254,6 +254,38 @@ url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/
 [tools.gradle."platforms.windows-x64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
 
+[[tools.hcloud]]
+version = "1.70.1"
+backend = "aqua:hetznercloud/cli"
+
+[tools.hcloud."platforms.linux-arm64"]
+checksum = "sha256:c9dbc00158d31131527e9ac5cb59b835fe8275ab7922f627d81b4e9bc2a2cebb"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-arm64.tar.gz"
+
+[tools.hcloud."platforms.linux-arm64-musl"]
+checksum = "sha256:c9dbc00158d31131527e9ac5cb59b835fe8275ab7922f627d81b4e9bc2a2cebb"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-arm64.tar.gz"
+
+[tools.hcloud."platforms.linux-x64"]
+checksum = "sha256:85182e0d51f9a26abeefd79b37de8a7fb51215d54c59ee290c3c9141e8aa887e"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-amd64.tar.gz"
+
+[tools.hcloud."platforms.linux-x64-musl"]
+checksum = "sha256:85182e0d51f9a26abeefd79b37de8a7fb51215d54c59ee290c3c9141e8aa887e"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-amd64.tar.gz"
+
+[tools.hcloud."platforms.macos-arm64"]
+checksum = "sha256:8b6f86e5f344acde2f127b96c32f39b95731c98ecef67c69e69fe4614a674e8a"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-darwin-arm64.tar.gz"
+
+[tools.hcloud."platforms.macos-x64"]
+checksum = "sha256:c1d131b59c57d1ceba650637e0f1635214f78429cb0d98d502087b88caa50ff4"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-darwin-amd64.tar.gz"
+
+[tools.hcloud."platforms.windows-x64"]
+checksum = "sha256:a8c7325062f14aa882260d23d00d0d222d61cf4096471deaa507409bc455782a"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-windows-amd64.zip"
+
 [[tools.helm]]
 version = "4.2.0"
 backend = "aqua:helm/helm"
