@@ -314,11 +314,11 @@ spec:
       detail: power/netpack
     - port: 44
       purpose: management
-      peer: ber1-pdu-b
+      peer: ber1-pdu-a
       detail: power/netpack
     - port: 45
       purpose: management
-      peer: ber1-pdu-a
+      peer: ber1-pdu-b
       detail: power/netpack
     - port: 47
       purpose: edge
