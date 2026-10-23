@@ -42630,6 +42630,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of generations
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
