@@ -6,7 +6,7 @@ defmodule TuistWeb.Noora.Pages do
   alias TuistWeb.Noora.Pages
 
   @groups [
-    {"Getting started", [Pages.Introduction]},
+    {"Getting started", [Pages.Introduction, Pages.Installation]},
     {"Foundations",
      [
        Pages.Colors,
@@ -25,8 +25,6 @@ defmodule TuistWeb.Noora.Pages do
        Pages.Button,
        Pages.ButtonDropdown,
        Pages.ButtonGroup,
-       Pages.Card,
-       Pages.Chart,
        Pages.Checkbox,
        Pages.DatePicker,
        Pages.DigitInput,

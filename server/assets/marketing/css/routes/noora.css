@@ -41,26 +41,16 @@
       display: flex;
       align-items: center;
       gap: var(--noora-spacing-4);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-    }
-
-    & [data-part="home"] {
-      display: inline-flex;
-      color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      text-decoration: none;
 
       & svg {
-        width: 22px;
-        height: 22px;
+        flex-shrink: 0;
+        width: 26px;
+        height: 26px;
+        color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
       }
-    }
-
-    & [data-part="separator"] {
-      color: var(--noora-surface-label-tertiary);
-    }
-
-    & [data-part="title"] {
-      color: var(--noora-surface-label-primary);
-      text-decoration: none;
     }
 
     & [data-part="actions"] {
@@ -112,19 +102,82 @@
     flex: 1;
   }
 
+  /* Scroll behavior matches the dashboard sidebar (noora/css/sidebar.css):
+     the viewport scrolls with its native scrollbar hidden, NooraScrollArea
+     drives the overlay thumb, and a fade marks content below the fold. */
   & [data-part="sidebar"] {
-    display: flex;
     position: sticky;
     top: var(--noora-docs-header-height);
-    flex-direction: column;
     align-self: start;
-    gap: var(--noora-spacing-8);
     box-sizing: border-box;
     border-right: 1px solid var(--noora-docs-stroke);
-    padding: var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-11);
     height: calc(100dvh - var(--noora-docs-header-height));
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
+
+    & > [data-part="viewport"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+      box-sizing: border-box;
+      padding: var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-11);
+      height: 100%;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+
+    &::after {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      opacity: 0;
+      transition: opacity 150ms var(--ease-out-cubic);
+      background: linear-gradient(to bottom, transparent, var(--noora-surface-background-primary));
+      height: 48px;
+      pointer-events: none;
+      content: "";
+    }
+
+    &[data-scrollable]:not([data-at-end])::after {
+      opacity: 1;
+    }
+
+    & > [data-part="scrollbar"] {
+      display: none;
+      position: absolute;
+      top: var(--noora-spacing-4);
+      right: 0;
+      bottom: var(--noora-spacing-4);
+      z-index: 1;
+      width: 12px;
+
+      & [data-part="thumb"] {
+        position: absolute;
+        top: 0;
+        right: 2px;
+        transition: width 150ms var(--ease-out-cubic);
+        cursor: default;
+        border-radius: 999px;
+        background: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
+        width: 3px;
+      }
+
+      &:hover [data-part="thumb"],
+      &[data-dragging] [data-part="thumb"] {
+        width: 6px;
+      }
+    }
+
+    @media (pointer: fine) {
+      &[data-scrollable] > [data-part="scrollbar"] {
+        display: block;
+      }
+    }
 
     & [data-part="search"] {
       display: flex;
@@ -553,9 +606,10 @@
       flex-direction: column;
       gap: var(--noora-spacing-4);
       counter-increment: noora-docs-step;
+      scroll-margin-top: calc(var(--noora-docs-header-height) + var(--noora-spacing-8));
     }
 
-    & > li > h3::before {
+    & > li > h2::before {
       margin-right: var(--noora-spacing-4);
       content: counter(noora-docs-step);
       color: var(--noora-surface-label-tertiary);
@@ -735,7 +789,7 @@
     }
 
     &[data-open] [data-part="sidebar"] {
-      display: flex;
+      display: block;
     }
 
     & [data-part="main"] {

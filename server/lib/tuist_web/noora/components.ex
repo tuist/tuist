@@ -5,8 +5,6 @@ defmodule TuistWeb.Noora.Components do
   use Phoenix.Component
   use Noora
 
-  import TuistWeb.Components.IconComponents, only: [tuist_mark: 1]
-
   alias Phoenix.LiveView.JS
   alias TuistWeb.Noora.Code
   alias TuistWeb.Noora.Pages
@@ -18,13 +16,10 @@ defmodule TuistWeb.Noora.Components do
     ~H"""
     <div id="noora-docs" class="noora-docs">
       <header data-part="header">
-        <div data-part="brand">
-          <a href="/" data-part="home" aria-label="Tuist">
-            <.tuist_mark aria-hidden="true" />
-          </a>
-          <span data-part="separator" aria-hidden="true">/</span>
-          <.link navigate={Pages.path(Pages.introduction())} data-part="title">Noora</.link>
-        </div>
+        <.link navigate={Pages.path(Pages.introduction())} data-part="brand">
+          <.noora_logo />
+          <span>Noora</span>
+        </.link>
         <div data-part="actions">
           <a
             href="https://github.com/tuist/tuist/tree/main/noora"
@@ -71,31 +66,39 @@ defmodule TuistWeb.Noora.Components do
         </div>
       </header>
       <div data-part="body">
-        <nav id="noora-docs-nav" data-part="sidebar" aria-label="Noora" phx-hook=".NooraDocsSearch">
-          <div data-part="search">
-            <.search />
-            <input
-              type="search"
-              placeholder="Search"
-              aria-label="Search pages"
-              autocomplete="off"
-              data-part="search-input"
-            />
-            <kbd>⌘K</kbd>
+        <%!-- Same scroll behavior as the dashboard sidebar: the NooraScrollArea
+        hook hides the native scrollbar behind an overlay thumb and fades the
+        bottom edge while there is more to scroll. --%>
+        <nav id="noora-docs-nav" data-part="sidebar" aria-label="Noora" phx-hook="NooraScrollArea">
+          <div id="noora-docs-nav-viewport" data-part="viewport" phx-hook=".NooraDocsSearch">
+            <div data-part="search">
+              <.search />
+              <input
+                type="search"
+                placeholder="Search"
+                aria-label="Search pages"
+                autocomplete="off"
+                data-part="search-input"
+              />
+              <kbd>⌘K</kbd>
+            </div>
+            <div :for={{group, pages} <- Pages.groups()} data-part="group">
+              <span data-part="group-title">{group}</span>
+              <.link
+                :for={page <- pages}
+                navigate={Pages.path(page)}
+                data-part="nav-item"
+                data-selected={page == @page}
+                aria-current={if page == @page, do: "page"}
+              >
+                {page.nav_title()}
+              </.link>
+            </div>
+            <p data-part="search-empty" hidden>No pages match.</p>
           </div>
-          <div :for={{group, pages} <- Pages.groups()} data-part="group">
-            <span data-part="group-title">{group}</span>
-            <.link
-              :for={page <- pages}
-              navigate={Pages.path(page)}
-              data-part="nav-item"
-              data-selected={page == @page}
-              aria-current={if page == @page, do: "page"}
-            >
-              {page.title()}
-            </.link>
+          <div id="noora-docs-nav-scrollbar" data-part="scrollbar" phx-update="ignore">
+            <div data-part="thumb"></div>
           </div>
-          <p data-part="search-empty" hidden>No pages match.</p>
         </nav>
         <main data-part="main">
           {render_slot(@inner_block)}
@@ -156,6 +159,27 @@ defmodule TuistWeb.Noora.Components do
         }
       </script>
     </div>
+    """
+  end
+
+  # The tile paints with currentColor, so the header picks its purple per
+  # theme; the mark keeps the logo's light fill on both.
+  defp noora_logo(assigns) do
+    ~H"""
+    <svg viewBox="0 0 824 824" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g clip-path="url(#noora-docs-logo-clip)">
+        <rect width="824" height="824" rx="144.561" fill="currentColor" />
+        <path
+          d="M822.299 444.607L748.91 371.217C711.05 333.358 659.695 312.093 606.153 312.093C552.613 312.093 501.267 333.36 463.408 371.217L47.0481 790.661C43.8422 793.891 38.6248 793.913 35.395 790.707C32.1671 787.501 32.1452 782.283 35.3495 779.054L451.732 359.587L451.755 359.564L455.254 355.974C490.92 318.492 510.879 268.685 510.88 216.819C510.88 163.278 489.615 111.923 451.755 74.0629L451.687 73.9946L364.909 -14.8434C361.729 -18.0988 361.79 -23.3166 365.045 -26.4965C368.301 -29.6745 373.519 -29.6147 376.698 -26.3599L463.476 62.4781C501.33 100.295 552.649 121.54 606.159 121.54C659.669 121.539 710.983 100.29 748.836 62.4724L776.876 33.4192L777.485 32.8446C780.673 30.1455 785.452 30.2462 788.523 33.2088C791.799 36.3682 791.888 41.5865 788.728 44.8618L760.665 73.9605C760.632 73.9952 760.597 74.0287 760.563 74.0629C722.703 111.922 701.433 163.272 701.432 216.814C701.432 268.683 721.39 318.497 757.058 355.98L760.563 359.564L833.952 432.954C837.167 436.171 837.167 441.39 833.952 444.607C830.735 447.824 825.517 447.823 822.299 444.607Z"
+          fill="#F0F0F0"
+        />
+      </g>
+      <defs>
+        <clipPath id="noora-docs-logo-clip">
+          <rect width="824" height="824" rx="144.561" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
     """
   end
 
@@ -342,11 +366,11 @@ defmodule TuistWeb.Noora.Components do
       <% {previous, next} = @neighbors %>
       <.link :if={previous} navigate={Pages.path(previous)} data-part="previous">
         <span>Previous</span>
-        <strong>{previous.title()}</strong>
+        <strong>{previous.nav_title()}</strong>
       </.link>
       <.link :if={next} navigate={Pages.path(next)} data-part="next">
         <span>Next</span>
-        <strong>{next.title()}</strong>
+        <strong>{next.nav_title()}</strong>
       </.link>
     </nav>
     """

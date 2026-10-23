@@ -24,6 +24,8 @@ defmodule TuistWeb.Noora.Page do
 
   Pages that are not about a single component (the introduction and the
   foundations) define `content/1` instead of, or in addition to, examples.
+  Pass `nav_title:` when the sidebar should name the page differently from
+  its heading.
   """
 
   @callback content(assigns :: map()) :: Phoenix.LiveView.Rendered.t()
@@ -57,6 +59,7 @@ defmodule TuistWeb.Noora.Page do
 
     quote do
       def title, do: unquote(title)
+      def nav_title, do: unquote(Keyword.get(opts, :nav_title, title))
       def slug, do: unquote(slug)
       def description, do: unquote(Keyword.get(opts, :description))
       def components, do: unquote(Keyword.get(opts, :components, []))

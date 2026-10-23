@@ -14,7 +14,7 @@ defmodule TuistWeb.Noora.NooraLiveTest do
     assert html =~ ~s(<meta name="robots" content="noindex, nofollow")
 
     for page <- Pages.all() do
-      assert has_element?(view, ~s(#noora-docs-nav a[href="#{Pages.path(page)}"]), page.title())
+      assert has_element?(view, ~s(#noora-docs-nav a[href="#{Pages.path(page)}"]), page.nav_title())
     end
   end
 
