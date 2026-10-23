@@ -241,8 +241,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `runner-caches_test.sh`. After the attach the helper reads the volume's
   capacity (`df` on the path, which links into the mounted image) and rewrites
   `TUIST_CACHE_MAX_BYTES` in `module.env` or `COMPILATION_CACHE_LIMIT_SIZE` in
-  the xcconfig to the capacity less max(2 GB, 20%), at most half of it: 24 GB at
-  the default 30 GB, 16 GB at 20 GB. A path left as a local directory (the
+  the xcconfig. The module cache's limit is the capacity less max(2 GB, 20%), at
+  most half of it: 16 GB at the default 20 GB. The compilation cache's is half
+  that space, 12 GB at the default 30 GB, because `COMPILATION_CACHE_LIMIT_SIZE`
+  bounds one generation and the store keeps two (the primary and its upstream).
+  A path left as a local directory (the
   volume was unavailable) keeps the staged limits of a default-sized volume. The
   teardown prune bounds the store at the limit the xcconfig gave the compiler
   (`managed_xcode_cache_limit`), so both follow the capacity the job set with
