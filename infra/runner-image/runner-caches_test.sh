@@ -21,7 +21,7 @@ setup() {
   MANAGED_XCODE_CACHE="$work/xcode-cache"
   MANAGED_MODULE_CACHE="$work/module-cache"
   MANAGED_XCCONFIG="$work/managed.xcconfig"
-  MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000
+  MANAGED_XCODE_CACHE_LIMIT_BYTES=12000000000
   MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
   unset TUIST_XDG_CACHE_HOME TUIST_CACHE_MAX_BYTES XCODE_XCCONFIG_FILE \
     TUIST_COMPILATION_CACHE_CAS_PATH TUIST_CAS_DRAINED_STORE VOLUME_BLOCKS
@@ -61,7 +61,7 @@ test_caches_stage_their_volumes() {
   grep -qx "TUIST_COMPILATION_CACHE_CAS_PATH=$MANAGED_XCODE_CACHE" "$RUNNER_CACHES_DIR/xcode.env" || fail 'store not staged'
   grep -qx "TUIST_CAS_DRAINED_STORE=$MANAGED_XCODE_CACHE" "$RUNNER_CACHES_DIR/xcode.env" || fail 'drained store not staged'
   grep -qx "COMPILATION_CACHE_CAS_PATH = $MANAGED_XCODE_CACHE" "$MANAGED_XCCONFIG" || fail 'xcconfig does not point at the volume'
-  grep -qx "COMPILATION_CACHE_LIMIT_SIZE = 24000000000" "$MANAGED_XCCONFIG" || fail 'xcconfig does not bound the store'
+  grep -qx "COMPILATION_CACHE_LIMIT_SIZE = 12000000000" "$MANAGED_XCCONFIG" || fail 'xcconfig does not bound the store'
   for name in TUIST_XDG_CACHE_HOME TUIST_CACHE_MAX_BYTES XCODE_XCCONFIG_FILE TUIST_COMPILATION_CACHE_CAS_PATH TUIST_CAS_DRAINED_STORE; do
     [ -z "${!name:-}" ] || fail "$name reaches the runner"
   done
@@ -201,14 +201,14 @@ test_limits_follow_the_attached_capacity() {
   eq "TUIST_XDG_CACHE_HOME=$MANAGED_MODULE_CACHE"$'\n'"TUIST_CACHE_MAX_BYTES=40000000000" "$module_env"
   grep -q 'holds 50.0 GB; the cache is limited to 40.0 GB' "$work/err" || fail 'no record of the limit'
   activate xcode --size 50gb >/dev/null 2>&1 || fail 'xcode activation failed'
-  grep -qx "COMPILATION_CACHE_LIMIT_SIZE = 40000000000" "$MANAGED_XCCONFIG" || fail 'xcconfig limit does not follow the capacity'
+  grep -qx "COMPILATION_CACHE_LIMIT_SIZE = 20000000000" "$MANAGED_XCCONFIG" || fail 'xcconfig limit does not follow the capacity'
   grep -qx "COMPILATION_CACHE_CAS_PATH = $MANAGED_XCODE_CACHE" "$MANAGED_XCCONFIG" || fail 'xcconfig lost the store path'
-  eq 40000000000 "$(managed_xcode_cache_limit)"
+  eq 20000000000 "$(managed_xcode_cache_limit)"
   unset VOLUME_BLOCKS
 }
 
 test_limits_keep_room_on_small_volumes() {
-  for case in "29296875 24000000000" "19531250 16000000000" "4882812 2999999488" "976562 499999744"; do
+  for case in "29296875 12000000000" "19531250 8000000000" "4882812 1499999744" "976562 249999872"; do
     read -r blocks expected <<<"$case"
     setup
     stage_runner_caches >/dev/null
@@ -222,9 +222,9 @@ test_unrestored_volumes_keep_the_default_limits() {
   stage_runner_caches >/dev/null
   activate module --size 50gb >/dev/null 2>&1 || fail 'module activation failed'
   grep -qx 'TUIST_CACHE_MAX_BYTES=16000000000' "$RUNNER_CACHES_DIR/module.env" || fail 'a local directory changed the module limit'
-  eq 24000000000 "$(managed_xcode_cache_limit)"
+  eq 12000000000 "$(managed_xcode_cache_limit)"
   rm -f "$MANAGED_XCCONFIG"
-  eq 24000000000 "$(managed_xcode_cache_limit)"
+  eq 12000000000 "$(managed_xcode_cache_limit)"
 }
 
 for test in $(declare -F | awk '{print $3}' | grep '^test_'); do
