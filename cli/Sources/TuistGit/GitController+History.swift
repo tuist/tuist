@@ -61,7 +61,9 @@ extension GitController {
         // A deepen for the merge base can bring a missing head in.
         if !headInCheckout { headInCheckout = await commitSHA(git: git, ref: head) != nil }
         if !headInCheckout { reasons.append("\(head.prefix(12)) is not in the checkout") }
-        let heads = (headInCheckout ? [head] : []) + [localBaseHead].compactMap { $0 }.filter { $0 != head }
+        // Without it, the walk starts at the checkout's HEAD, as it did before the head was reported.
+        let walkHead = headInCheckout ? head : await commitSHA(git: git, ref: "HEAD")
+        let heads = [walkHead].compactMap { $0 } + [localBaseHead].compactMap { $0 }.filter { $0 != walkHead }
         let commits = heads.isEmpty ? [] : try await windowCommits(
             git: git, workingDirectory: workingDirectory, heads: heads, limits: limits
         )

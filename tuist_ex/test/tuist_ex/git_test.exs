@@ -177,6 +177,8 @@ defmodule TuistEx.GitTest do
                "the base branch main is not in the checkout; #{String.slice(pull_request_head, 0, 12)} is not in the checkout"
 
       refute Enum.any?(commits, &(&1.sha == pull_request_head))
+      # The walk starts at the checkout's merge commit, as it did before.
+      assert Enum.find(commits, &(&1.sha == merge_commit)).parents |> length() == 2
 
       assert {:ok, history} = Git.history(clone, pull_request_head, "main")
       assert history.merge_base_sha == fork_point

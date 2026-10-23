@@ -190,13 +190,18 @@ defmodule TuistEx.Git do
          commits:
            window_commits(
              dir,
-             Enum.uniq(if(head_in_checkout?, do: [head], else: []) ++ List.wrap(local_base_head)),
+             Enum.uniq(walk_head(dir, head, head_in_checkout?) ++ List.wrap(local_base_head)),
              limits
            ),
          fallback_reason: if(reasons != [], do: Enum.join(reasons, "; "))
        }}
     end
   end
+
+  # Without the head, the walk starts at the checkout's HEAD, as it did before
+  # the head was reported.
+  defp walk_head(_dir, head, true), do: [head]
+  defp walk_head(dir, _head, false), do: List.wrap(commit_sha(dir, "HEAD"))
 
   # On a pull request's merge checkout the head is the merge commit's second
   # parent, which a depth-1 clone does not contain: it is fetched alone,

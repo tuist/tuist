@@ -1094,9 +1094,10 @@ struct GitControllerTests {
         commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
         commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
         commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], output: "mergecommit\n")
         commandRunner.succeedCommand(
-            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "basehead"],
-            output: "basehead 1700000200\n"
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "mergecommit", "basehead"],
+            output: "basehead 1700000200\nmergecommit 1700000100\n"
         )
 
         let history = try await subject.gitHistory(
@@ -1107,7 +1108,8 @@ struct GitControllerTests {
         )
 
         #expect(history.headSHA == "head")
-        #expect(history.commits.map(\.sha) == ["basehead"])
+        // The walk starts at the checkout's merge commit instead, as it did before the head was reported.
+        #expect(history.commits.map(\.sha) == ["basehead", "mergecommit"])
         #expect(history
             .fallbackReason == "shallow clone: the merge base with main is not in the checkout; head is not in the checkout")
         #expect(!commandRunner.called(git + [

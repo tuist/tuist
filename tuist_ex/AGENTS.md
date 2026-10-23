@@ -129,7 +129,7 @@ HEAD` (exactly two parents), since a depth-1 checkout's shallow grafts hide
 HEAD's parents from `rev-parse HEAD^2`. Without `GITHUB_SHA` the rule is
 unchanged: `rev-parse HEAD^2`, HEAD when that fails. `Git.history/4` fetches a
 head the checkout lacks alone by SHA with `:history`, otherwise leaves it out
-of the walk with "<sha> is not in the checkout"; every fetch passes
+with "<sha> is not in the checkout" and walks from the checkout's HEAD; every fetch passes
 `--recurse-submodules=no`. `GIT_COMMIT` still wins.
 `Git` and `Analytics.GitHistory` port the command line tool's Git history
 collection (`GitController+History.swift`, `GitHistoryParser.swift`,
