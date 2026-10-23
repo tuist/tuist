@@ -46,7 +46,11 @@ through Helm, without a separate human kubectl elevation.
 ## Certificate trust
 
 `workflows/certificate-trust.yml` runs Go, shell and isolated ExUnit checks with
-read-only permissions. It has no Python, image manufacturing, registry login,
+read-only permissions. Its explicit `kura_qualification` dispatch also executes
+native Linux Rust fixtures and public/identity-format opt-ins on a fresh Ubuntu
+runner without credentials. Native-store overrides/errors/reloads run only in
+owned child processes; never mutate the parent test environment. It has no
+Python, image manufacturing, registry login,
 publication or deployment. Keep the explicit Go SDK qualification allowlist and
 CI pin aligned; newer release lines alone do not prove the intermediate-key deny.
 The aggregate mitigation paths trigger many independent main deploy workflows:

@@ -60,6 +60,11 @@ on:
       - infra/certificate-trust/**
       - .github/workflows/certificate-trust.yml
   workflow_dispatch:
+    inputs:
+      kura_qualification:
+        description: Execute credential-free Kura native Linux qualification
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -69,6 +74,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  kura-linux:
+    name: Kura native Linux
+    if: github.event_name == 'workflow_dispatch' && inputs.kura_qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: kura
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: bazel
+          working_directory: kura
+          env: false
+      - name: Execute native stores and actual TLS fixtures
+        run: |
+          mise exec -- bazel test //:certificate_trust_test --define=kura_deny_warnings=true --jobs=4 --nocache_test_results --test_output=all
+          mkdir -p "$RUNNER_TEMP/kura-native-receipt"
+          cp bazel-testlogs/certificate_trust_test/test.xml "$RUNNER_TEMP/kura-native-receipt/default.xml"
+          cp bazel-testlogs/certificate_trust_test/test.log "$RUNNER_TEMP/kura-native-receipt/default.log"
+      - name: Execute explicit public and identity-format qualification
+        run: |
+          mise exec -- bazel test //:certificate_trust_test --define=kura_deny_warnings=true --jobs=4 --nocache_test_results --test_output=all \
+            --test_arg=--ignored --test_arg=public_controls_fail_for_certificates --test_arg=valid_pkcs1_and_sec1_identities \
+            --test_env=TUIST_TRUST_LIVE=1 --test_env=KURA_TRUST_OPENSSL=/usr/bin/openssl
+      - name: Record source and native test reports
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/kura-native-receipt"
+          git rev-parse HEAD > "$RUNNER_TEMP/kura-native-receipt/SOURCE"
+          uname -a > "$RUNNER_TEMP/kura-native-receipt/platform.txt"
+          if test -f bazel-testlogs/certificate_trust_test/test.xml; then
+            cp bazel-testlogs/certificate_trust_test/test.xml "$RUNNER_TEMP/kura-native-receipt/opt-in.xml"
+            cp bazel-testlogs/certificate_trust_test/test.log "$RUNNER_TEMP/kura-native-receipt/opt-in.log"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kura-native-linux-${{ github.sha }}
+          path: ${{ runner.temp }}/kura-native-receipt
   test:
     runs-on: tuist-linux
     env:

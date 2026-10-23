@@ -28,7 +28,10 @@ Kubernetes/peer factories and inbound peer authentication share this boundary.
 
 `//:certificate_trust_test` runs independent fixture tests without RocksDB; its
 public-network and existing-OpenSSL-3 fixture opt-ins are explicitly ignored by
-default. See [`../infra/certificate-trust/KURA-CLIENTS.md`](../infra/certificate-trust/KURA-CLIENTS.md)
+default. Linux native-store overrides, malformed/missing files, strict extras,
+anchor denial and fresh reload behavior are tested in an owned child process;
+never mutate shared `SSL_CERT_FILE`/`SSL_CERT_DIR` variables in the parent.
+See [`../infra/certificate-trust/KURA-CLIENTS.md`](../infra/certificate-trust/KURA-CLIENTS.md)
 for commands and evidence limits. Local unit/handshake passes are not Linux
 execution, four-axis main-relative stress, release or rollout clearance.
 

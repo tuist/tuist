@@ -6,6 +6,8 @@ use rcgen::{
 
 struct Fixture {
     root: CertificateDer<'static>,
+    #[cfg(target_os = "linux")]
+    root_pem: String,
     spare: CertificateDer<'static>,
     intermediate: CertificateDer<'static>,
     leaf: CertificateDer<'static>,
@@ -26,7 +28,10 @@ impl Fixture {
         root.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
         root.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
         let root_key = KeyPair::generate().unwrap();
-        let root_der = root.self_signed(&root_key).unwrap().der().clone();
+        let root_cert = root.self_signed(&root_key).unwrap();
+        let root_der = root_cert.der().clone();
+        #[cfg(target_os = "linux")]
+        let root_pem = root_cert.pem();
         let root = Issuer::new(root, root_key);
         let mut intermediate = CertificateParams::new(Vec::<String>::new()).unwrap();
         intermediate.not_before = rcgen::date_time_ymd(2020, 1, 1);
@@ -64,6 +69,8 @@ impl Fixture {
             .clone();
         Self {
             root: root_der,
+            #[cfg(target_os = "linux")]
+            root_pem,
             spare,
             intermediate: intermediate_cert.der().clone(),
             leaf: leaf.der().clone(),
@@ -79,6 +86,98 @@ impl Fixture {
             Roots::Explicit(roots)
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn unix_native_store_override_errors_and_reload_are_process_scoped() {
+    let directory = tempfile::tempdir().unwrap();
+    let roots = directory.path().join("roots.pem");
+    let empty_directory = directory.path().join("empty");
+    std::fs::create_dir(&empty_directory).unwrap();
+    let module = module_path!().split_once("::").unwrap().1;
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--ignored",
+            "--exact",
+            &format!("{module}::unix_native_store_child"),
+        ])
+        .env("KURA_TRUST_NATIVE_STORE_CHILD", "1")
+        .env("SSL_CERT_FILE", roots)
+        .env("SSL_CERT_DIR", empty_directory)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "isolated native-store child failed: {} {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+#[ignore = "owned child of unix_native_store_override_errors_and_reload_are_process_scoped"]
+fn unix_native_store_child() {
+    assert_eq!(
+        std::env::var("KURA_TRUST_NATIVE_STORE_CHILD").as_deref(),
+        Ok("1")
+    );
+    let path = std::env::var_os("SSL_CERT_FILE").unwrap();
+    let first = Fixture::new();
+    let second = Fixture::new();
+    let verify = |verifier: &dyn ServerCertVerifier, fixture: &Fixture| {
+        verifier.verify_server_cert(
+            &fixture.leaf,
+            std::slice::from_ref(&fixture.intermediate),
+            &ServerName::try_from("localhost").unwrap(),
+            &[],
+            UnixTime::now(),
+        )
+    };
+    let native = || {
+        verifier(
+            Roots::Native(Vec::new()),
+            Arc::new(Policy::default()),
+            provider(),
+        )
+    };
+    std::fs::write(&path, &first.root_pem).unwrap();
+    reqwest::Client::builder().build().unwrap();
+    verify(native().unwrap().as_ref(), &first).unwrap();
+    assert!(
+        config(
+            Roots::Native(Vec::new()),
+            None,
+            vec![spki_hash(&first.root).unwrap()]
+        )
+        .is_err()
+    );
+    std::fs::write(&path, &second.root_pem).unwrap();
+    let reloaded = native().unwrap();
+    verify(reloaded.as_ref(), &second).unwrap();
+    assert!(verify(reloaded.as_ref(), &first).is_err());
+    std::fs::write(&path, b"invalid native store").unwrap();
+    assert!(native().is_err());
+    assert!(reqwest::Client::builder().build().is_err());
+    let extra = verifier(
+        Roots::Native(vec![first.root.clone()]),
+        Arc::new(Policy::default()),
+        provider(),
+    )
+    .unwrap();
+    verify(extra.as_ref(), &first).unwrap();
+    std::fs::write(&path, &second.root_pem).unwrap();
+    assert!(
+        verifier(
+            Roots::Native(vec![CertificateDer::from(vec![0x30, 0])]),
+            Arc::new(Policy::default()),
+            provider()
+        )
+        .is_err()
+    );
+    std::fs::remove_file(path).unwrap();
+    assert!(native().is_err());
 }
 
 #[tokio::test]
