@@ -142,7 +142,10 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             // Xcode's prefix mapping records `/^src/…` in the images and in llvm-cov's report
             // alike; both are mapped back through the image's target before the files are tied
             // to the repository, so the evidence names the same paths the coverage does.
-            let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
+            let prefixMaps = CompilationPrefixMaps(
+                derivedDataDirectory: derivedDataDirectory,
+                buildSources: await RunMetadataStorage.current.coverageBuildSources
+            )
             for image in Set(outputs.flatMap { $0.images.values.map(\.path) }) {
                 let target = CompilationPrefixMaps.targetName(ofProduct: image)
                 let remap: (String) -> String = { prefixMaps.remap($0, target: target) }
