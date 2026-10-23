@@ -224,3 +224,37 @@ clickhouse:
       ttlDays: 7
       level: warning
 ```
+
+## Scaling the server
+
+Complete the [OAuth upgrade sequence and clustering migration prerequisites](../../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering) before changing cluster membership. Enable `server.cluster.enabled` before adding web replicas or enabling autoscaling; the chart rejects configurations that can run multiple web replicas without clustering. Web nodes use `<applicationName>@<pod-address>` names and discover IPv4 peer addresses through the release's headless service, including pods that are still starting.
+
+For a self-hosted installation, create a high-entropy cookie Secret in the release namespace using your secret manager, then configure its name and key:
+
+```yaml
+server:
+  replicaCount: 2
+  cluster:
+    enabled: true
+    distributionPort: 9100
+    cookieExistingSecret: tuist-server-cluster
+    cookieExistingSecretKey: release-cookie
+```
+
+All web replicas must use the same private Erlang cookie, including during rolling upgrades. Treat it as a remote-execution credential: never use an image-baked cookie, publish its value, or rotate it independently on each pod. Cookie rotation requires coordinated replacement of every participating process; updating the Secret alone does not update running nodes.
+
+For ordinary server-connected Helm upgrades, leaving `cookieExistingSecret` empty lets the chart generate a cookie Secret and reuse its value through Helm's `lookup`. Offline `helm template` and GitOps renderers cannot recover that existing value and must use a separately managed Secret instead. Changing the configured key to a missing key in an existing generated Secret fails rather than silently rotating the cookie. To rename a key without rotating credentials, prepare an external Secret with the same cookie under the new key, then update the Secret name and key together.
+
+Distribution uses `server.cluster.distributionPort` (9100 by default) and EPMD on TCP 4369. When `server.networkPolicy.enabled` is true, the chart admits these ports between this release's server pods. Keep both ports private and verify actual network-policy enforcement; rendered rules alone do not establish isolation or reachability. The release environment pins the distribution listener to the configured port, so exposing only EPMD is insufficient.
+
+Processor fleets stay outside the web cluster. A surviving single web node remains useful; requiring a peer for readiness would make one failed node remove the other from service. DNS discovers peers but does not disconnect healthy nodes when an answer is temporarily missing or incomplete.
+
+Check every running web pod with the release's `rpc 'Node.list()'` command. With two healthy replicas, each should list the other pod-address node. Check the cookie Secret reference and private network rules if the list stays empty. Qualify joining, rolling replacement and failure/recovery under load before increasing traffic. The isolated local cluster-formation probe is:
+
+```sh
+cd server
+MIX_ENV=test elixir --name formation_$$@127.0.0.1 --cookie formation_verification \
+  -S mix run --no-start verification/cluster_formation.exs
+```
+
+Run that probe only in an owned local VM, never attached to a deployed cluster. It does not substitute for validating membership, PubSub and Oban notifications across the actual deployed versions.
