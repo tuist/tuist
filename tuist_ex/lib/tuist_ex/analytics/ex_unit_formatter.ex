@@ -48,6 +48,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
        excluded_names: Quarantine.excluded_names(quarantine),
        also_excluded: [],
        excluded: [],
+       excluded_tags: MapSet.new(Keyword.get(merged, :coverage_excluded_tags, [])),
        skipped_but_ran: [],
        aborted?: false,
        failures: nil,
@@ -78,10 +79,12 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   # A test a filter left out, such as `--only` or `file:line`, was not part
   # of the run: reported as skipped, it would look like it was turned off.
   # One the quarantine's name filter left out without being skipped itself
-  # shares its full name with a skipped test in another module.
-  # Every other test a filter left out is what a run with coverage names as
-  # skipped: a test Tuist skips for quarantine is left out as if removed.
-  def handle_cast({:test_finished, %ExUnit.Test{state: {:excluded, _}} = test}, state) do
+  # shares its full name with a skipped test in another module. That one and
+  # those the run's own `--exclude` options left out are what a run with
+  # coverage names as skipped. A test Tuist skips for quarantine is left out
+  # as if removed, and one the test helper's configuration excludes is not
+  # part of the suite, as a test a test plan disables is not for Xcode.
+  def handle_cast({:test_finished, %ExUnit.Test{state: {:excluded, reason}} = test}, state) do
     identity = Quarantine.identity(record(test))
 
     cond do
@@ -96,8 +99,11 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
              excluded: [identity | state.excluded]
          }}
 
-      true ->
+      MapSet.member?(state.excluded_tags, filter_tag(reason)) ->
         {:noreply, %{state | excluded: [identity | state.excluded]}}
+
+      true ->
+        {:noreply, state}
     end
   end
 
@@ -241,6 +247,9 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
         payload
     end
   end
+
+  defp filter_tag("due to " <> rest), do: String.replace_suffix(rest, " filter", "")
+  defp filter_tag(_reason), do: nil
 
   # `Module/Suite/test`, with a `/` or `%` inside a part percent-encoded:
   # describe names such as `create_order/2` hold one.

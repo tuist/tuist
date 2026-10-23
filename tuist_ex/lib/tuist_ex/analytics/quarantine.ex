@@ -88,19 +88,12 @@ defmodule TuistEx.Analytics.Quarantine do
   def empty?(%__MODULE__{muted: muted, skipped: skipped}),
     do: MapSet.size(muted) == 0 and MapSet.size(skipped) == 0
 
-  def empty?(nil), do: true
-
   @doc """
   The `mix test` arguments that leave the skipped tests out.
   """
-  def exclude_args(%__MODULE__{skipped: skipped} = policy) do
-    if MapSet.size(skipped) == 0,
-      do: [],
-      else:
-        policy |> excluded_names() |> Enum.sort() |> Enum.flat_map(&["--exclude", "test:" <> &1])
+  def exclude_args(policy) do
+    policy |> excluded_names() |> Enum.sort() |> Enum.flat_map(&["--exclude", "test:" <> &1])
   end
-
-  def exclude_args(nil), do: []
 
   @doc """
   The full ExUnit names of the skipped tests, as `test.name` holds them.

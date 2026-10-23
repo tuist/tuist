@@ -131,7 +131,8 @@ defmodule Mix.Tasks.Tuist.Test do
           Keyword.merge(options,
             coverage: Coverage.requested?(test_args),
             coverage_partial: Coverage.partial?(test_args),
-            coverage_narrowed: Coverage.narrowed?(test_args)
+            coverage_narrowed: Coverage.narrowed?(test_args),
+            coverage_excluded_tags: Coverage.excluded_tags(test_args)
           )
 
         case shard(options, test_args) do
@@ -623,9 +624,8 @@ defmodule Mix.Tasks.Tuist.Test do
   defp do_with_coverage(payload, snapshot, options, opts, history) do
     payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
 
-    # Tests a filter left out, other than the ones Tuist skips for quarantine,
-    # make the run partial even when its own arguments did not ask for it:
-    # the test helper's exclusions, or a test sharing a skipped test's name.
+    # A test sharing a quarantined test's name was left out although the
+    # run's own arguments did not ask for it.
     partial? =
       options[:coverage_partial] == true or Map.has_key?(payload, :skip_test_identifiers)
 
