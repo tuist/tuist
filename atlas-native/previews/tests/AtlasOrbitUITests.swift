@@ -386,8 +386,8 @@ final class AtlasOrbitUITests: XCTestCase {
             confirmation.buttons["Share and send"].tap()
             XCTAssertTrue(app.navigationBars["Build listing latency"].waitForExistence(timeout: 5))
             XCTAssertFalse(app.staticTexts["Private · Only you and Pip"].exists)
-            _ = try app.visibleElement("thread-handoff-heading", type: .staticText, up: false)
-            XCTAssertTrue(app.staticTexts["Conversation recap"].exists)
+            XCTAssertTrue(app.staticTexts["Conversation recap"].waitForExistence(timeout: 5))
+            _ = try app.visibleElement("Conversation recap", type: .staticText, up: false)
             capture(app, "ios-orbit-mention-handoff-\(arguments.isEmpty ? "light" : "dark-large")-preview")
         }
     }

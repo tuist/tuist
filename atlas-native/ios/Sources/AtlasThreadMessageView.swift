@@ -25,13 +25,11 @@ struct AtlasThreadMessageView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Conversation recap", systemImage: "person.badge.plus").font(.headline)
                             .accessibilityAddTraits(.isHeader)
-                            .accessibilityIdentifier("thread-handoff-heading")
                         AtlasMarkdown(source: message.body)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
                     .background(fill, in: RoundedRectangle(cornerRadius: 16))
-                    .accessibilityIdentifier("thread-handoff")
                 } else {
                     Text(message.body).font(.caption).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity).multilineTextAlignment(.center)
