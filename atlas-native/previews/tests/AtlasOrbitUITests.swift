@@ -376,6 +376,11 @@ final class AtlasOrbitUITests: XCTestCase {
             person.tap()
             XCTAssertTrue(app.staticTexts["thread-mention-disclosure"].waitForExistence(timeout: 5))
             XCTAssertTrue((composer.value as? String)?.contains("@Alex Morgan") == true)
+            composer.typeText("thanks for reviewing.")
+            let unexpectedSearch = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"),
+                                                            object: app.staticTexts["No eligible people found"])
+            unexpectedSearch.isInverted = true
+            wait(for: [unexpectedSearch], timeout: 2)
             app.buttons["thread-send"].tap()
             let confirmation = app.alerts["Share this conversation?"]
             XCTAssertTrue(confirmation.waitForExistence(timeout: 5))

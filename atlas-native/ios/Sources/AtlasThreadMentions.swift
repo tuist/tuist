@@ -11,7 +11,7 @@ struct AtlasThreadMentions: View {
               at == model.draft.startIndex || model.draft[model.draft.index(before: at)].isWhitespace else { return nil }
         let suffix = String(model.draft[model.draft.index(after: at)...])
         guard suffix.utf8.count <= 100, !suffix.contains("\n"),
-              !model.draftMentions.contains(where: { suffix == $0.name + " " }) else { return nil }
+              !model.draftMentions.contains(where: { suffix.hasPrefix($0.name + " ") }) else { return nil }
         return suffix
     }
 
