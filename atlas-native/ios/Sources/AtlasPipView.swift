@@ -225,3 +225,37 @@ struct AtlasPipWelcome: View {
         [GridItem(dynamicTypeSize.isAccessibilitySize ? .flexible() : .adaptive(minimum: 140), spacing: 10)]
     }
 }
+
+struct AtlasThreadActivity: View {
+    let message: String
+    let typing: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { context in
+            let phase = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate * 4
+            HStack(spacing: 12) {
+                if typing {
+                    HStack(spacing: 4) {
+                        ForEach(0..<3) { index in
+                            Circle().fill(.tint).frame(width: 6, height: 6)
+                                .opacity(reduceMotion ? 1 : 0.45 + 0.55 * (sin(phase - Double(index)) + 1) / 2)
+                                .offset(y: reduceMotion ? 0 : -2 * sin(phase - Double(index)))
+                        }
+                    }
+                    .frame(width: 32, height: 32)
+                } else {
+                    AtlasPipView(interactive: false)
+                    .frame(width: 32, height: 32)
+                }
+                Text(message).font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 6).padding(.vertical, 8)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(message)
+        .accessibilityAddTraits(.isStaticText)
+        .accessibilityIdentifier("thread-agent-activity")
+    }
+}

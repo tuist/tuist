@@ -101,6 +101,8 @@ struct AtlasOrbitView: View {
                     .accessibilityHint("Opens your private thread with Pip.")
                     .accessibilityIdentifier("orbit-private")
                     .padding(.horizontal, 20).padding(.vertical, 8)
+                    .background(.background)
+                    .modifier(AtlasThemedContent())
                 }
             }
             .navigationDestination(for: AtlasThread.self) { thread in
@@ -185,6 +187,11 @@ private struct AtlasThreadDetail: View {
 
     private var assistantName: String { model.assistant?.name ?? "Pip" }
     private var current: AtlasThread { model.selected ?? thread }
+    private var showsWelcome: Bool {
+        thread.kind == "private" && model.selected?.id == thread.id && model.messages.isEmpty
+            && !model.loadingHistory && model.errorMessage == nil
+            && !["queued", "running", "compacting"].contains(current.agentStatus ?? "")
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -198,8 +205,7 @@ private struct AtlasThreadDetail: View {
                         if thread.kind == "private" {
                             Label("Private · Only you and \(assistantName)", systemImage: "lock")
                                 .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
-                            if model.selected?.id == thread.id, model.messages.isEmpty, !model.loadingHistory,
-                               model.errorMessage == nil, !["queued", "running", "compacting"].contains(current.agentStatus ?? "") {
+                            if showsWelcome {
                                 AtlasPipWelcome { prompt in
                                     model.draft += (model.draft.isEmpty ? "" : "\n\n") + prompt
                                 }
@@ -234,13 +240,13 @@ private struct AtlasThreadDetail: View {
                     }
                     .padding(.horizontal, 16).padding(.vertical, 12)
                     .frame(maxWidth: 720)
-                    .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .bottom)
+                    .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: showsWelcome ? .top : .bottom)
                 }
                 .coordinateSpace(name: "thread-history")
                 .onPreferenceChange(AtlasThreadBottom.self) { bottom in
                     followLatest = bottom.isFinite && bottom >= 0 && bottom <= geometry.size.height + 20
                 }
-                .defaultScrollAnchor(.bottom)
+                .defaultScrollAnchor(showsWelcome ? .top : .bottom)
                 .scrollDismissesKeyboard(.interactively)
                 .modifier(AtlasThemedContent())
                 .refreshable { await model.history() }
@@ -365,38 +371,4 @@ private struct AtlasThreadDetail: View {
 private struct AtlasThreadBottom: PreferenceKey {
     static var defaultValue: CGFloat { .infinity }
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-struct AtlasThreadActivity: View {
-    let message: String
-    let typing: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { context in
-            let phase = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate * 4
-            HStack(spacing: 12) {
-                if typing {
-                    HStack(spacing: 4) {
-                        ForEach(0..<3) { index in
-                            Circle().fill(.tint).frame(width: 6, height: 6)
-                                .opacity(reduceMotion ? 1 : 0.45 + 0.55 * (sin(phase - Double(index)) + 1) / 2)
-                                .offset(y: reduceMotion ? 0 : -2 * sin(phase - Double(index)))
-                        }
-                    }
-                    .frame(width: 32, height: 32)
-                } else {
-                    AtlasPipView(interactive: false)
-                    .frame(width: 32, height: 32)
-                }
-                Text(message).font(.callout).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 6).padding(.vertical, 8)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(message)
-        .accessibilityAddTraits(.isStaticText)
-        .accessibilityIdentifier("thread-agent-activity")
-    }
 }

@@ -130,24 +130,20 @@ jobs:
           export ONCE_APPLE_SIMULATOR_UDID="$device"
           export TMPDIR="$RUNNER_TEMP/atlas-render-validation"
           mkdir -p "$TMPDIR"
-          python3 - <<'PY'
-          import os, pathlib, re, signal, subprocess
-          output = pathlib.Path("render-validation")
-          with (output / "recording.log").open("w") as log:
-              recorder = subprocess.Popen(["xcrun", "simctl", "io", os.environ["ONCE_APPLE_SIMULATOR_UDID"], "recordVideo", "--codec=h264", str(output / "interaction.mov")], stdout=log, stderr=log)
-              try:
-                  with (output / "native-validation.log").open("w") as test_log:
-                      result = subprocess.run(["mise", "exec", "--", "once", "test", "AtlasSettingsUITests"], stdout=test_log, stderr=subprocess.STDOUT)
-              finally:
-                  recorder.send_signal(signal.SIGINT)
-                  recorder.wait(timeout=30)
-          print((output / "native-validation.log").read_text())
-          bundles = set(pathlib.Path(os.environ["TMPDIR"]).rglob("*.xcresult"))
-          bundles.update(pathlib.Path(path) for path in re.findall(r"/[^\s]+\.xcresult", (output / "native-validation.log").read_text()))
-          for index, bundle in enumerate(bundles):
-              subprocess.run(["xcrun", "xcresulttool", "export", "attachments", "--path", str(bundle), "--output-path", str(output / f"attachments-{index}")], check=True)
-          raise SystemExit(result.returncode)
-          PY
+          xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/render-validation/interaction.mov" > render-validation/recording.log 2>&1 &
+          recording=$!
+          trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
+          result=0
+          mise exec -- once test AtlasSettingsUITests > render-validation/native-validation.log 2>&1 || result=$?
+          kill -INT "$recording"
+          wait "$recording" || true
+          trap - EXIT
+          cat render-validation/native-validation.log
+          cp -R .once/out/AtlasSettingsUITests/test render-validation/test-results
+          find "$TMPDIR" -name '*.xcresult' -prune -print | while IFS= read -r bundle; do
+            xcrun xcresulttool export attachments --path "$bundle" --output-path "render-validation/$(basename "$bundle" .xcresult)-attachments"
+          done
+          exit "$result"
       - uses: actions/upload-artifact@v4
         if: always() && matrix.platform == 'ios'
         with:
