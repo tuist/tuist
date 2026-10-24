@@ -59,6 +59,7 @@ defmodule Atlas.Orbit.Runs do
   alias Atlas.Orbit.Thread
   alias Atlas.Orbit.Tools
   alias Atlas.Orbit.Workers.RunThread
+  alias Atlas.Push
   alias Atlas.Repo
   alias Atlas.Users.User
   alias Condukt.Compactor.ToolResultPrune
@@ -498,14 +499,24 @@ defmodule Atlas.Orbit.Runs do
   end
 
   defp finish!(run, thread, {:ok, text}) when is_binary(text) and text != "" do
-    Orbit.append!(thread, %{
-      kind: "agent",
-      run_id: run.id,
-      body: Rendering.truncate(text, @reply_limit),
-      author_name: Orbit.agent_name()
-    })
+    message =
+      Orbit.append!(thread, %{
+        kind: "agent",
+        run_id: run.id,
+        body: Rendering.truncate(text, @reply_limit),
+        author_name: Orbit.agent_name()
+      })
 
     finalize!(run, "succeeded", nil, nil, thread)
+
+    {:ok, _queued} =
+      Push.notify_user(run.acting_user_id, "orbit_completed", {"orbit", thread.id},
+        message_id: message.id,
+        actor_id: run.acting_user_id,
+        interface: "worker"
+      )
+
+    :ok
   end
 
   defp finish!(run, thread, {:ok, _empty}) do

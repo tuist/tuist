@@ -56,6 +56,8 @@ Semantics and delivery live in [push](../../atlas/push/AGENTS.md). Coverage is `
 
 `AtlasWeb.NativeLinksController` serves the app association files and the `/open` landing from the `:native_links` pipeline (secure headers only; no Accept negotiation, session, CSRF, or user lookup). Association files return 404 until `AtlasWeb.NativeLinks.Config` lists verified identities, and set public caching. The Android statement delegates `handle_all_urls` to the fixed `dev.tuist.atlas` package. `/open` validates `screen` and the optional UUID against `AtlasWeb.NativeLinks` and returns 404 otherwise, including encoded slashes and extra segments.
 
+Orbit uses screen `orbit`, with an optional lowercase thread UUID. `/open/orbit` and `/open/orbit/<uuid>` are claimed native links and reveal no thread content. There is no Orbit web UI or `/orbit/<uuid>` record route in this checkout: browser escape goes to the authenticated dashboard `/`, and ordinary dashboard URLs are not mapped to Orbit. Completion push delivery separately reauthorizes the exact source reply before deriving preview content; the public link landing never does so.
+
 Coverage lives in `test/atlas_web/native_links_test.exs` (allowlist, claimed paths, configuration parsing), `test/atlas_web/controllers/native_links_controller_test.exs` (association files, landing, host-header independence, demo denial), and `test/atlas_web/components/account_menu_test.exs` (header action across LiveView navigation and live patches within one LiveView). Tests stub `AtlasWeb.NativeLinks.Config` with Mimic rather than changing the application environment.
 
 ## Optional native themes
