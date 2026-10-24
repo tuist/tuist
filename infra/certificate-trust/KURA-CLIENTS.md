@@ -78,9 +78,40 @@ The Linux-only parent test launches an owned child with isolated `SSL_CERT_FILE`
 
 The runtime workflow's explicit `qualification_only=true` branch now builds the main merge-base and candidate with identical release assembly, runs the complete Linux suite, and collects ABBA private-peer resource evidence. It has no registry login, publication or deployment. Its source path and measurements are not yet a passing resource/release receipt. The improved fixture uses distinct incompressible objects, full mTLS churn and post-load retention/recovery; it does not measure native-client construction cost or deployed telemetry/auth integrations.
 
+## Full Linux build-only phase
+
+[Workflow 39918861598](https://github.com/tuist/tuist/actions/runs/39918861598)
+at `8cad1fb4a1` passed the complete warnings-denied Linux suite: **1,250 library
+cases, 52 ignored (31.194 s)**, **10 independent cases, 3 ignored**, **3 reporter
+cases** and **1 main-binary case**. Both explicit opt-ins passed (4.605 s).
+The improved child-store test checks old-client snapshots and exactly one child
+case. Both baseline/candidate binaries and pinned-runtime release images built,
+ran `--version`, and had equal non-binary layers. These were build-only inputs,
+not published artifacts. Public metadata/JUnit receipts were downloaded to
+`/tmp/tuist-emudhra-audit/kura-resource-second-39918861598/`.
+
+The overall workflow **failed** after the first baseline workload because the
+summarizer did not recognize a legitimately empty lazy pressure counter.
+The next run (`39922891645`, source `406514e1c2`) similarly stopped on initial
+artifact egress, not a completed comparison. The source-qualified lazy schema
+now includes pressure transitions, artifact egress and segment refresh only;
+unknown metrics still refuse. Seed-probe work/actual egress must also match
+across runs. Nine contracts pass, and the captured real baseline samples were
+used for a separate derived parser regression, without editing raw receipts or
+claiming resource clearance. Retry `40071266208` at `a9d2a42980` stopped before
+resource measurement on `utils::tests::read_request_to_temp_cleans_up_when_cancelled`
+(1,249 passed, one failed, 52 ignored): the file was unlinked but its five-byte
+reservation had not yet been dropped. Production deliberately unlinks before
+releasing admission. The test now signals that staging reached its pending read,
+checks a real file/five-byte reservation, drops the future and waits through the
+budget notification path for a full-capacity reservation before asserting unlink
+and final zero. No production cleanup or admission limit changed. Fifty repeated
+cases, all four macOS Bazel targets (1,246 library cases/51 ignored, 11.762 s),
+Clippy and rustfmt passed. Build-only retry `40073713999` at `fe4c162fed` is pending.
+
 ## Remaining gates
 
-- Complete Linux library/current-head results and supported distro/runtime variants remain distinct from the standalone result above.
+- Supported distro/runtime variants and fresh final-source evidence remain distinct from the full Linux result above.
 - Sustained before/after stress against the main merge base on **memory/headroom, disk/retention, CPU/work and egress/work**, including post-load recovery. Unit tests do not satisfy Kura's four-axis budget policy; this behavior change remains incomplete until that gate is measured.
 - Exact Linux release images, macOS release binaries and minimum-supported-runtime qualification, plus deployed Sentry/OTLP/enrollment/Kubernetes integration where applicable. OTLP gRPC TLS remains unavailable, not silently protected or downgraded.
 - Owner-authorized publication, installed runtime floors, version-skew/backport qualification and health-gated replacement preserving instance pins, warm caches, pauses, access and patched rollback. No release, deployment or replacement is authorized by this receipt.

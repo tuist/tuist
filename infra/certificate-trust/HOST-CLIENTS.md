@@ -52,6 +52,15 @@ On the Darwin arm64 host with genuine Go 1.26.10:
   position/drop/backoff tests pass. Public negatives require certificate-specific
   errors, with unrelated HTTPS success; they do not prove application enforcement.
 - Shared policy, bounded factory ownership and diagnostic AST guards passed.
+- Read-only [certificate CI 40073758471](https://github.com/tuist/tuist/actions/runs/40073758471)
+  at `fe4c162fed` passed the full shared suite (23.639 s), Linux shipper race
+  suite (1.265 s), both shell copies and cache-volume race suites, SDK controls
+  and isolated OTP/store checks. Its Kura opt-in job was intentionally skipped.
+- Local Darwin arm64 build with owner `CGO_ENABLED=0`, `-trimpath`, `-s -w`
+  flags passed and the candidate runs `--help`. SHA-256:
+  `399a2268a214fa0d36e2a2e09e376ea94fc4893538d5097d504f0bbd84abba45`.
+  Build metadata confirms Go 1.26.10 and the preserved Go 1.25 compatibility
+  defaults. This is not the cross-built CAPI image or an installed daemon.
 
 These are host tests, not the exact operator-image/binary installation or a
 fleet rollout. The managed receiver remains **plaintext HTTP over the tailnet**;

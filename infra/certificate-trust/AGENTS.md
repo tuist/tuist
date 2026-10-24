@@ -25,13 +25,15 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
   `ACTION-CLIENTS.md` traces bounded wrapper ownership, not provider/helper TLS.
   `RUNNER-CLIENTS.md` covers shell HTTP/WSS and cache-volume HTTPS configuration;
   keep shell source/test copies identical, preserve the helpers' different proxy
-  semantics and qualify real images separately. Managed cache-volume endpoints
+  semantics and qualify real images separately. `HOST-CLIENTS.md` records the
+  independent log shipper's native Go policy, MagicDNS/no-proxy and offset/privacy
+  invariants; GitLab/runner-cache/bootstrap/MDM/subprocess gates remain separate. Managed cache-volume endpoints
   are currently plaintext HTTP: do not describe those routes as TLS handshakes.
   `KURA-CLIENTS.md` records Kura's independent reqwest 0.13 native/explicit
   enforcement, macOS-host Bazel evidence and standalone native Linux CI. Preserve complete Apple SecTrust
   paths, Unix native-store/extra-anchor semantics, explicit/inbound mTLS and
-  per-build identity/provider/PEM/SNI/ALPN parity. Complete current-head Linux
-  library results, main-relative four-axis stress and exact release/deployed
+  per-build identity/provider/PEM/SNI/ALPN parity. Full Linux library phases have
+  passed, but final-source/runtime variants, main-relative four-axis stress and exact release/deployed
   integration remain gates. The runtime workflow's safe-default build-only path
   retains only public evidence/hashes, not private keys or runnable artifacts.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight

@@ -259,11 +259,29 @@ with retained transient-EOF retry. Explicit public/PKCS1/SEC1 opt-ins pass.
 The standard JUnit Python report adapter was replaced with Rust and tests rerun.
 Standalone Linux CI at `2a5d5062fb` now passes 10 ordinary cases (3 ignored)
 and both explicit public/PEM opt-ins, including isolated native-store failure,
-override and reload controls (workflow `39911817495`). Complete current-head
-Linux library results, main-relative four-axis stress and
+override and reload controls (workflow `39911817495`). The full Linux phase at
+`8cad1fb4a1` subsequently passed 1,250 library cases/52 ignored plus all other
+Bazel targets and opt-ins, and assembled both build-only release images. Its
+overall workflow failed in resource reporting after the first baseline run;
+retry `40071266208` stopped on a cancellation-test synchronization race before
+measurement. The test-only fix preserves unlink-before-release and passes fifty
+repeats/full macOS suites; build-only retry `40073713999` remains pending.
+Main-relative four-axis stress, final-source
+runtime variants and
 exact release/deployed integration remain required: this behavior change is
 not complete under Kura's resource policy. No publication or rollout is claimed.
 See [Kura implementation and qualification limits](KURA-CLIENTS.md).
+
+The standalone macOS log shipper now embeds twelve-key enforcement with its
+original MagicDNS/system fallback, no-proxy/timeout behavior and protected
+once-owned default path. Private typed diagnostics preserve resolver kind and
+dial errno without URLs or bodies; invalid receivers fail before tailing. TLS
+and cancellation failures retain offsets and never become dropped-batch
+`ErrRejected`. Host race and CGO-disabled live suites include native-default
+Apple leaf/intermediate/absent-anchor differentials, actual private Push and
+defensive configured CONNECT/resumption. The managed receiver remains plaintext
+HTTP over the tailnet. Exact owner artifact/installed daemon and other C13
+boundaries remain open. See [host helper evidence](HOST-CLIENTS.md).
 
 ## Validation and limits
 
@@ -273,10 +291,13 @@ See [Kura implementation and qualification limits](KURA-CLIENTS.md).
   PKCS12 anchor preservation, hardlink refusal, desired-image/no-ack and multi-
   container guard cases. SDK lint covers repository pins, modules/workspaces and
   workflow literals/version files and is tied to the actually probed SDK.
-- Go 1.26.10 rejects all eight compromised intermediate keys and accepts the
-  valid ISRG R11 control, including under go1.23/go1.25/go1.26 compatibility
+- Go 1.26.10's qualified explicit-root verifier rejects all eight compromised
+  intermediate keys and accepts the valid ISRG R11 control, including under go1.23/go1.25/go1.26 compatibility
   defaults. Genuine Go 1.25.10 and Go 1.27.1 accept a compromised intermediate.
   The 1.27.1 test was rerun with correct GOROOT, not inferred from a compile error.
+  Darwin nil-root verification delegates to Security.framework and is a separate
+  path; the log shipper's native-default accepted-chain differentials qualify its
+  additive deny there rather than assuming the Go SDK's explicit-root behavior.
 - Four isolated OTP/ExUnit tests passed on OTP 29.0.3 / Elixir 1.20.2. This is not
   fresh-VM native or effective application TLS qualification.
 - Isolated kube-impersonator compilation and Linux/amd64 build passed; its
