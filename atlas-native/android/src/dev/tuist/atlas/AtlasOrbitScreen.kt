@@ -145,7 +145,7 @@ class AtlasOrbitScreen(
     }
 
     fun load() {
-        if (model.snapshot.selected == null && !model.snapshot.loading) model.load()
+        if (model.selectionId == null && !model.snapshot.loading) model.load()
     }
 
     fun close() {
@@ -179,10 +179,28 @@ class AtlasOrbitScreen(
         toolbar.menu.clear()
         when {
             model.createDraft != null -> renderCreate()
+            model.selectionId != null && model.snapshot.selected?.id != model.selectionId -> renderSelection()
             model.snapshot.selected != null -> renderThread()
             else -> renderList()
         }
         navigationChanged()
+    }
+
+    private fun renderSelection() {
+        composerFor = null
+        composer.visibility = View.GONE
+        liveStatus.visibility = View.GONE
+        toolbar.title = title
+        toolbar.subtitle = null
+        refreshAction { model.refresh() }
+        renderedContent = null
+        content.removeAllViews()
+        errors()
+        if (model.snapshot.historyLoading || (model.snapshot.error == null && model.failure == null)) {
+            text("Loading thread…")
+        } else {
+            button("Retry") { model.refresh() }
+        }
     }
 
     private fun renderList() {

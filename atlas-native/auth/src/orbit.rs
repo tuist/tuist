@@ -123,7 +123,7 @@ pub(super) fn request<T: DeserializeOwned>(session: Session, action: Action) -> 
     request_using(&Network, session, action)
 }
 
-fn request_using<T: DeserializeOwned>(
+pub(super) fn request_using<T: DeserializeOwned>(
     network: &impl Transport,
     session: Session,
     action: Action,

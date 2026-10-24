@@ -27,7 +27,14 @@ final class AtlasOrbitPreviewData: ObservableObject {
         case "private":
             selected = thread(id: privateID, title: "Pip", kind: "private")
             activityStarted = clock.now
-        case "select": selected = thread(id: sharedID, title: "Build listing latency", kind: "shared")
+        case "select":
+            switch command["id"] as? String {
+            case privateID: selected = thread(id: privateID, title: "Pip", kind: "private")
+            case sharedID: selected = thread(id: sharedID, title: "Build listing latency", kind: "shared")
+            default:
+                selected = nil
+                throw AtlasAuthenticationError(kind: "unavailable", message: "This thread is no longer available.")
+            }
         case "create": selected = thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared")
         case "leave": selected = nil
         case "send": draft = ""
@@ -83,6 +90,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 messages.insert(message(id: "message-alex", kind: "human", body: "I noticed it on the dashboard as well.", extra: [
                     "author_id": "online", "author_name": "Alex"
                 ]), at: 0)
+            } else if ProcessInfo.processInfo.arguments.contains("--empty-private") {
+                messages = []
             }
         }
         return try JSONSerialization.data(withJSONObject: [

@@ -5,7 +5,8 @@ extension XCUIApplication {
     func scrollContent(up: Bool = true) {
         let top = navigationBars.firstMatch.frame.maxY
         var bottom = frame.maxY
-        for control in [tabBars.firstMatch, buttons["Save connection"], keyboards.firstMatch] where control.exists {
+        for control in [tabBars.firstMatch, buttons["Save connection"], buttons["orbit-private"],
+                        textFields["thread-composer"], keyboards.firstMatch] where control.exists {
             if control.frame.minY > top { bottom = min(bottom, control.frame.minY) }
         }
         let origin = coordinate(withNormalizedOffset: .zero)

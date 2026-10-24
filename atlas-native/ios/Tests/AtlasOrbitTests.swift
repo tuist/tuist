@@ -25,17 +25,30 @@ struct AtlasOrbitTests {
         #expect(model.selected?.id == id)
     }
 
+    @Test func linkedThreadOpensWithoutLoadingAListAndRejectsADifferentSelection() async throws {
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            #expect(command["action"] as? String == "select")
+            return try snapshot(sequence: 1, selected: true)
+        }, localRequest: { _ in throw CancellationError() })
+        #expect(model.threads.isEmpty)
+        #expect(await model.open(id: id)?.id == id)
+        #expect(await model.open(id: "01922cc0-0000-7000-8000-000000000002") == nil)
+    }
+
     @Test func activityUsesAuthoritativeStatusAndKeepsReconnectSeparate() async throws {
         var sequence = 0
         var status: String?
         var liveMessage: String?
+        var messages: [[String: Any]] = []
         let model = AtlasOrbit(request: { action in
             if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
             sequence += 1
-            return try snapshot(sequence: sequence, selected: true, agentStatus: status, liveMessage: liveMessage)
+            return try snapshot(sequence: sequence, selected: true, messages: messages, agentStatus: status, liveMessage: liveMessage)
         }, localRequest: { _ in throw CancellationError() })
         let cases: [(String?, String?)] = [
-            ("queued", "Pip is getting ready…"), ("running", "Pip is responding…"), ("compacting", "Compacting context…"),
+            ("queued", "Pip is getting ready…"), ("running", "Typing…"), ("compacting", "Compacting context…"),
             ("idle", nil), ("unknown", nil), (nil, nil)
         ]
         for (value, expected) in cases {
@@ -43,7 +56,26 @@ struct AtlasOrbitTests {
             await model.load()
             #expect(model.activityMessage == expected)
         }
+        messages = [[
+            "id": "lookup", "kind": "tool", "body": "", "author_name": "Pip", "inserted_at": "2026-10-24T12:00:00Z",
+            "tool_name": "get_account", "tool_status": "running", "tool_input": "", "tool_output": ""
+        ], [
+            "id": "finished", "kind": "tool", "body": "", "author_name": "Pip", "inserted_at": "2026-10-24T12:00:01Z",
+            "tool_name": "get_tasks", "tool_status": "succeeded", "tool_input": "", "tool_output": ""
+        ]]
         status = "running"
+        await model.load()
+        #expect(model.activityMessage == "Using get account…")
+        status = "compacting"
+        await model.load()
+        #expect(model.activityMessage == "Compacting context…")
+        status = "idle"
+        await model.load()
+        #expect(model.activityMessage == nil)
+        status = "running"
+        messages[0]["tool_status"] = "succeeded"
+        await model.load()
+        #expect(model.activityMessage == "Typing…")
         liveMessage = "Reconnecting…"
         await model.load()
         #expect(model.liveMessage == "Reconnecting…")

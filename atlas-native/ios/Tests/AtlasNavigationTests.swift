@@ -7,7 +7,7 @@ struct AtlasNavigationTests {
 
     @Test func capabilitiesComeFromRustAndRoundTrip() throws {
         let capabilities = AtlasCore.destinations()
-        #expect(capabilities.count == 6)
+        #expect(capabilities.count == 7)
         for (screen, acceptsRecords) in capabilities {
             let page = try #require(AtlasDestination(screen: screen, server: server))
             #expect(AtlasDestination(url: page.url) == page)
@@ -26,10 +26,16 @@ struct AtlasNavigationTests {
                 let record = try #require(AtlasDestination(screen: screen, recordID: recordID, server: server))
                 #expect(AtlasDestination(url: record.webURL) == record)
                 #expect(AtlasDestination(url: URL(string: "https://atlas.example.org/open/\(screen)/\(recordID)")!) == record)
-                let browser = screen == "accounts" ? URL(string: "https://atlas.example.org/commercial/sales/accounts/\(recordID)")!
-                    : page.browserURL
+                let browser: URL
+                if screen == "accounts" {
+                    browser = URL(string: "https://atlas.example.org/commercial/sales/accounts/\(recordID)")!
+                } else if screen == "orbit" {
+                    browser = URL(string: "https://atlas.example.org/orbit/\(recordID)")!
+                } else {
+                    browser = page.browserURL
+                }
                 #expect(record.browserURL == browser)
-                if screen == "accounts" { #expect(AtlasDestination(url: record.browserURL) == record) }
+                if ["accounts", "orbit"].contains(screen) { #expect(AtlasDestination(url: record.browserURL) == record) }
             }
             #expect(AtlasDestination(url: page.browserURL) == page)
         }
@@ -124,6 +130,11 @@ struct AtlasNavigationTests {
         #expect(navigation.destination == account)
         #expect(navigation.message != nil)
         #expect(navigation.pending == nil)
+        let thread = try #require(AtlasDestination(screen: "orbit", recordID: recordID, server: server))
+        navigation.open(thread, server: server)
+        #expect(navigation.selection == "orbit")
+        #expect(navigation.destinations["orbit"] == thread)
+        #expect(navigation.destinations["accounts"] == account)
     }
 
     @MainActor @Test func protectsDraftsAndClearsPendingOnSessionEnd() throws {

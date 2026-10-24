@@ -2,6 +2,7 @@
 //! credential persistence, foreground/background notifications and native views.
 use crate::orbit::{self, Assistant, Created, History, Message, Overview, Thread};
 use crate::orbit_live;
+use crate::transport::{Network, Transport};
 use crate::{Result, Session, error, invalid};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -80,10 +81,13 @@ struct Snapshot {
     sequence: u64,
     assistant: Option<Assistant>,
     threads: Vec<Thread>,
+    // An untrusted navigation target, not thread metadata or permission to mutate.
+    selection_id: Option<String>,
     selected: Option<Thread>,
     messages: Vec<Message>,
     people: Vec<Viewer>,
     draft: String,
+    has_drafts: bool,
     loading: bool,
     history_loading: bool,
     saving: bool,
@@ -112,6 +116,7 @@ struct State {
     drafts: BTreeMap<String, Draft>,
     outbox: BTreeMap<String, Draft>,
     generation: u64,
+    access_generation: u64,
     list_page: u32,
     list_pending: bool,
     history_page: u32,
@@ -147,6 +152,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     drafts: BTreeMap::new(),
                     outbox: BTreeMap::new(),
                     generation: 0,
+                    access_generation: 0,
                     list_page: 0,
                     list_pending: false,
                     history_page: 0,
@@ -283,6 +289,10 @@ fn publish(model: &Model, state: &mut State) {
         .and_then(|item| state.drafts.get(&item.id))
         .map(|draft| draft.body.clone())
         .unwrap_or_default();
+    state.snapshot.has_drafts = state
+        .drafts
+        .values()
+        .any(|draft| !draft.body.trim().is_empty());
     state.snapshot.sequence += 1;
     model.changed.notify_all();
 }
@@ -373,7 +383,7 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
                 .lock()
                 .map_err(|_| invalid())?
                 .snapshot
-                .selected
+                .selection_id
                 .is_some()
             {
                 history(model, false)?;
@@ -386,7 +396,11 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
 }
 
 fn load(model: &Arc<Model>, more: bool) -> Result<()> {
-    let (session, page) = {
+    load_using(model, more, &Network)
+}
+
+fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Result<()> {
+    let (session, page, access_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -400,12 +414,18 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
         (
             state.session.clone(),
             if more { state.list_page + 1 } else { 1 },
+            state.access_generation,
         )
     };
-    let result = api::<Overview>(session, orbit::Action::List { page });
+    let result = orbit::request_using::<Overview>(network, session, orbit::Action::List { page });
     let mut state = model.state.lock().map_err(|_| invalid())?;
     state.snapshot.loading = false;
     if state.closed {
+        return Ok(());
+    }
+    if state.access_generation != access_generation {
+        state.list_pending = false;
+        publish(model, &mut state);
         return Ok(());
     }
     match result {
@@ -419,13 +439,17 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
             }
             state.list_page = value.threads.page;
             state.snapshot.has_more = state.list_page < value.threads.total_pages;
-            state.snapshot.error = None;
+            if state.snapshot.selection_id.is_none() {
+                state.snapshot.error = None;
+            }
         }
         Err(failure) => {
             if failure.kind == "unavailable" {
                 state.snapshot.threads.clear();
             }
-            note_failure(&mut state, failure);
+            if state.snapshot.selection_id.is_none() {
+                note_failure(&mut state, failure);
+            }
         }
     }
     let pending = state.list_pending;
@@ -433,7 +457,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
     publish(model, &mut state);
     drop(state);
     if pending {
-        load(model, false)?;
+        load_using(model, false, network)?;
     }
     Ok(())
 }
@@ -450,33 +474,31 @@ fn merge_thread(items: &mut Vec<Thread>, incoming: Thread) {
 }
 
 fn select(model: &Arc<Model>, id: Option<String>, expected: Option<String>) -> Result<()> {
+    select_using(model, id, expected, &Network)
+}
+
+fn select_using(
+    model: &Arc<Model>,
+    id: Option<String>,
+    expected: Option<String>,
+    network: &impl Transport,
+) -> Result<()> {
     let live = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed
             || expected.as_ref().is_some_and(|id| {
                 state
                     .snapshot
-                    .selected
+                    .selection_id
                     .as_ref()
-                    .is_none_or(|selected| &selected.id != id)
+                    .is_none_or(|selected| selected != id)
             })
         {
             return Ok(());
         }
-        let selected = match id {
-            Some(id) => Some(
-                state
-                    .snapshot
-                    .threads
-                    .iter()
-                    .find(|item| item.id == id)
-                    .cloned()
-                    .ok_or_else(invalid)?,
-            ),
-            None => None,
-        };
         state.generation += 1;
-        state.snapshot.selected = selected;
+        state.snapshot.selection_id = id;
+        state.snapshot.selected = None;
         state.snapshot.messages.clear();
         state.snapshot.people.clear();
         state.snapshot.error = None;
@@ -489,17 +511,21 @@ fn select(model: &Arc<Model>, id: Option<String>, expected: Option<String>) -> R
         state.live.take()
     };
     close_live(live);
-    history(model, false)?;
+    history_using(model, false, network)?;
     start_live(model)
 }
 
 fn history(model: &Arc<Model>, older: bool) -> Result<()> {
+    history_using(model, older, &Network)
+}
+
+fn history_using(model: &Arc<Model>, older: bool, network: &impl Transport) -> Result<()> {
     let (session, id, page, generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
         }
-        let Some(id) = state.snapshot.selected.as_ref().map(|item| item.id.clone()) else {
+        let Some(id) = state.snapshot.selection_id.clone() else {
             return Ok(());
         };
         if state.snapshot.history_loading {
@@ -515,7 +541,8 @@ fn history(model: &Arc<Model>, older: bool) -> Result<()> {
             state.generation,
         )
     };
-    let result = api::<History>(
+    let result = orbit::request_using::<History>(
+        network,
         session,
         orbit::Action::Messages {
             id: id.clone(),
@@ -550,7 +577,7 @@ fn history(model: &Arc<Model>, older: bool) -> Result<()> {
     };
     close_live(live);
     if pending {
-        history(model, false)?;
+        history_using(model, false, network)?;
     }
     Ok(())
 }
@@ -558,11 +585,7 @@ fn history(model: &Arc<Model>, older: bool) -> Result<()> {
 fn reconcile_history(state: &mut State, value: History, generation: u64, older: bool) -> bool {
     if state.closed
         || state.generation != generation
-        || state
-            .snapshot
-            .selected
-            .as_ref()
-            .is_none_or(|item| item.id != value.thread.id)
+        || state.snapshot.selection_id.as_deref() != Some(value.thread.id.as_str())
     {
         return false;
     }
@@ -704,6 +727,7 @@ fn revoke(state: &mut State, id: &str) {
     state.drafts.remove(id);
     state.outbox.remove(id);
     state.generation += 1;
+    state.access_generation += 1;
 }
 
 fn prepare_send(state: &mut State, id: &str, body: &str) -> Result<String> {
@@ -792,7 +816,11 @@ fn set_active(model: &Arc<Model>, active: bool) -> Result<()> {
 
 fn start_live(model: &Arc<Model>) -> Result<()> {
     let mut state = model.state.lock().map_err(|_| invalid())?;
-    if !state.active || state.closed || state.live.is_some() {
+    if !state.active
+        || state.closed
+        || state.live.is_some()
+        || (state.snapshot.selection_id.is_some() && state.snapshot.selected.is_none())
+    {
         return Ok(());
     }
     let is_list = state.snapshot.selected.is_none();

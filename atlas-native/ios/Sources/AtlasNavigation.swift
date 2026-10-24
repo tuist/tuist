@@ -150,7 +150,7 @@ final class AtlasNavigation: ObservableObject {
         }
         message = nil
         destination = pending
-        selection = ["accounts", "invoices", "profile"].contains(pending.screen) ? pending.screen : "browse"
+        selection = ["orbit", "accounts", "invoices", "profile"].contains(pending.screen) ? pending.screen : "browse"
         destinations[selection] = pending
         revision = UUID()
         revisions[selection] = revision

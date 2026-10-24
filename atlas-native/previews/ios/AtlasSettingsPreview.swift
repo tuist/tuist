@@ -11,6 +11,7 @@ struct AtlasSettingsPreview: App {
     @StateObject private var threads = AtlasOrbitPreviewData()
     @StateObject private var presence = AtlasPresencePreviewData()
     @StateObject private var navigation = AtlasNavigation()
+    @StateObject private var notifications = AtlasPushNotifications()
     @StateObject private var appearance = AtlasAppearance(request: { action in
         if action["operation"] as? String == "themes" {
             if ProcessInfo.processInfo.arguments.contains("--old-server") { throw CancellationError() }
@@ -54,6 +55,13 @@ struct AtlasSettingsPreview: App {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("--voice-input") {
                     AtlasVoiceInputPreview()
+                } else if ProcessInfo.processInfo.arguments.contains("--notification-settings") {
+                    NavigationStack {
+                        Form {
+                            Section { Text("Preview only. Device registration is disabled.") }
+                            AtlasPushSettingsView(notifications: notifications).disabled(true)
+                        }.navigationTitle("Notifications")
+                    }
                 } else if ProcessInfo.processInfo.arguments.contains("--workspace") {
                     AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request,
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local, presence: presence.model,

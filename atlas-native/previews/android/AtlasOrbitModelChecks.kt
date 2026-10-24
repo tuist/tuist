@@ -207,4 +207,44 @@ internal fun checkOrbitModel() {
     late.close()
     take("open").second(Result.success(JSONObject("""{"connection":"late"}""")))
     check(take("close").first.getString("connection") == "late")
+
+    // Cold notification links select by UUID without waiting for a list or inventing thread metadata.
+    pending.clear()
+    val cold = AtlasOrbitModel { action, done -> pending.add(action to done) }
+    val unseen = "01922cc0-0000-7000-8000-000000000099"
+    cold.select(PRIVATE)
+    cold.select(unseen)
+    check(cold.canBack && cold.selectionId == unseen && cold.snapshot.selected == null)
+    take("open").second(Result.success(JSONObject().put("connection", "cold")))
+    val direct = take("request", "select")
+    check(direct.first.getJSONObject("command").getString("id") == unseen)
+    check(pending.none { it.first.optJSONObject("command")?.optString("action") == "select" })
+    direct.second(
+        Result.success(
+            snapshot(1)
+                .put("selection_id", unseen)
+                .put("error", "This thread is unavailable or you no longer have access."),
+        ),
+    )
+    check(cold.canBack && cold.snapshot.selected == null && cold.selectionId == unseen)
+    cold.refresh()
+    take("request", "refresh").second(Result.success(snapshot(2, unseen).put("selection_id", unseen)))
+    check(cold.snapshot.selected?.id == unseen)
+    cold.showList()
+    val leave = take("request", "leave")
+    check(leave.first.getJSONObject("command").getString("id") == unseen)
+    leave.second(Result.success(snapshot(3).put("has_drafts", true)))
+    check(!cold.canBack && cold.hasProtectedWork) // Retained drafts protect links even from the list.
+    cold.close()
+    take("close")
+
+    // Back before the connection opens cancels the queued intent rather than navigating later.
+    pending.clear()
+    val cancelled = AtlasOrbitModel { action, done -> pending.add(action to done) }
+    cancelled.select(unseen)
+    check(cancelled.back() && !cancelled.canBack)
+    take("open").second(Result.success(JSONObject().put("connection", "cancelled")))
+    check(pending.none { it.first.optJSONObject("command")?.optString("action") == "select" })
+    cancelled.close()
+    take("close")
 }

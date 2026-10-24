@@ -70,6 +70,8 @@ class AtlasOrbitModel(
         val error: String? = null,
         val liveMessage: String? = null,
         val needsSession: Boolean = false,
+        val selectionId: String? = null,
+        val hasDrafts: Boolean = false,
     ) {
         val privateThread get() = threads.firstOrNull { it.isPrivate }
         val shared get() = threads.filter { !it.isPrivate }
@@ -106,12 +108,15 @@ class AtlasOrbitModel(
     private var renewing = false
     private var renewed = false
     private val queued = mutableListOf<JSONObject>()
+    private var pendingSelection: String? = null
 
     // Covers the gap between tapping Send and Rust reporting `saving`, so a double tap sends once.
     private var submitting = false
     val sending get() = submitting || snapshot.saving
 
-    val canBack get() = createDraft != null || snapshot.selected != null
+    val selectionId get() = pendingSelection ?: snapshot.selectionId ?: snapshot.selected?.id
+    val canBack get() = createDraft != null || selectionId != null
+    val hasProtectedWork get() = createDraft != null || sending || draftsInFlight > 0 || snapshot.hasDrafts || snapshot.draft.isNotBlank()
 
     fun open() {
         if (closed || opening || connection != null) return
@@ -159,6 +164,7 @@ class AtlasOrbitModel(
         closed = true
         listener = null
         queued.clear()
+        pendingSelection = null
         connection?.let(::close)
         connection = null
         snapshot = Snapshot()
@@ -171,24 +177,37 @@ class AtlasOrbitModel(
     fun openPrivate() = command(JSONObject().put("action", "private"))
 
     fun select(id: String) {
+        pendingSelection = id
+        queued.removeAll { it.optString("action") == "select" }
         expandedTools = emptySet()
         revealedEvidence = emptySet()
         command(JSONObject().put("action", "select").put("id", id))
+        listener?.invoke()
     }
 
     fun leave() {
-        val id = snapshot.selected?.id ?: return
+        val id = selectionId ?: return
+        if (connection == null) {
+            queued.removeAll { it.optString("action") == "select" }
+            pendingSelection = null
+            listener?.invoke()
+            return
+        }
         command(JSONObject().put("action", "leave").put("id", id))
+    }
+
+    fun showList() {
+        if (selectionId != null) leave()
     }
 
     fun loadOlder() = command(JSONObject().put("action", "history").put("older", true))
 
-    fun refresh() = command(JSONObject().put("action", if (snapshot.selected == null) "load" else "refresh"))
+    fun refresh() = command(JSONObject().put("action", if (selectionId == null) "load" else "refresh"))
 
     fun back(): Boolean {
         when {
             createDraft != null -> discardCreate()
-            snapshot.selected != null -> leave()
+            selectionId != null -> leave()
             else -> return false
         }
         return true
@@ -318,6 +337,7 @@ class AtlasOrbitModel(
         request(JSONObject().put("action", "request").put("connection", handle).put("command", value)) { result ->
             if (action == "send") submitting = false
             if (closed || connection != handle) return@request
+            if (action == "select" && pendingSelection == value.optString("id")) pendingSelection = null
             result.fold({ value ->
                 apply(value)
                 if (action == "create" && snapshot.error == null && snapshot.selected != null) createDraft = null
@@ -418,6 +438,8 @@ class AtlasOrbitModel(
             value.nullableString("error"),
             value.nullableString("live_message"),
             value.optBoolean("needs_session"),
+            value.nullableString("selection_id"),
+            value.optBoolean("has_drafts"),
         )
 
     private fun thread(value: JSONObject) =

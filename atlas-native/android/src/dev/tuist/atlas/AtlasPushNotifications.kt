@@ -42,13 +42,24 @@ class AtlasMessagingService : FirebaseMessagingService() {
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "Atlas notifications", NotificationManager.IMPORTANCE_DEFAULT))
         val intent = Intent(this, MainActivity::class.java).setAction(Intent.ACTION_VIEW).setData(Uri.parse(data["url"]))
         val pending = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification =
+        val (title, body) = content(data)
+        val publicVersion =
             Notification
                 .Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("Atlas")
                 .setContentText("You have a new notification.")
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .build()
+        val notification =
+            Notification
+                .Builder(this, CHANNEL)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(Notification.BigTextStyle().bigText(body))
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion)
                 .setAutoCancel(true)
                 .setContentIntent(pending)
                 .build()
@@ -61,6 +72,29 @@ class AtlasMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val CHANNEL = "atlas.notifications"
+
+        // Text is presentation only; the separately validated destination is the sole tap action.
+        internal fun content(data: Map<String, String>): Pair<String, String> {
+            fun bounded(
+                value: String?,
+                maximum: Int,
+            ): String? {
+                if (value == null || value.length > maximum * 2) return null
+                val text = value.trim()
+                if (text.isEmpty() || text.codePointCount(0, text.length) > maximum) return null
+                if (text.codePoints().anyMatch {
+                        Character.isISOControl(it) || Character.getType(it) == Character.FORMAT.toInt() ||
+                            Character.getType(it) == Character.SURROGATE.toInt()
+                    }
+                ) {
+                    return null
+                }
+                return text
+            }
+            val title = bounded(data["title"], 80)
+            val body = bounded(data["body"], 320)
+            return if (title != null && body != null) title to body else "Atlas" to "You have a new notification."
+        }
     }
 }
 

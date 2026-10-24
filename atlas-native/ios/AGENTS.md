@@ -26,7 +26,9 @@ the separate native push coordinator supports APNs for other fixed notification 
 recognition, permission errors and generation-fenced callbacks. Never fall back to
 remote transcription, upload audio or auto-send the accepted text. Cancel on scene
 inactivity and thread departure; an unfinished transcript must not replace the
-existing draft. `AtlasVoiceInputView` keeps waveform, Cancel and Done accessible. The stable
+existing draft. `AtlasThreadComposer` shares the outlined pill between text and voice input,
+with the waveform between a stop/cancel control and the transcript-acceptance arrow.
+Acceptance adds editable text; only the idle composer's send action sends a message. The stable
 44pt microphone supports hold-to-record/release-to-review and tap/accessibility
 hands-free start/stop. Its native button/long-press recognizer arbitrates taps and
 holds without firing both actions on release. Release/cancellation during permission setup
@@ -35,10 +37,21 @@ hands-free recording after a prompt. A cancelled queued start cannot activate th
 stop accepts or sends a draft. Keep both composer actions 44pt and bottom-aligned,
 with the send circle drawn inside its target rather than inflated by button style.
 Agent activity belongs at the end of the scrollable transcript, not in the composer.
+`AtlasThreadActivity` uses animated dots for typing and Pip for queued/tool/compaction
+work; Reduce Motion keeps both still. Tool labels come only from running server tool
+messages while the authoritative agent status is running; idle/reconnecting shows no invented work.
 `AtlasThreadMessageView` shows authorized account cards inline; keep raw tool
 evidence collapsed until requested through its disclosure header or the card's source action.
 `AtlasMarkdown` renders bounded agent Markdown with native selectable text; no HTML,
 WebView, remote images, custom-scheme links or executable fenced content.
+
+Orbit's welcome and empty private thread use the bundled `AtlasPipView` mascot and
+draft suggestions. Touch duration and tap cadence vary its expressions; never claim
+pressure sensing. Reduce Motion preserves expression changes without movement.
+The private-thread entry stays visible below the scrollable welcome. Suggestions
+append to the existing draft and never send. Notification links select an authorized
+thread by UUID through Rust before showing its detail; tab returns must not replay them.
+Push settings disclose that completion alerts contain a title and reply preview.
 
 Initial list roots explicitly anchor at the top and use large navigation titles;
 show initial loading as an overlay, not a temporary first row that becomes the List's

@@ -149,6 +149,7 @@ fn late_draft_leave_and_send_cannot_target_a_different_thread() {
     let (id, model) = opened();
     {
         let mut state = model.state.lock().unwrap();
+        state.snapshot.selection_id = Some(SECOND.into());
         state.snapshot.selected = Some(thread(SECOND, "shared"));
     }
     draft(&model, FIRST.into(), "Typed before navigation".into()).unwrap();
@@ -223,6 +224,7 @@ fn leave_clears_history_and_presence_but_retains_drafts_and_increments_fence() {
     let (id, model) = opened();
     {
         let mut state = model.state.lock().unwrap();
+        state.snapshot.selection_id = Some(FIRST.into());
         state.snapshot.selected = Some(thread(FIRST, "shared"));
         state.snapshot.people.push(Viewer {
             id: SECOND.into(),
@@ -277,6 +279,7 @@ fn message(id: &str, seq: u64, output: &str) -> Value {
 fn history_reconciliation_orders_by_server_sequence_and_preserves_older_pages() {
     let (id, model) = opened();
     let mut state = model.state.lock().unwrap();
+    state.snapshot.selection_id = Some(FIRST.into());
     state.snapshot.selected = Some(thread(FIRST, "private"));
     assert!(reconcile_history(
         &mut state,
@@ -309,6 +312,7 @@ fn history_reconciliation_orders_by_server_sequence_and_preserves_older_pages() 
 fn a_late_history_result_cannot_restore_a_revoked_or_superseded_thread() {
     let (id, model) = opened();
     let mut state = model.state.lock().unwrap();
+    state.snapshot.selection_id = Some(FIRST.into());
     state.snapshot.selected = Some(thread(FIRST, "private"));
     state.generation = 1;
     assert!(!reconcile_history(
@@ -317,6 +321,7 @@ fn a_late_history_result_cannot_restore_a_revoked_or_superseded_thread() {
         0,
         false
     ));
+    state.snapshot.selection_id = None;
     state.snapshot.selected = None;
     assert!(!reconcile_history(
         &mut state,
@@ -348,4 +353,222 @@ fn invalid_drafts_and_cross_instance_session_are_rejected() {
         .is_err()
     );
     execute(Action::Close { connection: id }).unwrap();
+}
+
+struct InspectTransport<F>(F);
+
+impl<F> Transport for InspectTransport<F>
+where
+    F: Fn(&url::Url, crate::transport::Body<'_>) -> Result<Value>,
+{
+    fn request<T: DeserializeOwned>(
+        &self,
+        url: &url::Url,
+        body: crate::transport::Body<'_>,
+    ) -> Result<T> {
+        serde_json::from_value((self.0)(url, body)?).map_err(|_| invalid())
+    }
+}
+
+const UNSEEN: &str = "01922cc0-0000-7000-8000-000000000099";
+
+fn response(id: &str) -> Value {
+    json!({"thread":thread(id,"shared"),"messages":{"items":[message(id,1,"protected evidence")],"page":1,"total_pages":1,"total_count":1}})
+}
+
+fn assert_messages_request(url: &url::Url, body: crate::transport::Body<'_>, id: &str) {
+    assert_eq!(
+        url.as_str(),
+        format!("https://atlas.example/api/native/orbit/threads/{id}/messages?page=1")
+    );
+    match body {
+        crate::transport::Body::Api {
+            method,
+            token,
+            payload,
+            ..
+        } => {
+            assert_eq!(method, reqwest::Method::GET);
+            assert_eq!(token, "atlas-access");
+            assert!(payload.is_none());
+        }
+        _ => panic!("expected a protected read"),
+    }
+}
+
+#[test]
+fn unseen_selection_reads_exact_id_before_exposing_any_thread_or_mutations() {
+    let (connection, model) = opened();
+    draft(&model, FIRST.into(), "Retained draft".into()).unwrap();
+    let calls = std::cell::Cell::new(0);
+    let network = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+        calls.set(calls.get() + 1);
+        assert_messages_request(url, body, UNSEEN);
+        let pending = snapshot(&model).unwrap();
+        assert_eq!(pending["selection_id"], UNSEEN);
+        assert!(pending["selected"].is_null());
+        assert_eq!(pending["messages"], json!([]));
+        assert_eq!(pending["history_loading"], true);
+        assert_eq!(pending["has_drafts"], true);
+        // Even an early native Send cannot turn an unverified target into a mutation.
+        send(&model, UNSEEN.into(), "No write before read".into(), true).unwrap();
+        assert!(!model.state.lock().unwrap().snapshot.saving);
+        Ok(response(UNSEEN))
+    });
+    select_using(&model, Some(UNSEEN.into()), None, &network).unwrap();
+    assert_eq!(calls.get(), 1); // No list lookup or pagination.
+    let selected = snapshot(&model).unwrap();
+    assert_eq!(selected["selected"]["id"], UNSEEN);
+    assert_eq!(selected["selected"]["title"], "A purpose");
+    assert_eq!(selected["messages"][0]["tool_output"], "protected evidence");
+    assert_eq!(
+        model.state.lock().unwrap().drafts[FIRST].body,
+        "Retained draft"
+    );
+    select_using(&model, None, Some(UNSEEN.into()), &network).unwrap();
+    assert!(snapshot(&model).unwrap()["selection_id"].is_null());
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn unavailable_direct_reads_revoke_cached_state_and_allow_explicit_retry_and_back() {
+    for status in [403, 404] {
+        let (connection, model) = opened();
+        draft(&model, FIRST.into(), "Must revoke".into()).unwrap();
+        let denied = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+            assert_eq!(
+                url.path(),
+                format!("/api/native/orbit/threads/{FIRST}/messages")
+            );
+            let crate::transport::Body::Api { failure, .. } = body else {
+                panic!("expected bearer read")
+            };
+            Err(failure(status, b"private server diagnostics"))
+        });
+        select_using(&model, Some(FIRST.into()), None, &denied).unwrap();
+        let unavailable = snapshot(&model).unwrap();
+        assert_eq!(unavailable["selection_id"], FIRST);
+        assert!(unavailable["selected"].is_null());
+        assert_eq!(unavailable["messages"], json!([]));
+        assert_eq!(unavailable["has_drafts"], false);
+        assert!(
+            !unavailable["error"]
+                .as_str()
+                .unwrap()
+                .contains("diagnostics")
+        );
+        let state = model.state.lock().unwrap();
+        assert!(!state.snapshot.threads.iter().any(|item| item.id == FIRST));
+        assert!(!state.drafts.contains_key(FIRST));
+        drop(state);
+        let retry = crate::tests::MockTransport::new(vec![response(FIRST)]);
+        history_using(&model, false, &retry).unwrap();
+        assert_eq!(snapshot(&model).unwrap()["selected"]["id"], FIRST);
+        select_using(&model, None, Some(FIRST.into()), &retry).unwrap();
+        assert!(snapshot(&model).unwrap()["selection_id"].is_null());
+        execute(Action::Close { connection }).unwrap();
+    }
+}
+
+#[test]
+fn superseded_protected_reads_cannot_select_revoke_or_error_the_new_target() {
+    for status in [200, 403, 404, 500] {
+        let (connection, model) = opened();
+        let network = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+            assert_eq!(
+                url.path(),
+                format!("/api/native/orbit/threads/{UNSEEN}/messages")
+            );
+            let newer = crate::tests::MockTransport::new(vec![response(SECOND)]);
+            select_using(&model, Some(SECOND.into()), None, &newer).unwrap();
+            if status == 200 {
+                Ok(response(UNSEEN))
+            } else {
+                let crate::transport::Body::Api { failure, .. } = body else {
+                    panic!("expected bearer read")
+                };
+                Err(failure(status, b"must not leak"))
+            }
+        });
+        select_using(&model, Some(UNSEEN.into()), None, &network).unwrap();
+        let current = snapshot(&model).unwrap();
+        assert_eq!(current["selected"]["id"], SECOND);
+        assert_eq!(current["messages"][0]["id"], SECOND);
+        assert!(current["error"].is_null());
+        assert!(
+            !current["threads"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["id"] == UNSEEN)
+        );
+        execute(Action::Close { connection }).unwrap();
+    }
+}
+
+#[test]
+fn revocation_invalidates_an_older_list_read_at_the_shared_transport_boundary() {
+    let (connection, model) = opened();
+    let network = InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+        let denied = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+            let crate::transport::Body::Api { failure, .. } = body else {
+                panic!("expected bearer read")
+            };
+            Err(failure(403, b""))
+        });
+        select_using(&model, Some(FIRST.into()), None, &denied).unwrap();
+        Ok(
+            json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[thread(FIRST,"private")],"page":1,"total_pages":1,"total_count":1}}),
+        )
+    });
+    load_using(&model, false, &network).unwrap();
+    let current = snapshot(&model).unwrap();
+    assert!(current["selected"].is_null());
+    assert!(current["error"].is_string());
+    assert!(
+        !current["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == FIRST)
+    );
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn mismatched_failed_and_closed_direct_reads_never_publish_authoritative_metadata() {
+    for status in [200, 401, 500, 0] {
+        let (connection, model) = opened();
+        let network = InspectTransport(
+            |_: &url::Url, body: crate::transport::Body<'_>| match status {
+                200 => Ok(response(SECOND)), // A well-formed response for the wrong ID is still rejected.
+                0 => {
+                    execute(Action::Close {
+                        connection: connection.clone(),
+                    })
+                    .unwrap();
+                    Ok(response(UNSEEN))
+                }
+                _ => {
+                    let crate::transport::Body::Api { failure, .. } = body else {
+                        panic!("expected bearer read")
+                    };
+                    Err(failure(status, b""))
+                }
+            },
+        );
+        select_using(&model, Some(UNSEEN.into()), None, &network).unwrap();
+        let current = snapshot(&model).unwrap();
+        assert!(current["selected"].is_null());
+        assert_eq!(current["messages"], json!([]));
+        assert_eq!(current["needs_session"], status == 401);
+        if status != 0 {
+            assert_eq!(current["selection_id"], UNSEEN);
+            assert!(current["error"].is_string());
+        }
+        execute(Action::Close {
+            connection: connection.clone(),
+        })
+        .unwrap();
+    }
 }

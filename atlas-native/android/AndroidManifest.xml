@@ -76,15 +76,19 @@
                 <data android:path="/people" />
                 <data android:path="/people/time-off" />
                 <data android:path="/settings" />
+                <data android:path="/orbit" />
+                <data android:pathPattern="/orbit/........-....-....-....-............" />
                 <data android:path="/open/tasks" />
                 <data android:path="/open/accounts" />
                 <data android:path="/open/invoices" />
                 <data android:path="/open/people" />
                 <data android:path="/open/time-off" />
                 <data android:path="/open/profile" />
+                <data android:path="/open/orbit" />
                 <data android:pathPattern="/open/tasks/........-....-....-....-............" />
                 <data android:pathPattern="/open/accounts/........-....-....-....-............" />
                 <data android:pathPattern="/open/invoices/........-....-....-....-............" />
+                <data android:pathPattern="/open/orbit/........-....-....-....-............" />
             </intent-filter>
         </activity>
     </application>

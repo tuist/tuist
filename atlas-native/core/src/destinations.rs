@@ -32,6 +32,10 @@ pub static DESTINATIONS: &[Destination] = &[
         screen: c"profile",
         records: false,
     },
+    Destination {
+        screen: c"orbit",
+        records: true,
+    },
 ];
 
 pub fn field(destination: i32, field: i32) -> Option<&'static CStr> {
@@ -44,6 +48,7 @@ pub fn field(destination: i32, field: i32) -> Option<&'static CStr> {
             screen if screen == c"accounts" => c"/commercial/sales/accounts",
             screen if screen == c"tasks" => c"/open/tasks",
             screen if screen == c"invoices" => c"/open/invoices",
+            screen if screen == c"orbit" => c"/orbit",
             _ => c"",
         }),
         _ => None,
@@ -53,6 +58,9 @@ pub fn field(destination: i32, field: i32) -> Option<&'static CStr> {
 fn web_path(screen: &CStr) -> Option<&'static CStr> {
     if screen == c"profile" {
         return Some(c"/settings");
+    }
+    if screen == c"orbit" {
+        return Some(c"/orbit");
     }
     let section = crate::navigation::SECTIONS
         .iter()
@@ -75,7 +83,7 @@ mod tests {
         let mut screens = HashSet::new();
         for destination in DESTINATIONS {
             assert!(screens.insert(destination.screen));
-            if destination.screen != c"profile" {
+            if ![c"profile", c"orbit"].contains(&destination.screen) {
                 assert_eq!(
                     SECTIONS
                         .iter()
@@ -86,7 +94,7 @@ mod tests {
             }
             assert_eq!(
                 destination.records,
-                [c"tasks", c"accounts", c"invoices"].contains(&destination.screen)
+                [c"tasks", c"accounts", c"invoices", c"orbit"].contains(&destination.screen)
             );
         }
         assert!(field(-1, 0).is_none());
@@ -103,9 +111,26 @@ mod tests {
                 c"/commercial/finance",
                 c"/people/time-off",
                 c"/people",
-                c"/settings"
+                c"/settings",
+                c"/orbit"
             ]
         );
+        assert_eq!(
+            DESTINATIONS
+                .iter()
+                .map(|item| item.screen)
+                .collect::<Vec<_>>(),
+            [
+                c"tasks",
+                c"accounts",
+                c"invoices",
+                c"time-off",
+                c"people",
+                c"profile",
+                c"orbit"
+            ]
+        );
+        assert_eq!(field(6, 3), Some(c"/orbit"));
         assert_eq!(paths.iter().collect::<HashSet<_>>().len(), paths.len());
     }
 }

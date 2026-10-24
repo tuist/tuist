@@ -4,6 +4,7 @@ import dev.tuist.atlas.AtlasBusinessModel
 import dev.tuist.atlas.AtlasCore
 import dev.tuist.atlas.AtlasDestination
 import dev.tuist.atlas.AtlasDestinationRouter
+import dev.tuist.atlas.AtlasMessagingService
 import dev.tuist.atlas.AuthFailure
 import org.json.JSONObject
 
@@ -12,8 +13,8 @@ private const val HOSTED = "https://atlas.tuist.dev/"
 
 internal fun checkDestinations() {
     val capabilities = AtlasCore().destinations()
-    check(capabilities.map { it.screen } == listOf("tasks", "accounts", "invoices", "time-off", "people", "profile"))
-    check(capabilities.filter { it.records }.map { it.screen } == listOf("tasks", "accounts", "invoices"))
+    check(capabilities.map { it.screen } == listOf("tasks", "accounts", "invoices", "time-off", "people", "profile", "orbit"))
+    check(capabilities.filter { it.records }.map { it.screen } == listOf("tasks", "accounts", "invoices", "orbit"))
 
     fun parse(link: String) = AtlasDestination.parse(link, capabilities)
 
@@ -27,6 +28,8 @@ internal fun checkDestinations() {
             "DEV.TUIST.ATLAS://NAVIGATE/time-off?server=HTTPS://atlas.tuist.dev" to AtlasDestination("time-off"),
             "dev.tuist.atlas://navigate/people?server=https://atlas.tuist.dev/" to AtlasDestination("people"),
             "dev.tuist.atlas://navigate/profile?server=https://atlas.tuist.dev" to AtlasDestination("profile"),
+            "dev.tuist.atlas://navigate/orbit?server=https://atlas.tuist.dev" to AtlasDestination("orbit"),
+            "dev.tuist.atlas://navigate/orbit/$RECORD?server=https://atlas.tuist.dev" to AtlasDestination("orbit", RECORD),
         )
     accepted.forEach { (link, destination) ->
         check(parse(link) == AtlasDestination.Link(destination, HOSTED)) { "Expected to accept $link" }
@@ -119,6 +122,7 @@ internal fun checkDestinations() {
 
     checkDestinationRouter()
     checkRecordLinks()
+    checkNotificationContent()
 }
 
 private fun checkWebDestinations(capabilities: List<dev.tuist.atlas.AtlasDestinationCapability>) {
@@ -132,10 +136,11 @@ private fun checkWebDestinations(capabilities: List<dev.tuist.atlas.AtlasDestina
             val record = AtlasDestination.Link(AtlasDestination(capability.screen, RECORD), HOSTED)
             check(parse(requireNotNull(record.webURL(capabilities))) == record)
             check(parse("${HOSTED}open/${capability.screen}/$RECORD") == record)
-            if (capability.screen == "accounts") check(parse(requireNotNull(record.browserURL(capabilities))) == record)
+            val browserRecord = !capability.recordPath.startsWith("/open/")
+            if (browserRecord) check(parse(requireNotNull(record.browserURL(capabilities))) == record)
             check(
                 record.browserURL(capabilities) ==
-                    if (capability.screen == "accounts") "${HOSTED}commercial/sales/accounts/$RECORD" else page.browserURL(capabilities),
+                    if (browserRecord) HOSTED + capability.recordPath.removePrefix("/") + "/$RECORD" else page.browserURL(capabilities),
             )
         }
     }
@@ -159,6 +164,9 @@ private fun checkWebDestinations(capabilities: List<dev.tuist.atlas.AtlasDestina
             "//tasks",
             "/open/tasks/%2e%2e",
             "/open/tasks/${RECORD.uppercase()}",
+            "/orbit/new",
+            "/orbit/$RECORD/edit",
+            "/orbit/${RECORD.uppercase()}",
         )
     invalidPaths.forEach { check(parse(HOSTED.removeSuffix("/") + it) == null) { "Accepted web path $it" } }
     listOf(
@@ -176,6 +184,30 @@ private fun checkWebDestinations(capabilities: List<dev.tuist.atlas.AtlasDestina
     check(accountPattern.match("/commercial/sales/accounts/$RECORD"))
     check(!accountPattern.match("/commercial/sales/accounts/new"))
     check(!accountPattern.match("/commercial/sales/accounts/$RECORD/notes"))
+    val orbitPattern =
+        android.os.PatternMatcher(
+            "/orbit/........-....-....-....-............",
+            android.os.PatternMatcher.PATTERN_SIMPLE_GLOB,
+        )
+    check(orbitPattern.match("/orbit/$RECORD"))
+    check(!orbitPattern.match("/orbit/new"))
+    check(!orbitPattern.match("/orbit/$RECORD/edit"))
+}
+
+private fun checkNotificationContent() {
+    val generic = "Atlas" to "You have a new notification."
+    val content = mapOf("title" to "Pip finished", "body" to "Launch plan: The review is complete.")
+    check(AtlasMessagingService.content(content) == "Pip finished" to content.getValue("body"))
+    check(AtlasMessagingService.content(emptyMap()) == generic)
+    check(AtlasMessagingService.content(content - "body") == generic)
+    for (invalid in listOf("", "  ", "x".repeat(321), "hidden\u202Eaction", "line\nbreak", "bad\u0000text", "unpaired\uD800")) {
+        check(AtlasMessagingService.content(content + ("body" to invalid)) == generic)
+    }
+    check(AtlasMessagingService.content(content + ("title" to "x".repeat(81))) == generic)
+    // Unicode bounds count codepoints, not UTF-16 units, and markup remains inert plain text.
+    val unicode = "\uD83D\uDE80".repeat(320)
+    check(AtlasMessagingService.content(content + ("body" to unicode)).second == unicode)
+    check(AtlasMessagingService.content(content + ("body" to "<b>Done</b>")).second == "<b>Done</b>")
 }
 
 private fun checkDestinationRouter() {

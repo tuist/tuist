@@ -30,8 +30,7 @@ final class AtlasOrbitUITests: XCTestCase {
         app.buttons["thread-send"].tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.tabBars.buttons["Orbit"].waitForExistence(timeout: 5))
-        let shared = app.descendants(matching: .any)["thread-01922cc0-0000-7000-8000-000000000002"].firstMatch
-        XCTAssertTrue(shared.waitForExistence(timeout: 5))
+        let shared = try app.visibleElement("thread-01922cc0-0000-7000-8000-000000000002")
         shared.tap()
         XCTAssertTrue(app.navigationBars["Build listing latency"].waitForExistence(timeout: 5))
         let tool = try app.visibleElement("Query plans · succeeded")
@@ -107,7 +106,7 @@ final class AtlasOrbitUITests: XCTestCase {
         XCTAssertTrue(privateThread.waitForExistence(timeout: 10))
         privateThread.tap()
         XCTAssertTrue(app.staticTexts["Pip is getting ready…"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["Pip is responding…"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Typing…"].waitForExistence(timeout: 8))
         let activity = app.staticTexts["thread-agent-activity"]
         let composer = app.textFields["thread-composer"]
         XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(activity.frame))
@@ -216,15 +215,15 @@ final class AtlasOrbitUITests: XCTestCase {
         let microphone = app.buttons["thread-microphone"]
         microphone.press(forDuration: 1)
         XCTAssertTrue(app.staticTexts["Review your transcript"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.textFields["voice-preview-draft"].value as? String, "Existing draft.")
         capture(app, "ios-orbit-voice-hold-release-fixture")
         app.buttons["thread-voice-cancel"].tap()
+        XCTAssertEqual(app.textFields["thread-composer"].value as? String, "Existing draft.")
         microphone.tap()
         XCTAssertTrue(app.staticTexts["Transcribing on this device"].waitForExistence(timeout: 5))
         microphone.tap()
         XCTAssertTrue(app.staticTexts["Review your transcript"].waitForExistence(timeout: 5))
         app.buttons["thread-voice-done"].tap()
-        XCTAssertEqual(app.textFields["voice-preview-draft"].value as? String, "Existing draft. Compare the latest build timings.")
+        XCTAssertEqual(app.textFields["thread-composer"].value as? String, "Existing draft. Compare the latest build timings.")
     }
 
     @MainActor func testVoicePresentationPreservesDraftOnCancelAndAppendsOnlyOnDone() throws {
@@ -242,7 +241,7 @@ final class AtlasOrbitUITests: XCTestCase {
             XCTAssertTrue(done.isHittable)
             capture(app, "ios-orbit-voice-\(dark ? "large-dark" : "light")-fixture")
             cancel.tap()
-            let draft = app.textFields["voice-preview-draft"]
+            let draft = app.textFields["thread-composer"]
             XCTAssertTrue(draft.waitForExistence(timeout: 5))
             XCTAssertEqual(draft.value as? String, "Existing draft.")
             app.buttons["Transcribe fixture"].tap()

@@ -105,12 +105,20 @@ final class AtlasOrbit: ObservableObject {
     var hasOlder: Bool { state?.hasOlder ?? false }
     var errorMessage: String? { adapterError ?? state?.error }
     var liveMessage: String? { state?.liveMessage }
+    var activeToolName: String? {
+        guard selected?.agentStatus == "running" else { return nil }
+        let name = messages.last { $0.kind == "tool" && $0.toolStatus == "running" }?.toolName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return name?.isEmpty == false ? name : nil
+    }
     var activityMessage: String? {
         guard liveMessage == nil else { return nil }
         let name = assistant?.name ?? "Pip"
         switch selected?.agentStatus {
         case "queued": return "\(name) is getting ready…"
-        case "running": return "\(name) is responding…"
+        case "running":
+            if let tool = activeToolName { return "Using \(tool.replacingOccurrences(of: "_", with: " "))…" }
+            return "Typing…"
         case "compacting": return "Compacting context…"
         default: return nil
         }
@@ -155,6 +163,12 @@ final class AtlasOrbit: ObservableObject {
 
     func open(_ thread: AtlasThread) async {
         if selected?.id != thread.id { await perform(["action": "select", "id": thread.id]) }
+    }
+
+    func open(id: String) async -> AtlasThread? {
+        guard await perform(["action": "select", "id": id]), !Task.isCancelled,
+              let selected, selected.id == id else { return nil }
+        return selected
     }
 
     func leave(id: String) {

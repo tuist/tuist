@@ -250,6 +250,13 @@ class MainActivity : Activity() {
                 appearance.showingSettings = false
                 showHome()
             }
+            "orbit" -> {
+                tab = "orbit"
+                val model = orbit ?: AtlasOrbitModel(authentication::orbitSession).also { orbit = it }
+                destination.recordId?.let(model::select) ?: model.showList()
+                model.setActive(true)
+                showHome()
+            }
             else -> {
                 // Tasks moved into Browse, so its links open there and Back returns to the directory.
                 if (destination.screen == "tasks") {
@@ -270,7 +277,8 @@ class MainActivity : Activity() {
     private fun hasUnsavedWork(): Boolean =
         businesses.values.any { it.draft != null || it.saving } ||
             holidays?.let { it.draft != null || it.saving } == true ||
-            accounts?.let { it.page != "settings" || it.login != null } == true
+            accounts?.let { it.page != "settings" || it.login != null } == true ||
+            orbit?.hasProtectedWork == true
 
     private fun linkMessage(message: String) {
         linkDialog?.dismiss()
