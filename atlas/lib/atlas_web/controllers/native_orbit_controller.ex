@@ -25,13 +25,13 @@ defmodule AtlasWeb.NativeOrbitController do
   end
 
   def index(conn, params) do
-    case page(params) do
-      {:ok, page} ->
+    case {page(params), Map.get(params, "kind")} do
+      {{:ok, page}, kind} when kind in [nil, "private", "shared"] ->
         user = conn.assigns.current_user
-        {items, meta} = Orbit.list_for_user(user, page)
+        {items, meta} = Orbit.list_for_user(user, page, kind)
 
         json(conn, %{
-          assistant: %{name: Orbit.agent_name(), configured: Orbit.agent_configured?()},
+          assistant: %{name: Orbit.agent_name(), configured: Orbit.agent_configured?(user)},
           threads: Map.put(meta, :items, Enum.map(items, &thread/1))
         })
 
@@ -46,6 +46,18 @@ defmodule AtlasWeb.NativeOrbitController do
       {:ok, thread, :existing} -> json(conn, %{thread: thread(thread)})
       {:error, reason} -> respond_error(conn, reason)
     end
+  end
+
+  def create(conn, %{"kind" => "private"} = params) do
+    case Orbit.create_private(conn.assigns.current_user, Map.take(params, ["request_id"])) do
+      {:ok, thread, :created} -> conn |> put_status(:created) |> json(%{thread: thread(thread)})
+      {:ok, thread, :existing} -> json(conn, %{thread: thread(thread)})
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def create(conn, %{"kind" => kind}) when kind != "shared" do
+    error(conn, :unprocessable_entity, "invalid_params")
   end
 
   def create(conn, params) do
@@ -158,7 +170,7 @@ defmodule AtlasWeb.NativeOrbitController do
 
     %{
       id: thread.id,
-      title: if(thread.kind == "private", do: Orbit.agent_name(), else: thread.title),
+      title: thread.title,
       kind: thread.kind,
       status: thread.status,
       summary: thread.summary || "",
@@ -174,9 +186,7 @@ defmodule AtlasWeb.NativeOrbitController do
     }
   end
 
-  defp agent_status(nil) do
-    if Orbit.agent_configured?(), do: "idle", else: "unconfigured"
-  end
+  defp agent_status(nil), do: "idle"
 
   defp agent_status(run), do: Progress.status(run)
 

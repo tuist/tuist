@@ -48,7 +48,7 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert body["assistant"] == %{"name" => "Pip", "configured" => true}
     assert %{"page" => 1, "total_pages" => 1, "total_count" => 2, "items" => [first, second]} = body["threads"]
     assert first["id"] == private["thread"]["id"]
-    assert first["kind"] == "private" and first["title"] == "Pip"
+    assert first["kind"] == "private" and first["title"] == "New conversation"
     assert second["kind"] == "shared" and second["title"] == "Team"
 
     assert Map.keys(first) |> Enum.sort() ==
@@ -58,6 +58,93 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert first["status"] == "active" and first["origin"] == "manual" and first["summary"] == ""
 
     assert api |> get("/api/native/orbit/threads?page=0") |> json_response(422) == %{"error" => "invalid_params"}
+  end
+
+  test "creates distinct private conversations, replays creation, and keeps histories owner-only" do
+    user = user_fixture()
+    other = user_fixture(Atlas.Authorization.executive_scopes())
+    api = bearer(user)
+    request_id = Ecto.UUID.generate()
+
+    params = %{
+      kind: "private",
+      request_id: request_id,
+      owner_id: other.id,
+      participant_ids: [other.id],
+      title: "Ignored"
+    }
+
+    first = api |> post("/api/native/orbit/threads", params) |> json_response(201)
+    assert first == api |> post("/api/native/orbit/threads", params) |> json_response(200)
+
+    second =
+      api
+      |> post("/api/native/orbit/threads", %{kind: "private", request_id: Ecto.UUID.generate()})
+      |> json_response(201)
+
+    assert first["thread"]["id"] != second["thread"]["id"]
+    assert first["thread"]["title"] == "New conversation"
+    assert first["thread"]["owner_id"] == user.id
+    assert first["thread"]["participants"] == [%{"id" => user.id, "name" => user.name}]
+
+    for {created, prompt} <- [{first, "First question"}, {second, "Different question"}] do
+      id = created["thread"]["id"]
+      message = %{body: prompt, client_id: Ecto.UUID.generate()}
+      original = api |> post("/api/native/orbit/threads/#{id}/messages", message) |> json_response(201)
+      assert original == api |> post("/api/native/orbit/threads/#{id}/messages", message) |> json_response(200)
+      history = api |> get("/api/native/orbit/threads/#{id}/messages") |> json_response(200)
+      assert history["thread"]["title"] == prompt
+      assert history["messages"]["items"] |> Enum.filter(&(&1["kind"] == "human")) |> Enum.map(& &1["body"]) == [prompt]
+
+      assert bearer(other) |> get("/api/native/orbit/threads/#{id}/messages") |> json_response(404) == %{
+               "error" => "not_found"
+             }
+    end
+
+    latest = api |> post("/api/native/orbit/threads/private", %{}) |> json_response(200)
+    assert latest["thread"]["id"] == second["thread"]["id"]
+
+    assert api |> post("/api/native/orbit/threads", %{kind: "private"}) |> json_response(422) ==
+             %{"error" => "validation_failed", "fields" => %{"request_id" => ["invalid"]}}
+
+    assert api |> post("/api/native/orbit/threads", %{kind: "other"}) |> json_response(422) == %{
+             "error" => "invalid_params"
+           }
+  end
+
+  test "private kind filtering applies before counts and pagination without hiding shared direct reads" do
+    user = user_fixture()
+    other = user_fixture()
+    api = bearer(user)
+    {:ok, shared} = Orbit.create_shared(user, %{"title" => "Direct-link shared"})
+    {:ok, _, :created} = Orbit.create_private(other, %{"request_id" => Ecto.UUID.generate()})
+
+    private_ids =
+      for _ <- 1..26 do
+        {:ok, thread, :created} = Orbit.create_private(user, %{"request_id" => Ecto.UUID.generate()})
+        thread.id
+      end
+
+    first = api |> get("/api/native/orbit/threads?kind=private&page=1") |> json_response(200)
+    second = api |> get("/api/native/orbit/threads?kind=private&page=2") |> json_response(200)
+    assert first["threads"]["total_count"] == 26
+    assert first["threads"]["total_pages"] == 2
+    assert length(first["threads"]["items"]) == 25
+    assert length(second["threads"]["items"]) == 1
+
+    assert Enum.sort(Enum.map(first["threads"]["items"] ++ second["threads"]["items"], & &1["id"])) ==
+             Enum.sort(private_ids)
+
+    assert api
+           |> get("/api/native/orbit/threads/#{shared.id}/messages")
+           |> json_response(200)
+           |> get_in(["thread", "id"]) == shared.id
+
+    assert api |> get("/api/native/orbit/threads?kind=invalid") |> json_response(422) == %{"error" => "invalid_params"}
+
+    assert api |> get("/api/native/orbit/threads?kind[]=private") |> json_response(422) == %{
+             "error" => "invalid_params"
+           }
   end
 
   test "creates shared threads and validates participants" do

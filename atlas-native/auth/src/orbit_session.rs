@@ -4,7 +4,7 @@ use crate::orbit::{self, Assistant, Attachment, Created, History, Message, Overv
 use crate::orbit_live;
 use crate::transport::{Network, Transport};
 use crate::{Result, Session, error, invalid};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
@@ -50,9 +50,13 @@ pub(crate) enum Action {
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Command {
-    Load,
+    Load {
+        #[serde(default)]
+        kind: Option<String>,
+    },
     LoadMore,
     Private,
+    CreatePrivate,
     Create {
         title: String,
         participant_ids: Vec<String>,
@@ -158,6 +162,7 @@ struct State {
     generation: u64,
     access_generation: u64,
     list_page: u32,
+    list_kind: Option<String>,
     list_pending: bool,
     history_page: u32,
     history_pending: bool,
@@ -167,6 +172,7 @@ struct State {
     last_typing: Option<Instant>,
     lifecycle: u64,
     upload_attempt: Option<UploadAttempt>,
+    private_request_id: Option<String>,
 }
 
 struct Model {
@@ -196,6 +202,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     generation: 0,
                     access_generation: 0,
                     list_page: 0,
+                    list_kind: None,
                     list_pending: false,
                     history_page: 0,
                     history_pending: false,
@@ -205,6 +212,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     last_typing: None,
                     lifecycle: 0,
                     upload_attempt: None,
+                    private_request_id: None,
                 }),
                 changed: Condvar::new(),
             });
@@ -304,6 +312,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     state.drafts.clear();
                     state.outbox.clear();
                     state.upload_attempt = None;
+                    state.private_request_id = None;
                     state.snapshot = Snapshot::default();
                     publish(&model, &mut state);
                     state.live.take()
@@ -363,62 +372,15 @@ fn publish(model: &Model, state: &mut State) {
     model.changed.notify_all();
 }
 
-fn api<T: DeserializeOwned>(session: Session, action: orbit::Action) -> Result<T> {
-    orbit::request(session, action)
-}
-
 fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
     match command {
-        Command::Load | Command::LoadMore => load(model, matches!(command, Command::LoadMore)),
-        Command::Private | Command::Create { .. } => {
-            let (session, action) = {
-                let mut state = model.state.lock().map_err(|_| invalid())?;
-                if state.snapshot.loading {
-                    return Err(error(
-                        "busy",
-                        "Wait for the current thread request to finish.",
-                    ));
-                }
-                state.snapshot.loading = true;
-                publish(model, &mut state);
-                let action = match command {
-                    Command::Create {
-                        title,
-                        participant_ids,
-                    } => orbit::Action::Create {
-                        title,
-                        participant_ids,
-                    },
-                    _ => orbit::Action::Private,
-                };
-                (state.session.clone(), action)
-            };
-            let result = api::<Created>(session, action);
-            let selected = {
-                let mut state = model.state.lock().map_err(|_| invalid())?;
-                state.snapshot.loading = false;
-                if state.closed {
-                    return Ok(());
-                }
-                let selected = match result {
-                    Ok(value) => {
-                        let id = value.thread.id.clone();
-                        merge_thread(&mut state.snapshot.threads, value.thread);
-                        state.snapshot.error = None;
-                        Some(id)
-                    }
-                    Err(failure) => {
-                        note_failure(&mut state, failure);
-                        None
-                    }
-                };
-                publish(model, &mut state);
-                selected
-            };
-            if let Some(id) = selected {
-                select(model, Some(id), None)?;
-            }
-            Ok(())
+        Command::Load { kind } => {
+            set_list_kind(model, kind)?;
+            load(model, false)
+        }
+        Command::LoadMore => load(model, true),
+        command @ (Command::Private | Command::CreatePrivate | Command::Create { .. }) => {
+            create_using(model, command, &Network)
         }
         Command::Select { id } => {
             crate::time_off::validate_id(&id)?;
@@ -485,12 +447,123 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
     }
 }
 
+fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) -> Result<()> {
+    let new_private = matches!(command, Command::CreatePrivate);
+    let (session, action, generation, access_generation) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        if state.closed {
+            return Ok(());
+        }
+        if state.snapshot.loading || state.snapshot.saving || state.snapshot.history_loading {
+            return Err(error(
+                "busy",
+                "Wait for the current thread request to finish.",
+            ));
+        }
+        let action = match command {
+            Command::CreatePrivate => {
+                let request_id = match &state.private_request_id {
+                    Some(id) => id.clone(),
+                    None => random_uuid()?,
+                };
+                state.private_request_id = Some(request_id.clone());
+                orbit::Action::CreatePrivate { request_id }
+            }
+            Command::Create {
+                title,
+                participant_ids,
+            } => orbit::Action::Create {
+                title,
+                participant_ids,
+            },
+            Command::Private => orbit::Action::Private,
+            _ => return Err(invalid()),
+        };
+        state.snapshot.loading = true;
+        state.snapshot.error = None;
+        publish(model, &mut state);
+        (
+            state.session.clone(),
+            action,
+            state.generation,
+            state.access_generation,
+        )
+    };
+    let result = orbit::request_using::<Created>(network, session, action).and_then(|value| {
+        crate::time_off::validate_id(&value.thread.id)?;
+        if new_private && value.thread.kind != "private" {
+            return Err(invalid());
+        }
+        Ok(value)
+    });
+    let (selected, live) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        state.snapshot.loading = false;
+        if state.closed {
+            return Ok(());
+        }
+        let current =
+            state.generation == generation && state.access_generation == access_generation;
+        let selected = match result {
+            Ok(value) => {
+                if new_private {
+                    state.private_request_id = None;
+                }
+                let id = value.thread.id.clone();
+                if state.access_generation == access_generation {
+                    merge_thread(&mut state.snapshot.threads, value.thread);
+                }
+                if current {
+                    state.snapshot.error = None;
+                }
+                current.then_some(id)
+            }
+            Err(failure) => {
+                // A timeout or invalid response may have committed. Replay the exact UUID next time.
+                if current {
+                    note_failure(&mut state, failure);
+                }
+                None
+            }
+        };
+        let live = selected
+            .as_ref()
+            .and_then(|id| begin_selection(&mut state, Some(id.clone())));
+        publish(model, &mut state);
+        (selected.is_some(), live)
+    };
+    close_live(live);
+    if selected {
+        history_using(model, false, network)?;
+        start_live(model)?;
+    }
+    Ok(())
+}
+
+fn set_list_kind(model: &Arc<Model>, kind: Option<String>) -> Result<()> {
+    if kind
+        .as_deref()
+        .is_some_and(|kind| !matches!(kind, "private" | "shared"))
+    {
+        return Err(invalid());
+    }
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    if state.list_kind != kind {
+        state.list_kind = kind;
+        state.list_page = 0;
+        state.access_generation += 1;
+        state.snapshot.threads.clear();
+        state.snapshot.has_more = false;
+    }
+    Ok(())
+}
+
 fn load(model: &Arc<Model>, more: bool) -> Result<()> {
     load_using(model, more, &Network)
 }
 
 fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Result<()> {
-    let (session, page, access_generation) = {
+    let (session, page, kind, access_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -504,18 +577,25 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
         (
             state.session.clone(),
             if more { state.list_page + 1 } else { 1 },
+            state.list_kind.clone(),
             state.access_generation,
         )
     };
-    let result = orbit::request_using::<Overview>(network, session, orbit::Action::List { page });
+    let result =
+        orbit::request_using::<Overview>(network, session, orbit::Action::List { page, kind });
     let mut state = model.state.lock().map_err(|_| invalid())?;
     state.snapshot.loading = false;
     if state.closed {
         return Ok(());
     }
     if state.access_generation != access_generation {
+        let pending = state.list_pending;
         state.list_pending = false;
         publish(model, &mut state);
+        drop(state);
+        if pending {
+            load_using(model, false, network)?;
+        }
         return Ok(());
     }
     match result {
@@ -586,23 +666,28 @@ fn select_using(
         {
             return Ok(());
         }
-        state.generation += 1;
-        state.snapshot.selection_id = id;
-        state.snapshot.selected = None;
-        state.snapshot.messages.clear();
-        state.snapshot.people.clear();
-        state.snapshot.error = None;
-        state.snapshot.live_message = None;
-        state.snapshot.has_older = false;
-        state.history_page = 0;
-        state.snapshot.history_loading = false;
-        state.history_pending = false;
+        let live = begin_selection(&mut state, id);
         publish(model, &mut state);
-        state.live.take()
+        live
     };
     close_live(live);
     history_using(model, false, network)?;
     start_live(model)
+}
+
+fn begin_selection(state: &mut State, id: Option<String>) -> Option<String> {
+    state.generation += 1;
+    state.snapshot.selection_id = id;
+    state.snapshot.selected = None;
+    state.snapshot.messages.clear();
+    state.snapshot.people.clear();
+    state.snapshot.error = None;
+    state.snapshot.live_message = None;
+    state.snapshot.has_older = false;
+    state.history_page = 0;
+    state.snapshot.history_loading = false;
+    state.history_pending = false;
+    state.live.take()
 }
 
 fn history(model: &Arc<Model>, older: bool) -> Result<()> {

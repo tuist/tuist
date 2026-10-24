@@ -24,15 +24,33 @@ defmodule Atlas.Push.Message do
   def orbit_completed(thread_title, reply) do
     title = plain_text(thread_title, 80)
     preview = plain_text(reply, 160)
-    %{title: "Pip finished", body: Enum.join(Enum.reject([title, preview], &(&1 == "")), ": ")}
+
+    %{
+      title: if(title == "", do: "Pip", else: title),
+      subtitle: if(!(title == "" or title == "Pip"), do: "Pip"),
+      body: preview,
+      category: "ATLAS_ORBIT_COMPLETED"
+    }
   end
 
   def apns_payload(message, alert \\ %{title: @title, body: @body})
 
   def apns_payload(%{registration_id: registration_id, screen: screen, record_id: record_id}, alert) do
+    aps = %{
+      "alert" => maybe_put(%{"title" => alert.title, "body" => alert.body}, "subtitle", Map.get(alert, :subtitle)),
+      "sound" => "default"
+    }
+
+    aps =
+      if Map.get(alert, :category) == "ATLAS_ORBIT_COMPLETED" and screen == "orbit" do
+        aps |> Map.put("category", "ATLAS_ORBIT_COMPLETED") |> Map.put("thread-id", record_id)
+      else
+        aps
+      end
+
     maybe_put(
       %{
-        "aps" => %{"alert" => %{"title" => alert.title, "body" => alert.body}, "sound" => "default"},
+        "aps" => aps,
         "schema_version" => @schema_version,
         "registration_id" => registration_id
       },
@@ -67,10 +85,8 @@ defmodule Atlas.Push.Message do
 
   defp plain_text(text, limit) do
     text
-    |> String.replace(~r/```.*?(?:```|\z)|~~~.*?(?:~~~|\z)/su, " ")
-    |> String.replace(~r/!?\[([^\]]*)\]\([^)]*\)/u, "\\1")
-    |> String.replace(~r/<[^>]*>/u, " ")
-    |> String.replace(~r/[`*_#>~]/u, "")
+    |> MDEx.parse_document!(extension: [table: true, strikethrough: true])
+    |> node_text()
     |> String.replace(~r/[\s\p{Z}\p{Cc}\p{Cf}]+/u, " ")
     |> String.trim()
     |> Stream.unfold(&String.next_codepoint/1)
@@ -80,6 +96,35 @@ defmodule Atlas.Push.Message do
       points -> Enum.join(points)
     end
   end
+
+  # Parse structure rather than deleting punctuation: identifiers, comparisons and
+  # amounts are business content. Link labels survive without their destinations.
+  defp node_text(%MDEx.CodeBlock{}), do: " "
+  defp node_text(%MDEx.HtmlBlock{}), do: " "
+  defp node_text(%MDEx.HtmlInline{}), do: ""
+  defp node_text(%MDEx.ThematicBreak{}), do: " "
+  defp node_text(%MDEx.SoftBreak{}), do: " "
+  defp node_text(%MDEx.LineBreak{}), do: " "
+  defp node_text(%MDEx.Strikethrough{nodes: nodes}), do: "(removed: " <> Enum.map_join(nodes, "", &node_text/1) <> ")"
+
+  defp node_text(%MDEx.Table{nodes: [header | rows]}) do
+    Enum.map_join(rows, " ", fn row ->
+      header.nodes
+      |> Enum.zip(row.nodes)
+      |> Enum.map_join("; ", fn {label, cell} -> node_text(label) <> ": " <> node_text(cell) end)
+      |> Kernel.<>(". ")
+    end)
+  end
+
+  defp node_text(%{literal: literal}) when is_binary(literal), do: literal
+
+  defp node_text(%{__struct__: module, nodes: nodes})
+       when module in [MDEx.Document, MDEx.Paragraph, MDEx.Heading, MDEx.List, MDEx.ListItem, MDEx.BlockQuote] do
+    Enum.map_join(nodes, "", &node_text/1) <> " "
+  end
+
+  defp node_text(%{nodes: nodes}), do: Enum.map_join(nodes, "", &node_text/1)
+  defp node_text(_node), do: ""
 
   defp url(screen, record_id), do: NativeLinks.native_url({screen, record_id})
 

@@ -97,6 +97,55 @@ jobs:
           platform: ${{ matrix.platform }}
           operation: build
           authenticated: ${{ github.repository == 'tuist/tuist' && matrix.platform != 'ios-device' && matrix.platform != 'android' }}
+      - name: Temporary Orbit native render validation
+        if: matrix.platform == 'ios'
+        env:
+          ONCE_CACHE_PROVIDER: local
+        run: |
+          set -euo pipefail
+          mise exec -- once build AtlasSettingsIOSPreview
+          bash modules/check-sdk.sh iphonesimulator .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app/AtlasSettingsPreview
+          device=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable and (.name | startswith("iPhone")))][0].udid')
+          xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl status_bar "$device" override --time '13:05' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+          xcrun simctl install "$device" .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app
+          mkdir -p render-validation
+          capture() {
+            name=$1; shift
+            xcrun simctl launch "$device" dev.tuist.atlas.settings-preview "$@"
+            sleep 4
+            xcrun simctl io "$device" screenshot "render-validation/$name.png"
+            xcrun simctl terminate "$device" dev.tuist.atlas.settings-preview
+          }
+          capture conversations-light --workspace
+          capture conversations-dark-large --workspace --dark --large-text
+          capture voice-recording --voice-input
+          capture voice-dark-large --voice-input --dark --large-text
+          capture text-composer --voice-input --text-composer
+          export ONCE_APPLE_SIMULATOR_UDID="$device"
+          export TMPDIR="$RUNNER_TEMP/atlas-orbit-render-validation"
+          mkdir -p "$TMPDIR"
+          xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/render-validation/interaction.mov" > render-validation/recording.log 2>&1 &
+          recording=$!
+          trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
+          result=0
+          mise exec -- once test AtlasOrbitRenderValidation > render-validation/native-validation.log 2>&1 || result=$?
+          kill -INT "$recording"
+          wait "$recording" || true
+          trap - EXIT
+          cat render-validation/native-validation.log
+          cp -R .once/out/AtlasOrbitRenderValidation/test render-validation/test-results
+          bundle=$(sed -n 's/^[[:space:]]*\(\/.*\.xcresult\)$/\1/p' render-validation/test-results/xctest.log | tail -n 1)
+          test -d "$bundle"
+          xcrun xcresulttool export attachments --path "$bundle" --output-path render-validation/capture-attachments
+          exit "$result"
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.platform == 'ios'
+        with:
+          name: atlas-orbit-render-validation
+          path: atlas-native/render-validation/
+          if-no-files-found: ignore
 
   build-fork:
     name: Build fork (${{ matrix.platform }})

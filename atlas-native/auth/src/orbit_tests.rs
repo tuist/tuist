@@ -7,7 +7,7 @@ fn execute_using(network: &impl Transport, session: Session, action: Action) -> 
         Action::List { .. } => {
             serde_json::to_value(request_using::<Overview>(network, session, action)?)
         }
-        Action::Private | Action::Create { .. } => {
+        Action::Private | Action::CreatePrivate { .. } | Action::Create { .. } => {
             serde_json::to_value(request_using::<Created>(network, session, action)?)
         }
         Action::Messages { .. } => {
@@ -50,7 +50,10 @@ fn message() -> Value {
 fn fixed_routes_use_selected_instance_and_filter_payloads() {
     let cases = [
         (
-            Action::List { page: 2 },
+            Action::List {
+                page: 2,
+                kind: None,
+            },
             "GET",
             "?page=2".to_owned(),
             Value::Null,
@@ -61,6 +64,25 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             "POST",
             "/private".into(),
             json!({}),
+            json!({"thread":thread()}),
+        ),
+        (
+            Action::List {
+                page: 1,
+                kind: Some("private".into()),
+            },
+            "GET",
+            "?page=1&kind=private".into(),
+            Value::Null,
+            json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}),
+        ),
+        (
+            Action::CreatePrivate {
+                request_id: ID.into(),
+            },
+            "POST",
+            "".into(),
+            json!({"kind":"private","request_id":ID}),
             json!({"thread":thread()}),
         ),
         (
@@ -124,7 +146,17 @@ fn invalid_paths_pages_and_messages_never_leave_device() {
             id: ID.into(),
             page: 0,
         },
-        Action::List { page: 0 },
+        Action::List {
+            page: 0,
+            kind: None,
+        },
+        Action::List {
+            page: 1,
+            kind: Some("../admin".into()),
+        },
+        Action::CreatePrivate {
+            request_id: "not-a-uuid".into(),
+        },
         Action::Create {
             title: " ".into(),
             participant_ids: vec![],

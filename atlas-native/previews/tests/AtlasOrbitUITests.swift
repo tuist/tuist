@@ -8,9 +8,11 @@ final class AtlasOrbitUITests: XCTestCase {
         defer { app.terminate() }
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.navigationBars["Orbit"].waitForExistence(timeout: 10))
-        let privateThread = app.buttons["orbit-private"]
+        let privateThread = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
         XCTAssertTrue(privateThread.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(privateThread.frame.height, 44)
+        XCTAssertFalse(app.buttons["thread-01922cc0-0000-7000-8000-000000000002"].exists)
+        XCTAssertFalse(app.buttons["Ask Pip"].exists)
         capture(app, "ios-orbit-list-preview")
         privateThread.tap()
         XCTAssertTrue(app.navigationBars["Pip"].waitForExistence(timeout: 5))
@@ -30,8 +32,10 @@ final class AtlasOrbitUITests: XCTestCase {
         app.buttons["thread-send"].tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.tabBars.buttons["Orbit"].waitForExistence(timeout: 5))
-        let shared = try app.visibleElement("thread-01922cc0-0000-7000-8000-000000000002")
-        shared.tap()
+        app.terminate()
+        app.launchArguments = ["--workspace", "--destination",
+            "dev.tuist.atlas://navigate/orbit/01922cc0-0000-7000-8000-000000000002?server=https%3A%2F%2Fatlas.example.org"]
+        app.launch()
         XCTAssertTrue(app.navigationBars["Build listing latency"].waitForExistence(timeout: 5))
         let tool = try app.visibleElement("Query plans · succeeded")
         tool.tap()
@@ -61,7 +65,7 @@ final class AtlasOrbitUITests: XCTestCase {
         app.launchArguments = ["--workspace", "--legacy-thread-cards"]
         app.launch()
         defer { app.terminate() }
-        let privateThread = app.buttons["orbit-private"]
+        let privateThread = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
         XCTAssertTrue(privateThread.waitForExistence(timeout: 10))
         privateThread.tap()
         try app.visibleElement("Query plans · succeeded").tap()
@@ -93,7 +97,7 @@ final class AtlasOrbitUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         XCUIDevice.shared.orientation = .portrait
-        let privateThread = app.buttons["orbit-private"]
+        let privateThread = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
         XCTAssertTrue(privateThread.waitForExistence(timeout: 10))
         privateThread.tap()
         let composer = app.textFields["thread-composer"]
@@ -120,7 +124,7 @@ final class AtlasOrbitUITests: XCTestCase {
         app.launchArguments = ["--workspace", "--orbit-activity"]
         app.launch()
         defer { app.terminate() }
-        let privateThread = app.buttons["orbit-private"]
+        let privateThread = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
         XCTAssertTrue(privateThread.waitForExistence(timeout: 10))
         privateThread.tap()
         XCTAssertTrue(app.staticTexts["Pip is getting ready…"].waitForExistence(timeout: 8))
@@ -154,7 +158,7 @@ final class AtlasOrbitUITests: XCTestCase {
         try app.visibleElement("profile-appearance").tap()
         try app.visibleElement("theme-habibi").tap()
         app.tabBars.buttons["Orbit"].tap()
-        let privateThread = app.buttons["orbit-private"]
+        let privateThread = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
         XCTAssertTrue(privateThread.waitForExistence(timeout: 10))
         privateThread.tap()
         let microphone = app.buttons["thread-microphone"]
@@ -191,8 +195,8 @@ final class AtlasOrbitUITests: XCTestCase {
         app.launchArguments = ["--workspace", "--orbit-rich"]
         app.launch()
         defer { app.terminate() }
-        XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 10))
-        app.buttons["orbit-private"].tap()
+        XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].waitForExistence(timeout: 10))
+        app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].tap()
         XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
         try app.visibleElement("Account lookup · succeeded").tap()
         XCTAssertTrue(try app.visibleElement("Result").isHittable)
@@ -205,8 +209,8 @@ final class AtlasOrbitUITests: XCTestCase {
             app.launchArguments = ["--workspace"] + arguments
             app.launch()
             defer { app.terminate() }
-            XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 10))
-            app.buttons["orbit-private"].tap()
+            XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].waitForExistence(timeout: 10))
+            app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].tap()
             let draft = app.textFields["thread-composer"]
             XCTAssertTrue(draft.waitForExistence(timeout: 5))
             for text in ["", "Compare these accounts.", "\nAnd their recent activity.\nInclude the latest billing details."] {
@@ -223,7 +227,7 @@ final class AtlasOrbitUITests: XCTestCase {
         }
     }
 
-    @MainActor func testVoiceHoldReleasesToReviewWithoutAcceptingOrSending() throws {
+    @MainActor func testVoiceHoldReleasesIntoEditableDraftWithoutSending() throws {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--voice-input"]
         app.launch()
@@ -232,19 +236,24 @@ final class AtlasOrbitUITests: XCTestCase {
         app.buttons["thread-voice-cancel"].tap()
         let microphone = app.buttons["thread-microphone"]
         microphone.press(forDuration: 1)
-        XCTAssertTrue(app.staticTexts["Review your transcript"].waitForExistence(timeout: 5))
+        let draft = app.textFields["thread-composer"]
+        XCTAssertTrue(draft.waitForExistence(timeout: 5))
+        XCTAssertEqual(draft.value as? String, "Existing draft. Compare the latest build timings.")
+        XCTAssertFalse(app.descendants(matching: .any)["thread-voice-recording"].exists)
+        XCTAssertFalse(app.buttons["thread-voice-done"].exists)
         capture(app, "ios-orbit-voice-hold-release-fixture")
-        app.buttons["thread-voice-cancel"].tap()
-        XCTAssertEqual(app.textFields["thread-composer"].value as? String, "Existing draft.")
+        draft.tap()
+        draft.typeText(" Ready to edit.")
         microphone.tap()
-        XCTAssertTrue(app.staticTexts["Transcribing on this device"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["thread-voice-recording"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Compare the latest build timings."].exists)
         microphone.tap()
-        XCTAssertTrue(app.staticTexts["Review your transcript"].waitForExistence(timeout: 5))
-        app.buttons["thread-voice-done"].tap()
-        XCTAssertEqual(app.textFields["thread-composer"].value as? String, "Existing draft. Compare the latest build timings.")
+        XCTAssertTrue(draft.waitForExistence(timeout: 5))
+        XCTAssertEqual(draft.value as? String,
+                       "Existing draft. Compare the latest build timings. Ready to edit. Compare the latest build timings.")
     }
 
-    @MainActor func testVoicePresentationPreservesDraftOnCancelAndAppendsOnlyOnDone() throws {
+    @MainActor func testVoicePresentationDiscardsOnCancelAndAppendsOnStop() throws {
         for dark in [false, true] {
             let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
             app.launchArguments = ["--voice-input"] + (dark ? ["--dark", "--large-text"] : [])
@@ -252,20 +261,23 @@ final class AtlasOrbitUITests: XCTestCase {
             defer { app.terminate() }
             XCUIDevice.shared.orientation = .portrait
             let cancel = app.buttons["thread-voice-cancel"]
-            let done = app.buttons["thread-voice-done"]
+            let stop = app.buttons["thread-microphone"]
             XCTAssertTrue(cancel.waitForExistence(timeout: 10))
             XCTAssertGreaterThanOrEqual(cancel.frame.height, 44)
-            XCTAssertGreaterThanOrEqual(done.frame.height, 44)
-            XCTAssertTrue(done.isHittable)
+            XCTAssertGreaterThanOrEqual(stop.frame.height, 44)
+            XCTAssertTrue(stop.isHittable)
+            XCTAssertFalse(app.buttons["thread-send"].exists)
+            XCTAssertFalse(app.staticTexts["Compare the latest build timings."].exists)
             capture(app, "ios-orbit-voice-\(dark ? "large-dark" : "light")-fixture")
             cancel.tap()
             let draft = app.textFields["thread-composer"]
             XCTAssertTrue(draft.waitForExistence(timeout: 5))
             XCTAssertEqual(draft.value as? String, "Existing draft.")
             app.buttons["Transcribe fixture"].tap()
-            done.tap()
+            stop.tap()
             XCTAssertTrue(draft.waitForExistence(timeout: 5))
             XCTAssertEqual(draft.value as? String, "Existing draft. Compare the latest build timings.")
+            capture(app, "ios-orbit-voice-editable-\(dark ? "large-dark" : "light")-fixture")
         }
     }
 
@@ -306,6 +318,101 @@ final class AtlasOrbitUITests: XCTestCase {
             XCTAssertEqual(composer.value as? String, "Keep this draft.")
             app.terminate()
         }
+    }
+
+    @MainActor func testComposeCreatesSeparatePrivateConversationsWithSuggestions() throws {
+        for arguments in [[], ["--dark", "--large-text"]] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace"] + arguments
+            app.launch()
+            defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
+            let compose = app.buttons["orbit-create"]
+            XCTAssertTrue(compose.waitForExistence(timeout: 10))
+            XCTAssertFalse(app.buttons["pip-mascot"].exists)
+            XCTAssertFalse(app.buttons["thread-01922cc0-0000-7000-8000-000000000002"].exists)
+            capture(app, "ios-orbit-conversations-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            compose.tap()
+            let mascot = app.buttons["pip-mascot"]
+            XCTAssertTrue(mascot.waitForExistence(timeout: 5))
+            capture(app, "ios-orbit-new-conversation-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            mascot.tap()
+            mascot.press(forDuration: 0.8)
+            let draft = app.textFields["thread-composer"]
+            draft.tap()
+            draft.typeText("Prepare an October release.")
+            app.buttons["thread-send"].tap()
+            XCTAssertTrue(app.staticTexts["Prepare an October release."].waitForExistence(timeout: 5))
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(compose.waitForExistence(timeout: 5))
+            compose.tap()
+            XCTAssertTrue(mascot.waitForExistence(timeout: 5))
+            XCTAssertEqual(draft.value as? String, "Ask Pip")
+            XCTAssertFalse(app.staticTexts["Prepare an October release."].exists)
+            app.terminate()
+        }
+    }
+
+    @MainActor func testBottomFollowsAppendedAndGrowingReplyWithoutMovingHistoryReaders() throws {
+        for readingHistory in [false, true] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace", "--orbit-follow"] + (readingHistory ? ["--orbit-prompts"] : [])
+            app.launch()
+            defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
+            let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+            XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+            conversation.tap()
+            XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+            if readingHistory {
+                app.buttons["thread-prompts"].tap()
+                app.buttons["Load earlier prompts"].tap()
+                let first = app.buttons["thread-prompt-prompt-0"]
+                XCTAssertTrue(first.waitForExistence(timeout: 5))
+                first.tap()
+                XCTAssertTrue(app.navigationBars["Prompts"].waitForNonExistence(timeout: 5))
+            } else {
+                let appended = app.staticTexts["A new reply appeared."]
+                XCTAssertTrue(appended.waitForExistence(timeout: 10))
+                XCTAssertTrue(appended.isHittable)
+            }
+            let complete = app.staticTexts["The growing reply is complete."]
+            XCTAssertTrue(complete.waitForExistence(timeout: 15))
+            if readingHistory {
+                let firstPrompt = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "release-notes.txt")).firstMatch
+                XCTAssertTrue(firstPrompt.isHittable)
+                XCTAssertFalse(complete.isHittable)
+                XCTAssertTrue(app.buttons["Latest messages"].isHittable)
+            } else {
+                let follows = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                    complete.isHittable && complete.frame.maxY <= app.textFields["thread-composer"].frame.minY
+                }, object: nil)
+                XCTAssertEqual(XCTWaiter.wait(for: [follows], timeout: 5), .completed)
+            }
+            capture(app, "ios-orbit-growing-reply-\(readingHistory ? "history-retained" : "follow-latest")-preview")
+            app.terminate()
+        }
+    }
+
+    @MainActor func testSlowConversationEntryShowsLoadingThenPagesAutomaticallyUpward() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--orbit-prompts", "--delayed-orbit"]
+        app.launch()
+        defer { app.terminate() }
+        let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+        XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+        conversation.tap()
+        let loading = app.descendants(matching: .any)["thread-history-loading"].firstMatch
+        XCTAssertTrue(loading.waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["Compare recent builds"].exists)
+        capture(app, "ios-orbit-history-loading-preview")
+        XCTAssertTrue(loading.waitForNonExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Summarize the next steps."].isHittable)
+        for _ in 0..<8 { app.scrollContent(up: false) }
+        app.buttons["thread-prompts"].tap()
+        XCTAssertTrue(app.buttons["thread-prompt-prompt-0"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Load earlier prompts"].exists)
+        capture(app, "ios-orbit-automatically-paged-prompts-preview")
     }
 
     @MainActor private func capture(_ app: XCUIApplication, _ name: String) {

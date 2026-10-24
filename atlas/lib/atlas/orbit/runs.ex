@@ -39,8 +39,9 @@ defmodule Atlas.Orbit.Runs do
   calls with their bounded results. That is a restart with context, not an
   exact continuation.
 
-  Runs use the inference profile bound to the `orbit` role through the
-  in-process relay. There is no fallback to any other profile.
+  Runs prefer the acting person's connected AI accounts, with the explicitly
+  configured `orbit` role as fallback. No other person's account or inference
+  role is substituted.
   """
 
   import Ecto.Query
@@ -65,6 +66,7 @@ defmodule Atlas.Orbit.Runs do
   alias Atlas.Users
   alias Atlas.Users.User
   alias Condukt.Compactor.ToolResultPrune
+  alias ReqLLM.Error.API.Timeout
 
   require Logger
 
@@ -114,7 +116,7 @@ defmodule Atlas.Orbit.Runs do
 
   @doc """
   Executes a queued run. `opts[:client_opts]` replaces the model client options
-  in tests; production always uses the threads profile.
+  in tests; production prefers the acting person's AI accounts.
   """
   def execute(run_id, opts \\ []) do
     case start(run_id) do
@@ -386,7 +388,7 @@ defmodule Atlas.Orbit.Runs do
 
     client_opts =
       opts
-      |> Keyword.get_lazy(:client_opts, fn -> Runner.profile_client_opts(:orbit, timeout: @max_duration) end)
+      |> Keyword.get_lazy(:client_opts, fn -> Runner.orbit_client_opts(acting_user, timeout: @max_duration) end)
       |> ModelFence.wrap(run, parent)
 
     {prompt, images, store_opts} =
@@ -699,9 +701,9 @@ defmodule Atlas.Orbit.Runs do
 
       with nil <- Orbit.active_run(thread),
            true <- thread.status == "active",
-           true <- Orbit.agent_configured?(),
            %Message{} = pending <- pending_message(thread),
            %User{} = acting_user <- acting_user_for(thread, pending),
+           true <- Runner.orbit_configured?(acting_user),
            true <- Access.can_read?(thread, acting_user) do
         initiator = if pending.kind == "human", do: acting_user
         Orbit.start_run!(thread, pending.position, initiator, acting_user)
@@ -741,19 +743,31 @@ defmodule Atlas.Orbit.Runs do
   ## Errors
 
   defp error_category(:timeout), do: "timeout"
+  defp error_category(%Timeout{}), do: "timeout"
+  defp error_category(%{reason: :timeout}), do: "timeout"
+  defp error_category({:error, reason}), do: error_category(reason)
   defp error_category(:crashed), do: "crashed"
   defp error_category({:session_exit, _}), do: "session_exit"
   defp error_category(%{status: status}) when status in [401, 403], do: "provider_auth"
   defp error_category(%{status: 402}), do: "provider_billing"
   defp error_category(%{status: 429}), do: "provider_rate_limited"
-  defp error_category(%{status: 503}), do: "not_configured"
+  defp error_category(%{status: status}) when status in [408, 504], do: "timeout"
+  defp error_category(%{response_body: %{"error" => %{"code" => "not_configured"}}}), do: "not_configured"
   defp error_category(%{status: status}) when is_integer(status) and status >= 500, do: "provider_unavailable"
+  defp error_category(%{cause: reason}) when not is_nil(reason), do: error_category(reason)
   defp error_category(_reason), do: "failed"
 
   defp failure_message("not_configured"),
-    do:
-      "The assistant is not configured on this Atlas server. An administrator can assign an inference profile to Orbit."
+    do: "Connect an AI account in Settings, or ask an administrator to assign an inference profile to Orbit."
 
   defp failure_message("timeout"), do: "The assistant took too long and was stopped. Try a narrower question."
+
+  defp failure_message("provider_auth"),
+    do: "The AI provider rejected the credentials. Check your connected AI accounts in Settings."
+
+  defp failure_message("provider_billing"),
+    do: "The AI provider requires billing or subscription access. Check your connected AI accounts."
+
+  defp failure_message("provider_rate_limited"), do: "The AI provider's usage limit was reached. Try again later."
   defp failure_message(_category), do: "The assistant could not reply. Try again in a moment."
 end

@@ -92,7 +92,12 @@ struct AtlasThreadNavigation: View {
                     .accessibilityLabel("Conversation prompts")
                     .accessibilityHint("Choose a prompt to jump back to it")
                     .accessibilityIdentifier("thread-prompts")
-                    .popover(isPresented: $showingPrompts) { promptList }
+                    .sheet(isPresented: $showingPrompts, onDismiss: {
+                        if let target = pendingPrompt {
+                            pendingPrompt = nil
+                            jump(target)
+                        }
+                    }) { promptList }
                 }
                 if showsLatest {
                     if !prompts.isEmpty || hasOlder { Divider().frame(height: 20) }
@@ -134,13 +139,6 @@ struct AtlasThreadNavigation: View {
         }
         .frame(idealWidth: 380, idealHeight: 440)
         .presentationDetents([.medium, .large])
-        .presentationCompactAdaptation(.sheet)
-        .onDisappear {
-            if let target = pendingPrompt {
-                pendingPrompt = nil
-                jump(target)
-            }
-        }
     }
 
     private func promptRow(_ message: AtlasThreadMessage) -> some View {

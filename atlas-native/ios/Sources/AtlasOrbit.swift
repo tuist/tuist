@@ -151,6 +151,7 @@ final class AtlasOrbit: ObservableObject {
     private var active = false
     private var applyingDraft = false
     private var pendingDrafts = 0
+    private var selectionRevision = UUID()
 
     init(request: @escaping ([String: Any]) async throws -> Data,
          localRequest: @escaping ([String: Any]) async throws -> Data) {
@@ -166,7 +167,16 @@ final class AtlasOrbit: ObservableObject {
         }
     }
 
-    func load(more: Bool = false) async { await perform(["action": more ? "load_more" : "load"]) }
+    func load(more: Bool = false) async {
+        await perform(more ? ["action": "load_more"] : ["action": "load", "kind": "private"])
+    }
+
+    func newPrivateThread() async -> AtlasThread? {
+        selectionRevision = UUID()
+        let intent = selectionRevision
+        guard await perform(["action": "create_private"]), !Task.isCancelled, intent == selectionRevision else { return nil }
+        return selected
+    }
 
     func privateThread() async -> AtlasThread? {
         guard await perform(["action": "private"]) else { return nil }
@@ -179,10 +189,14 @@ final class AtlasOrbit: ObservableObject {
     }
 
     func open(_ thread: AtlasThread) async {
-        if selected?.id != thread.id { await perform(["action": "select", "id": thread.id]) }
+        if selected?.id != thread.id {
+            selectionRevision = UUID()
+            await perform(["action": "select", "id": thread.id])
+        }
     }
 
     func open(id: String) async -> AtlasThread? {
+        selectionRevision = UUID()
         guard await perform(["action": "select", "id": id]), !Task.isCancelled,
               let selected, selected.id == id else { return nil }
         return selected

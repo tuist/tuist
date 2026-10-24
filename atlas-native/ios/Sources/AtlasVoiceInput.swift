@@ -2,30 +2,39 @@ import AVFoundation
 import Combine
 import Speech
 
-/// Audio stays in Apple's on-device recognizer. Only an explicitly accepted,
-/// editable transcript enters the ordinary text draft, never an audio upload.
+/// The capture boundary keeps hardware and permission-free lifecycle tests separate.
+@MainActor
+protocol AtlasVoiceCapturing: AnyObject {
+    func start(update: @escaping @MainActor (AtlasVoiceCaptureUpdate) -> Void) throws
+    func stop()
+}
+
+enum AtlasVoiceCaptureUpdate {
+    case level(CGFloat)
+    case transcript(String, final: Bool)
+    case failed
+}
+
+/// Audio stays in Apple's on-device recognizer. Release/stop accepts a snapshot
+/// into the editable draft synchronously; recognition can never edit it later.
 @MainActor
 final class AtlasVoiceInput: ObservableObject {
-    enum Phase { case idle, requesting, recording, reviewing, finishing }
+    enum Phase { case idle, requesting, recording }
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var transcript = ""
     @Published private(set) var levels: [CGFloat] = Array(repeating: 0, count: 24)
     @Published private(set) var errorMessage: String?
     var busy: Bool { phase != .idle }
 
-    private let engine = AVAudioEngine()
-    private var recognizer: SFSpeechRecognizer?
-    private var request: SFSpeechAudioBufferRecognitionRequest?
-    private var recognition: SFSpeechRecognitionTask?
+    private let capture: any AtlasVoiceCapturing
     private var timeout: Task<Void, Never>?
     private var generation = UUID()
-    private var hasTap = false
-    private var audioActive = false
-    private var accepted: ((String) -> Void)?
+    private var captureEnded = false
     private let speechPermission: () async -> SFSpeechRecognizerAuthorizationStatus
     private let microphonePermission: () async -> Bool
 
     init(
+        capture: (any AtlasVoiceCapturing)? = nil,
         speechPermission: @escaping () async -> SFSpeechRecognizerAuthorizationStatus = {
             await withCheckedContinuation { continuation in
                 SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
@@ -37,6 +46,7 @@ final class AtlasVoiceInput: ObservableObject {
             }
         }
     ) {
+        self.capture = capture ?? AtlasOnDeviceVoiceCapture()
         self.speechPermission = speechPermission
         self.microphonePermission = microphonePermission
     }
@@ -51,153 +61,67 @@ final class AtlasVoiceInput: ObservableObject {
         errorMessage = nil
         let speech = await speechPermission()
         guard generation == attempt else { return }
+        guard !Task.isCancelled else { cancel(); return }
         guard speech == .authorized else { fail("Allow speech recognition in Settings to transcribe on this device."); return }
         let microphone = await microphonePermission()
         guard generation == attempt else { return }
+        guard !Task.isCancelled else { cancel(); return }
         guard microphone else { fail("Allow microphone access in Settings to record a message."); return }
-        beginRecording(attempt: attempt)
-    }
-
-    private func beginRecording(attempt: UUID) {
-        guard let recognizer = SFSpeechRecognizer(locale: .current), recognizer.isAvailable,
-              recognizer.supportsOnDeviceRecognition else {
-            fail("On-device transcription is unavailable for this language or device. You can still type your message.")
-            return
-        }
-        self.recognizer = recognizer
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.requiresOnDeviceRecognition = true
-        request.shouldReportPartialResults = true
-        request.taskHint = .dictation
-        self.request = request
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-            try session.setActive(true)
-            audioActive = true
-            let input = engine.inputNode
-            let format = input.outputFormat(forBus: 0)
-            guard format.sampleRate > 0, format.channelCount > 0 else {
-                fail("The microphone is unavailable. Try again when your audio device is connected.")
-                return
-            }
-            input.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
-                request.append(buffer)
-                let level = Self.level(buffer)
-                Task { @MainActor [weak self] in
-                    guard let self, self.generation == attempt, self.phase == .recording else { return }
+            phase = .recording
+            try capture.start { [weak self] update in
+                guard let self, self.generation == attempt, self.phase == .recording, !self.captureEnded else { return }
+                switch update {
+                case .level(let level):
                     self.levels.removeFirst()
-                    self.levels.append(CGFloat(level))
+                    self.levels.append(level.isFinite ? min(1, max(0, level)) : 0)
+                case .transcript(let text, let final):
+                    self.transcript = text
+                    // A recognizer may finish before the person releases the mic.
+                    // Retain the snapshot for that explicit acceptance, never auto-append it.
+                    if final {
+                        self.captureEnded = true
+                        self.capture.stop()
+                        self.levels = Array(repeating: 0, count: 24)
+                    }
+                case .failed:
+                    self.fail("Transcription stopped. Your typed draft is unchanged; please try again.")
                 }
             }
-            hasTap = true
-            observe(recognizer, request: request, attempt: attempt)
-            engine.prepare()
-            try engine.start()
-            phase = .recording
+            guard generation == attempt, phase == .recording else { return }
             timeout = Task { [weak self] in
                 do { try await Task.sleep(for: .seconds(60)) } catch { return }
-                self?.stopAudio()
-                self?.phase = .reviewing
-            }
-        } catch { fail("Could not start the microphone. Your typed draft is unchanged.") }
-    }
-
-    private func observe(_ recognizer: SFSpeechRecognizer, request: SFSpeechAudioBufferRecognitionRequest, attempt: UUID) {
-        recognition = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            let text = result?.bestTranscription.formattedString
-            let final = result?.isFinal == true
-            let failed = error != nil
-            Task { @MainActor [weak self] in
                 guard let self, self.generation == attempt else { return }
-                if let text { self.transcript = text }
-                if final {
-                    if self.phase == .finishing { self.commit() } else { self.stopAudio(); self.phase = .reviewing }
-                } else if failed {
-                    self.interrupted()
-                }
+                self.fail("Dictation reached its time limit. Your typed draft is unchanged; please try again.")
             }
+        } catch {
+            fail((error as? AtlasVoiceCaptureError)?.message ?? "Could not start the microphone. Your typed draft is unchanged.")
         }
     }
 
-    private func interrupted() {
-        guard !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            fail("Transcription stopped. Your typed draft is unchanged; please try again.")
-            return
-        }
-        if phase == .finishing {
-            commit()
-        } else {
-            stopAudio()
-            phase = .reviewing
-            errorMessage = "Transcription stopped. You can use the captured text or cancel; your typed draft is unchanged."
-        }
-    }
-
-    private nonisolated static func level(_ buffer: AVAudioPCMBuffer) -> Float {
-        guard let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
-        let count = Int(buffer.frameLength)
-        var energy: Float = 0
-        for index in 0..<count { energy += samples[index] * samples[index] }
-        return min(1, sqrt(energy / Float(count)) * 8)
-    }
-
-    func review() {
+    func finish(accepted: (String) -> Void) {
         if phase == .requesting {
             cancel()
-            errorMessage = "Dictation did not start. After allowing permissions, tap or hold the microphone again."
             return
         }
         guard phase == .recording else { return }
-        stopAudio()
-        phase = .reviewing
-    }
-
-    func finish(accepted: @escaping (String) -> Void) {
-        guard phase == .recording || phase == .reviewing else { return }
-        let alreadyFinal = phase == .reviewing
-        self.accepted = accepted
-        phase = .finishing
-        stopAudio()
-        if alreadyFinal { commit(); return }
-        // A local model may not send a final result after an interruption. Keep
-        // the last visible transcript rather than waiting with the mic active.
-        timeout = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(2)) } catch { return }
-            self?.commit()
-        }
+        let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        cancel()
+        guard !text.isEmpty else { errorMessage = "No speech was captured. Your typed draft is unchanged; please try again."; return }
+        accepted(text)
     }
 
     func cancel() {
+        let awaitingPermission = phase == .requesting
         generation = UUID()
-        accepted = nil
-        stopAudio()
-        recognition?.cancel()
-        recognition = nil
-        recognizer = nil
-        request = nil
-        phase = .idle
-        transcript = ""
-        errorMessage = nil
-    }
-
-    private func stopAudio() {
         timeout?.cancel()
         timeout = nil
-        engine.stop()
-        if hasTap { engine.inputNode.removeTap(onBus: 0); hasTap = false }
-        request?.endAudio()
-        if audioActive {
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-            audioActive = false
-        }
-    }
-
-    private func commit() {
-        let text = transcript
-        let callback = accepted
-        cancel()
-        callback?(text)
+        capture.stop()
+        phase = .idle
+        transcript = ""
+        captureEnded = false
+        levels = Array(repeating: 0, count: 24)
+        errorMessage = awaitingPermission ? "Dictation did not start. After allowing permissions, tap or hold the microphone again." : nil
     }
 
     private func fail(_ message: String) {
@@ -209,5 +133,93 @@ final class AtlasVoiceInput: ObservableObject {
         let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return draft }
         return draft + (draft.isEmpty || draft.last?.isWhitespace == true ? "" : " ") + text
+    }
+
+    nonisolated static func level(in buffer: AVAudioPCMBuffer) -> CGFloat {
+        guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else { return 0 }
+        let channelCount = Int(buffer.format.channelCount)
+        guard channelCount > 0 else { return 0 }
+        var energy: Double = 0
+        for channel in 0..<channelCount {
+            let samples = buffer.format.isInterleaved ? channels[0] + channel : channels[channel]
+            for frame in 0..<Int(buffer.frameLength) {
+                let sample = Double(samples[frame * buffer.stride])
+                guard sample.isFinite else { continue }
+                energy += sample * sample
+            }
+        }
+        let meanSquare = energy / Double(Int(buffer.frameLength) * channelCount)
+        guard meanSquare > 0 else { return 0 }
+        // A linear RMS multiplier hides normal, quiet speech. Map measured power
+        // from a -60 dB noise floor to -12 dB full scale, without invented motion.
+        return CGFloat(min(1, max(0, (10 * log10(meanSquare) + 60) / 48)))
+    }
+}
+
+private struct AtlasVoiceCaptureError: Error {
+    let message: String
+}
+
+@MainActor
+private final class AtlasOnDeviceVoiceCapture: AtlasVoiceCapturing {
+    private let engine = AVAudioEngine()
+    private var recognizer: SFSpeechRecognizer?
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var recognition: SFSpeechRecognitionTask?
+    private var hasTap = false
+    private var audioActive = false
+
+    func start(update: @escaping @MainActor (AtlasVoiceCaptureUpdate) -> Void) throws {
+        guard let recognizer = SFSpeechRecognizer(locale: .current), recognizer.isAvailable,
+              recognizer.supportsOnDeviceRecognition else {
+            throw AtlasVoiceCaptureError(message: "On-device transcription is unavailable for this language or device. "
+                + "You can still type your message.")
+        }
+        self.recognizer = recognizer
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.requiresOnDeviceRecognition = true
+        request.shouldReportPartialResults = true
+        request.taskHint = .dictation
+        self.request = request
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+        try session.setActive(true)
+        audioActive = true
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw AtlasVoiceCaptureError(message: "The microphone is unavailable. Try again when your audio device is connected.")
+        }
+        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { buffer, _ in
+            request.append(buffer)
+            let level = AtlasVoiceInput.level(in: buffer)
+            Task { @MainActor in update(.level(level)) }
+        }
+        hasTap = true
+        recognition = recognizer.recognitionTask(with: request) { result, error in
+            let text = result?.bestTranscription.formattedString
+            let final = result?.isFinal == true
+            let failed = error != nil
+            Task { @MainActor in
+                if let text { update(.transcript(text, final: final)) }
+                if failed && !final { update(.failed) }
+            }
+        }
+        engine.prepare()
+        try engine.start()
+    }
+
+    func stop() {
+        engine.stop()
+        if hasTap { engine.inputNode.removeTap(onBus: 0); hasTap = false }
+        request?.endAudio()
+        recognition?.cancel()
+        recognition = nil
+        recognizer = nil
+        request = nil
+        if audioActive {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            audioActive = false
+        }
     }
 }

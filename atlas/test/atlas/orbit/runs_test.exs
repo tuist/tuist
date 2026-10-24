@@ -13,6 +13,8 @@ defmodule Atlas.Orbit.RunsTest do
   alias Atlas.Audit.Activity
   alias Atlas.Authorization.Roles
   alias Atlas.Documents.TextExtractor
+  alias Atlas.Inference.ModelBinding
+  alias Atlas.LLMs.Connections
   alias Atlas.Orbit
   alias Atlas.Orbit.Checkpoints
   alias Atlas.Orbit.Message
@@ -26,10 +28,117 @@ defmodule Atlas.Orbit.RunsTest do
   alias Atlas.Repo
   alias Atlas.Users
   alias Boruta.Ecto.Token
+  alias ReqLLM.Error.API.Timeout
 
   setup do
     orbit_profile_fixture()
     :ok
+  end
+
+  test "structured provider timeouts are categorized without attributing them to compaction" do
+    actor = user_fixture()
+    {:ok, thread, _} = Orbit.ensure_private(actor)
+    run = post_and_get_run(actor, thread, "Hello")
+    Repo.update!(Ecto.Changeset.change(run, status: "running"))
+    timeout = Timeout.exception(kind: :receive, timeout: 45_000)
+    assert :ok = Runs.complete(run.id, 0, {:error, %{cause: timeout}})
+    assert Repo.get!(Run, run.id).error_category == "timeout"
+    notice = Repo.get_by!(Message, run_id: run.id, kind: "system")
+    assert notice.body =~ "took too long"
+    refute notice.body =~ "compaction"
+  end
+
+  test "personal transport failures persist timeout and outage categories through Condukt" do
+    Repo.update_all(ModelBinding, set: [atlas_orbit: false])
+    actor = user_fixture()
+    {:ok, _} = Connections.connect_claude(actor, "sk-ant-oat01-" <> String.duplicate("actor", 12))
+
+    for {response, category} <- [
+          {{:error, %Req.TransportError{reason: :timeout}}, "timeout"},
+          {{:ok, %{status: 503, body: "private upstream outage"}}, "provider_unavailable"}
+        ] do
+      {:ok, thread, _} = Orbit.ensure_private(actor)
+      run = post_and_get_run(actor, thread, "Hello")
+      stub(Req, :post, fn _opts -> response end)
+      assert :ok = Runs.execute(run.id)
+      assert Repo.get!(Run, run.id).error_category == category
+      notice = Repo.get_by!(Message, run_id: run.id, kind: "system")
+      refute notice.body =~ "configure"
+      refute notice.body =~ "private upstream outage"
+    end
+  end
+
+  test "production routing prefers the message author's personal account, including research children" do
+    owner = user_fixture(["accounts:read"])
+    actor = user_fixture(["accounts:read"])
+    owner_token = "sk-ant-oat01-" <> String.duplicate("owner", 12)
+    actor_token = "sk-ant-oat01-" <> String.duplicate("actor", 12)
+    {:ok, _} = Connections.connect_claude(owner, owner_token)
+    {:ok, _} = Connections.connect_claude(actor, actor_token)
+    {:ok, thread} = Orbit.create_shared(owner, %{"title" => "Research", "participant_ids" => [actor.id]})
+    run = post_and_get_run(actor, thread, "Research one question")
+    test_pid = self()
+
+    stub(Req, :post, fn opts ->
+      assert opts[:url] == "https://api.anthropic.com/v1/messages"
+      assert {"authorization", "Bearer " <> actor_token} in opts[:headers]
+      refute {"authorization", "Bearer " <> owner_token} in opts[:headers]
+      tools = opts[:json]["tools"]
+      send(test_pid, {:personal_request, Enum.map(tools, & &1["name"])})
+
+      parts =
+        cond do
+          not Enum.any?(tools, &(&1["name"] == "task")) ->
+            [%{"type" => "text", "text" => "Child evidence"}]
+
+          Enum.any?(opts[:json]["messages"], fn message ->
+            Enum.any?(message["content"], &(&1["type"] == "tool_result"))
+          end) ->
+            [%{"type" => "text", "text" => "Research complete"}]
+
+          true ->
+            nudge = Enum.find(tools, &(&1["name"] == "list_account_nudges"))
+            assert nudge["input_schema"]["anyOf"] == Enum.map(~w(account_id account_key handle), &%{"required" => [&1]})
+            [%{"type" => "tool_use", "id" => "task-1", "name" => "task", "input" => %{"task" => "Find one fact"}}]
+        end
+
+      {:ok, %{status: 200, body: %{"id" => "msg-test", "model" => "claude-sonnet-4-6", "content" => parts}}}
+    end)
+
+    assert :ok = Runs.execute(run.id)
+    assert Repo.get!(Run, run.id).status == "succeeded"
+    assert Repo.get_by!(Message, run_id: run.id, kind: "agent").body == "Research complete"
+    assert_receive {:personal_request, root_tools}
+    assert "task" in root_tools
+    assert_receive {:personal_request, child_tools}
+    refute "task" in child_tools
+    assert_receive {:personal_request, _root_tools}
+    refute inspect(Repo.all(Session)) =~ actor_token
+  end
+
+  test "cancellation fences a blocked personal model loop without dispatching the system fallback" do
+    actor = user_fixture()
+    {:ok, _} = Connections.connect_claude(actor, "sk-ant-oat01-" <> String.duplicate("actor", 12))
+    {:ok, thread, _} = Orbit.ensure_private(actor)
+    run = post_and_get_run(actor, thread, "Hello")
+    test_pid = self()
+
+    stub(Req, :post, fn _opts ->
+      send(test_pid, {:personal_model, self()})
+
+      receive do
+        :never -> {:error, :stopped}
+      end
+    end)
+
+    worker = Task.async(fn -> Runs.execute(run.id, heartbeat_interval: 20) end)
+    assert_receive {:personal_model, model}, 5_000
+    monitor = Process.monitor(model)
+    assert {:ok, _} = Orbit.cancel_run(actor, thread, run.id)
+    assert :ok = Task.await(worker, 5_000)
+    assert_receive {:DOWN, ^monitor, :process, ^model, _}
+    assert Repo.get!(Run, run.id).status == "cancelled"
+    refute Repo.exists?(from message in Message, where: message.run_id == ^run.id and message.kind == "agent")
   end
 
   test "runs a read-only tool, ratchets its scopes, and posts the reply" do

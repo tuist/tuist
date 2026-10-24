@@ -15,9 +15,9 @@ struct AtlasPipReaction {
             case .neutral: "Ready to help"
             case .wave: "Waving hello"
             case .curious: "Feeling curious"
-            case .delighted: "Jumping for joy"
+            case .delighted: "Happy to see you"
             case .surprised: "A little surprised"
-            case .affectionate: "Sending a little love"
+            case .affectionate: "A warm hello"
             }
         }
     }
@@ -56,6 +56,73 @@ struct AtlasPipReaction {
     }
 }
 
+struct AtlasPipPose: Equatable, Sendable {
+    var bodyAngle = 0.0
+    var bodyDrop = 0.0
+    var armAngle = -100.0
+    var leftFootAngle = 0.0
+    var rightFootAngle = 0.0
+
+    static let rest = AtlasPipPose()
+
+    func interpolated(to other: Self, progress: Double) -> Self {
+        let t = progress * progress * (3 - 2 * progress)
+        return Self(
+            bodyAngle: bodyAngle + (other.bodyAngle - bodyAngle) * t,
+            bodyDrop: bodyDrop + (other.bodyDrop - bodyDrop) * t,
+            armAngle: armAngle + (other.armAngle - armAngle) * t,
+            leftFootAngle: leftFootAngle + (other.leftFootAngle - leftFootAngle) * t,
+            rightFootAngle: rightFootAngle + (other.rightFootAngle - rightFootAngle) * t
+        )
+    }
+}
+
+enum AtlasPipMotion {
+    static let duration = 2.4
+
+    static func pose(at elapsed: TimeInterval, intensity: Double = 0, from initial: AtlasPipPose = .rest) -> AtlasPipPose {
+        guard elapsed.isFinite else { return .rest }
+        let strength = 1 + (intensity.isFinite ? min(1, max(0, intensity)) : 0) * 0.35
+        // The torso acknowledges the greeting while ankles transfer weight and
+        // the arm leads, waves, overshoots on return, then settles at the shoulder.
+        let frames: [(Double, AtlasPipPose)] = [
+            (0, initial),
+            (0.16, AtlasPipPose(bodyAngle: -1, bodyDrop: 3 * strength, armAngle: -108, leftFootAngle: -1.2)),
+            (0.28, AtlasPipPose(bodyAngle: 0.5, bodyDrop: 1, armAngle: -70)),
+            (0.46, AtlasPipPose(bodyAngle: 1.8 * strength, armAngle: -14 * strength, rightFootAngle: 1)),
+            (0.70, AtlasPipPose(bodyAngle: 1, bodyDrop: 0.8, armAngle: 16 * strength, rightFootAngle: 0.8)),
+            (0.94, AtlasPipPose(bodyAngle: 1.2, bodyDrop: 1.8, armAngle: -18 * strength, rightFootAngle: 0.4)),
+            (1.18, AtlasPipPose(bodyAngle: 0.5, bodyDrop: 0.8, armAngle: 13 * strength)),
+            (1.42, AtlasPipPose(bodyAngle: 0.2, armAngle: -12 * strength)),
+            (1.80, AtlasPipPose(bodyAngle: -0.8, bodyDrop: 1, armAngle: -82)),
+            (2.10, AtlasPipPose(bodyAngle: 0.4, bodyDrop: 0.3, armAngle: -102)),
+            (duration, .rest)
+        ]
+        guard elapsed > 0 else { return initial }
+        for index in 1..<frames.count where elapsed <= frames[index].0 {
+            let previous = frames[index - 1]
+            let next = frames[index]
+            return previous.1.interpolated(to: next.1, progress: (elapsed - previous.0) / (next.0 - previous.0))
+        }
+        return .rest
+    }
+
+    static func eyeOpenness(at elapsed: TimeInterval) -> Double {
+        guard elapsed.isFinite, elapsed >= 0 else { return 1 }
+        let phase = elapsed.truncatingRemainder(dividingBy: 5.6)
+        switch phase {
+        case 5..<5.12: return 1 - smooth((phase - 5) / 0.12)
+        case 5.12..<5.18: return 0
+        case 5.18..<5.36: return smooth((phase - 5.18) / 0.18)
+        default: return 1
+        }
+    }
+
+    private static func smooth(_ value: Double) -> Double {
+        value * value * (3 - 2 * value)
+    }
+}
+
 struct AtlasPipView: View {
     var interactive = true
 
@@ -63,14 +130,16 @@ struct AtlasPipView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var reaction = AtlasPipReaction()
     @State private var reactionSequence = 0
-    @State private var isPressed = false
+    @State private var motionStartedAt: Date?
+    @State private var initialPose = AtlasPipPose.rest
+    @State private var idleStartedAt = Date()
     @State private var pressedAt: TimeInterval?
     @State private var releasedPress: (time: TimeInterval, duration: TimeInterval)?
 
     var body: some View {
         Group {
             if interactive {
-                Button(action: activate) {
+                Button { activate() } label: {
                     mascot
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
@@ -79,7 +148,7 @@ struct AtlasPipView: View {
                 .accessibilityLabel("Pip")
                 .accessibilityValue(reaction.expression.description)
                 .accessibilityHint("Say hello. Touch longer or tap a few times for a different reaction.")
-                .accessibilityAction(named: "Say hello") { activate() }
+                .accessibilityAction(named: "Say hello") { activate(usingTouch: false) }
                 .accessibilityIdentifier("pip-mascot")
             } else {
                 mascot.accessibilityHidden(true)
@@ -87,50 +156,46 @@ struct AtlasPipView: View {
         }
         .transaction { if reduceMotion { $0.disablesAnimations = true } }
         .task(id: reactionSequence) {
-            guard reactionSequence > 0 else { return }
+            guard reaction.expression != .neutral, scenePhase == .active else { return }
             do {
-                try await Task.sleep(for: .seconds(1.8))
+                try await Task.sleep(for: .seconds(AtlasPipMotion.duration))
                 try Task.checkCancellation()
                 reaction.settle()
+                motionStartedAt = nil
+                initialPose = .rest
             } catch { }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active {
-                isPressed = false
-                pressedAt = nil
-                releasedPress = nil
-                reaction.settle()
+            if phase == .active {
+                idleStartedAt = Date()
+            } else {
+                stopGreeting()
             }
         }
+        .onChange(of: reduceMotion) { _, _ in
+            motionStartedAt = nil
+            initialPose = .rest
+        }
+        .onDisappear(perform: stopGreeting)
     }
 
     private var mascot: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || scenePhase != .active)) { timeline in
-            let phase = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3.6) / 3.6
-            let bob = reduceMotion || scenePhase != .active ? 0 : sin(phase * .pi * 2)
-            Image(reaction.expression.rawValue)
-                .resizable()
-                .scaledToFit()
-                .offset(y: bob * 3)
-                .rotationEffect(.degrees(bob * 1.5))
-                .scaleEffect(reduceMotion || !isPressed ? 1 : 0.94)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isPressed)
-                .accessibilityHidden(true)
+            if reduceMotion {
+                Image(reaction.expression.rawValue).resizable().scaledToFit()
+            } else {
+                let pose = motionStartedAt.map {
+                    AtlasPipMotion.pose(at: timeline.date.timeIntervalSince($0), intensity: reaction.intensity, from: initialPose)
+                } ?? .rest
+                let eyes = scenePhase == .active ? AtlasPipMotion.eyeOpenness(at: timeline.date.timeIntervalSince(idleStartedAt)) : 1
+                PipRig(pose: pose, eyeOpenness: eyes)
+            }
         }
         .aspectRatio(1, contentMode: .fit)
-        .phaseAnimator([0.0, 1.0, -0.45, 0.0], trigger: reactionSequence) { content, phase in
-            let movement = reduceMotion || scenePhase != .active ? 0 : phase * (0.45 + reaction.intensity * 0.55)
-            content
-                .scaleEffect(x: 1 + movement * 0.12, y: 1 - movement * 0.1, anchor: .bottom)
-                .rotationEffect(.degrees(movement * 9))
-                .offset(y: -abs(movement) * 12)
-        } animation: { _ in
-            .spring(duration: 0.24, bounce: 0.35)
-        }
+        .accessibilityHidden(true)
     }
 
     private func pressChanged(_ pressed: Bool) {
-        isPressed = pressed
         let now = ProcessInfo.processInfo.systemUptime
         if pressed {
             pressedAt = now
@@ -141,20 +206,85 @@ struct AtlasPipView: View {
         }
     }
 
-    private func activate() {
+    private func activate(usingTouch: Bool = true) {
+        guard scenePhase == .active else { return }
         let now = ProcessInfo.processInfo.systemUptime
         let duration: TimeInterval
-        if let start = pressedAt {
+        if usingTouch, let start = pressedAt {
             duration = max(0, now - start)
-        } else if let release = releasedPress, (0...0.15).contains(now - release.time) {
+        } else if usingTouch, let release = releasedPress, (0...0.15).contains(now - release.time) {
             duration = release.duration
         } else {
             duration = 0
         }
         pressedAt = nil
         releasedPress = nil
+        let date = Date()
+        initialPose = motionStartedAt.map {
+            AtlasPipMotion.pose(at: date.timeIntervalSince($0), intensity: reaction.intensity, from: initialPose)
+        } ?? .rest
+        motionStartedAt = reduceMotion ? nil : date
+        // Blink after the arm arrives, rather than at the instant of contact.
+        idleStartedAt = date.addingTimeInterval(-4.25)
         reaction.activate(at: now, pressDuration: duration)
         reactionSequence += 1
+    }
+
+    private func stopGreeting() {
+        pressedAt = nil
+        releasedPress = nil
+        motionStartedAt = nil
+        initialPose = .rest
+        reaction.settle()
+        reactionSequence += 1
+    }
+}
+
+private struct PipRig: View {
+    let pose: AtlasPipPose
+    let eyeOpenness: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            let unit = geometry.size.width / 513
+            ZStack {
+                part("PipLeftFoot")
+                    .rotationEffect(.degrees(pose.leftFootAngle), anchor: UnitPoint(x: 183.0 / 513, y: 448.0 / 513))
+                part("PipRightFoot")
+                    .rotationEffect(.degrees(pose.rightFootAngle), anchor: UnitPoint(x: 384.0 / 513, y: 448.0 / 513))
+                ZStack {
+                    part("PipArm")
+                        .rotationEffect(.degrees(pose.armAngle), anchor: UnitPoint(x: 423.0 / 513, y: 349.0 / 513))
+                    part("PipBody")
+                    part("PipEyes")
+                        .scaleEffect(x: 1, y: eyeOpenness, anchor: UnitPoint(x: 0.5, y: 246.0 / 513))
+                    PipClosedEyes()
+                        .stroke(Color(red: 0.035, green: 0.02, blue: 0.07), style: StrokeStyle(lineWidth: 7 * unit, lineCap: .round))
+                        .opacity(max(0, 1 - eyeOpenness * 4))
+                }
+                .rotationEffect(.degrees(pose.bodyAngle), anchor: UnitPoint(x: 285.0 / 513, y: 373.0 / 513))
+                .offset(y: pose.bodyDrop * unit)
+            }
+        }
+    }
+
+    private func part(_ name: String) -> some View {
+        Image(name).resizable().scaledToFit()
+    }
+}
+
+private struct PipClosedEyes: Shape {
+    func path(in rect: CGRect) -> Path {
+        let unit = rect.width / 513
+        var path = Path()
+        for x in [210.0, 322.0] {
+            path.move(to: CGPoint(x: x * unit, y: 248 * unit))
+            path.addQuadCurve(
+                to: CGPoint(x: (x + 47) * unit, y: 248 * unit),
+                control: CGPoint(x: (x + 23.5) * unit, y: 227 * unit)
+            )
+        }
+        return path
     }
 }
 
@@ -232,10 +362,11 @@ struct AtlasThreadActivity: View {
     let message: String
     let typing: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { context in
-            let phase = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate * 4
+        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion || scenePhase != .active)) { context in
+            let phase = reduceMotion || scenePhase != .active ? 0 : context.date.timeIntervalSinceReferenceDate * 4
             HStack(spacing: 12) {
                 if typing {
                     HStack(spacing: 4) {

@@ -3,6 +3,20 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
+enum AtlasPushActions {
+    static let orbitCompletedCategoryID = "ATLAS_ORBIT_COMPLETED"
+    static let openConversationID = "ATLAS_OPEN_CONVERSATION"
+
+    static var orbitCompletedCategory: UNNotificationCategory {
+        let open = UNNotificationAction(
+            identifier: openConversationID, title: "Open conversation", options: [.foreground, .authenticationRequired]
+        )
+        return UNNotificationCategory(
+            identifier: orbitCompletedCategoryID, actions: [open], intentIdentifiers: [], options: []
+        )
+    }
+}
+
 /// Push data is only a navigation hint. AtlasNavigation validates the origin and destination again.
 enum AtlasPushPayload {
     static func destination(_ payload: [AnyHashable: Any]) -> URL? {
@@ -10,6 +24,15 @@ enum AtlasPushPayload {
               let value = payload["url"] as? String, value.utf8.count <= 2048,
               let url = URL(string: value), url.scheme == "dev.tuist.atlas", url.host == "navigate" else { return nil }
         return url
+    }
+
+    static func destination(
+        _ payload: [AnyHashable: Any], actionIdentifier: String, categoryIdentifier: String
+    ) -> URL? {
+        guard actionIdentifier == UNNotificationDefaultActionIdentifier
+            || (actionIdentifier == AtlasPushActions.openConversationID
+                && categoryIdentifier == AtlasPushActions.orbitCompletedCategoryID) else { return nil }
+        return destination(payload)
     }
 }
 
@@ -20,7 +43,9 @@ final class AtlasPushDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
     @Published var registrationFailed = false
 
     func application(_: UIApplication, didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        UNUserNotificationCenter.current().delegate = self
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        center.setNotificationCategories([AtlasPushActions.orbitCompletedCategory])
         return true
     }
 
@@ -37,7 +62,10 @@ final class AtlasPushDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         _: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let url = AtlasPushPayload.destination(response.notification.request.content.userInfo)
+        let content = response.notification.request.content
+        let url = AtlasPushPayload.destination(
+            content.userInfo, actionIdentifier: response.actionIdentifier, categoryIdentifier: content.categoryIdentifier
+        )
         Task { @MainActor in
             if let url { self.destination = url }
             completionHandler()

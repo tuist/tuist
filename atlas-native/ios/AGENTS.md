@@ -27,14 +27,15 @@ recognition, permission errors and generation-fenced callbacks. Never fall back 
 remote transcription, upload audio or auto-send the accepted text. Cancel on scene
 inactivity and thread departure; an unfinished transcript must not replace the
 existing draft. `AtlasThreadComposer` shares the outlined pill between text and voice input,
-with the waveform between a stop/cancel control and the transcript-acceptance arrow.
-Acceptance adds editable text; only the idle composer's send action sends a message. The stable
-44pt microphone supports hold-to-record/release-to-review and tap/accessibility
+with measured audio levels between a stop microphone and a separate discard control.
+Release/tap-stop synchronously adds the current hypothesis as editable text; there is no
+review/Done phase or visible live transcript. Only the idle composer's send action sends a message. The stable
+44pt microphone supports hold-to-record/release-to-edit and tap/accessibility
 hands-free start/stop. Its native button/long-press recognizer arbitrates taps and
 holds without firing both actions on release. Release/cancellation during permission setup
 cancels that attempt with explicit retry guidance; never silently switch a held gesture to
 hands-free recording after a prompt. A cancelled queued start cannot activate the mic afterward. Neither release nor
-stop accepts or sends a draft. Keep both composer actions 44pt and bottom-aligned,
+stop sends a draft, and stale callbacks cannot alter later edits. Keep both composer actions 44pt and bottom-aligned,
 with the send circle drawn inside its target rather than inflated by button style.
 Agent activity belongs at the end of the scrollable transcript, not in the composer.
 `AtlasThreadActivity` uses animated dots for typing and Pip for queued/tool/compaction
@@ -48,7 +49,8 @@ WebView, remote images, custom-scheme links or executable fenced content.
 Orbit's welcome and empty private thread use the bundled `AtlasPipView` mascot and
 draft suggestions. Touch duration and tap cadence vary its expressions; never claim
 pressure sensing. Reduce Motion preserves expression changes without movement.
-The private-thread entry stays visible below the scrollable welcome. Suggestions
+Orbit lists private conversations on the theme canvas. Navbar compose opens a distinct
+private conversation with welcome/suggestions, rather than a fixed bottom Ask bar. Suggestions
 append to the existing draft and never send. Notification links select an authorized
 thread by UUID through Rust before showing its detail; tab returns must not replay them.
 Push settings disclose that completion alerts contain a title and reply preview.
@@ -62,7 +64,14 @@ lookups under task cards, preserves off-page children and keeps source disclosur
 native; rich tool cards still use the reviewed bundled Native Shell components.
 Its prompt index lists loaded human messages with timestamps (and authors in shared
 threads), loads earlier history explicitly and scrolls to stable message IDs without
-changing drafts or execution state. Keep the latest-message action beside the index
+changing drafts or execution state. Dismiss the index sheet before animating its jump;
+Reduce Motion jumps without animation. Follow appended and growing content only while
+the person is at the bottom, preserving history readers' positions. Derive scrolling from
+atomic content-height/bottom geometry rather than drag lifetime so indirect scrolling and
+deceleration also stop following. Show loading feedback before the first protected history
+request completes. Approaching the top automatically loads one earlier page, retaining the
+previous first message as the anchor; keep manual retry and never loop failed requests.
+Keep the latest-message action beside the index
 and reserve transcript space so these controls do not cover message content.
 
 `AtlasProfile` owns the description editor's state and stale-read fence. Profile

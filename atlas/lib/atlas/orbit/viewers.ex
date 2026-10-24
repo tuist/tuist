@@ -86,7 +86,7 @@ defmodule Atlas.Orbit.Viewers do
 
   defp agent_status(thread) do
     case Orbit.active_run(thread) do
-      nil -> if Orbit.agent_configured?(), do: "idle", else: "unconfigured"
+      nil -> "idle"
       run -> Progress.status(run)
     end
   end

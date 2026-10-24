@@ -5,15 +5,13 @@ struct AtlasThreadComposer: View {
     let placeholder: String
     let saving: Bool
     let phase: AtlasVoiceInput.Phase
-    let transcript: String
     let levels: [CGFloat]
     var hasAttachments = false
     var addPhotos: (() -> Void)?
     var addFiles: (() -> Void)?
     let start: () -> Void
-    let review: () -> Void
+    let stop: () -> Void
     let cancel: () -> Void
-    let accept: () -> Void
     let send: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.atlasTheme) private var theme
@@ -22,27 +20,13 @@ struct AtlasThreadComposer: View {
 
     private var recording: Bool { phase != .idle }
     private var canSubmit: Bool {
-        if recording { return phase == .recording || phase == .reviewing }
-        return !saving && (hasAttachments || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-    }
-
-    private var status: String {
-        switch phase {
-        case .requesting: return "Waiting for permission…"
-        case .finishing: return "Finishing transcription…"
-        case .reviewing: return "Review your transcript"
-        default: return "Transcribing on this device"
-        }
+        !saving && (hasAttachments || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     var body: some View {
         let palette = contrast == .increased ? nil : theme?.palette(scheme)
         let shape = RoundedRectangle(cornerRadius: 28)
         VStack(alignment: .leading, spacing: 8) {
-            if recording {
-                Text(status).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
-                    .accessibilityIdentifier("thread-voice-status")
-            }
             HStack(alignment: .bottom, spacing: 4) {
                 if !recording, let addPhotos, let addFiles {
                     Menu {
@@ -55,17 +39,23 @@ struct AtlasThreadComposer: View {
                     .accessibilityIdentifier("thread-attach")
                 }
                 Group {
-                    if recording {
+                    if phase == .requesting {
+                        Text("Waiting for permission…").font(.callout).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .accessibilityIdentifier("thread-voice-status")
+                    } else if phase == .recording {
                         HStack(alignment: .center, spacing: 3) {
                             ForEach(levels.indices, id: \.self) { index in
-                                Capsule().fill(.secondary)
+                                Capsule().fill(.tint)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 4 + levels[index] * 24)
                             }
                         }
                         .frame(height: 44)
-                        .animation(reduceMotion ? nil : .linear(duration: 0.1), value: levels)
-                        .accessibilityLabel(status)
+                        .animation(reduceMotion ? nil : .linear(duration: 0.05), value: levels)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Recording on this device")
+                        .accessibilityHint("Release the microphone or tap stop to add editable text. Nothing is sent automatically.")
                         .accessibilityIdentifier("thread-voice-recording")
                     } else {
                         TextField(placeholder, text: $draft, axis: .vertical)
@@ -74,37 +64,37 @@ struct AtlasThreadComposer: View {
                     }
                 }
                 .padding(.leading, recording ? 52 : 12).padding(.trailing, recording ? 8 : 44)
-                Button(action: recording ? accept : send) {
-                    Group {
-                        if saving || phase == .finishing { ProgressView() } else { Image(systemName: "arrow.up").font(.title3.bold()) }
-                    }.frame(width: 44, height: 44)
+                if recording {
+                    Button(action: cancel) {
+                        Image(systemName: "xmark").font(.title3).frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Discard dictation")
+                    .accessibilityHint("Keeps your existing typed draft unchanged.")
+                    .accessibilityIdentifier("thread-voice-cancel")
+                } else {
+                    Button(action: send) {
+                        Group {
+                            if saving { ProgressView() } else { Image(systemName: "arrow.up").font(.title3.bold()) }
+                        }.frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(AtlasComposerSendStyle())
+                    .disabled(!canSubmit)
+                    .accessibilityLabel("Send message")
+                    .accessibilityIdentifier("thread-send")
                 }
-                .buttonStyle(AtlasComposerSendStyle())
-                .disabled(!canSubmit)
-                .accessibilityLabel(recording ? "Use transcript" : "Send message")
-                .accessibilityHint(recording ? "Adds editable text to your draft. Does not send a message." : "")
-                .accessibilityIdentifier(recording ? "thread-voice-done" : "thread-send")
             }
             .overlay(alignment: recording ? .bottomLeading : .bottomTrailing) {
                 // Keep one UIKit target alive as it moves, so a held microphone still receives its release.
-                AtlasMicrophoneButton(active: recording, reviewing: phase == .reviewing || phase == .finishing,
-                                      start: start, review: phase == .reviewing || phase == .finishing ? cancel : review)
+                AtlasMicrophoneButton(active: recording, start: start, stop: stop, cancel: cancel)
                     .disabled(saving)
                     .padding(.trailing, recording ? 0 : 48)
             }
             .padding(4)
+            .foregroundStyle(palette.map { Color(atlasHex: $0.text) } ?? Color.primary)
             .background(palette.map { Color(atlasHex: $0.surface) } ?? Color(uiColor: .systemBackground), in: shape)
             .overlay { shape.strokeBorder(palette.map { Color(atlasHex: $0.border) } ?? Color(uiColor: .separator), lineWidth: 0.5) }
             .shadow(color: .black.opacity(scheme == .dark ? 0.12 : 0.06), radius: 12, y: 4)
-            if recording, !transcript.isEmpty {
-                HStack(alignment: .top, spacing: 4) {
-                    Text(transcript).font(.callout).lineLimit(6).textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Button("Cancel", action: cancel).frame(minWidth: 44, minHeight: 44)
-                        .accessibilityIdentifier("thread-voice-cancel")
-                }
-                .padding(.horizontal, 12)
-            }
         }
         .accessibilityElement(children: .contain)
     }
@@ -129,19 +119,19 @@ struct AtlasComposerSendStyle: ButtonStyle {
 
 private struct AtlasMicrophoneButton: View {
     let active: Bool
-    var reviewing = false
     let start: () -> Void
-    let review: () -> Void
+    let stop: () -> Void
+    let cancel: () -> Void
     @Environment(\.isEnabled) private var enabled
 
     var body: some View {
         ZStack {
-            Circle().fill(active && !reviewing ? Color.red.opacity(0.1) : Color(uiColor: .tertiarySystemFill)).padding(4)
-            Image(systemName: reviewing ? "xmark" : active ? "stop.fill" : "mic.fill")
+            Circle().fill(active ? Color.red.opacity(0.1) : Color(uiColor: .tertiarySystemFill)).padding(4)
+            Image(systemName: active ? "stop.fill" : "mic.fill")
                 .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(active && !reviewing ? Color.red : Color.secondary)
+                .foregroundStyle(active ? Color.red : Color.secondary)
                 .accessibilityHidden(true)
-            AtlasMicrophoneTouchTarget(active: active, reviewing: reviewing, enabled: enabled, start: start, review: review)
+            AtlasMicrophoneTouchTarget(active: active, enabled: enabled, start: start, stop: stop, cancel: cancel)
         }
         .frame(width: 44, height: 44)
         .opacity(enabled ? 1 : 0.4)
@@ -150,10 +140,10 @@ private struct AtlasMicrophoneButton: View {
 
 private struct AtlasMicrophoneTouchTarget: UIViewRepresentable {
     let active: Bool
-    let reviewing: Bool
     let enabled: Bool
     let start: () -> Void
-    let review: () -> Void
+    let stop: () -> Void
+    let cancel: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -176,9 +166,10 @@ private struct AtlasMicrophoneTouchTarget: UIViewRepresentable {
             button.isEnabled = enabled
             button.gestureRecognizers?.forEach { $0.isEnabled = enabled }
         }
-        button.accessibilityLabel = reviewing ? "Cancel voice input" : active ? "Stop dictation" : "Transcribe a voice message"
-        button.accessibilityHint = active ? "Your typed draft stays unchanged." : "Hold while speaking and release to review. "
-            + "Tap to start or stop hands-free dictation. Nothing is sent automatically."
+        button.accessibilityLabel = active ? "Stop dictation" : "Transcribe a voice message"
+        button.accessibilityHint = active ? "Adds editable text to your draft. Does not send a message."
+            : "Hold while speaking and release to add editable text. "
+                + "Tap to start or stop hands-free dictation. Nothing is sent automatically."
         button.accessibilityIdentifier = "thread-microphone"
     }
 
@@ -190,24 +181,26 @@ private struct AtlasMicrophoneTouchTarget: UIViewRepresentable {
 
         @objc func tap() {
             guard parent.enabled else { return }
-            if parent.active { parent.review() } else { parent.start() }
+            if parent.active { parent.stop() } else { parent.start() }
         }
 
         @objc func hold(_ recognizer: UILongPressGestureRecognizer) {
             switch recognizer.state {
             case .began:
                 guard parent.enabled else { return }
+                if parent.active { parent.stop(); return }
                 holding = true
                 parent.start()
-            case .ended, .cancelled: endHold()
+            case .ended: endHold(cancelled: false)
+            case .cancelled, .failed: endHold(cancelled: true)
             default: break
             }
         }
 
-        func endHold() {
+        func endHold(cancelled: Bool) {
             guard holding else { return }
             holding = false
-            parent.review()
+            if cancelled { parent.cancel() } else { parent.stop() }
         }
     }
 }

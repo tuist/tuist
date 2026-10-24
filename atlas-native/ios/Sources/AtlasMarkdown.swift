@@ -4,6 +4,7 @@ import SwiftUI
 /// executable diagrams. Code and unsupported syntax remain selectable text.
 struct AtlasMarkdown: View {
     let source: String
+    @ScaledMetric(relativeTo: .body) private var tableColumnWidth: CGFloat = 200
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -15,8 +16,8 @@ struct AtlasMarkdown: View {
                         ScrollView(.horizontal) { Text(text).font(.callout.monospaced()).textSelection(.enabled) }
                     }
                     .padding(12).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-                case let .heading(level, text):
-                    Text(Self.inline(text)).font(level <= 2 ? .title3.bold() : .headline).textSelection(.enabled)
+                case let .heading(_, text):
+                    Text(Self.inline(text)).font(.body.weight(.semibold)).textSelection(.enabled)
                         .accessibilityAddTraits(.isHeader)
                 case let .quote(text):
                     HStack(alignment: .top) {
@@ -35,7 +36,9 @@ struct AtlasMarkdown: View {
                                 GridRow {
                                     ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                                         Text(Self.inline(cell)).fontWeight(index == 0 ? .semibold : .regular)
-                                            .textSelection(.enabled).frame(maxWidth: 260, alignment: .leading)
+                                            .textSelection(.enabled)
+                                            .frame(width: tableColumnWidth, alignment: .leading)
+                                            .fixedSize(horizontal: false, vertical: true)
                                     }
                                 }
                                 if index == 0 { Divider().gridCellUnsizedAxes(.horizontal) }
@@ -47,6 +50,7 @@ struct AtlasMarkdown: View {
                 }
             }
         }
+        .font(.body)
         .environment(\.openURL, OpenURLAction { url in
             ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") ? .systemAction : .discarded
         })
