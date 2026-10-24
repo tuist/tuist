@@ -7,15 +7,15 @@ struct AtlasThreadDetail: View {
     let thread: AtlasThread
     let selfId: String?
     @State private var addressAgent = false
-    @State private var followLatest = true
-    @State private var scrollMetrics: AtlasThreadScrollMetrics?
-    @State private var scrollBaseline: CGFloat?
+    @State private var scrolling = AtlasThreadScrollState()
+    @State private var latestScrollRequest = 0
     @State private var visibleMessageID: String?
     @State private var jumpingToPrompt = false
     @State private var hasShownMessages = false
     @State private var openingHistory = true
     @State private var pagingHistory = false
     @State private var showingInfo = false
+    @State private var confirmingShare = false
     @StateObject private var voice = AtlasVoiceInput()
     @State private var startingVoice: Task<Void, Never>?
     @State private var photosPresented = false
@@ -32,7 +32,7 @@ struct AtlasThreadDetail: View {
     private var assistantName: String { model.assistant?.name ?? "Pip" }
     private var current: AtlasThread { model.selected ?? thread }
     private var showsWelcome: Bool {
-        thread.kind == "private" && model.selected?.id == thread.id && model.messages.isEmpty
+        current.kind == "private" && model.selected?.id == thread.id && model.messages.isEmpty
             && !openingHistory && !model.loadingHistory && model.errorMessage == nil
             && !["queued", "running", "compacting"].contains(current.agentStatus ?? "")
     }
@@ -49,7 +49,7 @@ struct AtlasThreadDetail: View {
                                 .disabled(model.loadingHistory || pagingHistory).frame(minHeight: 44)
                                 .accessibilityIdentifier("thread-earlier")
                         }
-                        if thread.kind == "private" {
+                        if current.kind == "private" {
                             Label("Private · Only you and \(assistantName)", systemImage: "lock")
                                 .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
                             if showsWelcome {
@@ -84,51 +84,48 @@ struct AtlasThreadDetail: View {
                         }
                     }
                 }
-                .scrollPosition(id: $visibleMessageID)
-                .modifier(AtlasThreadScrollObserver { metrics in
-                    let previous = scrollMetrics
-                    scrollMetrics = metrics
-                    let atBottom = metrics.bottom >= 0 && metrics.bottom <= metrics.viewport + 20
-                    // Content growth changes height and bottom equally; only scrolling changes their difference.
-                    if previous?.viewport != metrics.viewport { scrollBaseline = metrics.offset }
-                    let baseline = max(scrollBaseline ?? metrics.offset, metrics.offset)
-                    let movedUp = metrics.offset < baseline - 1
-                    scrollBaseline = movedUp ? metrics.offset : baseline
-                    if !jumpingToPrompt, atBottom || movedUp { followLatest = atBottom }
-                    if followLatest, !jumpingToPrompt, !showsWelcome, previous?.height != metrics.height {
-                        scroll.scrollTo("thread-latest", anchor: .bottom)
-                    }
-                    if hasShownMessages, !followLatest, !jumpingToPrompt, metrics.offset < 240,
+                .scrollPosition(id: Binding(get: { scrolling.following ? nil : visibleMessageID }, set: {
+                    if !scrolling.following { visibleMessageID = $0 }
+                }))
+                .modifier(AtlasThreadScrollObserver(update: { metrics in
+                    if !jumpingToPrompt, scrolling.update(metrics), !showsWelcome { latestScrollRequest += 1 }
+                    if hasShownMessages, !scrolling.following, !jumpingToPrompt, metrics.offset < 240,
                        model.hasOlder, !model.loadingHistory, !pagingHistory, model.errorMessage == nil {
                         Task { await loadEarlier() }
                     }
-                })
+                }, interaction: { scrolling.userScrolling = $0 }))
+                .task(id: latestScrollRequest) {
+                    // Coalesce model and geometry updates after the footer's new layout is available.
+                    await Task.yield()
+                    guard !Task.isCancelled, scrolling.following, !jumpingToPrompt, !showsWelcome else { return }
+                    scroll.scrollTo("thread-latest", anchor: .bottom)
+                }
                 .defaultScrollAnchor(showsWelcome ? .top : .bottom)
                 .scrollDismissesKeyboard(.interactively)
                 .modifier(AtlasThemedContent())
                 .refreshable { await model.history() }
                 .onChange(of: model.messages.last?.id, initial: true) { _, latest in
                     guard latest != nil else { return }
-                    if !hasShownMessages || followLatest { scroll.scrollTo("thread-latest", anchor: .bottom) }
+                    if !hasShownMessages || scrolling.following { latestScrollRequest += 1 }
                     hasShownMessages = true
                 }
                 .onChange(of: model.activityMessage) { _, _ in
-                    if followLatest { scroll.scrollTo("thread-latest", anchor: .bottom) }
+                    if scrolling.following { latestScrollRequest += 1 }
                 }
                 .onChange(of: geometry.size.height) { _, _ in
-                    if followLatest, !showsWelcome { scroll.scrollTo("thread-latest", anchor: .bottom) }
+                    if scrolling.following, !showsWelcome { latestScrollRequest += 1 }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    AtlasThreadNavigation(messages: model.messages, shared: thread.kind != "private",
+                    AtlasThreadNavigation(messages: model.messages, shared: current.kind != "private",
                                           hasOlder: model.hasOlder, loading: model.loadingHistory,
-                                          showsLatest: !followLatest && !showsWelcome && !model.messages.isEmpty,
+                                          showsLatest: !scrolling.following && !showsWelcome && !model.messages.isEmpty,
                                           older: { await loadEarlier() }, jump: { id in
-                        followLatest = id == "thread-latest"
+                        scrolling.following = id == "thread-latest"
                         jumpingToPrompt = true
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) {
                             scroll.scrollTo(id, anchor: id == "thread-latest" ? .bottom : .top)
                         } completion: {
-                            followLatest = id == "thread-latest"
+                            scrolling.following = id == "thread-latest"
                             jumpingToPrompt = false
                         }
                     })
@@ -142,7 +139,7 @@ struct AtlasThreadDetail: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { composer }
-        .navigationTitle(thread.kind == "private" ? assistantName : thread.title)
+        .navigationTitle(current.kind == "private" ? assistantName : current.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -151,6 +148,12 @@ struct AtlasThreadDetail: View {
             }
         }
         .sheet(isPresented: $showingInfo) { details }
+        .alert("Share this conversation?", isPresented: $confirmingShare) {
+            Button("Cancel", role: .cancel) {}
+            Button("Share and send") { send() }
+        } message: {
+            Text("Tagged people will be able to read the existing messages and attachments. They will receive a ping and a conversation recap.")
+        }
         .modifier(AtlasAttachmentPicker(photosPresented: $photosPresented, filesPresented: $filesPresented, upload: { file in
             guard !Task.isCancelled, model.selected?.id == thread.id else { return }
             await model.upload(filename: file.filename, contentType: file.contentType, data: file.data)
@@ -185,7 +188,7 @@ extension AtlasThreadDetail {
     private func loadEarlier() async {
         guard !pagingHistory, !model.loadingHistory, model.hasOlder else { return }
         pagingHistory = true
-        followLatest = false
+        scrolling.following = false
         await model.history(older: true)
         pagingHistory = false
     }
@@ -211,7 +214,7 @@ extension AtlasThreadDetail {
                         .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("thread-presence")
                 }
             }
-            if thread.kind != "private" {
+            if current.kind != "private" {
                 Button { addressAgent.toggle() } label: {
                     Label("Ask \(assistantName)", systemImage: addressAgent ? "checkmark.circle.fill" : "sparkles")
                         .font(.subheadline.weight(.medium)).frame(minHeight: 44)
@@ -224,9 +227,10 @@ extension AtlasThreadDetail {
                 Text(error).font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("thread-voice-error")
             }
+            AtlasThreadMentions(model: model, shared: current.kind != "private")
             AtlasDraftAttachments(model: model, open: openAttachment)
             AtlasThreadComposer(draft: Binding(get: { model.draft }, set: { model.draft = $0 }),
-                                placeholder: thread.kind == "private" ? "Ask \(assistantName)" : "Message the team",
+                                placeholder: current.kind == "private" ? "Ask \(assistantName)" : "Message the team",
                                 saving: model.saving || model.attachmentBusy || model.pendingUploadName != nil, phase: voice.phase,
                                 levels: voice.levels, hasAttachments: !model.draftAttachments.isEmpty,
                                 addPhotos: { photosPresented = true }, addFiles: { filesPresented = true },
@@ -240,8 +244,7 @@ extension AtlasThreadDetail {
                 startingVoice?.cancel()
                 voice.cancel()
             }, send: {
-                followLatest = true
-                Task { await model.send(addressAgent: addressAgent) }
+                if current.kind == "private", !model.draftMentions.isEmpty { confirmingShare = true } else { send() }
             })
             .disabled(model.selected?.id != thread.id)
         }
@@ -251,6 +254,12 @@ extension AtlasThreadDetail {
             (theme.map { Color(atlasHex: $0.palette(scheme).background) } ?? Color(uiColor: .systemBackground))
                 .ignoresSafeArea(edges: .bottom)
         }
+    }
+
+    private func send() {
+        scrolling.following = true
+        latestScrollRequest += 1
+        Task { await model.send(addressAgent: addressAgent) }
     }
 
     private var details: some View {
@@ -273,13 +282,6 @@ extension AtlasThreadDetail {
     }
 }
 
-private struct AtlasThreadScrollMetrics: Equatable {
-    let height: CGFloat
-    let bottom: CGFloat
-    let viewport: CGFloat
-    var offset: CGFloat { height - bottom }
-}
-
 private struct AtlasThreadScrollPreference: PreferenceKey {
     static var defaultValue: AtlasThreadScrollMetrics? { nil }
     static func reduce(value: inout AtlasThreadScrollMetrics?, nextValue: () -> AtlasThreadScrollMetrics?) { value = nextValue() }
@@ -287,16 +289,22 @@ private struct AtlasThreadScrollPreference: PreferenceKey {
 
 private struct AtlasThreadScrollObserver: ViewModifier {
     let update: (AtlasThreadScrollMetrics) -> Void
+    let interaction: (Bool) -> Void
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
             content.onScrollGeometryChange(for: AtlasThreadScrollMetrics.self) { geometry in
                 AtlasThreadScrollMetrics(height: geometry.contentSize.height,
-                                         bottom: geometry.contentSize.height - geometry.contentOffset.y,
-                                         viewport: geometry.containerSize.height)
+                                         bottom: geometry.contentSize.height + geometry.contentInsets.bottom - geometry.contentOffset.y,
+                                         viewport: geometry.containerSize.height,
+                                         inset: geometry.contentInsets.top + geometry.contentInsets.bottom)
             } action: { _, metrics in
                 update(metrics)
             }
+            .onScrollPhaseChange { _, phase in
+                interaction(phase == .interacting || phase == .decelerating)
+            }
+            .onAppear { interaction(false) }
         } else {
             content.onPreferenceChange(AtlasThreadScrollPreference.self) { metrics in
                 if let metrics { update(metrics) }

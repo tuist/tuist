@@ -21,8 +21,19 @@ struct AtlasThreadMessageView: View {
     var body: some View {
         Group {
             if message.kind == "system" {
-                Text(message.body).font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity).multilineTextAlignment(.center)
+                if message.noticeKind == "handoff" {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Conversation recap", systemImage: "person.badge.plus").font(.headline)
+                        Text(message.body).font(.callout).textSelection(.enabled)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(fill, in: RoundedRectangle(cornerRadius: 16))
+                    .accessibilityIdentifier("thread-handoff")
+                } else {
+                    Text(message.body).font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).multilineTextAlignment(.center)
+                }
             } else {
                 HStack(alignment: .bottom, spacing: 0) {
                     if outgoing { Spacer(minLength: 40) }

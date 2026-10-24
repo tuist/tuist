@@ -49,7 +49,9 @@ WebView, remote images, custom-scheme links or executable fenced content.
 Orbit's welcome and empty private thread use the bundled `AtlasPipView` mascot and
 draft suggestions. Touch duration and tap cadence vary its expressions; never claim
 pressure sensing. Reduce Motion preserves expression changes without movement.
-Orbit lists private conversations on the theme canvas. Navbar compose opens a distinct
+Orbit lists private conversations as flat title/date rows on the theme canvas, without
+grouped surfaces or disclosure chevrons. Dates accept server microseconds and legacy
+whole seconds. Navbar compose opens a distinct
 private conversation with welcome/suggestions, rather than a fixed bottom Ask bar. Suggestions
 append to the existing draft and never send. Notification links select an authorized
 thread by UUID through Rust before showing its detail; tab returns must not replay them.
@@ -66,9 +68,12 @@ Its prompt index lists loaded human messages with timestamps (and authors in sha
 threads), loads earlier history explicitly and scrolls to stable message IDs without
 changing drafts or execution state. Dismiss the index sheet before animating its jump;
 Reduce Motion jumps without animation. Follow appended and growing content only while
-the person is at the bottom, preserving history readers' positions. Derive scrolling from
-native scroll geometry on iOS 18+, with global content/viewport geometry on iOS 17,
-rather than drag lifetime so indirect scrolling and deceleration also stop following.
+the person is at the bottom, preserving history readers' positions. `AtlasThreadScrollState`
+keeps follow intent through lazy layout, activity and keyboard corrections. Native scroll
+phases distinguish user scrolling/deceleration on iOS 18+; iOS 17 rebases geometry across
+layout changes and accumulates slow movement. Preserve row-position binding only while
+reading history; it must not compete with the bottom anchor. Coalesce bottom requests
+after layout and keep correcting until geometry reaches the bottom, including content insets.
 Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
 current visible message through SwiftUI scroll-position binding, not a forced jump to the

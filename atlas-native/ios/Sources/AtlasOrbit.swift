@@ -18,6 +18,12 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
     let updatedAt: String
     let agentStatus: String?
 
+    var updatedDate: Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: updatedAt) ?? ISO8601DateFormatter().date(from: updatedAt)
+    }
+
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
@@ -60,6 +66,8 @@ struct AtlasThreadMessage: Decodable, Identifiable {
     let toolOutput: String
     let component: AtlasThreadComponent?
     let attachments: [AtlasThreadAttachment]?
+    let noticeKind: String?
+    let mentionedUserIds: [String]?
 }
 
 struct AtlasOrbitAssistant: Decodable {
@@ -84,6 +92,8 @@ final class AtlasOrbit: ObservableObject {
         let messages: [AtlasThreadMessage]
         let people: [Viewer]
         let draft: String
+        let draftMentions: [AtlasThreadPerson]?
+        let mentionCandidates: [AtlasThreadPerson]?
         let draftAttachments: [AtlasThreadAttachment]?
         let attachmentBusy: Bool?
         let uploadPending: Bool?
@@ -112,6 +122,8 @@ final class AtlasOrbit: ObservableObject {
     var messages: [AtlasThreadMessage] { state?.messages ?? [] }
     var viewers: [Viewer] { state?.people ?? [] }
     var draftAttachments: [AtlasThreadAttachment] { state?.draftAttachments ?? [] }
+    var draftMentions: [AtlasThreadPerson] { state?.draftMentions ?? [] }
+    var mentionCandidates: [AtlasThreadPerson] { state?.mentionCandidates ?? [] }
     var attachmentBusy: Bool { attaching || state?.attachmentBusy == true }
     var pendingUploadName: String? { state?.uploadPending == true ? state?.uploadFilename : nil }
     var loading: Bool { state?.loading ?? false }
@@ -168,7 +180,7 @@ final class AtlasOrbit: ObservableObject {
     }
 
     func load(more: Bool = false) async {
-        await perform(more ? ["action": "load_more"] : ["action": "load", "kind": "private"])
+        await perform(more ? ["action": "load_more"] : ["action": "load"])
     }
 
     func privateThread() async -> AtlasThread? {
@@ -203,6 +215,24 @@ final class AtlasOrbit: ObservableObject {
     }
 
     func history(older: Bool = false) async { await perform(["action": "history", "older": older]) }
+
+    func searchPeople(query: String) async {
+        guard let id = selected?.id else { return }
+        await perform(["action": "people", "id": id, "query": query])
+    }
+
+    func mention(_ person: AtlasThreadPerson) async {
+        guard let connection, let id = selected?.id else { return }
+        await draftTask?.value
+        do {
+            let snapshot: Snapshot = try decode(await localRequest([
+                "action": "mention", "connection": connection, "id": id, "user_id": person.id
+            ]))
+            apply(snapshot)
+        } catch is CancellationError { return } catch {
+            adapterError = error.localizedDescription
+        }
+    }
 
     func send(addressAgent: Bool) async {
         guard !saving, !attachmentBusy, let id = selected?.id else { return }

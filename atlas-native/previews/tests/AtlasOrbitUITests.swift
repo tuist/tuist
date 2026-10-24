@@ -11,7 +11,7 @@ final class AtlasOrbitUITests: XCTestCase {
         let privateThread = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
         XCTAssertTrue(privateThread.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(privateThread.frame.height, 44)
-        XCTAssertFalse(app.buttons["thread-01922cc0-0000-7000-8000-000000000002"].exists)
+        XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000002"].exists)
         XCTAssertFalse(app.buttons["Ask Pip"].exists)
         capture(app, "ios-orbit-list-preview")
         privateThread.tap()
@@ -332,7 +332,7 @@ final class AtlasOrbitUITests: XCTestCase {
             let compose = app.buttons["orbit-create"]
             XCTAssertTrue(compose.waitForExistence(timeout: 10))
             XCTAssertFalse(app.buttons["pip-mascot"].exists)
-            XCTAssertFalse(app.buttons["thread-01922cc0-0000-7000-8000-000000000002"].exists)
+            XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000002"].exists)
             capture(app, "ios-orbit-conversations-\(arguments.isEmpty ? "light" : "dark-large")-preview")
             compose.tap()
             let mascot = app.buttons["pip-mascot"]
@@ -356,9 +356,10 @@ final class AtlasOrbitUITests: XCTestCase {
     }
 
     @MainActor func testBottomFollowsAppendedAndGrowingReplyWithoutMovingHistoryReaders() throws {
-        for readingHistory in [false, true] {
+        for mode in ["short", "long", "keyboard", "history"] {
+            let readingHistory = mode == "history"
             let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
-            app.launchArguments = ["--workspace", "--orbit-follow"] + (readingHistory ? ["--orbit-prompts"] : [])
+            app.launchArguments = ["--workspace", "--orbit-follow"] + (mode == "short" ? [] : ["--orbit-prompts"])
             app.launch()
             defer { app.terminate() }
             XCUIDevice.shared.orientation = .portrait
@@ -377,15 +378,21 @@ final class AtlasOrbitUITests: XCTestCase {
                 let appended = app.staticTexts["A new reply appeared."]
                 XCTAssertTrue(appended.waitForExistence(timeout: 10))
                 XCTAssertTrue(appended.isHittable)
+                if mode == "keyboard" {
+                    let composer = app.textFields["thread-composer"]
+                    composer.tap()
+                    composer.typeText("Keep this draft.\nA second line while Pip replies.")
+                    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+                }
             }
             let complete = app.staticTexts["The growing reply is complete."]
             if readingHistory {
                 // An offscreen lazy row need not exist in accessibility while its body grows.
                 let started = Date()
                 let delivered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-                    Date().timeIntervalSince(started) >= 13
+                    Date().timeIntervalSince(started) >= 19
                 }, object: nil)
-                XCTAssertEqual(XCTWaiter.wait(for: [delivered], timeout: 15), .completed)
+                XCTAssertEqual(XCTWaiter.wait(for: [delivered], timeout: 21), .completed)
                 let firstPrompt = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "release-notes.txt")).firstMatch
                 XCTAssertTrue(firstPrompt.isHittable)
                 XCTAssertFalse(complete.isHittable)
@@ -394,12 +401,19 @@ final class AtlasOrbitUITests: XCTestCase {
                 app.buttons["Latest messages"].tap()
                 XCTAssertTrue(complete.waitForExistence(timeout: 5))
             } else {
-                XCTAssertTrue(complete.waitForExistence(timeout: 15))
+                XCTAssertTrue(complete.waitForExistence(timeout: 20))
                 let follows = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
                     complete.isHittable && complete.frame.maxY <= app.textFields["thread-composer"].frame.minY
                 }, object: nil)
                 XCTAssertEqual(XCTWaiter.wait(for: [follows], timeout: 5), .completed)
-                capture(app, "ios-orbit-growing-reply-follow-latest-preview")
+                XCTAssertFalse(app.buttons["Latest messages"].exists)
+                capture(app, "ios-orbit-growing-reply-\(mode)-follow-latest-preview")
+                if mode == "keyboard" {
+                    app.buttons["thread-info"].tap()
+                    app.buttons["Done"].tap()
+                    XCTAssertTrue(complete.isHittable)
+                    XCTAssertTrue((app.textFields["thread-composer"].value as? String)?.contains("Keep this draft.") == true)
+                }
             }
             app.terminate()
         }

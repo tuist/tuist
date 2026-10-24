@@ -188,10 +188,16 @@ final class AtlasOrbitPreviewData: ObservableObject {
             messages += sent
             if follow, let followStarted {
                 let elapsed = followStarted.duration(to: clock.now).components.seconds
+                selected?["agent_status"] = elapsed < 6 ? "queued" : (elapsed < 18 ? "running" : "idle")
                 if elapsed >= 6 {
-                    let body = elapsed < 12 ? "A new reply appeared." : "A new reply appeared.\n\n" +
-                        (1...12).map { "Step \($0): Compare the fixture evidence, validate the affected projects, and keep the rollout reversible." }
-                            .joined(separator: "\n\n") + "\n\nThe growing reply is complete."
+                    let steps = min(12, max(0, Int(elapsed - 9) * 2))
+                    var body = "A new reply appeared."
+                    if steps > 0 {
+                        body += "\n\n" + (1...steps).map {
+                            "Step \($0): Compare the fixture evidence, validate the affected projects, and keep the rollout reversible."
+                        }.joined(separator: "\n\n")
+                    }
+                    if elapsed >= 18 { body += "\n\nThe growing reply is complete." }
                     messages.append(message(id: "follow-reply", kind: "agent", body: body))
                 }
             }
@@ -275,7 +281,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private func thread(id: String, title: String, kind: String) -> [String: Any] {
         ["id": id, "title": title, "kind": kind, "status": "active", "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
          "origin": kind == "private" ? "manual" : "signal", "owner_id": "preview-self", "participants": [["id": "preview-self", "name": "Taylor"]],
-         "updated_at": "2027-06-07T10:42:00Z"]
+         "updated_at": "2026-10-24T10:42:00.123456Z"]
     }
 
     private func message(id: String, kind: String, body: String, extra: [String: Any] = [:]) -> [String: Any] {
