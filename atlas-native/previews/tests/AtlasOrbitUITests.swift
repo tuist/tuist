@@ -108,6 +108,10 @@ final class AtlasOrbitUITests: XCTestCase {
         privateThread.tap()
         XCTAssertTrue(app.staticTexts["Pip is getting ready…"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Pip is responding…"].waitForExistence(timeout: 8))
+        let activity = app.staticTexts["thread-agent-activity"]
+        let composer = app.textFields["thread-composer"]
+        XCTAssertTrue(app.scrollViews.firstMatch.frame.contains(activity.frame))
+        XCTAssertLessThanOrEqual(activity.frame.maxY, composer.frame.minY)
         capture(app, "ios-orbit-working-preview")
         XCTAssertTrue(app.staticTexts["Compacting context…"].waitForExistence(timeout: 8))
         capture(app, "ios-orbit-compacting-preview")
@@ -139,18 +143,88 @@ final class AtlasOrbitUITests: XCTestCase {
         let microphone = app.buttons["thread-microphone"]
         XCTAssertTrue(microphone.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(microphone.frame.height, 44)
-        try app.visibleElement("Account lookup · succeeded").tap()
-        let accountCard = app.descendants(matching: .any)["thread-account-card"].firstMatch
-        XCTAssertTrue(accountCard.waitForExistence(timeout: 5))
-        let source = try app.visibleElement("thread-card-source")
+        let accountCard = try app.visibleElement("thread-account-card", up: false)
+        XCTAssertTrue(accountCard.isHittable)
+        let source = try visibleCardSource(in: app)
         XCTAssertGreaterThanOrEqual(source.frame.height, 44)
         XCTAssertFalse(app.staticTexts["Result"].exists)
         capture(app, "ios-orbit-account-card-habibi-\(largeDark ? "large-dark" : "light")-preview")
         source.tap()
-        XCTAssertTrue(app.staticTexts["Result"].waitForExistence(timeout: 5))
+        XCTAssertTrue(try app.visibleElement("Result").isHittable)
         for _ in 0..<8 where !app.staticTexts["Account overview"].isHittable { app.scrollContent(up: false) }
         XCTAssertTrue(app.staticTexts["Account overview"].isHittable)
         capture(app, "ios-orbit-markdown-\(largeDark ? "large-dark" : "light")-preview")
+    }
+
+    @MainActor private func visibleCardSource(in app: XCUIApplication) throws -> XCUIElement {
+        let source = app.descendants(matching: .any).matching(identifier: "thread-card-source").firstMatch
+        let composer = app.textFields["thread-composer"]
+        for _ in 0..<10 {
+            // NativeShell can expose an offscreen child as hittable. Require its whole target inside the transcript.
+            let top = app.navigationBars.firstMatch.frame.maxY
+            let bottom = composer.frame.minY
+            if source.exists, source.isHittable, source.frame.minY >= top, source.frame.maxY <= bottom { return source }
+            app.scrollContent(up: !source.exists || source.frame.maxY > bottom)
+        }
+        return try XCTUnwrap(nil as XCUIElement?, "Missing visible account-card source action")
+    }
+
+    @MainActor func testInlineAccountEvidenceHeaderRevealsSource() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--orbit-rich"]
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 10))
+        app.buttons["orbit-private"].tap()
+        XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+        try app.visibleElement("Account lookup · succeeded").tap()
+        XCTAssertTrue(try app.visibleElement("Result").isHittable)
+        capture(app, "ios-orbit-inline-account-expanded-evidence-preview")
+    }
+
+    @MainActor func testComposerActionsAreCompactAndAlignedWithSingleAndMultilineDrafts() throws {
+        for arguments in [[], ["--dark", "--large-text"]] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace"] + arguments
+            app.launch()
+            defer { app.terminate() }
+            XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 10))
+            app.buttons["orbit-private"].tap()
+            let draft = app.textFields["thread-composer"]
+            XCTAssertTrue(draft.waitForExistence(timeout: 5))
+            for text in ["", "Compare these accounts.", "\nAnd their recent activity.\nInclude the latest billing details."] {
+                if !text.isEmpty { draft.tap(); draft.typeText(text) }
+                let microphone = app.buttons["thread-microphone"]
+                let send = app.buttons["thread-send"]
+                XCTAssertEqual(microphone.frame.height, 44, accuracy: 1)
+                XCTAssertEqual(send.frame.height, 44, accuracy: 1)
+                XCTAssertEqual(send.frame.width, 44, accuracy: 1)
+                XCTAssertEqual(send.frame.midY, microphone.frame.midY, accuracy: 1)
+                if app.keyboards.firstMatch.exists { XCTAssertLessThanOrEqual(send.frame.maxY, app.keyboards.firstMatch.frame.minY) }
+            }
+            capture(app, "ios-orbit-composer-aligned-preview")
+        }
+    }
+
+    @MainActor func testVoiceHoldReleasesToReviewWithoutAcceptingOrSending() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--voice-input"]
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["thread-voice-cancel"].waitForExistence(timeout: 10))
+        app.buttons["thread-voice-cancel"].tap()
+        let microphone = app.buttons["thread-microphone"]
+        microphone.press(forDuration: 1)
+        XCTAssertTrue(app.staticTexts["Review your transcript"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["voice-preview-draft"].value as? String, "Existing draft.")
+        capture(app, "ios-orbit-voice-hold-release-fixture")
+        app.buttons["thread-voice-cancel"].tap()
+        microphone.tap()
+        XCTAssertTrue(app.staticTexts["Transcribing on this device"].waitForExistence(timeout: 5))
+        microphone.tap()
+        XCTAssertTrue(app.staticTexts["Review your transcript"].waitForExistence(timeout: 5))
+        app.buttons["thread-voice-done"].tap()
+        XCTAssertEqual(app.textFields["voice-preview-draft"].value as? String, "Existing draft. Compare the latest build timings.")
     }
 
     @MainActor func testVoicePresentationPreservesDraftOnCancelAndAppendsOnlyOnDone() throws {

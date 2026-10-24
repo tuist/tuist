@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class AtlasOrbitPreviewData: ObservableObject {
     private var sequence = 0
+    private var loads = 0
     private let clock = ContinuousClock()
     private var activityStarted: ContinuousClock.Instant?
     private var rich: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-rich") }
@@ -18,6 +19,11 @@ final class AtlasOrbitPreviewData: ObservableObject {
         if action["action"] as? String == "open" { return Data("{\"connection\":\"preview-only\"}".utf8) }
         let command = action["command"] as? [String: Any] ?? [:]
         switch command["action"] as? String {
+        case "load":
+            loads += 1
+            if loads > 1, ProcessInfo.processInfo.arguments.contains("--fail-orbit-refresh") {
+                throw AtlasAuthenticationError(kind: "server", message: "Preview refresh failed. Loaded threads are retained.")
+            }
         case "private":
             selected = thread(id: privateID, title: "Pip", kind: "private")
             activityStarted = clock.now

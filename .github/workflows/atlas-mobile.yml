@@ -251,6 +251,7 @@ jobs:
             -only-testing:AtlasSettingsUITests/AtlasBusinessUITests \
             -only-testing:AtlasSettingsUITests/AtlasWorkspaceUITests \
             -only-testing:AtlasSettingsUITests/AtlasNavigationUITests \
+            -only-testing:AtlasSettingsUITests/AtlasOrbitUITests \
             -skip-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
             -resultBundlePath "$PWD/ui-evidence/native-ui.xcresult" || ui_status=$?
           kill -INT "$recording"

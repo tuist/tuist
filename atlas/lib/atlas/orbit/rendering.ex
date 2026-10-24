@@ -12,13 +12,52 @@ defmodule Atlas.Orbit.Rendering do
   @input_limit 2_000
   @output_limit 4_000
   @model_limit 24_000
+  @account_summary_fields ~w(name primary_domain status segment deal_stage legal_name)
   @redacted "[redacted]"
   @sensitive ~r/(token|secret|password|passphrase|api_?key|credential|authorization|cookie|dsn|signature|signed|download_url|upload_url|private_key|license_key|verifier)/i
 
   def input(arguments) when is_map(arguments), do: arguments |> redact() |> encode() |> truncate(@input_limit)
+
   def input(_arguments), do: ""
 
-  def output(result), do: result |> normalize() |> redact() |> encode() |> truncate(@output_limit)
+  def output(result, tool_name \\ nil) do
+    value = result |> normalize() |> redact()
+    rendered = encode(value)
+
+    if tool_name == "get_account" and (String.length(rendered) > @output_limit or byte_size(rendered) > @output_limit) do
+      account_summary(value, rendered)
+    else
+      truncate(rendered, @output_limit)
+    end
+  end
+
+  # A full account bundle commonly exceeds the evidence budget. Keep a valid,
+  # bounded JSON summary so Components can still project the authorized card.
+  defp account_summary(%{"account" => %{"name" => name} = account}, _rendered) when is_binary(name) and name != "" do
+    summary =
+      account
+      |> Map.take(@account_summary_fields)
+      |> Enum.flat_map(fn
+        {key, value} when is_binary(value) -> [{key, account_field(value)}]
+        _ -> []
+      end)
+      |> Map.new()
+
+    encode(%{
+      "account" => summary,
+      "truncated" => true,
+      "notice" => "Additional account context omitted from this summary."
+    })
+  end
+
+  defp account_summary(_value, rendered), do: truncate(rendered, @output_limit)
+
+  defp account_field(value) do
+    value
+    |> Stream.unfold(&String.next_codepoint/1)
+    |> Enum.take(80)
+    |> Enum.join()
+  end
 
   def for_model(result), do: result |> normalize() |> redact() |> encode() |> truncate(@model_limit)
 

@@ -22,23 +22,37 @@ final class AtlasVoiceInput: ObservableObject {
     private var hasTap = false
     private var audioActive = false
     private var accepted: ((String) -> Void)?
+    private let speechPermission: () async -> SFSpeechRecognizerAuthorizationStatus
+    private let microphonePermission: () async -> Bool
+
+    init(
+        speechPermission: @escaping () async -> SFSpeechRecognizerAuthorizationStatus = {
+            await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+            }
+        },
+        microphonePermission: @escaping () async -> Bool = {
+            await withCheckedContinuation { continuation in
+                AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
+            }
+        }
+    ) {
+        self.speechPermission = speechPermission
+        self.microphonePermission = microphonePermission
+    }
 
     func start() async {
-        guard !busy else { return }
+        guard !busy, !Task.isCancelled else { return }
         generation = UUID()
         let attempt = generation
         phase = .requesting
         transcript = ""
         levels = Array(repeating: 0, count: 24)
         errorMessage = nil
-        let speech = await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
-        }
+        let speech = await speechPermission()
         guard generation == attempt else { return }
         guard speech == .authorized else { fail("Allow speech recognition in Settings to transcribe on this device."); return }
-        let microphone = await withCheckedContinuation { continuation in
-            AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
-        }
+        let microphone = await microphonePermission()
         guard generation == attempt else { return }
         guard microphone else { fail("Allow microphone access in Settings to record a message."); return }
         beginRecording(attempt: attempt)
@@ -126,6 +140,17 @@ final class AtlasVoiceInput: ObservableObject {
         var energy: Float = 0
         for index in 0..<count { energy += samples[index] * samples[index] }
         return min(1, sqrt(energy / Float(count)) * 8)
+    }
+
+    func review() {
+        if phase == .requesting {
+            cancel()
+            errorMessage = "Dictation did not start. After allowing permissions, tap or hold the microphone again."
+            return
+        }
+        guard phase == .recording else { return }
+        stopAudio()
+        phase = .reviewing
     }
 
     func finish(accepted: @escaping (String) -> Void) {

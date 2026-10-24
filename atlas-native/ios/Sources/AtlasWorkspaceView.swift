@@ -21,9 +21,6 @@ struct AtlasWorkspaceView<Profile: View>: View {
         }
         .environment(\.atlasPresence, presence)
         .environment(\.atlasNavigation, navigation)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if let presence { AtlasAlsoHere(presence: presence).padding(.horizontal) }
-        }
         .onAppear { presence?.setActive(scenePhase == .active) }
         .onChange(of: scenePhase) { _, phase in presence?.setActive(phase == .active) }
         .onDisappear { presence?.setActive(false) }
