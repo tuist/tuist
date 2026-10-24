@@ -22,13 +22,13 @@ struct AtlasVoiceInputPreview: View {
                     Text("Review the transcript, then use it in your draft. Nothing is sent automatically.")
                     Text("Preview samples only. The microphone and speech recognizer are not active.")
                         .font(.caption).foregroundStyle(.secondary)
+                    AtlasThreadActivity(message: ProcessInfo.processInfo.arguments.contains("--typing-preview") ? "Typing…" : "Using account lookup…",
+                                        typing: ProcessInfo.processInfo.arguments.contains("--typing-preview"))
                 }.padding()
             }
             .navigationTitle("Pip").navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 VStack {
-                    AtlasThreadActivity(message: ProcessInfo.processInfo.arguments.contains("--typing-preview") ? "Typing…" : "Using account lookup…",
-                                        typing: ProcessInfo.processInfo.arguments.contains("--typing-preview"))
                     AtlasThreadComposer(draft: $draft, placeholder: "Ask Pip", saving: false,
                                         phase: phase, transcript: transcript, levels: levels,
                                         start: { phase = .recording }, review: { phase = .reviewing }, cancel: { phase = .idle }, accept: {
@@ -38,7 +38,7 @@ struct AtlasVoiceInputPreview: View {
                     if phase == .idle {
                         Button("Transcribe fixture") { phase = .recording }.frame(minHeight: 44)
                     }
-                }.padding()
+                }.padding().background(.background)
             }
         }
     }

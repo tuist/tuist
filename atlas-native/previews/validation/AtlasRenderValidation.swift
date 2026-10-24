@@ -55,13 +55,15 @@ final class AtlasRenderValidation: XCTestCase {
     @MainActor func testComposerWithKeyboardAndLargeDarkText() throws {
         for dark in [false, true] {
             let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
-            app.launchArguments = ["--voice-input", "--text-composer", "--typing-preview"] + (dark ? ["--dark", "--large-text"] : [])
+            app.launchArguments = ["--workspace", "--orbit-prompts", "--destination",
+                "dev.tuist.atlas://navigate/orbit/01922cc0-0000-7000-8000-000000000001?server=https%3A%2F%2Fatlas.example.org"]
+                + (dark ? ["--dark", "--large-text"] : [])
             app.launch()
             let composer = app.textFields["thread-composer"]
             XCTAssertTrue(composer.waitForExistence(timeout: 10))
-            capture(app, "text-typing-\(dark ? "dark-large" : "light")")
+            capture(app, "text-thread-\(dark ? "dark-large" : "light")")
             composer.tap()
-            composer.typeText("\nInclude recent activity.")
+            composer.typeText("Compare the query plans.\nInclude recent activity.")
             let send = app.buttons["thread-send"]
             let microphone = app.buttons["thread-microphone"]
             XCTAssertEqual(send.frame.height, 44, accuracy: 1)
