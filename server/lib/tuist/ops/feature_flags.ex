@@ -214,6 +214,13 @@ defmodule Tuist.Ops.FeatureFlags do
           error
       end
     end
+  rescue
+    error in Postgrex.Error ->
+      if match?(%{code: :lock_not_available}, error.postgres) do
+        {:error, :persistence_failed}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp apply_change({name, _, _} = entry, params, principal) do
@@ -324,7 +331,7 @@ defmodule Tuist.Ops.FeatureFlags do
   defp validate_request(params) when is_map(params) do
     with true <- Enum.all?(Map.keys(params), &(&1 in @fields)),
          true <- params["operation"] in ~w(enable disable clear),
-         true <- params["interface"] in ~w(mcp worker slack api),
+         true <- params["interface"] in ~w(mcp worker api),
          true <- is_binary(params["reason"]) and byte_size(params["reason"]) in 1..1000,
          true <- String.trim(params["reason"]) != "",
          true <- is_binary(params["expected_revision"]) and byte_size(params["expected_revision"]) == 64,
@@ -350,20 +357,23 @@ defmodule Tuist.Ops.FeatureFlags do
       else: {:error, :invalid_target}
   end
 
-  defp gate({_, "account", _}, %{"scope" => "account", "account_id" => id} = params) when is_integer(id) and id > 0 do
+  defp gate({_, "account", _}, %{"scope" => "account", "account_id" => id} = params)
+       when is_integer(id) and id > 0 and id <= 9_223_372_036_854_775_807 do
     if target_fields(params) == %{"account_id" => id} and Repo.exists?(from(a in Account, where: a.id == ^id)),
       do: {:ok, Gate.new(:actor, %Account{id: id}, params["operation"] == "enable")},
       else: {:error, :invalid_target}
   end
 
-  defp gate({_, "project", _}, %{"scope" => "project", "project_id" => id} = params) when is_integer(id) and id > 0 do
+  defp gate({_, "project", _}, %{"scope" => "project", "project_id" => id} = params)
+       when is_integer(id) and id > 0 and id <= 9_223_372_036_854_775_807 do
     if target_fields(params) == %{"project_id" => id} and Repo.exists?(from(p in Project, where: p.id == ^id)),
       do: {:ok, Gate.new(:actor, %Project{id: id}, params["operation"] == "enable")},
       else: {:error, :invalid_target}
   end
 
   defp gate({_, actor_type, _}, %{"scope" => "percentage", "operation" => "enable", "percentage" => percentage} = params)
-       when actor_type in ["account", "project"] and is_number(percentage) and percentage > 0 and percentage < 100 do
+       when actor_type in ["account", "project"] and is_number(percentage) and percentage > 0 and percentage < 100 and
+              percentage / 100 > 0 and percentage / 100 < 1 do
     if target_fields(params) == %{"percentage" => percentage},
       do: {:ok, Gate.new(:percentage_of_actors, percentage / 100)},
       else: {:error, :invalid_target}

@@ -153,12 +153,82 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
           %{"scope" => "all"},
           %{"scope" => "global", "reason" => " "},
           %{"scope" => "global", "actor" => %{"id" => "forged", "email" => "test@example.com"}},
-          %{"scope" => "global", "unexpected" => true}
+          %{"scope" => "global", "unexpected" => true},
+          %{"scope" => "global", "interface" => "slack"}
         ] do
       params = request(conn, "runners", Map.put_new(attrs, "operation", "enable"))
       assert conn |> authed() |> put("/api/internal/atlas/flags/runners", params) |> json_response(422)
     end
 
+    assert Repo.aggregate(FeatureFlagChange, :count) == 0
+  end
+
+  test "oversized write targets return typed errors without changes", %{conn: conn} do
+    for {name, attrs} <- [
+          {"runners", %{"scope" => "account", "account_id" => 9_223_372_036_854_775_808}},
+          {"build_entities", %{"scope" => "project", "project_id" => 9_223_372_036_854_775_808}}
+        ] do
+      params = request(conn, name, Map.put(attrs, "operation", "enable"))
+
+      assert %{"error" => "invalid_target"} =
+               conn |> authed() |> put("/api/internal/atlas/flags/#{name}", params) |> json_response(422)
+
+      assert {:ok, %{gates: []}} = Persistence.get(String.to_existing_atom(name))
+    end
+
+    assert Repo.aggregate(FeatureFlagChange, :count) == 0
+  end
+
+  test "rollout ratios that underflow return a typed error without changes", %{conn: conn} do
+    params = request(conn, "runners", %{"operation" => "enable", "scope" => "percentage", "percentage" => 5.0e-324})
+
+    assert %{"error" => "invalid_target"} =
+             conn |> authed() |> put("/api/internal/atlas/flags/runners", params) |> json_response(422)
+
+    assert {:ok, %{gates: []}} = Persistence.get(:runners)
+    assert Repo.aggregate(FeatureFlagChange, :count) == 0
+  end
+
+  test "advisory and table lock timeouts return a retryable error without persisting changes", %{conn: conn} do
+    params = request(conn, "runners", %{"operation" => "enable", "scope" => "global"})
+
+    for lock <- [:advisory, :table] do
+      stub(Repo, :query!, fn sql ->
+        if lock == :table and sql == "LOCK TABLE feature_flags IN SHARE ROW EXCLUSIVE MODE" do
+          raise Postgrex.Error, postgres: %{code: "55P03", severity: "ERROR", message: "lock timeout"}
+        else
+          Mimic.call_original(Repo, :query!, [sql])
+        end
+      end)
+
+      stub(Repo, :query!, fn sql, args ->
+        if lock == :advisory and String.starts_with?(sql, "SELECT pg_advisory_xact_lock") do
+          raise Postgrex.Error, postgres: %{code: "55P03", severity: "ERROR", message: "lock timeout"}
+        else
+          Mimic.call_original(Repo, :query!, [sql, args])
+        end
+      end)
+
+      assert %{"error" => "persistence_failed"} =
+               conn |> authed() |> put("/api/internal/atlas/flags/runners", params) |> json_response(503)
+
+      assert {:ok, %{gates: []}} = Persistence.get(:runners)
+      assert Repo.aggregate(FeatureFlagChange, :count) == 0
+    end
+  end
+
+  test "unexpected database errors are not masked as lock contention", %{conn: conn} do
+    params = request(conn, "runners", %{"operation" => "enable", "scope" => "global"})
+
+    expect(Repo, :query!, fn _sql, _args ->
+      raise Postgrex.Error, postgres: %{code: "XX000", severity: "ERROR", message: "unexpected database failure"}
+    end)
+
+    assert_raise Postgrex.Error, ~r/unexpected database failure/, fn ->
+      conn |> authed() |> put("/api/internal/atlas/flags/runners", params)
+    end
+
+    assert {:ok, %{gates: []}} = Persistence.get(:runners)
     assert Repo.aggregate(FeatureFlagChange, :count) == 0
   end
 

@@ -25,8 +25,8 @@ defmodule Atlas.TuistFeatureFlags do
       "name" => @name_schema["properties"]["name"],
       "operation" => %{"type" => "string", "enum" => ~w(enable disable clear)},
       "scope" => %{"type" => "string", "enum" => ~w(global account project percentage all)},
-      "account_id" => %{"type" => "integer", "minimum" => 1},
-      "project_id" => %{"type" => "integer", "minimum" => 1},
+      "account_id" => %{"type" => "integer", "minimum" => 1, "maximum" => 9_223_372_036_854_775_807},
+      "project_id" => %{"type" => "integer", "minimum" => 1, "maximum" => 9_223_372_036_854_775_807},
       "percentage" => %{
         "type" => "number",
         "exclusiveMinimum" => 0,
@@ -197,14 +197,32 @@ defmodule Atlas.TuistFeatureFlags do
     fields = Map.keys(Map.take(args, ~w(account_id project_id percentage))) |> Enum.sort()
 
     case {args["scope"], args["operation"]} do
-      {"global", _} -> fields == []
-      {"account", _} -> fields == ["account_id"]
-      {"project", _} -> fields == ["project_id"]
-      {"percentage", "enable"} -> fields == ["percentage"]
-      {"percentage", "clear"} -> fields == []
-      {"all", "clear"} -> fields == []
-      _ -> false
+      {"global", _} ->
+        fields == []
+
+      {"account", _} ->
+        fields == ["account_id"]
+
+      {"project", _} ->
+        fields == ["project_id"]
+
+      {"percentage", "enable"} ->
+        fields == ["percentage"] and valid_percentage?(args["percentage"])
+
+      {"percentage", "clear"} ->
+        fields == []
+
+      {"all", "clear"} ->
+        fields == []
+
+      _ ->
+        false
     end
+  end
+
+  defp valid_percentage?(percentage) do
+    ratio = percentage / 100
+    ratio > 0 and ratio < 1
   end
 
   defp validate_interface(opts) do
