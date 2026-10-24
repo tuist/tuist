@@ -24,8 +24,9 @@ name: tuist/tuist Tests
 #
 # Nothing in a deploy or release waits on this workflow. The checkout is the
 # default one, so every job resolves the same commit: on main the pushed commit,
-# on a pull request the run's merge commit (GITHUB_SHA), since the depth-1
-# checkout hides its parents and the CLI can't read the head from HEAD^2.
+# on a pull request the pull request's head, which the CLI reads from the event
+# payload since the depth-1 checkout's grafts hide HEAD^2 (a pinned CLI from
+# before that fix reports the merge commit, GITHUB_SHA).
 on:
   push:
     branches:
