@@ -148,8 +148,12 @@ application verification paths must be assessed separately.
   unrelated/private-CA positives and refresh/OIDC. The full CLI build passed
   after an earlier timeout. macOS and iOS Simulator app builds both passed again
   after the corrected shared helper; simulator compilation is not iOS runtime
-  qualification. Linux FoundationNetworking, complete proxy/gRPC/device flows
-  and independent releases remain open.
+  qualification. Subsequent actual production h2 GetCapabilities and separate-PKI
+  HTTPS CONNECT fixtures pass otherwise-accepted leaf/intermediate/absent-root
+  denies before metadata delivery on both legs, credential separation and restored
+  positives. Six Xcode certificate tests pass including the public opt-in; see
+  [Swift evidence](SWIFT-CLIENTS.md). Linux FoundationNetworking, broader streaming,
+  NO_PROXY/plaintext-proxy/device flows and independent releases remain open.
 
 - Standalone SwifterPM now embeds the twelve-key policy independently of the CLI.
   Its Apple session preserves native validation and rejects keys over the full
