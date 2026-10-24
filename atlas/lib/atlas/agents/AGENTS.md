@@ -7,7 +7,7 @@ ready for independent installation.
 
 ## Runtime and dependencies
 
-- The pinned Condukt 1.13.0 defaults `use Condukt` and anonymous runs to
+- The pinned Condukt 1.13.1 defaults `use Condukt` and anonymous runs to
   `Condukt.AgentRuntimes.Native`. Sessions default to `Condukt.Sandbox.Local`.
   That object accesses the local filesystem; it is not a security isolation
   boundary and does not provision a container or VM.
