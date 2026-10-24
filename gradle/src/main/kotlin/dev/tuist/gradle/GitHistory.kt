@@ -197,15 +197,20 @@ class GitHistoryReader(
             }
         }
 
-        val heads = listOf(headSha) + listOfNotNull(localBaseHeadSha).filter { it != headSha }
+        // On a pull request's merge checkout the head is the merge commit's second parent, which a
+        // depth-1 checkout does not contain.
+        val headInCheckout = commitSha(headSha) != null
+        val heads = listOfNotNull(headSha.takeIf { headInCheckout }) + listOfNotNull(localBaseHeadSha).filter { it != headSha }
         return GitHistory(
             objectFormat = objectFormat,
             headSha = headSha,
             baseBranch = baseBranch,
             mergeBaseSha = mergeBaseSha,
             baseHeadSha = baseHeadSha,
-            commits = windowCommits(heads, limits),
-            fallbackReason = reason
+            commits = if (heads.isEmpty()) emptyList() else windowCommits(heads, limits),
+            fallbackReason = listOfNotNull(reason, "${headSha.take(12)} is not in the checkout".takeUnless { headInCheckout })
+                .joinToString("; ")
+                .ifEmpty { null }
         )
     }
 
