@@ -48,7 +48,7 @@ struct AtlasDestination: Equatable, Hashable {
         components.fragment = nil
         guard let server = components.url, Self.origin(server.absoluteString) != nil else { return nil }
         let pages = AtlasCore.destinationPaths()
-        if let screen = pages.first(where: { $0.value == path })?.key {
+        if let screen = pages.first(where: { $0.value == path && path != "/" })?.key {
             self.init(screen: screen, server: server)
             return
         }
