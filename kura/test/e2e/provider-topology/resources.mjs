@@ -30,6 +30,7 @@ const metricsSourceSHA256 = crypto.createHash("sha256").update(metricsSource).di
 const created = [];
 const dockerCommand = (...args) =>
   execFileSync("docker", args, { encoding: "utf8" });
+const imageId = dockerCommand("image", "inspect", "--format", "{{.Id}}", testImage).trim();
 process.on("exit", () => {
   for (const name of created) {
     try {
@@ -119,7 +120,7 @@ const headers = {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const url = (port, key) =>
   `http://127.0.0.1:${port}/api/cache/gradle/${key}?tenant_id=default&namespace_id=bench`;
-const stats = { puts: 0, gets: 0, handshakes: 0, readBytes: 0, retainedObjects: 0, seedProbeAttempts: 0, seedProbeBytes: 0, failures: [] };
+const stats = { puts: 0, gets: 0, handshakes: 0, readBytes: 0, retainedObjects: 0, seedProbeAttempts: 0, seedProbeBytes: 0, seedProbeSuccesses: 0, seedProbeSuccessBytes: 0, seedProbeFailuresByStatus: {}, failures: [] };
 const tlsOptions = Object.fromEntries(["ca", "cert", "key"].map((key, index) => [key, fs.readFileSync(certs + "/" + ["ca.pem", "peer.pem", "peer.key"][index])]));
 function handshake(index) {
   return new Promise((resolve, reject) => {
@@ -213,12 +214,18 @@ for (const port of [4291, 4292, 4293]) {
       const r = await fetch(url(port, "seed-" + i), { headers });
       const data = Buffer.from(await r.arrayBuffer());
       stats.seedProbeBytes += data.length;
-      if (r.ok && data.equals(bodyFor("seed-" + i))) break;
+      if (r.ok && data.equals(bodyFor("seed-" + i))) {
+        stats.seedProbeSuccesses++;
+        stats.seedProbeSuccessBytes += data.length;
+        break;
+      }
+      stats.seedProbeFailuresByStatus[r.status] = (stats.seedProbeFailuresByStatus[r.status] || 0) + 1;
       if (retry === 59) throw Error("replication did not converge: " + port + "/" + i);
       await sleep(1000);
     }
   }
 }
+stats.loadStartSample = sequence;
 const start = Date.now();
 console.log("seed corpus replicated; starting sustained load");
 await Promise.all([
@@ -244,6 +251,7 @@ await Promise.all([
 stats.loadDurationMs = Date.now() - start;
 stats.loadEndSample = sequence;
 await sleep(30000);
+stats.retentionStartSample = sequence;
 for (const port of [4291, 4292, 4293]) {
   for (const [kind, count] of [["seed", 64], ["load", 256]]) {
     for (let i = 0; i < count; i++) {
@@ -252,6 +260,7 @@ for (const port of [4291, 4292, 4293]) {
     }
   }
 }
+stats.retentionEndSample = sequence;
 await sleep(30000);
 clearInterval(interval);
 await sampling;
@@ -259,7 +268,7 @@ await sample();
 const after = hostStats();
 fs.writeFileSync(
   `${out}/result.json`,
-  JSON.stringify({ stats, before, after, samples: sequence, knownLazyCounters: lazyCounters, metricsSourceSHA256 }, null, 2),
+  JSON.stringify({ schemaVersion: 2, label, imageId, stats, before, after, samples: sequence, knownLazyCounters: lazyCounters, metricsSourceSHA256 }, null, 2),
 );
 console.log(JSON.stringify(stats));
 if (stats.failures.length) process.exitCode = 1;

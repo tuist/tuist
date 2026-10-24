@@ -35,21 +35,42 @@ two-second intervals throughout seeding, load and cooldown.
 
 The summary writes `summary.json` and aggregates simultaneous memory samples across all three nodes,
 reports peak and cooldown values, uses the doubled `_total_total` counters,
-and normalizes CPU to completed client bytes. Prometheus omits unused labeled
+and normalizes CPU to completed client bytes. New runs record phase boundaries,
+per-node memory peaks, 192 successful seed probes/192 MiB and failed probes by
+status. Legacy/unsampled phase measurements stay null with distinct status reasons;
+legacy probe statuses stay null. Phase edges are approximate to one two-second
+scrape and the anonymous-memory gauge can additionally be about one second stale.
+Do not attribute a cost from these asynchronous readings alone. Prometheus omits unused labeled
 counter families entirely, including their TYPE lines. Only pressure transitions, artifact egress
 and segment refresh may start empty, after verifying their `Family<..., Counter>`
 declarations and unconditional registrations in the exact built `metrics.rs`.
 The result records that source hash/schema. Arbitrary missing metrics still
 fail; never substitute zero for an unknown gauge or renamed counter. The runtime has no CPU-seconds
 metric, so `/proc/<kura-pid>/stat` supplies that measurement. Interface transmit
-bytes include mTLS, ACKs, probes and metadata; client egress and peer applied
+bytes include mTLS, ACKs, probes, metrics scrapes and metadata. The summary
+counts stored exposition body bytes within the interface-counter window
+(samples 1 onward, excluding sample 0 before the baseline); comparison shows both raw transmit
+and transmit minus those bodies. This is body-only accounting: HTTP/TCP/IP
+overhead and scrape CPU remain included. It is not full observer-cost removal;
+ client egress and peer applied
 payload counters are reported separately. Disk reports both apparent and allocated bytes, including metadata and segments;
 refresh bytes show write amplification beyond the client and replicated corpus.
 
-`compare.mjs before-1 after-1 after-2 before-2` compares four summaries in ABBA
-order. It rejects unequal completed work or missing/nonfinite measurements and
-reports every delta plus the baseline-to-baseline spread. Positive increases
-outside that spread require review, not an automatic budget waiver. See the
+`compare.mjs before-1 after-1 after-2 before-2` compares summaries in ABBA
+order, accepting one to three complete blocks. The workflow's bounded
+`resource_repetitions` choice defaults to one; use three for additional
+variation/phase investigation without rebuilding between blocks. All runs are
+included, never selected by outcome. Unequal successful work/application egress
+or missing/nonfinite measurements refuse. Convergence retries are measured axes,
+not equality filters: the candidate may itself change convergence time. Report
+all attempt/byte pairs and available status details, including every failed
+probe's CPU and traffic cost. Comparison reports every delta and the complete
+baseline range, plus every block's delta/range and sign agreement. Wider pooled
+ranges are not stronger statistical evidence; a pooled **or any per-block**
+increase beyond its spread remains flagged. Summary labels, image IDs and metrics
+source hashes must identify stable variants in exact ABBA order. Raw phase/per-node
+peaks are included without a verdict. Positive flags require investigation,
+not an automatic budget waiver. See the
 build-only [`certificate-trust` workflow entry point](../certificate-trust/AGENTS.md).
 
 This is a bounded local resource regression check. It covers private-peer TLS,

@@ -26,6 +26,11 @@ on:
         description: Build-only Linux tests, release assembly and ABBA resource evidence (no publication)
         type: boolean
         default: true
+      resource_repetitions:
+        description: Complete ABBA blocks on the same host (build-only qualification)
+        type: choice
+        options: ['1', '2', '3']
+        default: '1'
 
 permissions:
   contents: read
@@ -68,6 +73,7 @@ jobs:
       - name: Build and exercise baseline and candidate on the same host
         env:
           KURA_QUALIFICATION_OUTPUT: ${{ runner.temp }}/kura-trust-evidence
+          KURA_TRUST_RESOURCE_REPETITIONS: ${{ inputs.resource_repetitions || '1' }}
         run: bash test/e2e/certificate-trust/qualify-linux.sh
       - uses: actions/upload-artifact@v4
         if: always()

@@ -38,6 +38,8 @@ evidence. Neither unit suite is four-axis stress, release or rollout clearance.
 The build-only Linux release/resource entry point has its own
 [`test/e2e/certificate-trust/AGENTS.md`](test/e2e/certificate-trust/AGENTS.md);
 keep its private fixture keys out of artifacts and review all measured deltas.
+The [resource fixture node](test/e2e/provider-topology/AGENTS.md) owns convergence,
+observer-cost and phase accounting; never filter runs by convergence outcome.
 
 ## Key Boundaries
 - Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.

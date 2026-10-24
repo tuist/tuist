@@ -65,6 +65,9 @@ the publishing job, and never logs into a registry or configures a remote cache.
 Its artifact allowlist excludes generated private test keys and runnable
 binaries/images; only public evidence and artifact hashes/IDs are retained.
 Successful execution is evidence to review, not deployment or budget approval.
+The bounded `resource_repetitions` choice runs one to three full ABBA blocks on
+that same host, retaining every run. Extra repetitions investigate variation,
+not permission to rerun until a flag disappears.
 See `kura/test/e2e/certificate-trust/AGENTS.md`.
 
 Kura and Android SDK image builds require the shared named `certificate-trust`

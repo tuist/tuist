@@ -7,11 +7,13 @@ cd "$repo/kura"
 : "${RUNNER_TEMP:?an isolated runner temporary directory is required}"
 : "${KURA_QUALIFICATION_OUTPUT:?an isolated evidence directory is required}"
 out=$KURA_QUALIFICATION_OUTPUT
+repetitions=${KURA_TRUST_RESOURCE_REPETITIONS:-1}
+[[ $repetitions =~ ^[1-3]$ ]] || { echo 'one to three ABBA repetitions are required' >&2; exit 1; }
 [[ ! -e $out ]] || { echo 'qualification output already exists' >&2; exit 1; }
 mkdir -p "$out"
 source=$(git rev-parse HEAD)
 base=$(git merge-base HEAD origin/main)
-printf 'SOURCE=%s\nBASELINE=%s\n' "$source" "$base" | tee "$out/SOURCE"
+printf 'SOURCE=%s\nBASELINE=%s\nABBA_REPETITIONS=%s\n' "$source" "$base" "$repetitions" | tee "$out/SOURCE"
 bazel=$(mise which bazel)
 node=$(mise which node)
 "$bazel" version > "$out/bazel-version.txt"
@@ -76,13 +78,19 @@ done
 ' "$out/baseline-layers.json" "$out/candidate-layers.json"
 # ABBA controls order/host variance; only these containers and networks are
 # created and removed by the shared resource harness. No global Docker prune.
-for run in before-1 after-1 after-2 before-2; do
-  image=$candidate_image
-  metrics_source=$repo/kura/src/metrics.rs
-  if [[ $run == before-* ]]; then image=$baseline_image; metrics_source=$work/baseline/kura/src/metrics.rs; fi
-  KURA_RESOURCE_METRICS_SOURCE="$metrics_source" KURA_RESOURCE_OUTPUT="$out/$run" "$node" test/e2e/provider-topology/resources.mjs "$run" "$image"
-  "$node" test/e2e/provider-topology/summarize.mjs "$out/$run"
+summaries=()
+for ((block = 0; block < repetitions; block++)); do
+  first=$((block * 2 + 1))
+  second=$((first + 1))
+  for run in before-$first after-$first after-$second before-$second; do
+    image=$candidate_image
+    metrics_source=$repo/kura/src/metrics.rs
+    if [[ $run == before-* ]]; then image=$baseline_image; metrics_source=$work/baseline/kura/src/metrics.rs; fi
+    KURA_RESOURCE_METRICS_SOURCE="$metrics_source" KURA_RESOURCE_OUTPUT="$out/$run" "$node" test/e2e/provider-topology/resources.mjs "$run" "$image"
+    "$node" test/e2e/provider-topology/summarize.mjs "$out/$run"
+    summaries+=("$out/$run")
+  done
 done
-"$node" test/e2e/provider-topology/compare.mjs "$out/before-1" "$out/after-1" "$out/after-2" "$out/before-2" > "$out/comparison.json"
+"$node" test/e2e/provider-topology/compare.mjs "${summaries[@]}" > "$out/comparison.json"
 # Retain hashes/IDs only: runnable binaries/images are not published as artifacts.
 df -h . "$RUNNER_TEMP" > "$out/disk-after.txt"
