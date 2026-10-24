@@ -1239,17 +1239,20 @@ defmodule Tuist.Tests.Coverage.Reported do
   # executable lines are merged per file in ClickHouse and reduced to counts a
   # chunk of paths at a time instead of all being held at once.
   defp unbuilt_carried_files(project_id, run_id, paths, carried_lines) do
-    paths
-    |> Coverage.id_chunks(2)
-    |> Enum.flat_map(fn chunk ->
+    wanted = MapSet.new(paths)
+
+    wanted
+    |> Coverage.path_hash_chunks()
+    |> Enum.flat_map(fn hashes ->
       from(f in Coverage.report_files_for_runs(project_id, [run_id]),
-        where: f.path in ^chunk,
+        where: fragment("bitShiftRight(halfMD5(?), 1) IN (?)", f.path, type(^hashes, {:array, :integer})),
         group_by: f.path,
         select:
           {f.path, fragment("anyIf(?, ? != '')", f.git_blob_id, f.git_blob_id),
            fragment("groupUniqArrayArray(?)", f.targets), fragment("groupUniqArrayArray(?)", f.line_numbers)}
       )
       |> ClickHouseRepo.all()
+      |> Enum.filter(&MapSet.member?(wanted, elem(&1, 0)))
       |> Enum.map(fn {path, git_blob_id, targets, executable} ->
         carried = carried_lines[path]
 
@@ -1343,9 +1346,9 @@ defmodule Tuist.Tests.Coverage.Reported do
     end
   end
 
-  # Past one chunk of `GitHistory.blobs_at/3`'s bound paths, reading the whole
-  # listing once is cheaper than a lookup per chunk, and the unbuilt files are
-  # usually most of the project.
+  # The unbuilt files are usually most of the project, so past
+  # `@listing_read_paths` of them the whole listing is read once instead of
+  # looking each one up.
   defp blobs_now(repository_id, sha, paths) when length(paths) > @listing_read_paths do
     repository_id |> GitHistory.commit_files(sha) |> Map.new(&{&1.path, &1.git_blob_id})
   end

@@ -22,6 +22,15 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   defp file(path, counts, opts \\ []), do: CoverageFixtures.file(path, counts, opts)
 
+  # Binds another path's hash along with the requested ones, as a path whose
+  # hash collides with one of them would: the query returns its rows too, and
+  # the lookup has to drop them.
+  defp collide_with(path) do
+    stub(Coverage, :path_hash_chunks, fn paths ->
+      Mimic.call_original(Coverage, :path_hash_chunks, [[path | Enum.to_list(paths)]])
+    end)
+  end
+
   test "unsigned clean runs cannot conceal a scheme measured only by dirty CI runs", %{project: project, account: account} do
     CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
 
@@ -126,6 +135,17 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert counts[hd(paths)] == [{1, 1}, {2, 0}]
     assert counts["Sources/It's/Quoted.swift"] == [{1, 1}, {2, 0}]
     assert counts[List.last(paths)] == [{1, 3}, {2, 3}]
+  end
+
+  test "drops the line counts of a path whose hash only matches a requested one's", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [
+      file("Sources/A.swift", [1, 0]),
+      file("Sources/B.swift", [2, 2])
+    ])
+
+    collide_with("Sources/B.swift")
+
+    assert Commits.line_counts(project.id, "abc123", ["Sources/A.swift"]) == %{"Sources/A.swift" => [{1, 1}, {2, 0}]}
   end
 
   test "reads a run's scheme off the run, which a client-reported run gets after its coverage published", %{

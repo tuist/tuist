@@ -1,9 +1,11 @@
 defmodule Tuist.GitHistoryTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.GitHistory
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -568,6 +570,74 @@ defmodule Tuist.GitHistoryTest do
       GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 3)
       assert %{files_count: 3, truncated: true} = CoverageFixtures.listing(repository, "c")
     end
+
+    test "read the blobs of more paths than one query binds", %{repository: repository} do
+      # More paths than one chunk of hashes, long enough that 900 of them bound
+      # as one list take more than 128 KiB. Non-ASCII and quoted paths check
+      # that the server hashes them as ClickHouse does.
+      paths =
+        ["Sources/Café/Ünïcödé.swift", "Sources/It's/Quoted.swift"] ++
+          for index <- 1..5_100,
+              do:
+                "Sources/Features/Feature#{div(index, 40)}/Implementation/Generated/Networking/Models/Responses/" <>
+                  "File#{index}WithAVeryLongDescriptiveNameForTheGeneratedNetworkingResponseModel.swift"
+
+      GitHistory.record_listing(repository, "c", Enum.map(paths, &%{path: &1, git_blob_id: "blob-" <> &1}),
+        files_count: length(paths)
+      )
+
+      blobs = GitHistory.blobs_at(repository, "c", ["Sources/Missing.swift" | paths])
+
+      assert map_size(blobs) == length(paths)
+      assert blobs[hd(paths)] == "blob-" <> hd(paths)
+      assert blobs["Sources/It's/Quoted.swift"] == "blob-Sources/It's/Quoted.swift"
+      assert blobs[List.last(paths)] == "blob-" <> List.last(paths)
+    end
+
+    test "drop a listed path or directory whose hash only matches a requested one's", %{repository: repository} do
+      GitHistory.record_listing(
+        repository,
+        "c",
+        [%{path: "Sources/A/A.swift", git_blob_id: "a1"}, %{path: "Sources/B/B.swift", git_blob_id: "b1"}],
+        files_count: 2
+      )
+
+      collide_with("Sources/B/B.swift")
+      assert GitHistory.blobs_at(repository, "c", ["Sources/A/A.swift"]) == %{"Sources/A/A.swift" => "a1"}
+
+      collide_with("Sources/B")
+      assert GitHistory.files_in(repository, "c", ["Sources/A"]) == [%{path: "Sources/A/A.swift", git_blob_id: "a1"}]
+    end
+
+    test "read the files in more directories than one query binds", %{repository: repository} do
+      # More directories than one chunk of hashes, long enough that 900 of them
+      # bound as one list take more than 128 KiB. Non-ASCII and quoted names
+      # check that the server hashes them as ClickHouse does.
+      directories =
+        ["Sources/Café/Ünïcödé", "Sources/It's/Quoted"] ++
+          for index <- 1..5_100,
+              do:
+                "Sources/Features/Feature#{div(index, 40)}/Implementation/Generated/Networking/Models/Responses/" <>
+                  "Directory#{index}WithAVeryLongDescriptiveNameForTheGeneratedNetworkingResponseModels"
+
+      paths = Enum.map(directories, &(&1 <> "/File.swift"))
+
+      GitHistory.record_listing(
+        repository,
+        "c",
+        Enum.map(["Root.swift", "Sources/Other/File.swift" | paths], &%{path: &1, git_blob_id: "blob-" <> &1}),
+        files_count: length(paths) + 2
+      )
+
+      files = GitHistory.files_in(repository, "c", ["Sources/Missing" | directories])
+
+      assert files |> Enum.map(& &1.path) |> Enum.sort() == Enum.sort(paths)
+
+      assert %{git_blob_id: "blob-Sources/It's/Quoted/File.swift"} =
+               Enum.find(files, &(&1.path == "Sources/It's/Quoted/File.swift"))
+
+      assert GitHistory.files_in(repository, "c", ["."]) == [%{path: "Root.swift", git_blob_id: "blob-Root.swift"}]
+    end
   end
 
   describe "expired commit listings" do
@@ -629,5 +699,14 @@ defmodule Tuist.GitHistoryTest do
       # The edge from the kept commit to the dropped one marks the window's end.
       assert GitHistory.ancestors(repository, "new") == [{"new", 0}]
     end
+  end
+
+  # Binds another path's hash along with the requested ones, as a path whose
+  # hash collides with one of them would: the query returns its rows too, and
+  # the lookup has to drop them.
+  defp collide_with(path) do
+    stub(Coverage, :path_hash_chunks, fn paths ->
+      Mimic.call_original(Coverage, :path_hash_chunks, [[path | Enum.to_list(paths)]])
+    end)
   end
 end
