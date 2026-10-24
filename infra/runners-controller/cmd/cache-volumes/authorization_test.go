@@ -141,7 +141,7 @@ func TestAPodWaitsForItsJobReportOnce(t *testing.T) {
 	}
 
 	// The checkout's request started the Pod's wait, which ends a second from now.
-	if _, err := ask("uid", "checkout", time.Now().Add(time.Second-executionWait)); !errors.Is(err, cachevolumes.ErrExecutionPending) {
+	if _, err := ask("uid", "checkout", time.Now().Add(time.Second-cachevolumes.ExecutionWait)); !errors.Is(err, cachevolumes.ErrExecutionPending) {
 		t.Fatalf("checkout err=%v", err)
 	}
 	elapsed, err := ask("uid", "volume", time.Now())
@@ -155,7 +155,7 @@ func TestAPodWaitsForItsJobReportOnce(t *testing.T) {
 	}
 
 	report = false
-	if elapsed, _ := ask("other-uid", "other", time.Now().Add(1500*time.Millisecond-executionWait)); elapsed < time.Second {
+	if elapsed, _ := ask("other-uid", "other", time.Now().Add(1500*time.Millisecond-cachevolumes.ExecutionWait)); elapsed < time.Second {
 		t.Fatalf("another Pod shared the first Pod's wait: %v", elapsed)
 	}
 }

@@ -219,7 +219,7 @@ workflow code runs in the guest. Never expose host credentials or masters.
   carry a bounded `reason` and the host logs why; a 425 retried until the
   deadline is `execution_pending`, not `denied`. A Pod waits for GitHub's job
   report once: its first 425 starts one 25-second wait that its checkout and
-  later volumes share (`pendingUntil`), and a request after it asks the server
+  later volumes share (`cachevolumes.ExecutionWaits`, also used by the Linux agent), and a request after it asks the server
   once. GitHub can report a job minutes after it started, so a per-volume wait
   only multiplies the delay of a job that runs cold anyway. `CustomVolumes.request` and the
   transfers send server requests through `cachevolumes.DoServer`, which repeats
