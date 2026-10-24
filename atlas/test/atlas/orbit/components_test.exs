@@ -3,6 +3,7 @@ defmodule Atlas.Orbit.ComponentsTest do
 
   alias Atlas.Orbit.Components
   alias Atlas.Orbit.Message
+  alias Atlas.Orbit.Rendering
 
   test "server authors bounded data-only cards from the durable redacted rendering" do
     message = %Message{
@@ -15,7 +16,11 @@ defmodule Atlas.Orbit.ComponentsTest do
     assert %{
              type: "result_table",
              version: 1,
-             data: %{title: "list_accounts", columns: ["name", "status"], rows: [["Northstar", "active"]]},
+             data: %{
+               title: "list_accounts",
+               columns: ["name", "status"],
+               rows: [["Northstar", "active"]]
+             },
              actions: [%{id: "show_evidence", label: "View source"}],
              fallback: fallback
            } = Components.for_message(message)
@@ -51,12 +56,37 @@ defmodule Atlas.Orbit.ComponentsTest do
     assert card.type == "account_card"
     assert card.data.title == "Northstar"
     assert card.data.columns == ["Field", "Value"]
-    assert card.data.rows == [["Domain", "northstar.example"], ["Status", "active"], ["Segment", "enterprise"]]
+
+    assert card.data.rows == [
+             ["Domain", "northstar.example"],
+             ["Status", "active"],
+             ["Segment", "enterprise"]
+           ]
+
     refute JSON.encode!(card) =~ "never-display"
     refute JSON.encode!(card.data) =~ "private"
     assert Components.for_message(%{message | tool_status: "failed"}) == nil
     minimal = %{message | tool_output: JSON.encode!(%{"account" => %{"name" => "Northstar"}})}
     assert Components.for_message(minimal).data.rows == [["Name", "Northstar"]]
+  end
+
+  test "full get_account context still yields an account card after durable evidence bounding" do
+    result = %{
+      account: %{name: "Northstar", primary_domain: "northstar.example", status: "active"},
+      contacts: for(index <- 1..100, do: %{name: "Contact #{index}", email: "person#{index}@example.org"})
+    }
+
+    message = %Message{
+      kind: "tool",
+      tool_status: "succeeded",
+      tool_name: "get_account",
+      tool_output: Rendering.output(result, "get_account")
+    }
+
+    assert %{type: "account_card", data: %{title: "Northstar", rows: rows}} =
+             Components.for_message(message)
+
+    assert rows == [["Domain", "northstar.example"], ["Status", "active"]]
   end
 
   test "cards never bypass redaction or inspect encrypted model results" do
@@ -75,7 +105,9 @@ defmodule Atlas.Orbit.ComponentsTest do
   end
 
   test "bounds rows, columns and cells without depending on a particular organization's tools" do
-    rows = for _ <- 1..8, do: %{"a" => String.duplicate("x", 200), "b" => 1, "c" => true, "d" => nil}
+    rows =
+      for _ <- 1..8, do: %{"a" => String.duplicate("x", 200), "b" => 1, "c" => true, "d" => nil}
+
     message = %Message{kind: "tool", tool_status: "succeeded", tool_output: JSON.encode!(rows)}
     card = Components.for_message(message)
     assert card.data.columns == ["a", "b", "c"]

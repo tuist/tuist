@@ -60,10 +60,12 @@ struct AtlasOrbitView: View {
                                                description: Text("Start one with your team to investigate an issue or explore an idea."))
                     }
                     if model.hasMore {
-                        Button("Load more") { Task { await model.load(more: true) } }.disabled(model.loading)
+                        HStack {
+                            Button("Load more") { Task { await model.load(more: true) } }.disabled(model.loading)
+                            if model.loading { ProgressView().accessibilityLabel("Loading more threads") }
+                        }
                     }
                 }
-                if model.loading { ProgressView("Loading threads") }
                 if let error = model.errorMessage {
                     Section {
                         Text(error).foregroundStyle(.red)
@@ -72,6 +74,9 @@ struct AtlasOrbitView: View {
                 }
             }
             .modifier(AtlasThemedContent())
+            .overlay {
+                if model.loading, model.assistant == nil { ProgressView("Loading threads") }
+            }
             .defaultScrollAnchor(.top)
             .navigationTitle("Orbit")
             .navigationBarTitleDisplayMode(.large)
@@ -84,7 +89,7 @@ struct AtlasOrbitView: View {
                         .disabled(model.assistant == nil).accessibilityIdentifier("orbit-create")
                 }
             }
-            .task { await model.load() }
+            .task { if model.assistant == nil { await model.load() } }
             .refreshable { await model.load() }
             .onAppear { presence?.show() }
             .sheet(isPresented: $creating) {
@@ -111,6 +116,7 @@ private struct AtlasThreadDetail: View {
     @State private var hasShownMessages = false
     @State private var showingInfo = false
     @StateObject private var voice = AtlasVoiceInput()
+    @State private var startingVoice: Task<Void, Never>?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
 
@@ -139,6 +145,15 @@ private struct AtlasThreadDetail: View {
                                 await model.componentAction(messageId: message.id, event: event)
                             }
                             .id(message.id)
+                        }
+                        if let activity = model.activityMessage {
+                            HStack(spacing: 8) {
+                                ProgressView().controlSize(.small).accessibilityHidden(true)
+                                Text(activity).font(.callout).foregroundStyle(.secondary)
+                                    .accessibilityIdentifier("thread-agent-activity")
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
                         }
                         if model.loadingHistory { ProgressView("Loading history") }
                         if let error = model.errorMessage {
@@ -170,6 +185,9 @@ private struct AtlasThreadDetail: View {
                     if !hasShownMessages || followLatest { scroll.scrollTo("thread-latest", anchor: .bottom) }
                     hasShownMessages = true
                 }
+                .onChange(of: model.activityMessage) { _, _ in
+                    if followLatest { scroll.scrollTo("thread-latest", anchor: .bottom) }
+                }
                 .overlay(alignment: .bottomTrailing) {
                     if !followLatest {
                         Button("Latest messages", systemImage: "arrow.down") {
@@ -193,12 +211,18 @@ private struct AtlasThreadDetail: View {
         }
         .sheet(isPresented: $showingInfo) { details }
         .task(id: thread.id) { presence?.show(); await model.open(thread) }
-        .onDisappear { voice.cancel(); model.leave(id: thread.id) }
+        .onDisappear { startingVoice?.cancel(); voice.cancel(); model.leave(id: thread.id) }
         .onChange(of: scenePhase) { _, phase in
             // Permission alerts temporarily deactivate the scene before their callbacks return.
-            if phase == .background || (phase == .inactive && voice.phase != .requesting) { voice.cancel() }
+            if phase == .background || (phase == .inactive && voice.phase != .requesting) {
+                startingVoice?.cancel()
+                voice.cancel()
+            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in voice.cancel() }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in
+            startingVoice?.cancel()
+            voice.cancel()
+        }
         .protectsAtlasNavigation(!model.draft.isEmpty || model.saving || voice.busy)
     }
 
@@ -220,14 +244,6 @@ private struct AtlasThreadDetail: View {
                         .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("thread-presence")
                 }
             }
-            if let activity = model.activityMessage {
-                HStack(spacing: 10) {
-                    ProgressView().accessibilityHidden(true)
-                    Text(activity).font(.callout).foregroundStyle(.secondary)
-                        .accessibilityIdentifier("thread-agent-activity")
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
             if thread.kind != "private" {
                 Button { addressAgent.toggle() } label: {
                     Label("Ask \(assistantName)", systemImage: addressAgent ? "checkmark.circle.fill" : "sparkles")
@@ -246,9 +262,8 @@ private struct AtlasThreadDetail: View {
                                     cancel: voice.cancel) {
                     voice.finish { text in model.draft = AtlasVoiceInput.appending(text, to: model.draft) }
                 }
-            } else {
-                textComposer
             }
+            textComposer
         }
         .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
         .frame(maxWidth: .infinity).background(.bar)
@@ -259,12 +274,15 @@ private struct AtlasThreadDetail: View {
                 TextField(thread.kind == "private" ? "Message \(assistantName)" : "Message the team",
                           text: Binding(get: { model.draft }, set: { model.draft = $0 }), axis: .vertical)
                     .lineLimit(1...6).textFieldStyle(.plain).padding(.leading, 12).padding(.vertical, 12)
+                    .disabled(voice.busy)
                     .accessibilityIdentifier("thread-composer")
-                Button {
-                    Task { await voice.start() }
-                } label: { Image(systemName: "mic").frame(width: 44, height: 44) }
-                .disabled(model.saving).accessibilityLabel("Transcribe a voice message")
-                .accessibilityIdentifier("thread-microphone")
+                AtlasMicrophoneButton(active: voice.phase == .requesting || voice.phase == .recording, start: {
+                    startingVoice = Task { await voice.start() }
+                }, review: {
+                    startingVoice?.cancel()
+                    voice.review()
+                })
+                    .disabled(model.saving || voice.phase == .reviewing || voice.phase == .finishing)
                 Button {
                     followLatest = true
                     Task { await model.send(addressAgent: addressAgent) }
@@ -274,9 +292,9 @@ private struct AtlasThreadDetail: View {
                     }
                     .frame(width: 44, height: 44)
                 }
-                .buttonStyle(.borderedProminent).buttonBorderShape(.circle)
-                .modifier(AtlasPrimaryAction()).accessibilityLabel("Send message")
-                .disabled(model.saving || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(AtlasComposerSendStyle())
+                .accessibilityLabel("Send message")
+                .disabled(voice.busy || model.saving || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("thread-send")
             }
             .padding(6).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 28))
@@ -302,88 +320,20 @@ private struct AtlasThreadDetail: View {
     }
 }
 
-private struct AtlasThreadMessageView: View {
-    let message: AtlasThreadMessage
-    let selfId: String?
-    let action: (String) async -> Bool
-    @State private var showingEvidence = false
+private struct AtlasComposerSendStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
     @Environment(\.atlasTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
 
-    private var outgoing: Bool { message.kind == "human" && selfId != nil && message.authorId == selfId }
-    private var palette: AtlasTheme.Palette? { contrast == .increased ? nil : theme?.palette(scheme) }
-    private var fill: Color {
-        if outgoing { return palette.map { Color(atlasHex: $0.accent) } ?? AtlasSettingsStyle.tint }
-        return palette.map { Color(atlasHex: $0.surface) } ?? Color(uiColor: .secondarySystemGroupedBackground)
-    }
-
-    var body: some View {
-        Group {
-            if message.kind == "system" {
-                Text(message.body).font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity).multilineTextAlignment(.center)
-            } else {
-                HStack(alignment: .bottom, spacing: 0) {
-                    if outgoing { Spacer(minLength: 40) }
-                    VStack(alignment: outgoing ? .trailing : .leading, spacing: 5) {
-                        if !outgoing, message.kind != "tool" {
-                            Text(message.authorName).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                                .padding(.horizontal, 12)
-                        }
-                        if message.kind == "tool" {
-                            tool.padding(14).background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 18))
-                        } else {
-                            messageBody.padding(.horizontal, 16).padding(.vertical, 12)
-                                .foregroundStyle(outgoing
-                                    ? palette.map { Color(atlasHex: $0.onAccent) } ?? AtlasSettingsStyle.onTint : .primary)
-                                .background(fill, in: RoundedRectangle(cornerRadius: 20))
-                        }
-                        if let date = ISO8601DateFormatter().date(from: message.insertedAt) {
-                            Text(date, style: .time).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 12)
-                        }
-                    }
-                    if !outgoing { Spacer(minLength: 40) }
-                }
-            }
-        }
-        .accessibilityIdentifier("thread-message-\(message.id)")
-    }
-
-    @ViewBuilder private var messageBody: some View {
-        if message.kind == "agent" {
-            AtlasMarkdown(source: message.body)
-        } else {
-            Text(message.body).textSelection(.enabled)
-        }
-    }
-
-    private var tool: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 8) {
-                if let card = message.component {
-                    AtlasThreadCardView(card: card) { event in
-                        Task { if await action(event) { showingEvidence = true } }
-                    }
-                }
-                if message.component == nil || showingEvidence {
-                    if !message.toolInput.isEmpty {
-                        Text("Inputs").font(.caption.bold())
-                        Text(message.toolInput).font(.caption.monospaced()).textSelection(.enabled)
-                    }
-                    if !message.toolOutput.isEmpty {
-                        Text("Result").font(.caption.bold())
-                        Text(message.toolOutput).font(.caption.monospaced()).textSelection(.enabled)
-                    }
-                }
-                if !message.body.isEmpty { Text(message.body).font(.callout).textSelection(.enabled) }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
-        } label: {
-            Label("\(message.toolName ?? "Tool") · \(message.toolStatus ?? "Working")", systemImage: "wrench.and.screwdriver")
-                .font(.subheadline)
-        }
-        .multilineTextAlignment(.leading)
+    func makeBody(configuration: Configuration) -> some View {
+        let onAccent = contrast == .increased ? Color(uiColor: .systemBackground)
+            : theme.map { Color(atlasHex: $0.palette(scheme).onAccent) } ?? AtlasSettingsStyle.onTint
+        configuration.label
+            .foregroundStyle(onAccent)
+            .background { Circle().fill(.tint).padding(4) }
+            .contentShape(Rectangle())
+            .opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.3)
     }
 }
 

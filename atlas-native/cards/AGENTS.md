@@ -45,7 +45,8 @@ checksum-pinned SDK integrations live in `../modules/nsh.star`.
 - Unsupported/malformed versions are discarded by Rust without losing original
   tool output. NSH load/runtime/size failures use the server's text fallback.
   Android API 26–27 retains text without instantiating the API-28 NSH runtime.
-- A runtime exists only while its expanded card view exists. Remove its storage
+- iOS account cards are visible inline in the timeline; result tables remain inside expandable tool evidence. The source action reveals the existing evidence without refetching or running a tool.
+- A runtime exists only while its card view exists. Remove its storage
   and destroy/detach the runtime when the view leaves. Do not retain user data in
   a JS VM across users, selected servers or access revocation.
 

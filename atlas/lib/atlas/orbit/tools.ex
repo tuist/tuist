@@ -33,8 +33,11 @@ defmodule Atlas.Orbit.Tools do
   @doc "Condukt tools offered to this attempt, filtered by the current audience floor."
   def build(%Run{id: run_id, resume_count: attempt}) do
     case Runs.with_attempt(run_id, attempt, fn thread, run -> tool_audience(thread, run) end) do
-      {:ok, scopes} -> scopes |> ToolPolicy.available() |> Enum.map(&inline_tool(run_id, attempt, &1))
-      {:error, _reason} -> []
+      {:ok, scopes} ->
+        scopes |> ToolPolicy.available() |> Enum.map(&inline_tool(run_id, attempt, &1))
+
+      {:error, _reason} ->
+        []
     end
   end
 
@@ -68,8 +71,11 @@ defmodule Atlas.Orbit.Tools do
       acting_user
       |> execute(run_id, message.thread_id, name, args)
       |> case do
-        {:ok, result} -> settle(run_id, attempt, message, scopes, {:ok, result})
-        {:error, reason} -> settle(run_id, attempt, message, scopes, {:error, Rendering.error(reason)})
+        {:ok, result} ->
+          settle(run_id, attempt, message, scopes, {:ok, result})
+
+        {:error, reason} ->
+          settle(run_id, attempt, message, scopes, {:error, Rendering.error(reason)})
       end
     else
       {:ok, {:replay, result}} -> {:ok, result}
@@ -150,15 +156,17 @@ defmodule Atlas.Orbit.Tools do
   # again, which is how a resumed attempt continues without duplicate tool
   # events or repeated side effects. Access is re-authorized first either way.
   defp call_key(name, args) do
-    :crypto.hash(:sha256, :erlang.term_to_binary({name, args}, [:deterministic])) |> Base.encode16(case: :lower)
+    :crypto.hash(:sha256, :erlang.term_to_binary({name, args}, [:deterministic]))
+    |> Base.encode16(case: :lower)
   end
 
   defp recorded_call(run, key) do
     Repo.one(
-      from message in Message,
+      from(message in Message,
         where: message.run_id == ^run.id and message.tool_call_key == ^key,
         order_by: [desc: message.position],
         limit: 1
+      )
     )
   end
 
@@ -188,7 +196,7 @@ defmodule Atlas.Orbit.Tools do
 
         Orbit.touch!(message, %{
           tool_status: "succeeded",
-          tool_output: Rendering.output(result),
+          tool_output: Rendering.output(result, message.tool_name),
           tool_result: model_result
         })
 
@@ -218,7 +226,9 @@ defmodule Atlas.Orbit.Tools do
     required = Enum.sort(Enum.uniq(thread.required_scopes ++ scopes))
 
     if required != Enum.sort(thread.required_scopes) do
-      Repo.update_all(from(c in Thread, where: c.id == ^thread.id), set: [required_scopes: required])
+      Repo.update_all(from(c in Thread, where: c.id == ^thread.id),
+        set: [required_scopes: required]
+      )
     end
   end
 
@@ -237,9 +247,13 @@ defmodule Atlas.Orbit.Tools do
   end
 
   defp normalize(%{"result" => %{"isError" => true} = result}), do: {:error, text(result)}
+
   defp normalize(%{"result" => %{"structuredContent" => content}}) when is_map(content), do: {:ok, content}
+
   defp normalize(%{"result" => result}), do: {:ok, text(result)}
+
   defp normalize(%{"error" => %{"message" => message}}) when is_binary(message), do: {:error, message}
+
   defp normalize(_response), do: {:error, "The tool call failed."}
 
   defp text(%{"content" => parts}) when is_list(parts) do

@@ -10,6 +10,43 @@ struct AtlasThreadPresentationTests {
         #expect(AtlasVoiceInput.appending(" words ", to: "") == "words")
     }
 
+    @Test func releasedHoldCannotStartAQueuedMicrophoneRequest() async {
+        let voice = AtlasVoiceInput()
+        let start = Task { await voice.start() }
+        start.cancel()
+        voice.review()
+        await start.value
+        #expect(voice.phase == .idle)
+        #expect(voice.transcript.isEmpty)
+        #expect(voice.errorMessage == nil)
+    }
+
+    @Test(arguments: [false, true]) func releasedPermissionPromptCannotActivateMicrophoneLater(waitingForMicrophone: Bool) async {
+        var resumePermission: (() -> Void)?
+        var microphoneRequested = false
+        let voice = AtlasVoiceInput(speechPermission: {
+            if waitingForMicrophone { return .authorized }
+            return await withCheckedContinuation { continuation in
+                resumePermission = { continuation.resume(returning: .authorized) }
+            }
+        }, microphonePermission: {
+            microphoneRequested = true
+            return await withCheckedContinuation { continuation in
+                resumePermission = { continuation.resume(returning: true) }
+            }
+        })
+        let pending = Task { await voice.start() }
+        while resumePermission == nil { await Task.yield() }
+        #expect(voice.phase == .requesting)
+        voice.review()
+        resumePermission?()
+        await pending.value
+        #expect(voice.phase == .idle)
+        #expect(voice.transcript.isEmpty)
+        #expect(voice.errorMessage?.contains("After allowing permissions") == true)
+        #expect(microphoneRequested == waitingForMicrophone)
+    }
+
     @Test func markdownRendersStructureAndKeepsCodeLiteral() {
         let source = "# Heading\n\n**Bold** and [a link](https://example.org)\n\n- first\n1. second\n> quote\n\n"
             + "```swift\nlet x = \"**literal**\"\n```\n\n| Name | Value |\n| --- | ---: |\n| Count | 12 |"

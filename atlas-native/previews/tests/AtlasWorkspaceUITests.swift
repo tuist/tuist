@@ -96,14 +96,89 @@ final class AtlasWorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Sign in with ChatGPT"].waitForExistence(timeout: 5))
     }
 
+    @MainActor func testEmptyPresenceKeepsNativeRootAndDetailNavigation() throws {
+        let app = launch(arguments: ["--nobody-here"])
+        defer { app.terminate() }
+        app.tabBars.buttons["Accounts"].tap()
+        XCTAssertTrue(app.buttons["business-item-account-1"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["also-here"].exists)
+        XCTAssertTrue(app.buttons["Open in browser"].isHittable)
+        attach(app, "ios-workspace-accounts-nobody-here-preview")
+        try tap("business-item-account-1", in: app)
+        XCTAssertTrue(app.navigationBars["Account"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["also-here"].exists)
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).isHittable)
+        attach(app, "ios-workspace-account-detail-nobody-here-preview")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor func testPresenceUsesNativeToolbarWithoutCoveringNavigation() throws {
+        for arguments in [[], ["--dark", "--large-text"]] {
+            let app = launch(arguments: arguments + ["--delayed-business"])
+            defer { app.terminate() }
+            for title in ["Accounts", "Finance", "Profile", "Accounts"] {
+                app.tabBars.buttons[title].tap()
+                let indicator = app.buttons["also-here"]
+                XCTAssertTrue(indicator.waitForExistence(timeout: 5))
+                XCTAssertTrue(indicator.isHittable)
+                let heading = app.navigationBars[title].staticTexts[title]
+                XCTAssertGreaterThan(heading.frame.height, 30)
+                XCTAssertLessThanOrEqual(indicator.frame.maxY, heading.frame.minY)
+                XCTAssertLessThanOrEqual(indicator.frame.maxX, app.buttons["Open in browser"].frame.minX)
+                // Native toolbar accessibility frames exclude the extended 44pt touch target.
+                app.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: indicator.frame.midX, dy: indicator.frame.midY + 21)).tap()
+                XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Alex Morgan"))
+                    .firstMatch.waitForExistence(timeout: 5))
+                attach(app, "ios-workspace-\(title.lowercased())-presence-menu-preview")
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.7)).tap()
+            }
+            try tap("business-item-account-1", in: app)
+            XCTAssertTrue(app.navigationBars["Account"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["also-here"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["also-here"].isHittable)
+            XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).isHittable)
+            app.tabBars.buttons["Profile"].tap()
+            try tap("profile-appearance", in: app)
+            XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["also-here"].exists)
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["also-here"].waitForExistence(timeout: 5))
+            app.terminate()
+        }
+    }
+
+    @MainActor func testReturningToOrbitRetainsLoadedThreadsUntilExplicitRefresh() throws {
+        let app = launch(arguments: ["--fail-orbit-refresh"])
+        defer { app.terminate() }
+        XCTAssertTrue(app.staticTexts["Build listing latency"].waitForExistence(timeout: 5))
+        for title in ["Accounts", "Finance", "Browse", "Profile", "Orbit"] {
+            app.tabBars.buttons[title].tap()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
+        }
+        let failure = app.staticTexts["Preview refresh failed. Loaded threads are retained."]
+        XCTAssertFalse(failure.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Build listing latency"].exists)
+        XCTAssertTrue(app.buttons["orbit-private"].exists)
+        attach(app, "ios-workspace-orbit-retained-preview")
+        app.scrollContent(up: false)
+        XCTAssertTrue(failure.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Build listing latency"].exists)
+        XCTAssertTrue(app.buttons["orbit-private"].exists)
+        attach(app, "ios-workspace-orbit-failed-refresh-preview")
+    }
+
     @MainActor func testTabsStartAtTopAfterDelayedDataArrives() throws {
         let app = launch(arguments: ["--delayed-business"])
         defer { app.terminate() }
-        for title in ["Orbit", "Accounts", "Browse", "Profile"] {
+        for title in ["Orbit", "Accounts", "Finance", "Browse", "Profile"] {
             app.tabBars.buttons[title].tap()
             switch title {
             case "Orbit": XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 5))
             case "Accounts": XCTAssertTrue(app.staticTexts["Northstar"].waitForExistence(timeout: 5))
+            case "Finance": XCTAssertTrue(app.descendants(matching: .any)["finance-available-cash"].waitForExistence(timeout: 5))
             case "Profile": XCTAssertTrue(app.staticTexts["Taylor Morgan"].waitForExistence(timeout: 5))
             default: XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
             }

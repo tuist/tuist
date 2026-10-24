@@ -157,7 +157,8 @@ private final class AtlasPresencePreviewData: ObservableObject {
         try! JSONSerialization.data(withJSONObject: [
             "sequence": sequence, "location": location, "self_id": "preview-self",
             "people": [
-                ["id": "online", "name": "Alex Morgan", "email": "alex@example.org", "online": true, "here": !location.isEmpty],
+                ["id": "online", "name": "Alex Morgan", "email": "alex@example.org", "online": true,
+                 "here": !location.isEmpty && !ProcessInfo.processInfo.arguments.contains("--nobody-here")],
                 ["id": "offline", "name": "Sam Rivera", "email": "sam@example.org", "online": false, "here": false]
             ]
         ])
