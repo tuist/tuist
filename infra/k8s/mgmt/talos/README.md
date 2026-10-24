@@ -25,8 +25,8 @@ allows it). That credential exists only while a run is in progress: the
 script creates the ServiceAccount at the start and deletes it and its Secret
 on exit, because every principal with cluster-wide secret read could use it.
 The Job applies with `--mode no-reboot`, one node at a time, and waits for
-the API server, the node and every Deployment to be healthy before the next
-node.
+the API server, the node, its control-plane pods and every Deployment to be
+healthy before the next node.
 
 Rules for a patch:
 
@@ -44,10 +44,11 @@ Rules for a patch:
 
 Talos does not validate every value: on a test cluster it accepted
 `podSubnets: [not-a-cidr]`, which crash-looped kube-controller-manager. Review
-the plan's changed lines as carefully as the patch. The script fails the run
-if a control-plane pod restarts in the 90 seconds after a change, but it cannot
-repair one. A broken kube-controller-manager also stops the Jobs this script
-depends on, so fix such a node by hand with `talosctl` over the tailnet
+the plan's changed lines as carefully as the patch. After a change, the script
+waits until the node's control-plane pods have stayed Ready without restarting
+for 90 seconds, and fails the run if that does not happen within 15 minutes. It
+cannot repair the node. A broken kube-controller-manager also stops the Jobs
+this script depends on, so fix such a node by hand with `talosctl` over the tailnet
 (Bootstrap below shows how to get the talosconfig), then fix the patch.
 
 A change to the API server (`cluster.apiServer`) restarts it. Every controller
