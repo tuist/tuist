@@ -749,6 +749,7 @@ defmodule Tuist.Tests do
       end)
 
       enrich(test, "flaky run flag", fn -> mark_test_run_as_flaky(test, flaky?, shard_plan) end)
+      enrich(test, "Git history completion", fn -> GitHistory.enqueue_completion(test) end)
     end)
   end
 

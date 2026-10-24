@@ -45,19 +45,26 @@ defmodule Tuist.GitHistory do
   alias Tuist.GitHistory.CommitFile
   alias Tuist.GitHistory.CommitListing
   alias Tuist.GitHistory.CommitParent
+  alias Tuist.GitHistory.Providers
   alias Tuist.GitHistory.Ref
   alias Tuist.GitHistory.Repository
+  alias Tuist.GitHistory.Workers.CompleteHistoryWorker
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
+  alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
   alias Tuist.Tests.Coverage.Deltas
   alias Tuist.Tests.Coverage.ExcludedPaths
+  alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
 
   @defaults %{
     window_days: 365,
     window_commits: 5_000,
     deepen_budget_seconds: 60,
     upload_batch_size: 500,
+    provider_fallback: true,
+    provider_page_budget: 20,
     # The inputs that change what tests do without changing a source they
     # compile: dependency pins and manifests, project generation and build
     # settings, test plans, and the Xcode version.
@@ -90,6 +97,11 @@ defmodule Tuist.GitHistory do
   - `deepen_budget_seconds`: how long a client may spend deepening a shallow
     clone;
   - `upload_batch_size`: commits per upload request;
+  - `provider_fallback`: whether the server completes the graph from the VCS
+    provider (`Tuist.GitHistory.Completion`), and `provider_page_budget`, the
+    API pages one commit's completion may spend; server-wide only, through
+    `TUIST_GIT_HISTORY_PROVIDER_FALLBACK` and
+    `TUIST_GIT_HISTORY_PROVIDER_PAGE_BUDGET`;
   - `tracked_file_globs`: the files, beyond the sources a test compiles, whose
     identity a commit's evidence depends on, read off the commit's file
     listing: any change to one refuses carrying evidence forward at that
@@ -163,6 +175,87 @@ defmodule Tuist.GitHistory do
         )
 
         Repo.one!(from(r in Repository, where: r.account_id == ^account_id and r.key == ^key, select: r.id))
+    end
+  end
+
+  @doc """
+  The project's VCS connection when the provider can complete the graph of
+  `repository_id`: a GitHub repository connected through an App installation
+  with credentials, naming the same repository as the runs' remote. A fork or
+  a mirror builds another repository, which the connection cannot answer for.
+  """
+  def provider_connection(%Project{} = project, repository_id) do
+    with %Project{
+           vcs_connection:
+             %VCSConnection{
+               provider: :github,
+               repository_full_handle: handle,
+               github_app_installation: %GitHubAppInstallation{} = installation
+             } = connection
+         } <- Repo.preload(project, vcs_connection: :github_app_installation),
+         %{} <- VCS.github_app_credentials(installation),
+         %Repository{key: key} <- Repo.get(Repository, repository_id),
+         ^key <- repository_key("#{installation.client_url}/#{handle}") do
+      connection
+    else
+      _ -> nil
+    end
+  end
+
+  @doc "The `Tuist.GitHistory.Provider` for a connection."
+  def provider(%VCSConnection{provider: :github}), do: Providers.GitHub
+
+  @doc """
+  Schedules the completion of the graph behind a run's commit from the VCS
+  provider (`Tuist.GitHistory.Workers.CompleteHistoryWorker`), for a clean run
+  of a repository the project's connection answers for. Runs at one commit
+  share one pending job. It waits for the client's own upload, which follows
+  the run's creation, so only what the checkout could not see is asked for.
+  """
+  def enqueue_completion(%{git_repository_id: repository_id, git_commit_sha: sha} = run)
+      when is_integer(repository_id) and repository_id > 0 and is_binary(sha) and sha != "" do
+    with false <- Map.get(run, :git_dirty) == true,
+         false <- Map.get(run, :submission_auth) == "network_trusted",
+         %Project{} = project <- Tuist.Projects.get_project_by_id(run.project_id),
+         true <- settings(project).provider_fallback,
+         %VCSConnection{} <- provider_connection(project, repository_id) do
+      CompleteHistoryWorker.enqueue(project.id, repository_id, sha)
+    else
+      _ -> :skipped
+    end
+  end
+
+  def enqueue_completion(_run), do: :skipped
+
+  @doc """
+  Where the graph behind `sha` stops short: the SHAs a walk from it needs
+  next but the repository has no commit for, nearest first. That is `sha`
+  itself when it is not stored, and otherwise the parents that the commits
+  it reaches name without the parent being stored, such as a shallow
+  clone's boundary. Edges whose child is older than `:since` are left out,
+  since the window ends there, and so is a stored commit without parents,
+  which is taken for a root. Bounded like `ancestors/3`.
+  """
+  def gaps(repository_id, sha, opts \\ []) do
+    if known?(repository_id, sha) do
+      depths = repository_id |> ancestors(sha, Keyword.take(opts, [:max_depth])) |> Map.new()
+      since = Keyword.get(opts, :since, ~U[1970-01-01 00:00:00Z])
+
+      from(p in CommitParent,
+        join: child in Commit,
+        on: child.repository_id == p.repository_id and child.sha == p.child_sha,
+        left_join: parent in Commit,
+        on: parent.repository_id == p.repository_id and parent.sha == p.parent_sha,
+        where: p.repository_id == ^repository_id and p.child_sha in ^Map.keys(depths),
+        where: is_nil(parent.sha) and child.committed_at >= ^since,
+        select: {p.parent_sha, p.child_sha}
+      )
+      |> Repo.all()
+      |> Enum.sort_by(fn {parent, child} -> {Map.fetch!(depths, child), parent} end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.uniq()
+    else
+      [sha]
     end
   end
 

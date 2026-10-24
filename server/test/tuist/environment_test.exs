@@ -396,6 +396,21 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "git_history_defaults/1" do
+    test "reads the provider fallback switch and its page budget" do
+      assert Environment.git_history_defaults(%{}) == %{}
+
+      assert Environment.git_history_defaults(%{
+               "TUIST_GIT_HISTORY_PROVIDER_FALLBACK" => "false",
+               "TUIST_GIT_HISTORY_PROVIDER_PAGE_BUDGET" => "5"
+             }) == %{provider_fallback: false, provider_page_budget: 5}
+
+      assert Environment.git_history_defaults(%{"TUIST_GIT_HISTORY_PROVIDER_FALLBACK" => "1"}) == %{
+               provider_fallback: true
+             }
+    end
+  end
+
   describe "coverage_inline_threshold_bytes/1" do
     test "defaults to 5 MB and reads the environment" do
       assert Environment.coverage_inline_threshold_bytes(%{}) == 5_000_000
