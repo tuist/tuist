@@ -9,6 +9,13 @@ k8s-monitoring:
   cluster:
     name: tuist-staging
 
+  global:
+    # Every staging API server aggregates these labels at the source
+    # (`aggregateApiServerMetrics` on the staging Cluster CR), so the
+    # collector's legacy labeldrop is no longer needed. Never set this on a
+    # cluster whose control plane isn't verified aggregated.
+    apiServerMetricsAggregated: true
+
   destinations:
     grafana-cloud-metrics:
       extraLabels:
