@@ -49,13 +49,22 @@ WebView, remote images, custom-scheme links or executable fenced content.
 Orbit's welcome and empty private thread use the bundled `AtlasPipView` mascot and
 draft suggestions. Touch duration and tap cadence vary its expressions; never claim
 pressure sensing. Reduce Motion preserves expression changes without movement.
-Orbit lists private conversations as flat title/date rows on the theme canvas, without
-grouped surfaces or disclosure chevrons. Dates accept server microseconds and legacy
-whole seconds. Navbar compose opens a distinct
+Orbit lists authorized private and shared conversations as flat title/date rows on the theme
+canvas, without grouped surfaces or disclosure chevrons. Shared rows disclose their audience.
+Dates accept server microseconds and legacy whole seconds. Navbar compose opens a distinct
 private conversation with welcome/suggestions, rather than a fixed bottom Ask bar. Suggestions
 append to the existing draft and never send. Notification links select an authorized
 thread by UUID through Rust before showing its detail; tab returns must not replay them.
 Push settings disclose that completion alerts contain a title and reply preview.
+
+`AtlasThreadMentions` offers bounded eligible-person suggestions for a trailing `@query`.
+Only choosing a person records an identity through Rust; typing a name alone grants no
+access. Rust retains mentions with per-thread drafts and send retry identities. Sending
+the first invitation asks for confirmation that existing messages and attachments become
+visible to the invited people. Promotion uses participant-scoped shared access, not
+anonymous or company-wide publication. Render `notice_kind: handoff` as a distinct native
+conversation-recap card. After promotion render the authoritative selected kind/title,
+not the private navigation placeholder, and keep shared threads visible in the list.
 
 `AtlasThreadAttachments` owns native Photos/file import, bounded local reads and
 protected QuickLook files. Selection only stages a file; the composer explicitly

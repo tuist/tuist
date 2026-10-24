@@ -152,7 +152,8 @@ struct AtlasThreadDetail: View {
             Button("Cancel", role: .cancel) {}
             Button("Share and send") { send() }
         } message: {
-            Text("Tagged people will be able to read the existing messages and attachments. They will receive a ping and a conversation recap.")
+            Text("Tagged people will be able to read the existing messages and attachments. " +
+                 "They will receive a ping and a conversation recap.")
         }
         .modifier(AtlasAttachmentPicker(photosPresented: $photosPresented, filesPresented: $filesPresented, upload: { file in
             guard !Task.isCancelled, model.selected?.id == thread.id else { return }

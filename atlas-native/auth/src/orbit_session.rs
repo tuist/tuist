@@ -1,6 +1,8 @@
 //! Shared thread state. Platform adapters render snapshots and own only
 //! credential persistence, foreground/background notifications and native views.
-use crate::orbit::{self, Assistant, Attachment, Created, History, Message, Overview, Thread};
+use crate::orbit::{
+    self, Assistant, Attachment, Created, History, Message, Overview, Person, Thread,
+};
 use crate::orbit_live;
 use crate::transport::{Network, Transport};
 use crate::{Result, Session, error, invalid};
@@ -26,6 +28,11 @@ pub(crate) enum Action {
         connection: String,
         id: String,
         body: String,
+    },
+    Mention {
+        connection: String,
+        id: String,
+        user_id: String,
     },
     Active {
         connection: String,
@@ -70,12 +77,18 @@ pub(crate) enum Command {
     History {
         older: bool,
     },
+    People {
+        id: String,
+        query: String,
+    },
     Send {
         id: String,
         body: String,
         address_agent: bool,
         #[serde(default)]
         attachment_ids: Option<Vec<String>>,
+        #[serde(default)]
+        mention_ids: Option<Vec<String>>,
     },
     UploadAttachment {
         id: String,
@@ -117,6 +130,10 @@ struct Snapshot {
     people: Vec<Viewer>,
     draft: String,
     draft_attachments: Vec<Attachment>,
+    draft_mentions: Vec<Person>,
+    mention_candidates: Vec<Person>,
+    mention_loading: bool,
+    mention_error: Option<String>,
     attachment_busy: bool,
     upload_pending: bool,
     upload_filename: Option<String>,
@@ -143,6 +160,7 @@ struct Draft {
     body: String,
     client_id: String,
     attachments: Vec<Attachment>,
+    mentions: Vec<Person>,
 }
 
 struct UploadAttempt {
@@ -173,6 +191,8 @@ struct State {
     lifecycle: u64,
     upload_attempt: Option<UploadAttempt>,
     private_request_id: Option<String>,
+    mention_query: Option<String>,
+    mention_generation: u64,
 }
 
 struct Model {
@@ -213,6 +233,8 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     lifecycle: 0,
                     upload_attempt: None,
                     private_request_id: None,
+                    mention_query: None,
+                    mention_generation: 0,
                 }),
                 changed: Condvar::new(),
             });
@@ -251,6 +273,15 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
         } => {
             let model = get(&connection)?;
             draft(&model, id, body)?;
+            snapshot(&model)
+        }
+        Action::Mention {
+            connection,
+            id,
+            user_id,
+        } => {
+            let model = get(&connection)?;
+            mention(&model, id, user_id)?;
             snapshot(&model)
         }
         Action::Active { connection, active } => {
@@ -313,6 +344,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     state.outbox.clear();
                     state.upload_attempt = None;
                     state.private_request_id = None;
+                    state.mention_query = None;
                     state.snapshot = Snapshot::default();
                     publish(&model, &mut state);
                     state.live.take()
@@ -355,6 +387,13 @@ fn publish(model: &Model, state: &mut State) {
         .and_then(|item| state.drafts.get(&item.id))
         .map(|draft| draft.attachments.clone())
         .unwrap_or_default();
+    state.snapshot.draft_mentions = state
+        .snapshot
+        .selected
+        .as_ref()
+        .and_then(|item| state.drafts.get(&item.id))
+        .map(|draft| draft.mentions.clone())
+        .unwrap_or_default();
     state.snapshot.draft = state
         .snapshot
         .selected
@@ -391,12 +430,22 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
             start_live(model)
         }
         Command::History { older } => history(model, older),
+        Command::People { id, query } => people_using(model, id, query, &Network),
         Command::Send {
             id,
             body,
             address_agent,
             attachment_ids,
-        } => send_using(model, id, body, attachment_ids, address_agent, &Network),
+            mention_ids,
+        } => send_using(
+            model,
+            id,
+            body,
+            attachment_ids,
+            mention_ids,
+            address_agent,
+            &Network,
+        ),
         command @ Command::UploadAttachment { .. } => upload_using(model, command, &Network),
         Command::DeleteAttachment { id, attachment_id } => {
             delete_using(model, id, attachment_id, &Network)
@@ -449,7 +498,7 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
 
 fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) -> Result<()> {
     let new_private = matches!(command, Command::CreatePrivate);
-    let (session, action, generation, access_generation) = {
+    let (session, preflight, generation, access_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -460,8 +509,54 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
                 "Wait for the current thread request to finish.",
             ));
         }
+        let preflight = (new_private
+            && !state
+                .snapshot
+                .assistant
+                .as_ref()
+                .is_some_and(|assistant| assistant.can_create_private))
+        .then(|| orbit::Action::List {
+            page: 1,
+            kind: state.list_kind.clone(),
+        });
+        state.snapshot.loading = true;
+        state.snapshot.error = None;
+        publish(model, &mut state);
+        (
+            state.session.clone(),
+            preflight,
+            state.generation,
+            state.access_generation,
+        )
+    };
+    let result = (|| {
+        if let Some(action) = preflight {
+            let overview = orbit::request_using::<Overview>(network, session.clone(), action)?;
+            let mut state = model.state.lock().map_err(|_| invalid())?;
+            if state.closed
+                || state.generation != generation
+                || state.access_generation != access_generation
+            {
+                return Ok(None);
+            }
+            let supported = overview.assistant.can_create_private;
+            state.snapshot.assistant = Some(overview.assistant);
+            if !supported {
+                return Err(error(
+                    "unsupported",
+                    "This Atlas server does not support new private conversations yet. Update the server, then try again.",
+                ));
+            }
+        }
         let action = match command {
             Command::CreatePrivate => {
+                let mut state = model.state.lock().map_err(|_| invalid())?;
+                if state.closed
+                    || state.generation != generation
+                    || state.access_generation != access_generation
+                {
+                    return Ok(None);
+                }
                 let request_id = match &state.private_request_id {
                     Some(id) => id.clone(),
                     None => random_uuid()?,
@@ -479,23 +574,13 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
             Command::Private => orbit::Action::Private,
             _ => return Err(invalid()),
         };
-        state.snapshot.loading = true;
-        state.snapshot.error = None;
-        publish(model, &mut state);
-        (
-            state.session.clone(),
-            action,
-            state.generation,
-            state.access_generation,
-        )
-    };
-    let result = orbit::request_using::<Created>(network, session, action).and_then(|value| {
+        let value = orbit::request_using::<Created>(network, session, action)?;
         crate::time_off::validate_id(&value.thread.id)?;
         if new_private && value.thread.kind != "private" {
             return Err(invalid());
         }
-        Ok(value)
-    });
+        Ok(Some(value))
+    })();
     let (selected, live) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         state.snapshot.loading = false;
@@ -505,7 +590,7 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
         let current =
             state.generation == generation && state.access_generation == access_generation;
         let selected = match result {
-            Ok(value) => {
+            Ok(Some(value)) => {
                 if new_private {
                     state.private_request_id = None;
                 }
@@ -518,6 +603,7 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
                 }
                 current.then_some(id)
             }
+            Ok(None) => None,
             Err(failure) => {
                 // A timeout or invalid response may have committed. Replay the exact UUID next time.
                 if current {
@@ -549,6 +635,7 @@ fn set_list_kind(model: &Arc<Model>, kind: Option<String>) -> Result<()> {
     }
     let mut state = model.state.lock().map_err(|_| invalid())?;
     if state.list_kind != kind {
+        clear_candidates(&mut state);
         state.list_kind = kind;
         state.list_page = 0;
         state.access_generation += 1;
@@ -677,6 +764,7 @@ fn select_using(
 
 fn begin_selection(state: &mut State, id: Option<String>) -> Option<String> {
     state.generation += 1;
+    clear_candidates(state);
     state.snapshot.selection_id = id;
     state.snapshot.selected = None;
     state.snapshot.messages.clear();
@@ -688,6 +776,147 @@ fn begin_selection(state: &mut State, id: Option<String>) -> Option<String> {
     state.snapshot.history_loading = false;
     state.history_pending = false;
     state.live.take()
+}
+
+fn clear_candidates(state: &mut State) {
+    state.mention_generation += 1;
+    state.mention_query = None;
+    state.snapshot.mention_candidates.clear();
+    state.snapshot.mention_loading = false;
+    state.snapshot.mention_error = None;
+}
+
+fn mention_access(state: &State, id: &str) -> bool {
+    !state.closed
+        && state.active
+        && !state.snapshot.needs_session
+        && state.snapshot.selection_id.as_deref() == Some(id)
+        && state
+            .snapshot
+            .selected
+            .as_ref()
+            .is_some_and(|item| item.id == id && item.status != "archived")
+}
+
+fn trailing_mention(body: &str) -> Option<(usize, &str)> {
+    let at = body.rfind('@')?;
+    if at > 0 && !body[..at].ends_with(char::is_whitespace) {
+        return None;
+    }
+    let query = &body[at + 1..];
+    orbit::validate_people_query(query).ok()?;
+    Some((at, query))
+}
+
+fn has_mention(body: &str, name: &str) -> bool {
+    let token = format!("@{name}");
+    body.match_indices(&token).any(|(at, _)| {
+        (at == 0 || body[..at].ends_with(char::is_whitespace))
+            && body[at + token.len()..]
+                .chars()
+                .next()
+                .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+    })
+}
+
+fn people_using(
+    model: &Arc<Model>,
+    id: String,
+    query: String,
+    network: &impl Transport,
+) -> Result<()> {
+    crate::time_off::validate_id(&id)?;
+    orbit::validate_people_query(&query)?;
+    let (session, generation, access_generation, mention_generation, lifecycle) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        if !mention_access(&state, &id)
+            || state
+                .drafts
+                .get(&id)
+                .and_then(|draft| trailing_mention(&draft.body))
+                .map(|(_, query)| query)
+                != Some(query.as_str())
+        {
+            return Ok(());
+        }
+        clear_candidates(&mut state);
+        state.mention_query = Some(query.clone());
+        state.snapshot.mention_loading = true;
+        publish(model, &mut state);
+        (
+            state.session.clone(),
+            state.generation,
+            state.access_generation,
+            state.mention_generation,
+            state.lifecycle,
+        )
+    };
+    let result = orbit::request_using::<orbit::People>(
+        network,
+        session,
+        orbit::Action::People {
+            id: id.clone(),
+            query: query.clone(),
+        },
+    );
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    if !mention_access(&state, &id)
+        || state.generation != generation
+        || state.access_generation != access_generation
+        || state.mention_generation != mention_generation
+        || state.lifecycle != lifecycle
+        || state.mention_query.as_deref() != Some(query.as_str())
+    {
+        return Ok(());
+    }
+    state.snapshot.mention_loading = false;
+    match result {
+        Ok(value) => state.snapshot.mention_candidates = value.people,
+        Err(failure) => {
+            // Older servers have no people route. Only authoritative history can revoke this thread.
+            state.snapshot.needs_session |= failure.kind == "sign_in_required";
+            state.snapshot.mention_error = Some(failure.message.into());
+        }
+    }
+    publish(model, &mut state);
+    Ok(())
+}
+
+fn mention(model: &Model, id: String, user_id: String) -> Result<()> {
+    crate::time_off::validate_id(&id)?;
+    crate::time_off::validate_id(&user_id)?;
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    if !mention_access(&state, &id) {
+        return Err(invalid());
+    }
+    let person = state
+        .snapshot
+        .mention_candidates
+        .iter()
+        .find(|person| person.id == user_id)
+        .cloned()
+        .ok_or_else(invalid)?;
+    let mut draft = state.drafts.get(&id).cloned().ok_or_else(invalid)?;
+    let (at, query) = trailing_mention(&draft.body).ok_or_else(invalid)?;
+    if state.mention_query.as_deref() != Some(query) {
+        return Err(invalid());
+    }
+    let body = format!("{}@{} ", &draft.body[..at], person.name);
+    if body.len() > 16000 {
+        return Err(invalid());
+    }
+    if !draft.mentions.iter().any(|known| known.id == user_id) {
+        if draft.mentions.len() >= 10 {
+            return Err(invalid());
+        }
+        draft.mentions.push(person);
+    }
+    draft.body = body;
+    draft.client_id = random_uuid()?;
+    state.drafts.insert(id, draft);
+    clear_candidates(&mut state);
+    publish(model, &mut state);
+    Ok(())
 }
 
 fn history(model: &Arc<Model>, older: bool) -> Result<()> {
@@ -1099,7 +1328,15 @@ fn download_using(
 
 #[cfg(test)]
 fn send(model: &Arc<Model>, expected_id: String, body: String, address_agent: bool) -> Result<()> {
-    send_using(model, expected_id, body, None, address_agent, &Network)
+    send_using(
+        model,
+        expected_id,
+        body,
+        None,
+        None,
+        address_agent,
+        &Network,
+    )
 }
 
 fn send_using(
@@ -1107,13 +1344,18 @@ fn send_using(
     expected_id: String,
     body: String,
     ids: Option<Vec<String>>,
+    mention_ids: Option<Vec<String>>,
     address_agent: bool,
     network: &impl Transport,
 ) -> Result<()> {
     if body.len() > 16000 {
         return Err(error("invalid_request", "Check the message and try again."));
     }
-    let (session, id, body, client_id, attachment_ids, address_agent, generation) = {
+    crate::time_off::validate_id(&expected_id)?;
+    if let Some(ids) = &mention_ids {
+        orbit::validate_mention_ids(ids)?;
+    }
+    let (session, id, body, client_id, attachment_ids, mention_ids, address_agent, generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state
             .upload_attempt
@@ -1164,13 +1406,45 @@ fn send_using(
         if !attachment_ids.iter().all(known) {
             return Err(invalid());
         }
-        let client_id = prepare_send_attachments(&mut state, &id, &body, &attachment_ids)?;
+        let current = state.drafts.get(&id);
+        let pending = state.outbox.get(&id);
+        let source = current
+            .filter(|draft| draft.body == body)
+            .or_else(|| pending.filter(|draft| draft.body == body))
+            .or(current);
+        let mention_ids = mention_ids.unwrap_or_else(|| {
+            source
+                .map(|draft| {
+                    draft
+                        .mentions
+                        .iter()
+                        .filter(|person| has_mention(&body, &person.name))
+                        .map(|person| person.id.clone())
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
+        orbit::validate_mention_ids(&mention_ids)?;
+        let mentions = mention_ids
+            .iter()
+            .map(|id| {
+                current
+                    .into_iter()
+                    .chain(pending)
+                    .flat_map(|draft| &draft.mentions)
+                    .find(|person| &person.id == id && has_mention(&body, &person.name))
+                    .cloned()
+                    .ok_or_else(invalid)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let client_id = prepare_send_draft(&mut state, &id, &body, &attachment_ids, &mentions)?;
         let result = (
             state.session.clone(),
             id,
             body,
             client_id,
             attachment_ids,
+            mention_ids,
             address_agent,
             state.generation,
         );
@@ -1187,6 +1461,7 @@ fn send_using(
             client_id: client_id.clone(),
             address_agent,
             attachment_ids: attachment_ids.clone(),
+            mention_ids,
         },
     );
     let (refresh, typing) = {
@@ -1207,6 +1482,9 @@ fn send_using(
                     .is_some_and(|draft| draft.client_id == client_id)
                 {
                     state.drafts.remove(&id);
+                    if state.generation == generation {
+                        clear_candidates(&mut state);
+                    }
                 } else if let Some(draft) = state.drafts.get_mut(&id) {
                     // A new text draft must survive, but already-sent files must not be sent twice.
                     draft
@@ -1246,12 +1524,14 @@ fn send_using(
 
 fn note_failure(state: &mut State, failure: crate::AuthError) {
     if failure.kind == "sign_in_required" {
+        clear_candidates(state);
         state.snapshot.needs_session = true;
     }
     state.snapshot.error = Some(failure.message.into());
 }
 
 fn revoke(state: &mut State, id: &str) {
+    clear_candidates(state);
     state.snapshot.messages.clear();
     state.snapshot.people.clear();
     state.snapshot.threads.retain(|item| item.id != id);
@@ -1273,17 +1553,24 @@ fn revoke(state: &mut State, id: &str) {
 
 #[cfg(test)]
 fn prepare_send(state: &mut State, id: &str, body: &str) -> Result<String> {
-    prepare_send_attachments(state, id, body, &[])
+    prepare_send_draft(state, id, body, &[], &[])
 }
 
-fn prepare_send_attachments(
+fn prepare_send_draft(
     state: &mut State,
     id: &str,
     body: &str,
     ids: &[String],
+    mentions: &[Person],
 ) -> Result<String> {
     let matches = |draft: &&Draft| {
-        draft.body == body && draft.attachments.iter().map(|item| &item.id).eq(ids.iter())
+        draft.body == body
+            && draft.attachments.iter().map(|item| &item.id).eq(ids.iter())
+            && draft
+                .mentions
+                .iter()
+                .map(|person| &person.id)
+                .eq(mentions.iter().map(|person| &person.id))
     };
     let client_id = if let Some(draft) = state.drafts.get(id).filter(matches) {
         draft.client_id.clone()
@@ -1297,6 +1584,7 @@ fn prepare_send_attachments(
         Draft {
             body: body.into(),
             client_id: client_id.clone(),
+            mentions: mentions.to_vec(),
             attachments: state
                 .drafts
                 .get(id)
@@ -1333,19 +1621,16 @@ fn draft(model: &Model, id: String, body: String) -> Result<()> {
             return Ok(());
         }
         if state.drafts.get(&id).is_none_or(|draft| draft.body != body) {
-            let attachments = state
-                .drafts
-                .get(&id)
-                .map(|draft| draft.attachments.clone())
-                .unwrap_or_default();
-            state.drafts.insert(
-                id,
-                Draft {
-                    body: body.clone(),
-                    client_id: random_uuid()?,
-                    attachments,
-                },
-            );
+            let mut updated = state.drafts.get(&id).cloned().unwrap_or_default();
+            updated
+                .mentions
+                .retain(|person| has_mention(&body, &person.name));
+            updated.body = body.clone();
+            updated.client_id = random_uuid()?;
+            state.drafts.insert(id, updated);
+            if selected {
+                clear_candidates(&mut state);
+            }
         }
         let typing = if selected
             && (body.is_empty()
@@ -1377,6 +1662,7 @@ fn set_active(model: &Arc<Model>, active: bool) -> Result<()> {
         if !active {
             state.lifecycle += 1;
         }
+        clear_candidates(&mut state);
         state.snapshot.people.clear();
         let live = if active { None } else { state.live.take() };
         publish(model, &mut state);
@@ -1411,6 +1697,7 @@ fn start_live(model: &Arc<Model>) -> Result<()> {
     let opened = match orbit_live::execute(action) {
         Ok(opened) => opened,
         Err(failure) if failure.kind == "sign_in_required" => {
+            clear_candidates(&mut state);
             state.snapshot.needs_session = true;
             publish(model, &mut state);
             return Ok(());
@@ -1452,6 +1739,7 @@ fn live_loop(model: Arc<Model>, connection: String, generation: u64, is_list: bo
             };
             sequence = value["sequence"].as_u64().unwrap_or(sequence);
             if value["needs_session"] == true {
+                clear_candidates(&mut state);
                 state.snapshot.needs_session = true;
                 state.snapshot.people.clear();
                 publish(&model, &mut state);

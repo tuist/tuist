@@ -4,12 +4,13 @@ struct AtlasThreadMentions: View {
     @ObservedObject var model: AtlasOrbit
     let shared: Bool
     @State private var searching = false
+    @State private var completedQuery: String?
 
     private var query: String? {
         guard let at = model.draft.lastIndex(of: "@"),
               at == model.draft.startIndex || model.draft[model.draft.index(before: at)].isWhitespace else { return nil }
         let suffix = String(model.draft[model.draft.index(after: at)...])
-        guard suffix.count <= 80, !suffix.contains("\n"),
+        guard suffix.utf8.count <= 100, !suffix.contains("\n"),
               !model.draftMentions.contains(where: { suffix == $0.name + " " }) else { return nil }
         return suffix
     }
@@ -19,7 +20,7 @@ struct AtlasThreadMentions: View {
             if query != nil {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(model.mentionCandidates) { person in
+                        ForEach(completedQuery == query ? model.mentionCandidates : []) { person in
                             Button {
                                 Task { await model.mention(person) }
                             } label: {
@@ -31,7 +32,13 @@ struct AtlasThreadMentions: View {
                             .accessibilityIdentifier("thread-mention-\(person.id)")
                         }
                         if searching { ProgressView("Finding people…") }
-                        if !searching, model.mentionCandidates.isEmpty { Text("No eligible people found").foregroundStyle(.secondary) }
+                        if !searching, completedQuery == query {
+                            if let error = model.mentionError {
+                                Text(error).foregroundStyle(.secondary)
+                            } else if model.mentionCandidates.isEmpty {
+                                Text("No eligible people found").foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
                 .frame(maxHeight: 160)
@@ -44,12 +51,14 @@ struct AtlasThreadMentions: View {
             }
         }
         .task(id: query) {
-            guard let query else { return }
+            guard let query else { searching = false; completedQuery = nil; return }
             searching = true
-            defer { searching = false }
             do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
             guard !Task.isCancelled else { return }
             await model.searchPeople(query: query)
+            guard !Task.isCancelled else { return }
+            completedQuery = query
+            searching = false
         }
     }
 }

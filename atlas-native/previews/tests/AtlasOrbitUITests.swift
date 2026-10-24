@@ -355,6 +355,43 @@ final class AtlasOrbitUITests: XCTestCase {
         }
     }
 
+    @MainActor func testMentionSharesOnlyAfterConfirmationAndShowsConversationRecap() throws {
+        for arguments in [[], ["--dark", "--large-text"]] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace"] + arguments
+            app.launch()
+            defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
+            let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+            XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+            conversation.tap()
+            let composer = app.textFields["thread-composer"]
+            XCTAssertTrue(composer.waitForExistence(timeout: 5))
+            composer.tap()
+            composer.typeText("Please take a look @Al")
+            let person = app.buttons["thread-mention-01922cc0-0000-7000-8000-000000000099"]
+            XCTAssertTrue(person.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(person.frame.height, 44)
+            capture(app, "ios-orbit-mention-picker-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+            person.tap()
+            XCTAssertTrue(app.staticTexts["thread-mention-disclosure"].waitForExistence(timeout: 5))
+            XCTAssertTrue((composer.value as? String)?.contains("@Alex Morgan") == true)
+            app.buttons["thread-send"].tap()
+            let confirmation = app.alerts["Share this conversation?"]
+            XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+            confirmation.buttons["Cancel"].tap()
+            XCTAssertTrue(app.staticTexts["Private · Only you and Pip"].exists)
+            XCTAssertFalse(app.staticTexts["Conversation recap"].exists)
+            app.buttons["thread-send"].tap()
+            confirmation.buttons["Share and send"].tap()
+            XCTAssertTrue(app.navigationBars["Build listing latency"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.staticTexts["Private · Only you and Pip"].exists)
+            _ = try app.visibleElement("thread-handoff")
+            XCTAssertTrue(app.staticTexts["Conversation recap"].exists)
+            capture(app, "ios-orbit-mention-handoff-\(arguments.isEmpty ? "light" : "dark-large")-preview")
+        }
+    }
+
     @MainActor func testBottomFollowsAppendedAndGrowingReplyWithoutMovingHistoryReaders() throws {
         for mode in ["short", "long", "keyboard", "history"] {
             let readingHistory = mode == "history"

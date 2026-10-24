@@ -313,7 +313,7 @@ info_plist_substitutions = { ATLAS_SUPPORTED_PLATFORM = "iPhoneOS", ATLAS_PLATFO
 [[target]]
 name = "AtlasIOSTests"
 kind = "apple_test_bundle"
-srcs = ["ios/Tests/**/*.swift", "ios/Sources/AtlasAutomationModels.swift", "ios/Sources/AtlasNavigation.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasBusiness.swift", "ios/Sources/AtlasPresence.swift", "ios/Sources/AtlasAppearance.swift", "ios/Sources/AtlasPushNotifications.swift", "ios/Sources/AtlasOrbit.swift", "ios/Sources/AtlasThreadScrollState.swift", "ios/Sources/AtlasVoiceInput.swift", "ios/Sources/AtlasMarkdown.swift", "ios/Sources/AtlasPipView.swift", "ios/Sources/AtlasThreadAttachments.swift", "ios/Sources/AtlasProfile.swift"]
+srcs = ["ios/Tests/**/*.swift", "ios/Sources/AtlasAutomationModels.swift", "ios/Sources/AtlasNavigation.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasBusiness.swift", "ios/Sources/AtlasPresence.swift", "ios/Sources/AtlasAppearance.swift", "ios/Sources/AtlasPushNotifications.swift", "ios/Sources/AtlasOrbit.swift", "ios/Sources/AtlasThreadModels.swift", "ios/Sources/AtlasThreadScrollState.swift", "ios/Sources/AtlasVoiceInput.swift", "ios/Sources/AtlasMarkdown.swift", "ios/Sources/AtlasPipView.swift", "ios/Sources/AtlasThreadAttachments.swift", "ios/Sources/AtlasProfile.swift"]
 deps = ["./AtlasCore", "./AtlasAuthIOS", "./AtlasCoreFFI", "./AtlasAuthFFI"]
 
 [target.attrs]

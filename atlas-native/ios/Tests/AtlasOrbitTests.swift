@@ -4,7 +4,9 @@ import Testing
 @MainActor
 struct AtlasOrbitTests {
     private let id = "01922cc0-0000-7000-8000-000000000001"
+}
 
+extension AtlasOrbitTests {
     @Test(arguments: ["2026-10-24T12:34:56.123456Z", "2026-10-24T12:34:56Z"])
     func conversationDatesAcceptServerMicrosecondsAndLegacySeconds(timestamp: String) async throws {
         let model = AtlasOrbit(request: { action in
@@ -19,34 +21,38 @@ struct AtlasOrbitTests {
 
     @Test func bottomFollowingSurvivesLayoutCorrectionsButStopsForUserHistoryScrolling() {
         var state = AtlasThreadScrollState()
+        let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
         state.userScrolling = false
-        #expect(!state.update(.init(height: 2000, bottom: 600, viewport: 600)))
-        #expect(state.update(.init(height: 2200, bottom: 840, viewport: 600)))
+        #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
+        #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
         // A later lazy-row correction can change offset without changing the new content height.
-        #expect(state.update(.init(height: 2200, bottom: 880, viewport: 600)))
+        #expect(update(.init(height: 2200, bottom: 880, viewport: 600)))
         #expect(state.following)
-        #expect(!state.update(.init(height: 2200, bottom: 600, viewport: 600)))
+        #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
         state.userScrolling = true
-        #expect(!state.update(.init(height: 2200, bottom: 645, viewport: 600)))
+        #expect(!update(.init(height: 2200, bottom: 645, viewport: 600)))
         state.userScrolling = false
-        #expect(!state.update(.init(height: 2500, bottom: 945, viewport: 600)))
+        #expect(!update(.init(height: 2500, bottom: 945, viewport: 600)))
         #expect(!state.following)
-        #expect(!state.update(.init(height: 2500, bottom: 600, viewport: 600)))
+        #expect(!update(.init(height: 2500, bottom: 600, viewport: 600)))
         #expect(state.following)
-        #expect(state.update(.init(height: 2500, bottom: 760, viewport: 400, inset: 200)))
+        #expect(update(.init(height: 2500, bottom: 760, viewport: 400, inset: 200)))
         #expect(state.following)
     }
 
     @Test func fallbackScrollAccumulatesSlowMovementAndRebasesContentGrowth() {
         var state = AtlasThreadScrollState()
-        #expect(!state.update(.init(height: 2000, bottom: 600, viewport: 600)))
-        #expect(state.update(.init(height: 2200, bottom: 840, viewport: 600)))
+        let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
+        #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
+        #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
         #expect(state.following)
-        #expect(!state.update(.init(height: 2200, bottom: 600, viewport: 600)))
+        #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
         for step in 1...50 { _ = state.update(.init(height: 2200, bottom: 600 + CGFloat(step) / 2, viewport: 600)) }
         #expect(!state.following)
     }
+}
 
+extension AtlasOrbitTests {
     @Test func adapterForwardsCommandsAndRendersRustState() async throws {
         var commands: [String] = []
         let model = AtlasOrbit(request: { action in
@@ -85,6 +91,49 @@ struct AtlasOrbitTests {
         #expect(commands[2].count == 1) // Replay UUID and owner identity belong to Rust/server.
     }
 
+    @Test func mentionSelectionUsesRustIdentityAndRetainsTheEditableDraft() async throws {
+        let personId = "01922cc0-0000-7000-8000-000000000099"
+        var sequence = 0
+        var body = ""
+        var fields: [String: Any] = [:]
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"mention-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            sequence += 1
+            if command["action"] as? String == "people" {
+                #expect(command["id"] as? String == id)
+                #expect(command["query"] as? String == "Al")
+                #expect(body == "Please review @Al")
+                fields["mention_candidates"] = [["id": personId, "name": "Alex Morgan"]]
+            }
+            if command["action"] as? String == "send" {
+                #expect(command["mention_ids"] as? [String] == [personId])
+            }
+            return try snapshot(sequence: sequence, selected: true, draft: body, fields: fields)
+        }, localRequest: { action in
+            sequence += 1
+            if action["action"] as? String == "draft" { body = action["body"] as? String ?? "" }
+            if action["action"] as? String == "mention" {
+                #expect(action["id"] as? String == id)
+                #expect(action["user_id"] as? String == personId)
+                #expect(action["name"] == nil)
+                body = "Please review @Alex Morgan "
+                fields["draft_mentions"] = [["id": personId, "name": "Alex Morgan"]]
+            }
+            return try snapshot(sequence: sequence, selected: true, draft: body, fields: fields)
+        })
+        _ = await model.open(id: id)
+        model.draft = "Please review @Al"
+        await model.searchPeople(query: "Al")
+        let person = try #require(model.mentionCandidates.first)
+        await model.mention(person)
+        #expect(model.draft == "Please review @Alex Morgan ")
+        #expect(model.draftMentions.map(\.id) == [personId])
+        await model.send(addressAgent: false)
+    }
+}
+
+extension AtlasOrbitTests {
     @Test func aNewerSelectionSupersedesPendingConversationCreation() async throws {
         var pending: CheckedContinuation<Data, Error>?
         let model = AtlasOrbit(request: { action in
@@ -297,18 +346,20 @@ struct AtlasOrbitTests {
 extension AtlasOrbitTests {
     private func snapshot(
         sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = [],
-        agentStatus: String? = nil, liveMessage: String? = nil, updatedAt: String = "2027-06-07T10:00:00Z"
+        agentStatus: String? = nil, liveMessage: String? = nil, updatedAt: String = "2027-06-07T10:00:00Z",
+        fields: [String: Any] = [:]
     ) throws -> Data {
         let thread: [String: Any] = [
             "id": id, "title": "Private thread", "kind": "private", "status": "idle",
             "summary": "", "origin": "manual", "participants": [], "updated_at": updatedAt,
             "agent_status": agentStatus as Any? ?? NSNull()
         ]
-        return try JSONSerialization.data(withJSONObject: [
+        let value: [String: Any] = [
             "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
             "threads": [thread], "selected": selected ? thread as Any : NSNull(),
             "messages": messages, "people": [], "draft": draft, "loading": false, "history_loading": false, "saving": false,
             "has_more": true, "has_older": false, "needs_session": false, "live_message": liveMessage as Any? ?? NSNull()
-        ])
+        ]
+        return try JSONSerialization.data(withJSONObject: value.merging(fields) { _, latest in latest })
     }
 }
