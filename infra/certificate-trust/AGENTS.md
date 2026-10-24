@@ -33,9 +33,10 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
   enforcement, macOS-host Bazel evidence and standalone native Linux CI. Preserve complete Apple SecTrust
   paths, Unix native-store/extra-anchor semantics, explicit/inbound mTLS and
   per-build identity/provider/PEM/SNI/ALPN parity. Full Linux library phases have
-  passed; `KURA-RESOURCE.md` records completed private-peer ABBA workloads from
-  an overall failed comparison and an unexplained positive memory delta. Never
-  retrofit a green workflow or budget approval. Native-client construction cost,
+  passed; `KURA-RESOURCE.md` preserves the failed historical comparison and
+  successful three-block workflow. All 12 workloads finish, but per-block budget
+  flags and the historical memory cause remain open. Never retrofit a green
+  historical workflow or equate execution with budget approval. Native-client construction cost,
   final-source/runtime variants and exact release/deployed integration remain gates. The runtime workflow's safe-default build-only path
   retains only public evidence/hashes, not private keys or runnable artifacts.
 - Root-store containment is not a verifier patch. Go 1.26.10 passes all eight

@@ -269,7 +269,10 @@ repeats/full macOS suites. Retry `40073713999` passed full Linux, both assemblie
 and all four resource workloads/retention/recovery, then failed a setup-probe
 equality check. Derived corrected analysis finds peak anonymous memory
 +7.576 MiB/+3.325%, beyond baseline spread, with cause unestablished. No budget
-approval. Three-block investigation `40078717301` is pending; see the
+approval. Three-block investigation `40078717301` succeeded: all 12 workloads,
+full Linux tests and both release assemblies. Peak anonymous memory decreased
+in each block, but cooldown/transient/logical-disk/RX flags remain open; the
+historical cause is not established and this is not budget clearance. See the
 [resource receipt](KURA-RESOURCE.md). Native-client construction cost remains
 unmeasured. Main-relative four-axis qualification, final-source
 runtime variants and

@@ -116,7 +116,11 @@ successful work. Corrected derived analysis preserves the original failed receip
 and finds **+7.576 MiB/+3.325% peak anonymous memory**, beyond the 2.551 MiB
 baseline spread. Its cause remains unestablished; no budget approval follows.
 See the [resource receipt](KURA-RESOURCE.md) for exact identities, all four axes,
-observer-cost limits and run `40078717301` (three complete blocks, pending).
+observer-cost limits and successful run `40078717301` (three complete blocks,
+12 workloads). Its peak-anonymous deltas are negative in all three blocks, but
+cooldown/transient/logical-disk/RX per-block flags remain open. Neither the
+historical cause nor budget clearance is established; native-client construction
+and deployed paths remain outside this fixture.
 
 ## Remaining gates
 

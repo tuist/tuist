@@ -76,12 +76,80 @@ block's flag. Unknown legacy/unsampled measurements remain explicitly unavailabl
 
 [Run 40078717301](https://github.com/tuist/tuist/actions/runs/40078717301), source
 `d99f37fe3925712d85bed6a05ae5d3ed6387e8ca`, requests three complete ABBA blocks on
-one host to investigate phase/variation and observer cost. It is pending, not a
-rerun-until-green or budget waiver. The job has contents-read permission only;
-publishing is skipped and private keys/binaries/images are excluded from uploads.
+one host to investigate phase/variation and observer cost. It **succeeded** at
+09:24:12 UTC on 2026-10-24, including full Linux tests, both assemblies and all
+12 resource workloads. This was not a rerun-until-green or budget waiver. The job
+had contents-read permission only; publishing was skipped and private
+keys/binaries/images were excluded from uploads.
 
 This fixture measures local private-peer behavior, not native HTTP-client
 construction cost, physical provider networks, fleet capacity or deployed
 Sentry/OTLP/enrollment/Kubernetes integrations. Those and exact release/runtime
 qualification remain independent gates. No production deployment, customer
 publication or installed-process replacement occurred.
+
+## Completed three-block investigation
+
+Run `40078717301` passed 14 measurement contracts, 1,250 library cases/52 ignored
+(22.179 s), independent 10/3 ignored, reporter 3, main 1 and both public/identity
+opt-ins (6.065 s). The exact binary hashes match the previous table; only the
+local image identities changed:
+
+- Baseline: `sha256:94777b1582d88005d2a02389174236c8d7e9d89ec76c9691787045a4be2504e6`.
+- Candidate: `sha256:49be3a8c2075a14786af0a91128b7acd1bb6358c555072ba54e7ef4ea145783c`.
+
+All 12 workloads completed identical successful work and application egress,
+including 192 successful seed probes/192 MiB, 1,280 nonresumed handshakes and
+960 retention checks each. Failed probes were four or five 404s per run, evenly
+spread across variants. Pressure tier/transitions/sheds and segment refresh
+remained zero; maximum sampled transient fraction was 8.333%.
+
+| Pooled measurement | Observed candidate change | Per-block evidence |
+| --- | ---: | --- |
+| Peak anonymous memory | -6.825 MiB (-2.767%) | Negative in all three blocks |
+| Cooldown anonymous memory | -0.854% | Block 1 **+3.223 MiB**, beyond its 0.922 MiB spread |
+| Peak jemalloc allocated | -7.263% | No positive increase beyond spread |
+| Cooldown jemalloc resident | -1.983% | Block 1 **+1.475 MiB**, beyond its 0.852 MiB spread |
+| Peak transient reservation | -59.574% | Block 3 **+13.500 MiB**, beyond its 1.000 MiB spread |
+| CPU/client GiB | -0.313% | No positive increase beyond spread |
+| Allocated disk/write GiB | -0.000068% | No positive increase beyond spread |
+| Logical disk/write GiB | Approximately flat | Block 3 **+683.2 B/GiB**, beyond 643.2 B/GiB spread |
+| Raw transmit/client GiB | -0.000628% | No positive increase beyond spread |
+| Transmit minus metrics bodies/client GiB | +0.001110% | Within spread in every block |
+| Receive/client GiB | **+0.012503%** | Positive in all three blocks; block 3 beyond spread |
+
+These percentages are observations, not confidence intervals or evidence of
+improvement. The earlier peak-anonymous increase did not reproduce, but the
+host differed; do not pool absolute values across hosts or call its cause fixed.
+Every per-block flag remains visible and open despite negative pooled means.
+
+Read-only source/evidence review found plausible explanations, not attribution:
+
+- RX increases by 128,425 B and 1,726.5 packets per run on average. About 74 B per
+  extra packet is header-sized. A **hypothetical** 66-byte header model explains
+  about 89% of the difference, but no capture establishes ACK versus segmentation
+  versus candidate scheduling or host noise. No assumed headers are subtracted
+  from the authoritative comparison.
+- Large transient observations are isolated seed-phase samples near a 32 MiB
+  reservation. Baselines hit those samples more often overall. Sparse gauges
+  cannot determine reservation duration or prove the block-3 cause.
+- Cooldown values use one final sample. Block 1's live jemalloc allocations are
+  lower for the candidate, and the other two cooldown deltas are negative, but
+  this does not prove absence of retention.
+- The logical disk flag is roughly 213.5 B total; allocated storage has no
+  block-3 increase and all retention reads pass. Small metadata files are a
+  plausible source, not a file-by-file demonstrated cause.
+- Baseline `before-6` had one extra metrics scrape. Body-only accounting exposes
+  that observation cost, not all TCP/IP overhead or scrape CPU. Phase edges and
+  cached gauges remain too coarse for allocation attribution.
+
+Original receipts are immutable under
+`/tmp/tuist-emudhra-audit/kura-resource-sixth-40078717301/`; the workflow's own
+`comparison.json` includes all blocks, raw phase/per-node peaks, identities and
+flags. The read-only review is `claude-kura-three-block-resource-final.json`.
+
+**Workflow completion is now established. Resource-budget clearance is not.**
+The remaining flags, native-client construction cost and exact deployed/runtime
+integrations still require qualification. No further repetitions are being used
+to erase flags, and no publication, deployment or replacement follows from this
+successful build-only run.
