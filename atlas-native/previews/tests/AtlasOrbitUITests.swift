@@ -69,6 +69,23 @@ final class AtlasOrbitUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["thread-result-table"].firstMatch.exists)
     }
 
+    @MainActor func testAttachmentChipCenterOpensDownloadedFile() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--orbit-attachments", "--destination",
+            "dev.tuist.atlas://navigate/orbit/01922cc0-0000-7000-8000-000000000001?server=https%3A%2F%2Fatlas.example.org"]
+        app.launch()
+        defer { app.terminate() }
+        let remove = app.buttons["Remove notes.txt"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 10))
+        remove.tap()
+        XCTAssertTrue(remove.waitForNonExistence(timeout: 5))
+        let file = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "notes.txt")).firstMatch
+        file.tap()
+        XCTAssertTrue(app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textViews["Atlas attachment fixture. No private data."].exists)
+        capture(app, "ios-orbit-attachment-preview")
+    }
+
     @MainActor func testLargeTextDarkThreadKeepsComposerAboveKeyboard() throws {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace", "--dark", "--large-text"]

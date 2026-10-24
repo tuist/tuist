@@ -114,7 +114,6 @@ final class AtlasRenderValidation: XCTestCase {
             let lookup = try app.visibleElement("list_error_issues · succeeded", type: .button)
             lookup.tap()
             capture(app, "tool-tree-tapped-\(dark ? "dark-large" : "light")")
-            print(app.debugDescription)
             _ = try app.visibleElement("Two fixture issues, both related to indexing.")
             capture(app, "tool-tree-expanded-\(dark ? "dark-large" : "light")")
             XCTAssertTrue(app.textFields["thread-composer"].isHittable)
@@ -147,10 +146,11 @@ final class AtlasRenderValidation: XCTestCase {
             if !dark {
                 let file = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "notes.txt")).firstMatch
                 file.tap()
-                XCTAssertTrue(app.buttons["Done"].firstMatch.waitForExistence(timeout: 5))
-                XCTAssertTrue(app.navigationBars["notes.txt"].exists)
+                let close = app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"]
+                XCTAssertTrue(close.waitForExistence(timeout: 5))
+                XCTAssertTrue(app.textViews["Atlas attachment fixture. No private data."].exists)
                 capture(app, "attachment-preview")
-                app.buttons["Done"].firstMatch.tap()
+                close.tap()
                 app.buttons["thread-attach"].tap()
                 app.buttons["Photo Library"].tap()
                 XCTAssertTrue(app.buttons["Cancel"].firstMatch.waitForExistence(timeout: 5))
@@ -215,7 +215,6 @@ final class AtlasRenderValidation: XCTestCase {
             XCTAssertTrue(app.navigationBars["Prompts"].waitForNonExistence(timeout: 5))
             let attachment = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "release-notes.txt")).firstMatch
             capture(app, "prompt-after-selection-\(dark ? "shared-dark-large" : "private-light")")
-            print(app.debugDescription)
             XCTAssertTrue(attachment.waitForExistence(timeout: 5))
             XCTAssertTrue(attachment.isHittable)
             XCTAssertGreaterThanOrEqual(attachment.frame.minY, app.navigationBars.firstMatch.frame.maxY)

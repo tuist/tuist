@@ -359,6 +359,7 @@ private struct AtlasThreadDetail: View {
         }
         .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
         .frame(maxWidth: .infinity)
+        .background(.background)
     }
 
     private var details: some View {
