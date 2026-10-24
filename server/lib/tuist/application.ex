@@ -76,6 +76,7 @@ defmodule Tuist.Application do
   end
 
   defp start_telemetry do
+    Tuist.Observability.attach_oban()
     Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
     TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
@@ -229,9 +230,19 @@ defmodule Tuist.Application do
         :span_id,
         :request_id,
         :request_kind,
+        :auth_user_id,
+        :auth_project_id,
+        :auth_account_id,
         :auth_account_handle,
+        :selected_account_id,
         :selected_account_handle,
+        :selected_project_id,
         :selected_project_handle,
+        :feature_flags,
+        :feature_flag,
+        :feature_flag_enabled,
+        :feature_flag_actor_type,
+        :feature_flag_actor_id,
         :operator_grant_jti,
         :operator_grant_sub,
         :atlas_operator_email,

@@ -1,7 +1,13 @@
 defmodule Tuist.TasksTest do
   use ExUnit.Case, async: true
+  use Mimic
 
+  alias Tuist.Accounts.Account
+  alias Tuist.Environment
+  alias Tuist.Observability
   alias Tuist.Tasks
+
+  setup :set_mimic_from_context
 
   defmodule Query do
     @moduledoc false
@@ -9,6 +15,43 @@ defmodule Tuist.TasksTest do
   end
 
   describe "parallel_tasks/2" do
+    test "propagates only owned context and tracing, isolating siblings and the caller" do
+      stub(Environment, :error_tracking_enabled?, fn -> true end)
+      selected = %Account{id: 42, name: "tenant"}
+      Observability.set_selection(%{selected_account: selected})
+      Observability.feature_flag_evaluated(:runners, selected, true)
+      Logger.metadata(request_id: "not inherited")
+      Sentry.Context.set_request_context(%{headers: %{authorization: "not inherited"}})
+      Sentry.Context.set_extra_context(%{arbitrary_request_value: "not inherited"})
+      :otel_ctx.set_value(:private_request_value, "not inherited")
+      :otel_tracer.set_current_span(:otel_tracer.from_remote_span(1234, 5678, 1))
+
+      results =
+        Tasks.parallel_tasks([
+          fn ->
+            event = Sentry.Event.create_event(exception: %RuntimeError{message: "task"})
+            trace_id = :otel_span.trace_id(:otel_tracer.current_span_ctx())
+            baggage = :otel_ctx.get_value(:private_request_value)
+            private_metadata = Logger.metadata()[:request_id]
+            Observability.set_selection(%{selected_account: %Account{id: 43, name: "other"}})
+            {event, trace_id, baggage, private_metadata, Logger.metadata()[:selected_account_id]}
+          end,
+          fn -> Sentry.Context.get_all() end
+        ])
+
+      [{event, 1234, :undefined, nil, 43}, sibling] = results
+      assert event.tags.selected_account_id == 42
+      assert event.tags["feature_flag.runners"] == "true"
+      refute Map.has_key?(event.extra, :arbitrary_request_value)
+      refute inspect(event.request) =~ "not inherited"
+      assert sibling.tags.selected_account_id == 42
+      assert sibling.tags["feature_flag.runners"] == "true"
+      assert Logger.metadata()[:selected_account_id] == 42
+      assert Sentry.Context.get_all().tags.selected_account_id == 42
+      assert Sentry.Context.get_all().extra.arbitrary_request_value == "not inherited"
+      assert :otel_ctx.get_value(:private_request_value) == "not inherited"
+    end
+
     test "returns the results in the order the functions were given" do
       assert [1, 2, 3] = Tasks.parallel_tasks([fn -> 1 end, fn -> 2 end, fn -> 3 end])
     end
@@ -68,5 +111,20 @@ defmodule Tuist.TasksTest do
 
       assert catch_exit(Tasks.parallel_tasks([fn -> exit(:boom) end])) == :boom
     end
+  end
+
+  test "the synchronous run_async path restores context after an exception" do
+    stub(Environment, :error_tracking_enabled?, fn -> true end)
+    Observability.set_selection(%{selected_account: %Account{id: 42, name: "caller"}})
+
+    assert_raise RuntimeError, "failure", fn ->
+      Tasks.run_async(fn ->
+        Observability.set_selection(%{selected_account: %Account{id: 43, name: "task"}})
+        raise "failure"
+      end)
+    end
+
+    assert Logger.metadata()[:selected_account_id] == 42
+    assert Sentry.Context.get_all().tags.selected_account_id == 42
   end
 end

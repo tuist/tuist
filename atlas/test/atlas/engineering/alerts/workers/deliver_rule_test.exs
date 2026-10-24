@@ -44,19 +44,21 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRuleTest do
       receive do
         :complete_delivery -> :ok
       after
-        5_000 -> flunk("delivery was not released")
+        30_000 -> flunk("delivery was not released")
       end
     end)
 
     first = Task.async(fn -> Sandbox.unboxed_run(Repo, fn -> DeliverRule.perform(job(rule, issue)) end) end)
     first_pid = first.pid
-    assert_receive {:lock_attempt, ^first_pid}, 1_000
+    # Each independent worker must first check out a connection from the pool
+    # shared by the async suite; checkout latency is not part of the lock contract.
+    assert_receive {:lock_attempt, ^first_pid}, 10_000
     assert_receive {:cooldown_checked, ^first_pid}, 1_000
     assert_receive {:delivery_started, ^first_pid}, 1_000
 
     second = Task.async(fn -> Sandbox.unboxed_run(Repo, fn -> DeliverRule.perform(job(rule, issue)) end) end)
     second_pid = second.pid
-    assert_receive {:lock_attempt, ^second_pid}, 1_000
+    assert_receive {:lock_attempt, ^second_pid}, 10_000
     assert {:snooze, 10} = Task.await(second, 10_000)
     refute_receive {:cooldown_checked, ^second_pid}
     refute_receive {:delivery_started, ^second_pid}
