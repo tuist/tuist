@@ -72,7 +72,9 @@ rather than drag lifetime so indirect scrolling and deceleration also stop follo
 Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
 current visible message through SwiftUI scroll-position binding, not a forced jump to the
-old first row after the response. Keep manual retry and never loop failed requests.
+old first row after the response. The timeline's lazy stack owns stable group IDs and the
+scroll-target layout; the fixed header/footer stack must not mark the whole timeline as one
+target. Keep manual retry and never loop failed requests.
 Keep the latest-message action beside the index
 and reserve transcript space so these controls do not cover message content.
 

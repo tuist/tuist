@@ -126,6 +126,12 @@ jobs:
           export ONCE_APPLE_SIMULATOR_UDID="$device"
           export TMPDIR="$RUNNER_TEMP/atlas-orbit-render-validation"
           mkdir -p "$TMPDIR"
+          # Keep failures and result bundles, without the ten-minute simulator sysdiagnose timeout.
+          real_xcodebuild=$(xcrun --find xcodebuild)
+          mkdir -p "$TMPDIR/tools"
+          printf '#!/bin/bash\nif [[ "$1" == test-without-building ]]; then exec %q "$@" -collect-test-diagnostics never; fi\nexec %q "$@"\n' "$real_xcodebuild" "$real_xcodebuild" > "$TMPDIR/tools/xcodebuild"
+          chmod +x "$TMPDIR/tools/xcodebuild"
+          export PATH="$TMPDIR/tools:$PATH"
           xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/render-validation/interaction.mov" > render-validation/recording.log 2>&1 &
           recording=$!
           trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT

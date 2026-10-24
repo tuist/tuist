@@ -41,7 +41,7 @@ struct AtlasThreadDetail: View {
         GeometryReader { geometry in
             ScrollViewReader { scroll in
                 ScrollView {
-                    LazyVStack(spacing: 14) {
+                    VStack(spacing: 14) {
                         if model.hasOlder {
                             Button(model.loadingHistory || pagingHistory ? "Loading earlier messages…" : "Load earlier messages") {
                                 Task { await loadEarlier() }
@@ -72,7 +72,6 @@ struct AtlasThreadDetail: View {
                         }
                         Color.clear.frame(height: model.messages.isEmpty ? 1 : 49).id("thread-latest")
                     }
-                    .scrollTargetLayout()
                     .padding(.horizontal, 16).padding(.vertical, 12)
                     .frame(maxWidth: 720)
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: showsWelcome ? .top : .bottom)
