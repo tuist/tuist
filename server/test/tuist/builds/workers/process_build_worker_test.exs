@@ -129,6 +129,29 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
+    test "expanded stored metadata survives processor replacement and validation", %{account: account, project: project} do
+      values = Map.new(1..64, &{"future.#{&1}", "value #{&1}"})
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          status: "processing",
+          custom_values: values
+        )
+
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+      expect(BuildProcessor, :process_build, fn _path, true, consume -> consume.(parsed_data()) end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.custom_values == values
+        assert Build.create_changeset(attrs).valid?
+        {:ok, %{id: build.id}}
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+
     test "atomizes machine metrics keys", %{
       account: account,
       project: project,

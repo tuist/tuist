@@ -411,10 +411,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     /// A transfer that stalled is tried again like a transient server failure: a write carries the
     /// blob from its first byte, so the attempt it replaces delivered nothing that can be kept.
+    /// `.internalError`, `.unknown` and `.cancelled` are how a stream cut by a proxy, a peer rotating its
+    /// connections, or an ingress answering with a non-gRPC error reaches the client. Every call this wraps is
+    /// idempotent, and `retry` checks for local cancellation before consulting this.
     private static func isRetryable(_ error: any Error) -> Bool {
         if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
         guard let error = error as? RPCError else { return false }
-        return [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code)
+        return [.unavailable, .resourceExhausted, .deadlineExceeded, .internalError, .unknown, .cancelled]
+            .contains(error.code)
     }
 
     private static func batchFailure(codes: [Int32]) -> RPCError? {

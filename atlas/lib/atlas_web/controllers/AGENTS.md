@@ -16,9 +16,41 @@ Task status and display names are not editable. Blank/omitted assignees default 
 
 Invalid/missing path UUIDs return 404. Invalid fields return 422 with sanitized optional `fields`; database conflicts return 409. Missing/invalid bearer tokens return 401; scope denial and imported invoice writes return 403. The controller supplies caller/interface `api` audit context, including account operations whose domain reads that context; domain contexts own mutation audit events.
 
-`GET /api/native/profile` returns only `{server_version, user: {name, email}}` for the bearer caller. Its version is the running OTP application's `Application.spec(:atlas, :vsn)`, compiled from `ATLAS_VERSION` in `mix.exs`; do not substitute MCP's protocol version or invent a revision. It accepts no user selector and grants no profile/settings writes. AI connections reuse `/api/me/llm-providers`.
+`GET /api/native/profile` returns only `{server_version, user: {name, email}, push_notifications: {ios, android}}` for the bearer caller. The push map reports which providers this server has credentials for; older servers omit it, which clients treat as unavailable. Its version is the running OTP application's `Application.spec(:atlas, :vsn)`, compiled from `ATLAS_VERSION` in `mix.exs`; do not substitute MCP's protocol version or invent a revision. It accepts no user selector and grants no profile/settings writes. AI connections reuse `/api/me/llm-providers`.
 
 Controller regressions live in `test/atlas_web/controllers/native_controller_test.exs`. These are backend endpoints; no new database, schema migration, or seed data is needed.
+
+## Native Orbit
+
+`AtlasWeb.NativeOrbitController` serves fixed routes under `/api/native/orbit/threads`, declared before the dynamic native resource routes and protected by the same bearer-only, `no-store` pipeline. Older servers answer the list route with the dynamic resource's 404, which clients treat as unsupported. Domain rules live in [Orbit](../../atlas/orbit/AGENTS.md). Threads a caller cannot read return `404 {"error":"not_found"}`, indistinguishable from missing ones.
+
+- `GET /api/native/orbit/threads?page=N` returns `{assistant: {name, configured}, threads: {items, page, total_pages, total_count}}`. There are 25 items per page: the caller's private thread first, then the most recently updated. `assistant.name` is always `Pip`, the fixed mascot/assistant identity, not a deployment preference. `configured` is false when no enabled profile carries the Orbit role.
+- `POST /api/native/orbit/threads/private` returns `{thread}`, with 201 on creation and 200 afterwards (idempotent).
+- `POST /api/native/orbit/threads` with `{title (≤200 chars, non-blank), participant_ids (≤30 UUIDs)}` returns 201 `{thread}`. Malformed or unknown IDs return 422 `fields.participant_ids`.
+- `GET /:id/messages?page=N` returns `{thread, messages: {items, page, total_pages, total_count}, latest_seq}`. There are 50 items per page; page 1 is the newest, and items are chronological within a page.
+- `POST /:id/messages` with `{body (≤16,000 bytes, non-blank), client_id (UUID), address_agent?}` returns 201 `{message}`, or 200 with the original message when the `client_id` is retried. A missing `address_agent` defaults to true; private threads always address the assistant.
+- `POST /:id/participants {user_id}` (owner only) returns 201 `{participant: {id, name}}`. It returns 422 `fields.user_id: ["missing_access"]` when the person lacks the scopes the history requires. `DELETE /:id/participants/:user_id` returns `{removed: true}`. `POST /:id/runs/:run_id/cancel` (initiator or owner) returns 202 `{run: {id, status}}`.
+- Thread fields: `id`, `title` (the assistant's name for private threads), `kind`, `status` (`active`/`archived`), `summary`, `origin` (`manual`/`signal`), `owner_id`, `participants` (`[{id, name}]`), `agent_status` (`idle`, `queued`, `running`, `unconfigured`), `latest_seq`, `updated_at`.
+- Message fields: `id`, `kind` (`human`, `agent`, `tool`, `system`), `body`, `author_id` (humans only), `author_name`, `inserted_at`, `tool_name`, `tool_status` (`running`, `succeeded`, `failed`, `cancelled`), `tool_input`/`tool_output` (redacted bounded strings, `""` when absent), `seq` (stable creation order). A tool message keeps its ID and `seq` while its status changes; the change moves the thread revision.
+- A succeeded tool message may add `component: {type: "result_table", version: 1, data: {title, columns, rows}, actions: [{id: "show_evidence", label}], fallback}`. The server projects it only from already-redacted durable tool output, under the same thread authorization. Limits are 120-character title, 1–3 columns, 1–5 rows, 160-character labels/cells, 40-character action label and 4,000-character fallback. No code, URLs or arbitrary styles/actions are sent. Absent/unknown components retain the original `tool_output`; they must not break history. Source reveal is local presentation of existing evidence, not a new server operation or authorization grant.
+- Errors use the native envelope: 401 for an invalid token, 403 for a forbidden membership action, 404, 409 for an archived thread, 422 `invalid_params`/`validation_failed`, and 429 `rate_limited` (30 messages per minute per person).
+
+The presence socket (`/presence/websocket`, bearer subprotocol) also routes:
+
+- `orbit:thread:<uuid>` (`AtlasWeb.OrbitThreadChannel`). A join replies with, and the server pushes `snapshot` with, `{revision, people: [{id, name, typing}], agent_status}`. `revision` equals `latest_seq`; clients refetch page 1 when it moves. `people` lists current viewers, including the caller. The client pushes `typing {typing: bool}`; typing lapses after eight seconds. Leases last 20 seconds and are renewed every ten. Joins, pushes, typing and renewals re-check the OAuth grant and read access; losing either stops the channel. Joins without access reply `{reason: "unavailable"}`.
+- `orbit:me` (`AtlasWeb.OrbitInboxChannel`) replies with, and pushes, `{revision, people: []}`, where `revision` is a non-negative fingerprint of the caller's authorized list. It hears ID-free invalidations, recomputes before pushing, coalesces bursts, and renews every ten seconds to cover missed notifications.
+
+Coverage lives in `test/atlas_web/controllers/native_orbit_controller_test.exs` and `test/atlas_web/orbit_thread_channel_test.exs`.
+
+## Push devices
+
+`AtlasWeb.PushDevicesController` serves `PUT` and `DELETE /api/me/push-devices/:installation_id` behind `MCPAuth` plus `AtlasWeb.Plugs.NativeOAuthClient`, which accepts only tokens whose OAuth client registered exactly `dev.tuist.atlas://oauth-callback` (otherwise 403 `native_client_required`). Responses are `no-store`. `installation_id` is a lowercase UUID.
+
+- `PUT` body is exactly `{platform, token, environment}`: `ios` with an even-length 32–512 character hex token (stored lowercase) and `sandbox` or `production`, or `android` with a 16–4096 character printable token and `production`. Unknown keys, including owner or app identifiers, return 400 `invalid_push_device`. Success is `{registered: true, registration_id}`.
+- `DELETE` has no body and returns `{deleted: true}` for any valid ID, whether or not the caller could retire it.
+- 409 `installation_retired` means the ID was deleted or reassigned; the client rotates its installation UUID and retries. 409 `installation_conflict` means another user's live installation. 503 `push_unavailable` means the platform's provider is not configured. 429 `rate_limited` caps each user at 120 requests per hour.
+
+Semantics and delivery live in [push](../../atlas/push/AGENTS.md). Coverage is `push_devices_controller_test.exs`.
 
 ## Native link endpoints
 

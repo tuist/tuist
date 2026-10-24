@@ -623,6 +623,9 @@ func TestAuthorityPromotesTheStandbyWhenTheExitedHolderDoesNotRestart(t *testing
 	if next.Phase != "Serving" || next.Epoch != 2 || next.PodName != "test-1" || next.Holder != statuses["test-1"].ServingAuthority.Identity || next.FenceEvidence != grant.HolderExit.Evidence || next.ExitResume != nil {
 		t.Fatal("the standby was not promoted after the restart window", next)
 	}
+	if next.ExitPromotedFrom == nil || *next.ExitPromotedFrom != grant.Holder {
+		t.Fatal("the promoted grant must name the exited holder for its recovery", next.ExitPromotedFrom)
+	}
 }
 
 func TestAuthorityNeverTreatsAnotherIncarnationsExitAsFencing(t *testing.T) {
@@ -653,5 +656,30 @@ func TestAuthorityNeverTreatsAnotherIncarnationsExitAsFencing(t *testing.T) {
 	writeAuthorityGrant(t, r, fenced)
 	if next := authorityStep(t, r); next.Epoch != 1 {
 		t.Fatal("automatic promotion overrode an operator request", next)
+	}
+}
+
+func TestAuthorityDropsAnExitBindingWhenResumingTheLiveWriter(t *testing.T) {
+	r, _, statuses := authorityFixture(t)
+	grant := authorityStep(t, r)
+	holder := statuses["test-0"].ServingAuthority.Identity
+	exited := holder
+	exited.Incarnation = "exited-before-the-restart"
+	grant.Phase = "Fencing"
+	grant.ExitResume = &exitResume{Epoch: grant.Epoch - 1, Holder: exited}
+	writeAuthorityGrant(t, r, grant)
+	sample := statuses["test-0"]
+	fenced := grant
+	sample.ServingAuthority.Observed = &fenced
+	sample.ServingAuthority.FencedEpoch = grant.Epoch
+	sample.ServingAuthority.Valid = false
+	statuses["test-0"] = sample
+
+	next := authorityStep(t, r)
+	if next.Phase != "Serving" || next.Epoch != grant.Epoch+1 || next.ResumeEpoch != grant.Epoch {
+		t.Fatal("the live writer was not resumed", next)
+	}
+	if next.ExitResume != nil || next.HolderExit != nil {
+		t.Fatal("a live-writer resume kept an earlier exit binding the runtime would refuse", next.ExitResume)
 	}
 }

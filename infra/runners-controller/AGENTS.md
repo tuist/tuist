@@ -60,6 +60,15 @@ independent workqueues:
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
+  A tier that cannot be funded in full is split proportionally to cost,
+  and the whole Pods the rounding leaves go one per pool per round to the
+  pools with the largest target (which includes the hourly peak), then by
+  name (`grantRemainder`). Every rack image keeps a one-Pod floor, and
+  without this one queued job past capacity rounded every floor to zero:
+  all images went cold for one job, and the freed slots sat unassigned.
+  Now only as many floors yield as the load needs, least recently used
+  image first.
+
   **Cross-pool preemption** (`controllers/preemption.go`). The cooldown
   damps a pool's own oscillation, but it must not hold idle runners
   while a sibling's queued jobs cannot be placed. When a pool is inside
@@ -238,7 +247,10 @@ independent workqueues:
     allocator's cross-pool reclaim already arranges it.
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
-    (2m), the RunnerPool reconciler taints one eligible host
+    (2m), or past `idleHostReservationGrace` (30s) when the best
+    candidate holds only idle runners and no seat in flight (draining it
+    waits on no job, and with a warm runner per rack image every host of a
+    quiet fleet can hold one), the RunnerPool reconciler taints one eligible host
     `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring the host with
     the fewest running jobs and, among those, one already holding the
     pool's golden image. Every runner Pod
@@ -364,6 +376,11 @@ independent workqueues:
   before its first poll, makes the job it was created for wait for a
   replacement to pull the new image. It runs that job on the old image
   and exits like any single-shot runner.
+
+  An image change moves the replaced image to `status.previousImage`.
+  tart-kubelet reads it to pull the new image on hosts that hold the old
+  one before its GC reaps the old golden, so a release costs those hosts
+  the overlay rather than the whole image (see `../tart-kubelet/AGENTS.md`).
 
   `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
   retirement signal. The controller does not apply or clear it. The
@@ -1141,6 +1158,31 @@ Shape:
   starts dockerd to cover dockerd's own fd budget. Kata's
   microVM kernel defaults nofile=1024; without both, a docker
   build that walks a non-trivial `node_modules` tree EMFILEs.
+
+### Open-file limits for job steps
+
+The `runner` container needs no setting of its own: measured on
+production and canary (2026-10-22), job steps, every process up
+to `run-job.sh`, and Docker containers all get `RLIMIT_NOFILE`
+soft=hard=1048576 inside the guest. That is above the 65536
+GitHub-hosted runners give, and runners acceptance fails with
+`Runner file limits` if it ever drops below
+(`.github/scripts/runners-acceptance/file-limits.sh`).
+
+The limit a file-heavy job actually hits is on the host:
+virtiofsd, which serves the Pod's rootfs and volumes to the
+guest, holds one host descriptor per inode the guest has cached
+and answers EMFILE once its budget is spent, whatever the guest
+process's rlimit says. Kata's default budget is about one
+million; a server `Seed` job peaked at ~888k cached inodes
+(831k of them ClickHouse part files) and intermittently failed
+with ClickHouse `Too many open files` (errno 24). Runner hosts
+raise the budget through the CAPI provider (`kata_virtiofs.go`,
+see `../cluster-api-provider-tuist/AGENTS.md`). The manual
+`linux-runners-staging-smoke.yml` `file-budget` job keeps 1.2
+million files on the rootfs to prove a host carries it; it is
+not in the canary gate because warm Pods started before a host
+converged keep the old budget.
 
 ### Why stage externals? (job `container:` support)
 

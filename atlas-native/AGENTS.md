@@ -5,14 +5,15 @@ Rust core owns the hierarchical domain/section catalog and destinations; the CLI
 uses Kotlin with platform widgets, and iOS uses SwiftUI. Native views must not duplicate catalog
 strings or routes. Authentication networking and OAuth state live in the independent
 Rust `auth/` crate (see `auth/AGENTS.md`); native adapters own browser presentation
-and secure persistence. Tasks, sales accounts, manual invoice bookkeeping, time off,
+and secure persistence. Automation is native (run, monitor, approve) through Browse;
+workflow authoring remains web-first. Orbit, tasks, sales accounts, manual invoice bookkeeping, time off,
 and Profile are native on both platforms. Mobile navigation hides browser-only
 catalog entries and empty ancestor groups. Profile uses authenticated APIs on the
 selected server. OAuth tokens are not browser cookies.
 
 ## Horizontal architecture and parallel work
 
-- Keep UI features and their state independent: Tasks, Accounts, Finance, Time off, and Profile should be understandable and buildable without routing every operation through one screen or global model. The app shell composes destinations; feature models own their drafts, pagination, errors, and mutations. Share code where contracts genuinely match, not through a universal navigation/state framework.
+- Keep UI features and their state independent: Orbit, Tasks, Accounts, Finance, Time off, and Profile should be understandable and buildable without routing every operation through one screen or global model. The app shell composes destinations; feature models own their drafts, pagination, errors, and mutations. Share code where contracts genuinely match, not through a universal navigation/state framework.
 - Apply the same boundaries to Rust business logic and the Once graph. Keep navigation, authentication, fixed-route feature APIs, and CLI responsibilities separate, with explicit dependencies and source lists so independent compilation, tests, and cache reuse can run in parallel. Add feature targets when a real dependency boundary justifies them; do not create wrappers or targets for every file.
 - Parallelize independent requests and computation away from the UI thread. Serialize only invariants that require it: OAuth refresh rotation and secure persistence, session replacement/sign-out, and conflicting mutations of the same record. Do not extend the credential queue or a feature's busy flag into a global API lock. Reject stale session results and bound networking concurrency; parallelism must not introduce duplicate writes or refresh-token reuse.
 - Keep separately owned changes in disjoint feature files when possible. Native adapters own platform rendering and secure storage; Rust owns transport validation and fixed-route contracts; server contexts own authorization, transactions, and audit rules.
@@ -20,7 +21,8 @@ selected server. OAuth tokens are not browser cookies.
 ## Layout
 
 - `once.toml`: typed build graph and shared cache identity (`tuist/atlas-mobile`).
-- `modules/`: selected Apple SDK linker flags and binary SDK verification; see `modules/AGENTS.md`.
+- `modules/`: selected Apple SDK linker flags and checksum-pinned NSH SDK imports; see `modules/AGENTS.md`.
+- `cards/`: bundled NSH thread result renderer and source/bundle verification; see `cards/AGENTS.md`.
 - `core/src/`: dependency-free shared navigation, C ABI, and primitive-only JNI bridge.
 - `auth/`: Rust OAuth networking, owned JSON C ABI, and string JNI bridge. Keep it
   independent of navigation/CLI builds. Platform-specific Cargo dependency targets
@@ -30,10 +32,10 @@ selected server. OAuth tokens are not browser cookies.
   graph.
 - `cli/`: host Rust executable sharing the catalog; see `cli/AGENTS.md`.
 - `core/include/`: authored C header and Clang module map imported by Swift.
-- `android/`: Kotlin UI, JNI adapter, Android manifest and resources.
+- `android/`: Kotlin platform-widget UI, JNI adapter, manifest and resources; see `android/AGENTS.md`.
+- `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge/form tests; see `ios/AGENTS.md`.
 - `android/distribution/`: stable-key Android signing and publication guard; see
   `android/distribution/AGENTS.md`. PR/debug builds must never supply verified-link identities.
-- `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge tests.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,
   the shared Tuist mark used by Atlas's web login, and supported hosted/self-hosted actions.
   iOS also offers Sign in with Google using the shared Rust provider hint and the
@@ -81,10 +83,31 @@ Once's required APK signing. Local setups need `ANDROID_DEBUG_KEYSTORE` or
 Silicon macOS, Xcode, and an installed iOS simulator runtime. Do not switch this workspace to Gradle,
 SwiftPM, or generated Xcode projects to work around Once build failures.
 
+## Native Automation
+
+The shared auth crate allowlists authenticated JSON requests and bounded Phoenix
+WebSocket subscriptions; navigation core stays dependency-free. The server owns
+contract validation, revision checks, authorization, durable progress and approvals.
+Native controls project supported schemas and explicitly fall back to web for
+unsupported shapes. Do not execute workflow source on a phone or render server HTML.
+
+A reviewed launch freezes revision, inputs and a UUID request ID. Securely retain an
+unconfirmed request and replay it unchanged; never turn a timeout into a new request.
+Pending requests belong to the credential lifetime and are cleared on explicit new
+sign-in/sign-out. Execution watches are foreground-only, reconcile on reconnect and
+HTTP fallback, and report real phases/steps/waits rather than percentage progress.
+Approval confirmation shows the persisted payload and binds its digest to the decision.
+Protected results are fetched separately, never carried on progress channels.
+
+Automation has no ActivityKit/WidgetKit extension or background execution/approval
+notification integration. Once 0.68.2 has no Apple extension target. The separate
+native push subsystem below supports other fixed notification kinds; do not imply
+that it delivers Automation progress or decisions. Do not keep Automation sockets
+alive in suspended apps or claim real-device activity validation.
 ## Workspace navigation
 
-- The signed-in shell has five stable destinations: Tasks, Accounts, Finance, Browse, and Profile. iOS uses a native TabView, sidebar-adaptable on iPad/iOS 18+, without automatic More overflow. Android uses platform widgets with readable 48dp+ destination controls and larger-text wrapping. Browse is a searchable hierarchical directory of implemented native screens only. Add future domains there rather than expanding the tab bar indefinitely. Unavailable permissions show an explanation inside a stable tab, not a disappearing destination.
-- `core/src/navigation.rs` owns stable IDs, titles, descriptions, parent groups, canonical URLs, native screen keys, shortcut placement, and required browser scopes. Root domains mirror Atlas: Overview, Commercial, Outbound, Engineering, People, Operations, Library, and Admin. Commercial contains Sales, Finance, and GTM; Operations contains Hardware. The catalog includes the existing domain entry points, including customer evaluations, vendor costs, postal correspondence, engineering specs, hardware financing/insurance, documents, and administrative tools. Add future destinations/groups here rather than hard-coding new menus in either platform.
+- The signed-in shell has five stable destinations: Orbit, Accounts, Finance, Browse, and Profile. Orbit is the feature, with stable navigation ID `orbit`; Thread is the persistent entity. Keep `orbit_session`, `/api/native/orbit/threads`, `orbit:thread:<uuid>` and `orbit:me` aligned with the server, with explicit private/shared thread terminology. Tasks remains a native Browse shortcut; existing task links open Browse → Tasks, including direct record reads. iOS uses a native TabView, sidebar-adaptable on iPad/iOS 18+, without automatic More overflow. Android uses platform widgets with readable 48dp+ destination controls and larger-text wrapping. Browse is a searchable hierarchical directory of implemented native screens only. Add future domains there rather than expanding the tab bar indefinitely. Unavailable permissions show an explanation inside a stable tab, not a disappearing destination.
+- `core/src/navigation.rs` owns stable IDs, titles, descriptions, parent groups, canonical URLs, native screen keys, shortcut placement, and required browser scopes. Root domains mirror Atlas: Automation, Overview, Commercial, Outbound, Engineering, People, Operations, Library, and Admin. Automation uses its own native feature views through Browse without adding a sixth top-level tab; retain the original five section indices and the expanded eight-field bridge. Commercial contains Sales, Finance, and GTM; Operations contains Hardware. The catalog includes the existing domain entry points, including customer evaluations, vendor costs, postal correspondence, engineering specs, hardware financing/insurance, documents, and administrative tools. Add future destinations/groups here rather than hard-coding new menus in either platform.
 - C/JNI section fields 0–3 and the original five indices remain compatible. Fields 4–7 expose stable ID, group ID, shortcut flag, and required web scope. The parallel group bridge exposes title, description, stable ID, parent ID, and placement. Group strings have the same immutable process-lifetime ownership and primitive JNI rules as section strings. Rust tests enforce unique routes/IDs, reachable nonempty groups, valid parents, acyclicity, and stable original destinations.
 - iOS `AtlasWorkspaceView` composes native NavigationStack/List destinations. Android `AtlasWorkspaceModel` owns the selected group and search without retaining an Activity; `AtlasWorkspaceScreen` owns SearchView and directory rows, and `AtlasHomeScreen` composes the stable destinations. Retain models across configuration changes, save only validated navigation IDs for process restoration, disable automatic form/search state persistence, and detach old listeners. Back clears search before ascending the hierarchy, with system Back/Up support; drafts survive rotation and failed saves.
 - The shared catalog/CLI retain web routes, but mobile never displays browser-only entries. Scope metadata is descriptive, never a local authorization grant; Atlas enforces actual access. Implement future native adapters under the same stable destination IDs without changing the information architecture.
@@ -110,12 +133,30 @@ SwiftPM, or generated Xcode projects to work around Once build failures.
 - Finance is read-only bank overview plus manual invoice bookkeeping, not bank administration or payments. Imported/linked invoices are read-only even for finance writers. iOS `AtlasFinanceOverviewView` uses the server's optional unfiltered `finance_overview` for cash, burn, runway and six months of income/expenses in one reporting currency. Preserve it across appended invoice pages and replace it on refresh. Show no-account, missing-FX and older-server explanations rather than zero/partial totals. Swift Charts has distinct income/expense series and exact textual monthly values. Android's legacy chart still uses original-currency invoice `summary`; do not relabel invoice totals as cashflow or balances.
 - Profile follows Tuist iOS's grouped identity/email/version/sign-out layout, adding the selected server URL, authenticated server version, and existing Claude/ChatGPT settings. Display the server-reported application version, never a protocol constant or invented revision. Profile does not grant identity or server configuration writes.
 
+## Native push notifications
+
+- Push is opt-in from Profile, separate from presence. The server advertises configured platforms through optional `push_notifications` in Profile. Older servers remain usable. Lock-screen content stays generic; tap URLs re-enter the existing origin-bound destination parser and still require server authorization.
+- The shared `auth/src/push.rs` owns fixed bearer registration routes. Swift `AtlasPushNotifications` and Kotlin `AtlasPushNotifications` own platform consent/token callbacks and serialized registration/cleanup. Installation IDs and cleanup markers use the existing device-only secure stores. Mark a registration disabled before discarding an authenticated session; a new user never inherits opt-in. Retry offline cleanup on the same origin using that installation's native OAuth client. Encrypted registration and cleanup records are keyed by canonical server origin, so another server's pending cleanup neither inherits opt-in nor blocks enrollment. Rejected startup sessions must disable the saved session's origin even before the push coordinator is configured. Deleted IDs are terminal and must be replaced.
+- iOS uses the application and notification-center delegates, registers with APNs on launch/foreground, and passes cold-start taps through AtlasNavigation. A queued generic alert can still be displayed by iOS after logout because the app cannot retract an already accepted provider alert. Signing derives the environment from the provisioning profile; see `ios/distribution/AGENTS.md`.
+- Android uses the official Firebase SDK, explicit Application initialization and data-only messages. The service never authenticates or registers devices: it drops messages unless a current encrypted session and enabled server registration match the payload. Runtime notification permission, a notification channel, and Google Play services are required. No Firebase identifiers means disabled push, not broken authentication. Public project identifiers can be imported with `python3 android/push/configure.py /path/to/google-services.json`; never use a service-account JSON in the app. See [Android push packaging](android/push/AGENTS.md) for the lock, manifest audit and final-APK resource gate.
+- No production credentials, cloud resources or provider configuration are provisioned by builds. Physical-device foreground/background/terminated delivery and account-switch smoke tests remain required before enabling production notifications.
+
 ## Server-controlled appearance
 
 - `auth/src/themes.rs` owns optional credential-free catalog fetch/validation under `/api/native/themes`, plus bundled Atlas defaults. Unsupported/invalid/unreachable catalogs must never affect OAuth state or block the workspace. Newer clients work with older servers, including their authenticated dynamic route returning 401. See [the versioned server contract](../atlas/lib/atlas_web/controllers/AGENTS.md). Keep all three production Rust Once source lists aligned.
 - Swift `AtlasAppearance` and Kotlin `AtlasAppearance` cache only validated catalogs and theme/appearance preferences per canonical selected server origin, using a worker independent of the credential coordinator. Refresh on foreground with a five-minute minimum interval; reject late results after server changes. Retain an unavailable theme ID but render the current server default, then bundled Atlas. Sign-out restores unthemed login. Profile → Appearance selects Server default or a published theme and System/Light/Dark locally, never a server-side user setting.
 - Appearance is local-only: clear Profile's viewing location on entry, just as AI-account child screens do. Location-free presence must not report a same-page hint or place a banner over native navigation. A Profile link returns from Appearance to the Profile root without resetting the selected theme or appearance preferences.
 - Preserve platform controls, hierarchy, semantic status colors, Dynamic Type/font scaling, 44pt/48dp targets and native navigation. iOS keeps system row surfaces/labels/chrome; custom canvas/tint and app-owned preview/action styling follow HIG color and accessibility guidance. Increased contrast drops custom iOS styling. Server tokens cannot download fonts, inject CSS, resize native controls or replace navigation. Avoid a universal screen/state framework for theming.
+
+## Orbit (threads)
+
+- The first tab renders the instance's private companion thread and shared agentic threads. Pip is the fixed assistant/mascot, not a configurable persona. The server returns this identity and whether an Orbit inference profile is configured; no hosted provider, person, or upstream tool is assumed. Older servers show an in-tab explanation instead of blocking the workspace.
+- `auth/src/orbit_session.rs` owns feature state and orchestration: pagination, chronological history reconciliation, per-thread drafts and retry IDs, stale-selection fences, access-loss invalidation, and foreground live connections. Its opaque in-memory handle exposes monotonically sequenced snapshots. `orbit.rs` owns the typed fixed-route HTTP contract; `orbit_live.rs` owns authenticated Phoenix framing and bounded latest-only invalidations. Persisted history and deployment recovery belong to the Atlas server, not to these mobile handles.
+- Swift `AtlasOrbit` and Kotlin `AtlasOrbitModel` are thin snapshot adapters. Keep business decisions in Rust. Native code owns presentation, UI text bindings, scroll position, tool-card expansion, platform lifecycle, and refreshing/persisting OAuth credentials before authenticated commands. Never put a blocking `next` wait on the credential queue or UI thread. Close handles on sign-out, stop live viewing in the background, and ignore older snapshot sequences.
+- Thread details hide the tab bar and keep a keyboard-safe composer at the bottom. Message bubbles distinguish the current person using the server's presence `self_id`, not names or thread ownership; unknown identity stays incoming. Summary, origin, status and participants remain in the thread details sheet rather than competing with messages. Preserve Dynamic Type, theme contrast, selectable text and access to expandable tool evidence.
+- The Atlas server is the source of truth for thread content, run state and cards. It supplies an optional versioned component with bounded data, permitted actions and text fallback. Rust validates that contract but never synthesizes cards from tool output. The bundled NSH renderer displays `result_table` v1 inside expandable tool evidence; Swift/Kotlin only host it. No remote code/package loading, network credentials or autonomous client execution is permitted. See [card boundaries](cards/AGENTS.md). API 26–27 Android and unsupported/failed renderers retain text.
+- Tool calls render as expandable evidence, not raw executable UI. Shared replies explicitly choose whether to ask the agent; private messages always address it. Server authorization governs membership, leadership-sensitive history, and tool access. Clients never infer authority from a participant label or locally available tool names.
+- Swift adapter tests live in `ios/Tests/AtlasOrbitTests.swift`; shared transport/state tests live in `auth/src/thread*_tests.rs`. The isolated iOS workspace preview renders fixture-only thread snapshots; it makes no model requests and does not prove deploy recovery or live collaboration.
 
 ## AI account settings
 

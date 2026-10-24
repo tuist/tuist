@@ -18,7 +18,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -62,9 +61,6 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
-
-// deprecatedFlags are accepted and ignored so an older chart's arguments still start the operator.
-var deprecatedFlags = []string{"cache-volume-master-cap-gib", "cache-volume-cas-gib"}
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -287,9 +283,6 @@ func main() {
 	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
-	for _, name := range deprecatedFlags {
-		flag.Int(name, 0, "Deprecated and ignored.")
-	}
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -496,11 +489,6 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-	flag.Visit(func(f *flag.Flag) {
-		if slices.Contains(deprecatedFlags, f.Name) {
-			setupLog.Info("ignoring deprecated flag", "flag", f.Name, "value", f.Value.String())
-		}
-	})
 
 	rackHostImageMirrors := parseCommaList(rackHostImageMirrorsRaw)
 	for _, mirror := range rackHostImageMirrors {

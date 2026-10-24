@@ -50,7 +50,8 @@ these schemas persist volume identities and per-job uses.
   Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.
 - An open Linux or macOS session awaiting its verified execution binding returns pending
-  (425 to the authenticated agent). The agent retries for at most 30 seconds;
+  (425 to the authenticated agent). The Linux agent waits 25 seconds per Pod,
+  shared by its checkout and volumes, and asks once after that;
   unknown/closed sessions and denied provider identities remain unavailable.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
   runner's `in_progress` job from GitHub's API and records it through
@@ -143,10 +144,6 @@ these schemas persist volume identities and per-job uses.
 
 - macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
-
-- `runner_cache_volumes.builtin_name`, `runner_cache_volume_uses.superseded_at` and
-  `runner_cache_volume_measurements.retired` are legacy columns of the removed
-  built-in volume. No schema reads them; drop them in a follow-up migration.
 
 - Allocation resolves execution binding and platform in one session query. Apply
   the platform rollout flag to that same result, including pending (425) sessions.

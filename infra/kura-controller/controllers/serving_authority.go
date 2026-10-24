@@ -44,6 +44,8 @@ type servingGrant struct {
 	FenceEvidence string           `json:"fence_evidence,omitempty"`
 	HolderExit    *holderExit      `json:"holder_exit,omitempty"`
 	ExitResume    *exitResume      `json:"exit_resume,omitempty"`
+	// ExitPromotedFrom is the exited holder whose ordinal still needs rebuilding.
+	ExitPromotedFrom *servingHolder `json:"exit_promoted_from,omitempty"`
 }
 
 // holderExit is kubelet's report that the exact holder process terminated.
@@ -413,6 +415,8 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		grant.Holder, grant.PodName, grant.Epoch, grant.ExpiresMS, grant.Phase, grant.Reason = grant.Handover.Destination, targetName, grant.Epoch+1, now+15000, "Serving", "Planned handover after named retained-data barrier and positive runtime revoke"
 		grant.Handover = nil
 		grant.ResumeEpoch = 0
+		grant.ExitPromotedFrom = nil
+		grant.ExitResume, grant.HolderExit = nil, nil
 	case "Fencing":
 		promotion := instance.Spec.PrimaryPromotion
 		// Only the exact existing process can resume its own retained writer.
@@ -449,8 +453,9 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 				if name == grant.PodName || candidate.Host == grant.Holder.Host || samples[name].BackfillInitialCycle != backfillCycleComplete {
 					continue
 				}
+				exited := grant.Holder
 				grant = servingGrant{Epoch: grant.Epoch + 1, Holder: candidate, PodName: name, Phase: "Serving", ExpiresMS: now + 15000, LastHandover: grant.LastHandover,
-					Reason: "Promoted the standby after the exited holder did not restart in place; unreplicated tail may be missing", FenceEvidence: grant.HolderExit.Evidence}
+					Reason: "Promoted the standby after the exited holder did not restart in place; unreplicated tail may be missing", FenceEvidence: grant.HolderExit.Evidence, ExitPromotedFrom: &exited}
 				break
 			}
 			if grant.Phase == "Serving" {
@@ -466,6 +471,7 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			grant.Epoch++
 			grant.Phase, grant.ExpiresMS, grant.Reason = "Serving", now+15000, "Resumed the same live writer after positive publication fencing"
 			grant.Barrier = nil
+			grant.ExitResume, grant.HolderExit = nil, nil
 			break
 		}
 		if promotion == nil || promotion.PreviousEpoch != grant.Epoch || promotion.PreviousPodUID != grant.Holder.PodUID || promotion.PreviousIncarnation != grant.Holder.Incarnation || promotion.PreviousHost != grant.Holder.Host || promotion.FenceEvidence == "" {

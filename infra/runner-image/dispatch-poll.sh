@@ -400,8 +400,10 @@ MANAGED_XCCONFIG="/Users/runner/.tuist-managed-cas.xcconfig"
 # The limits of a default-sized volume: `tuist-xcode` at 30 GB, `tuist-module` at
 # 20 GB. tuist-runner-cache replaces them with the limits for the capacity the
 # volume attaches at, which a job sets with `size`; the teardown prune reads the
-# compilation cache's back from its xcconfig (managed_xcode_cache_limit).
-MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000
+# compilation cache's back from its xcconfig (managed_xcode_cache_limit). The
+# compilation cache's limit bounds one generation of a store that keeps two, so
+# it is half the space the module cache's would be.
+MANAGED_XCODE_CACHE_LIMIT_BYTES=12000000000
 MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
 # The compilation cache root teardown drains and prunes, and the limit it prunes
 # the stores under it to. Empty when the job did not use the compilation cache.

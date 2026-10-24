@@ -104,6 +104,38 @@ struct CargoTests {
 }
 
 struct CargoReportingTests {
+    @Test(.inTemporaryDirectory) func omitsNewMetadataUntilClusterWideSupportIsAdvertised() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let reporting = CargoReporting(
+            process: CargoProcess(runner: RustupProbeRunner()), directory: directory,
+            environment: ["TUIST_BUILD_TAGS": "ci, nightly", "TUIST_BUILD_VALUE_TUIST.OS.TYPE": "explicit"],
+            handle: "example/project", serverURL: URL(string: "https://example.com")!
+        )
+        #expect(reporting.buildMetadata(limit: 20) == nil)
+        let metadata = try #require(reporting.buildMetadata(limit: 64))
+        #expect(metadata["tags"] as? [String] == ["ci", "nightly"])
+        let values = try #require(metadata["values"] as? [String: String])
+        #expect(values["tuist.os.type"] == "explicit")
+        #expect(values["tuist.cpu.available_processors"] != nil)
+    }
+
+    @Test(.inTemporaryDirectory) func invalidNewCargoMetadataIsOmittedRatherThanRejectingTheBuildReport() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let oversized = Dictionary(uniqueKeysWithValues: (1 ... 65).map { ("TUIST_BUILD_VALUE_KEY\($0)", "value") })
+        for environment in [
+            ["TUIST_BUILD_TAGS": "v1.2"],
+            ["TUIST_BUILD_TAGS": String(repeating: "a", count: 51)],
+            ["TUIST_BUILD_VALUE_LARGE": String(repeating: "x", count: 501)],
+            oversized,
+        ] {
+            let reporting = CargoReporting(
+                process: CargoProcess(runner: RustupProbeRunner()), directory: directory,
+                environment: environment, handle: "example/project", serverURL: URL(string: "https://example.com")!
+            )
+            #expect(reporting.buildMetadata(limit: 64) == nil)
+        }
+    }
+
     @Test func distinguishesMeasuredNextestLabelsFromReservedCargoSchemes() {
         #expect(CargoNextestRun.scheme(label: nil) == "nextest")
         #expect(CargoNextestRun.scheme(label: "ci") == "ci")

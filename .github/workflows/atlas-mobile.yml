@@ -193,8 +193,10 @@ jobs:
         run: python3 android/distribution/sign_test.py
       - name: Check launcher icon packaging
         run: python3 resources/app_icons_test.py
+      - name: Test Firebase dependency integrity and manifest/resource gates
+        run: python3 android/push/push_test.py
       - name: Check signing script syntax
-        run: for script in ios/distribution/{bundle,keychain,associated-domains}.sh android/distribution/sign.sh; do bash -n "$script"; done
+        run: for script in ios/distribution/{bundle,keychain,associated-domains,push}.sh android/distribution/sign.sh; do bash -n "$script"; done
 
   test-native-ui:
     name: Test native iOS UI
@@ -212,7 +214,9 @@ jobs:
       - run: mise exec -- rustup target add aarch64-apple-ios-sim
       - run: mise run prepare:rust
       - name: Test associated-domain provisioning guard without credentials
-        run: python3 ios/distribution/associated_domains_test.py
+        run: bash ios/distribution/test-associated-domains.sh
+      - name: Test APNs provisioning guard without credentials
+        run: python3 ios/distribution/push_test.py
       - name: Build isolated native UI fixtures
         run: mise exec -- once build AtlasSettingsUITests
       - name: Verify preview SDK and deployment minimum

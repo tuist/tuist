@@ -6,6 +6,24 @@ defmodule Noora.TextAreaTest do
 
   alias Noora.TextArea
 
+  test "forwards native autocomplete and autocorrect attributes" do
+    html =
+      render_component(&TextArea.text_area/1,
+        id: "source",
+        name: "source",
+        value: "<script>text</script>",
+        autocomplete: "off",
+        autocorrect: "off",
+        spellcheck: "false"
+      )
+
+    assert html =~ ~s(autocomplete="off")
+    assert html =~ ~s(autocorrect="off")
+    assert html =~ ~s(spellcheck="false")
+    assert html =~ "&lt;script&gt;text&lt;/script&gt;"
+    refute html =~ "<script>"
+  end
+
   test "omits an overlay unless supplied" do
     html = render_component(&TextArea.text_area/1, id: "plain", name: "plain", value: "Native editing")
     assert html =~ "Native editing"

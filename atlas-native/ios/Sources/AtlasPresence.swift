@@ -15,12 +15,14 @@ final class AtlasPresence: ObservableObject {
     private struct Snapshot: Decodable {
         let sequence: UInt64
         let people: [AtlasPerson]
+        let selfId: String?
         let location: [String: String]?
         let error: String?
         let needsSession: Bool?
     }
 
     @Published private(set) var people: [AtlasPerson] = []
+    @Published private(set) var selfId: String?
     @Published private(set) var errorMessage: String?
     private let request: ([String: Any]) async throws -> Data
     private var connection: String?
@@ -47,6 +49,7 @@ final class AtlasPresence: ObservableObject {
         active = value
         generation += 1
         if value { start() } else {
+            selfId = nil
             people = []
             if let connection { Task { _ = try? await request(["action": "close", "connection": connection]) } }
         }
@@ -75,11 +78,13 @@ final class AtlasPresence: ObservableObject {
                     ]))
                     guard active, generation == started else { break }
                     sequence = snapshot.sequence
-                    if snapshot.needsSession == true { refreshSession = true; break }
+                    if snapshot.needsSession == true { selfId = nil; refreshSession = true; break }
                     if let error = snapshot.error {
+                        selfId = nil
                         people = []
                         errorMessage = error == "sign_in_required" ? "Sign in to Atlas again." : "Reconnecting to Atlas…"
                     } else if snapshot.location == location {
+                        selfId = snapshot.selfId
                         people = snapshot.people
                         errorMessage = nil
                     }
