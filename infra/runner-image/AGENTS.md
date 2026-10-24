@@ -257,7 +257,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Only a job that **succeeded** saves its cache volumes. The gate is
   `JOB_PASSED` (zero exit AND a job result of `succeeded`), not the runner's
   exit status. `run.sh` folds every Listener code except a restart into 0, and
-  the GitLab executor exits 0 for job outcomes by design.
+  the GitLab executor exits 0 for job outcomes by design. A job whose result is
+  `failed` still detaches its volumes (`cache_volumes_detached`): the server
+  discards a failed job's volumes, and the detach reports how full each one
+  got, so a copy that ran out of space clears its saved snapshot.
   GitHub's verdict is the Listener's `_diag/Runner_*.log` line `finish job
   request for job <id> with result: <Result>`, matched only at a `JobDispatcher`
   trace header, because a later line echoes the job's display name. The Listener
