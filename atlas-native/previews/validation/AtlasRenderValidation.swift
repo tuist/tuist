@@ -148,7 +148,10 @@ final class AtlasRenderValidation: XCTestCase {
                 file.tap()
                 let close = app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"]
                 XCTAssertTrue(close.waitForExistence(timeout: 5))
-                XCTAssertTrue(app.textViews["Atlas attachment fixture. No private data."].exists)
+                let content = app.textViews["Atlas attachment fixture. No private data."]
+                let loaded = content.waitForExistence(timeout: 10)
+                if !loaded { print(app.debugDescription) }
+                XCTAssertTrue(loaded)
                 capture(app, "attachment-preview")
                 close.tap()
                 app.buttons["thread-attach"].tap()
