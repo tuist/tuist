@@ -79,15 +79,14 @@ struct AtlasThreadDetail: View {
                     .background {
                         GeometryReader { content in
                             Color.clear.preference(key: AtlasThreadScrollPreference.self, value: AtlasThreadScrollMetrics(
-                                height: content.size.height, bottom: content.frame(in: .named("thread-history")).maxY,
+                                height: content.size.height,
+                                bottom: content.frame(in: .global).maxY - geometry.frame(in: .global).minY,
                                 viewport: geometry.size.height))
                         }
                     }
                 }
-                .coordinateSpace(name: "thread-history")
                 .scrollPosition(id: $visibleMessageID)
-                .onPreferenceChange(AtlasThreadScrollPreference.self) { metrics in
-                    guard let metrics else { return }
+                .modifier(AtlasThreadScrollObserver { metrics in
                     let previous = scrollMetrics
                     scrollMetrics = metrics
                     let atBottom = metrics.bottom >= 0 && metrics.bottom <= metrics.viewport + 20
@@ -104,7 +103,7 @@ struct AtlasThreadDetail: View {
                        model.hasOlder, !model.loadingHistory, !pagingHistory, model.errorMessage == nil {
                         Task { await loadEarlier() }
                     }
-                }
+                })
                 .defaultScrollAnchor(showsWelcome ? .top : .bottom)
                 .scrollDismissesKeyboard(.interactively)
                 .modifier(AtlasThemedContent())
@@ -285,4 +284,24 @@ private struct AtlasThreadScrollMetrics: Equatable {
 private struct AtlasThreadScrollPreference: PreferenceKey {
     static var defaultValue: AtlasThreadScrollMetrics? { nil }
     static func reduce(value: inout AtlasThreadScrollMetrics?, nextValue: () -> AtlasThreadScrollMetrics?) { value = nextValue() }
+}
+
+private struct AtlasThreadScrollObserver: ViewModifier {
+    let update: (AtlasThreadScrollMetrics) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: AtlasThreadScrollMetrics.self) { geometry in
+                AtlasThreadScrollMetrics(height: geometry.contentSize.height,
+                                         bottom: geometry.contentSize.height - geometry.contentOffset.y,
+                                         viewport: geometry.containerSize.height)
+            } action: { _, metrics in
+                update(metrics)
+            }
+        } else {
+            content.onPreferenceChange(AtlasThreadScrollPreference.self) { metrics in
+                if let metrics { update(metrics) }
+            }
+        }
+    }
 }

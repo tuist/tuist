@@ -67,8 +67,9 @@ threads), loads earlier history explicitly and scrolls to stable message IDs wit
 changing drafts or execution state. Dismiss the index sheet before animating its jump;
 Reduce Motion jumps without animation. Follow appended and growing content only while
 the person is at the bottom, preserving history readers' positions. Derive scrolling from
-atomic content-height/bottom geometry rather than drag lifetime so indirect scrolling and
-deceleration also stop following. Show loading feedback before the first protected history
+native scroll geometry on iOS 18+, with global content/viewport geometry on iOS 17,
+rather than drag lifetime so indirect scrolling and deceleration also stop following.
+Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
 current visible message through SwiftUI scroll-position binding, not a forced jump to the
 old first row after the response. Keep manual retry and never loop failed requests.

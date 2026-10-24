@@ -67,6 +67,7 @@ struct AtlasThreadComposer: View {
                 if recording {
                     Button(action: cancel) {
                         Image(systemName: "xmark").font(.title3).frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Discard dictation")

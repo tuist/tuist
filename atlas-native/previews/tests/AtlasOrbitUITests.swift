@@ -244,13 +244,15 @@ final class AtlasOrbitUITests: XCTestCase {
         capture(app, "ios-orbit-voice-hold-release-fixture")
         draft.tap()
         draft.typeText(" Ready to edit.")
+        let edited = try XCTUnwrap(draft.value as? String)
+        XCTAssertTrue(edited.contains("Ready to edit."))
+        XCTAssertTrue(edited.contains("Compare the latest build timings."))
         microphone.tap()
         XCTAssertTrue(app.descendants(matching: .any)["thread-voice-recording"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Compare the latest build timings."].exists)
         microphone.tap()
         XCTAssertTrue(draft.waitForExistence(timeout: 5))
-        XCTAssertEqual(draft.value as? String,
-                       "Existing draft. Compare the latest build timings. Ready to edit. Compare the latest build timings.")
+        XCTAssertEqual(draft.value as? String, edited + " Compare the latest build timings.")
     }
 
     @MainActor func testVoicePresentationDiscardsOnCancelAndAppendsOnStop() throws {
@@ -377,19 +379,28 @@ final class AtlasOrbitUITests: XCTestCase {
                 XCTAssertTrue(appended.isHittable)
             }
             let complete = app.staticTexts["The growing reply is complete."]
-            XCTAssertTrue(complete.waitForExistence(timeout: 15))
             if readingHistory {
+                // An offscreen lazy row need not exist in accessibility while its body grows.
+                let started = Date()
+                let delivered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                    Date().timeIntervalSince(started) >= 13
+                }, object: nil)
+                XCTAssertEqual(XCTWaiter.wait(for: [delivered], timeout: 15), .completed)
                 let firstPrompt = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "release-notes.txt")).firstMatch
                 XCTAssertTrue(firstPrompt.isHittable)
                 XCTAssertFalse(complete.isHittable)
                 XCTAssertTrue(app.buttons["Latest messages"].isHittable)
+                capture(app, "ios-orbit-growing-reply-history-retained-preview")
+                app.buttons["Latest messages"].tap()
+                XCTAssertTrue(complete.waitForExistence(timeout: 5))
             } else {
+                XCTAssertTrue(complete.waitForExistence(timeout: 15))
                 let follows = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
                     complete.isHittable && complete.frame.maxY <= app.textFields["thread-composer"].frame.minY
                 }, object: nil)
                 XCTAssertEqual(XCTWaiter.wait(for: [follows], timeout: 5), .completed)
+                capture(app, "ios-orbit-growing-reply-follow-latest-preview")
             }
-            capture(app, "ios-orbit-growing-reply-\(readingHistory ? "history-retained" : "follow-latest")-preview")
             app.terminate()
         }
     }
