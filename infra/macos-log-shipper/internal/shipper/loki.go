@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -27,8 +29,32 @@ var ErrRejected = errors.New("loki rejected the batch")
 // the tailnet, and the tailnet ACL is the access control. Alloy holds the
 // Grafana Cloud token and forwards, so a Mac mini never carries one.
 type Client struct {
-	URL  string
-	HTTP *http.Client
+	URL     string
+	once    sync.Once
+	http    *http.Client
+	initErr error
+}
+
+func NewClient(endpoint string, timeout time.Duration) (*Client, error) {
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil, errors.New("invalid log receiver URL")
+	}
+	client := &Client{URL: endpoint}
+	client.once.Do(func() { client.http, client.initErr = NewHTTPClient(timeout) })
+	return client, client.initErr
+}
+
+func (c *Client) httpClient() (*http.Client, error) {
+	c.once.Do(func() { c.http, c.initErr = certificateTrustClient(nil, nil) })
+	return c.http, c.initErr
+}
+
+func (c *Client) CloseIdleConnections() {
+	client, err := c.httpClient()
+	if err == nil {
+		client.CloseIdleConnections()
+	}
 }
 
 type pushRequest struct {
@@ -82,34 +108,34 @@ func (c *Client) Push(ctx context.Context, base map[string]string, entries []Ent
 	}
 	body, err := json.Marshal(buildPush(base, entries))
 	if err != nil {
-		return fmt.Errorf("%w: marshal push body: %v", ErrRejected, err)
+		return fmt.Errorf("%w: invalid push body", ErrRejected)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("%w: build request: %v", ErrRejected, err)
+		return fmt.Errorf("%w: invalid request", ErrRejected)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := c.HTTP
-	if client == nil {
-		client = http.DefaultClient
+	client, err := c.httpClient()
+	if err != nil {
+		return privatePushFailure(err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("push to %s: %w", c.URL, err)
+		return privatePushFailure(err)
 	}
 	defer resp.Body.Close()
 	// Drain so the connection is reusable; the response body is a short error
 	// string at most.
-	detail, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 2048))
 
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		return nil
 	case resp.StatusCode == http.StatusTooManyRequests, resp.StatusCode >= 500:
-		return fmt.Errorf("push to %s: status %d: %s", c.URL, resp.StatusCode, bytes.TrimSpace(detail))
+		return fmt.Errorf("log push failed: HTTP status %d", resp.StatusCode)
 	default:
-		return fmt.Errorf("%w: status %d: %s", ErrRejected, resp.StatusCode, bytes.TrimSpace(detail))
+		return fmt.Errorf("%w: HTTP status %d", ErrRejected, resp.StatusCode)
 	}
 }
 

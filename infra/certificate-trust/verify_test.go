@@ -90,6 +90,7 @@ func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
 		"../../atlas-native/android/src/dev/tuist/atlas/AtlasCertificateTrust.kt",
 		"../../grafana-datasource/pkg/plugin/certificate_trust.go",
 		"../../infra/runner-image/cmd/runner-shell-agent/certificate_trust.go",
+		"../../infra/macos-log-shipper/internal/shipper/certificate_trust.go",
 		"../../infra/linux-runner-image/cmd/runner-shell-agent/certificate_trust.go",
 		"../../infra/linux-runner-image/cmd/tuist-cache-volume/certificate_trust.go",
 		"../../gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt",
@@ -461,6 +462,64 @@ func TestCacheVolumeClientFactoryWiring(t *testing.T) {
 	for _, fixture := range []string{"issuer-roots.pem", "distrusted-intermediates.pem"} {
 		if !bytes.Equal(read(t, filepath.Join(root, "testdata/certificate-trust", fixture)), read(t, filepath.Join("controls", fixture))) {
 			t.Fatalf("cache-volume fixture differs: %s", fixture)
+		}
+	}
+}
+
+func TestLogShipperClientFactoryWiring(t *testing.T) {
+	root := "../macos-log-shipper"
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && strings.HasSuffix(path, ".go") {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients, transports, requests := 0, 0, 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		source := read(t, path)
+		clients += bytes.Count(source, []byte("http.Client{"))
+		transports += bytes.Count(source, []byte("http.Transport{"))
+		requests += bytes.Count(source, []byte(".Do(req)"))
+		for _, forbidden := range []string{"http.Get(", "http.Post(", "http.NewClient("} {
+			if bytes.Contains(source, []byte(forbidden)) {
+				t.Fatalf("unprotected shipper HTTP helper in %s", path)
+			}
+		}
+		if filepath.Base(path) != "certificate_trust.go" {
+			for _, forbidden := range []string{"http.DefaultClient", "http.DefaultTransport"} {
+				if bytes.Contains(source, []byte(forbidden)) {
+					t.Fatalf("shipper default bypass in %s", path)
+				}
+			}
+		}
+		unsafe, err := runnerLogExposesCredentials(string(source))
+		if err != nil || unsafe {
+			t.Fatalf("shipper URL/header/body diagnostic in %s: %v", path, err)
+		}
+	}
+	if clients != 1 || transports != 1 || requests != 1 {
+		t.Fatal("review newly added shipper factories/requests")
+	}
+	for filename, markers := range map[string][]string{
+		"internal/shipper/dial.go":      {"certificateTrustClient(&http.Client{", "dialContextVia(magicDNSResolver("},
+		"internal/shipper/loki.go":      {"certificateTrustClient(nil, nil)", "client, err := c.httpClient()", "privatePushFailure(err)", "sync.Once", "c.once.Do("},
+		"cmd/tuist-log-shipper/main.go": {"shipper.NewClient(url, 30*time.Second)", "defer client.CloseIdleConnections()"},
+	} {
+		source := read(t, filepath.Join(root, filename))
+		for _, marker := range markers {
+			if !bytes.Contains(source, []byte(marker)) {
+				t.Fatalf("missing shipper factory ownership: %s", marker)
+			}
 		}
 	}
 }

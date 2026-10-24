@@ -16,6 +16,7 @@ on:
       - infra/runner-image/cmd/runner-shell-agent/**
       - infra/linux-runner-image/cmd/runner-shell-agent/**
       - infra/linux-runner-image/cmd/tuist-cache-volume/**
+      - infra/macos-log-shipper/**
       - infra/xcresult-processor-image/xcresult-processor.pkr.hcl
       - server/lib/tuist/application/certificate_trust.ex
       - server/test/tuist/application/certificate_trust_test.exs
@@ -138,8 +139,9 @@ jobs:
       - name: Test policy, public stores and replacement guards
         working-directory: infra/certificate-trust
         run: go test -count=1 ./...
-      - name: Test runner shell and cache-volume trust
+      - name: Test runner shell, cache-volume and log shipper trust
         run: |
+          go -C infra/macos-log-shipper test -race -count=1 ./...
           go -C infra/runner-image test -race -count=1 ./cmd/runner-shell-agent
           go -C infra/linux-runner-image test -race -count=1 ./cmd/runner-shell-agent ./cmd/tuist-cache-volume
       - name: Qualify the pinned SDK against all eight intermediate keys

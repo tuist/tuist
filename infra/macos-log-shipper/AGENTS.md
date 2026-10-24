@@ -73,6 +73,31 @@ path the xcresult processor's Tart guests already use for their own logs.
   `/var/log/tuist-log-shipper.log`). Shipping push failures through the shipper
   turns an outage into a loop.
 
+## Certificate trust and diagnostics
+
+- The independently distributed daemon embeds the twelve-key policy in
+  `internal/shipper/certificate_trust.go`. Preserve native verification,
+  callbacks, constructed paths/absent anchors, configured resumption and identity
+  callbacks before the additive deny. Never accept insecure/custom TLS dialers.
+- Keep the production `NewClient` MagicDNS/system fallback, direct/no-proxy
+  behavior and 30-second deadline. The lazy default path must also be protected;
+  no global client/store/environment mutation or TLS-error fallback.
+- Keep the HTTP client private and once-owned. Close only owned idle connections.
+  TLS/cancellation failures retain causes and retry without `ErrRejected`, offset
+  advancement or dropped batches. Status 4xx/429/5xx behavior stays unchanged.
+- Never log endpoint URLs, userinfo/query, bodies, headers or receiver error
+  bodies. Use fixed useful categories/statuses and keep causes privately typed;
+  preserve distinct MagicDNS/system DNS-kind/timeout/errno diagnostics. Reject
+  invalid receiver URLs at construction before any file can be tailed.
+- Tests use synthetic private chains plus public incident DER, never compromised
+  private keys or host trust changes. Real CONNECT/resumed/accepted-key controls
+  are separate from native public negatives. On Darwin also run nil-root
+  native-default accepted leaf/intermediate/absent-anchor differentials; explicit
+  private pools alone exercise a different Go verifier path. See
+  [`HOST-CLIENTS.md`](../certificate-trust/HOST-CLIENTS.md) for evidence and the
+  still-open owner-image/installed-daemon gates. The managed receiver is plaintext
+  HTTP over the tailnet; HTTPS support does not convert that deployment.
+
 ## Labels
 
 Every line carries `job`, `instance`, `env` and `level`. Nothing else, and
