@@ -1338,7 +1338,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "1"
+        outlet: "13"
       # Lent to staging, whose operator runs its runtime and whose rack pools
       # run its guests (rackFleet.borrow in values-managed-staging.yaml).
       lendTo: staging
@@ -1349,7 +1349,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "2"
+        outlet: "14"
       # Lent to canary, whose operator runs its runtime and whose rack pools
       # run its guests, including the deploy cascade's runners acceptance gate
       # (rackFleet.borrow in values-managed-canary.yaml).
@@ -1361,7 +1361,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "3"
+        outlet: "15"
     - name: ber1-runner-b04
       serial: H1060N7XQP
       address: 10.10.0.104
@@ -1369,7 +1369,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "6"
+        outlet: "10"
     - name: ber1-runner-b05
       serial: G54DV7JHJ7
       address: 10.10.0.105
@@ -1377,7 +1377,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "7"
+        outlet: "11"
     - name: ber1-runner-b06
       serial: FWVPQGL2C3
       address: 10.10.0.106
@@ -1385,7 +1385,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "8"
+        outlet: "12"
     - name: ber1-runner-b07
       serial: H7YDR4L71F
       address: 10.10.0.107
@@ -1393,7 +1393,7 @@ rackFleet:
       shelf: tray-b3
       power:
         pdu: ber1-pdu-a
-        outlet: "1"
+        outlet: "13"
     - name: ber1-runner-b08
       serial: J64HHMX93T
       address: 10.10.0.108
@@ -1401,7 +1401,7 @@ rackFleet:
       shelf: tray-b3
       power:
         pdu: ber1-pdu-a
-        outlet: "2"
+        outlet: "14"
     - name: ber1-runner-b09
       serial: C0YKJG7JLH
       address: 10.10.0.109
@@ -1409,7 +1409,7 @@ rackFleet:
       shelf: tray-b3
       power:
         pdu: ber1-pdu-a
-        outlet: "3"
+        outlet: "15"
     - name: ber1-runner-b10
       serial: MVNN9473GC
       address: 10.10.0.110
@@ -1417,7 +1417,7 @@ rackFleet:
       shelf: tray-b4
       power:
         pdu: ber1-pdu-a
-        outlet: "4"
+        outlet: "10"
     - name: ber1-runner-b11
       serial: M2V3QN9M92
       address: 10.10.0.111
@@ -1425,7 +1425,7 @@ rackFleet:
       shelf: tray-b4
       power:
         pdu: ber1-pdu-a
-        outlet: "5"
+        outlet: "11"
     - name: ber1-runner-b12
       serial: KMV5QJ0L9Q
       address: 10.10.0.112
@@ -1433,7 +1433,7 @@ rackFleet:
       shelf: tray-b4
       power:
         pdu: ber1-pdu-a
-        outlet: "6"
+        outlet: "12"
     - name: ber1-runner-b13
       serial: KV9M9KJVXC
       address: 10.10.0.113
@@ -1457,7 +1457,7 @@ rackFleet:
       shelf: tray-b5
       power:
         pdu: ber1-pdu-b
-        outlet: "9"
+        outlet: "7"
     - name: ber1-runner-b16
       serial: LWGC6JVT03
       address: 10.10.0.116
@@ -1465,7 +1465,7 @@ rackFleet:
       shelf: tray-b6
       power:
         pdu: ber1-pdu-b
-        outlet: "10"
+        outlet: "8"
   machine:
     # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
     # `guestShapes` below), both dimensions binding at the same count, and 2 of

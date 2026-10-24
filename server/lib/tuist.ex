@@ -145,6 +145,7 @@ defmodule Tuist do
       Builds.Build,
       Builds.CASOutput,
       Builds.Analytics,
+      Builds.Metadata,
       Builds.Steps,
       Builds.RecordedSteps,
       Builds.Workers.ProcessBuildWorker,

@@ -262,7 +262,7 @@ defmodule TuistWeb.API.TestsController do
                values: %Schema{
                  type: :object,
                  additionalProperties: %Schema{type: :string, maxLength: 500},
-                 maxProperties: 20
+                 maxProperties: 64
                }
              }
            },
@@ -382,7 +382,7 @@ defmodule TuistWeb.API.TestsController do
              type: :array,
              items: %Schema{type: :string},
              description:
-               "The tests this run was told to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`: the caller's, and the quarantined tests Tuist skipped. Code coverage carries forward what they covered the last time they ran."
+               "The tests the caller told this run to exclude, as `Module`, `Module/Suite` or `Module/Suite/testCase`. Quarantined tests Tuist skipped are not included: they are outside the suite, so code coverage neither carries them forward nor counts them as missing. Code coverage carries forward what the caller's skips covered the last time they ran."
            },
            coverage_enabled: %Schema{
              type: :boolean,

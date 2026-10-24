@@ -592,13 +592,10 @@ import XcodeGraph
         /// the build. The temporary mode uses the machine's shared directory so asynchronous uploads do not
         /// race the temporary directory's removal.
         ///
-        /// `TUIST_COMPILATION_CACHE_CAS_PATH` wins over both, because it is the only case where the
-        /// environment knows a better answer than this command does: a Tuist runner mounts a per-account
-        /// cache volume, folds the compilation-cache store into it, and points every build at it through
-        /// `XCODE_XCCONFIG_FILE`. This argument is passed on the xcodebuild COMMAND LINE, and a command-line
-        /// build setting BEATS an xcconfig (measured on Xcode 26.5 via `xcodebuild -showBuildSettings`) — so
-        /// without this the warm's store landed on the VM's boot volume, died with the VM, and was never
-        /// promoted, which is why the job read ~35% hits with every one served from the remote.
+        /// `TUIST_COMPILATION_CACHE_CAS_PATH` wins over both, because it names a durable store the
+        /// environment already keeps. The argument is a command-line build setting, so an
+        /// `XCODE_XCCONFIG_FILE` or `-xcconfig` that sets `COMPILATION_CACHE_CAS_PATH` outranks it and the
+        /// build keeps that xcconfig's store, as it does on a Tuist runner.
         private func compilationCacheCASArgument(scratchDirectory: AbsolutePath?) async throws -> XcodeBuildArgument {
             let durableStore = Environment.current.variables["TUIST_COMPILATION_CACHE_CAS_PATH"]
                 .flatMap { raw -> AbsolutePath? in

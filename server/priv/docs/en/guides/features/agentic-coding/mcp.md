@@ -298,6 +298,8 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 
 #### Xcode builds
 
+Build-detail tools for Xcode, Gradle, Bazel, Mix and Cargo expose the existing `custom_metadata: {tags, values}` shape, including infrastructure observations when reported. Values remain strings and unfamiliar keys are preserved. For example, `tuist.cpu.available_processors` describes runtime-available logical processors, while `tuist.gradle.max_workers` is a Gradle worker limit and `tuist.jvm.max_heap_bytes` is a JVM heap limit, not host memory. These are untrusted client observations, not verified runner identities. Absent observations stay absent; imported logs and older clients may have no infrastructure metadata. Once metadata awaits a coordinated client/protocol update.
+
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_xcode_builds` | List Xcode build runs for a project. | `account_handle`, `project_handle` |

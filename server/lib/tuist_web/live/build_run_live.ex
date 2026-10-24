@@ -1598,15 +1598,6 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
-
   defp define_binary_cache_filters do
     [
       %Filter.Filter{

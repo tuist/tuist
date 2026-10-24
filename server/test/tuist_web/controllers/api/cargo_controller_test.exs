@@ -196,7 +196,15 @@ defmodule TuistWeb.API.CargoControllerTest do
   end
 
   test "the API and MCP tools return the same shapes", %{conn: conn, user: user, project: project, path: path} do
-    id = build(project, user, cache: %{version: 1, hits: 1, misses: 1}, git_branch: "main")
+    values = Map.new(1..64, &{"future.#{&1}", "unicode ✓ #{&1}"})
+
+    id =
+      build(project, user,
+        cache: %{version: 1, hits: 1, misses: 1},
+        git_branch: "main",
+        custom_metadata: %{tags: ["ci"], values: values}
+      )
+
     args = %{"account_handle" => user.account.name, "project_handle" => project.name}
     mcp = %Plug.Conn{assigns: %{current_user: user}}
 
@@ -205,6 +213,7 @@ defmodule TuistWeb.API.CargoControllerTest do
 
     assert %{"structuredContent" => detail} = GetCargoBuild.call(mcp, Map.put(args, "build_id", id))
     assert detail == conn |> get(path <> "/" <> id) |> json_response(200)
+    assert detail["custom_metadata"] == %{"tags" => ["ci"], "values" => values}
   end
 
   defp build(project, user, attrs) do

@@ -29,16 +29,26 @@ class ReportReplayIntegrationTest {
     @Test
     fun `build and test reports are resent with the same id after a dropped connection or a 502`() {
         val ids = ConcurrentHashMap<String, CopyOnWriteArrayList<String?>>()
+        val bodies = ConcurrentHashMap<String, CopyOnWriteArrayList<String>>()
+        val metadataDiscoveries = AtomicInteger()
         val failures = ConcurrentHashMap<String, FirstAttempt>()
         val arrivals = ConcurrentHashMap<String, AtomicInteger>()
         MockWebServer().use { server ->
             server.dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
                     val path = request.path.orEmpty()
+                    if (path == "/api/metadata/limits") {
+                        metadataDiscoveries.incrementAndGet()
+                        assertEquals(null, request.getHeader("Authorization"))
+                        assertEquals(null, request.getHeader(ActorIdentifier.HEADER))
+                        return MockResponse().setHeader("x-tuist-custom-metadata-max-values", 64).setBody("{}")
+                    }
                     if (request.method != "POST" || (path != buildsPath && path != testsPath)) {
                         return MockResponse().setResponseCode(200).setBody("{\"endpoints\":[\"${server.url("/")}\"],\"test_cases\":[]}")
                     }
-                    val body = JsonParser.parseString(request.body.readUtf8()).asJsonObject
+                    val serialized = request.body.readUtf8()
+                    bodies.getOrPut(path) { CopyOnWriteArrayList() }.add(serialized)
+                    val body = JsonParser.parseString(serialized).asJsonObject
                     val id = body["id"]?.takeIf { !it.isJsonNull }?.asString
                     ids.getOrPut(path) { CopyOnWriteArrayList() }.add(id)
                     val arrival = arrivals.getOrPut(path) { AtomicInteger() }.incrementAndGet()
@@ -67,6 +77,10 @@ class ReportReplayIntegrationTest {
                     network { proxy = false }
                     buildCache { enabled = false }
                     testQuarantine { enabled = false }
+                    buildInsights {
+                        (1..19).each { value("user." + it, "value." + it) }
+                        value("tuist.gradle.max_workers", "7")
+                    }
                 }
                 rootProject.name = 'replay'
             """.trimIndent())
@@ -91,6 +105,8 @@ class ReportReplayIntegrationTest {
                 mapOf(buildsPath to FirstAttempt.BAD_GATEWAY, testsPath to FirstAttempt.DROPPED)
             ).map { scenario ->
                 ids.clear()
+                bodies.clear()
+                metadataDiscoveries.set(0)
                 arrivals.clear()
                 failures.clear()
                 failures.putAll(scenario)
@@ -98,10 +114,18 @@ class ReportReplayIntegrationTest {
                 val result = GradleRunner.create().withProjectDir(directory).withPluginClasspath().withGradleVersion("9.2.1")
                     .withEnvironment(environment).withArguments("test", "--rerun-tasks", "--no-watch-fs", "--stacktrace").build()
 
+                assertEquals(1, metadataDiscoveries.get(), "metadata discovery must not repeat during retries")
+                val values = JsonParser.parseString(bodies.getValue(buildsPath).first()).asJsonObject
+                    .getAsJsonObject("custom_metadata").getAsJsonObject("values")
+                assertEquals("value.19", values["user.19"].asString)
+                assertEquals("7", values["tuist.gradle.max_workers"].asString)
+                assertTrue(values.size() > 20, "runtime observations must survive retries")
+
                 listOf(buildsPath, testsPath).associateWith { path ->
                     val sent = ids[path].orEmpty()
                     val expectedRequests = if (scenario[path] == FirstAttempt.DROPPED) 3 else 2
                     assertEquals(expectedRequests, sent.size, "$path received $sent\n${result.output}")
+                    assertEquals(1, bodies.getValue(path).toSet().size, "$path resent different report bodies")
                     val id = sent.first()
                     assertTrue(id != null && UUID.fromString(id).toString() == id, "$path sent id $id")
                     assertTrue(sent.all { it == id }, "$path resent different ids: $sent")

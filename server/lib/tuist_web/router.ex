@@ -1077,6 +1077,7 @@ defmodule TuistWeb.Router do
   scope "/api", TuistWeb.API do
     pipe_through [:open_api, :non_authenticated_api]
 
+    get "/metadata/limits", MetadataController, :limits
     get "/auth/device_code/:device_code", AuthController, :device_code
     post "/auth/refresh_token", AuthController, :refresh_token
 
