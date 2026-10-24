@@ -36,6 +36,7 @@ alias Atlas.OAuth.Clients
 alias Atlas.OAuth.NoCache
 alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
+alias Atlas.Orbit.Workers.CleanupAttachments
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
 alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
@@ -126,6 +127,7 @@ config :atlas, Oban,
        # Deletes document rows and reserved storage objects for uploads the
        # client never finalized.
        {"*/15 * * * *", ExpirePendingUploads},
+       {"*/15 * * * *", CleanupAttachments},
        {"*/5 * * * *", PruneRateLimits},
        # Retires push registrations not refreshed for 60 days and deletes old tombstones.
        {"50 3 * * *", PrunePushInstallations},

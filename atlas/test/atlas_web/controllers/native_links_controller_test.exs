@@ -37,6 +37,8 @@ defmodule AtlasWeb.NativeLinksControllerTest do
       assert "/tasks" in paths
       assert "/commercial/sales/accounts/????????-????-????-????-????????????" in paths
       assert "/open/invoices/????????-????-????-????-????????????" in paths
+      assert "/open/orbit/????????-????-????-????-????????????" in paths
+      refute "/orbit" in paths
       refute "/commercial/finance" in paths
       refute Enum.any?(paths, &String.contains?(&1, "*"))
       assert Enum.all?(components, &(Map.keys(&1) == ["/"]))
@@ -110,12 +112,21 @@ defmodule AtlasWeb.NativeLinksControllerTest do
             {"invoices", "/commercial/finance"},
             {"time-off", "/people/time-off"},
             {"people", "/people"},
-            {"profile", "/settings"}
+            {"profile", "/settings"},
+            {"orbit", "/"}
           ] do
         html = conn |> get("/open/#{screen}") |> html_response(200)
         assert html =~ ~s(href="dev.tuist.atlas://navigate/#{screen}?server=)
         assert html =~ ~s(href="#{fallback}")
       end
+    end
+
+    test "opens an Orbit thread without looking up or exposing its content", %{conn: conn} do
+      html = conn |> get("/open/orbit/#{@id}?token=secret&server=https://evil.example") |> html_response(200)
+      assert html =~ ~s(href="dev.tuist.atlas://navigate/orbit/#{@id}?server=https%3A%2F%2Fatlas.example.org")
+      assert html =~ ~s(href="/")
+      refute html =~ "secret"
+      refute html =~ "evil.example"
     end
 
     test "uses the configured origin, never request host headers", %{conn: conn} do
@@ -180,6 +191,9 @@ defmodule AtlasWeb.NativeLinksControllerTest do
             "/open/profile/#{@id}",
             "/open/tasks/#{String.upcase(@id)}",
             "/open/tasks/not-a-uuid",
+            "/open/orbit/not-a-uuid",
+            "/open/orbit/#{String.upcase(@id)}",
+            "/open/orbit/#{@id}/edit",
             "/open/tasks%2F#{@id}",
             "/open/tasks/#{@id}/edit",
             "/open"

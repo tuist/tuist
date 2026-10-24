@@ -1,12 +1,30 @@
 import SwiftUI
 
-struct AtlasVoiceInputView: View {
+struct AtlasThreadComposer: View {
+    @Binding var draft: String
+    let placeholder: String
+    let saving: Bool
     let phase: AtlasVoiceInput.Phase
     let transcript: String
     let levels: [CGFloat]
+    var hasAttachments = false
+    var addPhotos: (() -> Void)?
+    var addFiles: (() -> Void)?
+    let start: () -> Void
+    let review: () -> Void
     let cancel: () -> Void
-    let done: () -> Void
+    let accept: () -> Void
+    let send: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.atlasTheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var recording: Bool { phase != .idle }
+    private var canSubmit: Bool {
+        if recording { return phase == .recording || phase == .reviewing }
+        return !saving && (hasAttachments || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
 
     private var status: String {
         switch phase {
@@ -18,58 +36,112 @@ struct AtlasVoiceInputView: View {
     }
 
     var body: some View {
+        let palette = contrast == .increased ? nil : theme?.palette(scheme)
+        let shape = RoundedRectangle(cornerRadius: 28)
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Button(action: cancel) {
-                    Image(systemName: "xmark").frame(width: 44, height: 44).contentShape(Rectangle())
-                }
-                .accessibilityLabel("Cancel voice input")
-                .accessibilityIdentifier("thread-voice-cancel")
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(status)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .accessibilityIdentifier("thread-voice-status")
-                    HStack(alignment: .center, spacing: 3) {
-                        ForEach(levels.indices, id: \.self) { index in
-                            Capsule().fill(.tint)
-                                .frame(width: 3, height: 3 + levels[index] * 23)
-                        }
+            if recording {
+                Text(status).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
+                    .accessibilityIdentifier("thread-voice-status")
+            }
+            HStack(alignment: .bottom, spacing: 4) {
+                if !recording, let addPhotos, let addFiles {
+                    Menu {
+                        Button("Photo Library", systemImage: "photo.on.rectangle", action: addPhotos)
+                        Button("Choose Files", systemImage: "doc", action: addFiles)
+                    } label: {
+                        Image(systemName: "plus").font(.title3).frame(width: 44, height: 44)
                     }
-                    .frame(height: 28).frame(maxWidth: .infinity, alignment: .leading)
-                    .animation(reduceMotion ? nil : .linear(duration: 0.1), value: levels)
-                    .accessibilityHidden(true)
+                    .disabled(saving).accessibilityLabel("Attach images or files")
+                    .accessibilityIdentifier("thread-attach")
                 }
-                Button(action: done) {
+                Group {
+                    if recording {
+                        HStack(alignment: .center, spacing: 3) {
+                            ForEach(levels.indices, id: \.self) { index in
+                                Capsule().fill(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 4 + levels[index] * 24)
+                            }
+                        }
+                        .frame(height: 44)
+                        .animation(reduceMotion ? nil : .linear(duration: 0.1), value: levels)
+                        .accessibilityLabel(status)
+                        .accessibilityIdentifier("thread-voice-recording")
+                    } else {
+                        TextField(placeholder, text: $draft, axis: .vertical)
+                            .lineLimit(1...6).textFieldStyle(.plain).padding(.vertical, 11)
+                            .accessibilityIdentifier("thread-composer")
+                    }
+                }
+                .padding(.leading, recording ? 52 : 12).padding(.trailing, recording ? 8 : 44)
+                Button(action: recording ? accept : send) {
                     Group {
-                        if phase == .finishing { ProgressView() } else { Image(systemName: "checkmark") }
+                        if saving || phase == .finishing { ProgressView() } else { Image(systemName: "arrow.up").font(.title3.bold()) }
                     }.frame(width: 44, height: 44)
                 }
-                .buttonStyle(.borderedProminent).buttonBorderShape(.circle)
-                .modifier(AtlasPrimaryAction())
-                .disabled(phase != .recording && phase != .reviewing).accessibilityLabel("Use transcript")
-                .accessibilityIdentifier("thread-voice-done")
+                .buttonStyle(AtlasComposerSendStyle())
+                .disabled(!canSubmit)
+                .accessibilityLabel(recording ? "Use transcript" : "Send message")
+                .accessibilityHint(recording ? "Adds editable text to your draft. Does not send a message." : "")
+                .accessibilityIdentifier(recording ? "thread-voice-done" : "thread-send")
             }
-            if !transcript.isEmpty {
-                Text(transcript).font(.callout).lineLimit(6).textSelection(.enabled)
+            .overlay(alignment: recording ? .bottomLeading : .bottomTrailing) {
+                // Keep one UIKit target alive as it moves, so a held microphone still receives its release.
+                AtlasMicrophoneButton(active: recording, reviewing: phase == .reviewing || phase == .finishing,
+                                      start: start, review: phase == .reviewing || phase == .finishing ? cancel : review)
+                    .disabled(saving)
+                    .padding(.trailing, recording ? 0 : 48)
+            }
+            .padding(4)
+            .background(palette.map { Color(atlasHex: $0.surface) } ?? Color(uiColor: .systemBackground), in: shape)
+            .overlay { shape.strokeBorder(palette.map { Color(atlasHex: $0.border) } ?? Color(uiColor: .separator), lineWidth: 0.5) }
+            .shadow(color: .black.opacity(scheme == .dark ? 0.12 : 0.06), radius: 12, y: 4)
+            if recording, !transcript.isEmpty {
+                HStack(alignment: .top, spacing: 4) {
+                    Text(transcript).font(.callout).lineLimit(6).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button("Cancel", action: cancel).frame(minWidth: 44, minHeight: 44)
+                        .accessibilityIdentifier("thread-voice-cancel")
+                }
+                .padding(.horizontal, 12)
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("thread-voice-recording")
     }
 }
 
-struct AtlasMicrophoneButton: View {
+struct AtlasComposerSendStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    @Environment(\.atlasTheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func makeBody(configuration: Configuration) -> some View {
+        let onAccent = contrast == .increased ? Color(uiColor: .systemBackground)
+            : theme.map { Color(atlasHex: $0.palette(scheme).onAccent) } ?? AtlasSettingsStyle.onTint
+        configuration.label
+            .foregroundStyle(onAccent)
+            .background { Circle().fill(.tint).padding(4) }
+            .contentShape(Rectangle())
+            .opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.3)
+    }
+}
+
+private struct AtlasMicrophoneButton: View {
     let active: Bool
+    var reviewing = false
     let start: () -> Void
     let review: () -> Void
     @Environment(\.isEnabled) private var enabled
 
     var body: some View {
         ZStack {
-            Image(systemName: active ? "mic.fill" : "mic")
-                .foregroundStyle(active ? Color.red : Color.accentColor)
+            Circle().fill(active && !reviewing ? Color.red.opacity(0.1) : Color(uiColor: .tertiarySystemFill)).padding(4)
+            Image(systemName: reviewing ? "xmark" : active ? "stop.fill" : "mic.fill")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(active && !reviewing ? Color.red : Color.secondary)
                 .accessibilityHidden(true)
-            AtlasMicrophoneTouchTarget(active: active, enabled: enabled, start: start, review: review)
+            AtlasMicrophoneTouchTarget(active: active, reviewing: reviewing, enabled: enabled, start: start, review: review)
         }
         .frame(width: 44, height: 44)
         .opacity(enabled ? 1 : 0.4)
@@ -78,6 +150,7 @@ struct AtlasMicrophoneButton: View {
 
 private struct AtlasMicrophoneTouchTarget: UIViewRepresentable {
     let active: Bool
+    let reviewing: Bool
     let enabled: Bool
     let start: () -> Void
     let review: () -> Void
@@ -103,8 +176,8 @@ private struct AtlasMicrophoneTouchTarget: UIViewRepresentable {
             button.isEnabled = enabled
             button.gestureRecognizers?.forEach { $0.isEnabled = enabled }
         }
-        button.accessibilityLabel = active ? "Stop dictation" : "Transcribe a voice message"
-        button.accessibilityHint = "Hold while speaking and release to review. "
+        button.accessibilityLabel = reviewing ? "Cancel voice input" : active ? "Stop dictation" : "Transcribe a voice message"
+        button.accessibilityHint = active ? "Your typed draft stays unchanged." : "Hold while speaking and release to review. "
             + "Tap to start or stop hands-free dictation. Nothing is sent automatically."
         button.accessibilityIdentifier = "thread-microphone"
     }

@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class AtlasBusinessPreviewData: ObservableObject {
     private var recordAccessRevoked = false
+    private var profileDescription = ""
     private var items: [String: [[String: Any]]] = [
         "tasks": [
             AtlasBusinessPreviewData.record(
@@ -123,9 +124,15 @@ final class AtlasBusinessPreviewData: ObservableObject {
             try await Task.sleep(for: .milliseconds(700))
         }
         if resource == "profile" {
+            if action["action"] as? String == "update_profile" {
+                if ProcessInfo.processInfo.arguments.contains("--fail-business-save") {
+                    throw AtlasAuthenticationError(kind: "server", message: "Preview save failed. Your draft is still here.")
+                }
+                profileDescription = (action["description"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            }
             return try JSONSerialization.data(withJSONObject: [
                 "server_version": "0.7.2",
-                "user": ["name": "Taylor Morgan", "email": "taylor@example.org"],
+                "user": ["name": "Taylor Morgan", "email": "taylor@example.org", "description": profileDescription],
             ])
         }
         if resource == "invoices", ProcessInfo.processInfo.arguments.contains("--forbidden-finance") {

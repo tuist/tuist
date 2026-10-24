@@ -78,11 +78,10 @@ and all jobs skip draft pull requests. Rust auth dependencies are resolved durin
 Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
-The separate native iOS UI job builds the isolated Once fixture runner, exercises
-CRUD/navigation, including `AtlasNavigationUITests` object links and `AtlasOrbitUITests`
-conversation/composer/voice fixtures, with `xcodebuild test-without-building`, and exports
-xcresult screenshots plus a simulator recording as `atlas-native-ui-evidence`. Fixtures
-make no live account-management requests and never enter production source globs.
+Native iOS UI suites and isolated fixture apps remain local opt-in tools; CI does
+not run them or gate preview publication on them. Rust, CLI and iOS unit tests
+remain in the separate test jobs. Fixtures make no live account-management
+requests and never enter production source globs.
 Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
@@ -97,8 +96,10 @@ iOS device signing so a profile capability update cannot block them. iOS signing
 requires an Associated Domains-enabled profile and requests only the hosted app
 link domain. Its provisioning guard accepts Apple's scalar wildcard authorization
 as well as domain arrays, without copying a wildcard into the app signature. Credential-free Android signing, associated-domain and APNs capability,
-keychain-lifecycle and launcher-packaging tests also gate publication. Android
-builds verify locked Firebase dependencies, explicitly merged SDK manifests, and
+keychain-lifecycle and launcher-packaging tests also gate publication through
+`test-distribution`, which runs on macOS because the iOS capability guards require
+PlistBuddy and plutil. Android builds verify locked Firebase dependencies,
+explicitly merged SDK manifests, and
 library R IDs against the final APK. Portable importer integrity/resource tests
 run without provider credentials; device signing requires a Push-enabled profile.
 PR/fork builds never receive distribution secrets. These are not

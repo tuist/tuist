@@ -22,6 +22,9 @@ impl Transport for MockTransport {
         let value = match body {
             Body::Get | Body::Public { .. } => Value::Null,
             Body::Json(value) => value,
+            Body::Attachment { token, .. } => {
+                json!({"method":"GET","token":token,"attachment":true})
+            }
             Body::Api {
                 method,
                 token,

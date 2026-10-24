@@ -16,6 +16,13 @@ fn execute_using(network: &impl Transport, session: Session, action: Action) -> 
         Action::Send { .. } => {
             serde_json::to_value(request_using::<Sent>(network, session, action)?)
         }
+        Action::UploadAttachment { .. } => {
+            serde_json::to_value(request_using::<Attached>(network, session, action)?)
+        }
+        Action::DownloadAttachment { .. } => {
+            serde_json::to_value(request_using::<Downloaded>(network, session, action)?)
+        }
+        Action::DeleteAttachment { .. } => return request_using(network, session, action),
     }
     .map_err(|_| invalid())
 }
@@ -82,10 +89,11 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
                 body: "Please investigate".into(),
                 client_id: ID.into(),
                 address_agent: true,
+                attachment_ids: vec![],
             },
             "POST",
             format!("/{ID}/messages"),
-            json!({"body":"Please investigate","client_id":ID,"address_agent":true}),
+            json!({"body":"Please investigate","client_id":ID,"address_agent":true,"attachment_ids":[]}),
             json!({"message":message()}),
         ),
     ];
@@ -130,18 +138,21 @@ fn invalid_paths_pages_and_messages_never_leave_device() {
             body: " ".into(),
             client_id: ID.into(),
             address_agent: false,
+            attachment_ids: vec![],
         },
         Action::Send {
             id: ID.into(),
             body: "x".repeat(16001),
             client_id: ID.into(),
             address_agent: false,
+            attachment_ids: vec![],
         },
         Action::Send {
             id: ID.into(),
             body: "Hello".into(),
             client_id: "bad".into(),
             address_agent: false,
+            attachment_ids: vec![],
         },
     ] {
         assert!(execute_using(&network, saved(), action).is_err());
@@ -172,5 +183,126 @@ fn errors_do_not_echo_provider_or_thread_bodies() {
                 .unwrap()
                 .contains("confidential-body")
         );
+    }
+}
+
+#[test]
+fn attachment_routes_are_fixed_authenticated_and_filter_download_metadata() {
+    let metadata = json!({"id":ID,"filename":"report.txt","content_type":"text/plain","byte_size":5,"url":"must-not-forward"});
+    let network = MockTransport::new(vec![
+        json!({"attachment":metadata}),
+        json!({"attachment":{
+            "id":ID,"filename":"report.txt","content_type":"text/plain","byte_size":5,"data":"aGVsbG8=","url":"must-not-forward"
+        }}),
+        json!({"deleted":true}),
+    ]);
+    for action in [
+        Action::UploadAttachment {
+            id: ID.into(),
+            client_id: ID.into(),
+            filename: "report.txt".into(),
+            content_type: "text/plain".into(),
+            data: "aGVsbG8=".into(),
+        },
+        Action::DownloadAttachment {
+            id: ID.into(),
+            attachment_id: ID.into(),
+        },
+        Action::DeleteAttachment {
+            id: ID.into(),
+            attachment_id: ID.into(),
+        },
+    ] {
+        assert!(
+            !execute_using(&network, saved(), action)
+                .unwrap()
+                .to_string()
+                .contains("must-not-forward")
+        );
+    }
+    let requests = network.requests.borrow();
+    assert_eq!(
+        requests[0].0,
+        format!("https://atlas.example/api/native/orbit/threads/{ID}/attachments")
+    );
+    assert_eq!(requests[0].1["payload"]["client_id"], ID);
+    assert_eq!(
+        requests[1].0,
+        format!("https://atlas.example/api/native/orbit/threads/{ID}/attachments/{ID}")
+    );
+    assert_eq!(requests[1].1["attachment"], true);
+    assert_eq!(requests[1].1["token"], "atlas-access");
+    assert_eq!(requests[2].1["method"], "DELETE");
+    // Older servers omit the array and remain readable.
+    assert!(
+        serde_json::from_value::<Message>(message())
+            .unwrap()
+            .attachments
+            .is_empty()
+    );
+}
+
+#[test]
+fn attachment_validation_rejects_paths_names_sizes_types_and_base64_before_network() {
+    for name in [
+        "../secret",
+        "a/b",
+        "a\\b",
+        "a\n.txt",
+        "\u{202e}txt.exe",
+        "",
+        "..",
+    ] {
+        assert!(validate_file(name, "text/plain", 5).is_err());
+    }
+    for size in [0, MAX_ATTACHMENT_BYTES + 1] {
+        assert!(validate_file("report.txt", "text/plain", size).is_err());
+    }
+    assert!(validate_file("report.txt", "text/plain\r\nX:y", 5).is_err());
+    assert!(decode_attachment("aGVsbG8=\n").is_err());
+    let largest = STANDARD.encode(vec![1; MAX_ATTACHMENT_BYTES]);
+    assert_eq!(
+        decode_attachment(&largest).unwrap().len(),
+        MAX_ATTACHMENT_BYTES
+    );
+    assert!(decode_attachment(&STANDARD.encode(vec![1; MAX_ATTACHMENT_BYTES + 1])).is_err());
+    assert!(validate_attachment_ids(&vec![ID.into(); 5]).is_err());
+    assert!(validate_attachment_ids(&[ID.into(), ID.into()]).is_err());
+    let network = MockTransport::new(vec![]);
+    for action in [
+        Action::DownloadAttachment {
+            id: ID.into(),
+            attachment_id: "../secret".into(),
+        },
+        Action::UploadAttachment {
+            id: ID.into(),
+            client_id: ID.into(),
+            filename: "../file".into(),
+            content_type: "text/plain".into(),
+            data: "aGVsbG8=".into(),
+        },
+    ] {
+        assert!(execute_using(&network, saved(), action).is_err());
+    }
+    assert!(network.requests.borrow().is_empty());
+}
+
+#[test]
+fn parent_links_are_optional_validated_uuid_metadata_not_inferred_hierarchy() {
+    assert!(
+        serde_json::from_value::<Message>(message())
+            .unwrap()
+            .parent_message_id
+            .is_none()
+    );
+    for parent in [json!(ID), json!(null), json!("../other-thread"), json!(42)] {
+        let mut value = message();
+        value["parent_message_id"] = parent.clone();
+        let parsed: Message = serde_json::from_value(value).unwrap();
+        assert_eq!(
+            parsed.parent_message_id.as_deref(),
+            if parent == ID { Some(ID) } else { None }
+        );
+        assert_eq!(parsed.body, "Please investigate");
     }
 }

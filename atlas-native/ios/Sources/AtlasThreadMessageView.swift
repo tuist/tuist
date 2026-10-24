@@ -3,6 +3,7 @@ import SwiftUI
 struct AtlasThreadMessageView: View {
     let message: AtlasThreadMessage
     let selfId: String?
+    var openAttachment: ((AtlasThreadAttachment) -> Void)?
     let action: (String) async -> Bool
     @State private var showingEvidence = false
     @State private var expandedEvidence = false
@@ -49,11 +50,19 @@ struct AtlasThreadMessageView: View {
         .accessibilityIdentifier("thread-message-\(message.id)")
     }
 
-    @ViewBuilder private var messageBody: some View {
-        if message.kind == "agent" {
-            AtlasMarkdown(source: message.body)
-        } else {
-            Text(message.body).textSelection(.enabled)
+    private var messageBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !message.body.isEmpty {
+                if message.kind == "agent" {
+                    AtlasMarkdown(source: message.body)
+                } else {
+                    Text(message.body).textSelection(.enabled)
+                }
+            }
+            ForEach(message.attachments ?? []) { attachment in
+                AtlasAttachmentChip(attachment: attachment, open: { openAttachment?(attachment) })
+                    .disabled(openAttachment == nil)
+            }
         }
     }
 
@@ -92,6 +101,8 @@ struct AtlasThreadMessageView: View {
         } label: {
             Label("\(message.toolName ?? "Tool") · \(message.toolStatus ?? "Working")", systemImage: "wrench.and.screwdriver")
                 .font(.subheadline)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
         }
         .multilineTextAlignment(.leading)
     }

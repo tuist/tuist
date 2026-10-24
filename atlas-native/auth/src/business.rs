@@ -129,6 +129,9 @@ pub(crate) enum Action {
     Complete {
         id: String,
     },
+    UpdateProfile {
+        description: String,
+    },
 }
 
 fn first_page() -> u32 {
@@ -352,6 +355,8 @@ struct Deleted {
 struct ProfileUser {
     name: String,
     email: String,
+    #[serde(default)]
+    description: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -410,18 +415,29 @@ fn execute_using(
         return Err(invalid());
     }
     if matches!(resource, Resource::Profile) {
-        if !matches!(action, Action::List { .. }) {
-            return Err(invalid());
-        }
+        let (method, payload) = match &action {
+            Action::List {
+                page: 1,
+                query,
+                filters,
+            } if query.is_empty() && filters.is_empty() => (Method::GET, None),
+            Action::UpdateProfile { description } if valid_description(description) => {
+                (Method::PATCH, Some(json!({"description": description})))
+            }
+            _ => return Err(invalid()),
+        };
         let response: Profile = network.request(
             &url,
             Body::Api {
-                method: Method::GET,
+                method,
                 token: &session.access_token,
-                payload: None,
+                payload,
                 failure: response_failure,
             },
         )?;
+        if !valid_description(&response.user.description) {
+            return Err(invalid());
+        }
         return serde_json::to_value(response).map_err(|_| invalid());
     }
     let (method, payload) = match &action {
@@ -439,6 +455,7 @@ fn execute_using(
             (Method::GET, None)
         }
         Action::Create { fields } => (Method::POST, Some(payload(resource, fields)?)),
+        Action::UpdateProfile { .. } => return Err(invalid()),
         Action::Show { id }
         | Action::Delete { id }
         | Action::Update { id, .. }
@@ -486,6 +503,12 @@ fn execute_using(
         }
     }
     .map_err(|_| invalid())
+}
+
+fn valid_description(description: &str) -> bool {
+    description.len() <= 16_000
+        && description.chars().count() <= 4000
+        && !description.contains('\0')
 }
 
 fn payload(resource: Resource, fields: &BTreeMap<String, Option<String>>) -> Result<Value> {

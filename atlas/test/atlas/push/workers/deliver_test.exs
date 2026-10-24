@@ -7,6 +7,10 @@ defmodule Atlas.Push.Workers.DeliverTest do
   import Atlas.TimeOffFixtures, only: [user_fixture: 0]
 
   alias Atlas.Audit.Activity
+  alias Atlas.Authorization.Roles
+  alias Atlas.Orbit
+  alias Atlas.Orbit.Run
+  alias Atlas.Orbit.Thread
   alias Atlas.Push
   alias Atlas.Push.Config
   alias Atlas.Push.Installation
@@ -267,6 +271,188 @@ defmodule Atlas.Push.Workers.DeliverTest do
       assert Map.new(first)["authorization"] == "Bearer first"
       assert Map.new(second)["authorization"] == "Bearer second"
     end
+  end
+
+  describe "Orbit completion" do
+    test "delivers the exact completed run context, never a later reply", %{user: user, responses: responses} do
+      {:ok, thread} = Orbit.create_shared(user, %{"title" => "Quarterly review"})
+      installation = register(user, ios_device())
+      reply = orbit_reply(thread, user.id, "**First reply** is [ready](https://example.org/report).")
+      job_args = queued_orbit_args(installation, thread, reply)
+      orbit_reply(thread, user.id, "Later unrelated reply")
+
+      assert :ok = perform_job(Deliver, job_args)
+      assert_received {:request, "api.push.apple.com", _, _, body}
+
+      assert JSON.decode!(body) == %{
+               "aps" => %{
+                 "alert" => %{"title" => "Pip finished", "body" => "Quarterly review: First reply is ready."},
+                 "sound" => "default"
+               },
+               "schema_version" => 1,
+               "registration_id" => installation.id,
+               "url" => "dev.tuist.atlas://navigate/orbit/#{thread.id}?server=https%3A%2F%2Fatlas.example.com"
+             }
+
+      android = register(user, android_device())
+      respond(responses, "oauth2.googleapis.com", [{200, [], %{"access_token" => "fcm-access", "expires_in" => 3599}}])
+      android_args = queued_orbit_args(android, thread, reply)
+      assert :ok = perform_job(Deliver, android_args)
+      assert_received {:request, "fcm.googleapis.com", _, _, android_body}
+      data = JSON.decode!(android_body)["message"]["data"]
+      assert data["title"] == "Pip finished" and data["body"] == "Quarterly review: First reply is ready."
+      assert data["url"] == "dev.tuist.atlas://navigate/orbit/#{thread.id}?server=https%3A%2F%2Fatlas.example.com"
+      refute android_body =~ "Later unrelated reply"
+      refute inspect(all_enqueued(worker: Deliver)) =~ "First reply"
+      refute inspect(Repo.all(Activity)) =~ "First reply"
+    end
+
+    test "bounds and cleans context before either provider receives it", %{user: user} do
+      {:ok, thread} = Orbit.create_shared(user, %{"title" => String.duplicate("é", 100)})
+      installation = register(user, ios_device())
+
+      text =
+        "```json\nraw tool evidence\n```\n# **Summary** <b>done</b>\u202e\u0001\n" <> String.duplicate("e\u0301", 200)
+
+      reply = orbit_reply(thread, user.id, text)
+      assert :ok = perform_job(Deliver, queued_orbit_args(installation, thread, reply))
+      assert_received {:request, "api.push.apple.com", _, _, body}
+      alert = JSON.decode!(body)["aps"]["alert"]
+      assert alert["title"] == "Pip finished"
+      assert alert["body"] =~ "Summary done"
+      refute alert["body"] =~ "raw tool evidence"
+      refute alert["body"] =~ ~r/[\p{Cc}\p{Cf}<>*`#]/u
+      assert length(String.codepoints(alert["body"])) <= 242
+      assert byte_size(body) < 4096
+    end
+
+    test "rechecks current membership, scopes, archive, and deletion before contacting providers" do
+      for boundary <- [:removed, :revoked_scopes, :archived, :deleted] do
+        owner = Atlas.OrbitFixtures.user_fixture(["accounts:read"])
+        member = Atlas.OrbitFixtures.user_fixture(["accounts:read"])
+        {:ok, thread} = Orbit.create_shared(owner, %{"title" => "Sensitive title", "participant_ids" => [member.id]})
+        thread = Repo.update!(Ecto.Changeset.change(thread, required_scopes: ["accounts:read"]))
+        installation = register(member, ios_device())
+        job_args = queued_orbit_args(installation, thread)
+
+        case boundary do
+          :removed ->
+            :ok = Orbit.remove_participant(owner, thread, member.id)
+
+          :revoked_scopes ->
+            {:ok, _} = Roles.update_role(Roles.get_role_by_slug("test-#{member.id}"), %{scopes: []})
+
+          :archived ->
+            Repo.update!(Ecto.Changeset.change(thread, status: "archived"))
+
+          :deleted ->
+            Repo.delete!(thread)
+        end
+
+        assert {:cancel, :destination_unavailable} = perform_job(Deliver, job_args)
+        assert Repo.reload!(installation).retired_at == nil
+        refute_received {:request, _, _, _, _}
+      end
+
+      assert Repo.aggregate(from(a in Activity, where: a.action == "push_notification.delivery"), :count) == 4
+    end
+
+    test "rechecks access on provider retries", %{user: user, responses: responses} do
+      {:ok, thread, _} = Orbit.ensure_private(user)
+      installation = register(user, ios_device())
+      job_args = queued_orbit_args(installation, thread)
+      respond(responses, "api.push.apple.com", [{503, [], %{}}])
+
+      assert {:error, :provider_unavailable} = perform_job(Deliver, job_args)
+      assert_received {:request, "api.push.apple.com", _, _, _}
+      Repo.update!(Ecto.Changeset.change(thread, status: "archived"))
+      assert {:cancel, :destination_unavailable} = perform_job(Deliver, job_args)
+      refute_received {:request, _, _, _, _}
+    end
+
+    test "only Orbit completion kinds require a readable thread", %{user: user} do
+      installation = register(user, ios_device())
+      nonexistent = Ecto.UUID.generate()
+
+      assert :ok =
+               perform_job(
+                 Deliver,
+                 args(installation, %{"kind" => "activity", "screen" => "orbit", "record_id" => nonexistent})
+               )
+
+      assert_received {:request, "api.push.apple.com", _, _, _}
+
+      assert {:cancel, :destination_unavailable} =
+               perform_job(
+                 Deliver,
+                 args(installation, %{"kind" => "orbit_completed", "screen" => "orbit", "record_id" => nonexistent})
+               )
+
+      for overrides <- [%{"screen" => "orbit", "record_id" => nil}, %{"screen" => "tasks"}] do
+        assert {:cancel, :invalid_arguments} =
+                 perform_job(Deliver, args(installation, Map.put(overrides, "kind", "orbit_completed")))
+      end
+
+      refute_received {:request, _, _, _, _}
+      assert Repo.aggregate(Thread, :count) == 0
+    end
+
+    test "rejects missing, non-agent, cross-thread, and mismatched run sources", %{user: user} do
+      {:ok, thread, _} = Orbit.ensure_private(user)
+      {:ok, other} = Orbit.create_shared(user, %{"title" => "Another thread"})
+      installation = register(user, ios_device())
+      reply = orbit_reply(thread, user.id)
+      other_reply = orbit_reply(other, user.id)
+      job_args = queued_orbit_args(installation, thread, reply)
+
+      for source_id <- [nil, "not-a-uuid", Ecto.UUID.generate(), other_reply.id] do
+        assert {:cancel, :destination_unavailable} = perform_job(Deliver, Map.put(job_args, "message_id", source_id))
+      end
+
+      Repo.update!(Ecto.Changeset.change(reply, kind: "tool", tool_output: "Never push this evidence"))
+      assert {:cancel, :destination_unavailable} = perform_job(Deliver, job_args)
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(reply), kind: "agent", run_id: other_reply.run_id))
+      assert {:cancel, :destination_unavailable} = perform_job(Deliver, job_args)
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(reply), run_id: reply.run_id))
+      run = Repo.get!(Run, reply.run_id)
+
+      for status <- ~w(queued running failed cancelled interrupted) do
+        Repo.update!(Ecto.Changeset.change(Repo.reload!(run), status: status))
+        assert {:cancel, :destination_unavailable} = perform_job(Deliver, job_args)
+      end
+
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(run), status: "succeeded", acting_user_id: user_fixture().id))
+      assert {:cancel, :destination_unavailable} = perform_job(Deliver, job_args)
+      refute_received {:request, _, _, _, _}
+    end
+  end
+
+  defp queued_orbit_args(installation, thread, reply \\ nil) do
+    reply = reply || orbit_reply(thread, installation.user_id)
+
+    assert {:ok, _count} =
+             Push.notify_user(installation.user_id, "orbit_completed", {"orbit", thread.id}, message_id: reply.id)
+
+    jobs = all_enqueued(worker: Deliver)
+    %{args: job_args} = Enum.find(jobs, &(&1.args["registration_id"] == installation.id))
+    job_args
+  end
+
+  defp orbit_reply(thread, user_id, body \\ "The run is complete.") do
+    {:ok, reply} =
+      Repo.transaction(fn ->
+        run =
+          Repo.insert!(%Run{
+            thread_id: thread.id,
+            acting_user_id: user_id,
+            status: "succeeded",
+            trigger_seq: thread.last_seq
+          })
+
+        Orbit.append!(thread, %{kind: "agent", run_id: run.id, body: body, author_name: Orbit.agent_name()})
+      end)
+
+    reply
   end
 
   describe "send-time checks" do
