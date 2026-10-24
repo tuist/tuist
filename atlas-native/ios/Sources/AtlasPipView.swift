@@ -182,15 +182,17 @@ struct AtlasPipWelcome: View {
     var body: some View {
         VStack(spacing: 16) {
             AtlasPipView()
-                .frame(width: dynamicTypeSize.isAccessibilitySize ? 144 : 160, height: dynamicTypeSize.isAccessibilitySize ? 144 : 160)
+                .frame(width: dynamicTypeSize.isAccessibilitySize ? 96 : 160, height: dynamicTypeSize.isAccessibilitySize ? 96 : 160)
 
             VStack(spacing: 8) {
                 Text("Meet Pip")
                     .font(.system(.title, design: .rounded, weight: .semibold))
                     .accessibilityAddTraits(.isHeader)
-                Text("Your Atlas companion. Ask a question or work out your next step.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text("Your Atlas companion. Ask a question or work out your next step.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
                 Text("Tap Pip to say hello. Try a longer touch.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

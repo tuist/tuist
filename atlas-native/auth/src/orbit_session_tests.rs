@@ -178,6 +178,7 @@ fn captured_send_body_keeps_retry_key_without_overwriting_newer_drafts() {
         Draft {
             body: "New thought".into(),
             client_id: random_uuid().unwrap(),
+            attachments: vec![],
         },
     );
     assert_eq!(prepare_send(&mut state, FIRST, "At tap time").unwrap(), key);
@@ -571,4 +572,306 @@ fn mismatched_failed_and_closed_direct_reads_never_publish_authoritative_metadat
         })
         .unwrap();
     }
+}
+
+fn attachment() -> Attachment {
+    Attachment {
+        id: UNSEEN.into(),
+        filename: "report.txt".into(),
+        content_type: "text/plain".into(),
+        byte_size: 5,
+    }
+}
+
+fn attachment_model() -> (String, Arc<Model>) {
+    let (connection, model) = opened();
+    select_using(
+        &model,
+        Some(FIRST.into()),
+        None,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| Ok(response(FIRST))),
+    )
+    .unwrap();
+    model.state.lock().unwrap().active = true;
+    (connection, model)
+}
+
+fn upload_command() -> Command {
+    Command::UploadAttachment {
+        id: FIRST.into(),
+        client_id: None,
+        filename: ".report.txt".into(),
+        content_type: "text/plain".into(),
+        data: "aGVsbG8=".into(),
+    }
+}
+
+#[test]
+fn attachment_upload_and_attachment_only_send_retries_own_identity_and_preserve_newer_text() {
+    use std::cell::RefCell;
+    let (connection, model) = attachment_model();
+    let upload_id = RefCell::new(String::new());
+    let uncertain = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+        assert!(url.path().ends_with(&format!("/{FIRST}/attachments")));
+        let crate::transport::Body::Api {
+            method,
+            payload: Some(payload),
+            ..
+        } = body
+        else {
+            panic!()
+        };
+        assert_eq!(method, reqwest::Method::POST);
+        assert_eq!(payload["data"], "aGVsbG8=");
+        *upload_id.borrow_mut() = payload["client_id"].as_str().unwrap().into();
+        assert_eq!(snapshot(&model).unwrap()["attachment_busy"], true);
+        Err(error(
+            "network",
+            "Could not connect securely to Atlas. Try again.",
+        ))
+    });
+    upload_using(&model, upload_command(), &uncertain).unwrap();
+    let pending = snapshot(&model).unwrap();
+    assert_eq!(pending["has_drafts"], true);
+    assert_eq!(pending["upload_pending"], true);
+    assert_eq!(pending["upload_filename"], ".report.txt");
+    assert!(!pending.to_string().contains("aGVsbG8="));
+    assert!(
+        send_using(
+            &model,
+            FIRST.into(),
+            "Caption".into(),
+            None,
+            false,
+            &crate::tests::MockTransport::new(vec![])
+        )
+        .is_err()
+    );
+    let retry = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+        let crate::transport::Body::Api {
+            payload: Some(payload),
+            ..
+        } = body
+        else {
+            panic!()
+        };
+        assert_eq!(payload["client_id"], *upload_id.borrow());
+        assert_eq!(payload["data"], "aGVsbG8=");
+        // Atlas canonicalizes display names (for example, removes leading dots).
+        // Accept the validated server name, without weakening content-type/size checks.
+        Ok(json!({"attachment":attachment()}))
+    });
+    retry_upload_using(&model, FIRST.into(), &retry).unwrap();
+    assert_eq!(
+        snapshot(&model).unwrap()["draft_attachments"],
+        json!([attachment()])
+    );
+    draft(&model, FIRST.into(), "A caption".into()).unwrap();
+    draft(&model, FIRST.into(), "".into()).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["has_drafts"], true);
+    let send_id = RefCell::new(String::new());
+    let failed_send = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+        let crate::transport::Body::Api {
+            payload: Some(payload),
+            ..
+        } = body
+        else {
+            panic!()
+        };
+        assert_eq!(payload["attachment_ids"], json!([UNSEEN]));
+        assert_eq!(payload["body"], "");
+        *send_id.borrow_mut() = payload["client_id"].as_str().unwrap().into();
+        Err(error(
+            "network",
+            "Could not connect securely to Atlas. Try again.",
+        ))
+    });
+    send_using(&model, FIRST.into(), "".into(), None, false, &failed_send).unwrap();
+    let successful_send = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+        let crate::transport::Body::Api {
+            method, payload, ..
+        } = body
+        else {
+            panic!()
+        };
+        if method == reqwest::Method::GET {
+            return Ok(response(FIRST));
+        }
+        let payload = payload.unwrap();
+        assert_eq!(payload["client_id"], *send_id.borrow());
+        draft(&model, FIRST.into(), "New thought while sending".into()).unwrap();
+        Ok(json!({"message":message(UNSEEN,2,"")}))
+    });
+    send_using(
+        &model,
+        FIRST.into(),
+        "".into(),
+        Some(vec![UNSEEN.into()]),
+        false,
+        &successful_send,
+    )
+    .unwrap();
+    let final_snapshot = snapshot(&model).unwrap();
+    assert_eq!(final_snapshot["draft"], "New thought while sending");
+    assert_eq!(final_snapshot["draft_attachments"], json!([]));
+    assert!(model.state.lock().unwrap().upload_attempt.is_none());
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn attachment_deletion_is_confirmed_and_text_updates_never_drop_pending_chips() {
+    let (connection, model) = attachment_model();
+    upload_using(
+        &model,
+        upload_command(),
+        &crate::tests::MockTransport::new(vec![json!({"attachment":attachment()})]),
+    )
+    .unwrap();
+    draft(&model, FIRST.into(), "caption".into()).unwrap();
+    let failed = InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+        Err(error("network", "Try again."))
+    });
+    delete_using(&model, FIRST.into(), UNSEEN.into(), &failed).unwrap();
+    assert_eq!(
+        snapshot(&model).unwrap()["draft_attachments"],
+        json!([attachment()])
+    );
+    let confirmed = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+        assert!(
+            url.path()
+                .ends_with(&format!("/{FIRST}/attachments/{UNSEEN}"))
+        );
+        let crate::transport::Body::Api { method, .. } = body else {
+            panic!()
+        };
+        assert_eq!(method, reqwest::Method::DELETE);
+        assert_eq!(
+            snapshot(&model).unwrap()["draft_attachments"],
+            json!([attachment()])
+        );
+        Ok(json!({"deleted":true}))
+    });
+    delete_using(&model, FIRST.into(), UNSEEN.into(), &confirmed).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["draft"], "caption");
+    assert_eq!(snapshot(&model).unwrap()["draft_attachments"], json!([]));
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn attachment_download_requires_protected_metadata_and_fences_lifecycle_revocation_and_selection() {
+    for mode in [
+        "ok",
+        "unseen",
+        "superseded",
+        "background",
+        "revoked",
+        "closed",
+        "denied",
+        "expired",
+        "wrong_size",
+        "wrong_id",
+    ] {
+        let (connection, model) = attachment_model();
+        if mode != "unseen" {
+            model.state.lock().unwrap().snapshot.messages[0].attachments = vec![attachment()];
+        }
+        let network = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
+            assert!(
+                url.path()
+                    .ends_with(&format!("/{FIRST}/attachments/{UNSEEN}"))
+            );
+            let crate::transport::Body::Attachment { token, failure } = body else {
+                panic!()
+            };
+            assert_eq!(token, "atlas-access");
+            match mode {
+                "unseen" => panic!("unseen metadata must not reach network"),
+                "superseded" => {
+                    model.state.lock().unwrap().active = false;
+                    select_using(
+                        &model,
+                        None,
+                        Some(FIRST.into()),
+                        &crate::tests::MockTransport::new(vec![]),
+                    )
+                    .unwrap();
+                }
+                "background" => {
+                    let mut state = model.state.lock().unwrap();
+                    state.active = false;
+                    state.lifecycle += 1;
+                    state.active = true;
+                }
+                "revoked" => revoke(&mut model.state.lock().unwrap(), FIRST),
+                "closed" => {
+                    execute(Action::Close {
+                        connection: connection.clone(),
+                    })
+                    .unwrap();
+                }
+                "denied" => return Err(failure(403, b"private bytes")),
+                "expired" => return Err(failure(401, b"private bytes")),
+                _ => (),
+            }
+            let mut file = attachment();
+            if mode == "wrong_id" {
+                file.id = SECOND.into();
+            }
+            Ok(
+                json!({"attachment":{"id":file.id,"filename":file.filename,"content_type":file.content_type,"byte_size":file.byte_size,"data":if mode=="wrong_size" {"YQ=="} else {"aGVsbG8="}}}),
+            )
+        });
+        let result = download_using(&model, FIRST.into(), UNSEEN.into(), &network);
+        assert_eq!(result.is_ok(), mode == "ok", "{mode}");
+        if let Ok(value) = result {
+            assert_eq!(value["thread_id"], FIRST);
+            assert_eq!(value["attachment"]["data"], "aGVsbG8=");
+        }
+        assert!(!snapshot(&model).unwrap().to_string().contains("aGVsbG8="));
+        if mode == "denied" {
+            assert!(snapshot(&model).unwrap()["selected"].is_null());
+        }
+        if mode == "expired" {
+            assert_eq!(snapshot(&model).unwrap()["needs_session"], true);
+        }
+        execute(Action::Close { connection }).unwrap();
+    }
+}
+
+#[test]
+fn superseded_uploads_never_publish_files_and_close_clears_uncertain_bytes() {
+    let (connection, model) = attachment_model();
+    let network = InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+        model.state.lock().unwrap().active = false;
+        select_using(
+            &model,
+            None,
+            Some(FIRST.into()),
+            &crate::tests::MockTransport::new(vec![]),
+        )
+        .unwrap();
+        Ok(json!({"attachment":attachment()}))
+    });
+    upload_using(&model, upload_command(), &network).unwrap();
+    assert!(snapshot(&model).unwrap()["selected"].is_null());
+    assert_eq!(snapshot(&model).unwrap()["draft_attachments"], json!([]));
+    assert!(model.state.lock().unwrap().drafts.is_empty());
+    execute(Action::Close { connection }).unwrap();
+    assert!(model.state.lock().unwrap().upload_attempt.is_none());
+}
+
+#[test]
+fn only_upload_bridge_envelopes_may_exceed_one_mebibyte() {
+    let large = "A".repeat(1024 * 1024 + 4);
+    for value in [
+        json!({"operation":"default_themes","padding":large}),
+        json!({"operation":"orbit_session","action":"open","session":saved(),"padding":large}),
+    ] {
+        let result: Value =
+            serde_json::from_str(&crate::bridge::execute(&value.to_string())).unwrap();
+        assert_eq!(result["error"]["kind"], "invalid_response");
+    }
+    let upload = json!({"operation":"orbit_session","action":"request","connection":"not-open","session":saved(),"command":{"action":"upload_attachment","id":FIRST,"filename":"big.txt","content_type":"text/plain","data":large}});
+    let result: Value = serde_json::from_str(&crate::bridge::execute(&upload.to_string())).unwrap();
+    assert_eq!(result["error"]["kind"], "closed"); // Allowed through the bounded bridge; no handle means no HTTP.
 }

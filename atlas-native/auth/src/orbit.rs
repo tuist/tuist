@@ -1,8 +1,12 @@
 use crate::transport::{Body, Network, Transport};
 use crate::{Result, Session, error, invalid, now, validate_registration};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use reqwest::Method;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
+
+pub(super) const MAX_ATTACHMENT_BYTES: usize = 5 * 1024 * 1024;
+pub(super) const ATTACHMENT_ENVELOPE_BYTES: usize = 7 * 1024 * 1024 + 64 * 1024;
 
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
@@ -24,7 +28,105 @@ pub(crate) enum Action {
         body: String,
         client_id: String,
         address_agent: bool,
+        attachment_ids: Vec<String>,
     },
+    UploadAttachment {
+        id: String,
+        client_id: String,
+        filename: String,
+        content_type: String,
+        data: String,
+    },
+    DownloadAttachment {
+        id: String,
+        attachment_id: String,
+    },
+    DeleteAttachment {
+        id: String,
+        attachment_id: String,
+    },
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub(super) struct Attachment {
+    pub id: String,
+    pub filename: String,
+    pub content_type: String,
+    pub byte_size: usize,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(super) struct Attached {
+    pub attachment: Attachment,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(super) struct Downloaded {
+    pub attachment: AttachmentData,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(super) struct AttachmentData {
+    #[serde(flatten)]
+    pub metadata: Attachment,
+    pub data: String,
+}
+
+pub(super) fn validate_file(filename: &str, content_type: &str, size: usize) -> Result<()> {
+    if filename.trim().is_empty()
+        || filename.chars().count() > 255
+        || filename.chars().any(|c| {
+            c.is_control()
+                || matches!(c, '/' | '\\')
+                || ('\u{202a}'..='\u{202e}').contains(&c)
+                || ('\u{2066}'..='\u{2069}').contains(&c)
+        })
+        || matches!(filename, "." | "..")
+        || size == 0
+        || size > MAX_ATTACHMENT_BYTES
+        || content_type.len() > 127
+        || content_type.split_once('/').is_none_or(|(base, subtype)| {
+            base.is_empty() || subtype.is_empty() || subtype.contains('/')
+        })
+        || !content_type
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"!#$&^_-.+/".contains(&c))
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+pub(super) fn validate_attachment(value: &Attachment) -> Result<()> {
+    crate::time_off::validate_id(&value.id)?;
+    if value.filename.chars().count() > 120 {
+        return Err(invalid());
+    }
+    validate_file(&value.filename, &value.content_type, value.byte_size)
+}
+
+pub(super) fn decode_attachment(data: &str) -> Result<Vec<u8>> {
+    if data.len() > MAX_ATTACHMENT_BYTES.div_ceil(3) * 4 {
+        return Err(invalid());
+    }
+    let bytes = STANDARD.decode(data).map_err(|_| invalid())?;
+    if bytes.is_empty() || bytes.len() > MAX_ATTACHMENT_BYTES {
+        return Err(invalid());
+    }
+    Ok(bytes)
+}
+
+pub(super) fn validate_attachment_ids(ids: &[String]) -> Result<()> {
+    if ids.len() > 4 {
+        return Err(invalid());
+    }
+    for (index, id) in ids.iter().enumerate() {
+        crate::time_off::validate_id(id)?;
+        if ids[..index].contains(id) {
+            return Err(invalid());
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -101,6 +203,21 @@ pub(super) struct Message {
     pub tool_output: String,
     #[serde(default, deserialize_with = "crate::orbit_components::deserialize")]
     pub component: Option<crate::orbit_components::Component>,
+    #[serde(default)]
+    pub attachments: Vec<Attachment>,
+    #[serde(default, deserialize_with = "deserialize_parent")]
+    pub parent_message_id: Option<String>,
+}
+
+fn deserialize_parent<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    // Invalid linkage must not hide the original tool evidence.
+    Ok(value
+        .as_str()
+        .filter(|id| crate::time_off::validate_id(id).is_ok())
+        .map(str::to_owned))
 }
 
 #[derive(Deserialize, Serialize)]
@@ -177,17 +294,64 @@ pub(super) fn request_using<T: DeserializeOwned>(
             body,
             client_id,
             address_agent,
+            attachment_ids,
         } => {
             crate::time_off::validate_id(id)?;
             crate::time_off::validate_id(client_id)?;
-            validate_text(body, 16000)?;
+            validate_attachment_ids(attachment_ids)?;
+            if body.len() > 16000 || (body.trim().is_empty() && attachment_ids.is_empty()) {
+                return Err(invalid());
+            }
             url.path_segments_mut()
                 .map_err(|_| invalid())?
                 .extend([id.as_str(), "messages"]);
             (
                 Method::POST,
-                Some(json!({"body":body,"client_id":client_id,"address_agent":address_agent})),
+                Some(
+                    json!({"body":body,"client_id":client_id,"address_agent":address_agent,"attachment_ids":attachment_ids}),
+                ),
             )
+        }
+        Action::UploadAttachment {
+            id,
+            client_id,
+            filename,
+            content_type,
+            data,
+        } => {
+            crate::time_off::validate_id(id)?;
+            crate::time_off::validate_id(client_id)?;
+            let bytes = decode_attachment(data)?;
+            validate_file(filename, content_type, bytes.len())?;
+            url.path_segments_mut()
+                .map_err(|_| invalid())?
+                .extend([id.as_str(), "attachments"]);
+            (
+                Method::POST,
+                Some(
+                    json!({"client_id":client_id,"filename":filename,"content_type":content_type,"data":data}),
+                ),
+            )
+        }
+        Action::DownloadAttachment { id, attachment_id }
+        | Action::DeleteAttachment { id, attachment_id } => {
+            crate::time_off::validate_id(id)?;
+            crate::time_off::validate_id(attachment_id)?;
+            url.path_segments_mut().map_err(|_| invalid())?.extend([
+                id.as_str(),
+                "attachments",
+                attachment_id,
+            ]);
+            if matches!(action, Action::DownloadAttachment { .. }) {
+                return network.request(
+                    &url,
+                    Body::Attachment {
+                        token: &session.access_token,
+                        failure: response_failure,
+                    },
+                );
+            }
+            (Method::DELETE, None)
         }
     };
     let body = Body::Api {

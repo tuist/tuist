@@ -178,6 +178,7 @@ Do not add README entries for internal operational details such as env var names
 ## Orbit
 
 - Agentic threads (a pinned private thread per person plus shared, owner-managed threads) live under `lib/atlas/orbit/`; see [the threads intent](lib/atlas/orbit/AGENTS.md). The assistant and mascot is Pip, with a fixed, non-configurable name, bound to the `orbit` inference role, with no fallback profile. Its tools are a default-deny, read-only allowlist enforced against the intersection of every reader's scopes, with a sensitivity ratchet on the thread. Runs are durable Oban jobs fenced by attempt and resumed across deploys from encrypted per-turn Condukt snapshots. The native contract is in [the controller intent](lib/atlas_web/controllers/AGENTS.md#native-orbit). `Orbit.open_for_signal/1` is the generic monitor entry point; no monitor calls it yet.
+- Private and shared threads support bounded research helpers through the same run/audience fences, with nested durable tool cards, never raw Condukt delegation or new write authority. Private image/file attachments use staged private objects and authorized downloads, not Documents or public URLs; see Orbit's attachment lifecycle and `data-export.md`.
 
 ## Tasks
 
@@ -188,6 +189,7 @@ Do not add README entries for internal operational details such as env var names
 
 - Native Orbit uses fixed `/api/native/orbit/threads` routes declared before the dynamic resource routes, plus `orbit:thread:<uuid>` and `orbit:me` topics on the presence socket.
 - Bearer-only `/api/native/tasks`, `/api/native/accounts`, and `/api/native/invoices` share string-field records and Flop page pagination through `Atlas.Native`. The native HTTP contract, permissions, audit context, and profile version source are documented in [the controller intent](lib/atlas_web/controllers/AGENTS.md). Native clients reuse the existing owner-scoped AI connection endpoints; the profile endpoint grants no settings or identity writes.
+- Native Profile permits the caller to edit only `users.description`, with role/personality/preference suggestions and a configured-provider disclosure. `get_my_profile`/`update_my_profile` MCP tools are caller-only and are excluded from Orbit's read tools. Pip reloads the description only for that person's private chat, as untrusted background; never include it in shared thread prompts or audit arguments.
 - Read-only account detail and reporting-currency bank overview projections live under [native](lib/atlas/native/AGENTS.md). Document summaries additionally require `documents:read`; finance overview remains behind `finance:read`. They reuse existing domain queries without adding write permissions or changing the legacy invoice summary.
 
 ## Postal letters

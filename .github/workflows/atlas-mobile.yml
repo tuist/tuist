@@ -140,9 +140,9 @@ jobs:
           trap - EXIT
           cat render-validation/native-validation.log
           cp -R .once/out/AtlasSettingsUITests/test render-validation/test-results
-          find "$TMPDIR" -name '*.xcresult' -prune -print | while IFS= read -r bundle; do
-            xcrun xcresulttool export attachments --path "$bundle" --output-path "render-validation/$(basename "$bundle" .xcresult)-attachments"
-          done
+          bundle=$(sed -n 's/^[[:space:]]*\(\/.*\.xcresult\)$/\1/p' render-validation/test-results/xctest.log | tail -n 1)
+          test -d "$bundle"
+          xcrun xcresulttool export attachments --path "$bundle" --output-path render-validation/capture-attachments
           exit "$result"
       - uses: actions/upload-artifact@v4
         if: always() && matrix.platform == 'ios'

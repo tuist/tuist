@@ -88,3 +88,39 @@ Once runs iOS tests in an unhosted XCTest agent without Keychain access;
 app-hosted tests are not implemented in that release. The simulator app has its
 own Keychain entitlement. Real device/browser login and secure-storage smoke
 checks remain part of preview validation.
+
+## Orbit attachments and tool hierarchy
+
+`orbit_session` authenticated request commands include `upload_attachment`
+(`id`, `filename`, `content_type`, standard-base64 `data`; optional `client_id`),
+`retry_upload`/`discard_upload` (`id`), and `delete_attachment`/`download_attachment`
+(`id`, `attachment_id`). Rust generates the upload UUID, retains one bounded uncertain
+payload in memory, and reuses exactly that UUID/payload on retry. Submit picker batches
+sequentially. Snapshot additions are `draft_attachments` (typed metadata),
+`attachment_busy`, `upload_pending`, and nullable `upload_filename`; no bytes belong in
+snapshots. Local text `draft` preserves uploaded files. `has_drafts` includes files and
+uncertain uploads across threads. Send captures optional `attachment_ids` (default:
+current draft), supports attachment-only messages, and blocks unresolved uploads.
+Retry identity covers both text and files; a successful send removes sent files but
+preserves newer typing. Close/revocation releases pending bytes and retry state.
+
+All attachment routes are fixed `/api/native/orbit/threads/<uuid>/attachments[/<uuid>]`
+with the selected session's bearer token. Only upload bridge envelopes and typed
+attachment download HTTP responses may exceed the normal 1 MiB cap: their cap is
+7 MiB + 64 KiB, with decoded files independently limited to 5 MiB and four files per
+message. Validate base64, UUIDs, bounded names/types/sizes before mutation and filter
+returned metadata. Accept validated server-canonical filenames (120 codepoints), not
+an exact echo of the requested display name; require exact uploaded size/content type.
+No public URLs, arbitrary routes, local paths, or bytes in errors/logs are allowed.
+Download returns `{thread_id, attachment:{id,filename,content_type,byte_size,data}}`
+instead of a snapshot, only for known protected message/draft metadata and the current
+foreground selection. Selection, lifecycle, close, and revocation fence late bytes.
+Discarding an uncertain upload releases local state; without a confirmed remote ID it
+cannot promise synchronous remote deletion. Known pending chips use authenticated DELETE.
+
+Messages default missing `attachments` to empty. Optional `parent_message_id` is UUID
+metadata, never inferred from tool names/output; malformed linkage drops only the
+link, preserving evidence. Platform trees must keep orphan/off-page, cyclic, and
+deeper-than-one-level claims inspectable rather than silently hiding child messages.
+Rust tests inject the actual typed transport/state boundary and exercise the real
+bounded HTTP response reader, not a parallel imitation of session behavior.

@@ -247,4 +247,157 @@ internal fun checkOrbitModel() {
     check(pending.none { it.first.optJSONObject("command")?.optString("action") == "select" })
     cancelled.close()
     take("close")
+    checkOrbitAttachments()
+}
+
+private fun checkOrbitAttachments() {
+    val pending = mutableListOf<Pair<JSONObject, (Result<JSONObject>) -> Unit>>()
+    val model = AtlasOrbitModel { action, done -> pending.add(action to done) }
+
+    fun take(action: String): Pair<JSONObject, (Result<JSONObject>) -> Unit> {
+        val index =
+            pending.indexOfFirst {
+                it.first.optJSONObject("command")?.optString("action") == action ||
+                    it.first.optString("action") == action
+            }
+        check(index >= 0) { "missing attachment action $action" }
+        return pending.removeAt(index)
+    }
+
+    fun snapshot(
+        sequence: Int,
+        attachments: org.json.JSONArray = org.json.JSONArray(),
+    ) = JSONObject(
+        """{"sequence":$sequence,"threads":[],"selected":{"id":"$PRIVATE","title":"Pip","kind":"private","status":"active","participants":[],"updated_at":"2026-10-24T00:00:00Z"},"selection_id":"$PRIVATE","messages":[],"people":[],"draft":"","draft_attachments":$attachments,"has_drafts":${attachments.length() > 0}}""",
+    )
+    val file = JSONObject("""{"id":"$SHARED","filename":"report.txt","content_type":"text/plain","byte_size":5}""")
+    model.setActive(true)
+    take("open").second(Result.success(JSONObject().put("connection", "attachments")))
+    take("active")
+    take("load").second(Result.success(snapshot(1)))
+    check(model.beginPick() == PRIVATE && model.hasProtectedWork)
+    model.finishPick(
+        PRIVATE,
+        Result.success(
+            dev.tuist.atlas.AtlasOrbitAttachments
+                .Picked("report.txt", "text/plain", "aGVsbG8="),
+        ),
+    )
+    val upload = take("upload_attachment")
+    check(upload.first.getJSONObject("command").getString("data") == "aGVsbG8=")
+    check(!upload.first.getJSONObject("command").has("client_id")) // Rust, not Kotlin, owns retry identity.
+    check(model.beginPick() == null)
+    upload.second(Result.success(snapshot(2).put("upload_pending", true).put("upload_filename", "report.txt").put("has_drafts", true)))
+    model.send(PRIVATE, "Wait for the upload")
+    check(pending.none { it.first.optJSONObject("command")?.optString("action") == "send" })
+    model.retryUpload()
+    val retry = take("retry_upload")
+    check(!retry.first.getJSONObject("command").has("data"))
+    retry.second(Result.success(snapshot(3, org.json.JSONArray().put(file))))
+    model.send(PRIVATE, "")
+    val send = take("send")
+    check(
+        send.first
+            .getJSONObject("command")
+            .getJSONArray("attachment_ids")
+            .getString(0) == SHARED,
+    )
+    send.second(Result.success(snapshot(4, org.json.JSONArray().put(file)).put("error", "Try again.")))
+    check(
+        model.snapshot.draftAttachments
+            .single()
+            .id == SHARED && model.hasProtectedWork,
+    )
+    var downloaded = false
+    model.downloadAttachment(SHARED) { downloaded = true }
+    val download = take("download_attachment")
+    model.setActive(false)
+    download.second(
+        Result.success(JSONObject().put("thread_id", PRIVATE).put("attachment", JSONObject(file.toString()).put("data", "aGVsbG8="))),
+    )
+    check(!downloaded) // A result from a previous foreground period must not expose bytes.
+    model.setActive(true)
+    take("active")
+    model.downloadAttachment(SHARED) {
+        check(it.getOrThrow().getString("data") == "aGVsbG8=")
+        downloaded = true
+    }
+    take(
+        "download_attachment",
+    ).second(Result.success(JSONObject().put("thread_id", PRIVATE).put("attachment", JSONObject(file.toString()).put("data", "aGVsbG8="))))
+    check(downloaded)
+    model.removeAttachment(SHARED)
+    take("delete_attachment").second(Result.success(snapshot(5)))
+    check(model.snapshot.draftAttachments.isEmpty())
+
+    fun tool(
+        id: String,
+        parent: String? = null,
+    ) = JSONObject(
+        """{"id":"$id","kind":"tool","body":"original evidence","author_name":"Pip","inserted_at":"2026-10-24T00:00:00Z","tool_status":"succeeded","tool_name":"research"}""",
+    ).put("parent_message_id", parent ?: JSONObject.NULL)
+    val orphan = "00000000-0000-4000-8000-000000000003"
+    val missing = "00000000-0000-4000-8000-000000000004"
+    model.refresh()
+    take(
+        "refresh",
+    ).second(
+        Result.success(
+            snapshot(6).put(
+                "messages",
+                org.json
+                    .JSONArray()
+                    .put(tool(PRIVATE))
+                    .put(tool(SHARED, PRIVATE))
+                    .put(tool(orphan, missing)),
+            ),
+        ),
+    )
+    check(model.childTools(PRIVATE).single().id == SHARED)
+    check(model.timeline().flatten().map { it.id } == listOf(PRIVATE, orphan))
+    check(
+        model
+            .timeline()
+            .flatten()
+            .flatMap { listOf(it.id) + model.childTools(it.id).map { child -> child.id } }
+            .toSet() ==
+            setOf(PRIVATE, SHARED, orphan),
+    )
+    model.toggleToolGroup(PRIVATE)
+    check(PRIVATE in model.expandedToolGroups)
+    // Off-page, cyclic, and malformed parents leave evidence inspectable at the root.
+    model.refresh()
+    take(
+        "refresh",
+    ).second(
+        Result.success(
+            snapshot(
+                7,
+            ).put(
+                "messages",
+                org.json
+                    .JSONArray()
+                    .put(tool(PRIVATE, SHARED))
+                    .put(tool(SHARED, PRIVATE))
+                    .put(tool(orphan, "not-a-uuid")),
+            ),
+        ),
+    )
+    check(model.timeline().flatten().size == 3 && model.childTools(PRIVATE).isEmpty())
+    model.close()
+
+    val boundary = dev.tuist.atlas.AtlasOrbitAttachments
+    boundary.validate("report.txt", "text/plain", 5)
+    for (name in listOf("../report", "a\\b", "\u202ereport", "a\n.txt", "")) {
+        check(
+            runCatching {
+                boundary.validate(name, "text/plain", 5)
+            }.isFailure,
+        )
+    }
+    check(runCatching { boundary.validate("report.txt", "text/plain\n", 5) }.isFailure)
+    check(runCatching { boundary.validate("report.txt", "text/plain", boundary.MAX_BYTES.toLong() + 1) }.isFailure)
+    check(boundary.readBounded(java.io.ByteArrayInputStream(ByteArray(boundary.MAX_BYTES))).size == boundary.MAX_BYTES)
+    check(runCatching { boundary.readBounded(java.io.ByteArrayInputStream(ByteArray(boundary.MAX_BYTES + 1))) }.isFailure)
+    check(runCatching { boundary.readBounded(java.io.ByteArrayInputStream(byteArrayOf())) }.isFailure)
 }

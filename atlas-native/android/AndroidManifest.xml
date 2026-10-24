@@ -20,6 +20,7 @@
         android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">
+        <provider android:name="dev.tuist.atlas.AtlasOrbitAttachmentProvider" android:authorities="dev.tuist.atlas.orbit-attachments" android:exported="false" android:grantUriPermissions="true" />
         <activity android:name="dev.tuist.atlas.AtlasAutomationActivity" android:exported="false" />
         <!-- Explicitly merged SDK components, audited by android/push/manifest.py. -->
         <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />

@@ -53,6 +53,19 @@ append to the existing draft and never send. Notification links select an author
 thread by UUID through Rust before showing its detail; tab returns must not replay them.
 Push settings disclose that completion alerts contain a title and reply preview.
 
+`AtlasThreadAttachments` owns native Photos/file import, bounded local reads and
+protected QuickLook files. Selection only stages a file; the composer explicitly
+sends it, including attachment-only messages. Preserve Rust-owned upload retry IDs,
+drafts and failure state. Cancel pending imports/downloads on departure and reject
+late results before creating preview files. `AtlasThreadTimeline` nests research
+lookups under task cards, preserves off-page children and keeps source disclosures
+native; rich tool cards still use the reviewed bundled Native Shell components.
+
+`AtlasProfile` owns the description editor's state and stale-read fence. Profile
+suggests role/personality/preferences when empty and discloses private-thread
+provider use. Save only the description, retain failed drafts, and protect active
+editors from deep links. It does not change the fixed Pip identity or permissions.
+
 Initial list roots explicitly anchor at the top and use large navigation titles;
 show initial loading as an overlay, not a temporary first row that becomes the List's
 scroll anchor. Preserve user scroll positions after navigation and when appending existing lists.

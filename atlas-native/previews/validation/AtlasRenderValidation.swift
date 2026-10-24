@@ -83,6 +83,9 @@ final class AtlasRenderValidation: XCTestCase {
             XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 10))
             XCTAssertTrue(app.navigationBars["Pip"].exists)
             XCTAssertFalse(app.tabBars.firstMatch.isHittable)
+            XCTAssertFalse(app.buttons["Latest messages"].exists)
+            let suggestion = try app.visibleElement("Find an account", type: .button)
+            XCTAssertLessThanOrEqual(suggestion.frame.maxY, app.textFields["thread-composer"].frame.minY)
             capture(app, "empty-thread-\(dark ? "dark-large" : "light")")
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 5))
@@ -90,6 +93,91 @@ final class AtlasRenderValidation: XCTestCase {
             app.tabBars.buttons["Accounts"].tap()
             app.tabBars.buttons["Orbit"].tap()
             XCTAssertTrue(app.navigationBars["Orbit"].exists)
+            app.terminate()
+        }
+    }
+
+    @MainActor func testNestedResearchToolsAndEvidence() throws {
+        for dark in [false, true] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace", "--orbit-tool-tree", "--destination",
+                "dev.tuist.atlas://navigate/orbit/01922cc0-0000-7000-8000-000000000002?server=https%3A%2F%2Fatlas.example.org"]
+                + (dark ? ["--dark", "--large-text"] : [])
+            app.launch()
+            let id = "thread-tool-group-01922cc0-0000-7000-8000-000000000020"
+            let group = try app.visibleElement(id, type: .button)
+            XCTAssertGreaterThanOrEqual(group.frame.height, 44)
+            capture(app, "tool-tree-collapsed-\(dark ? "dark-large" : "light")")
+            group.tap()
+            let lookup = try app.visibleElement("list_error_issues · succeeded", type: .button)
+            lookup.tap()
+            _ = try app.visibleElement("Two fixture issues, both related to indexing.")
+            capture(app, "tool-tree-expanded-\(dark ? "dark-large" : "light")")
+            XCTAssertTrue(app.textFields["thread-composer"].isHittable)
+            app.terminate()
+        }
+    }
+
+    @MainActor func testAttachmentsSendRemoveAndNativePickers() throws {
+        for dark in [false, true] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace", "--orbit-attachments", "--destination",
+                "dev.tuist.atlas://navigate/orbit/01922cc0-0000-7000-8000-000000000001?server=https%3A%2F%2Fatlas.example.org"]
+                + (dark ? ["--dark", "--large-text"] : [])
+            app.launch()
+            let remove = app.buttons["Remove notes.txt"]
+            XCTAssertTrue(remove.waitForExistence(timeout: 10))
+            XCTAssertTrue(app.buttons["thread-send"].isEnabled)
+            capture(app, "attachments-draft-\(dark ? "dark-large" : "light")")
+            if dark { app.buttons["thread-send"].tap() } else { remove.tap() }
+            XCTAssertTrue(remove.waitForNonExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["thread-send"].isEnabled)
+            app.buttons["thread-attach"].tap()
+            XCTAssertTrue(app.buttons["Photo Library"].waitForExistence(timeout: 5))
+            capture(app, "attachment-menu-\(dark ? "dark-large" : "light")")
+            app.buttons["Choose Files"].tap()
+            XCTAssertTrue(app.buttons["Cancel"].firstMatch.waitForExistence(timeout: 5))
+            capture(app, "file-picker-\(dark ? "dark-large" : "light")")
+            app.buttons["Cancel"].firstMatch.tap()
+            XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+            if !dark {
+                let file = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "notes.txt")).firstMatch
+                file.tap()
+                XCTAssertTrue(app.buttons["Done"].firstMatch.waitForExistence(timeout: 5))
+                capture(app, "attachment-preview")
+                app.buttons["Done"].firstMatch.tap()
+                app.buttons["thread-attach"].tap()
+                app.buttons["Photo Library"].tap()
+                XCTAssertTrue(app.buttons["Cancel"].firstMatch.waitForExistence(timeout: 5))
+                capture(app, "photo-picker")
+                app.buttons["Cancel"].firstMatch.tap()
+            }
+            app.terminate()
+        }
+    }
+
+    @MainActor func testProfileDescriptionSaveAndFailedDraft() throws {
+        for failing in [false, true] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace"] + (failing ? ["--fail-business-save", "--dark", "--large-text"] : [])
+            app.launch()
+            XCTAssertTrue(app.tabBars.buttons["Profile"].waitForExistence(timeout: 10))
+            app.tabBars.buttons["Profile"].tap()
+            try app.visibleElement("profile-edit-description", type: .button).tap()
+            let field = app.textViews["profile-description"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            field.tap()
+            field.typeText("Engineering lead. Curious; concise answers please.")
+            app.buttons["profile-save"].tap()
+            if failing {
+                XCTAssertTrue(app.staticTexts["Preview save failed. Your draft is still here."].waitForExistence(timeout: 5))
+                XCTAssertEqual(field.value as? String, "Engineering lead. Curious; concise answers please.")
+                capture(app, "profile-failed-draft-dark-large")
+            } else {
+                XCTAssertTrue(app.buttons["profile-edit-description"].waitForExistence(timeout: 5))
+                XCTAssertTrue(app.staticTexts["Engineering lead. Curious; concise answers please."].exists)
+                capture(app, "profile-saved-light")
+            }
             app.terminate()
         }
     }

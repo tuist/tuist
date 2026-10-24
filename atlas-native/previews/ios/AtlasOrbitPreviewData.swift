@@ -12,6 +12,11 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var activity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-activity") }
     private var selected: [String: Any]?
     private var draft = ""
+    private var draftAttachments: [[String: Any]] = []
+    private var sent: [[String: Any]] = []
+    private var seededAttachments = false
+    private let attachmentID = "01922cc0-0000-7000-8000-000000000010"
+    private let attachmentBytes = Data("Atlas attachment fixture. No private data.\n".utf8)
     private let privateID = "01922cc0-0000-7000-8000-000000000001"
     private let sharedID = "01922cc0-0000-7000-8000-000000000002"
 
@@ -37,7 +42,22 @@ final class AtlasOrbitPreviewData: ObservableObject {
             }
         case "create": selected = thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared")
         case "leave": selected = nil
-        case "send": draft = ""
+        case "send":
+            sent.append(message(id: UUID().uuidString, kind: "human", body: draft, extra: [
+                "author_id": "preview-self", "author_name": "Taylor", "attachments": draftAttachments
+            ]))
+            draft = ""
+            draftAttachments = []
+        case "upload_attachment":
+            let bytes = Data(base64Encoded: command["data"] as? String ?? "") ?? Data()
+            draftAttachments.append(["id": UUID().uuidString.lowercased(), "filename": command["filename"] as? String ?? "Photo.jpg",
+                                     "content_type": command["content_type"] as? String ?? "image/jpeg", "byte_size": bytes.count])
+        case "delete_attachment": draftAttachments.removeAll { $0["id"] as? String == command["attachment_id"] as? String }
+        case "download_attachment":
+            return try JSONSerialization.data(withJSONObject: [
+                "thread_id": selected?["id"] as? String ?? "",
+                "attachment": ["data": attachmentBytes.base64EncodedString()]
+            ])
         default: break
         }
         return try snapshot()
@@ -93,6 +113,16 @@ final class AtlasOrbitPreviewData: ObservableObject {
             } else if ProcessInfo.processInfo.arguments.contains("--empty-private") {
                 messages = []
             }
+            if ProcessInfo.processInfo.arguments.contains("--orbit-tool-tree") { messages = toolTree }
+            if ProcessInfo.processInfo.arguments.contains("--orbit-attachments") {
+                let attachment: [String: Any] = ["id": attachmentID, "filename": "notes.txt", "content_type": "text/plain",
+                                                  "byte_size": attachmentBytes.count]
+                messages = [message(id: "attached-message", kind: "human", body: "Review these notes.", extra: [
+                    "author_id": "preview-self", "author_name": "Taylor", "attachments": [attachment]
+                ])]
+                if !seededAttachments { draftAttachments = [attachment]; seededAttachments = true }
+            }
+            messages += sent
         }
         return try JSONSerialization.data(withJSONObject: [
             "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
@@ -100,9 +130,30 @@ final class AtlasOrbitPreviewData: ObservableObject {
                               thread(id: sharedID, title: "Build listing latency", kind: "shared")],
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
-            "draft": draft, "loading": false, "history_loading": false, "saving": false,
+            "draft": draft, "draft_attachments": draftAttachments, "attachment_busy": false,
+            "loading": false, "history_loading": false, "saving": false,
             "has_more": false, "has_older": false, "needs_session": false
         ])
+    }
+
+    private var toolTree: [[String: Any]] {
+        let parent = "01922cc0-0000-7000-8000-000000000020"
+        return [
+            message(id: "research-intro", kind: "agent", body: "I delegated a focused research task."),
+            message(id: parent, kind: "tool", body: "", extra: [
+                "tool_name": "research", "tool_status": "succeeded", "tool_input": "Compare recent build errors.",
+                "tool_output": "The fixture investigation found two affected projects."
+            ]),
+            message(id: "01922cc0-0000-7000-8000-000000000021", kind: "tool", body: "", extra: [
+                "tool_name": "list_error_issues", "tool_status": "succeeded", "parent_message_id": parent,
+                "tool_output": "Two fixture issues, both related to indexing."
+            ]),
+            message(id: "01922cc0-0000-7000-8000-000000000022", kind: "tool", body: "", extra: [
+                "tool_name": "list_engineering_projects", "tool_status": "succeeded", "parent_message_id": parent,
+                "tool_output": "Two fixture projects. No private data."
+            ]),
+            message(id: "research-result", kind: "agent", body: "The two fixture projects share the same indexing change.")
+        ]
     }
 
     private var richBody: String {

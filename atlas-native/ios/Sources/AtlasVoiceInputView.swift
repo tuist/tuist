@@ -7,6 +7,9 @@ struct AtlasThreadComposer: View {
     let phase: AtlasVoiceInput.Phase
     let transcript: String
     let levels: [CGFloat]
+    var hasAttachments = false
+    var addPhotos: (() -> Void)?
+    var addFiles: (() -> Void)?
     let start: () -> Void
     let review: () -> Void
     let cancel: () -> Void
@@ -20,7 +23,7 @@ struct AtlasThreadComposer: View {
     private var recording: Bool { phase != .idle }
     private var canSubmit: Bool {
         if recording { return phase == .recording || phase == .reviewing }
-        return !saving && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !saving && (hasAttachments || !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private var status: String {
@@ -41,6 +44,16 @@ struct AtlasThreadComposer: View {
                     .accessibilityIdentifier("thread-voice-status")
             }
             HStack(alignment: .bottom, spacing: 4) {
+                if !recording, let addPhotos, let addFiles {
+                    Menu {
+                        Button("Photo Library", systemImage: "photo.on.rectangle", action: addPhotos)
+                        Button("Choose Files", systemImage: "doc", action: addFiles)
+                    } label: {
+                        Image(systemName: "plus").font(.title3).frame(width: 44, height: 44)
+                    }
+                    .disabled(saving).accessibilityLabel("Attach images or files")
+                    .accessibilityIdentifier("thread-attach")
+                }
                 Group {
                     if recording {
                         HStack(alignment: .center, spacing: 3) {

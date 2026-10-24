@@ -1,6 +1,37 @@
 import XCTest
 
 final class AtlasWorkspaceUITests: XCTestCase {
+    @MainActor func testProfileDescriptionSaveAndFailureDraftRetention() throws {
+        for failing in [false, true] {
+            let app = launch(arguments: failing ? ["--fail-business-save"] : [])
+            defer { app.terminate() }
+            app.tabBars.buttons["Profile"].tap()
+            try tap("profile-edit-description", in: app)
+            let field = app.textViews["profile-description"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            field.tap()
+            field.typeText("Engineering lead. Curious; concise answers please.")
+            app.buttons["profile-save"].tap()
+            if failing {
+                XCTAssertTrue(app.staticTexts["Preview save failed. Your draft is still here."].waitForExistence(timeout: 5))
+                XCTAssertEqual(field.value as? String, "Engineering lead. Curious; concise answers please.")
+                attach(app, "ios-profile-description-failed-draft-preview")
+                app.buttons["Cancel"].tap()
+                app.buttons["Discard changes"].tap()
+                XCTAssertTrue(app.buttons["profile-edit-description"].waitForExistence(timeout: 5))
+                XCTAssertTrue(app.buttons["Tell Pip about yourself"].exists)
+            } else {
+                XCTAssertTrue(app.buttons["profile-edit-description"].waitForExistence(timeout: 5))
+                XCTAssertTrue(app.staticTexts["Engineering lead. Curious; concise answers please."].exists)
+                attach(app, "ios-profile-description-saved-preview")
+                try tap("profile-edit-description", in: app)
+                XCTAssertEqual(field.value as? String, "Engineering lead. Curious; concise answers please.")
+                app.buttons["Cancel"].tap()
+            }
+            app.terminate()
+        }
+    }
+
     @MainActor func testThemeCatalogLightDarkAndPersistence() throws {
         let app = launch()
         defer { app.terminate() }

@@ -7,6 +7,8 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
   import Atlas.OrbitFixtures
 
   alias Atlas.Orbit
+  alias Atlas.Orbit.Attachments
+  alias Atlas.Orbit.Run
   alias Atlas.Repo
 
   test "every route requires a bearer token, even with a browser session", %{conn: conn} do
@@ -19,7 +21,10 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
           {:post, "/api/native/orbit/threads"},
           {:post, "/api/native/orbit/threads/private"},
           {:get, "/api/native/orbit/threads/#{id}/messages"},
-          {:post, "/api/native/orbit/threads/#{id}/messages"}
+          {:post, "/api/native/orbit/threads/#{id}/messages"},
+          {:post, "/api/native/orbit/threads/#{id}/attachments"},
+          {:get, "/api/native/orbit/threads/#{id}/attachments/#{id}"},
+          {:delete, "/api/native/orbit/threads/#{id}/attachments/#{id}"}
         ] do
       response = dispatch(api, @endpoint, method, path, %{})
       assert json_response(response, 401)["error"] == "invalid_token"
@@ -166,6 +171,126 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     assert owner |> bearer() |> get("/api/native/orbit/threads/#{thread.id}/messages") |> json_response(404) == %{
              "error" => "not_found"
            }
+  end
+
+  test "history exposes the durable research parent without flattening child evidence" do
+    orbit_profile_fixture()
+    owner = user_fixture()
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    {:ok, _, :created} = Orbit.post_message(owner, thread, %{"body" => "Research", "client_id" => Ecto.UUID.generate()})
+    run = Repo.get_by!(Run, thread_id: thread.id)
+
+    {:ok, {parent, child}} =
+      Repo.transaction(fn ->
+        parent = Orbit.append!(thread, %{kind: "tool", run_id: run.id, tool_name: "task", tool_status: "succeeded"})
+
+        child =
+          Orbit.append!(thread, %{
+            kind: "tool",
+            run_id: run.id,
+            parent_message_id: parent.id,
+            tool_name: "list_accounts",
+            tool_status: "succeeded",
+            tool_output: "Child evidence"
+          })
+
+        {parent, child}
+      end)
+
+    response = owner |> bearer() |> get("/api/native/orbit/threads/#{thread.id}/messages") |> json_response(200)
+    messages = response["messages"]["items"]
+    assert Enum.find(messages, &(&1["id"] == parent.id))["parent_message_id"] == nil
+    assert Enum.find(messages, &(&1["id"] == child.id))["parent_message_id"] == parent.id
+    assert Enum.find(messages, &(&1["id"] == child.id))["tool_output"] == "Child evidence"
+  end
+
+  test "native attachments upload privately, post attachment-only, replay, and download under current access" do
+    owner = user_fixture()
+    member = user_fixture()
+    {:ok, thread} = Orbit.create_shared(owner, %{"title" => "Files", "participant_ids" => [member.id]})
+    path = "/api/native/orbit/threads/#{thread.id}"
+    params = attachment_params(png_fixture(), %{"filename" => "../../image.png", "content_type" => "image/png"})
+    response = member |> bearer() |> post("#{path}/attachments", params)
+    assert get_resp_header(response, "cache-control") == ["no-store"]
+    assert %{"attachment" => attachment} = json_response(response, 201)
+    assert Map.keys(attachment) |> Enum.sort() == ~w(byte_size content_type filename id)
+    assert attachment["filename"] == "image.png"
+
+    assert member |> bearer() |> post("#{path}/attachments", params) |> json_response(201) == %{
+             "attachment" => attachment
+           }
+
+    assert member
+           |> bearer()
+           |> post("#{path}/attachments", Map.put(params, "data", Base.encode64("changed")))
+           |> json_response(422) == %{
+             "error" => "validation_failed",
+             "fields" => %{"client_id" => ["invalid"]}
+           }
+
+    attachment_path = "#{path}/attachments/#{attachment["id"]}"
+    assert owner |> bearer() |> get(attachment_path) |> json_response(404) == %{"error" => "not_found"}
+    assert owner |> bearer() |> delete(attachment_path) |> json_response(404) == %{"error" => "not_found"}
+
+    send_params = %{client_id: Ecto.UUID.generate(), attachment_ids: [attachment["id"]], address_agent: false}
+    created = member |> bearer() |> post("#{path}/messages", send_params) |> json_response(201)
+    assert created["message"]["body"] == ""
+    assert created["message"]["attachments"] == [attachment]
+    assert member |> bearer() |> post("#{path}/messages", send_params) |> json_response(200) == created
+
+    assert owner |> bearer() |> get("#{path}/messages") |> json_response(200) |> get_in(["messages", "items"]) == [
+             created["message"]
+           ]
+
+    download = owner |> bearer() |> get(attachment_path)
+    assert get_resp_header(download, "cache-control") == ["no-store"]
+    assert json_response(download, 200) == %{"attachment" => Map.put(attachment, "data", params["data"])}
+    assert member |> bearer() |> delete(attachment_path) |> json_response(404) == %{"error" => "not_found"}
+    :ok = Orbit.remove_participant(owner, thread, member.id)
+    assert member |> bearer() |> get(attachment_path) |> json_response(404) == %{"error" => "not_found"}
+  end
+
+  test "pending deletion is owner-only and attachment endpoints reject foreign threads, invalid fields and archives" do
+    user = user_fixture()
+    {:ok, thread} = Orbit.create_shared(user, %{"title" => "Files"})
+    {:ok, other} = Orbit.create_shared(user, %{"title" => "Other"})
+    path = "/api/native/orbit/threads/#{thread.id}/attachments"
+    attachment = attachment_fixture(user, thread)
+    cross = "/api/native/orbit/threads/#{other.id}/attachments/#{attachment.id}"
+    assert user |> bearer() |> get(cross) |> json_response(404) == %{"error" => "not_found"}
+    assert user |> bearer() |> delete(cross) |> json_response(404) == %{"error" => "not_found"}
+
+    assert user |> bearer() |> post(path, attachment_params("x", %{"data" => "bad"})) |> json_response(422) == %{
+             "error" => "validation_failed",
+             "fields" => %{"attachment" => ["invalid"]}
+           }
+
+    assert user |> bearer() |> delete("#{path}/#{attachment.id}") |> json_response(200) == %{"deleted" => true}
+    assert user |> bearer() |> get("#{path}/#{attachment.id}") |> json_response(404) == %{"error" => "not_found"}
+    Repo.update!(Ecto.Changeset.change(thread, status: "archived"))
+    assert user |> bearer() |> post(path, attachment_params()) |> json_response(409) == %{"error" => "archived"}
+
+    assert user_fixture() |> bearer() |> post(path, attachment_params()) |> json_response(404) == %{
+             "error" => "not_found"
+           }
+  end
+
+  test "a full 5MiB upload fits the existing JSON parser; larger files are rejected" do
+    user = user_fixture()
+    {:ok, thread, _} = Orbit.ensure_private(user)
+    path = "/api/native/orbit/threads/#{thread.id}/attachments"
+    bytes = :binary.copy("x", Attachments.max_bytes())
+    payload = JSON.encode!(attachment_params(bytes))
+    assert byte_size(payload) < 8_000_000
+    response = user |> bearer() |> put_req_header("content-type", "application/json") |> post(path, payload)
+    assert json_response(response, 201)["attachment"]["byte_size"] == byte_size(bytes)
+    oversized = JSON.encode!(attachment_params(bytes <> "x"))
+
+    assert user
+           |> bearer()
+           |> put_req_header("content-type", "application/json")
+           |> post(path, oversized)
+           |> json_response(422)
   end
 
   test "participants can be added by the owner and leave on their own" do

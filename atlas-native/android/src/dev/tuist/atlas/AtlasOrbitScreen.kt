@@ -2,7 +2,10 @@ package dev.tuist.atlas
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Context
+import android.content.Intent
 import android.graphics.Typeface
 import android.os.Build
 import android.text.Editable
@@ -35,6 +38,7 @@ class AtlasOrbitScreen(
     private val presence: AtlasPresenceModel?,
     private val navigationChanged: () -> Unit,
     private val appearance: AtlasAppearance? = null,
+    private val pickAttachment: (() -> Unit)? = null,
 ) {
     val toolbar = Toolbar(activity)
     private val liveStatus =
@@ -75,14 +79,25 @@ class AtlasOrbitScreen(
             minHeight = dp(48)
             minWidth = dp(64)
         }
+    private val attachmentRows = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+    private val attachButton =
+        Button(activity).apply {
+            text = "Attach"
+            contentDescription = "Attach a photo or file, up to 5 MiB"
+            isAllCaps = false
+            minHeight = dp(48)
+            setOnClickListener { pickAttachment?.invoke() }
+        }
     private val composer =
         LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(4), dp(16), dp(8))
+            addView(attachmentRows, LinearLayout.LayoutParams(-1, -2))
             addView(askAssistant, LinearLayout.LayoutParams(-2, -2))
             addView(
                 LinearLayout(activity).apply {
                     gravity = Gravity.BOTTOM
+                    addView(attachButton, LinearLayout.LayoutParams(-2, -2))
                     addView(composerField, LinearLayout.LayoutParams(0, -2, 1f))
                     addView(sendButton, LinearLayout.LayoutParams(-2, -2))
                 },
@@ -135,7 +150,9 @@ class AtlasOrbitScreen(
                 override fun afterTextChanged(value: Editable?) {
                     if (syncing) return
                     composerFor?.let { model.setDraft(it, value?.toString().orEmpty()) }
-                    sendButton.isEnabled = value?.isNotBlank() == true && !model.sending
+                    sendButton.isEnabled =
+                        (value?.isNotBlank() == true || model.snapshot.draftAttachments.isNotEmpty()) && !model.sending &&
+                        !model.attachmentBusy && !model.snapshot.uploadPending && !model.snapshot.needsSession
                 }
             },
         )
@@ -150,6 +167,7 @@ class AtlasOrbitScreen(
 
     fun close() {
         closed = true
+        AtlasOrbitAttachments.clear()
         hideKeyboard()
         if (model.listener === listener) model.listener = null
         if (presence?.listener === presenceListener) presence.listener = null
@@ -271,6 +289,7 @@ class AtlasOrbitScreen(
                 snapshot.error,
                 model.failure,
                 model.expandedTools,
+                model.expandedToolGroups,
                 model.revealedEvidence,
                 thread.archived,
             )
@@ -288,7 +307,16 @@ class AtlasOrbitScreen(
             }
         }
         if (snapshot.messages.isEmpty()) text(if (snapshot.historyLoading) "Loading messages…" else "No messages yet.")
-        snapshot.messages.forEach(::message)
+        for (group in model.timeline()) {
+            if (group.size > 1 && group.first().isTool) {
+                val id = group.first().id
+                val expanded = id in model.expandedToolGroups
+                button("${if (expanded) "▾" else "▸"} ${group.size} tool calls") { model.toggleToolGroup(id) }
+                if (expanded) group.forEach(::message)
+            } else {
+                group.forEach(::message)
+            }
+        }
         errors()
         if (thread.archived) text("This thread is archived. You can read it but not reply.")
         val first = snapshot.messages.firstOrNull()?.id
@@ -328,7 +356,56 @@ class AtlasOrbitScreen(
         composerField.hint = if (thread.isPrivate) "Message ${assistant?.name.orEmpty()}" else "Message"
         syncing = false
         sendButton.text = if (model.sending) "Sending…" else "Send"
-        sendButton.isEnabled = !model.sending && composerField.text.isNotBlank()
+        val enabled = !model.sending && !model.attachmentBusy && !snapshot.needsSession
+        composerField.isEnabled = !snapshot.needsSession
+        askAssistant.isEnabled = enabled
+        sendButton.isEnabled =
+            enabled && !snapshot.uploadPending && (composerField.text.isNotBlank() || snapshot.draftAttachments.isNotEmpty())
+        attachButton.isEnabled = enabled && !snapshot.uploadPending && snapshot.draftAttachments.size < 4 && pickAttachment != null
+        attachmentRows.removeAllViews()
+        for (attachment in snapshot.draftAttachments) {
+            attachmentRows.addView(
+                Button(activity).apply {
+                    text = "Remove ${attachment.filename} · ${attachment.byteSize} bytes ×"
+                    contentDescription = "Remove attachment ${attachment.filename}"
+                    isAllCaps = false
+                    minHeight = dp(48)
+                    isEnabled = enabled
+                    setOnClickListener { model.removeAttachment(attachment.id) }
+                },
+            )
+        }
+        if (model.attachmentBusy || snapshot.uploadPending) {
+            attachmentRows.addView(
+                TextView(activity).apply {
+                    text =
+                        if (model.attachmentBusy) {
+                            "Preparing attachment…"
+                        } else {
+                            "Upload not confirmed: ${snapshot.uploadFilename.orEmpty()}"
+                        }
+                    accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+                },
+            )
+            if (!model.attachmentBusy && snapshot.uploadPending) {
+                attachmentRows.addView(
+                    Button(activity).apply {
+                        text = "Retry upload"
+                        isAllCaps = false
+                        minHeight = dp(48)
+                        setOnClickListener { model.retryUpload() }
+                    },
+                )
+                attachmentRows.addView(
+                    Button(activity).apply {
+                        text = "Discard upload"
+                        isAllCaps = false
+                        minHeight = dp(48)
+                        setOnClickListener { model.discardUpload() }
+                    },
+                )
+            }
+        }
     }
 
     private fun renderLive() {
@@ -431,7 +508,10 @@ class AtlasOrbitScreen(
         button("Cancel", !saving) { back() }
     }
 
-    private fun message(value: AtlasOrbitModel.Message) {
+    private fun message(
+        value: AtlasOrbitModel.Message,
+        host: LinearLayout = content,
+    ) {
         val self = presence?.selfId
         val author =
             when {
@@ -441,15 +521,17 @@ class AtlasOrbitScreen(
         val card =
             LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(0, dp(8), 0, dp(8))
+                setPadding(if (host === content) 0 else dp(12), dp(8), 0, dp(8))
             }
         if (value.isTool) {
+            val children = model.childTools(value.id)
             val expanded = value.id in model.expandedTools
             val status = value.toolStatus?.replaceFirstChar(Char::uppercase).orEmpty()
             val name = value.toolName ?: "Tool"
             card.addView(
                 Button(activity, null, android.R.attr.borderlessButtonStyle).apply {
-                    text = "${if (expanded) "▾" else "▸"} $name${if (status.isEmpty()) "" else " · $status"}"
+                    text =
+                        "${if (expanded) "▾" else "▸"} $name${if (status.isEmpty()) "" else " · $status"}${if (children.isEmpty()) "" else " · ${children.size} child calls"}"
                     isAllCaps = false
                     gravity = Gravity.START or Gravity.CENTER_VERTICAL
                     minHeight = dp(48)
@@ -474,8 +556,9 @@ class AtlasOrbitScreen(
                     if (value.toolInput.isNotEmpty()) card.addView(body("Input\n${value.toolInput}", true))
                     if (value.toolOutput.isNotEmpty()) card.addView(body("Output\n${value.toolOutput}", true))
                 }
+                children.forEach { message(it, card) }
             }
-            content.addView(card, LinearLayout.LayoutParams(-1, -2))
+            host.addView(card, LinearLayout.LayoutParams(-1, -2))
             return
         }
         val header =
@@ -490,7 +573,74 @@ class AtlasOrbitScreen(
             },
         )
         card.addView(body(value.body))
-        content.addView(card, LinearLayout.LayoutParams(-1, -2))
+        for (attachment in value.attachments) {
+            card.addView(
+                Button(activity).apply {
+                    text =
+                        "${if (attachment.contentType.startsWith(
+                                "image/",
+                            )
+                        ) {
+                            "Image"
+                        } else {
+                            "File"
+                        }}: ${attachment.filename} · ${attachment.byteSize} bytes"
+                    isAllCaps = false
+                    minHeight = dp(48)
+                    setOnClickListener { openAttachment(attachment) }
+                },
+            )
+        }
+        host.addView(card, LinearLayout.LayoutParams(-1, -2))
+    }
+
+    private fun openAttachment(attachment: AtlasOrbitModel.Attachment) {
+        val id = model.snapshot.selected?.id ?: return
+        val epoch = model.attachmentEpoch()
+        model.downloadAttachment(attachment.id) { result ->
+            if (closed || !model.canOpenAttachment(id, epoch)) return@downloadAttachment
+            val value = result.getOrNull()
+            if (value == null) {
+                AlertDialog
+                    .Builder(
+                        activity,
+                    ).setMessage("Could not download this attachment. Refresh the thread and try again.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                return@downloadAttachment
+            }
+            AtlasOrbitAttachments.cache(activity.applicationContext, value) { cached ->
+                val uri = cached.getOrNull()
+                if (closed || !model.canOpenAttachment(id, epoch)) {
+                    uri?.let(AtlasOrbitAttachments::remove)
+                    return@cache
+                }
+                if (uri == null) {
+                    AlertDialog
+                        .Builder(activity)
+                        .setMessage("Could not open this attachment.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                    return@cache
+                }
+                try {
+                    activity.startActivity(
+                        Intent(Intent.ACTION_VIEW)
+                            .setDataAndType(uri, attachment.contentType)
+                            .apply { clipData = ClipData.newRawUri("Attachment", uri) }
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                    )
+                } catch (_: ActivityNotFoundException) {
+                    AtlasOrbitAttachments.remove(uri)
+                    AlertDialog
+                        .Builder(
+                            activity,
+                        ).setMessage("No app on this device can open this file type.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }
+        }
     }
 
     private fun body(

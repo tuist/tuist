@@ -2,6 +2,12 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Personal profile context
+
+`users.description` stores optional self-authored information about the person's role, personality and communication preferences, up to 4,000 Unicode codepoints / 16,000 UTF-8 bytes. Only the authenticated person can update it through native Profile or the caller-only `update_my_profile` MCP tool; `get_my_profile` reads the same person's profile. Profile-update tool arguments are omitted from audit metadata.
+
+The saved description remains until cleared or the user is deleted, and belongs in exports of that user's `users` row. Pip reloads it for the acting user's private thread only, as untrusted background, never as permission or system instructions. Shared Orbit threads never load this field. Private inference sends it to the workspace's configured Orbit provider; encrypted active-run checkpoints can retain a prior version until the run finishes. Native editor drafts remain in memory. Database backups follow the deployment's existing retention.
+
 ## Live availability and viewing presence
 
 `presence_connections` stores a user foreign key, random connection ID, current allowlisted resource (and optional record UUID), and database-clock expiry. These are short-lived availability hints, not edit locks or a navigation log. The directory reuses `users` names and emails and exposes online/offline only. A same-page viewer receives only matching users' `here` flags, never another person's location, raw path, record name, draft, or device details. Rust's native connection handles, latest snapshots and reconnect state remain in memory; no mobile presence database is created.
@@ -67,6 +73,12 @@ Orbit threads store people's messages to each other and to Pip, Atlas's fixed-na
 Thread run audit rows in `agent_sessions` store only an `orbit_run:<id>` label, a redacted result marker and fixed error categories. `agent_session_events` keep tool names, statuses and timings. Tool calls produce `mcp.tool_called` audit events with the thread and run IDs but without arguments. Membership changes, creation and signals produce `thread.*` audit events. Inference usage rows follow the existing relay retention.
 
 Native rich result cards are data-only projections of the existing redacted `orbit_messages.tool_output`, with no additional database rows, files, retention period or customer data collection. Their server-provided fallback is the same bounded evidence; export the source messages, not client renderer packages or caches.
+
+Research helpers use the same run and durable tool-message history in both private and shared threads. Optional `orbit_messages.parent_message_id` links nested lookups to their task card in the same thread/run. There is no separate child conversation store, final reply or notification. Export parent and child messages with the thread; encrypted tool results retain the existing active-run lifetime.
+
+`orbit_attachments` records private uploaded files: thread/message/uploader references, sanitized filename, content type, byte size, private object key, staging/expiry/deletion state, upload replay UUID, immutable payload digest and timestamps. Objects live at `orbit/threads/<thread-id>/attachments/<attachment-id>` in the existing private object store, not Documents. Pending uploads are uploader-only and expire after 24 hours; claimed files inherit the thread's current access and remain with its history. Discarded, expired and orphaned objects are deleted by the 15-minute cleanup worker; failed object deletions retain their ledger for retry. Removing a user does not remove files already shared into retained history. Deleting a message/thread retains the deletion ledger until its object is reclaimed.
+
+An export must include attachment rows and actual object bytes for exported messages, plus the requester's unclaimed uploads and outstanding deletion-ledger rows where identifiable. Download bytes using the stored private object key through the operator's authorized storage tooling; do not generate public links. Native attachment APIs are access-filtered and are not a complete legal export. Pip sends recognized images and bounded text/PDF excerpts to the configured Orbit provider; unsupported formats remain downloadable but are explicitly not read by the agent. Provider inputs exist in memory and encrypted active-run checkpoints, not audit or delivery-job payloads. Native downloaded previews use protected temporary files and are removed on dismissal/navigation; native drafts and retry bytes remain in memory.
 
 The terminology migration renames the original draft tables and foreign keys in place, preserving IDs, history, encrypted execution caches and membership. Historical message text and audit events are not rewritten.
 

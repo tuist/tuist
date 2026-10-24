@@ -45,6 +45,33 @@ and mutation controls until protected history supplies matching `selected`; a de
 read shows only error/Retry and Back. Preserve drafts across tab changes and reject
 incoming links during retained drafts, in-flight writes or create/provider setup.
 
+Orbit's Photo action uses the platform photo picker (document-image fallback on older
+devices); File uses OPEN_DOCUMENT without storage permissions or persisted URI grants.
+`MainActivity` forwards only the pending retained model's result. `AtlasOrbitAttachments`
+reads `content:` streams off the UI/credential workers, treats provider names/types/sizes
+as untrusted, and bounds actual bytes even when metadata is absent or dishonest. One file
+is uploaded at a time, up to four per message and 5 MiB per file. Rust owns pending bytes,
+stable upload/send retry UUIDs and chips; typing must not replace attachments, and Send
+must remain disabled for an unresolved upload. Picker/import work and attachment-only
+drafts participate in the existing protected-work guard. No bytes go in saved bundles,
+preferences, logs, or notification text.
+
+Opening a message attachment performs a protected Rust download and rechecks the current
+thread/foreground epoch before and after private-cache creation. Filenames are display
+metadata, never paths. `AtlasOrbitAttachmentProvider` is non-exported and read-only,
+exposes only opaque random temporary tokens, and grants only a VIEW read permission.
+Remove files/grants on selection changes, revocation, screen close, session end, and
+return to the app; files handed to an external viewer expire after five minutes. Do not
+clear a valid grant merely because launching that viewer backgrounds Atlas. A viewer
+that already consumed bytes is outside Atlas's revocation boundary. Stale downloads or
+cache completions must not open another Activity or leave temporary files behind.
+
+Consecutive tool calls are compact expandable presentation groups over unchanged server
+messages. Only validated `parent_message_id` links to a loaded root tool permit one
+nested child level. Orphan/off-page/cyclic/deeper claims remain visible roots. Keep
+children inspectable through the same tool/card/source controls; never infer hierarchy
+from tool names or evidence text, nor synthesize NSH payloads from tool output.
+
 `AtlasMessagingService` checks the encrypted session, enabled matching registration and
 canonical destination origin before rendering any data. Schema v1 optional `title`
 (80 codepoints) and `body` (320) are bounded plain text, not actions or HTML. Missing or

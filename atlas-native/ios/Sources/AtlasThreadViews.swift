@@ -182,6 +182,11 @@ private struct AtlasThreadDetail: View {
     @State private var showingInfo = false
     @StateObject private var voice = AtlasVoiceInput()
     @State private var startingVoice: Task<Void, Never>?
+    @State private var photosPresented = false
+    @State private var filesPresented = false
+    @State private var attachmentError: String?
+    @State private var previewURL: URL?
+    @State private var openingAttachment: Task<Void, Never>?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
 
@@ -211,15 +216,8 @@ private struct AtlasThreadDetail: View {
                                 }
                             }
                         }
-                        ForEach(Array(model.messages.enumerated()), id: \.element.id) { index, message in
-                            if startsDay(at: index), let date = ISO8601DateFormatter().date(from: message.insertedAt) {
-                                Text(date, format: .dateTime.month(.abbreviated).day().year())
-                                    .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
-                            }
-                            AtlasThreadMessageView(message: message, selfId: selfId) { event in
-                                await model.componentAction(messageId: message.id, event: event)
-                            }
-                            .id(message.id)
+                        AtlasThreadTimeline(messages: model.messages, selfId: selfId, openAttachment: openAttachment) { id, event in
+                            await model.componentAction(messageId: id, event: event)
                         }
                         if let activity = model.activityMessage {
                             AtlasThreadActivity(message: activity,
@@ -259,7 +257,7 @@ private struct AtlasThreadDetail: View {
                     if followLatest { scroll.scrollTo("thread-latest", anchor: .bottom) }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    if !followLatest {
+                    if !followLatest, !showsWelcome, !model.messages.isEmpty {
                         Button("Latest messages", systemImage: "arrow.down") {
                             followLatest = true
                             scroll.scrollTo("thread-latest", anchor: .bottom)
@@ -280,8 +278,16 @@ private struct AtlasThreadDetail: View {
             }
         }
         .sheet(isPresented: $showingInfo) { details }
+        .modifier(AtlasAttachmentPicker(photosPresented: $photosPresented, filesPresented: $filesPresented, upload: { file in
+            guard !Task.isCancelled, model.selected?.id == thread.id else { return }
+            await model.upload(filename: file.filename, contentType: file.contentType, data: file.data)
+        }, failure: { attachmentError = $0 }))
+        .modifier(AtlasAttachmentPreview(url: $previewURL))
+        .alert("Attachment could not be opened", isPresented: Binding(get: { attachmentError != nil }, set: {
+            if !$0 { attachmentError = nil }
+        })) { Button("OK", role: .cancel) { attachmentError = nil } } message: { Text(attachmentError ?? "") }
         .task(id: thread.id) { presence?.show(); await model.open(thread) }
-        .onDisappear { startingVoice?.cancel(); voice.cancel(); model.leave(id: thread.id) }
+        .onDisappear { startingVoice?.cancel(); openingAttachment?.cancel(); voice.cancel(); model.leave(id: thread.id) }
         .onChange(of: scenePhase) { _, phase in
             // Permission alerts temporarily deactivate the scene before their callbacks return.
             if phase == .background || (phase == .inactive && voice.phase != .requesting) {
@@ -293,14 +299,18 @@ private struct AtlasThreadDetail: View {
             startingVoice?.cancel()
             voice.cancel()
         }
-        .protectsAtlasNavigation(!model.draft.isEmpty || model.saving || voice.busy)
+        .protectsAtlasNavigation(!model.draft.isEmpty || !model.draftAttachments.isEmpty || model.pendingUploadName != nil
+            || model.saving || model.attachmentBusy || voice.busy)
     }
 
-    private func startsDay(at index: Int) -> Bool {
-        guard index > 0,
-              let date = ISO8601DateFormatter().date(from: model.messages[index].insertedAt),
-              let previous = ISO8601DateFormatter().date(from: model.messages[index - 1].insertedAt) else { return true }
-        return !Calendar.current.isDate(date, inSameDayAs: previous)
+    private func openAttachment(_ attachment: AtlasThreadAttachment) {
+        openingAttachment?.cancel()
+        openingAttachment = Task {
+            guard let data = await model.download(attachment), !Task.isCancelled else { return }
+            do { previewURL = try AtlasAttachmentFile.preview(data, filename: attachment.filename) } catch {
+                attachmentError = error.localizedDescription
+            }
+        }
     }
 
     private var composer: some View {
@@ -327,9 +337,12 @@ private struct AtlasThreadDetail: View {
                 Text(error).font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("thread-voice-error")
             }
+            AtlasDraftAttachments(model: model, open: openAttachment)
             AtlasThreadComposer(draft: Binding(get: { model.draft }, set: { model.draft = $0 }),
                                 placeholder: thread.kind == "private" ? "Ask \(assistantName)" : "Message the team",
-                                saving: model.saving, phase: voice.phase, transcript: voice.transcript, levels: voice.levels,
+                                saving: model.saving || model.attachmentBusy || model.pendingUploadName != nil, phase: voice.phase,
+                                transcript: voice.transcript, levels: voice.levels, hasAttachments: !model.draftAttachments.isEmpty,
+                                addPhotos: { photosPresented = true }, addFiles: { filesPresented = true },
                                 start: { startingVoice = Task { await voice.start() } }, review: {
                 startingVoice?.cancel()
                 voice.review()

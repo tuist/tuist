@@ -39,6 +39,13 @@ struct AtlasThreadComponent: Codable {
     let fallback: String
 }
 
+struct AtlasThreadAttachment: Decodable, Identifiable, Equatable {
+    let id: String
+    let filename: String
+    let contentType: String
+    let byteSize: Int
+}
+
 struct AtlasThreadMessage: Decodable, Identifiable {
     let id: String
     let kind: String
@@ -48,9 +55,11 @@ struct AtlasThreadMessage: Decodable, Identifiable {
     let insertedAt: String
     let toolName: String?
     let toolStatus: String?
+    let parentMessageId: String?
     let toolInput: String
     let toolOutput: String
     let component: AtlasThreadComponent?
+    let attachments: [AtlasThreadAttachment]?
 }
 
 struct AtlasOrbitAssistant: Decodable {
@@ -75,6 +84,10 @@ final class AtlasOrbit: ObservableObject {
         let messages: [AtlasThreadMessage]
         let people: [Viewer]
         let draft: String
+        let draftAttachments: [AtlasThreadAttachment]?
+        let attachmentBusy: Bool?
+        let uploadPending: Bool?
+        let uploadFilename: String?
         let loading: Bool
         let historyLoading: Bool
         let saving: Bool
@@ -89,6 +102,7 @@ final class AtlasOrbit: ObservableObject {
     @Published private var state: Snapshot?
     @Published private var adapterError: String?
     @Published private var submitting = false
+    @Published private var attaching = false
     @Published var draft = "" {
         didSet { if !applyingDraft { writeDraft() } }
     }
@@ -97,6 +111,9 @@ final class AtlasOrbit: ObservableObject {
     var selected: AtlasThread? { state?.selected }
     var messages: [AtlasThreadMessage] { state?.messages ?? [] }
     var viewers: [Viewer] { state?.people ?? [] }
+    var draftAttachments: [AtlasThreadAttachment] { state?.draftAttachments ?? [] }
+    var attachmentBusy: Bool { attaching || state?.attachmentBusy == true }
+    var pendingUploadName: String? { state?.uploadPending == true ? state?.uploadFilename : nil }
     var loading: Bool { state?.loading ?? false }
     var loadingHistory: Bool { state?.historyLoading ?? false }
     var saving: Bool { submitting || (state?.saving ?? false) }
@@ -181,12 +198,57 @@ final class AtlasOrbit: ObservableObject {
     func history(older: Bool = false) async { await perform(["action": "history", "older": older]) }
 
     func send(addressAgent: Bool) async {
-        guard !submitting, let id = selected?.id else { return }
+        guard !saving, !attachmentBusy, let id = selected?.id else { return }
         submitting = true
         defer { submitting = false }
         let body = draft
         await draftTask?.value
         await perform(["action": "send", "id": id, "body": body, "address_agent": addressAgent])
+    }
+
+    func upload(filename: String, contentType: String, data: Data) async {
+        guard !saving, !attachmentBusy, let id = selected?.id else { return }
+        attaching = true
+        defer { attaching = false }
+        await perform(["action": "upload_attachment", "id": id,
+                       "filename": filename, "content_type": contentType, "data": data.base64EncodedString()])
+    }
+
+    func resolveUpload(retry: Bool) async {
+        guard !saving, !attachmentBusy, let id = selected?.id else { return }
+        attaching = true
+        defer { attaching = false }
+        await perform(["action": retry ? "retry_upload" : "discard_upload", "id": id])
+    }
+
+    func removeAttachment(_ attachment: AtlasThreadAttachment) async {
+        guard !saving, !attachmentBusy, let id = selected?.id else { return }
+        attaching = true
+        defer { attaching = false }
+        await perform(["action": "delete_attachment", "id": id, "attachment_id": attachment.id])
+    }
+
+    func download(_ attachment: AtlasThreadAttachment) async -> Data? {
+        struct Download: Decodable {
+            struct File: Decodable { let data: String }
+            let threadId: String
+            let attachment: File
+        }
+        guard let id = selected?.id else { return nil }
+        do {
+            let handle = try await ensureConnection()
+            let response: Download = try decode(await request([
+                "action": "request", "connection": handle,
+                "command": ["action": "download_attachment", "id": id, "attachment_id": attachment.id]
+            ]))
+            try Task.checkCancellation()
+            guard selected?.id == id, response.threadId == id,
+                  let data = Data(base64Encoded: response.attachment.data), data.count == attachment.byteSize else { return nil }
+            return data
+        } catch is CancellationError { return nil } catch {
+            adapterError = error.localizedDescription
+            return nil
+        }
     }
 
     func componentAction(messageId: String, event: String) async -> Bool {
