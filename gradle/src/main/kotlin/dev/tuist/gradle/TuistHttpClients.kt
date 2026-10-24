@@ -1,5 +1,6 @@
 package dev.tuist.gradle
 
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -37,6 +38,7 @@ open class TuistHttpClients(
 
     open val okHttp: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(MAX_IDLE_CONNECTIONS, IDLE_CONNECTION_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS))
             .connectTimeout(DEFAULT_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(DEFAULT_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .addInterceptor(FeatureFlagsInterceptor(environmentVariables))
@@ -99,6 +101,9 @@ open class TuistHttpClients(
         private const val DEFAULT_CONNECT_TIMEOUT_SECONDS = 30L
         private const val DEFAULT_READ_TIMEOUT_SECONDS = 60L
         private const val LATENCY_TIMEOUT_SECONDS = 5L
+        private const val MAX_IDLE_CONNECTIONS = 5
+        // Below the server's 15 s idle timeout, so a connection is never reused while the server closes it.
+        internal const val IDLE_CONNECTION_KEEP_ALIVE_SECONDS = 10L
         private const val DEFAULT_CONNECT_TIMEOUT_MS = 30_000
         private const val DEFAULT_READ_TIMEOUT_MS = 60_000
 
