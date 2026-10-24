@@ -175,13 +175,16 @@ private struct AtlasProfileEditor: View {
     let saved: (AtlasNativeProfile) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var discarding = false
+    @FocusState private var editingDescription: Bool
 
     var body: some View {
         NavigationStack {
             Form {
+                if let error = model.errorMessage { Section { Text(error).foregroundStyle(.red) } }
                 Section {
                     TextEditor(text: $model.draft)
                         .frame(minHeight: 180)
+                        .focused($editingDescription)
                         .accessibilityLabel("About you")
                         .accessibilityIdentifier("profile-description")
                     Text("\(model.draft.unicodeScalars.count) / 4000 characters")
@@ -192,7 +195,6 @@ private struct AtlasProfileEditor: View {
                          "Pip uses this only in private conversations, never shared threads. " +
                          "It is sent to the configured AI provider. Avoid secrets.")
                 }
-                if let error = model.errorMessage { Section { Text(error).foregroundStyle(.red) } }
                 if model.saving { Section { ProgressView("Saving…") } }
             }
             .disabled(model.saving)
@@ -205,6 +207,7 @@ private struct AtlasProfileEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        editingDescription = false
                         Task { if let profile = await model.save() { saved(profile); dismiss() } }
                     }
                     .disabled(!model.valid || model.saving)

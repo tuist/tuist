@@ -247,6 +247,80 @@ internal fun checkOrbitModel() {
     check(pending.none { it.first.optJSONObject("command")?.optString("action") == "select" })
     cancelled.close()
     take("close")
+
+    // Prompt navigation loads earlier history through the retained model, without editing or sending.
+    for (id in listOf(PRIVATE, SHARED)) {
+        pending.clear()
+        val history = AtlasOrbitModel { action, done -> pending.add(action to done) }
+        history.open()
+        take("open").second(Result.success(JSONObject().put("connection", "history")))
+        val recent =
+            JSONObject()
+                .put("id", "recent")
+                .put("kind", "human")
+                .put("body", "Recent prompt")
+                .put("inserted_at", "2026-10-24T12:00:00Z")
+        val earlier =
+            JSONObject()
+                .put("id", "earlier")
+                .put("kind", "human")
+                .put("body", "Earlier prompt")
+                .put("inserted_at", "2026-10-24T11:00:00Z")
+        val chips =
+            org.json.JSONArray().put(
+                JSONObject()
+                    .put("id", "pending-file")
+                    .put("filename", "notes.txt")
+                    .put("content_type", "text/plain")
+                    .put("byte_size", 5),
+            )
+        val loaded =
+            snapshot(1, id, "Unsent draft")
+                .put("has_older", true)
+                .put("messages", org.json.JSONArray().put(recent))
+                .put("draft_attachments", chips)
+        take("request", "load").second(Result.success(loaded))
+        history.loadOlder()
+        val older = take("request", "history")
+        check(older.first.getJSONObject("command").getBoolean("older"))
+        check(history.selectionId == id && history.snapshot.draft == "Unsent draft")
+        older.second(Result.failure(IllegalStateException("Offline")))
+        check(
+            history.failure == "Offline" && history.snapshot.messages
+                .single()
+                .id == "recent",
+        )
+        check(
+            history.snapshot.draftAttachments
+                .single()
+                .filename == "notes.txt" && history.hasProtectedWork,
+        )
+
+        history.loadOlder()
+        take("request", "history").second(
+            Result.success(
+                snapshot(2, id, "Unsent draft")
+                    .put("draft_attachments", chips)
+                    .put(
+                        "messages",
+                        org.json
+                            .JSONArray()
+                            .put(earlier)
+                            .put(recent),
+                    ),
+            ),
+        )
+        check(history.snapshot.messages.map { it.id } == listOf("earlier", "recent") && !history.snapshot.hasOlder)
+        check(history.selectionId == id && history.snapshot.draft == "Unsent draft" && history.failure == null)
+        check(
+            history.snapshot.draftAttachments
+                .single()
+                .filename == "notes.txt",
+        )
+        check(pending.isEmpty()) // No draft, send, select, leave, or rollback request was emitted.
+        history.close()
+        take("close")
+    }
     checkOrbitAttachments()
 }
 

@@ -199,7 +199,16 @@ struct AtlasAttachmentPreview: ViewModifier {
     @Binding var url: URL?
 
     func body(content: Content) -> some View {
-        content.quickLookPreview($url)
+        content
+            .sheet(isPresented: Binding(get: { url != nil }, set: { if !$0 { url = nil } })) {
+                if let file = url {
+                    NavigationStack {
+                        AtlasAttachmentQuickLook(url: file)
+                            .navigationTitle(file.lastPathComponent).navigationBarTitleDisplayMode(.inline)
+                            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { url = nil } } }
+                    }
+                }
+            }
             .onChange(of: url) { previous, current in
                 if let previous, previous != current { try? FileManager.default.removeItem(at: previous.deletingLastPathComponent()) }
             }
@@ -207,5 +216,26 @@ struct AtlasAttachmentPreview: ViewModifier {
                 if let url { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
                 url = nil
             }
+    }
+}
+
+private struct AtlasAttachmentQuickLook: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeCoordinator() -> Coordinator { Coordinator(url: url) }
+
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: QLPreviewController, context: Context) {}
+
+    final class Coordinator: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+        init(url: URL) { self.url = url }
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { url as NSURL }
     }
 }

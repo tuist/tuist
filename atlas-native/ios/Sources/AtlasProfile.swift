@@ -6,15 +6,6 @@ struct AtlasNativeProfile: Decodable {
         let name: String
         let email: String
         let description: String
-
-        private enum CodingKeys: String, CodingKey { case name, email, description }
-
-        init(from decoder: Decoder) throws {
-            let values = try decoder.container(keyedBy: CodingKeys.self)
-            name = try values.decode(String.self, forKey: .name)
-            email = try values.decode(String.self, forKey: .email)
-            description = try values.decodeIfPresent(String.self, forKey: .description) ?? ""
-        }
     }
     struct PushNotifications: Decodable {
         let ios: Bool
@@ -23,6 +14,17 @@ struct AtlasNativeProfile: Decodable {
     let user: User
     let serverVersion: String
     let pushNotifications: PushNotifications?
+}
+
+extension AtlasNativeProfile.User {
+    private enum CodingKeys: String, CodingKey { case name, email, description }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        name = try values.decode(String.self, forKey: .name)
+        email = try values.decode(String.self, forKey: .email)
+        description = try values.decodeIfPresent(String.self, forKey: .description) ?? ""
+    }
 }
 
 @MainActor

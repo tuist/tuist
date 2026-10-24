@@ -228,7 +228,7 @@ private struct AtlasThreadDetail: View {
                             Text(error).font(.callout).foregroundStyle(.red)
                             Button("Retry") { Task { await model.history() } }.frame(minHeight: 44)
                         }
-                        Color.clear.frame(height: 1).id("thread-latest")
+                        Color.clear.frame(height: model.messages.isEmpty ? 1 : 49).id("thread-latest")
                             .background {
                                 GeometryReader { position in
                                     Color.clear.preference(key: AtlasThreadBottom.self,
@@ -257,14 +257,14 @@ private struct AtlasThreadDetail: View {
                     if followLatest { scroll.scrollTo("thread-latest", anchor: .bottom) }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    if !followLatest, !showsWelcome, !model.messages.isEmpty {
-                        Button("Latest messages", systemImage: "arrow.down") {
-                            followLatest = true
-                            scroll.scrollTo("thread-latest", anchor: .bottom)
-                        }
-                        .labelStyle(.iconOnly).buttonStyle(.borderedProminent)
-                        .frame(minWidth: 44, minHeight: 44).padding()
-                    }
+                    AtlasThreadNavigation(messages: model.messages, shared: thread.kind != "private",
+                                          hasOlder: model.hasOlder, loading: model.loadingHistory,
+                                          showsLatest: !followLatest && !showsWelcome && !model.messages.isEmpty,
+                                          older: { followLatest = false; await model.history(older: true) }, jump: { id in
+                        followLatest = id == "thread-latest"
+                        scroll.scrollTo(id, anchor: followLatest ? .bottom : .top)
+                    })
+                    .padding()
                 }
             }
         }

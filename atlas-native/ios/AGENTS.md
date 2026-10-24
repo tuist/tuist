@@ -60,6 +60,10 @@ drafts and failure state. Cancel pending imports/downloads on departure and reje
 late results before creating preview files. `AtlasThreadTimeline` nests research
 lookups under task cards, preserves off-page children and keeps source disclosures
 native; rich tool cards still use the reviewed bundled Native Shell components.
+Its prompt index lists loaded human messages with timestamps (and authors in shared
+threads), loads earlier history explicitly and scrolls to stable message IDs without
+changing drafts or execution state. Keep the latest-message action beside the index
+and reserve transcript space so these controls do not cover message content.
 
 `AtlasProfile` owns the description editor's state and stale-read fence. Profile
 suggests role/personality/preferences when empty and discloses private-thread

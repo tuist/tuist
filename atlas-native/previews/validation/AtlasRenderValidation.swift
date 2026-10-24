@@ -144,6 +144,7 @@ final class AtlasRenderValidation: XCTestCase {
                 let file = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "notes.txt")).firstMatch
                 file.tap()
                 XCTAssertTrue(app.buttons["Done"].firstMatch.waitForExistence(timeout: 5))
+                XCTAssertTrue(app.navigationBars["notes.txt"].exists)
                 capture(app, "attachment-preview")
                 app.buttons["Done"].firstMatch.tap()
                 app.buttons["thread-attach"].tap()
@@ -171,6 +172,7 @@ final class AtlasRenderValidation: XCTestCase {
             app.buttons["profile-save"].tap()
             if failing {
                 XCTAssertTrue(app.staticTexts["Preview save failed. Your draft is still here."].waitForExistence(timeout: 5))
+                XCTAssertTrue(app.staticTexts["Preview save failed. Your draft is still here."].isHittable)
                 XCTAssertEqual(field.value as? String, "Engineering lead. Curious; concise answers please.")
                 capture(app, "profile-failed-draft-dark-large")
             } else {
@@ -178,6 +180,44 @@ final class AtlasRenderValidation: XCTestCase {
                 XCTAssertTrue(app.staticTexts["Engineering lead. Curious; concise answers please."].exists)
                 capture(app, "profile-saved-light")
             }
+            app.terminate()
+        }
+    }
+
+    @MainActor func testPromptIndexLoadsEarlierAndJumpsWithoutLosingDrafts() throws {
+        for (shared, dark) in [(false, false), (true, true)] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            let thread = shared ? "01922cc0-0000-7000-8000-000000000002" : "01922cc0-0000-7000-8000-000000000001"
+            app.launchArguments = ["--workspace", "--orbit-prompts", "--destination",
+                "dev.tuist.atlas://navigate/orbit/\(thread)?server=https%3A%2F%2Fatlas.example.org"]
+                + (dark ? ["--dark", "--large-text"] : [])
+            app.launch()
+            let composer = app.textFields["thread-composer"]
+            XCTAssertTrue(composer.waitForExistence(timeout: 10))
+            composer.tap()
+            composer.typeText("Keep this draft.")
+            let index = app.buttons["thread-prompts"]
+            XCTAssertGreaterThanOrEqual(index.frame.height, 44)
+            index.tap()
+            XCTAssertTrue(app.navigationBars["Prompts"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["thread-prompt-prompt-0"].exists)
+            capture(app, "prompt-index-\(dark ? "shared-dark-large" : "private-light")")
+            app.buttons["Load earlier prompts"].tap()
+            let first = app.buttons["thread-prompt-prompt-0"]
+            XCTAssertTrue(first.waitForExistence(timeout: 5))
+            XCTAssertTrue(first.label.contains("release-notes.txt"))
+            XCTAssertFalse(app.buttons["Load earlier prompts"].exists)
+            first.tap()
+            XCTAssertTrue(app.navigationBars["Prompts"].waitForNonExistence(timeout: 5))
+            let attachment = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "release-notes.txt")).firstMatch
+            XCTAssertTrue(attachment.isHittable)
+            XCTAssertGreaterThanOrEqual(attachment.frame.minY, app.navigationBars.firstMatch.frame.maxY)
+            XCTAssertEqual(composer.value as? String, "Keep this draft.")
+            capture(app, "prompt-jump-\(dark ? "shared-dark-large" : "private-light")")
+            app.buttons["Latest messages"].tap()
+            XCTAssertTrue(app.staticTexts["Summarize the next steps."].isHittable)
+            XCTAssertFalse(attachment.isHittable)
+            XCTAssertEqual(composer.value as? String, "Keep this draft.")
             app.terminate()
         }
     }

@@ -55,6 +55,7 @@ struct AtlasThreadTimeline: View {
                     AtlasThreadMessageView(message: first, selfId: selfId, openAttachment: openAttachment) { event in
                         await action(first.id, event)
                     }
+                    .id(first.id)
                 }
             }
         }
@@ -64,6 +65,87 @@ struct AtlasThreadTimeline: View {
         guard let previous, let date = ISO8601DateFormatter().date(from: current),
               let prior = ISO8601DateFormatter().date(from: previous) else { return false }
         return Calendar.current.isDate(date, inSameDayAs: prior)
+    }
+}
+
+struct AtlasThreadNavigation: View {
+    let messages: [AtlasThreadMessage]
+    let shared: Bool
+    let hasOlder: Bool
+    let loading: Bool
+    let showsLatest: Bool
+    let older: () async -> Void
+    let jump: (String) -> Void
+    @State private var showingPrompts = false
+
+    private var prompts: [AtlasThreadMessage] { messages.filter { $0.kind == "human" } }
+
+    var body: some View {
+        if !prompts.isEmpty || hasOlder || showsLatest {
+            HStack(spacing: 0) {
+                if !prompts.isEmpty || hasOlder {
+                    Button("Conversation prompts", systemImage: "list.bullet") { showingPrompts = true }
+                        .frame(width: 44, height: 44)
+                        .accessibilityHint("Choose a prompt to jump back to it")
+                        .accessibilityIdentifier("thread-prompts")
+                        .popover(isPresented: $showingPrompts) { promptList }
+                }
+                if showsLatest {
+                    if !prompts.isEmpty || hasOlder { Divider().frame(height: 20) }
+                    Button("Latest messages", systemImage: "arrow.down") { jump("thread-latest") }
+                        .frame(width: 44, height: 44)
+                }
+            }
+            .labelStyle(.iconOnly).buttonStyle(.borderless)
+            .background(.regularMaterial, in: Capsule())
+            .overlay { Capsule().strokeBorder(.primary.opacity(0.12)) }
+        }
+    }
+
+    private var promptList: some View {
+        NavigationStack {
+            List {
+                if hasOlder {
+                    Button(loading ? "Loading earlier prompts…" : "Load earlier prompts") { Task { await older() } }
+                        .disabled(loading).frame(minHeight: 44)
+                }
+                if prompts.isEmpty { Text("No prompts in loaded history.").foregroundStyle(.secondary) }
+                ForEach(prompts) { message in
+                    Button {
+                        showingPrompts = false
+                        jump(message.id)
+                    } label: {
+                        promptRow(message)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Jump to this message")
+                    .accessibilityIdentifier("thread-prompt-\(message.id)")
+                }
+            }
+            .navigationTitle("Prompts").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingPrompts = false } } }
+        }
+        .frame(idealWidth: 380, idealHeight: 440)
+        .presentationDetents([.medium, .large])
+        .presentationCompactAdaptation(.sheet)
+    }
+
+    private func promptRow(_ message: AtlasThreadMessage) -> some View {
+        let body = message.body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let files = (message.attachments ?? []).map(\.filename).joined(separator: ", ")
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: message.insertedAt) ?? ISO8601DateFormatter().date(from: message.insertedAt)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(body.isEmpty ? (files.isEmpty ? "Message" : files) : body).lineLimit(2).multilineTextAlignment(.leading)
+            HStack {
+                if shared { Text(message.authorName) }
+                if let date { Text(date, style: .relative) }
+            }
+            .font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 

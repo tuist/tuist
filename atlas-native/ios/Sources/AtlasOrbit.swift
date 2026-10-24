@@ -207,48 +207,16 @@ final class AtlasOrbit: ObservableObject {
     }
 
     func upload(filename: String, contentType: String, data: Data) async {
-        guard !saving, !attachmentBusy, let id = selected?.id else { return }
-        attaching = true
-        defer { attaching = false }
-        await perform(["action": "upload_attachment", "id": id,
-                       "filename": filename, "content_type": contentType, "data": data.base64EncodedString()])
+        await updateAttachment(["action": "upload_attachment", "filename": filename,
+                                "content_type": contentType, "data": data.base64EncodedString()])
     }
 
     func resolveUpload(retry: Bool) async {
-        guard !saving, !attachmentBusy, let id = selected?.id else { return }
-        attaching = true
-        defer { attaching = false }
-        await perform(["action": retry ? "retry_upload" : "discard_upload", "id": id])
+        await updateAttachment(["action": retry ? "retry_upload" : "discard_upload"])
     }
 
     func removeAttachment(_ attachment: AtlasThreadAttachment) async {
-        guard !saving, !attachmentBusy, let id = selected?.id else { return }
-        attaching = true
-        defer { attaching = false }
-        await perform(["action": "delete_attachment", "id": id, "attachment_id": attachment.id])
-    }
-
-    func download(_ attachment: AtlasThreadAttachment) async -> Data? {
-        struct Download: Decodable {
-            struct File: Decodable { let data: String }
-            let threadId: String
-            let attachment: File
-        }
-        guard let id = selected?.id else { return nil }
-        do {
-            let handle = try await ensureConnection()
-            let response: Download = try decode(await request([
-                "action": "request", "connection": handle,
-                "command": ["action": "download_attachment", "id": id, "attachment_id": attachment.id]
-            ]))
-            try Task.checkCancellation()
-            guard selected?.id == id, response.threadId == id,
-                  let data = Data(base64Encoded: response.attachment.data), data.count == attachment.byteSize else { return nil }
-            return data
-        } catch is CancellationError { return nil } catch {
-            adapterError = error.localizedDescription
-            return nil
-        }
+        await updateAttachment(["action": "delete_attachment", "attachment_id": attachment.id])
     }
 
     func componentAction(messageId: String, event: String) async -> Bool {
@@ -367,3 +335,37 @@ final class AtlasOrbit: ObservableObject {
         return try decoder.decode(T.self, from: data)
     }
 }
+
+extension AtlasOrbit {
+    private struct Download: Decodable {
+        let threadId: String
+        let attachment: AtlasAttachmentBytes
+    }
+
+    private func updateAttachment(_ command: [String: Any]) async {
+        guard !saving, !attachmentBusy, let id = selected?.id else { return }
+        attaching = true
+        defer { attaching = false }
+        await perform(command.merging(["id": id]) { _, current in current })
+    }
+
+    func download(_ attachment: AtlasThreadAttachment) async -> Data? {
+        guard let id = selected?.id else { return nil }
+        do {
+            let handle = try await ensureConnection()
+            let response: Download = try decode(await request([
+                "action": "request", "connection": handle,
+                "command": ["action": "download_attachment", "id": id, "attachment_id": attachment.id]
+            ]))
+            try Task.checkCancellation()
+            guard selected?.id == id, response.threadId == id,
+                  let data = Data(base64Encoded: response.attachment.data), data.count == attachment.byteSize else { return nil }
+            return data
+        } catch is CancellationError { return nil } catch {
+            adapterError = error.localizedDescription
+            return nil
+        }
+    }
+}
+
+private struct AtlasAttachmentBytes: Decodable { let data: String }
