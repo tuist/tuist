@@ -7,7 +7,7 @@
     "@scalar/api-reference": "^1.52.0",
     "cobe": "^2.0.1",
     "cytoscape": "3.33.4",
-    "cytoscape-dagre": "4.0.0",
+    "cytoscape-dagre": "4.0.1",
     "echarts": "^6.1.0",
     "katex": "^0.18.4",
     "prettier-plugin-css-order": "^2.2.0",
