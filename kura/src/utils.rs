@@ -1724,42 +1724,51 @@ mod tests {
         .expect("failed to create io controller");
         let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
         let tmp_budget = TmpBudget::new(10);
+        let (waiting, entered) = tokio::sync::oneshot::channel();
+        let mut waiting = Some(waiting);
         let body = futures_util::stream::once(async {
             Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"hello"))
         })
-        .chain(futures_util::stream::pending());
+        .chain(futures_util::stream::poll_fn(move |_| {
+            if let Some(waiting) = waiting.take() {
+                let _ = waiting.send(());
+            }
+            std::task::Poll::Pending
+        }));
         let request = Request::builder()
             .body(Body::from_stream(body))
             .expect("failed to build request");
-
-        let result = tokio::time::timeout(
-            Duration::from_millis(50),
-            read_request_to_temp(
-                request,
-                directory.path(),
-                10,
-                RequestBodyStaging {
-                    tmp_budget: &tmp_budget,
-                    io: &io,
-                    memory: &memory,
-                    bandwidth_limiter: None,
-                    compute_sha256: false,
-                },
-            ),
-        )
-        .await;
-
-        assert!(result.is_err(), "the pending body should be cancelled");
-        for _ in 0..100 {
-            if std::fs::read_dir(directory.path())
+        let mut reader = Box::pin(read_request_to_temp(
+            request,
+            directory.path(),
+            10,
+            RequestBodyStaging {
+                tmp_budget: &tmp_budget,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+                compute_sha256: false,
+            },
+        ));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            tokio::select! {
+                result = &mut reader => panic!("pending body unexpectedly completed: {result:?}"),
+                entered = entered => entered.expect("body should reach the pending read"),
+            }
+        })
+        .await
+        .expect("body should stage before cancellation");
+        assert_eq!(tmp_budget.reserved_bytes(), 5);
+        assert!(
+            std::fs::read_dir(directory.path())
                 .expect("failed to list temp dir")
                 .next()
-                .is_none()
-            {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(1)).await;
-        }
+                .is_some()
+        );
+        drop(reader);
+        let full = tokio::time::timeout(Duration::from_secs(5), tmp_budget.reserve(10))
+            .await
+            .expect("cancellation must release disk admission after unlink");
         assert!(
             std::fs::read_dir(directory.path())
                 .expect("failed to list temp dir")
@@ -1767,6 +1776,7 @@ mod tests {
                 .is_none(),
             "cancellation must not leave a staged file"
         );
+        drop(full);
         assert_eq!(
             tmp_budget.reserved_bytes(),
             0,
