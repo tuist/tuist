@@ -100,6 +100,7 @@ extension Client {
                 serverRetryMiddleware,
                 RequestIdMiddleware(),
                 ServerClientFeatureFlagsHeadersMiddleware(),
+                ServerClientCLIMetadataHeadersMiddleware(),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
             ] + additionalMiddlewares

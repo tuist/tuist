@@ -13,8 +13,13 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.Accounts
   alias Tuist.Guardian
   alias Tuist.OIDC
+  alias Tuist.OIDC.ProjectProviders
+  alias Tuist.OIDC.ScopeRules
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.WarningsHeaderPlug
+
+  require Logger
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -31,6 +36,11 @@ defmodule TuistWeb.API.OIDCController do
     description: """
     Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
     for a short-lived Tuist access token.
+
+    Projects and accounts can configure OIDC scope rules that require specific GitHub Actions
+    claims (`ref`, `job_workflow_ref`, `environment`) before the token can use a write scope.
+    When a rule doesn't match, the token keeps the matching read scope for that resource, and
+    the response carries a warning naming the withheld scope.
     """,
     operation_id: "exchangeOIDCToken",
     request_body:
@@ -79,9 +89,14 @@ defmodule TuistWeb.API.OIDCController do
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
     with {:ok, claims} <- OIDC.claims(token, Map.get(conn.body_params, :account_handle)),
-         {:ok, account, project_scope} <- authorized_account(claims),
-         {:ok, access_token} <- generate_token(account, project_scope) do
+         {:ok, account, projects, project_scope} <- authorized_account(claims),
+         {withheld_scopes, failures} = ScopeRules.evaluate(account, projects, claims),
+         {:ok, access_token} <- generate_token(account, project_scope, withheld_scopes) do
+      log_exchange(claims, account, withheld_scopes, failures)
+      ProjectProviders.record_exchange(projects, claims[:provider])
+
       conn
+      |> put_withheld_warnings(failures)
       |> put_status(:ok)
       |> json(%{
         access_token: access_token,
@@ -165,7 +180,7 @@ defmodule TuistWeb.API.OIDCController do
 
   defp authorized_account(%{provider: :oidc} = identity) do
     with {:ok, account} <- Accounts.oidc_account_by_grants(identity) do
-      {:ok, account, %{"all_projects" => true}}
+      {:ok, account, :all_projects, %{"all_projects" => true}}
     end
   end
 
@@ -176,7 +191,7 @@ defmodule TuistWeb.API.OIDCController do
 
       projects ->
         with {:ok, account} <- single_account(projects, identity) do
-          {:ok, account, %{"project_ids" => Enum.map(projects, & &1.id)}}
+          {:ok, account, projects, %{"project_ids" => Enum.map(projects, & &1.id)}}
         end
     end
   end
@@ -192,12 +207,59 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp generate_token(account, project_scope) do
-    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, project_scope)
+  defp generate_token(account, project_scope, withheld_scopes) do
+    claims =
+      %{"type" => "account", "scopes" => ["ci"]}
+      |> Map.merge(project_scope)
+      |> Map.merge(if(withheld_scopes == %{}, do: %{}, else: %{"withheld_scopes" => withheld_scopes}))
 
     case Guardian.encode_and_sign(account, claims, ttl: {@token_ttl_seconds, :second}) do
       {:ok, token, _full_claims} -> {:ok, token}
       error -> error
     end
+  end
+
+  defp log_exchange(claims, account, withheld_scopes, failures) do
+    withheld =
+      withheld_scopes
+      |> Enum.sort()
+      |> Enum.map_join(";", fn {scope, ids} -> "#{scope}=#{Enum.join(ids, ",")}" end)
+
+    Logger.info(
+      "OIDC token exchanged for account #{account.id}: repository=#{claims[:repository]} " <>
+        "provider=#{claims[:provider]} ref=#{claims[:ref]} job_workflow_ref=#{claims[:job_workflow_ref]} " <>
+        "environment=#{claims[:environment]} withheld_scopes=#{withheld}"
+    )
+
+    Enum.each(failures, fn failure ->
+      :telemetry.execute([:tuist, :oidc, :scope_withheld], %{count: 1}, %{
+        scope: failure.scope,
+        level: failure.level,
+        field: failure.field
+      })
+    end)
+  end
+
+  defp put_withheld_warnings(conn, failures) do
+    Enum.reduce(failures, conn, fn failure, conn ->
+      WarningsHeaderPlug.put_warning(conn, withheld_warning(failure))
+    end)
+  end
+
+  defp withheld_warning(%{scope: scope, level: level, project: project, field: field, value: value}) do
+    target =
+      case level do
+        :account -> "the account"
+        :project -> "project #{project.account.name}/#{project.name}"
+      end
+
+    reason =
+      case field do
+        :provider -> "OIDC scope rules only support GitHub Actions tokens"
+        _ when value in [nil, ""] -> "the token has no `#{field}` claim"
+        _ -> "#{field} `#{value}` doesn't match the #{level} rules"
+      end
+
+    "This OIDC token can't use #{scope} for #{target}: #{reason}. It keeps read access."
   end
 end

@@ -89,7 +89,7 @@ defmodule Tuist.OIDC do
 
   defp identity_from_claims(claims, provider) do
     with {:ok, repository} <- repository_from_claims(claims, provider) do
-      {:ok, %{repository: repository}}
+      {:ok, Map.merge(%{repository: repository, provider: provider}, workflow_claims(claims, provider))}
     end
   end
 
@@ -118,6 +118,18 @@ defmodule Tuist.OIDC do
       _ -> {:error, :missing_repository_claim}
     end
   end
+
+  # The claims OIDC scope rules match against. Only GitHub Actions claims are
+  # mapped; tokens from other providers fail any configured rule.
+  defp workflow_claims(claims, :github_actions) do
+    %{
+      ref: claims["ref"],
+      job_workflow_ref: claims["job_workflow_ref"],
+      environment: claims["environment"]
+    }
+  end
+
+  defp workflow_claims(_claims, _provider), do: %{}
 
   defp github_repository_url?(url) do
     String.starts_with?(url, "https://github.com/") or

@@ -21794,6 +21794,11 @@ paths:
       description: |
         Exchange an OIDC token from a built-in CI provider or an account-configured workload identity provider
         for a short-lived Tuist access token.
+
+        Projects and accounts can configure OIDC scope rules that require specific GitHub Actions
+        claims (`ref`, `job_workflow_ref`, `environment`) before the token can use a write scope.
+        When a rule doesn't match, the token keeps the matching read scope for that resource, and
+        the response carries a warning naming the withheld scope.
       operationId: exchangeOIDCToken
       parameters: []
       requestBody:
