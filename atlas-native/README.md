@@ -55,11 +55,12 @@ https://atlas.tuist.dev/open/<screen>[/<lowercase-uuid>]
 
 Hosted handoff also supports the ordinary pages `/tasks`,
 `/commercial/sales/accounts` and its UUID detail, `/people`, `/people/time-off`,
-`/settings`, and `/orbit` and its UUID detail. Matching is exact, not a claim on their descendants. The broader
+and `/settings`. Matching is exact, not a claim on their descendants. The broader
 `/commercial/finance` dashboard stays in the browser; its header can explicitly
 open native invoices. Canonical share URLs always use `/open`, while the native
-browser escape opens a real web page. Account and Orbit records have a browser detail;
-task and invoice records fall back to their collections.
+browser escape opens a real web page. Account records have a browser detail;
+task and invoice records fall back to their collections. Orbit has no web view,
+so its browser fallback is the authenticated dashboard `/`; dashboard URLs are not claimed as Orbit links.
 
 Links never select a server, initiate login, or grant access. A signed-out link
 waits for normal sign-in, then must match its HTTPS origin. Pending links are

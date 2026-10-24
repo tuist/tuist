@@ -29,15 +29,18 @@ struct AtlasNavigationTests {
                 let browser: URL
                 if screen == "accounts" {
                     browser = URL(string: "https://atlas.example.org/commercial/sales/accounts/\(recordID)")!
-                } else if screen == "orbit" {
-                    browser = URL(string: "https://atlas.example.org/orbit/\(recordID)")!
                 } else {
                     browser = page.browserURL
                 }
                 #expect(record.browserURL == browser)
-                if ["accounts", "orbit"].contains(screen) { #expect(AtlasDestination(url: record.browserURL) == record) }
+                if screen == "accounts" { #expect(AtlasDestination(url: record.browserURL) == record) }
             }
-            #expect(AtlasDestination(url: page.browserURL) == page)
+            if screen == "orbit" {
+                #expect(page.browserURL == URL(string: "https://atlas.example.org/")!)
+                #expect(AtlasDestination(url: page.browserURL) == nil)
+            } else {
+                #expect(AtlasDestination(url: page.browserURL) == page)
+            }
         }
     }
 
@@ -51,6 +54,7 @@ struct AtlasNavigationTests {
 
     @Test func rejectsUnsupportedWebRoutesAndAmbiguousPaths() throws {
         let paths = ["/", "/tasks/", "/tasks/\(recordID)", "/tasks/new", "/settings/ai-providers",
+                     "/orbit", "/orbit/\(recordID)",
                      "/auth/login", "/open/people/\(recordID)", "/open/tasks/not-a-uuid", "/open/tasks/\(recordID)/edit",
                      "/commercial/sales/accounts/new", "/commercial/sales/accounts/\(recordID)/notes",
                      "/%74asks", "//tasks", "/open/tasks/%2e%2e", "/open/tasks/123E4567-E89B-12D3-A456-426614174000"]
