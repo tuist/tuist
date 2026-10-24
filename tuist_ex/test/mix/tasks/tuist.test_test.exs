@@ -282,6 +282,107 @@ defmodule Mix.Tasks.Tuist.TestTest do
     assert output =~ "timed out retry skip verified"
   end
 
+  test "passes a run whose only failures are muted tests, and leaves skipped tests out" do
+    script = ~S"""
+    Mix.start()
+    Mix.env(:test)
+
+    Mix.Project.in_project(:tuist_ex, File.cwd!(), [test_coverage: [tool: :custom]], fn _ ->
+      {:ok, _} = Application.ensure_all_started(:mimic)
+      Code.require_file("test/test_helper.exs")
+      Mimic.copy(TuistEx.Analytics.Subprocess)
+      ExUnit.configure(autorun: false)
+
+      defmodule QuarantineRegression do
+        use ExUnit.Case, async: false
+
+        test "the task applies the project's quarantine" do
+          Mimic.set_mimic_global()
+          owner = self()
+
+          Mimic.stub(TuistEx.Auth, :network_publishing?, fn _ -> false end)
+          Mimic.stub(TuistEx.Analytics.GitHistory, :enabled?, fn _ -> false end)
+
+          Mimic.stub(TuistEx.Analytics.Quarantine, :fetch, fn _ ->
+            {:ok,
+             %TuistEx.Analytics.Quarantine{
+               muted: MapSet.new([{"CartTest", "", "flakes"}]),
+               skipped: MapSet.new([{"CartTest", "add/2", "hangs"}])
+             }}
+          end)
+
+          Mimic.stub(TuistEx.Analytics.HTTP, :submit_test_run, fn payload, _opts ->
+            send(owner, {:submitted, payload})
+            :ok
+          end)
+
+          Mimic.stub(TuistEx.Analytics.Subprocess, :run, fn _mix, args, _env ->
+            send(owner, {:retried, args})
+            1
+          end)
+
+          for {failed, passes?} <- [{["flakes"], true}, {["flakes", "breaks"], false}] do
+            Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
+              send(owner, {:args, args})
+              cases = Enum.map(failed, &%{name: &1, status: "failure", duration: 1})
+              module = %{name: "CartTest", status: "failure", duration: 2, test_suites: [], test_cases: cases}
+              run = %{test_modules: [module], status: "failure"}
+              send(self(), {:deferred_test_run, {run, [], false}})
+              Mix.raise(~s("mix test" failed))
+            end)
+
+            output =
+              ExUnit.CaptureIO.capture_io(fn ->
+                if passes? do
+                  assert :ok = Mix.Tasks.Tuist.Test.run(["--raise"])
+                else
+                  assert_raise Mix.Error, fn ->
+                    Mix.Tasks.Tuist.Test.run(["--raise", "--retries", "1"])
+                  end
+                end
+              end)
+
+            assert output =~ "CartTest: add/2 hangs"
+            assert output =~ "only muted tests failed" == passes?
+            assert_received {:args, args}
+            assert ["--exclude", "test:test add/2 hangs"] -- args == []
+            assert_received {:submitted, payload}
+            assert payload.status == if(passes?, do: "success", else: "failure")
+          end
+
+          # ExUnit keeps a failure on record until the test passes, so
+          # `--failed` would rerun a test that failed before it was skipped.
+          assert_received {:retried, ["tuist.test", "--failed" | retry_args]}
+          assert ["--exclude", "test:test add/2 hangs"] -- retry_args == []
+
+          Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
+            send(owner, {:args, args})
+            :ok
+          end)
+
+          ExUnit.CaptureIO.capture_io(fn -> Mix.Tasks.Tuist.Test.run(["--no-quarantine"]) end)
+          assert_received {:args, []}
+
+          IO.puts("quarantine verified")
+        end
+      end
+
+      if ExUnit.run().failures != 0, do: System.halt(1)
+    end)
+    """
+
+    paths = Enum.flat_map(:code.get_path(), &["-pa", List.to_string(&1)])
+
+    {output, status} =
+      System.cmd(System.find_executable("elixir"), paths ++ ["-e", script],
+        stderr_to_stdout: true,
+        env: [{"TUIST_SHARD_INDEX", ""}, {"TUIST_EX_RETRY_RESULTS", ""}]
+      )
+
+    assert status == 0, output
+    assert output =~ "quarantine verified"
+  end
+
   test "declares :test as the preferred CLI env" do
     # The attribute prevents `mix tuist.test` from picking up whatever env
     # the invoker happened to be in (usually :dev), which otherwise breaks
