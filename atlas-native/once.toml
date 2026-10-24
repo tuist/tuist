@@ -345,7 +345,7 @@ info_plist = "previews/ios/Info.plist"
 [[target]]
 name = "AtlasSettingsUITests"
 kind = "apple_test_bundle"
-srcs = ["previews/validation/AtlasRenderValidation.swift", "previews/tests/AtlasUITestSupport.swift"]
+srcs = ["previews/tests/**/*.swift"]
 deps = ["./AtlasSettingsIOSPreview"]
 
 [target.attrs]
