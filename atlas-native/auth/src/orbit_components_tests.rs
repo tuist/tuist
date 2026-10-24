@@ -17,6 +17,18 @@ fn forwards_only_the_supported_server_card_without_inventing_data() {
 }
 
 #[test]
+fn account_cards_require_the_fixed_field_value_shape() {
+    let mut value = card();
+    value["type"] = json!("account_card");
+    assert!(message(value.clone()).component.is_none());
+    value["data"]["columns"] = json!(["Field", "Value"]);
+    value["data"]["rows"] = json!([["Domain", "northstar.example"], ["Status", "active"]]);
+    assert!(message(value.clone()).component.is_some());
+    value["data"]["url"] = json!("https://example.org");
+    assert!(message(value).component.is_none());
+}
+
+#[test]
 fn malformed_or_newer_cards_preserve_the_original_transcript() {
     let mut bad = vec![Value::Null, json!("not a card"), json!({})];
     let mut value = card();

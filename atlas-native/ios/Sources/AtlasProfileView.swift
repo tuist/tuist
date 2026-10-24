@@ -81,7 +81,9 @@ struct AtlasSettingsView: View {
                 .tint(.red)
             }
         }
+        .defaultScrollAnchor(.top)
         .navigationTitle(profileRequest == nil ? "Settings" : "Profile")
+        .navigationBarTitleDisplayMode(.large)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "profile") } }
         .modifier(AtlasThemedContent())
         .onAppear { presence?.show(resource: "profile") }

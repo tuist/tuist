@@ -29,6 +29,29 @@ fn opened() -> (String, Arc<Model>) {
 }
 
 #[test]
+fn agent_activity_is_updated_even_when_history_revision_is_unchanged() {
+    let mut snapshot = Snapshot {
+        selected: Some(thread(FIRST, "private")),
+        ..Default::default()
+    };
+    for status in ["queued", "running", "compacting", "idle"] {
+        apply_agent_status(
+            &mut snapshot,
+            &json!({"revision": 42, "agent_status": status}),
+        );
+        assert_eq!(
+            serde_json::to_value(&snapshot.selected).unwrap()["agent_status"],
+            status
+        );
+    }
+    apply_agent_status(&mut snapshot, &json!({"revision": 42}));
+    assert!(snapshot.selected.as_ref().unwrap().agent_status.is_none());
+    snapshot.selected = None;
+    apply_agent_status(&mut snapshot, &json!({"agent_status": "running"}));
+    assert!(snapshot.selected.is_none());
+}
+
+#[test]
 fn card_events_require_a_current_server_supplied_action_and_live_selection() {
     let (connection, model) = opened();
     let message: Message = serde_json::from_value(json!({

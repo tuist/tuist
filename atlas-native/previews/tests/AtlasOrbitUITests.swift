@@ -98,6 +98,86 @@ final class AtlasOrbitUITests: XCTestCase {
         capture(app, "ios-orbit-large-dark-keyboard-preview")
     }
 
+    @MainActor func testAgentActivityChangesWithoutReloadingHistory() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--orbit-activity"]
+        app.launch()
+        defer { app.terminate() }
+        let privateThread = app.buttons["orbit-private"]
+        XCTAssertTrue(privateThread.waitForExistence(timeout: 10))
+        privateThread.tap()
+        XCTAssertTrue(app.staticTexts["Pip is getting ready…"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Pip is responding…"].waitForExistence(timeout: 8))
+        capture(app, "ios-orbit-working-preview")
+        XCTAssertTrue(app.staticTexts["Compacting context…"].waitForExistence(timeout: 8))
+        capture(app, "ios-orbit-compacting-preview")
+        XCTAssertTrue(app.staticTexts["Compacting context…"].waitForNonExistence(timeout: 8))
+        XCTAssertTrue(app.textFields["thread-composer"].isHittable)
+    }
+
+    @MainActor func testAccountCardAndNativeMarkdown() throws {
+        try checkRichThread(largeDark: false)
+    }
+
+    @MainActor func testAccountCardAndNativeMarkdownWithLargeDarkText() throws {
+        try checkRichThread(largeDark: true)
+    }
+
+    @MainActor private func checkRichThread(largeDark: Bool) throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--orbit-rich"] + (largeDark ? ["--dark", "--large-text"] : [])
+        app.launch()
+        defer { app.terminate() }
+        XCUIDevice.shared.orientation = .portrait
+        app.tabBars.buttons["Profile"].tap()
+        try app.visibleElement("profile-appearance").tap()
+        try app.visibleElement("theme-habibi").tap()
+        app.tabBars.buttons["Orbit"].tap()
+        let privateThread = app.buttons["orbit-private"]
+        XCTAssertTrue(privateThread.waitForExistence(timeout: 10))
+        privateThread.tap()
+        let microphone = app.buttons["thread-microphone"]
+        XCTAssertTrue(microphone.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(microphone.frame.height, 44)
+        try app.visibleElement("Account lookup · succeeded").tap()
+        let accountCard = app.descendants(matching: .any)["thread-account-card"].firstMatch
+        XCTAssertTrue(accountCard.waitForExistence(timeout: 5))
+        let source = try app.visibleElement("thread-card-source")
+        XCTAssertGreaterThanOrEqual(source.frame.height, 44)
+        XCTAssertFalse(app.staticTexts["Result"].exists)
+        capture(app, "ios-orbit-account-card-habibi-\(largeDark ? "large-dark" : "light")-preview")
+        source.tap()
+        XCTAssertTrue(app.staticTexts["Result"].waitForExistence(timeout: 5))
+        for _ in 0..<8 where !app.staticTexts["Account overview"].isHittable { app.scrollContent(up: false) }
+        XCTAssertTrue(app.staticTexts["Account overview"].isHittable)
+        capture(app, "ios-orbit-markdown-\(largeDark ? "large-dark" : "light")-preview")
+    }
+
+    @MainActor func testVoicePresentationPreservesDraftOnCancelAndAppendsOnlyOnDone() throws {
+        for dark in [false, true] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--voice-input"] + (dark ? ["--dark", "--large-text"] : [])
+            app.launch()
+            defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
+            let cancel = app.buttons["thread-voice-cancel"]
+            let done = app.buttons["thread-voice-done"]
+            XCTAssertTrue(cancel.waitForExistence(timeout: 10))
+            XCTAssertGreaterThanOrEqual(cancel.frame.height, 44)
+            XCTAssertGreaterThanOrEqual(done.frame.height, 44)
+            XCTAssertTrue(done.isHittable)
+            capture(app, "ios-orbit-voice-\(dark ? "large-dark" : "light")-fixture")
+            cancel.tap()
+            let draft = app.textFields["voice-preview-draft"]
+            XCTAssertTrue(draft.waitForExistence(timeout: 5))
+            XCTAssertEqual(draft.value as? String, "Existing draft.")
+            app.buttons["Transcribe fixture"].tap()
+            done.tap()
+            XCTAssertTrue(draft.waitForExistence(timeout: 5))
+            XCTAssertEqual(draft.value as? String, "Existing draft. Compare the latest build timings.")
+        }
+    }
+
     @MainActor private func capture(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

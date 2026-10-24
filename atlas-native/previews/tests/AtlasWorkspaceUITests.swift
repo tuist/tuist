@@ -96,6 +96,23 @@ final class AtlasWorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Sign in with ChatGPT"].waitForExistence(timeout: 5))
     }
 
+    @MainActor func testTabsStartAtTopAfterDelayedDataArrives() throws {
+        let app = launch(arguments: ["--delayed-business"])
+        defer { app.terminate() }
+        for title in ["Orbit", "Accounts", "Browse", "Profile"] {
+            app.tabBars.buttons[title].tap()
+            switch title {
+            case "Orbit": XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 5))
+            case "Accounts": XCTAssertTrue(app.staticTexts["Northstar"].waitForExistence(timeout: 5))
+            case "Profile": XCTAssertTrue(app.staticTexts["Taylor Morgan"].waitForExistence(timeout: 5))
+            default: XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
+            }
+            let heading = app.navigationBars[title].staticTexts[title]
+            XCTAssertGreaterThan(heading.frame.height, 30, "\(title) should initially have its expanded title")
+            attach(app, "ios-workspace-\(title.lowercased())-initial-top-preview")
+        }
+    }
+
     @MainActor func testNativeSearchInDarkAccessibilityText() throws {
         let app = launch(arguments: ["--dark", "--large-text"])
         defer { app.terminate() }

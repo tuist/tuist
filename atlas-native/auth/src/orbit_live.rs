@@ -33,6 +33,8 @@ struct Person {
 struct Snapshot {
     revision: u64,
     people: Vec<Person>,
+    #[serde(default)]
+    agent_status: Option<crate::orbit::AgentStatus>,
 }
 
 #[derive(Clone, Default)]

@@ -135,7 +135,9 @@ private struct AtlasBrowsePage: View {
             }
         }
         .modifier(AtlasThemedContent())
+        .defaultScrollAnchor(.top)
         .navigationTitle(group?.title ?? "Browse")
+        .navigationBarTitleDisplayMode(.large)
         .searchable(text: $query, prompt: "Find a feature")
         .autocorrectionDisabled().textInputAutocapitalization(.never)
         .onAppear { presence?.show() }

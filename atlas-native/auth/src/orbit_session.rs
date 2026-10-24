@@ -875,6 +875,7 @@ fn live_loop(model: Arc<Model>, connection: String, generation: u64, is_list: bo
                 state.snapshot.people =
                     serde_json::from_value(value["people"].clone()).unwrap_or_default();
                 state.snapshot.live_message = None;
+                apply_agent_status(&mut state.snapshot, &value);
                 let next = value["revision"].as_u64();
                 let changed = next != revision;
                 revision = next;
@@ -900,6 +901,14 @@ fn live_loop(model: Arc<Model>, connection: String, generation: u64, is_list: bo
         && state.live.as_deref() == Some(&connection)
     {
         state.live = None;
+    }
+}
+
+// Activity changes do not increment the message revision. Apply every authorized
+// snapshot, including idle, without waiting for an HTTP history invalidation.
+fn apply_agent_status(snapshot: &mut Snapshot, value: &Value) {
+    if let Some(thread) = snapshot.selected.as_mut() {
+        thread.agent_status = serde_json::from_value(value["agent_status"].clone()).ok();
     }
 }
 

@@ -30,7 +30,8 @@ struct Action {
 
 impl Component {
     fn valid(&self) -> bool {
-        self.kind == "result_table"
+        (self.kind == "result_table"
+            || (self.kind == "account_card" && self.data.columns == ["Field", "Value"]))
             && self.version == 1
             && text(&self.data.title, 120)
             && (1..=3).contains(&self.data.columns.len())

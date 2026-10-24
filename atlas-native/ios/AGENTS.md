@@ -22,6 +22,18 @@ inaccessible data after revocation. Backgrounding must not cancel the durable ru
 Automation has no Live Activity or background execution/approval notification integration;
 the separate native push coordinator supports APNs for other fixed notification kinds.
 
+`AtlasVoiceInput` owns local microphone/Apple Speech lifecycle, required on-device
+recognition, permission errors and generation-fenced callbacks. Never fall back to
+remote transcription, upload audio or auto-send the accepted text. Cancel on scene
+inactivity and thread departure; an unfinished transcript must not replace the
+existing draft. `AtlasVoiceInputView` keeps waveform, Cancel and Done accessible.
+`AtlasMarkdown` renders bounded agent Markdown with native selectable text; no HTML,
+WebView, remote images, custom-scheme links or executable fenced content.
+
+Initial list roots explicitly anchor at the top and use large navigation titles;
+do not insert zero-height readiness rows that become the List's first scroll item.
+Preserve user scroll positions after navigation and when appending existing lists.
+
 Add new Swift sources to explicit Once source lists where needed, particularly the
 unhosted test bundle. Run `once build AtlasIOS`, `once test AtlasIOSTests` and
 `once lint AtlasSwiftLint` through Mise with local caching. Tests use Swift Testing

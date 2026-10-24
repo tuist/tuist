@@ -42,7 +42,8 @@ struct AtlasThreadCardView: View {
             "text": palette?.text ?? hex(.label),
             "secondary": palette?.secondaryText ?? hex(.secondaryLabel),
             "surface": palette?.surface ?? hex(.secondarySystemGroupedBackground),
-            "accent": palette?.accent ?? hex(.systemBlue)
+            "accent": palette?.tint ?? hex(.systemBlue),
+            "border": palette?.border ?? hex(.separator)
         ]
     }
 

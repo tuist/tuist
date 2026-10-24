@@ -6,8 +6,11 @@ durable tool message. The client never interprets tool output to invent cards,
 advance a run, or persist its own thread state.
 
 `App.tsx` is a bundled, reviewed NSH 0.2.0 rendering implementation, not server
-code. It receives only the Rust-validated `result_table` v1 payload and local
-appearance colors through `atlas.thread-card`. The bridge's only commands
+code. It receives only Rust-validated `result_table` and `account_card` v1 payloads
+and local appearance colors through `atlas.thread-card`. Account cards require the
+exact Field/Value shape; only the server projects allowlisted fields from an
+existing redacted `get_account` result. Both hosts pass selected-theme text,
+secondary text, surface, border and tint tokens, with native high-contrast fallback. The bridge's only commands
 are measured height and an action ID. Rust checks action IDs against the current
 message and selected thread before a native view reveals existing source
 evidence. Future mutations require a server-authorized, persisted action endpoint;

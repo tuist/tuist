@@ -25,6 +25,31 @@ struct AtlasOrbitTests {
         #expect(model.selected?.id == id)
     }
 
+    @Test func activityUsesAuthoritativeStatusAndKeepsReconnectSeparate() async throws {
+        var sequence = 0
+        var status: String?
+        var liveMessage: String?
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
+            sequence += 1
+            return try snapshot(sequence: sequence, selected: true, agentStatus: status, liveMessage: liveMessage)
+        }, localRequest: { _ in throw CancellationError() })
+        let cases: [(String?, String?)] = [
+            ("queued", "Pip is getting ready…"), ("running", "Pip is responding…"), ("compacting", "Compacting context…"),
+            ("idle", nil), ("unknown", nil), (nil, nil)
+        ]
+        for (value, expected) in cases {
+            status = value
+            await model.load()
+            #expect(model.activityMessage == expected)
+        }
+        status = "running"
+        liveMessage = "Reconnecting…"
+        await model.load()
+        #expect(model.liveMessage == "Reconnecting…")
+        #expect(model.activityMessage == nil)
+    }
+
     @Test func sendWaitsForDraftBridgeAndDoesNotReimplementIdempotency() async throws {
         var commands: [String] = []
         var draftSaved = false
@@ -110,16 +135,20 @@ struct AtlasOrbitTests {
         #expect(model.messages.isEmpty)
     }
 
-    private func snapshot(sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = []) throws -> Data {
+    private func snapshot(
+        sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = [],
+        agentStatus: String? = nil, liveMessage: String? = nil
+    ) throws -> Data {
         let thread: [String: Any] = [
             "id": id, "title": "Private thread", "kind": "private", "status": "idle",
-            "summary": "", "origin": "manual", "participants": [], "updated_at": "2027-06-07T10:00:00Z"
+            "summary": "", "origin": "manual", "participants": [], "updated_at": "2027-06-07T10:00:00Z",
+            "agent_status": agentStatus as Any? ?? NSNull()
         ]
         return try JSONSerialization.data(withJSONObject: [
             "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
             "threads": [thread], "selected": selected ? thread as Any : NSNull(),
             "messages": messages, "people": [], "draft": draft, "loading": false, "history_loading": false, "saving": false,
-            "has_more": true, "has_older": false, "needs_session": false
+            "has_more": true, "has_older": false, "needs_session": false, "live_message": liveMessage as Any? ?? NSNull()
         ])
     }
 }

@@ -52,7 +52,9 @@ struct AtlasSettingsPreview: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if ProcessInfo.processInfo.arguments.contains("--workspace") {
+                if ProcessInfo.processInfo.arguments.contains("--voice-input") {
+                    AtlasVoiceInputPreview()
+                } else if ProcessInfo.processInfo.arguments.contains("--workspace") {
                     AtlasWorkspaceView(holidayRequest: holidays.request, businessRequest: business.request,
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local, presence: presence.model,
                                        navigation: navigation) {

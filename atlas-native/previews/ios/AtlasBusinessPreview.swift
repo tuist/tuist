@@ -119,6 +119,9 @@ final class AtlasBusinessPreviewData: ObservableObject {
 
     func request(_ action: [String: Any]) async throws -> Data {
         let resource = action["resource"] as? String ?? "tasks"
+        if ProcessInfo.processInfo.arguments.contains("--delayed-business") {
+            try await Task.sleep(for: .milliseconds(700))
+        }
         if resource == "profile" {
             return try JSONSerialization.data(withJSONObject: [
                 "server_version": "0.7.2",
