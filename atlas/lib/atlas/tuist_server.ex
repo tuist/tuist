@@ -107,6 +107,11 @@ defmodule Atlas.TuistServer do
     request(:get, "/api/internal/atlas/flags/#{encode_segment(name)}", [], opts)
   end
 
+  @doc "Evaluate applicable flags for exactly one Tuist account or project using persisted rules and server defaults."
+  def evaluate_feature_flags(params, opts \\ []) when is_map(params) do
+    request(:get, "/api/internal/atlas/flags/evaluate", [params: params], opts)
+  end
+
   @doc "Update a flag with an expected revision, idempotent change ID and trusted actor metadata."
   def update_feature_flag(name, attrs, opts \\ []) when is_binary(name) and is_map(attrs) do
     request(:put, "/api/internal/atlas/flags/#{encode_segment(name)}", [json: attrs, retry: false], opts)

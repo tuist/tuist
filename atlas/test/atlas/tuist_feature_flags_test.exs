@@ -5,6 +5,7 @@ defmodule Atlas.TuistFeatureFlagsTest do
   alias Atlas.Audit
   alias Atlas.Authorization
   alias Atlas.Authorization.Roles
+  alias Atlas.MCP.Tools.EvaluateTuistFeatureFlags
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
   alias Atlas.MCP.Tools.ListTuistFeatureFlags
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
@@ -66,17 +67,92 @@ defmodule Atlas.TuistFeatureFlagsTest do
     assert Enum.any?(activities, &(&1.action == "tuist_feature_flag.inspected" and &1.target_id == "rollout"))
   end
 
+  test "resource evaluation validates structured content and audits the requested Tuist target" do
+    user = insert_user!(%{scopes: ["feature_flags:read"]})
+    conn = mcp_conn(user)
+
+    for target <- [%{"account_id" => 42}, %{"project_id" => 123}] do
+      result = %{
+        "environment" => "prod",
+        "resource" => %{"account_id" => 42, "project_id" => target["project_id"]},
+        "evaluations" => [
+          %{
+            "name" => "runners",
+            "feature" => "runners",
+            "description" => "Account enrollment with server environment defaults.",
+            "actor_type" => "account",
+            "actor_id" => 42,
+            "enabled" => true
+          }
+        ]
+      }
+
+      expect(TuistServer, :evaluate_feature_flags, fn ^target -> {:ok, result} end)
+      assert {:ok, ^result} = execute_tool(EvaluateTuistFeatureFlags, conn, target)
+    end
+
+    {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_feature_flag.evaluated")
+    assert length(activities) == 2
+    assert Enum.all?(activities, &(&1.metadata["status"] == "ok"))
+    assert Enum.any?(activities, &(&1.metadata["account_id"] == 42))
+    assert Enum.any?(activities, &(&1.metadata["project_id"] == 123))
+    refute Enum.any?(activities, &Map.has_key?(&1.metadata, "evaluations"))
+  end
+
+  test "resource evaluation requires exactly one bounded positive Tuist resource ID" do
+    conn = %{scopes: ["feature_flags:read"]} |> insert_user!() |> mcp_conn()
+    reject(TuistServer, :evaluate_feature_flags, 1)
+
+    for args <- [
+          %{},
+          %{"account_id" => 1, "project_id" => 2},
+          %{"account_id" => 0},
+          %{"project_id" => -1},
+          %{"account_id" => "42"},
+          %{"account_id" => %{"private" => "untrusted payload"}},
+          %{"project_id" => Ecto.UUID.generate()},
+          %{"account_id" => 1.5},
+          %{"project_id" => 9_223_372_036_854_775_808},
+          %{"account_id" => 1, "actor" => %{}},
+          %{"account_id" => 1, "environment" => "prod"}
+        ] do
+      assert {:error, _} = execute_tool(EvaluateTuistFeatureFlags, conn, args)
+    end
+
+    {activities, _} =
+      Audit.list_activities(actor_id: conn.assigns.current_user.id, action: "tuist_feature_flag.evaluated")
+
+    for activity <- activities, key <- ~w(account_id project_id), Map.has_key?(activity.metadata, key) do
+      assert is_integer(activity.metadata[key])
+      assert activity.metadata[key] > 0 and activity.metadata[key] <= 9_223_372_036_854_775_807
+    end
+  end
+
+  test "evaluation transport errors are bounded and audited without remote response bodies" do
+    user = insert_user!(%{scopes: ["feature_flags:read"]})
+    expect(TuistServer, :evaluate_feature_flags, fn %{"account_id" => 42} -> {:error, "resource_not_found"} end)
+
+    assert {:error, "resource_not_found"} =
+             execute_tool(EvaluateTuistFeatureFlags, mcp_conn(user), %{"account_id" => 42})
+
+    {[activity], _} = Audit.list_activities(actor_id: user.id, action: "tuist_feature_flag.evaluated")
+    assert activity.metadata == %{"account_id" => 42, "status" => "error"}
+  end
+
   test "direct execution rejects unauthenticated callers and users without dedicated scopes before remote calls" do
     conn = %{scopes: ["admin:write"]} |> insert_user!() |> mcp_conn()
     reader = %{scopes: ["feature_flags:read"]} |> insert_user!() |> mcp_conn()
 
     reject(TuistServer, :list_feature_flags, 0)
     reject(TuistServer, :get_feature_flag, 1)
+    reject(TuistServer, :evaluate_feature_flags, 1)
     reject(TuistServer, :update_feature_flag, 2)
 
     assert {:error, _} = execute_tool(ListTuistFeatureFlags, %{}, %{})
     assert {:error, _} = execute_tool(ListTuistFeatureFlags, conn, %{})
     assert {:error, _} = execute_tool(GetTuistFeatureFlag, conn, %{"name" => "rollout"})
+    assert {:error, _} = execute_tool(EvaluateTuistFeatureFlags, %{}, %{"account_id" => 42})
+    assert {:error, _} = execute_tool(EvaluateTuistFeatureFlags, conn, %{"project_id" => 123})
     assert {:error, _} = execute_tool(UpdateTuistFeatureFlag, reader, mutation())
     assert {:error, _} = execute_tool(UpdateTuistFeatureFlag, conn, mutation())
   end

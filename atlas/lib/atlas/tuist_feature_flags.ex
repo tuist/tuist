@@ -39,6 +39,17 @@ defmodule Atlas.TuistFeatureFlags do
     "additionalProperties" => false
   }
 
+  @evaluation_schema %{
+    "type" => "object",
+    "properties" => %{
+      "account_id" => %{"type" => "integer", "minimum" => 1, "maximum" => 9_223_372_036_854_775_807},
+      "project_id" => %{"type" => "integer", "minimum" => 1, "maximum" => 9_223_372_036_854_775_807}
+    },
+    "oneOf" => [%{"required" => ["account_id"]}, %{"required" => ["project_id"]}],
+    "additionalProperties" => false
+  }
+
+  def evaluation_schema, do: @evaluation_schema
   def name_schema, do: @name_schema
   def update_schema, do: @update_schema
 
@@ -91,6 +102,25 @@ defmodule Atlas.TuistFeatureFlags do
       end
 
     record("inspected", user, target_name(args), %{}, result, opts)
+  end
+
+  def evaluate(user, args, opts \\ []) do
+    result =
+      with :ok <- authorize(user, "feature_flags:read"),
+           :ok <- validate(@evaluation_schema, args) do
+        TuistServer.evaluate_feature_flags(args)
+      end
+
+    metadata =
+      if is_map(args) do
+        args
+        |> Map.take(~w(account_id project_id))
+        |> Map.filter(fn {_, id} -> is_integer(id) and id > 0 and id <= 9_223_372_036_854_775_807 end)
+      else
+        %{}
+      end
+
+    record("evaluated", user, nil, metadata, result, opts)
   end
 
   def update(user, args, opts \\ []) do

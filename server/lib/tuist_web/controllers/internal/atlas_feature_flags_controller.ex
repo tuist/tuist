@@ -5,6 +5,7 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsController do
   alias Tuist.Ops.FeatureFlags
 
   def index(conn, _params), do: respond(conn, FeatureFlags.list())
+  def evaluate(conn, _params), do: respond(conn, FeatureFlags.evaluate(conn.query_params))
   def show(conn, %{"name" => name}), do: respond(conn, FeatureFlags.get(name))
 
   def update(conn, %{"name" => name}) do
@@ -16,7 +17,7 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsController do
   defp respond(conn, {:error, reason}) do
     status =
       case reason do
-        :unknown_flag -> :not_found
+        reason when reason in [:unknown_flag, :resource_not_found] -> :not_found
         reason when reason in [:stale_revision, :change_id_conflict] -> :conflict
         :persistence_failed -> :service_unavailable
         _ -> :unprocessable_entity

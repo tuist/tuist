@@ -22,6 +22,7 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
   test "internal routes reject unauthenticated callers, including writes", %{conn: conn} do
     assert conn |> get("/api/internal/atlas/flags") |> json_response(401)
     assert conn |> put("/api/internal/atlas/flags/runners", %{}) |> json_response(401)
+    assert conn |> get("/api/internal/atlas/flags/evaluate", %{"account_id" => 1}) |> json_response(401)
   end
 
   test "catalog includes inactive flags and rejects unknown names", %{conn: conn} do
@@ -29,6 +30,42 @@ defmodule TuistWeb.Internal.AtlasFeatureFlagsControllerTest do
     assert Enum.any?(flags, &(&1["name"] == "runners" and &1["actor_type"] == "account"))
     assert Enum.any?(flags, &(&1["name"] == "build_entities_kill_switch" and &1["actor_type"] == "global"))
     assert conn |> authed() |> get("/api/internal/atlas/flags/not-a-flag") |> json_response(404)
+  end
+
+  test "resource evaluation accepts one positive target, resolves project ownership and rejects missing resources", %{
+    conn: conn
+  } do
+    project = ProjectsFixtures.project_fixture()
+
+    assert %{"resource" => %{"account_id" => account_id, "project_id" => project_id}, "evaluations" => evaluations} =
+             conn
+             |> authed()
+             |> get("/api/internal/atlas/flags/evaluate", %{"project_id" => project.id})
+             |> json_response(200)
+
+    assert account_id == project.account_id
+    assert project_id == project.id
+    assert Enum.any?(evaluations, &(&1["name"] == "build_entities"))
+
+    assert %{"error" => "resource_not_found"} =
+             conn
+             |> authed()
+             |> get("/api/internal/atlas/flags/evaluate", %{"account_id" => 9_223_372_036_854_775_807})
+             |> json_response(404)
+
+    for params <- [
+          %{},
+          %{"account_id" => project.account_id, "project_id" => project.id},
+          %{"account_id" => "0"},
+          %{"project_id" => "-1"},
+          %{"account_id" => "1.5"},
+          %{"account_id" => Ecto.UUID.generate()},
+          %{"project_id" => "9223372036854775808"},
+          %{"account_id" => project.account_id, "environment" => "prod"}
+        ] do
+      assert %{"error" => "invalid_target"} =
+               conn |> authed() |> get("/api/internal/atlas/flags/evaluate", params) |> json_response(422)
+    end
   end
 
   test "global changes preserve explicit account exclusions and clear restores inheritance", %{conn: conn} do

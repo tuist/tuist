@@ -1125,6 +1125,7 @@ defmodule TuistWeb.Router do
     pipe_through [:atlas_internal_api]
 
     get "/atlas/flags", AtlasFeatureFlagsController, :index
+    get "/atlas/flags/evaluate", AtlasFeatureFlagsController, :evaluate
     get "/atlas/flags/:name", AtlasFeatureFlagsController, :show
     put "/atlas/flags/:name", AtlasFeatureFlagsController, :update
 

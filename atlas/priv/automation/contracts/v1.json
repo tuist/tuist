@@ -86,6 +86,7 @@
   "excluded_tools": {
     "list_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "get_tuist_feature_flag": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "evaluate_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "update_tuist_feature_flag": "Production mutations need an external-effect workflow adapter with durable idempotency and ambiguous-outcome reconciliation before workflow enrollment.",
     "get_error_event_contexts": "Sensitive event context requires engineering read and production-systems access; keep published error workflow contracts unchanged until an explicit adapter is versioned.",
     "save_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",

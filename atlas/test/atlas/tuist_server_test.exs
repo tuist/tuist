@@ -70,6 +70,37 @@ defmodule Atlas.TuistServerTest do
     end
   end
 
+  describe "evaluate_feature_flags/2" do
+    test "GETs resource evaluation with workload identity and query parameters, without a JSON body" do
+      request = fn req ->
+        assert req.method == :get
+        assert to_string(req.url) == "https://tuist.test/api/internal/atlas/flags/evaluate"
+        assert req.options[:params] == %{"project_id" => 123}
+        assert req.options[:auth] == {:bearer, "tok"}
+        refute Map.has_key?(req.options, :json)
+        {:ok, %Req.Response{status: 200, body: %{"evaluations" => []}}}
+      end
+
+      assert {:ok, %{"evaluations" => []}} =
+               TuistServer.evaluate_feature_flags(%{"project_id" => 123},
+                 token: "tok",
+                 base_url: "https://tuist.test/",
+                 request: request
+               )
+    end
+
+    test "preserves missing resource and invalid target errors" do
+      for {status, reason} <- [{404, "resource_not_found"}, {422, "invalid_target"}] do
+        assert {:error, ^reason} =
+                 TuistServer.evaluate_feature_flags(%{"account_id" => 42},
+                   token: "tok",
+                   base_url: "https://tuist.test",
+                   request: respond(status, %{"error" => reason})
+                 )
+      end
+    end
+  end
+
   describe "describe_table/3" do
     test "GETs the table path, defaulting the schema to public" do
       parent = self()

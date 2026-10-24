@@ -6,20 +6,20 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Projects.Project
 
   @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
-  def immutable_shard_reports_enabled?(account) do
+  def immutable_shard_reports_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
       :immutable_shard_reports,
       account,
-      FunWithFlags.enabled?(:immutable_shard_reports, for: account) and not xcode_coverage_enabled?(account)
+      flag_enabled?(:immutable_shard_reports, account, flags) and not xcode_coverage_enabled?(account, flags)
     )
   end
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."
-  def kura_positive_fence_enabled?(account) do
+  def kura_positive_fence_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
       :kura_positive_fence,
       account,
-      FunWithFlags.enabled?(:kura_positive_fence, for: account)
+      flag_enabled?(:kura_positive_fence, account, flags)
     )
   end
 
@@ -27,11 +27,11 @@ defmodule Tuist.FeatureFlags do
   Default-off account opt-in to placement reading what each region served, not
   only where runs report from. Off, placement decides exactly as it did before.
   """
-  def kura_placement_served_signal_enabled?(account) do
+  def kura_placement_served_signal_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
       :kura_placement_served_signal,
       account,
-      FunWithFlags.enabled?(:kura_placement_served_signal, for: account)
+      flag_enabled?(:kura_placement_served_signal, account, flags)
     )
   end
 
@@ -40,11 +40,11 @@ defmodule Tuist.FeatureFlags do
   enables this automatically; other environments use the account/global flag.
   DNS publication is independent because new CLIs derive that hostname locally.
   """
-  def kura_stable_hostname_enabled?(account) do
+  def kura_stable_hostname_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
       :kura_stable_hostname,
       account,
-      Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
+      Environment.env() == :can or flag_enabled?(:kura_stable_hostname, account, flags)
     )
   end
 
@@ -58,20 +58,11 @@ defmodule Tuist.FeatureFlags do
   infrastructure, so enabling runners provides the cache without a second
   operator-managed switch.
   """
-  def runners_enabled?(account) do
+  def runners_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
       :runners,
       account,
-      not runner_flag_required?() or FunWithFlags.enabled?(:runners, for: account)
-    )
-  end
-
-  @doc false
-  def runners_enabled?(account, %FunWithFlags.Flag{} = flag) do
-    Observability.feature_flag_evaluated(
-      :runners,
-      account,
-      not runner_flag_required?() or FunWithFlags.Flag.enabled?(flag, for: account)
+      not runner_flag_required?() or flag_enabled?(:runners, account, flags)
     )
   end
 
@@ -83,11 +74,11 @@ defmodule Tuist.FeatureFlags do
   only that site's pools, so it holds nodes for the accounts the
   `:runner_site_cache` flag enables, in every environment.
   """
-  def runner_site_cache_enabled?(account) do
+  def runner_site_cache_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
       :runner_site_cache,
       account,
-      FunWithFlags.enabled?(:runner_site_cache, for: account)
+      flag_enabled?(:runner_site_cache, account, flags)
     )
   end
 
@@ -102,11 +93,11 @@ defmodule Tuist.FeatureFlags do
   Staging and canary run their macOS jobs at a site, so it is on for every
   account there.
   """
-  def runner_site_enabled?(account) do
+  def runner_site_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
       :runner_site,
       account,
-      Environment.env() in [:stag, :can] or FunWithFlags.enabled?(:runner_site, for: account)
+      Environment.env() in [:stag, :can] or flag_enabled?(:runner_site, account, flags)
     )
   end
 
@@ -117,13 +108,15 @@ defmodule Tuist.FeatureFlags do
   its data model and API can still change. Development, test, and staging
   default to enabled.
   """
-  def xcode_coverage_enabled?(nil), do: Observability.feature_flag_evaluated(:xcode_coverage, :unknown, false)
+  def xcode_coverage_enabled?(account, flags \\ nil)
 
-  def xcode_coverage_enabled?(account) do
+  def xcode_coverage_enabled?(nil, _flags), do: Observability.feature_flag_evaluated(:xcode_coverage, :unknown, false)
+
+  def xcode_coverage_enabled?(account, flags) do
     Observability.feature_flag_evaluated(
       :xcode_coverage,
       account,
-      Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:xcode_coverage, for: account)
+      Environment.env() not in [:can, :prod] or flag_enabled?(:xcode_coverage, account, flags)
     )
   end
 
@@ -140,11 +133,11 @@ defmodule Tuist.FeatureFlags do
   (`Tuist.Kura.schedule_runtime_image_deployments/0`), which stays the
   no-deploy rollback path.
   """
-  def kura_rollout_orchestration_enabled? do
+  def kura_rollout_orchestration_enabled?(flags \\ nil) do
     Observability.feature_flag_evaluated(
       :kura_rollout_orchestration,
       nil,
-      not FunWithFlags.enabled?(:kura_rollout_orchestration_kill_switch)
+      not flag_enabled?(:kura_rollout_orchestration_kill_switch, nil, flags)
     )
   end
 
@@ -158,11 +151,11 @@ defmodule Tuist.FeatureFlags do
   disconnected replicas can retain cached decisions during storage failures.
   This is the ops surface the 2026-09-03 outage did not have.
   """
-  def turnstile_enabled? do
+  def turnstile_enabled?(flags \\ nil) do
     Observability.feature_flag_evaluated(
       :turnstile,
       nil,
-      Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
+      Environment.turnstile_required?() and not flag_enabled?(:turnstile_kill_switch, nil, flags)
     )
   end
 
@@ -175,12 +168,12 @@ defmodule Tuist.FeatureFlags do
   flag-flippable emergency off with no deploy required. Off by default
   everywhere so a rollout is one env-var change per environment.
   """
-  def public_page_challenge_enabled? do
+  def public_page_challenge_enabled?(flags \\ nil) do
     Observability.feature_flag_evaluated(
       :public_page_challenge,
       nil,
       Environment.public_page_challenge_required?() and
-        not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
+        not flag_enabled?(:public_page_challenge_kill_switch, nil, flags)
     )
   end
 
@@ -188,17 +181,32 @@ defmodule Tuist.FeatureFlags do
   Persistent build inventories are opt-in per project. The kill switch stops
   derivation and hides the new surfaces without changing native ingestion.
   """
-  def build_entities_enabled?(project_id) when is_integer(project_id),
-    do: build_entities_enabled?(%Project{id: project_id})
+  def build_entities_enabled?(project, flags \\ nil)
 
-  def build_entities_enabled?(%Project{} = project) do
+  def build_entities_enabled?(project_id, flags) when is_integer(project_id),
+    do: build_entities_enabled?(%Project{id: project_id}, flags)
+
+  def build_entities_enabled?(%Project{} = project, flags) do
     Observability.feature_flag_evaluated(
       :build_entities,
       project,
-      not FunWithFlags.enabled?(:build_entities_kill_switch) and
-        FunWithFlags.enabled?(:build_entities, for: project)
+      not flag_enabled?(:build_entities_kill_switch, nil, flags) and
+        flag_enabled?(:build_entities, project, flags)
     )
   end
+
+  # Inspection can supply a batch of persisted flags without populating or
+  # mutating the evaluation cache. Ordinary callers retain the cached path.
+  @doc false
+  def flag_enabled?(name, actor, flags)
+
+  def flag_enabled?(name, nil, nil), do: FunWithFlags.enabled?(name)
+  def flag_enabled?(name, actor, nil), do: FunWithFlags.enabled?(name, for: actor)
+
+  def flag_enabled?(name, actor, %FunWithFlags.Flag{name: name} = flag), do: flag_enabled?(name, actor, %{name => flag})
+
+  def flag_enabled?(name, nil, flags), do: FunWithFlags.Flag.enabled?(Map.fetch!(flags, name))
+  def flag_enabled?(name, actor, flags), do: FunWithFlags.Flag.enabled?(Map.fetch!(flags, name), for: actor)
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do

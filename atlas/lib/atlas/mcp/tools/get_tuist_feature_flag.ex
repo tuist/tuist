@@ -12,7 +12,8 @@ defmodule Atlas.MCP.Tools.GetTuistFeatureFlag do
   @impl EMCP.Tool
   def description do
     "Inspect one allowlisted Tuist feature flag's persisted rules and revision before changing it. Requires feature_flags:read. " <>
-      "Does not evaluate environment wrappers; the description explains kill-switch polarity and environment defaults."
+      "Does not evaluate environment wrappers; the description explains kill-switch polarity and environment defaults. " <>
+      "Use evaluate_tuist_feature_flags for effective decisions for one account or project."
   end
 
   def execute(conn, args) do

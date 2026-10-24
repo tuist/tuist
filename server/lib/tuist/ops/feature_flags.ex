@@ -12,6 +12,10 @@ defmodule Tuist.Ops.FeatureFlags do
   alias FunWithFlags.Store.Persistent.Ecto.Record
   alias FunWithFlags.Store.Serializer.Ecto, as: Serializer
   alias Tuist.Accounts.Account
+  alias Tuist.Environment
+  alias Tuist.FeatureFlags
+  alias Tuist.Kura.Identity
+  alias Tuist.Observability
   alias Tuist.Ops.FeatureFlagChange
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -42,12 +46,141 @@ defmodule Tuist.Ops.FeatureFlags do
 
   @fields ~w(operation scope account_id project_id percentage expected_revision reason change_id actor interface)
 
+  @evaluators %{
+    immutable_shard_reports: {FeatureFlags, :immutable_shard_reports_enabled?},
+    kura_positive_fence: {FeatureFlags, :kura_positive_fence_enabled?},
+    kura_placement_served_signal: {FeatureFlags, :kura_placement_served_signal_enabled?},
+    kura_stable_hostname: {FeatureFlags, :kura_stable_hostname_enabled?},
+    runners: {FeatureFlags, :runners_enabled?},
+    runner_site_cache: {FeatureFlags, :runner_site_cache_enabled?},
+    runner_site: {FeatureFlags, :runner_site_enabled?},
+    xcode_coverage: {FeatureFlags, :xcode_coverage_enabled?},
+    kura_account_endpoint_migration: {Identity, :endpoint_migration_enabled?},
+    kura_account_rename: {Identity, :rename_allowed?},
+    build_entities: {FeatureFlags, :build_entities_enabled?},
+    kura_rollout_orchestration_kill_switch: {FeatureFlags, :kura_rollout_orchestration_enabled?},
+    turnstile_kill_switch: {FeatureFlags, :turnstile_enabled?},
+    public_page_challenge_kill_switch: {FeatureFlags, :public_page_challenge_enabled?}
+  }
+  @effective_names %{
+    kura_rollout_orchestration_kill_switch: :kura_rollout_orchestration,
+    turnstile_kill_switch: :turnstile,
+    public_page_challenge_kill_switch: :public_page_challenge
+  }
+
   def list do
     {:ok, %{flags: snapshots(@catalog)}}
   end
 
   def get(name) do
     with {:ok, entry} <- entry(name), do: {:ok, snapshot(entry)}
+  end
+
+  def evaluate(params) do
+    with {:ok, {type, id}} <- evaluation_target(params),
+         {:ok, {account, project}} <- resource(type, id) do
+      selection = %{selected_account: account, selected_project: project}
+
+      Observability.with_context(selection, fn ->
+        entries = Enum.filter(@catalog, fn {_, actor_type, _} -> actor_type != "project" or not is_nil(project) end)
+        names = Enum.map(entries, fn {name, _, _} -> Atom.to_string(name) end)
+        actors = [account, project] |> Enum.reject(&is_nil/1) |> Enum.map(&FunWithFlags.Actor.id/1)
+
+        # Separate indexed branches keep other tenants' actor overrides out of
+        # the read, while one SQL statement gives every flag the same snapshot.
+        shared = from(r in Record, where: r.flag_name in ^names and r.gate_type in ~w(boolean group percentage))
+        scoped = from(r in Record, where: r.flag_name in ^names and r.gate_type == "actor" and r.target in ^actors)
+
+        records =
+          shared
+          |> union_all(^scoped)
+          |> Repo.all()
+          |> Enum.group_by(& &1.flag_name)
+
+        flags =
+          Map.new(entries, fn {name, _, _} ->
+            {name, Serializer.deserialize_flag(name, Map.get(records, Atom.to_string(name), []))}
+          end)
+
+        evaluations =
+          Enum.map(entries, fn {name, actor_type, description} ->
+            actor = evaluation_actor(actor_type, account, project)
+
+            %{
+              name: Atom.to_string(name),
+              feature: Atom.to_string(Map.get(@effective_names, name, name)),
+              description: description,
+              actor_type: actor_type,
+              actor_id: if(actor, do: actor.id),
+              enabled: evaluate_flag(name, actor, flags)
+            }
+          end)
+
+        {:ok,
+         %{
+           environment: Atom.to_string(Environment.env()),
+           resource: %{account_id: account.id, project_id: if(project, do: project.id)},
+           evaluations: evaluations
+         }}
+      end)
+    end
+  end
+
+  defp evaluation_actor("account", account, _project), do: account
+  defp evaluation_actor("project", _account, project), do: project
+  defp evaluation_actor("global", _account, _project), do: nil
+
+  defp evaluation_target(params) when is_map(params) and map_size(params) == 1 do
+    case Map.to_list(params) do
+      [{type, id}] when type in ~w(account_id project_id) ->
+        case resource_id(id) do
+          {:ok, id} -> {:ok, {type, id}}
+          :error -> {:error, :invalid_target}
+        end
+
+      _ ->
+        {:error, :invalid_target}
+    end
+  end
+
+  defp evaluation_target(_params), do: {:error, :invalid_target}
+
+  defp resource_id(id) when is_integer(id) and id > 0 and id <= 9_223_372_036_854_775_807, do: {:ok, id}
+
+  defp resource_id(id) when is_binary(id) and byte_size(id) in 1..19 do
+    case Integer.parse(id) do
+      {id, ""} -> resource_id(id)
+      _ -> :error
+    end
+  end
+
+  defp resource_id(_id), do: :error
+
+  # Workload-authenticated, cross-tenant operator inspection. A project lookup
+  # resolves its owning account in the same query, never from caller hints.
+  defp resource("account_id", id) do
+    case Repo.get(Account, id) do
+      nil -> {:error, :resource_not_found}
+      account -> {:ok, {account, nil}}
+    end
+  end
+
+  defp resource("project_id", id) do
+    query = from(p in Project, join: a in Account, on: a.id == p.account_id, where: p.id == ^id, select: {a, p})
+
+    case Repo.one(query) do
+      nil -> {:error, :resource_not_found}
+      resource -> {:ok, resource}
+    end
+  end
+
+  defp evaluate_flag(name, actor, flags)
+       when name in [:qa_billing_enabled, :build_entities_kill_switch, :runner_pod_reconciliation_paused],
+       do: FeatureFlags.flag_enabled?(name, actor, flags)
+
+  defp evaluate_flag(name, actor, flags) do
+    {module, function} = Map.fetch!(@evaluators, name)
+    apply(module, function, if(is_nil(actor), do: [flags], else: [actor, flags]))
   end
 
   def update(name, params, principal) do
@@ -133,7 +266,12 @@ defmodule Tuist.Ops.FeatureFlags do
 
   defp snapshots(entries) do
     names = Enum.map(entries, fn {name, _, _} -> Atom.to_string(name) end)
-    revisions = from(c in FeatureFlagChange, group_by: c.flag_name, select: %{flag_name: c.flag_name, version: max(c.id)})
+
+    revisions =
+      from(change in FeatureFlagChange,
+        group_by: change.flag_name,
+        select: %{flag_name: change.flag_name, version: max(change.id)}
+      )
 
     # Read gates and revisions in one database snapshot, including flags whose
     # last operation cleared every gate. Listing does not issue per-flag reads.

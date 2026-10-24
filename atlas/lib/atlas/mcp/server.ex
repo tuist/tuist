@@ -107,6 +107,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.EnrichGTMOpportunityContacts
   alias Atlas.MCP.Tools.EnrollOutreachCandidate
   alias Atlas.MCP.Tools.EnrollOutreachContact
+  alias Atlas.MCP.Tools.EvaluateTuistFeatureFlags
   alias Atlas.MCP.Tools.ExercisePurchaseOption
   alias Atlas.MCP.Tools.ExpireInsurancePolicy
   alias Atlas.MCP.Tools.ExtendLicense
@@ -511,11 +512,12 @@ defmodule Atlas.MCP.Server do
     QueryTuistClickhouse,
     ListTuistClickhouseTables,
     DescribeTuistClickhouseTable,
+    EvaluateTuistFeatureFlags,
     ListTuistFeatureFlags,
     GetTuistFeatureFlag,
     UpdateTuistFeatureFlag
   ]
-  @feature_flag_read_tools [ListTuistFeatureFlags, GetTuistFeatureFlag]
+  @feature_flag_read_tools [ListTuistFeatureFlags, GetTuistFeatureFlag, EvaluateTuistFeatureFlags]
   @feature_flag_write_tools [UpdateTuistFeatureFlag]
   @automation_read_tools Interfaces.tools(:read)
   @automation_write_tools Interfaces.tools(:write)
@@ -744,6 +746,7 @@ defmodule Atlas.MCP.Server do
     QueryTuistClickhouse,
     ListTuistClickhouseTables,
     DescribeTuistClickhouseTable,
+    EvaluateTuistFeatureFlags,
     ListTuistFeatureFlags,
     GetTuistFeatureFlag,
     UpdateTuistFeatureFlag,
