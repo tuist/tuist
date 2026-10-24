@@ -61,6 +61,7 @@ defmodule Atlas.Orbit.Runs do
   alias Atlas.Orbit.Workers.RunThread
   alias Atlas.Repo
   alias Atlas.Users.User
+  alias Condukt.Compactor.ToolResultPrune
 
   require Logger
 
@@ -190,6 +191,7 @@ defmodule Atlas.Orbit.Runs do
       run
       |> Ecto.Changeset.change(
         status: "running",
+        activity: nil,
         started_at: run.started_at || DateTime.utc_now(),
         session_id: Condukt.SessionID.generate(),
         model_binding_id: binding_id
@@ -394,6 +396,7 @@ defmodule Atlas.Orbit.Runs do
           tools: Tools.build(run),
           system_prompt: Agent.system_prompt(thread, audience),
           load_project_instructions: false,
+          compactor: {ToolResultPrune, keep_recent: 2, max_size: 4_000},
           max_tokens: @max_tokens
         ]
 
@@ -522,6 +525,7 @@ defmodule Atlas.Orbit.Runs do
     run
     |> Ecto.Changeset.change(
       status: status,
+      activity: nil,
       error_category: category,
       finished_at: DateTime.utc_now(),
       checkpoint: nil,
@@ -609,7 +613,7 @@ defmodule Atlas.Orbit.Runs do
     resume = run.resume_count + 1
 
     run
-    |> Ecto.Changeset.change(status: "queued", resume_count: resume, heartbeat_at: nil, session_id: nil)
+    |> Ecto.Changeset.change(status: "queued", activity: nil, resume_count: resume, heartbeat_at: nil, session_id: nil)
     |> Repo.update!()
 
     {:ok, _job} = %{"run_id" => run.id, "resume" => resume} |> RunThread.new() |> Oban.insert()

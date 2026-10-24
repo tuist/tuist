@@ -11,6 +11,7 @@ defmodule Atlas.Orbit.Run do
 
   schema "orbit_runs" do
     field :status, :string, default: "queued"
+    field :activity, :string
     field :trigger_seq, :integer
     field :resume_count, :integer, default: 0
     field :session_id, :string
