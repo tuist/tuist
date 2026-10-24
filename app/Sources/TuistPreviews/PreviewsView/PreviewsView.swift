@@ -9,34 +9,32 @@ public struct PreviewsView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
     @State var viewModel = PreviewsViewModel()
-    @State private var navigationPath = NavigationPath()
-    @State private var pressedPreviewId: String?
+    @State private var selectedPreview: DeeplinkPreview?
+    @State private var preferredCompactColumn = NavigationSplitViewColumn.sidebar
     @State private var searchText = ""
     private let imagePrefetcher = ImagePrefetcher()
+    private let rowInsets = EdgeInsets(top: 0, leading: Noora.Spacing.spacing7, bottom: 0, trailing: Noora.Spacing.spacing7)
 
     public init() {}
 
     public var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationSplitView(preferredCompactColumn: $preferredCompactColumn) {
             Group {
                 if viewModel.isInitialLoading {
-                    VStack {
-                        Spacer()
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                            .scaleEffect(1.2)
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Noora.Colors.surfaceBackgroundPrimary)
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .scaleEffect(1.2)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Noora.Colors.surfaceBackgroundPrimary)
                 } else {
-                    List {
+                    List(selection: $selectedPreview) {
                         if let selectedProject = viewModel.selectedProject {
                             HStack(spacing: Noora.Spacing.spacing3) {
                                 Text("Apps in")
                                     .font(.title2)
                                     .fontWeight(.medium)
                                     .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                                    .fixedSize()
 
                                 NooraDropdown<ServerProject>(
                                     options: viewModel.projects,
@@ -48,12 +46,11 @@ public struct PreviewsView: View {
                                         }
                                     }
                                 )
+                                .accessibilityIdentifier("preview-project-selector")
                             }
                             .padding(.vertical, Noora.Spacing.spacing4)
                             .listRowSeparator(.hidden)
-                            .listRowInsets(
-                                EdgeInsets(top: 0, leading: Noora.Spacing.spacing7, bottom: 0, trailing: Noora.Spacing.spacing7)
-                            )
+                            .listRowInsets(rowInsets)
                             .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
 
                             VStack(alignment: .leading, spacing: Noora.Spacing.spacing3) {
@@ -74,9 +71,7 @@ public struct PreviewsView: View {
                             }
                             .padding(.bottom, Noora.Spacing.spacing4)
                             .listRowSeparator(.hidden)
-                            .listRowInsets(
-                                EdgeInsets(top: 0, leading: Noora.Spacing.spacing7, bottom: 0, trailing: Noora.Spacing.spacing7)
-                            )
+                            .listRowInsets(rowInsets)
                             .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)
 
                             if !viewModel.isTrackSelectionSupported {
@@ -118,20 +113,12 @@ public struct PreviewsView: View {
                             )
                         } else {
                             ForEach(viewModel.previews) { preview in
-                                PreviewRowView(
-                                    preview: preview,
-                                    navigationPath: $navigationPath,
-                                    pressedPreviewId: $pressedPreviewId
-                                )
+                                NavigationLink(value: destination(for: preview)) {
+                                    PreviewRowView(preview: preview)
+                                }
+                                .accessibilityIdentifier("preview-row-\(preview.id)")
                                 .listRowSeparator(.hidden)
-                                .listRowInsets(
-                                    EdgeInsets(
-                                        top: 0,
-                                        leading: Noora.Spacing.spacing7,
-                                        bottom: 0,
-                                        trailing: Noora.Spacing.spacing7
-                                    )
-                                )
+                                .listRowInsets(rowInsets)
                                 .onAppear {
                                     if preview.id == viewModel.previews.last?.id {
                                         errorHandling.fireAndHandleError {
@@ -173,7 +160,9 @@ public struct PreviewsView: View {
                 // When deleting an account, there's a bug when onAppear is called even when already logged out.
                 // This should never happen due to the check in TuistApp.swift, but it seems there's a race condition in the
                 // SwiftUI lifecycle
-                guard case .loggedIn = authenticationService.authenticationState else { return }
+                guard case .loggedIn = authenticationService.authenticationState,
+                      viewModel.isInitialLoading
+                else { return }
                 errorHandling.fireAndHandleError {
                     try await viewModel.onAppear()
                 }
@@ -192,24 +181,62 @@ public struct PreviewsView: View {
                     errorHandling.handle(error: error)
                 }
             }
-            .onChange(of: viewModel.selectedProject?.fullName) {
+            .onChange(of: viewModel.selectedProject?.fullName) { oldValue, _ in
                 searchText = viewModel.searchQuery
+                if oldValue != nil {
+                    clearSelection()
+                }
             }
             .background(Noora.Colors.surfaceBackgroundPrimary)
-            .navigationDestination(for: ServerPreview.self) { preview in
-                PreviewView(preview: preview, fullHandle: viewModel.selectedProject!.fullName)
-            }
-            .navigationDestination(for: DeeplinkPreview.self) { deeplink in
-                PreviewView(previewId: deeplink.previewId, fullHandle: deeplink.fullHandle)
-            }
-            .onOpenURL { url in
-                handleOpenURL(url)
-            }
-            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
-                guard let url = userActivity.webpageURL else { return }
-                handleOpenURL(url)
+        } detail: {
+            if let selectedPreview {
+                Group {
+                    if let preview = viewModel.previews.first(where: { $0.id == selectedPreview.previewId }),
+                       viewModel.selectedProject?.fullName == selectedPreview.fullHandle
+                    {
+                        PreviewView(preview: preview, fullHandle: selectedPreview.fullHandle, onDelete: didDeletePreview)
+                    } else {
+                        PreviewView(
+                            previewId: selectedPreview.previewId,
+                            fullHandle: selectedPreview.fullHandle,
+                            onDelete: didDeletePreview
+                        )
+                    }
+                }
+                .id(selectedPreview)
+            } else {
+                ContentUnavailableView(
+                    "Select a preview",
+                    systemImage: "iphone",
+                    description: Text("Choose an app to see its details.")
+                )
             }
         }
+        .navigationSplitViewStyle(.balanced)
+        .onOpenURL { url in
+            handleOpenURL(url)
+        }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
+            guard let url = userActivity.webpageURL else { return }
+            handleOpenURL(url)
+        }
+    }
+
+    private func didDeletePreview() {
+        clearSelection()
+        errorHandling.fireAndHandleError {
+            try await viewModel.refreshPreviews()
+        }
+    }
+
+    private func clearSelection() {
+        selectedPreview = nil
+        preferredCompactColumn = .sidebar
+    }
+
+    private func destination(for preview: ServerPreview) -> DeeplinkPreview? {
+        guard let project = viewModel.selectedProject else { return nil }
+        return DeeplinkPreview(previewId: preview.id, fullHandle: project.fullName)
     }
 
     private var hasActiveFilters: Bool {
@@ -217,33 +244,9 @@ public struct PreviewsView: View {
     }
 
     private func trackChip(_ title: String, track: String?, count: Int?) -> some View {
-        let isSelected = track.map { viewModel.selectedTrack?.caseInsensitiveCompare($0) == .orderedSame }
-            ?? (viewModel.selectedTrack == nil)
-        return Button {
+        PreviewTrackChip(title: title, track: track, count: count, selectedTrack: viewModel.selectedTrack) {
             selectTrack(track)
-        } label: {
-            HStack(spacing: Noora.Spacing.spacing2) {
-                Text(title)
-                    .foregroundStyle(isSelected ? .white : Noora.Colors.surfaceLabelPrimary)
-                if let count {
-                    Text(count.formatted())
-                        .foregroundStyle(isSelected ? .white.opacity(0.65) : Noora.Colors.surfaceLabelSecondary)
-                }
-            }
-            .font(.subheadline)
-            .padding(.horizontal, Noora.Spacing.spacing4)
-            .padding(.vertical, Noora.Spacing.spacing2)
-            .background(
-                isSelected ? Noora.Colors.buttonPrimaryBackground : Noora.Colors.surfaceBackgroundTertiary,
-                in: Capsule()
-            )
-            .overlay(Capsule().strokeBorder(Noora.Colors.neutralGray24Alpha, lineWidth: 0.5))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(track ?? "All tracks")
-        .accessibilityValue(count.map { "\($0) previews" } ?? "")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityIdentifier(track.map { "preview-track-\($0)" } ?? "preview-track-all")
     }
 
     private func selectTrack(_ track: String?) {
@@ -261,8 +264,8 @@ public struct PreviewsView: View {
         let previewId = pathComponents[3]
         let fullHandle = "\(pathComponents[0])/\(pathComponents[1])"
 
-        let deeplink = DeeplinkPreview(previewId: previewId, fullHandle: fullHandle)
-        navigationPath.append(deeplink)
+        selectedPreview = DeeplinkPreview(previewId: previewId, fullHandle: fullHandle)
+        preferredCompactColumn = .detail
     }
 
     private func preloadUpcomingImages(for currentPreview: ServerPreview) {

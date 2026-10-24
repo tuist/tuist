@@ -6,9 +6,6 @@ import TuistServer
 
 struct PreviewRowView: View {
     let preview: ServerPreview
-    @Binding var navigationPath: NavigationPath
-    @Binding var pressedPreviewId: String?
-    @State private var isPressed = false
 
     private let relativeDateFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
@@ -105,15 +102,5 @@ struct PreviewRowView: View {
 
             NooraDivider()
         }
-        .onTapGesture {
-            navigationPath.append(preview)
-        }
-        .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity) { isPressing in
-            isPressed = isPressing
-        } perform: {}
-        .listRowBackground(
-            Rectangle()
-                .fill(isPressed ? Color(UIColor.systemGray4) : Color.clear)
-        )
     }
 }

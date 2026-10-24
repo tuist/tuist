@@ -125,18 +125,18 @@ import TuistServer
                 TabView(selection: $activeTab) {
                     PreviewsView()
                         .tabItem {
-                            NooraIcon(.deviceMobile)
-                            Text("Previews")
+                            Label("Previews", systemImage: "apps.iphone")
                         }
                         .tag(TabIdentifier.previews)
 
-                    ProfileView(account: account)
-                        .tabItem {
-                            NooraIcon(.user)
-                                .frame(width: 24, height: 24)
-                            Text("Profile")
-                        }
-                        .tag(TabIdentifier.profile)
+                    NavigationStack {
+                        ProfileView(account: account)
+                            .navigationTitle("Profile")
+                    }
+                    .tabItem {
+                        Label("Profile", systemImage: "person.crop.circle")
+                    }
+                    .tag(TabIdentifier.profile)
                 }
                 .onOpenURL { _ in
                     activeTab = .previews
