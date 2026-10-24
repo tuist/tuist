@@ -9,6 +9,54 @@ defmodule Tuist.Registry.S3Test do
 
   setup :set_mimic_from_context
 
+  @tag :tmp_dir
+  test "immutable archive creation streams a conditional signed single PUT", %{tmp_dir: tmp} do
+    path = Path.join(tmp, "archive.zip")
+    File.write!(path, "archive bytes")
+    stub(Registry, :registry_bucket, fn -> "bucket" end)
+
+    stub(Registry, :registry_s3_config, fn ->
+      [access_key_id: "key", secret_access_key: "secret", host: "registry.example.com"]
+    end)
+
+    expect(ExAws.S3, :presigned_url, fn _, :put, "bucket", "archive.zip", opts ->
+      send(self(), {:signed_headers, opts[:headers]})
+      {:ok, "https://registry.example.com/archive.zip"}
+    end)
+
+    expect(Req, :put, fn _, opts ->
+      send(self(), {:uploaded, Enum.join(opts[:body]), opts[:headers]})
+      {:ok, %Req.Response{status: 200}}
+    end)
+
+    assert :ok = S3.upload_file_once("archive.zip", path, meta: [{"sha256", "digest"}])
+    assert_receive {:signed_headers, signed}
+    assert_receive {:uploaded, "archive bytes", ^signed}
+    assert {"if-none-match", "*"} in signed
+    assert {"x-amz-meta-sha256", "digest"} in signed
+  end
+
+  @tag :tmp_dir
+  test "an immutable archive conflict never overwrites different bytes", %{tmp_dir: tmp} do
+    path = Path.join(tmp, "archive.zip")
+    File.write!(path, "loser")
+    stub(Registry, :registry_bucket, fn -> "bucket" end)
+
+    stub(Registry, :registry_s3_config, fn ->
+      [access_key_id: "key", secret_access_key: "secret", host: "registry.example.com"]
+    end)
+
+    expect(ExAws.S3, :presigned_url, fn _, _, _, _, _ -> {:ok, "https://registry.example.com/archive.zip"} end)
+    expect(Req, :put, fn _, _ -> {:ok, %Req.Response{status: 412}} end)
+
+    expect(ExAws, :request, fn %{http_method: :head}, _ ->
+      {:ok, %{status_code: 200, headers: %{"x-amz-meta-sha256" => "winner"}}}
+    end)
+
+    assert {:error, {:immutable_archive_conflict, "archive.zip"}} =
+             S3.upload_file_once("archive.zip", path, meta: [{"sha256", "loser"}])
+  end
+
   test "uses the dedicated registry object-storage configuration and consistent reads" do
     config = [
       host: "registry.example.com",

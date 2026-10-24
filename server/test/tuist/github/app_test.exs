@@ -29,6 +29,22 @@ defmodule Tuist.GitHub.AppTest do
     :ok
   end
 
+  test "a transient installation lookup failure is not cached for six hours" do
+    cache = String.to_atom("github_recovery_#{System.unique_integer([:positive])}")
+    start_supervised!({Cachex, [cache, []]})
+
+    stub(KeyValueStore, :get_or_update, fn key, opts, fun ->
+      assert opts[:cache_errors] == false
+      Mimic.call_original(KeyValueStore, :get_or_update, [key, Keyword.put(opts, :cache, cache), fun])
+    end)
+
+    expect(Req, :get, fn _ -> {:ok, %Req.Response{status: 503, body: "unavailable"}} end)
+    assert {:error, _} = App.get_installation_id_for_org("recovery-org")
+    expect(Req, :get, fn _ -> {:ok, %Req.Response{status: 200, body: %{"id" => 123}}} end)
+    assert {:ok, 123} = App.get_installation_id_for_org("recovery-org")
+    assert {:ok, 123} = App.get_installation_id_for_org("recovery-org")
+  end
+
   describe "get_installation_token/2" do
     test "returns installation token when request succeeds" do
       # Given

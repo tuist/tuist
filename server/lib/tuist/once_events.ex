@@ -113,39 +113,6 @@ defmodule Tuist.OnceEvents do
   end
 
   @doc """
-  Claim the right to publish `run`'s results to the shared test store,
-  returning `:ok` to exactly one caller and `:already_published` to the rest.
-
-  The claim is a conditional update rather than a read followed by a write:
-  two projectors handling the same replayed `RunCompleted` would both pass a
-  read check and then append a second copy of every module, suite and case,
-  since `Tuist.Tests.create_test/1` generates fresh ids for those children.
-  """
-  def claim_test_report_publication(%Run{} = run) do
-    now = DateTime.truncate(DateTime.utc_now(), :microsecond)
-
-    {claimed, _} =
-      Run
-      |> where([r], r.id == ^run.id and is_nil(r.test_report_published_at))
-      |> Repo.update_all(set: [test_report_published_at: now, updated_at: now])
-
-    if claimed == 1, do: :ok, else: :already_published
-  end
-
-  @doc """
-  Release a claim taken by `claim_test_report_publication/1` when publishing
-  failed, so the run can be retried on the next `RunCompleted` replay rather
-  than being permanently skipped.
-  """
-  def release_test_report_publication(%Run{} = run) do
-    Run
-    |> where([r], r.id == ^run.id)
-    |> Repo.update_all(set: [test_report_published_at: nil])
-
-    :ok
-  end
-
-  @doc """
   Every test case staged for `run`, oldest first. This is what
   `Tuist.OnceEvents.TestReportIngestor` assembles the shared report from,
   since `RunCompleted` carries only per-result counts.

@@ -5,6 +5,41 @@ renders this chart's xcresult processor templates in a Helm release of its
 own, gives them the names and labels of the tuist release it names in
 `tuistRelease`.
 */}}
+{{/* Budget outage admission for the serving envelope, not only visible peers.
+Include one terminating generation, which may still hold in-flight requests. */}}
+{{- define "tuist.rateLimitFallbackReplicas" -}}
+{{- $replicas := int .Values.server.replicaCount -}}
+{{- if .Values.server.autoscaling.enabled -}}
+{{- $replicas = max $replicas (int .Values.server.autoscaling.maxReplicas) -}}
+{{- end -}}
+{{- $surge := 0 -}}
+{{- $strategy := .Values.server.strategy | default dict -}}
+{{- if eq ($strategy.type | default "RollingUpdate") "RollingUpdate" -}}
+{{- $rollingUpdate := $strategy.rollingUpdate | default dict -}}
+{{- $raw := "25%" -}}
+{{- if and (hasKey $rollingUpdate "maxSurge") (not (kindIs "invalid" (get $rollingUpdate "maxSurge"))) -}}
+{{- $raw = toString (get $rollingUpdate "maxSurge") -}}
+{{- end -}}
+{{- if regexMatch "^[0-9]+%$" $raw -}}
+{{- $surge = int (ceil (divf (mulf $replicas (int (trimSuffix "%" $raw))) 100)) -}}
+{{- else if regexMatch "^[0-9]+$" $raw -}}
+{{- $surge = int $raw -}}
+{{- else -}}
+{{- fail "server.strategy.rollingUpdate.maxSurge must be a nonnegative integer or percentage" -}}
+{{- end -}}
+{{- end -}}
+{{- $minimum := max 5 (add (mul 2 $replicas) $surge) -}}
+{{- $rawConfigured := toString (.Values.server.rateLimitFallbackReplicas | default 0) -}}
+{{- if not (regexMatch "^[0-9]+$" $rawConfigured) -}}
+{{- fail "server.rateLimitFallbackReplicas must be zero (automatic) or a positive integer" -}}
+{{- end -}}
+{{- $configured := int $rawConfigured -}}
+{{- if and (gt $configured 0) (lt $configured $minimum) -}}
+{{- fail (printf "server.rateLimitFallbackReplicas must cover the serving/rollout envelope (at least %d)" $minimum) -}}
+{{- end -}}
+{{- max $minimum $configured -}}
+{{- end -}}
+
 {{- define "tuist.name" -}}
 {{- default "tuist" .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}

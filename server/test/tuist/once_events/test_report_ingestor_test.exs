@@ -9,9 +9,11 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.TestReportIngestor
+  alias Tuist.OnceEvents.Workers.PublishTestReportWorker
   alias Tuist.Tests.Test.Buffer
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.TelemetryCapture
 
   setup do
     project = ProjectsFixtures.project_fixture()
@@ -68,6 +70,391 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     TestCaseRun
     |> where([c], c.test_run_id == ^test_run_id)
     |> Tuist.IngestRepo.aggregate(:count)
+  end
+
+  test "intent and immutable chunks precede publication, and acknowledged progress resumes without replay", %{run: run} do
+    stage_case(run, %{})
+    run = finalize(run)
+    assert {:ok, intent} = TestReportIngestor.enqueue(run)
+    assert intent.state == "preparing"
+    assert intent.payload == nil
+
+    assert_enqueued(
+      worker: PublishTestReportWorker,
+      queue: "once_test_reports",
+      args: %{run_id: run.id, phase: "publish"}
+    )
+
+    assert {:ok, %{state: "pending", payload: nil}} = TestReportIngestor.prepare_snapshot(run.id)
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    %{version: 2, test: test, chunks: [first | remaining]} = :erlang.binary_to_term(publication.payload, [:safe])
+    assert Tuist.Repo.get!(OnceEvents.Run, run.id).test_report_published_at
+    assert publication.state == "pending"
+    assert Tuist.ClickHouseRepo.get(Tuist.Tests.Test, test.id) == nil
+    {schema, rows, _token} = first
+    Tuist.IngestRepo.insert_all(schema, rows)
+
+    publication
+    |> Ecto.Changeset.change(
+      next_chunk: 1,
+      state: "publishing",
+      owner: "dead-owner",
+      updated_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -1_000)
+    )
+    |> Tuist.Repo.update!()
+
+    parent = self()
+
+    stub(Tuist.IngestRepo, :insert_all, fn schema, rows, opts ->
+      send(parent, {:chunk_token, opts[:settings][:insert_deduplication_token]})
+      Mimic.call_original(Tuist.IngestRepo, :insert_all, [schema, rows, opts])
+    end)
+
+    assert {:ok, _} = TestReportIngestor.publish_prepared(run.id)
+    for {_, _, token} <- remaining, do: assert_receive({:chunk_token, "once-report:" <> ^token})
+    refute_receive {:chunk_token, _}
+    assert Tuist.Repo.get!(OnceEvents.Run, run.id).test_report_published_at
+  end
+
+  test "the unchanged legacy claim protocol cannot win after a durable new reservation", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, publication} = TestReportIngestor.enqueue(finalize(run))
+
+    assert {0, _} =
+             Tuist.Repo.update_all(
+               from(r in OnceEvents.Run, where: r.id == ^run.id and is_nil(r.test_report_published_at)),
+               set: [test_report_published_at: DateTime.utc_now()]
+             )
+
+    assert publication.state == "preparing"
+  end
+
+  test "snapshot failure retains the durable intent without rejecting a completed event", %{run: run} do
+    stage_case(run, %{})
+    run = finalize(run)
+    stub(Tuist.Tests, :create_test, fn _ -> raise "capture failed" end)
+    assert {:ok, _} = TestReportIngestor.enqueue_safely(run)
+    assert {:error, :preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    assert Tuist.Repo.get!(OnceEvents.Run, run.id).test_report_published_at
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert publication.state == "preparing"
+    assert publication.preparation_attempts == 1
+    assert publication.preparation_error == "builder_failed"
+    assert publication.owner == nil
+    refute Tuist.Ingestion.Capture.active?()
+  end
+
+  test "preparation failures alert, stop after the durable attempt limit and require explicit retry", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    parent = self()
+    handler = "once-preparation-#{Ecto.UUID.generate()}"
+
+    :telemetry.attach(
+      handler,
+      [:tuist, :once_events, :test_report_publication],
+      fn _, _, meta, pid -> send(pid, {:publication_outcome, meta.outcome}) end,
+      parent
+    )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+    stub(Tuist.Tests, :create_test, fn _ -> raise "invalid staged source" end)
+    for _ <- 1..7, do: assert({:error, :preparation_failed} = TestReportIngestor.prepare_snapshot(run.id))
+    assert {:error, :publication_preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    for _ <- 1..8, do: assert_receive({:publication_outcome, :preparation_failed})
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert publication.state == "failed_preparation"
+    assert publication.preparation_attempts == 8
+    assert publication.payload == nil
+    Tuist.Repo.delete_all(from(j in Oban.Job, where: fragment("?->>'run_id'", j.args) == ^run.id))
+    assert :ok = TestReportIngestor.recover_recent()
+    assert all_enqueued(worker: PublishTestReportWorker, args: %{run_id: run.id, phase: "publish"}) == []
+    assert {:error, :publication_preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    refute_receive {:publication_outcome, _}
+    assert {:ok, reset} = TestReportIngestor.retry_preparation(run.id)
+    assert reset.preparation_attempts == 0
+    assert reset.preparation_error == nil
+    stub(Tuist.Tests, :create_test, fn attrs -> Mimic.call_original(Tuist.Tests, :create_test, [attrs]) end)
+    assert {:ok, %{state: "pending"}} = TestReportIngestor.prepare_snapshot(run.id)
+  end
+
+  test "permanent preparation failures stop immediately and retain source", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    stub(Tuist.Projects, :get_project_by_id, fn _ -> nil end)
+    assert {:error, :publication_preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert publication.state == "failed_preparation"
+    assert publication.preparation_error == "project_not_found"
+    assert publication.preparation_attempts == 1
+    assert OnceEvents.list_test_case_runs(run) != []
+  end
+
+  test "killed preparation attempts are bounded across replacement jobs", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, publication} = TestReportIngestor.enqueue(finalize(run))
+
+    publication
+    |> Ecto.Changeset.change(
+      owner: "dead-preparer",
+      preparation_attempts: 8,
+      updated_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -1_000)
+    )
+    |> Tuist.Repo.update!()
+
+    reject(&Tuist.Tests.create_test/1)
+    assert {:error, :publication_preparation_failed} = TestReportIngestor.prepare_snapshot(run.id)
+    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id).preparation_error == "attempt_limit"
+  end
+
+  test "a soft deadline yields between acknowledged chunks and the next job resumes without replay", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    assert {:ok, _} = TestReportIngestor.prepare_snapshot(run.id)
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    %{chunks: [{_, _, first_token} | remaining]} = :erlang.binary_to_term(publication.payload, [:safe])
+    clock = :atomics.new(1, [])
+    parent = self()
+
+    stub(Tuist.IngestRepo, :insert_all, fn schema, rows, opts ->
+      send(parent, {:chunk_token, opts[:settings][:insert_deduplication_token]})
+      result = Mimic.call_original(Tuist.IngestRepo, :insert_all, [schema, rows, opts])
+      :atomics.put(clock, 1, 10)
+      result
+    end)
+
+    assert {:ok, :yielded} =
+             TestReportIngestor.publish_prepared(run.id, budget_ms: 10, clock: fn -> :atomics.get(clock, 1) end)
+
+    assert_receive {:chunk_token, "once-report:" <> ^first_token}
+    refute_receive {:chunk_token, _}
+    current = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert current.state == "pending"
+    assert current.next_chunk == 1
+    assert current.in_flight_chunk == nil
+    assert current.owner == nil
+    assert current.payload == publication.payload
+    assert {:ok, _} = TestReportIngestor.publish_prepared(run.id)
+    for {_, _, token} <- remaining, do: assert_receive({:chunk_token, "once-report:" <> ^token})
+    refute_receive {:chunk_token, _}
+    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id).state == "published"
+  end
+
+  test "an acknowledged ClickHouse write with a lost response is never blindly replayed", %{run: run} do
+    stage_case(run, %{})
+    run = finalize(run)
+    assert {:ok, _} = TestReportIngestor.enqueue(run)
+    assert {:ok, _} = TestReportIngestor.prepare_snapshot(run.id)
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    parent = self()
+
+    stub(Tuist.IngestRepo, :insert_all, fn schema, rows, opts ->
+      result = Mimic.call_original(Tuist.IngestRepo, :insert_all, [schema, rows, opts])
+      send(parent, {:attempted, schema, result})
+      raise "response lost after insert"
+    end)
+
+    assert {:error, :publication_uncertain} = TestReportIngestor.publish_prepared(run.id)
+    assert_receive {:attempted, _, _}
+    assert {:error, :publication_uncertain} = TestReportIngestor.publish_prepared(run.id)
+    refute_receive {:attempted, _, _}
+    current = Tuist.Repo.get!(OnceEvents.TestReportPublication, publication.id)
+    assert current.state == "uncertain"
+    assert current.in_flight_chunk == 0
+    assert current.next_chunk == 0
+    assert current.payload == publication.payload
+    assert current.state != "published"
+    assert {:error, :not_failed_preparation} = TestReportIngestor.retry_preparation(run.id)
+    # This fixture KNOWS the first write committed. Reconciliation acknowledges
+    # that exact chunk; a real operator must establish quiescence and contents.
+    assert {:ok, _} = TestReportIngestor.reconcile_chunk(run.id, current.owner, 0, :present)
+    assert {:error, :stale_reconciliation} = TestReportIngestor.reconcile_chunk(run.id, current.owner, 0, :present)
+
+    stub(Tuist.IngestRepo, :insert_all, fn schema, rows, opts ->
+      send(parent, {:resumed_token, opts[:settings][:insert_deduplication_token]})
+      Mimic.call_original(Tuist.IngestRepo, :insert_all, [schema, rows, opts])
+    end)
+
+    %{chunks: [{_, _, first_token} | _]} = :erlang.binary_to_term(publication.payload, [:safe])
+    assert {:ok, _} = TestReportIngestor.publish_prepared(run.id)
+    refute_receive {:resumed_token, "once-report:" <> ^first_token}
+    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id).state == "published"
+  end
+
+  test "a proven pool checkout failure can retry without becoming an uncertain write", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    counter = :atomics.new(1, [])
+    parent = self()
+
+    stub(Tuist.IngestRepo, :insert_all, fn schema, rows, opts ->
+      send(parent, {:insert_opts, opts})
+
+      if :atomics.add_get(counter, 1, 1) == 1 do
+        raise DBConnection.ConnectionError, message: "checkout queue full", reason: :queue_timeout
+      else
+        Mimic.call_original(Tuist.IngestRepo, :insert_all, [schema, rows, opts])
+      end
+    end)
+
+    assert {:error, :publication_checkout_timeout} = TestReportIngestor.publish_prepared(run.id)
+    assert_receive {:insert_opts, opts}
+    assert opts[:retry] == false
+    assert opts[:checkout_retries] == 0
+    publication = Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id)
+    assert publication.state == "pending"
+    assert publication.in_flight_chunk == nil
+    assert publication.next_chunk == 0
+    assert {:ok, _} = TestReportIngestor.publish_prepared(run.id)
+    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id).state == "published"
+  end
+
+  test "an expired owner with an in-flight chunk requires reconciliation rather than takeover", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    assert {:ok, publication} = TestReportIngestor.prepare_snapshot(run.id)
+
+    publication
+    |> Ecto.Changeset.change(
+      state: "publishing",
+      owner: "dead-owner",
+      in_flight_chunk: 0,
+      updated_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -1_000)
+    )
+    |> Tuist.Repo.update!()
+
+    parent = self()
+
+    stub(Tuist.IngestRepo, :insert_all, fn _, _, _ ->
+      send(parent, :unsafe_replay)
+      {0, nil}
+    end)
+
+    assert {:error, :publication_uncertain} = TestReportIngestor.publish_prepared(run.id)
+    refute_receive :unsafe_replay
+    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, publication.id).state == "uncertain"
+  end
+
+  @tag adversarial: true
+  test "recovery queues metadata without selecting immutable payloads", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, publication} = TestReportIngestor.enqueue(finalize(run))
+
+    publication
+    |> Ecto.Changeset.change(state: "pending", payload: :erlang.term_to_binary(%{version: 2, chunks: []}))
+    |> Tuist.Repo.update!()
+
+    ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+    assert :ok = TestReportIngestor.recover_recent()
+    queries = publication_selects(ref)
+    assert queries != []
+    assert Enum.all?(queries, &(not String.contains?(&1, ~s("payload"))))
+  end
+
+  for {state, result} <- [
+        {"publishing", {:snooze, 5}},
+        {"uncertain", {:discard, :publication_uncertain}},
+        {"published", :ok}
+      ] do
+    @tag publication_state: state, publication_result: result
+    test "a #{state} publication is inspected without selecting its payload", %{
+      run: run,
+      publication_state: state,
+      publication_result: result
+    } do
+      stage_case(run, %{})
+      assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+      assert {:ok, _} = TestReportIngestor.prepare_snapshot(run.id)
+
+      Tuist.Repo.update_all(from(p in OnceEvents.TestReportPublication, where: p.id == ^run.id),
+        set: [state: state, owner: "live-owner", updated_at: DateTime.utc_now()]
+      )
+
+      ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+      assert ^result = PublishTestReportWorker.perform(%Oban.Job{args: %{"run_id" => run.id, "phase" => "publish"}})
+      queries = publication_selects(ref)
+      assert queries != []
+      assert Enum.all?(queries, &(not String.contains?(&1, ~s("payload"))))
+    end
+  end
+
+  test "a successful publication reads its payload only after claiming it", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+    assert :ok = PublishTestReportWorker.perform(%Oban.Job{args: %{"run_id" => run.id, "phase" => "publish"}})
+    queries = publication_selects(ref)
+    assert Enum.count(queries, &String.contains?(&1, ~s("payload"))) == 1
+    assert List.last(queries) =~ ~s("payload")
+  end
+
+  test "followups load one payload but their marker lock selects only metadata", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.publish(finalize(run))
+    ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+    assert :ok = PublishTestReportWorker.perform(%Oban.Job{args: %{"run_id" => run.id, "phase" => "followups"}})
+    queries = publication_selects(ref)
+    assert Enum.count(queries, &String.contains?(&1, ~s("payload"))) == 1
+    assert Enum.any?(queries, &(String.contains?(&1, "FOR UPDATE") and not String.contains?(&1, ~s("payload"))))
+  end
+
+  test "operator retry still rejects a terminal row carrying a payload", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.enqueue(finalize(run))
+    assert {:ok, _} = TestReportIngestor.prepare_snapshot(run.id)
+
+    Tuist.Repo.update_all(from(p in OnceEvents.TestReportPublication, where: p.id == ^run.id),
+      set: [state: "failed_preparation"]
+    )
+
+    assert {:error, :not_failed_preparation} = TestReportIngestor.retry_preparation(run.id)
+  end
+
+  defp publication_selects(ref, queries \\ []) do
+    receive do
+      {[:tuist, :repo, :query], ^ref, _, %{query: query}} ->
+        queries =
+          if String.starts_with?(query, "SELECT") and String.contains?(query, ~s("once_test_report_publications")),
+            do: [query | queries],
+            else: queries
+
+        publication_selects(ref, queries)
+    after
+      0 -> Enum.reverse(queries)
+    end
+  end
+
+  test "durable intent recovery is independent of the two-hour terminal-run scan", %{run: run} do
+    stage_case(run, %{})
+    run = finalize(run)
+    run |> Ecto.Changeset.change(finalized_at: DateTime.add(DateTime.utc_now(), -86_400)) |> Tuist.Repo.update!()
+    assert {:ok, _} = TestReportIngestor.enqueue(run)
+    jobs = all_enqueued(worker: PublishTestReportWorker)
+    ids = Enum.map(jobs, & &1.id)
+    Tuist.Repo.update_all(from(j in Oban.Job, where: j.id in ^ids), set: [state: "discarded"])
+    assert :ok = TestReportIngestor.recover_recent()
+    assert [_] = all_enqueued(worker: PublishTestReportWorker)
+  end
+
+  test "retrying optional follow-ups does not enqueue created-case webhooks twice", %{run: run} do
+    stage_case(run, %{})
+    assert {:ok, _} = TestReportIngestor.publish(finalize(run))
+    parent = self()
+
+    stub(Tuist.Tests, :finish_captured_effects, fn _ ->
+      send(parent, :effects_dispatched)
+      %{run_id: Ecto.UUID.generate(), phase: "effect"} |> PublishTestReportWorker.new() |> Oban.insert!()
+      :ok
+    end)
+
+    stub(Tuist.Tests, :finish_test_publication, fn _ -> raise "optional followup failed" end)
+    job = %Oban.Job{args: %{"run_id" => run.id, "phase" => "followups"}}
+    assert_raise RuntimeError, fn -> PublishTestReportWorker.perform(job) end
+    assert_receive :effects_dispatched
+    assert Tuist.Repo.get!(OnceEvents.TestReportPublication, run.id).effects_dispatched_at
+    stub(Tuist.Tests, :finish_test_publication, fn _ -> :ok end)
+    assert :ok = PublishTestReportWorker.perform(job)
+    refute_receive :effects_dispatched
   end
 
   test "a case that failed then passed on retry is recorded as flaky", %{run: run, project: project} do

@@ -127,7 +127,7 @@ defmodule Tuist.OIDC do
   defp verify(token, jwks_uri) do
     with {:ok, kid} <- peek_kid(token),
          {:ok, jwks} <- fetch_jwks(jwks_uri),
-         {:ok, claims} <- verify_signature(token, jwks, kid),
+         {:ok, claims} <- verify_with_keys(token, jwks, kid, jwks_uri),
          :ok <- validate_expiration(claims),
          :ok <- validate_not_before(claims) do
       {:ok, claims}
@@ -147,12 +147,52 @@ defmodule Tuist.OIDC do
   defp fetch_jwks(jwks_uri) do
     cache_key = ["oidc", "jwks", jwks_uri]
 
-    KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl], fn ->
-      case Req.get(jwks_uri, connect_options: [timeout: 10_000], redirect: false) do
-        {:ok, %{status: 200, body: body}} -> {:ok, body}
-        _ -> {:error, :jwks_fetch_failed, jwks_uri}
-      end
-    end)
+    case KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl, locking: true, cache_errors: false], fn ->
+           request_jwks(jwks_uri)
+         end) do
+      {:error, :jwks_fetch_failed} -> {:error, :jwks_fetch_failed, jwks_uri}
+      result -> result
+    end
+  end
+
+  defp request_jwks(jwks_uri) do
+    case Req.get(jwks_uri, connect_options: [timeout: 10_000], redirect: false) do
+      {:ok, %{status: 200, body: %{"keys" => keys} = body}} when is_list(keys) -> {:ok, body}
+      _ -> {:error, :jwks_fetch_failed}
+    end
+  end
+
+  defp verify_with_keys(token, jwks, kid, jwks_uri) do
+    case verify_signature(token, jwks, kid) do
+      {:error, :key_not_found} ->
+        # Unknown key IDs are untrusted input. Coalesce and rate-bound refreshes
+        # rather than allowing each invalid JWT to issue a provider request.
+        result =
+          KeyValueStore.get_or_update(
+            ["oidc", "jwks_refresh", jwks_uri],
+            [ttl: to_timeout(second: 10), locking: true],
+            fn ->
+              with {:ok, keys} <- request_jwks(jwks_uri) do
+                KeyValueStore.put(["oidc", "jwks", jwks_uri], {:ok, keys}, ttl: @jwks_cache_ttl)
+                {:ok, keys}
+              end
+            end
+          )
+
+        case result do
+          {:ok, keys} ->
+            case verify_signature(token, keys, kid) do
+              {:error, :key_not_found} -> {:error, :invalid_signature}
+              verified -> verified
+            end
+
+          _ ->
+            {:error, :jwks_fetch_failed, jwks_uri}
+        end
+
+      result ->
+        result
+    end
   end
 
   defp verify_signature(token, %{"keys" => keys}, kid) do
@@ -161,6 +201,7 @@ defmodule Tuist.OIDC do
            JOSE.JWT.verify_strict(JOSE.JWK.from_map(key), ["RS256"], token) do
       {:ok, fields}
     else
+      {:error, :key_not_found} -> {:error, :key_not_found}
       _ -> {:error, :invalid_signature}
     end
   end

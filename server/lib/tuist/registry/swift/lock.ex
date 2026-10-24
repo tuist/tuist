@@ -15,33 +15,39 @@ defmodule Tuist.Registry.Swift.Lock do
     lock_key = lock_key(key)
     now = System.system_time(:second)
     expires_at = now + ttl_seconds
-    body = JSON.encode!(%{acquired_at: now, expires_at: expires_at, node: to_string(node())})
+    owner = Ecto.UUID.generate()
+    body = JSON.encode!(%{acquired_at: now, expires_at: expires_at, node: to_string(node()), owner: owner})
 
-    case put_lock(lock_key, body, if_none_match: "*") do
-      {:ok, _} ->
-        {:ok, :acquired}
+    result =
+      case put_lock(lock_key, body, if_none_match: "*") do
+        {:ok, _} ->
+          {:ok, :acquired}
 
-      {:error, {:http_error, 412, _}} ->
-        maybe_replace_expired(lock_key, body, now)
+        {:error, {:http_error, 412, _}} ->
+          maybe_replace_expired(lock_key, body, now)
 
-      {:error, reason} ->
-        Logger.warning("Failed to acquire registry lock #{lock_key}: #{inspect(reason)}")
-        {:error, :already_locked}
-    end
+        {:error, reason} ->
+          Logger.warning("Failed to acquire registry lock #{lock_key}: #{inspect(reason)}")
+          {:error, :already_locked}
+      end
+
+    if result == {:ok, :acquired}, do: Process.put({__MODULE__, key}, owner)
+    result
   end
 
   def release(key) do
-    lock_key = lock_key(key)
-    bucket = bucket()
+    owner = Process.delete({__MODULE__, key})
 
-    case bucket |> ExAws.S3.delete_object(lock_key) |> S3.request() do
-      {:ok, _} ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning("Failed to release registry lock #{lock_key}: #{inspect(reason)}")
-        :ok
+    with true <- is_binary(owner),
+         {:ok, %{"owner" => ^owner}, etag} when is_binary(etag) <- read_lock(lock_key(key)) do
+      # Conditional PUT is already part of the provider contract. An expired
+      # tombstone releases the lease without relying on conditional DELETE or
+      # allowing a read-compare-delete race to remove a successor's lease.
+      body = JSON.encode!(%{expires_at: 0, owner: Ecto.UUID.generate()})
+      put_lock(lock_key(key), body, if_match: if_match_value(etag))
     end
+
+    :ok
   end
 
   defp maybe_replace_expired(lock_key, body, now) do

@@ -2,6 +2,10 @@
 
 This directory holds Phoenix configuration for the server.
 
+## Replica-safe work and outage configuration
+
+The web-only base queues include `once_test_reports: 2`. Keep new Once publication jobs off queues consumed by old releases, which do not contain their worker module. Its five-minute worker timeout is shorter than the six-minute publication lease. Runtime parses `TUIST_RATE_LIMIT_FALLBACK_REPLICAS` as an integer of at least five; Helm supplies a conservative serving/rollout envelope. These limits do not replace actual database-pool and mixed-version staging qualification.
+
 ## Responsibilities
 - Environment-specific configuration (dev, test, prod).
 - The test ingestion connection permits ordinary views inside the ClickHouse sandbox with `throw_on_unsupported_query_inside_transaction: 0`. Their MergeTree sources still participate in the transaction and roll back; do not treat ordinary views as transaction-owning storage engines or change production consistency settings to accommodate tests.

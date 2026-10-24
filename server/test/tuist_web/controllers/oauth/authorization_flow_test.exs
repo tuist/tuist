@@ -83,6 +83,62 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     refute third_access_token in [access_token, refreshed_access_token]
   end
 
+  for envelope <- [:query, :body] do
+    @tag envelope: envelope
+    test "anonymous #{envelope} external request URIs never reach the network", %{envelope: envelope} do
+      reject(&Finch.request/2)
+      uri = "http://127.0.0.1/private"
+
+      {path, body} =
+        case envelope do
+          :query -> {"/oauth2/token?" <> URI.encode_query(%{"request_uri" => uri}), %{}}
+          :body -> {"/oauth2/token", %{"request_uri" => uri}}
+        end
+
+      response = build_conn() |> post(path, body) |> json_response(400)
+      assert response["error"] == "invalid_request"
+      assert response["error_description"] =~ "External request_uri is not supported"
+    end
+  end
+
+  test "request objects exchange and rotate using the upstream grant flow", %{conn: conn, user: user} do
+    client_id = register_client(conn)
+    code = authorize(conn, client_id)
+
+    request = %{
+      "grant_type" => "authorization_code",
+      "client_id" => client_id,
+      "redirect_uri" => @redirect_uri,
+      "code" => code
+    }
+
+    assert %{"access_token" => access_token, "refresh_token" => refresh_token} =
+             build_conn()
+             |> post("/oauth2/token?code=unrelated-code&grant_type=refresh_token", %{"request" => request_object(request)})
+             |> json_response(200)
+
+    assert {:ok, %{"user_id" => user_id, "scopes" => ["mcp"]}} = Tuist.Guardian.decode_and_verify(access_token)
+    assert user_id == user.id
+
+    refresh =
+      request_object(%{"grant_type" => "refresh_token", "client_id" => client_id, "refresh_token" => refresh_token})
+
+    assert %{"access_token" => replacement, "refresh_token" => replacement_refresh} =
+             build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(200)
+
+    refute replacement == access_token
+    refute replacement_refresh == refresh_token
+
+    assert %{"error" => "invalid_grant"} =
+             build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(400)
+  end
+
+  defp request_object(claims) do
+    Enum.map_join([%{"alg" => "none"}, claims], ".", fn value ->
+      value |> JSON.encode!() |> Base.url_encode64(padding: false)
+    end) <> "."
+  end
+
   test "rejects a code revoked in the database after an earlier lookup", %{conn: conn} do
     client_id = register_client(conn)
     code = authorize(conn, client_id)

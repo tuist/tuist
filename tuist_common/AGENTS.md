@@ -2,6 +2,10 @@
 
 This package contains shared Elixir utilities consumed by multiple Tuist services.
 
+## Ingestion capture boundary
+
+`Ingestion.Bufferable.BufferImpl` supports an OTP-app-scoped process-local capture callback for Once's durable publication builder. Captured submissions normalize the same schema fields without entering the asynchronous buffer, and flush is a no-op only in that process. Ordinary callers and other OTP apps retain their existing buffering/write-through behavior. Do not introduce global configuration changes or treat buffer acceptance as remote durability.
+
 ## Responsibilities
 - Host cross-service helper modules that are not owned by a single app.
 - Centralize low-level integration utilities shared by `server/` and `cache/`.

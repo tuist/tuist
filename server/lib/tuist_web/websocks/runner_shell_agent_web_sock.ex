@@ -68,7 +68,12 @@ defmodule TuistWeb.RunnerShellAgentWebSock do
   end
 
   def handle_info({:runner_shell, :client_disconnected}, state) do
-    {:push, {:text, JSON.encode!(%{type: "client", status: "disconnected"})}, state}
+    # Old-image senders can still broadcast a stale disconnect during rollout.
+    if InteractiveSessions.open?(state.session.id) do
+      {:ok, state}
+    else
+      {:push, {:text, JSON.encode!(%{type: "client", status: "disconnected"})}, state}
+    end
   end
 
   def handle_info(_message, state), do: {:ok, state}

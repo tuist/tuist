@@ -1,0 +1,61 @@
+# Once test-report publication and recovery
+
+## State and compatibility
+
+After durably persisting run/case staging, the event stream normally commits a separate PostgreSQL publication intent with an Oban job. It does not wait for ClickHouse report publication. If intent creation itself fails, the staged source survives and the bounded terminal-run sweep can reconstruct the intent; outages exceeding that sweep window require an explicit backfill. `PublishTestReportWorker` consumes the dedicated `once_test_reports` queue, which only releases containing this worker poll. Older replicas cannot consume these jobs.
+
+`once_runs.test_report_published_at` remains a **legacy admission reservation**, not proof of completion. The unchanged old writer conditionally sets that column before writing. The new writer reserves it in the same transaction as its publication intent and job, so exactly one protocol wins that reservation. For new intents, only `once_test_report_publications.state = 'published'` proves that all captured chunks were acknowledged. Completion refreshes the legacy timestamp as well.
+
+An older writer that reserved a run first retains its previous semantics. This change does not infer that its report completed or repair historical partial publications. Rolling back to binaries without this worker delays new intents until roll-forward; do not clear their reservations. The age-independent publication sweep resumes preparation/pending work after roll-forward. A separate two-hour terminal-run sweep repairs a missed intent, not arbitrary historical legacy claims. Application rollback must retain the new table; do not roll back its schema while intents/snapshots remain pending or uncertain.
+
+## Publication
+
+The worker captures the existing shared report builder's buffer submissions in its own process, preserving the ordinary path for other ingestion. It persists an immutable compressed snapshot of row IDs, timestamps, field values, deferred webhook effects, single-partition chunks and their precomputed content tokens. Preparation claims an owner-fenced six-minute lease and durably counts attempts before building, including attempts killed before returning an error. Successful snapshot commit requires the same owner. A known permanent failure stops immediately; eight unsuccessful attempts stop in `failed_preparation`, which automatic recovery excludes. The intent, staged source and a bounded error code remain available. The 64 MiB compressed snapshot limit is not a bound on total builder memory.
+
+After correcting the staged source or resource issue, an authorized operator may call `Tuist.OnceEvents.TestReportIngestor.retry_preparation(id)` to reset only a failed, payload-free preparation and requeue it. This operation cannot reset an uncertain write. Do not repeatedly reset without investigating the error and worker memory/timeout behavior.
+
+Infrastructure failures count too: a sustained database/ClickHouse outage can exhaust all eight attempts. There is no fixed outage tolerance: queue delays, retry backoff, recovery sweeps and the finite ten-minute job-uniqueness window affect the cadence. The durable attempt count, not a particular Oban job's attempt number, bounds preparation work. After restoring and checking the dependency, inspect representative failed jobs to distinguish an outage from invalid source or deterministic resource exhaustion. For a confirmed outage, an authorized operator can retry a **bounded, project-scoped batch** of `builder_failed` preparations. Deliberately bind `project_id`, `window_start` and `window_end` to the affected project and UTC **failure-update** window before evaluating this snippet in the matching release:
+
+```elixir
+import Ecto.Query
+alias Tuist.OnceEvents.Run
+alias Tuist.OnceEvents.TestReportIngestor
+alias Tuist.OnceEvents.TestReportPublication
+alias Tuist.Repo
+
+ids = Repo.all(
+  from p in TestReportPublication,
+    join: r in Run, on: r.id == p.id,
+    where: r.project_id == ^project_id,
+    where: p.state == "failed_preparation" and p.preparation_error == "builder_failed",
+    where: is_nil(p.payload) and p.updated_at >= ^window_start and p.updated_at < ^window_end,
+    order_by: [asc: p.updated_at, asc: p.id],
+    limit: 100,
+    select: p.id
+)
+
+Enum.map(ids, fn id -> {id, TestReportIngestor.retry_preparation(id)} end)
+```
+
+Record the selected IDs and every result, verify a sample reaches `published`, and watch queue/dependency pressure before deliberately selecting another batch. Do not automate repeated resets. This excludes permanent errors and killed-attempt `attempt_limit` cases, which need separate investigation; the retry function also rejects any changed state, payload or uncertain write.
+
+Existing idempotent historical flaky corrections and their PostgreSQL jobs commit with successful snapshot preparation, independently of this report's later publication. They may update older reports while the new report is uncertain. New-report rows and created-case webhooks remain captured/deferred; do not describe capture as deferring every historical side effect.
+
+Each chunk is marked in flight in PostgreSQL **before** sending it. An acknowledged write advances a durable checkpoint. Retries resume acknowledged prefixes without resending them. The parent report is written last. Publication completion and its follow-up job commit together. Deferred webhook enqueueing and its completion checkpoint are one PostgreSQL transaction; downstream webhook delivery and optional notifications are not exactly once.
+
+A three-minute soft budget, including preparation, is checked before starting each chunk. Exhaustion releases the owner between acknowledged chunks and snoozes the job, letting the next attempt resume its checkpoint with a fresh budget. This is a cooperative bound, not proof that GC, pool stalls or a remote call cannot exceed a deadline. The five-minute hard timeout is shorter than the six-minute claim lease. Lease expiry is not a rescheduling guarantee. Existing unique jobs and recovery cadence can delay replacement, while a dead pod's original executing Oban row can remain until the configured thirty-minute Lifeline rescue. The ten-minute uniqueness window may allow another job before that rescue; database owner/checkpoint fencing, not uniqueness or Lifeline, prevents unsafe overlap. A killed job between chunks can resume; a killed job with an in-flight chunk cannot safely assume whether ClickHouse accepted it. A write error, lost response, or expired in-flight owner moves the publication to `uncertain`. Only the driver's explicit pre-send pool checkout timeout clears the in-flight marker for an automatic retry; errors after sending are never classified by a transport message string. Automatic recovery does **not** resend that chunk. Even a short retry horizon cannot guarantee ClickHouse deduplication: its retention is count- as well as time-bounded. Tokens are defense in depth, not the correctness fence. The writer disables both the repo's generic transport retries and DBConnection checkout resends, and forces synchronous server inserts. No fleet-wide ClickHouse deduplication-window changes are required.
+
+## Detect and reconcile uncertain writes
+
+Alert on increases in `tuist_once_events_test_report_publication_total{outcome="uncertain"}` or `outcome="preparation_failed"`, and inspect retained publication rows and failed Oban jobs. Metrics have no run/account/project labels. Missing metrics are not evidence that no publication is stuck. Preparation failures and uncertain writes are logged without report payloads.
+
+Reconciliation is an explicit maintenance operation requiring the normal production authorization. Nothing in the worker performs it automatically:
+
+1. Identify the publication's exact `id`, `owner`, `in_flight_chunk`, `next_chunk`, and immutable payload. Decode the snapshot in the matching server release with `:erlang.binary_to_term(payload, [:safe])`. Schema-removing upgrades must drain or migrate pending snapshots first.
+2. Prove that the old worker **and every outstanding ClickHouse query for it** have stopped. A lease expiry, a pod's phase, or an empty read is not that proof. Do not resume while a late insert can still commit.
+3. Inspect the exact uncertain chunk on every relevant storage replica using the read-only repo or approved operational tooling. Verify identities **and payloads**, not a parent report or an aggregate count alone. Account for replication lag and pending writes.
+4. If all rows match, call `Tuist.OnceEvents.TestReportIngestor.reconcile_chunk(id, owner, index, :present)`. If every row is conclusively absent after quiescence, use `:absent`. The function checks the exact uncertain owner and checkpoint and transactionally requeues work. A stale decision is rejected.
+5. Partial, mismatched, inaccessible or otherwise unknown results must remain `uncertain`. Escalate for a separately reviewed repair; do not reset the legacy reservation, rebuild children with fresh IDs, or blindly replay the chunk.
+6. Verify the retained publication reaches `published`, the expected children and parent are readable, and follow-ups have progressed. Keep an audit record of the quiescence and storage evidence used.
+
+These steps are a safe repair interface, not an automatic exactly-once cross-database transaction or a claim that power loss, storage failure and arbitrary schema changes cannot lose data.

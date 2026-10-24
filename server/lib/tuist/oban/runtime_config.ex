@@ -34,6 +34,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
     {"@hourly", Tuist.OnceEvents.Workers.ExpireStaleRunsWorker},
+    {"* * * * *", Tuist.OnceEvents.Workers.PublishTestReportWorker, args: %{"phase" => "recover"}},
     {"*/5 * * * *", Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker},
     {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},

@@ -61,7 +61,7 @@ defmodule Tuist.OnceEvents.Projector do
       # finished run becomes a row in the shared test store. A failure here
       # must not reject the event, or the client would retry a run that did
       # finalize, so it is logged and left for the run to be republished.
-      TestReportIngestor.publish(finalized)
+      TestReportIngestor.enqueue_safely(finalized)
       {:ok, _published?} = OnceEvents.publish_build_entities(finalized)
     end
 

@@ -15,7 +15,11 @@ defmodule Tuist.IngestRepo do
   defoverridable insert_all: 2, insert_all: 3, insert: 1, insert: 2
 
   def insert_all(schema_or_source, entries, opts \\ []) do
-    with_retry(fn -> super(schema_or_source, entries, opts) end)
+    {retry?, opts} = Keyword.pop(opts, :retry, true)
+
+    if retry?,
+      do: with_retry(fn -> super(schema_or_source, entries, opts) end),
+      else: super(schema_or_source, entries, opts)
   end
 
   def insert(struct, opts \\ []) do

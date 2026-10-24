@@ -338,7 +338,11 @@ defmodule Tuist.Projects do
   defp maybe_filter_recent(projects, opts) do
     if recent = Keyword.get(opts, :recent) do
       project_ids = Enum.map(projects, & &1.id)
-      interaction_data = CommandEvents.get_project_last_interaction_data(project_ids)
+
+      interaction_data =
+        if Keyword.get(opts, :recent_by) == :updated_at,
+          do: %{},
+          else: CommandEvents.get_project_last_interaction_data(project_ids)
 
       projects
       |> Enum.map(fn project ->

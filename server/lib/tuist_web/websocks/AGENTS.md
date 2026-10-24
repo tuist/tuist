@@ -7,6 +7,10 @@ This area owns raw WebSock handlers that bridge browser WebSocket clients to ser
 - Keep transport credentials and infrastructure addresses out of browser-facing payloads.
 - Delegate lifecycle and authorization state to `server/lib/tuist` contexts.
 
+## Shell ownership
+
+Overlapping client sockets can represent one durable interactive session. Broadcast PTY teardown only when `close_disconnected_connection/2` actually closes that session, not for a stale/replaced socket. The agent receiver also ignores legacy disconnect broadcasts while the durable session remains open, protecting mixed-version rollout. PubSub already crosses replicas; sticky routing is not the ownership fence. Expiry and explicit session closure must still terminate the PTY.
+
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
 - Route-level authentication and upgrade decisions belong in controllers.

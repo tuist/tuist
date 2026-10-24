@@ -99,7 +99,7 @@ defmodule TuistWeb.Oauth.TokenController do
   end
 
   def token(%Plug.Conn{} = conn, _params) do
-    oauth_module().token(conn, __MODULE__)
+    Tuist.OAuth.Exchange.token(conn, __MODULE__)
   end
 
   defp refresh_credential(%RefreshTokenRequest{} = request) do

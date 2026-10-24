@@ -27,7 +27,62 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     stub(Lock, :release, fn _ -> :ok end)
     stub(SwiftPackageIndex, :list_packages, fn _ -> {:ok, []} end)
 
+    stub(Metadata, :update_package, fn scope, name, initial, amend ->
+      with {:ok, updated} <- amend.(initial), do: Metadata.put_package(scope, name, updated)
+    end)
+
     :ok
+  end
+
+  for failure <- [:metadata_read, :metadata_write, :task_crash] do
+    @tag adversarial: true, failure: failure
+    test "#{failure} releases both leases and defers the pass", %{failure: failure} do
+      parent = self()
+      package = %{scope: "owner", name: "first", repository_full_handle: "owner/first"}
+      expect(SwiftPackageIndex, :list_packages, fn _ -> {:ok, [package]} end)
+      expect(SyncCursor, :get, fn -> 0 end)
+      expect(SyncCursor, :put, fn 0 -> :ok end)
+
+      expect(Lock, :release, 2, fn key ->
+        send(parent, {:released, key})
+        :ok
+      end)
+
+      expect(Metadata, :get_package, fn "owner", "first" ->
+        case failure do
+          :metadata_read -> {:error, {:s3_error, :unavailable}}
+          :metadata_write -> {:error, :not_found}
+          :task_crash -> raise "synthetic package task failure"
+        end
+      end)
+
+      if failure == :metadata_write do
+        expect(TuistCommon.GitHub, :list_tags, fn "owner/first", _, _ -> {:ok, []} end)
+        expect(Metadata, :update_package, fn "owner", "first", _, _ -> {:error, :conflict} end)
+      end
+
+      assert {:snooze, 600} = SyncWorker.perform(%Oban.Job{args: %{}})
+      assert_receive {:released, {:package, "owner", "first"}}
+      assert_receive {:released, :sync}
+    end
+  end
+
+  test "a soft deadline saves the visited cursor before the worker timeout" do
+    clock = :atomics.new(1, [])
+    stub(System, :monotonic_time, fn :millisecond -> :atomics.get(clock, 1) end)
+    packages = for name <- ["first", "second"], do: %{scope: "owner", name: name, repository_full_handle: "owner/#{name}"}
+    expect(SwiftPackageIndex, :list_packages, fn _ -> {:ok, packages} end)
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 1 -> :ok end)
+    expect(Metadata, :get_package, fn "owner", "first" -> {:error, :not_found} end)
+    expect(Metadata, :put_package, fn "owner", "first", _ -> :ok end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "owner/first", _, _ ->
+      :atomics.put(clock, 1, 480_001)
+      {:ok, []}
+    end)
+
+    assert {:snooze, 60} = SyncWorker.perform(%Oban.Job{args: %{}})
   end
 
   test "enqueues release workers for missing versions" do
