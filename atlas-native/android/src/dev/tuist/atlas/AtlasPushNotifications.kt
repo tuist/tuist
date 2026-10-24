@@ -1,7 +1,6 @@
 package dev.tuist.atlas
 
 import android.Manifest
-import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,33 +13,11 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONObject
 import java.util.UUID
-
-class AtlasApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        val applicationId = getString(R.string.atlas_firebase_application_id)
-        val apiKey = getString(R.string.atlas_firebase_api_key)
-        val projectId = getString(R.string.atlas_firebase_project_id)
-        val senderId = getString(R.string.atlas_firebase_sender_id)
-        if (listOf(applicationId, apiKey, projectId, senderId).any { it.isBlank() }) return
-        FirebaseApp.initializeApp(
-            this,
-            FirebaseOptions
-                .Builder()
-                .setApplicationId(applicationId)
-                .setApiKey(apiKey)
-                .setProjectId(projectId)
-                .setGcmSenderId(senderId)
-                .build(),
-        )
-    }
-}
 
 // The service never registers devices or refreshes Atlas credentials. Registration is foreground-only.
 class AtlasMessagingService : FirebaseMessagingService() {
@@ -65,13 +42,24 @@ class AtlasMessagingService : FirebaseMessagingService() {
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "Atlas notifications", NotificationManager.IMPORTANCE_DEFAULT))
         val intent = Intent(this, MainActivity::class.java).setAction(Intent.ACTION_VIEW).setData(Uri.parse(data["url"]))
         val pending = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification =
+        val (title, body) = content(data)
+        val publicVersion =
             Notification
                 .Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("Atlas")
                 .setContentText("You have a new notification.")
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .build()
+        val notification =
+            Notification
+                .Builder(this, CHANNEL)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(Notification.BigTextStyle().bigText(body))
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion)
                 .setAutoCancel(true)
                 .setContentIntent(pending)
                 .build()
@@ -84,6 +72,30 @@ class AtlasMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val CHANNEL = "atlas.notifications"
+
+        // Text is presentation only; the separately validated destination is the sole tap action.
+        internal fun content(data: Map<String, String>): Pair<String, String> {
+            fun bounded(
+                value: String?,
+                maximum: Int,
+            ): String? {
+                if (value == null || value.length > maximum * 2) return null
+                val text = value.trim()
+                if (text.isEmpty() || text.codePointCount(0, text.length) > maximum) return null
+                if (text.codePoints().anyMatch {
+                        Character.isISOControl(it) || it in 0x202A..0x202E || it in 0x2066..0x2069 ||
+                            it == 0x200E || it == 0x200F || it == 0x061C ||
+                            Character.getType(it) == Character.SURROGATE.toInt()
+                    }
+                ) {
+                    return null
+                }
+                return text
+            }
+            val title = bounded(data["title"], 80)
+            val body = bounded(data["body"], 320)
+            return if (title != null && body != null) title to body else "Atlas" to "You have a new notification."
+        }
     }
 }
 

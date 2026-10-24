@@ -9,7 +9,8 @@ defmodule Atlas.MCP.Tools.ListAccountNudges do
         Map.put(Atlas.MCP.AccountLookup.identifier_schema_properties(), "state", %{
           "type" => "string",
           "enum" => ["pending_post", "proposed", "claimed", "dismissed", "expired"]
-        })
+        }),
+      "anyOf" => Enum.map(["account_id", "account_key", "handle"], &%{"required" => [&1]})
     },
     output_schema: Atlas.MCP.Serializers.Nudges.list_response_schema()
 
@@ -20,7 +21,8 @@ defmodule Atlas.MCP.Tools.ListAccountNudges do
 
   @impl EMCP.Tool
   def description do
-    "List the account's nudges. Nudges are per-signal outreach proposals for a human to claim and send."
+    "List one account's nudges. Requires account_id, account_key, or handle; state alone is not sufficient. " <>
+      "Use list_accounts to find the account first. Nudges are per-signal outreach proposals for a human to claim and send."
   end
 
   def execute(conn, args) do

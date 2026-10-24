@@ -22,11 +22,14 @@ runs the mixed-version latency expression through promtool.
   post-rollout reconciliation in
   [the retirement runbook](../runner-image/xcode-27.1-retirement.md).
 
-- Production gives every Xcode image's 6 vCPU pool on the BER1 rack
-  `minWarmPoolFloor: 1` (`rackFleet.runners.autoscaling`); a rack pool without
-  a floor starts every job cold (scale-up plus VM boot, 13 to 75 s). The rented
-  fleet keeps a floor only on the default image (26.6), in
-  `runnersFleet.xcodeOverrides`.
+- Production sizes warm floors by demand: only a warm runner claims a job in
+  under 10 s, and a pool without one starts every job cold (scale-up plus VM
+  boot, 10 to 75 s), while a floor on an image without jobs holds a slot
+  other images' bursts wait for. Images with a job in most weekday working
+  hours keep one: on the BER1 rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
+  one (`rackFleet.runners.xcodeOverrides`, default 0); on the rented fleet
+  27.0 keeps two and the default image 26.6 one (`runnersFleet.xcodeOverrides`).
+  Re-measure from `tuist.runner_jobs` before changing them.
   The 12 vCPU shape pools stay at 0, because an idle one holds a whole host.
   Staging and canary run one lent rack host with two slots: staging warms
   26.6 and 27.1, and canary keeps its slots free for the runners acceptance
@@ -200,5 +203,7 @@ runs the mixed-version latency expression through promtool.
 - `tuist.kuraActivation` is a disabled-by-default, stateless wildcard fallback. Enable exactly one global owner; the matching platform `cacheDNS.activationIngressClass` opt-in reads `nginx-grpc` ingress status for Route53 wildcard DNS. Both activation protocols must use the same dedicated ingress/load balancer; main nginx sends an HTTP/2-forbidden Connection header. The production overlay enables the gateway on the general worker pool; other environments keep it off. Production alone enables wildcard DNS sourcing after pinned production transport validation; other environments remain off. Regional latency records and their withdrawal barriers stay controller-owned. See `../kura-controller/activation.md` before rollout.
 
 ## Replica-safety rollout
+
+Keep the chart-facing [server scaling guide](tuist/README.md#scaling-the-server) aligned with the cookie, private networking and membership-verification contracts below.
 
 Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled. The stable private cookie connects different image versions during rolling upgrades; the first migration from image-baked cookies still creates old/new islands. Qualify PubSub, Oban PG notifications and peer replacement across the actual versions. Offline/GitOps renderers without live Secret lookup must use a separately managed `cookieExistingSecret`; a missing key in an existing generated Secret fails rather than silently rotating it. Managed staging/canary/production configure `server.cluster.externalSecret` with `cookieExistingSecret: tuist-server-cluster-cookie`: the dedicated ESO resource reads `SERVER_CLUSTER_COOKIE/password` from each environment's own 1Password vault, never the shared server-config Secret. It renders only when clustering is enabled, uses `refreshPolicy: OnChange` so source edits alone do not propagate on a timer, and requires an explicit sync during coordinated rotation; self-host defaults require no ESO. Missing/empty source data must not trigger cookie generation. `test-cluster-cookie.py` checks ownership, all three environment overlays, web-only references and invalid configurations in Helm CI. Bootstrap, rebuild and coordinated rotation are documented in [onboarding](../k8s/onboarding.md#5e-durable-server-distribution-cookies). Cookie rotation requires coordinated process replacement. The chart guard rejects previously accepted unclustered multi-web configurations because live PubSub/PG notifications must cross replicas; it is not a runtime replica-count detector. See the [self-host clustering upgrade guidance](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).

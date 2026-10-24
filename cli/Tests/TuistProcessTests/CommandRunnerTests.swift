@@ -79,7 +79,7 @@ import Testing
         let count = Mutex(0)
         let incomplete = Mutex(false)
         let start = Date()
-        try await CommandRunner().runWithOutputHandler(
+        try await CommandRunner(maximumConcurrentProcesses: 1).runWithOutputHandler(
             arguments: ["/bin/sh", "-c", "/usr/bin/yes x &"],
             environment: [:], workingDirectory: nil,
             onIncompleteOutput: { incomplete.withLock { $0 = true } }
@@ -103,7 +103,7 @@ import Testing
             }
         }
         do {
-            try await CommandRunner().runWithOutputHandler(
+            try await CommandRunner(maximumConcurrentProcesses: 1).runWithOutputHandler(
                 arguments: [
                     "/bin/sh", "-c",
                     "(while :; do printf x >&2; /bin/sleep 0.05; done) & printf '%s\\n' \"$!\"; exit \(code)",
@@ -162,7 +162,7 @@ import Testing
         let output = Mutex("")
         let start = Date()
         do {
-            try await CommandRunner().runWithOutputHandler(
+            try await CommandRunner(maximumConcurrentProcesses: 1).runWithOutputHandler(
                 arguments: ["/bin/sh", "-c", "/bin/sleep 30 & printf '%s\\n' \"$!\"; exit \(code)"],
                 environment: [:], workingDirectory: nil,
                 onIncompleteOutput: { incomplete.withLock { $0 = true } }

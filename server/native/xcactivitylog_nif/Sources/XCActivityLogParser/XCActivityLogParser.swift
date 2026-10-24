@@ -370,12 +370,14 @@ public struct XCActivityLogParser: Sendable {
         var keyStatuses = [String: (taskType: String, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool, isMiss: Bool)]()
         var keyDescriptions = [String: String]()
         var keyNodeIDs = [String: Set<String>]()
-        var noteOnlyStepNotes = [[CacheNote]]()
+        var keyNotes = [String: CacheNote]()
+        var jobs = CacheJobs()
 
         for step in buildSteps {
             guard step.title.contains("Swift caching") || step.title.contains("Clang caching") else { continue }
             let taskType = step.title.contains("Swift caching") ? "swift" : "clang"
-            guard let key = extractCacheKey(from: step.title) else { continue }
+            let keys = extractCacheKeys(from: step.title)
+            guard !keys.isEmpty else { continue }
 
             let operation: String?
             if step.title.contains("query key") { operation = "query" }
@@ -384,17 +386,20 @@ public struct XCActivityLogParser: Sendable {
             else { operation = nil }
 
             guard let op = operation else { continue }
+            jobs.join(keys)
 
             // Swift query steps say `cache key query miss`. Xcode 27's clang query
             // steps say `cache miss`, and `cache hit` when the remote serves the key.
             let isMiss = step.notes?.contains { $0.title == "cache key query miss" || $0.title == "cache miss" } ?? false
-            var status = keyStatuses[key] ?? (taskType: taskType, hasQuery: false, hasMaterialize: false, hasUpload: false, isMiss: false)
-            status.taskType = taskType
-            if op == "query" { status.hasQuery = true }
-            if op == "materialize" { status.hasMaterialize = true }
-            if op == "upload" { status.hasUpload = true }
-            if isMiss { status.isMiss = true }
-            keyStatuses[key] = status
+            for key in keys {
+                var status = keyStatuses[key] ?? (taskType: taskType, hasQuery: false, hasMaterialize: false, hasUpload: false, isMiss: false)
+                status.taskType = taskType
+                if op == "query" { status.hasQuery = true }
+                if op == "materialize" { status.hasMaterialize = true }
+                if op == "upload" { status.hasUpload = true }
+                if isMiss { status.isMiss = true }
+                keyStatuses[key] = status
+            }
         }
 
         for step in buildSteps {
@@ -402,9 +407,10 @@ public struct XCActivityLogParser: Sendable {
             let cacheNotes = notes.compactMap { cacheNote($0.title) }
             for note in cacheNotes {
                 keyDescriptions[note.key] = step.title
+                if keyNotes[note.key]?.isMiss != true { keyNotes[note.key] = note }
             }
-            if !cacheNotes.isEmpty { noteOnlyStepNotes.append(cacheNotes) }
-            let cacheKey = extractCacheKey(from: step.title) ?? cacheNotes.first?.key
+            jobs.join(cacheNotes.map(\.key))
+            let cacheKey = extractCacheKeys(from: step.title).first ?? cacheNotes.first?.key
             guard let ck = cacheKey else { continue }
             for note in notes {
                 if let nodeID = extractNodeIDFromNote(note.title) {
@@ -415,68 +421,60 @@ public struct XCActivityLogParser: Sendable {
             }
         }
 
+        let statuses = keyStatuses
         let descriptions = keyDescriptions
         let nodeIDs = keyNodeIDs
+        let notes = keyNotes
 
-        let stepTasks = try await Array(keyStatuses).concurrentMap(maxConcurrentTasks: 50) { (key, status) in
-            // A key observed only as an upload (no query or materialize) is a fresh
-            // compile whose result we pushed to the remote CAS — the cache did not
-            // serve that work, so it counts as a miss.
-            let isMiss = status.isMiss || (!status.hasQuery && !status.hasMaterialize)
+        // Xcode counts one cacheable task per compile job. A batch-mode Swift job has a key
+        // per primary file, and its caching steps (`materialize key ["0~a", "0~b"]`) and
+        // compile-step notes name them together, so the job's keys become one task under
+        // its first key. The job is a miss when any of its keys missed: a failed query, a
+        // `local cache miss` replay, or a key only ever uploaded (a fresh compile we pushed).
+        return try await jobs.groups().concurrentMap(maxConcurrentTasks: 50) { keys in
+            let key = keys[0]
+            let keyStatuses = keys.compactMap { statuses[$0] }
+            let hasQuery = keyStatuses.contains(where: \.hasQuery)
+            let hasMaterialize = keyStatuses.contains(where: \.hasMaterialize)
+            let missedNote = keys.contains { notes[$0]?.isMiss == true }
 
             let cacheStatus: String
-            if isMiss { cacheStatus = "miss" }
-            else if status.hasQuery { cacheStatus = "hit_remote" }
-            else { cacheStatus = "hit_local" }
-
-            let readDuration: Double?
-            if cacheStatus == "hit_remote" || cacheStatus == "miss" {
-                readDuration = await casReader.readKeyValueMetadata(key: key, operationType: "read")?.duration
+            if keyStatuses.isEmpty {
+                cacheStatus = missedNote ? "miss" : "hit_local"
+            } else if keyStatuses.contains(where: \.isMiss) || missedNote || (!hasQuery && !hasMaterialize) {
+                cacheStatus = "miss"
+            } else if hasQuery {
+                cacheStatus = "hit_remote"
             } else {
-                readDuration = nil
+                cacheStatus = "hit_local"
             }
 
-            let writeDuration: Double?
-            if status.hasUpload {
-                writeDuration = await casReader.readKeyValueMetadata(key: key, operationType: "write")?.duration
-            } else {
-                writeDuration = nil
+            var readDuration: Double?
+            var writeDuration: Double?
+            for (key, status) in zip(keys, keys.map { statuses[$0] }) {
+                guard let status else { continue }
+                if cacheStatus == "hit_remote" || cacheStatus == "miss",
+                   let duration = await casReader.readKeyValueMetadata(key: key, operationType: "read")?.duration
+                {
+                    readDuration = max(readDuration ?? 0, duration)
+                }
+                if status.hasUpload,
+                   let duration = await casReader.readKeyValueMetadata(key: key, operationType: "write")?.duration
+                {
+                    writeDuration = max(writeDuration ?? 0, duration)
+                }
             }
 
             return CacheableTask(
-                type: status.taskType,
+                type: keyStatuses.first?.taskType ?? notes[key]?.taskType ?? "swift",
                 status: cacheStatus,
                 key: key,
                 read_duration: readDuration,
                 write_duration: writeDuration,
-                description: descriptions[key],
-                cas_output_node_ids: Array(nodeIDs[key] ?? [])
+                description: keys.lazy.compactMap { descriptions[$0] }.first,
+                cas_output_node_ids: Array(keys.reduce(into: Set<String>()) { $0.formUnion(nodeIDs[$1] ?? []) })
             )
         }
-
-        // A compilation served by, or missing from, a local-only CAS runs no caching step
-        // at all. Its only trace is the hit or miss notes on the compile step. Xcode counts
-        // the compile job once, although a batch-mode Swift job names one key per file it
-        // replays, so each step becomes a single task under its first key.
-        var noteOnlyKeys = Set<String>()
-        var noteOnlyTasks = [CacheableTask]()
-        for stepNotes in noteOnlyStepNotes {
-            let keys = stepNotes.map(\.key)
-            guard keys.allSatisfy({ keyStatuses[$0] == nil && !noteOnlyKeys.contains($0) }) else { continue }
-            noteOnlyKeys.formUnion(keys)
-            let note = stepNotes[0]
-            noteOnlyTasks.append(CacheableTask(
-                type: note.taskType,
-                status: stepNotes.contains(where: \.isMiss) ? "miss" : "hit_local",
-                key: note.key,
-                read_duration: nil,
-                write_duration: nil,
-                description: descriptions[note.key],
-                cas_output_node_ids: Array(nodeIDs[note.key] ?? [])
-            ))
-        }
-
-        return stepTasks + noteOnlyTasks
     }
 
     // MARK: - CAS Outputs
@@ -553,16 +551,58 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Regex Helpers
 
-    // Swift titles wrap the key in a JSON array (`query key ["0~…"]`). Xcode 27's
-    // clang titles carry it bare (`Clang caching query key 0~…`).
-    private func extractCacheKey(from title: String) -> String? {
+    // Swift titles list the job's keys in an array (`query key ["0~a", "0~b"]`), one per
+    // primary file of a batch-mode job. Xcode 27's clang titles carry a single key bare
+    // (`Clang caching query key 0~…`). Uploads name one key each.
+    private func extractCacheKeys(from title: String) -> [String] {
         if title.contains("query key") || title.contains("materialize key") {
-            return extractWithPattern("\\[\"([^\"]+)\"\\]", from: title)
-                ?? extractWithPattern("(?:query|materialize) key (0~[A-Za-z0-9+/_=-]+)", from: title)
+            guard let range = title.range(of: " key ") else { return [] }
+            let regex = try? NSRegularExpression(pattern: "0~[A-Za-z0-9+/_=-]+")
+            let keys = String(title[range.upperBound...])
+            return regex?.matches(in: keys, range: NSRange(keys.startIndex..., in: keys))
+                .compactMap { Range($0.range, in: keys).map { String(keys[$0]) } } ?? []
         } else if title.contains("upload key") {
-            return extractWithPattern("upload key ([^\\s]+)", from: title)
+            return extractWithPattern("upload key ([^\\s]+)", from: title).map { [$0] } ?? []
         }
-        return nil
+        return []
+    }
+
+    // Groups cache keys into the compile jobs they belong to, keeping first-seen order.
+    private struct CacheJobs {
+        private var parents = [String: String]()
+        private var order = [String]()
+
+        mutating func join(_ keys: [String]) {
+            for key in keys where parents[key] == nil {
+                parents[key] = key
+                order.append(key)
+            }
+            guard let first = keys.first else { return }
+            for key in keys.dropFirst() {
+                let (a, b) = (root(first), root(key))
+                if a != b { parents[b] = a }
+            }
+        }
+
+        mutating func groups() -> [[String]] {
+            var members = [String: [String]]()
+            var roots = [String]()
+            for key in order {
+                let r = root(key)
+                if members[r] == nil { roots.append(r) }
+                members[r, default: []].append(key)
+            }
+            return roots.compactMap { members[$0] }
+        }
+
+        private mutating func root(_ key: String) -> String {
+            var current = key
+            while let parent = parents[current], parent != current {
+                parents[current] = parents[parent]
+                current = parent
+            }
+            return current
+        }
     }
 
     private struct CacheNote {

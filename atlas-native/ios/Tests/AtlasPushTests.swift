@@ -1,8 +1,44 @@
 import Foundation
 import Security
 import Testing
+import UserNotifications
 
 struct AtlasPushTests {
+    @Test func completionCategoryOffersOnlyAnUnlockedForegroundOpen() throws {
+        let category = AtlasPushActions.orbitCompletedCategory
+        #expect(category.identifier == "ATLAS_ORBIT_COMPLETED")
+        #expect(category.actions.count == 1)
+        let action = try #require(category.actions.first)
+        #expect(action.identifier == "ATLAS_OPEN_CONVERSATION")
+        #expect(action.title == "Open conversation")
+        #expect(action.options == [.foreground, .authenticationRequired])
+        #expect(!(action is UNTextInputNotificationAction))
+    }
+
+    @Test func onlyDefaultTapsAndTheMatchingOpenActionNavigate() {
+        let link = "dev.tuist.atlas://navigate/orbit/0b6b9c2e-8f8e-4b1e-9a51-1f3d2b7f0c11?server=https%3A%2F%2Fatlas.tuist.dev"
+        let payload: [AnyHashable: Any] = [
+            "schema_version": 1, "url": link
+        ]
+        let category = AtlasPushActions.orbitCompletedCategoryID
+        for action in [UNNotificationDefaultActionIdentifier, AtlasPushActions.openConversationID] {
+            #expect(AtlasPushPayload.destination(payload, actionIdentifier: action, categoryIdentifier: category) != nil)
+        }
+        for action in [UNNotificationDismissActionIdentifier, "UNKNOWN_ACTION", "", "REPLY"] {
+            #expect(AtlasPushPayload.destination(payload, actionIdentifier: action, categoryIdentifier: category) == nil)
+        }
+        #expect(AtlasPushPayload.destination(
+            payload, actionIdentifier: AtlasPushActions.openConversationID, categoryIdentifier: ""
+        ) == nil)
+        #expect(AtlasPushPayload.destination(
+            payload, actionIdentifier: UNNotificationDefaultActionIdentifier, categoryIdentifier: ""
+        ) != nil)
+        #expect(AtlasPushPayload.destination(
+            ["schema_version": 2, "url": link],
+            actionIdentifier: AtlasPushActions.openConversationID, categoryIdentifier: category
+        ) == nil)
+    }
+
     @Test func acceptsOnlyVersionedCustomSchemeNavigationHints() throws {
         let link = "dev.tuist.atlas://navigate/tasks?server=https%3A%2F%2Fatlas.tuist.dev"
         #expect(AtlasPushPayload.destination(["schema_version": 1, "url": link])?.absoluteString == link)
@@ -73,9 +109,10 @@ struct AtlasPushTests {
         let server = try #require(URL(string: "https://atlas.tuist.dev"))
         let wrongOrigin = try #require(AtlasPushPayload.destination([
             "schema_version": 1, "url": "dev.tuist.atlas://navigate/tasks?server=https%3A%2F%2Fevil.example"
-        ]))
+        ], actionIdentifier: AtlasPushActions.openConversationID, categoryIdentifier: AtlasPushActions.orbitCompletedCategoryID))
         navigation.receive(wrongOrigin, server: server)
         #expect(navigation.message != nil)
+        #expect(navigation.destination == nil)
     }
 }
 

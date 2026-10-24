@@ -27,7 +27,7 @@ on:
       slots:
         description: Guest slots to load (the rack's hosts x 2)
         required: false
-        default: "18"
+        default: "32"
 
 permissions:
   contents: read

@@ -522,7 +522,7 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
-    test "stamps the account and untrusted labels on a macOS Pod once the dispatch commits" do
+    test "stamps only the account label on a macOS Pod once the dispatch commits" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
@@ -540,7 +540,7 @@ defmodule Tuist.RunnersTest do
       assert result.cache_signing_grant == "signed-grant-token"
       refute Map.has_key?(result, :volume_head)
       assert_receive {:patched, %{"tuist.dev/runner-account" => ^account_label} = labels}
-      assert labels == %{"tuist.dev/runner-account" => account_label, "tuist.dev/runner-cache-untrusted" => "true"}
+      assert labels == %{"tuist.dev/runner-account" => account_label}
     end
 
     test "includes the minted cache signing grant in the dispatch result" do
@@ -580,7 +580,8 @@ defmodule Tuist.RunnersTest do
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
       refute Map.has_key?(result, :volume_head)
-      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-untrusted" => "true"}}
+      assert_receive {:patched, %{"tuist.dev/runner-account" => _} = labels}
+      refute Map.has_key?(labels, "tuist.dev/runner-cache-untrusted")
     end
 
     test "treats a job as untrusted (cold) when the workflow-run lookup fails, fail-closed" do
@@ -1628,12 +1629,8 @@ defmodule Tuist.RunnersTest do
       parts = [{1, ~s("etag-1")}]
       expect(Tuist.Storage, :multipart_complete_upload, fn ^key, "upload-1", ^parts, _actor -> :ok end)
       # Storage answers before the object is readable.
-      heads = :counters.new(1, [])
-
-      expect(Tuist.Storage, :object_exists?, 3, fn ^key, _actor ->
-        :ok = :counters.add(heads, 1, 1)
-        :counters.get(heads, 1) == 3
-      end)
+      expect(Tuist.Storage, :object_exists?, 2, fn ^key, _actor -> false end)
+      expect(Tuist.Storage, :object_exists?, fn ^key, _actor -> true end)
 
       assert :ok = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
 

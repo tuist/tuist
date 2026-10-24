@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.tuist.atlas.preview">
     <application android:label="Atlas Settings Preview" android:theme="@style/AtlasTheme" android:allowBackup="false" android:enableOnBackInvokedCallback="true" android:supportsRtl="true">
+        <provider android:name="dev.tuist.atlas.AtlasOrbitAttachmentProvider" android:authorities="dev.tuist.atlas.preview.orbit-attachments" android:exported="false" android:grantUriPermissions="true" />
         <activity android:name="dev.tuist.atlas.preview.SettingsPreviewActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name="dev.tuist.atlas.preview.ThreadCardPreviewActivity" android:exported="true" />
         <activity android:name="dev.tuist.atlas.preview.TimeOffPreviewActivity" android:exported="true" />
         <activity android:name="dev.tuist.atlas.preview.WorkspacePreviewActivity" android:exported="true" android:windowSoftInputMode="adjustResize" />
         <activity android:name="dev.tuist.atlas.preview.BusinessPreviewActivity" android:exported="true" android:windowSoftInputMode="adjustResize" />

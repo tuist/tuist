@@ -1,6 +1,6 @@
 Connect your [Claude](https://claude.ai/) or [ChatGPT](https://chatgpt.com/) account so sessions you start will use your connected account for inference: running the AI model and generating its responses. The connection belongs to you, not the workspace.
 
-User-started sessions are not available yet. For now, connecting an account only saves its credentials, encrypted and never displayed again.
+Conversations with Pip in Orbit use your connected ChatGPT account first, then Claude. If neither is connected or a provider is unavailable, Atlas can use the workspace's configured Orbit inference profile. Other people's credentials are never used for your messages. Conversation context and authorized tool results are shared with whichever provider handles the turn, including a fallback after an unsuccessful attempt. Credentials remain encrypted and are never displayed again.
 
 On the web, open your avatar menu, choose **Account settings**, then **AI accounts**. Select **Connect account** to get started.
 

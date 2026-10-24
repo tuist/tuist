@@ -20,6 +20,8 @@
         android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="false"
         android:supportsRtl="true">
+        <provider android:name="dev.tuist.atlas.AtlasOrbitAttachmentProvider" android:authorities="dev.tuist.atlas.orbit-attachments" android:exported="false" android:grantUriPermissions="true" />
+        <activity android:name="dev.tuist.atlas.AtlasAutomationActivity" android:exported="false" />
         <!-- Explicitly merged SDK components, audited by android/push/manifest.py. -->
         <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
         <meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />
@@ -81,9 +83,11 @@
                 <data android:path="/open/people" />
                 <data android:path="/open/time-off" />
                 <data android:path="/open/profile" />
+                <data android:path="/open/orbit" />
                 <data android:pathPattern="/open/tasks/........-....-....-....-............" />
                 <data android:pathPattern="/open/accounts/........-....-....-....-............" />
                 <data android:pathPattern="/open/invoices/........-....-....-....-............" />
+                <data android:pathPattern="/open/orbit/........-....-....-....-............" />
             </intent-filter>
         </activity>
     </application>

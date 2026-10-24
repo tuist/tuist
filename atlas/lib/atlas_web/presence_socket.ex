@@ -6,6 +6,8 @@ defmodule AtlasWeb.PresenceSocket do
   alias Atlas.Guardian
 
   channel "presence:team", AtlasWeb.PresenceChannel
+  channel "orbit:thread:*", AtlasWeb.OrbitThreadChannel
+  channel "orbit:me", AtlasWeb.OrbitInboxChannel
 
   @impl true
   def connect(_params, socket, %{auth_token: token}) when is_binary(token) do

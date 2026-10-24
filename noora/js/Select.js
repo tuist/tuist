@@ -66,11 +66,20 @@ class Select extends Component {
 
 export default {
   mounted() {
+    this.serverValue = this.el.dataset.value || "";
     this.select = new Select(this.el, this.context());
     this.select.init();
   },
 
   updated() {
+    const value = this.el.dataset.value || "";
+    if (value !== this.serverValue) {
+      this.serverValue = value;
+      const selected = value ? [value] : [];
+      if (this.select.api.value.join() !== selected.join()) {
+        this.select.api.setValue(selected);
+      }
+    }
     this.select.render();
   },
 
@@ -83,7 +92,7 @@ export default {
       id: this.el.id,
       collection: this.collection(),
       name: getOption(this.el, "name"),
-      // Zag.js expects the controlled value to always be an array.
+      defaultValue: this.el.dataset.value ? [this.el.dataset.value] : [],
       onValueChange: (details) => {
         if (this.el.dataset.onValueChange) {
           this.pushEvent(this.el.dataset.onValueChange, details);

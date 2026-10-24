@@ -27,6 +27,7 @@ defmodule Atlas.Inference.ModelBinding do
     field :atlas_inference, :boolean, default: false
     field :atlas_coding, :boolean, default: false
     field :atlas_embedding, :boolean, default: false
+    field :atlas_orbit, :boolean, default: false
     field :last_used_at, :utc_datetime
 
     has_many :tokens, Token, foreign_key: :model_binding_id
@@ -48,6 +49,7 @@ defmodule Atlas.Inference.ModelBinding do
       :atlas_inference,
       :atlas_coding,
       :atlas_embedding,
+      :atlas_orbit,
       :last_used_at
     ])
     |> normalize_strings([:name, :upstream_provider, :upstream_model])
@@ -67,6 +69,10 @@ defmodule Atlas.Inference.ModelBinding do
     )
     |> unique_constraint(:atlas_embedding,
       name: :inference_model_bindings_single_atlas_embedding_index,
+      message: "is already assigned to another profile"
+    )
+    |> unique_constraint(:atlas_orbit,
+      name: :inference_model_bindings_single_atlas_orbit_index,
       message: "is already assigned to another profile"
     )
   end

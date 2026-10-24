@@ -127,6 +127,22 @@ const PRESSURE_BACKOFF_MS: u64 = 30_000;
 // blocking on it, it is the proxy's 10s sweep: at 5s every sweep re-probes, so
 // a node that recovers is picked up on the next one rather than waited out.
 const WRITE_PRESSURE_BACKOFF_MS: u64 = 5_000;
+// After a lookup ends UNAVAILABLE, how long the same `Remote` answers lookups
+// without asking. A build blocks on every lookup, and a remote that is not
+// answering can take tens of seconds to say so (the activation gateway holds a
+// request for its whole activation wait first), so asking it again per lookup
+// costs that wait per compile. Recovery is detected by a background probe, so
+// the window only bounds how long a node that came straight back is ignored.
+const LOOKUP_UNAVAILABLE_BACKOFF_MS: u64 = 5_000;
+// The background probe's lookup. Nothing publishes it, so a serving node
+// answers NOT_FOUND, which is what closes the breaker.
+const LOOKUP_PROBE_KEY: &[u8] = b"tuist-cas-plugin/lookup-probe";
+const LOOKUP_SKIPPED: &str = "remote is not answering lookups; skipped without asking";
+// The cache activation gateway's mark on an answer it gave without forwarding
+// the request: it waited its full activation window and the instance still was
+// not serving.
+const ACTIVATION_HEADER: &str = "x-tuist-cache-activation";
+const ACTIVATION_PENDING: &str = "pending";
 
 pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -145,7 +161,14 @@ const RETRY_BACKOFF: Duration = Duration::from_millis(200);
 /// Retries a synchronous gRPC call up to `ATTEMPTS` times on retryable statuses,
 /// keeping the retry policy in one place. The caller maps success and terminal
 /// errors (e.g. NotFound) at the call site.
-fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
+fn retry_call<T>(op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
+    retry_call_if(op, retryable)
+}
+
+fn retry_call_if<T>(
+    mut op: impl FnMut() -> Result<T, tonic::Status>,
+    should_retry: impl Fn(&tonic::Status) -> bool,
+) -> Result<T, tonic::Status> {
     let mut last = None;
     for attempt in 0..ATTEMPTS {
         if attempt > 1 {
@@ -153,7 +176,7 @@ fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, 
         }
         match op() {
             Ok(value) => return Ok(value),
-            Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
+            Err(status) if should_retry(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
             Err(status) => return Err(status),
         }
     }
@@ -235,17 +258,9 @@ fn arm_write_pressure_backoff(breaker: &AtomicU64) {
     ));
 }
 
-/// Async counterpart of `retry_call`, for calls issued from within a tokio task
-/// where blocking is not allowed. `op` is re-invoked (returning a fresh future)
-/// per attempt.
-async fn retry_call_async<T, F, Fut>(mut op: F) -> Result<T, tonic::Status>
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = Result<T, tonic::Status>>,
-{
-    retry_call_async_if(&mut op, retryable).await
-}
-
+/// Async counterpart of `retry_call_if`, for calls issued from within a tokio
+/// task where blocking is not allowed. `op` is re-invoked (returning a fresh
+/// future) per attempt.
 async fn retry_call_async_if<T, F, Fut>(
     mut op: F,
     should_retry: impl Fn(&tonic::Status) -> bool,
@@ -441,6 +456,8 @@ pub struct Remote {
     // flat because publishing is healthy from one that is flat because almost
     // nothing was published.
     shed_writes: AtomicU64,
+    // Shared with the background probe, which outlives the call that starts it.
+    lookups: Arc<LookupBreaker>,
 }
 
 const CAPABILITIES_PATH: &str = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
@@ -774,6 +791,112 @@ fn transport_caused(status: &tonic::Status) -> bool {
     false
 }
 
+/// Whether the cache activation gateway answered without forwarding because the
+/// instance was still not serving at the end of its activation wait. Re-asking
+/// waits that whole window again, so a lookup must not retry it. A kura node's
+/// own UNAVAILABLE ("server is draining") stays retryable: the retry reaches the
+/// other replica.
+fn activation_pending(status: &tonic::Status) -> bool {
+    status.code() == tonic::Code::Unavailable
+        && status
+            .metadata()
+            .get(ACTIVATION_HEADER)
+            .and_then(|value| value.to_str().ok())
+            == Some(ACTIVATION_PENDING)
+}
+
+fn lookup_retryable(status: &tonic::Status) -> bool {
+    retryable(status) && !activation_pending(status)
+}
+
+enum LookupAdmission {
+    Ask,
+    Skip,
+    SkipAndProbe,
+}
+
+/// Fail-fast gate for the lookups a build waits on: action-cache resolves and
+/// the blob reads behind materialization and demand fetches. Uploads are not
+/// gated; a publication is durable and retried by the next sweep.
+///
+/// A lookup that ends UNAVAILABLE, after its own retries, opens it. While open,
+/// lookups answer at once without a request. Once the window elapses the first
+/// lookup to notice starts one probe in the background and still skips, so no
+/// build thread ever waits on a remote that may still be down. Any answer the
+/// server itself sends, on a probe or on a lookup that was already in flight,
+/// closes it.
+#[derive(Default)]
+struct LookupBreaker {
+    // Epoch-ms until which lookups are skipped. 0 means closed; a past nonzero
+    // value means the window elapsed and no probe has been started for it.
+    unavailable_until_ms: AtomicU64,
+    skipped: AtomicU64,
+}
+
+impl LookupBreaker {
+    fn admit(&self) -> LookupAdmission {
+        let mut current = self.unavailable_until_ms.load(Ordering::Relaxed);
+        loop {
+            if current == 0 {
+                return LookupAdmission::Ask;
+            }
+            let now = now_ms();
+            if current > now {
+                self.skipped.fetch_add(1, Ordering::Relaxed);
+                return LookupAdmission::Skip;
+            }
+            // Re-armed before probing, so the lookups that arrive while the
+            // probe is in flight keep skipping and exactly one caller probes.
+            match self.unavailable_until_ms.compare_exchange_weak(
+                current,
+                now + LOOKUP_UNAVAILABLE_BACKOFF_MS,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => {
+                    self.skipped.fetch_add(1, Ordering::Relaxed);
+                    return LookupAdmission::SkipAndProbe;
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    fn is_open(&self) -> bool {
+        self.unavailable_until_ms.load(Ordering::Relaxed) != 0
+    }
+
+    fn record(&self, outcome: Result<(), &tonic::Status>) {
+        match outcome {
+            Err(status) if status.code() == tonic::Code::Unavailable => {
+                let previous = self
+                    .unavailable_until_ms
+                    .fetch_max(now_ms() + LOOKUP_UNAVAILABLE_BACKOFF_MS, Ordering::Relaxed);
+                if previous == 0 {
+                    crate::log_line(&format!(
+                        "lookups: remote answered UNAVAILABLE ({status}); answering lookups \
+                         as misses without asking, probing every {}s",
+                        LOOKUP_UNAVAILABLE_BACKOFF_MS / 1000
+                    ));
+                }
+            }
+            // A failure of the local transport or the client's own timeout is no
+            // answer, so it says nothing about whether the server is back.
+            Err(status) if std::error::Error::source(status).is_some() => {}
+            _ => {
+                if self.unavailable_until_ms.load(Ordering::Relaxed) != 0
+                    && self.unavailable_until_ms.swap(0, Ordering::Relaxed) != 0
+                {
+                    crate::log_line(&format!(
+                        "lookups: remote answering again; {} lookup(s) were skipped",
+                        self.skipped.load(Ordering::Relaxed)
+                    ));
+                }
+            }
+        }
+    }
+}
+
 type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
 
 /// Wraps a message in a `tonic::Request`, attaching the bearer when present.
@@ -805,6 +928,7 @@ impl Remote {
             pressure_backoff_until_ms: AtomicU64::new(0),
             write_pressure_backoff_until_ms: AtomicU64::new(0),
             shed_writes: AtomicU64::new(0),
+            lookups: Arc::default(),
         })
     }
 
@@ -825,6 +949,40 @@ impl Remote {
     /// be on the node, so its absence says nothing about what the node stores.
     pub fn declining_reads(&self) -> bool {
         now_ms() < self.pressure_backoff_until_ms.load(Ordering::Relaxed)
+    }
+
+    /// Whether this lookup should be answered as a miss without asking, because
+    /// the remote's last answer was UNAVAILABLE. Counts the skip, and starts the
+    /// background probe when the window has elapsed.
+    pub fn skip_lookup(&self) -> bool {
+        match self.lookups.admit() {
+            LookupAdmission::Ask => false,
+            LookupAdmission::Skip => true,
+            LookupAdmission::SkipAndProbe => {
+                self.probe_lookups();
+                true
+            }
+        }
+    }
+
+    /// Lookups answered without asking because the remote was not answering.
+    pub fn skipped_lookups(&self) -> u64 {
+        self.lookups.skipped.load(Ordering::Relaxed)
+    }
+
+    fn probe_lookups(&self) {
+        let Ok(mut client) = self.ac_client() else {
+            return;
+        };
+        let request = self.authed(reapi::GetActionResultRequest {
+            instance_name: self.config.instance.clone(),
+            action_digest: Some(action_digest(LOOKUP_PROBE_KEY)),
+            ..Default::default()
+        });
+        let lookups = self.lookups.clone();
+        runtime().spawn(async move {
+            lookups.record(client.get_action_result(request).await.as_ref().map(|_| ()));
+        });
     }
 
     /// Counts a publication skipped because `shedding_writes` was true.
@@ -997,6 +1155,9 @@ impl Remote {
         key: &[u8],
         inline_outputs: bool,
     ) -> Result<Option<Vec<ManifestEntry>>, String> {
+        if self.skip_lookup() {
+            return Err(format!("get_action: {LOOKUP_SKIPPED}"));
+        }
         let started = Instant::now();
         let result = (|| {
             let mut client = self.ac_client()?;
@@ -1020,9 +1181,11 @@ impl Remote {
                 },
                 ..Default::default()
             };
-            let response = retry_call(|| {
-                runtime().block_on(client.get_action_result(self.authed(request.clone())))
-            });
+            let response = retry_call_if(
+                || runtime().block_on(client.get_action_result(self.authed(request.clone()))),
+                lookup_retryable,
+            );
+            self.lookups.record(response.as_ref().map(|_| ()));
             match response {
                 Ok(response) => {
                     let manifest = response
@@ -1123,6 +1286,9 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
+        if self.skip_lookup() {
+            return Err(format!("batch_read: {LOOKUP_SKIPPED}"));
+        }
         let result =
             batch_read_retrying(&self.pressure_backoff_until_ms, blobs, false, |pending| {
                 self.batch_read_with_chunks(pending)
@@ -1140,6 +1306,9 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
+        if self.skip_lookup() {
+            return Err(format!("batch_read: {LOOKUP_SKIPPED}"));
+        }
         let result = batch_read_retrying(&self.pressure_backoff_until_ms, blobs, true, |pending| {
             self.batch_read_with_chunks(pending)
         });
@@ -1177,6 +1346,12 @@ impl Remote {
             return self.batch_read_verified(blobs);
         }
         let (large, mut whole): (Vec<_>, Vec<_>) = blobs.iter().cloned().partition(chunk_eligible);
+        // A split the activation gateway refused comes back as a per-blob
+        // decline, which `batch_read_retrying` re-requests. Those passes must
+        // not ask a remote that is not answering again.
+        if self.lookups.is_open() {
+            return Err(format!("batch_read: {LOOKUP_SKIPPED}"));
+        }
         let client = self
             .cas_client()?
             .max_decoding_message_size(2 * 1024 * 1024);
@@ -1212,6 +1387,17 @@ impl Remote {
                 .collect::<Vec<_>>()
                 .await
         });
+        // kura declines a split under pressure with UNAVAILABLE while serving the
+        // rest of the read, so only the activation gateway's answer says the
+        // remote is not serving.
+        if let Some(pending) = splits.iter().find_map(|(_, result)| {
+            result
+                .as_ref()
+                .err()
+                .filter(|status| activation_pending(status))
+        }) {
+            self.lookups.record(Err(pending));
+        }
         let mut recipes = Vec::new();
         let mut outcomes = Vec::new();
         for (blob, result) in splits {
@@ -1395,6 +1581,9 @@ impl Remote {
         if blobs.is_empty() {
             return Ok(Vec::new());
         }
+        if self.lookups.is_open() {
+            return Err(format!("batch_read: {LOOKUP_SKIPPED}"));
+        }
         let client = self.cas_client()?;
         let instance = self.config.instance.clone();
         let auth = self.authorization();
@@ -1410,29 +1599,35 @@ impl Remote {
                     ..Default::default()
                 };
                 join_set.spawn(async move {
-                    retry_call_async(|| {
-                        let mut client = client.clone();
-                        let request = request.clone();
-                        let auth = auth.clone();
-                        async move {
-                            client
-                                .batch_read_blobs(authed_request(request, auth.as_ref()))
-                                .await
-                        }
-                    })
+                    retry_call_async_if(
+                        || {
+                            let mut client = client.clone();
+                            let request = request.clone();
+                            let auth = auth.clone();
+                            async move {
+                                client
+                                    .batch_read_blobs(authed_request(request, auth.as_ref()))
+                                    .await
+                            }
+                        },
+                        lookup_retryable,
+                    )
                     .await
                     .map(|response| response.into_inner().responses)
-                    .map_err(|status| format!("batch_read: {status}"))
                 });
             }
             let mut all = Vec::new();
             while let Some(joined) = join_set.join_next().await {
                 match joined {
                     Ok(Ok(responses)) => all.extend(responses),
-                    Ok(Err(message)) => return Err(message),
+                    Ok(Err(status)) => {
+                        self.lookups.record(Err(&status));
+                        return Err(format!("batch_read: {status}"));
+                    }
                     Err(join_error) => return Err(format!("batch_read join: {join_error}")),
                 }
             }
+            self.lookups.record(Ok(()));
             Ok(all)
         })?;
         Ok(responses

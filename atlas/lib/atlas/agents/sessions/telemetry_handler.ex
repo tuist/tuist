@@ -124,6 +124,20 @@ defmodule Atlas.Agents.Sessions.TelemetryHandler do
 
   defp duration_ms(_), do: nil
 
+  # Orbit runs keep their content in the thread itself, readable
+  # only by its participants. Their audit events retain only names, status, and
+  # timings, never prompts, tool arguments, results, or model messages, so
+  # private threads are not readable through /admin/sessions.
+  @redacted_agents [Atlas.Orbit.Agent]
+  @redacted_keys [:agent, :tool, :tool_call_id, :status, :turn, :role, :operation, :kind]
+
+  defp sanitize(%{agent: agent} = metadata) when agent in @redacted_agents do
+    metadata
+    |> Map.take(@redacted_keys)
+    |> Map.new(fn {key, value} -> {Atom.to_string(key), encode_value(value)} end)
+    |> Map.put("redacted", true)
+  end
+
   # Telemetry metadata may contain non-JSON-friendly terms (PIDs, refs,
   # module atoms). Convert them to strings so the jsonb column accepts the
   # row, and drop the noisy fields callers don't need on the audit page.

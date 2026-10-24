@@ -31,8 +31,8 @@ defmodule Atlas.Push do
   @body_keys ~w(platform token environment)
 
   # Kind => seconds before an undelivered notification is no longer useful.
-  # Every kind renders the same generic alert text.
-  @kinds %{"activity" => 86_400, "self_test" => 600}
+  # Orbit completion alone resolves authorized reply context at send time.
+  @kinds %{"activity" => 86_400, "self_test" => 600, "orbit_completed" => 3600}
 
   def kinds, do: Map.keys(@kinds)
 
@@ -103,6 +103,11 @@ defmodule Atlas.Push do
   platforms. `destination` is `{screen, record_id | nil}` from the native
   destination allowlist. Returns `{:ok, queued_count}`.
 
+  `orbit_completed` requires `opts[:message_id]`, the exact committed agent
+  reply. Jobs carry that ID, never the reply text; delivery reauthorizes its
+  thread and succeeded run before deriving a bounded preview. Other kinds
+  retain generic alerts.
+
   Each call creates a fresh notification ID and at most one job per
   registration. The worker declares uniqueness on `[registration_id,
   notification_id]`, but `Oban.insert_all/1` on the Basic engine does not
@@ -111,7 +116,8 @@ defmodule Atlas.Push do
   """
   def notify_user(user_id, kind, destination, opts \\ []) when is_binary(user_id) do
     with {:ok, ttl} <- Map.fetch(@kinds, kind),
-         true <- valid_destination?(destination) do
+         true <- valid_notification?(kind, destination),
+         {:ok, source} <- notification_source(kind, opts) do
       {screen, record_id} = destination
       notification_id = Ecto.UUID.generate()
       expires_at = DateTime.add(DateTime.utc_now(), ttl)
@@ -124,7 +130,7 @@ defmodule Atlas.Push do
         |> select([i], i.id)
         |> Repo.all()
         |> Enum.map(fn registration_id ->
-          Deliver.new(%{
+          %{
             registration_id: registration_id,
             user_id: user_id,
             notification_id: notification_id,
@@ -132,7 +138,9 @@ defmodule Atlas.Push do
             screen: screen,
             record_id: record_id,
             expires_at: DateTime.to_iso8601(expires_at)
-          })
+          }
+          |> Map.merge(source)
+          |> Deliver.new()
         end)
 
       queued = jobs |> Oban.insert_all() |> length()
@@ -160,7 +168,21 @@ defmodule Atlas.Push do
   end
 
   @doc "Whether queued job arguments still describe an allowed kind and destination."
+  def valid_notification?("orbit_completed", {"orbit", record_id} = destination) when is_binary(record_id),
+    do: valid_destination?(destination)
+
+  def valid_notification?("orbit_completed", _destination), do: false
+
   def valid_notification?(kind, destination), do: Map.has_key?(@kinds, kind) and valid_destination?(destination)
+
+  defp notification_source("orbit_completed", opts) do
+    case Ecto.UUID.cast(Keyword.get(opts, :message_id)) do
+      {:ok, message_id} -> {:ok, %{message_id: message_id}}
+      :error -> :error
+    end
+  end
+
+  defp notification_source(_kind, _opts), do: {:ok, %{}}
 
   @doc """
   The live registration a job may deliver to, re-checked at send time. A

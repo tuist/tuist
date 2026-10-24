@@ -14,6 +14,11 @@ defmodule Tuist.Cargo do
   def create_build(attrs) do
     with {:ok, id} <- Ecto.UUID.cast(attrs[:id]),
          {:ok, cache_metrics} <- CacheMetrics.encode(attrs[:cache]),
+         :ok <-
+           Tuist.Builds.Build.validate_custom_metadata(
+             get_in(attrs, [:custom_metadata, :tags]) || [],
+             get_in(attrs, [:custom_metadata, :values]) || %{}
+           ),
          true <- attrs[:status] in ["success", "failure"],
          true <- valid_duration?(attrs[:duration_ms]),
          true <- Enum.all?(@strings, &(is_nil(attrs[&1]) or (is_binary(attrs[&1]) and byte_size(attrs[&1]) <= 4096))),
@@ -31,6 +36,8 @@ defmodule Tuist.Cargo do
           status: attrs.status,
           duration_ms: attrs.duration_ms,
           cache_metrics: cache_metrics,
+          custom_tags: get_in(attrs, [:custom_metadata, :tags]) || [],
+          custom_values: get_in(attrs, [:custom_metadata, :values]) || %{},
           is_ci: Map.get(attrs, :is_ci, false),
           started_at: started_at(attrs[:started_at]),
           inserted_at: now

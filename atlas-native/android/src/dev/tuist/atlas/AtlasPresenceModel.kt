@@ -17,6 +17,10 @@ class AtlasPresenceModel(
         private set
     var error: String? = null
         private set
+
+    // Identifies the signed-in person so thread pickers and viewer lists can exclude them.
+    var selfId: String? = null
+        private set
     var listener: (() -> Unit)? = null
     private var connection: String? = null
     private var location = emptyMap<String, String>()
@@ -113,6 +117,7 @@ class AtlasPresenceModel(
                 error = "Reconnecting to Atlas…"
             } else if (snapshotLocation == location) {
                 val rows = value.getJSONArray("people")
+                selfId = value.optString("self_id").takeIf { it.isNotEmpty() } ?: selfId
                 people =
                     List(rows.length()) { index ->
                         val person = rows.getJSONObject(index)

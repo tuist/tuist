@@ -254,6 +254,38 @@ url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/
 [tools.gradle."platforms.windows-x64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
 
+[[tools.hcloud]]
+version = "1.70.1"
+backend = "aqua:hetznercloud/cli"
+
+[tools.hcloud."platforms.linux-arm64"]
+checksum = "sha256:c9dbc00158d31131527e9ac5cb59b835fe8275ab7922f627d81b4e9bc2a2cebb"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-arm64.tar.gz"
+
+[tools.hcloud."platforms.linux-arm64-musl"]
+checksum = "sha256:c9dbc00158d31131527e9ac5cb59b835fe8275ab7922f627d81b4e9bc2a2cebb"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-arm64.tar.gz"
+
+[tools.hcloud."platforms.linux-x64"]
+checksum = "sha256:85182e0d51f9a26abeefd79b37de8a7fb51215d54c59ee290c3c9141e8aa887e"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-amd64.tar.gz"
+
+[tools.hcloud."platforms.linux-x64-musl"]
+checksum = "sha256:85182e0d51f9a26abeefd79b37de8a7fb51215d54c59ee290c3c9141e8aa887e"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-linux-amd64.tar.gz"
+
+[tools.hcloud."platforms.macos-arm64"]
+checksum = "sha256:8b6f86e5f344acde2f127b96c32f39b95731c98ecef67c69e69fe4614a674e8a"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-darwin-arm64.tar.gz"
+
+[tools.hcloud."platforms.macos-x64"]
+checksum = "sha256:c1d131b59c57d1ceba650637e0f1635214f78429cb0d98d502087b88caa50ff4"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-darwin-amd64.tar.gz"
+
+[tools.hcloud."platforms.windows-x64"]
+checksum = "sha256:a8c7325062f14aa882260d23d00d0d222d61cf4096471deaa507409bc455782a"
+url = "https://github.com/hetznercloud/cli/releases/download/v1.70.1/hcloud-windows-amd64.zip"
+
 [[tools.helm]]
 version = "4.2.0"
 backend = "aqua:helm/helm"
@@ -613,32 +645,32 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.214.0-canary.56"
+version = "4.215.0-canary.17"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:58f6ace8f47303327a9acc4424f74a6cd53a2edceb3c959e5a1184e5065bd0cb"
-url = "https://github.com/tuist/tuist/releases/download/4.214.0-canary.56/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:fb49c1240048ded1663582ae2261715a14d92928996d6cfda63e677d776414e8"
+url = "https://github.com/tuist/tuist/releases/download/4.215.0-canary.17/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:58f6ace8f47303327a9acc4424f74a6cd53a2edceb3c959e5a1184e5065bd0cb"
-url = "https://github.com/tuist/tuist/releases/download/4.214.0-canary.56/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:fb49c1240048ded1663582ae2261715a14d92928996d6cfda63e677d776414e8"
+url = "https://github.com/tuist/tuist/releases/download/4.215.0-canary.17/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:319e963b50eb2019ba9cf409e40ab2eed3416f742a004f84b5650950de8a248f"
-url = "https://github.com/tuist/tuist/releases/download/4.214.0-canary.56/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:71fac0fbadd95c3c7b262a92badbc8033ab7a1d2c01fc9b5a33e67c40c406418"
+url = "https://github.com/tuist/tuist/releases/download/4.215.0-canary.17/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:319e963b50eb2019ba9cf409e40ab2eed3416f742a004f84b5650950de8a248f"
-url = "https://github.com/tuist/tuist/releases/download/4.214.0-canary.56/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:71fac0fbadd95c3c7b262a92badbc8033ab7a1d2c01fc9b5a33e67c40c406418"
+url = "https://github.com/tuist/tuist/releases/download/4.215.0-canary.17/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:35e5ac9fed22dbfd08093a173f5914f79efb0a82bf3f82148d11d3c78a450e5e"
-url = "https://github.com/tuist/tuist/releases/download/4.214.0-canary.56/tuist.zip"
+checksum = "sha256:0ffc5f9969c72c01d4551429e0f22a876860d57a20b369b86f43074f7f946881"
+url = "https://github.com/tuist/tuist/releases/download/4.215.0-canary.17/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:35e5ac9fed22dbfd08093a173f5914f79efb0a82bf3f82148d11d3c78a450e5e"
-url = "https://github.com/tuist/tuist/releases/download/4.214.0-canary.56/tuist.zip"
+checksum = "sha256:0ffc5f9969c72c01d4551429e0f22a876860d57a20b369b86f43074f7f946881"
+url = "https://github.com/tuist/tuist/releases/download/4.215.0-canary.17/tuist.zip"
 
 [[tools.xcodes]]
 version = "2.1.0"

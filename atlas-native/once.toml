@@ -60,7 +60,7 @@ resolver_inputs = ["Cargo.toml", "Cargo.lock", "auth/Cargo.toml", "core/Cargo.to
 [[target]]
 name = "AtlasAuthIOS"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs"]
 deps = ["./AtlasAuthIOSDependencies"]
 
 [target.attrs]
@@ -74,7 +74,7 @@ crate_type = "staticlib"
 [[target]]
 name = "AtlasAuthIOSDevice"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs"]
 deps = ["./AtlasAuthIOSDeviceDependencies"]
 
 [target.attrs]
@@ -88,7 +88,7 @@ crate_type = "staticlib"
 [[target]]
 name = "AtlasAuthAndroid"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs"]
 deps = ["./AtlasAuthAndroidDependencies"]
 
 [target.attrs]
@@ -215,15 +215,17 @@ header_dirs = ["core/include"]
 [[target]]
 name = "AtlasFirebase"
 kind = "atlas_firebase"
-srcs = ["android/AndroidManifest.xml", "android/res/**", "android/push/resources.py", "android/push/dependencies.lock.json"]
+srcs = ["android/AndroidManifest.xml", "android/res/**/*", "android/push/resources.py", "android/push/dependencies.lock.json"]
 
 [[target]]
 name = "AtlasAndroid"
 kind = "android_binary"
 srcs = ["android/src/**/*.kt"]
-deps = ["./AtlasCore", "./AtlasAuthAndroid", "./AtlasFirebase"]
+deps = ["./AtlasCore", "./AtlasAuthAndroid", "./AtlasNSHAndroid", "./AtlasFirebase"]
 
 [target.attrs]
+asset_dirs = ["cards/assets"]
+assets = ["cards/assets/**"]
 application_id = "dev.tuist.atlas"
 manifest = "android/AndroidManifest.xml"
 resource_files = ["android/res/**"]
@@ -252,19 +254,35 @@ kind = "atlas_apple_sdk"
 sdk = "iphoneos"
 
 [[target]]
+name = "AtlasNSHSimulator"
+kind = "atlas_nsh_apple"
+[target.attrs]
+sdk = "simulator"
+
+[[target]]
+name = "AtlasNSHDevice"
+kind = "atlas_nsh_apple"
+[target.attrs]
+sdk = "device"
+
+[[target]]
+name = "AtlasNSHAndroid"
+kind = "atlas_nsh_android"
+
+[[target]]
 name = "AtlasIOS"
 kind = "apple_application"
 srcs = ["ios/Sources/**/*.swift"]
-deps = ["./AtlasCore", "./AtlasAuthIOS", "./AtlasCoreFFI", "./AtlasAuthFFI", "./AtlasSimulatorSDK"]
+deps = ["./AtlasCore", "./AtlasAuthIOS", "./AtlasCoreFFI", "./AtlasAuthFFI", "./AtlasSimulatorSDK", "./AtlasNSHSimulator"]
 
 [target.attrs]
 platform = "ios"
-sdk_frameworks = ["AuthenticationServices", "Security", "Charts", "SafariServices", "UserNotifications"]
+sdk_frameworks = ["AuthenticationServices", "Security", "Charts", "SafariServices", "UserNotifications", "AVFoundation", "Speech", "PhotosUI", "QuickLook", "ImageIO", "CoreTransferable", "UniformTypeIdentifiers"]
 bundle_id = "dev.tuist.atlas"
 product_name = "Atlas"
 asset_catalogs = ["ios/Resources/Assets.xcassets"]
 app_icon = "AppIcon"
-resources = ["ios/Resources/Assets.xcassets/AppIcon.appiconset/*.png"]
+resources = ["ios/Resources/Assets.xcassets/AppIcon.appiconset/*.png", "cards/assets/nsh/*"]
 minimum_os = "17.0"
 sdk_variant = "simulator"
 families = ["iphone", "ipad"]
@@ -276,16 +294,16 @@ entitlements = "ios/AtlasSimulator.entitlements"
 name = "AtlasIOSDevice"
 kind = "apple_application"
 srcs = ["ios/Sources/**/*.swift"]
-deps = ["./AtlasCoreIOSDevice", "./AtlasAuthIOSDevice", "./AtlasCoreFFI", "./AtlasAuthFFI", "./AtlasDeviceSDK"]
+deps = ["./AtlasCoreIOSDevice", "./AtlasAuthIOSDevice", "./AtlasCoreFFI", "./AtlasAuthFFI", "./AtlasDeviceSDK", "./AtlasNSHDevice"]
 
 [target.attrs]
 platform = "ios"
-sdk_frameworks = ["AuthenticationServices", "Security", "Charts", "SafariServices", "UserNotifications"]
+sdk_frameworks = ["AuthenticationServices", "Security", "Charts", "SafariServices", "UserNotifications", "AVFoundation", "Speech", "PhotosUI", "QuickLook", "ImageIO", "CoreTransferable", "UniformTypeIdentifiers"]
 bundle_id = "dev.tuist.atlas"
 product_name = "Atlas"
 asset_catalogs = ["ios/Resources/Assets.xcassets"]
 app_icon = "AppIcon"
-resources = ["ios/Resources/Assets.xcassets/AppIcon.appiconset/*.png"]
+resources = ["ios/Resources/Assets.xcassets/AppIcon.appiconset/*.png", "cards/assets/nsh/*"]
 minimum_os = "17.0"
 sdk_variant = "device"
 families = ["iphone", "ipad"]
@@ -295,7 +313,7 @@ info_plist_substitutions = { ATLAS_SUPPORTED_PLATFORM = "iPhoneOS", ATLAS_PLATFO
 [[target]]
 name = "AtlasIOSTests"
 kind = "apple_test_bundle"
-srcs = ["ios/Tests/**/*.swift", "ios/Sources/AtlasNavigation.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasBusiness.swift", "ios/Sources/AtlasPresence.swift", "ios/Sources/AtlasAppearance.swift", "ios/Sources/AtlasPushNotifications.swift"]
+srcs = ["ios/Tests/**/*.swift", "ios/Sources/AtlasAutomationModels.swift", "ios/Sources/AtlasNavigation.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasBusiness.swift", "ios/Sources/AtlasPresence.swift", "ios/Sources/AtlasAppearance.swift", "ios/Sources/AtlasPushNotifications.swift", "ios/Sources/AtlasOrbit.swift", "ios/Sources/AtlasVoiceInput.swift", "ios/Sources/AtlasMarkdown.swift", "ios/Sources/AtlasPipView.swift", "ios/Sources/AtlasThreadAttachments.swift", "ios/Sources/AtlasProfile.swift"]
 deps = ["./AtlasCore", "./AtlasAuthIOS", "./AtlasCoreFFI", "./AtlasAuthFFI"]
 
 [target.attrs]
@@ -303,21 +321,22 @@ platform = "ios"
 minimum_os = "17.0"
 sdk_variant = "simulator"
 bundle_id = "dev.tuist.atlas.tests"
-sdk_frameworks = ["AuthenticationServices", "Security", "UserNotifications"]
+sdk_frameworks = ["AuthenticationServices", "Security", "UserNotifications", "AVFoundation", "Speech", "PhotosUI", "QuickLook", "ImageIO", "CoreTransferable", "UniformTypeIdentifiers"]
 swift_testing = true
 
 [[target]]
 name = "AtlasSettingsIOSPreview"
 kind = "apple_application"
-srcs = ["previews/ios/**/*.swift", "ios/Sources/AtlasNavigation.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasAIAccountViews.swift", "ios/Sources/AtlasProfileView.swift", "ios/Sources/AtlasBrand.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasTimeOffView.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasWorkspaceView.swift", "ios/Sources/AtlasBusiness.swift", "ios/Sources/AtlasBusinessView.swift", "ios/Sources/AtlasBusinessNavigation.swift", "ios/Sources/AtlasBusinessEditor.swift", "ios/Sources/AtlasAccountDetailSections.swift", "ios/Sources/AtlasFinanceOverviewView.swift", "ios/Sources/AtlasPresence.swift", "ios/Sources/AtlasPeopleView.swift", "ios/Sources/AtlasBrowserView.swift", "ios/Sources/AtlasAppearance.swift", "ios/Sources/AtlasAppearanceView.swift", "ios/Sources/AtlasPushNotifications.swift"]
-deps = ["./AtlasAuthIOS", "./AtlasAuthFFI", "./AtlasCore", "./AtlasCoreFFI", "./AtlasSimulatorSDK"]
+srcs = ["previews/ios/**/*.swift", "ios/Sources/AtlasAutomationModels.swift", "ios/Sources/AtlasAutomationView.swift", "ios/Sources/AtlasWorkflowView.swift", "ios/Sources/AtlasExecutionView.swift", "ios/Sources/AtlasApprovalView.swift", "ios/Sources/AtlasNavigation.swift", "ios/Sources/AtlasAIAccounts.swift", "ios/Sources/AtlasAIAccountViews.swift", "ios/Sources/AtlasProfileView.swift", "ios/Sources/AtlasBrand.swift", "ios/Sources/AtlasAuthentication.swift", "ios/Sources/AtlasSecureStorage.swift", "ios/Sources/AtlasTimeOff.swift", "ios/Sources/AtlasTimeOffView.swift", "ios/Sources/AtlasCore.swift", "ios/Sources/AtlasWorkspaceView.swift", "ios/Sources/AtlasBusiness.swift", "ios/Sources/AtlasBusinessView.swift", "ios/Sources/AtlasBusinessNavigation.swift", "ios/Sources/AtlasBusinessEditor.swift", "ios/Sources/AtlasAccountDetailSections.swift", "ios/Sources/AtlasFinanceOverviewView.swift", "ios/Sources/AtlasPresence.swift", "ios/Sources/AtlasPeopleView.swift", "ios/Sources/AtlasBrowserView.swift", "ios/Sources/AtlasAppearance.swift", "ios/Sources/AtlasAppearanceView.swift", "ios/Sources/AtlasPushNotifications.swift", "ios/Sources/AtlasOrbit.swift", "ios/Sources/AtlasThreadViews.swift", "ios/Sources/AtlasThreadDetail.swift", "ios/Sources/AtlasThreadMessageView.swift", "ios/Sources/AtlasThreadCardView.swift", "ios/Sources/AtlasVoiceInput.swift", "ios/Sources/AtlasVoiceInputView.swift", "ios/Sources/AtlasMarkdown.swift", "ios/Sources/AtlasCreateThread.swift", "ios/Sources/AtlasPipView.swift", "ios/Sources/AtlasThreadAttachments.swift", "ios/Sources/AtlasThreadTimeline.swift", "ios/Sources/AtlasProfile.swift"]
+deps = ["./AtlasAuthIOS", "./AtlasAuthFFI", "./AtlasCore", "./AtlasCoreFFI", "./AtlasSimulatorSDK", "./AtlasNSHSimulator"]
 
 [target.attrs]
 platform = "ios"
-sdk_frameworks = ["AuthenticationServices", "Security", "Charts", "SafariServices", "UserNotifications"]
+sdk_frameworks = ["AuthenticationServices", "Security", "Charts", "SafariServices", "UserNotifications", "AVFoundation", "Speech", "PhotosUI", "QuickLook", "ImageIO", "CoreTransferable", "UniformTypeIdentifiers"]
 bundle_id = "dev.tuist.atlas.settings-preview"
 product_name = "AtlasSettingsPreview"
-resources = ["previews/native_themes.json"]
+asset_catalogs = ["ios/Resources/Assets.xcassets"]
+resources = ["previews/native_themes.json", "cards/assets/nsh/*"]
 minimum_os = "17.0"
 sdk_variant = "simulator"
 families = ["iphone", "ipad"]
@@ -339,12 +358,14 @@ ui_testing = true
 [[target]]
 name = "AtlasSettingsAndroidPreview"
 kind = "android_binary"
-srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt", "android/src/dev/tuist/atlas/AtlasTimeOffModel.kt", "android/src/dev/tuist/atlas/AtlasTimeOffScreen.kt", "android/src/dev/tuist/atlas/AtlasCore.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceModel.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceScreen.kt", "android/src/dev/tuist/atlas/AtlasBusinessModel.kt", "android/src/dev/tuist/atlas/AtlasBusinessScreen.kt", "android/src/dev/tuist/atlas/AtlasHomeScreen.kt", "android/src/dev/tuist/atlas/AtlasProfileModel.kt", "android/src/dev/tuist/atlas/AtlasPresenceModel.kt", "android/src/dev/tuist/atlas/AtlasPeopleScreen.kt", "android/src/dev/tuist/atlas/AtlasBrowser.kt", "android/src/dev/tuist/atlas/AtlasAppearance.kt"]
-deps = ["./AtlasAuthAndroid", "./AtlasCore"]
+srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt", "android/src/dev/tuist/atlas/AtlasTimeOffModel.kt", "android/src/dev/tuist/atlas/AtlasTimeOffScreen.kt", "android/src/dev/tuist/atlas/AtlasCore.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceModel.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceScreen.kt", "android/src/dev/tuist/atlas/AtlasBusinessModel.kt", "android/src/dev/tuist/atlas/AtlasBusinessScreen.kt", "android/src/dev/tuist/atlas/AtlasHomeScreen.kt", "android/src/dev/tuist/atlas/AtlasProfileModel.kt", "android/src/dev/tuist/atlas/AtlasPresenceModel.kt", "android/src/dev/tuist/atlas/AtlasPeopleScreen.kt", "android/src/dev/tuist/atlas/AtlasBrowser.kt", "android/src/dev/tuist/atlas/AtlasAppearance.kt", "android/src/dev/tuist/atlas/AtlasOrbitModel.kt", "android/src/dev/tuist/atlas/AtlasOrbitAttachments.kt", "android/src/dev/tuist/atlas/AtlasThreadCardView.kt"]
+deps = ["./AtlasAuthAndroid", "./AtlasCore", "./AtlasNSHAndroid"]
 
 [target.attrs]
 application_id = "dev.tuist.atlas.preview"
 namespace = "dev.tuist.atlas"
+asset_dirs = ["cards/assets"]
+assets = ["cards/assets/**"]
 manifest = "previews/android/AndroidManifest.xml"
 resource_files = ["android/res/**"]
 resource_dirs = ["android/res"]

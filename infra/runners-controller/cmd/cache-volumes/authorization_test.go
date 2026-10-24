@@ -50,7 +50,7 @@ func TestAuthorizationWaitsOnlyForVerifiedExecutionBinding(t *testing.T) {
 			a := agent{tokenPath: token, authorizeURL: upstream.URL, http: upstream.Client()}
 			ctx, cancel := context.WithTimeout(context.Background(), tc.timeout)
 			defer cancel()
-			identity, err := a.authorize(ctx, []byte(`{"pod_uid":"u"}`))
+			identity, err := a.authorize(ctx, "u", time.Now(), []byte(`{"pod_uid":"u"}`))
 			if (err == nil) != tc.succeeds || (tc.succeeds && identity.ID != "authorized-use") {
 				t.Fatalf("identity=%+v err=%v", identity, err)
 			}
@@ -97,7 +97,7 @@ func TestServerRequestsSurviveAServerRollout(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
 
-		identity, err := a.authorize(ctx, []byte(`{"pod_uid":"u"}`))
+		identity, err := a.authorize(ctx, "u", time.Now(), []byte(`{"pod_uid":"u"}`))
 
 		if err != nil || identity.ID != "authorized-use" || *calls != 2 {
 			t.Fatalf("identity=%+v err=%v calls=%d", identity, err, *calls)
@@ -114,4 +114,48 @@ func TestServerRequestsSurviveAServerRollout(t *testing.T) {
 			t.Fatalf("action=%q err=%v calls=%d", action, err, *calls)
 		}
 	})
+}
+
+func TestAPodWaitsForItsJobReportOnce(t *testing.T) {
+	attempts := map[string]int{}
+	report := false
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		attempts[string(body)]++
+		if report {
+			io.WriteString(w, `{"id":"authorized-use"}`)
+			return
+		}
+		w.WriteHeader(http.StatusTooEarly)
+	}))
+	defer upstream.Close()
+	token := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(token, []byte("agent-token"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := agent{tokenPath: token, authorizeURL: upstream.URL + "/authorize", http: upstream.Client()}
+	ask := func(podUID, body string, asked time.Time) (time.Duration, error) {
+		start := time.Now()
+		_, err := a.authorize(context.Background(), podUID, asked, []byte(body))
+		return time.Since(start), err
+	}
+
+	// The checkout's request started the Pod's wait, which ends a second from now.
+	if _, err := ask("uid", "checkout", time.Now().Add(time.Second-executionWait)); !errors.Is(err, cachevolumes.ErrExecutionPending) {
+		t.Fatalf("checkout err=%v", err)
+	}
+	elapsed, err := ask("uid", "volume", time.Now())
+	if !errors.Is(err, cachevolumes.ErrExecutionPending) || elapsed > 500*time.Millisecond || attempts["volume"] != 1 {
+		t.Fatalf("a volume after the Pod's wait took %v and %d attempts: %v", elapsed, attempts["volume"], err)
+	}
+
+	report = true
+	if elapsed, err := ask("uid", "late", time.Now()); err != nil || elapsed > 500*time.Millisecond {
+		t.Fatalf("a report after the wait did not authorize: %v after %v", err, elapsed)
+	}
+
+	report = false
+	if elapsed, _ := ask("other-uid", "other", time.Now().Add(1500*time.Millisecond-executionWait)); elapsed < time.Second {
+		t.Fatalf("another Pod shared the first Pod's wait: %v", elapsed)
+	}
 }
