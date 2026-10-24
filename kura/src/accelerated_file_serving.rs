@@ -81,12 +81,14 @@ pub enum ConnectionErrorLog {
     Warn,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn serve_public_http(
     listener: TcpListener,
     router: Router,
     state: SharedState,
     config: AcceleratedFileServingConfig,
     mut shutdown_rx: watch::Receiver<bool>,
+    drain_rx: watch::Receiver<bool>,
     configure_http2: Http2BuilderConfig,
     connection_error_log: ConnectionErrorLog,
 ) -> Result<(), String> {
@@ -125,7 +127,7 @@ pub async fn serve_public_http(
                 let state = state.clone();
                 let config = config.clone();
                 let semaphore = semaphore.clone();
-                let shutdown = shutdown_rx.clone();
+                let shutdown = connection_recycle_signal(&shutdown_rx, &drain_rx);
                 tokio::spawn(
                     async move {
                         if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2, accepted_at, shutdown).await {
@@ -341,6 +343,23 @@ fn request_wants_keep_alive(parsed: &ParsedRequest) -> bool {
     true
 }
 
+// Which signal recycles a newly accepted connection. One open when the node
+// starts draining is recycled then, so its client reconnects to a serving
+// replica while this one refuses new work. One accepted during the drain,
+// which a stale endpoint list still routes here, is kept until termination:
+// recycling it on accept would fail the request it carries on a closed
+// connection instead of answering it with a refusal the client retries.
+fn connection_recycle_signal(
+    termination: &watch::Receiver<bool>,
+    drain: &watch::Receiver<bool>,
+) -> watch::Receiver<bool> {
+    if *drain.borrow() {
+        termination.clone()
+    } else {
+        drain.clone()
+    }
+}
+
 async fn serve_hyper<I>(
     stream: I,
     router: Router,
@@ -421,6 +440,7 @@ pub async fn serve_public_tls(
     router: Router,
     tls_config: Arc<rustls::ServerConfig>,
     mut shutdown_rx: watch::Receiver<bool>,
+    drain_rx: watch::Receiver<bool>,
     configure_http2: Http2BuilderConfig,
 ) -> Result<(), String> {
     let acceptor = TlsAcceptor::from(tls_config);
@@ -445,7 +465,7 @@ pub async fn serve_public_tls(
                 let accepted_at = tokio::time::Instant::now();
                 let acceptor = acceptor.clone();
                 let router = router.clone();
-                let shutdown = shutdown_rx.clone();
+                let shutdown = connection_recycle_signal(&shutdown_rx, &drain_rx);
                 tokio::spawn(
                     async move {
                         let stream = match tokio::time::timeout(
@@ -2739,6 +2759,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+        let (_drain_tx, drain_rx) = tokio::sync::watch::channel(false);
         let server = tokio::spawn(super::serve_public_http(
             listener,
             axum::Router::new(),
@@ -2748,6 +2769,7 @@ mod tests {
                 ..context.state.config.accelerated_file_serving.clone()
             },
             shutdown_rx,
+            drain_rx,
             |_| {},
             super::ConnectionErrorLog::Warn,
         ));
