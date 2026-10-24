@@ -110,7 +110,8 @@ data class AtlasDestination(
             if ('%' in path || '\\' in path) return null
             val authority = uri.rawAuthority ?: return null
             val server = canonicalServer("${uri.scheme}://$authority/") ?: return null
-            capabilities.firstOrNull { it.webPath == path }?.let { return Link(AtlasDestination(it.screen), server) }
+            // Orbit has no browser view; its root fallback is not an equivalent native page.
+            capabilities.firstOrNull { it.webPath == path && path != "/" }?.let { return Link(AtlasDestination(it.screen), server) }
             val parts = path.split('/')
             if (parts.size in 3..4 && parts[0].isEmpty() && parts[1] == "open") {
                 val capability = capabilities.firstOrNull { it.screen == parts[2] } ?: return null

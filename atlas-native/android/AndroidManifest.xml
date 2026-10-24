@@ -76,8 +76,6 @@
                 <data android:path="/people" />
                 <data android:path="/people/time-off" />
                 <data android:path="/settings" />
-                <data android:path="/orbit" />
-                <data android:pathPattern="/orbit/........-....-....-....-............" />
                 <data android:path="/open/tasks" />
                 <data android:path="/open/accounts" />
                 <data android:path="/open/invoices" />

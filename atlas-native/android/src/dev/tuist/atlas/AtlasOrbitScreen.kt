@@ -179,6 +179,7 @@ class AtlasOrbitScreen(
         toolbar.menu.clear()
         when {
             model.createDraft != null -> renderCreate()
+            model.selecting -> renderSelection()
             model.selectionId != null && model.snapshot.selected?.id != model.selectionId -> renderSelection()
             model.snapshot.selected != null -> renderThread()
             else -> renderList()

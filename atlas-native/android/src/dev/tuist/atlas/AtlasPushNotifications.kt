@@ -83,7 +83,8 @@ class AtlasMessagingService : FirebaseMessagingService() {
                 val text = value.trim()
                 if (text.isEmpty() || text.codePointCount(0, text.length) > maximum) return null
                 if (text.codePoints().anyMatch {
-                        Character.isISOControl(it) || Character.getType(it) == Character.FORMAT.toInt() ||
+                        Character.isISOControl(it) || it in 0x202A..0x202E || it in 0x2066..0x2069 ||
+                            it == 0x200E || it == 0x200F || it == 0x061C ||
                             Character.getType(it) == Character.SURROGATE.toInt()
                     }
                 ) {

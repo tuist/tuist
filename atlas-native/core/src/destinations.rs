@@ -48,7 +48,7 @@ pub fn field(destination: i32, field: i32) -> Option<&'static CStr> {
             screen if screen == c"accounts" => c"/commercial/sales/accounts",
             screen if screen == c"tasks" => c"/open/tasks",
             screen if screen == c"invoices" => c"/open/invoices",
-            screen if screen == c"orbit" => c"/orbit",
+            screen if screen == c"orbit" => c"/open/orbit",
             _ => c"",
         }),
         _ => None,
@@ -60,7 +60,7 @@ fn web_path(screen: &CStr) -> Option<&'static CStr> {
         return Some(c"/settings");
     }
     if screen == c"orbit" {
-        return Some(c"/orbit");
+        return Some(c"/");
     }
     let section = crate::navigation::SECTIONS
         .iter()
@@ -112,7 +112,7 @@ mod tests {
                 c"/people/time-off",
                 c"/people",
                 c"/settings",
-                c"/orbit"
+                c"/"
             ]
         );
         assert_eq!(
@@ -130,7 +130,7 @@ mod tests {
                 c"orbit"
             ]
         );
-        assert_eq!(field(6, 3), Some(c"/orbit"));
+        assert_eq!(field(6, 3), Some(c"/open/orbit"));
         assert_eq!(paths.iter().collect::<HashSet<_>>().len(), paths.len());
     }
 }

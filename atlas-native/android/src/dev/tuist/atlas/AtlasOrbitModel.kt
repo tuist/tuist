@@ -115,6 +115,7 @@ class AtlasOrbitModel(
     val sending get() = submitting || snapshot.saving
 
     val selectionId get() = pendingSelection ?: snapshot.selectionId ?: snapshot.selected?.id
+    val selecting get() = pendingSelection != null
     val canBack get() = createDraft != null || selectionId != null
     val hasProtectedWork get() = createDraft != null || sending || draftsInFlight > 0 || snapshot.hasDrafts || snapshot.draft.isNotBlank()
 

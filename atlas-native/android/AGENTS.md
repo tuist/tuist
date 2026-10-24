@@ -33,6 +33,27 @@ border and tint tokens for both `result_table` and `account_card` v1. Rust valid
 types and source actions; Android never derives account fields from tool output.
 Unsupported runtimes retain the server's text fallback.
 
+Orbit links use the fixed shared capability appended at index 6 (`orbit`, records,
+browser fallback `/`, record prefix `/open/orbit`), with canonical sharing and the
+only claimed HTTPS Orbit links at `/open/orbit[/<uuid>]`. There is no Orbit web view;
+never parse or claim `/` as an equivalent native destination, nor invent `/orbit` routes.
+`MainActivity` routes them through the same latest-only origin/session/protected-work
+guard as other links, then selects on the retained `AtlasOrbitModel`, even before its
+Rust handle opens. Queue only the latest cold selection; Back before open cancels it.
+`selection_id` supports Retry/Back without inventing Thread metadata. Hide the composer
+and mutation controls until protected history supplies matching `selected`; a denied
+read shows only error/Retry and Back. Preserve drafts across tab changes and reject
+incoming links during retained drafts, in-flight writes or create/provider setup.
+
+`AtlasMessagingService` checks the encrypted session, enabled matching registration and
+canonical destination origin before rendering any data. Schema v1 optional `title`
+(80 codepoints) and `body` (320) are bounded plain text, not actions or HTML. Missing or
+invalid text falls back to the generic alert for older servers. Completion context uses
+BigTextStyle with PRIVATE visibility and an explicit generic public lock-screen version;
+Android's user/channel lock-screen preview controls remain authoritative. The only tap
+action is the separately validated destination URL. Never log push content or credentials.
+
 Run root Mise Android build and Kotlin lint tasks. Keep new activities non-exported
-unless a deliberately validated deep-link contract is added; only the OAuth callback
-is currently exported. Do not persist drafts in saved-instance bundles or backups.
+unless a deliberately validated deep-link contract is added; MainActivity exports only
+the validated OAuth/navigation/App-Link entry points. Do not persist drafts in
+saved-instance bundles or backups.
