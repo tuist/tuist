@@ -26,9 +26,6 @@ struct AtlasBusinessView: View {
 
     private var list: some View {
         List {
-            Color.clear.frame(height: 0)
-                .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).listRowBackground(Color.clear)
-                .environment(\.defaultMinListRowHeight, 0).accessibilityHidden(true).id("business-start")
             if model.forbidden {
                 ContentUnavailableView("Access required", systemImage: "lock", description: Text("Ask an Atlas administrator for access."))
             } else if let page = model.page {
@@ -89,7 +86,9 @@ struct AtlasBusinessView: View {
         .id(model.filters)
         .id(listRevision)
         .modifier(AtlasThemedContent())
+        .defaultScrollAnchor(.top)
         .navigationTitle(model.resource.title)
+        .navigationBarTitleDisplayMode(.large)
         .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
         .onSubmit(of: .search) { Task { await model.load(query: query) } }
         .onChange(of: query) { _, value in

@@ -69,6 +69,51 @@ defmodule Atlas.Orbit.RunsTest do
     refute Enum.any?(events, &(inspect(&1.metadata) =~ "Example"))
   end
 
+  test "Condukt prunes before the next model turn and publishes one durable notice without changing tool evidence" do
+    owner = user_fixture(["accounts:read"])
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+
+    for index <- 1..25 do
+      {:ok, _} =
+        Atlas.Accounts.create_manual_account(%{name: "Compaction account #{index} " <> String.duplicate("x", 100)})
+    end
+
+    run = post_and_get_run(owner, thread, "Compare the accounts")
+    test_pid = self()
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(body)
+      results = Enum.filter(request["messages"], &(&1["role"] == "tool"))
+
+      if results == [] do
+        calls =
+          for {query, index} <- Enum.with_index(["Compaction", "account", "xxxxxxxxxx"]) do
+            %{
+              "id" => "account-#{index}",
+              "type" => "function",
+              "function" => %{"name" => "list_accounts", "arguments" => JSON.encode!(%{"query" => query})}
+            }
+          end
+
+        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => nil, "tool_calls" => calls}, "tool_calls"))
+      else
+        send(test_pid, {:compacted_results, results})
+        Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Compared the accounts."}))
+      end
+    end
+
+    assert :ok = Runs.execute(run.id, client_opts: client_opts(plug))
+    assert_receive {:compacted_results, [oldest, recent, latest]}
+    assert oldest["content"] =~ "<elided:"
+    assert recent["content"] =~ "Compaction account"
+    assert latest["content"] =~ "Compaction account"
+    assert %Run{status: "succeeded", activity: nil} = Repo.get!(Run, run.id)
+    messages = thread |> Orbit.list_messages() |> elem(0)
+    assert Enum.any?(messages, &(&1.kind == "tool" and String.contains?(&1.tool_output, "Compaction account")))
+    assert Enum.count(messages, &(&1.kind == "system" and String.contains?(&1.body, "Context compacted"))) == 1
+  end
+
   test "a tool the audience cannot all read is neither offered nor callable" do
     owner = user_fixture(["finance:read"])
     member = user_fixture()
@@ -117,7 +162,7 @@ defmodule Atlas.Orbit.RunsTest do
 
     # Simulate a replica that started the run and recorded a tool call before a deploy.
     Repo.update_all(from(r in Run, where: r.id == ^run.id),
-      set: [status: "running", heartbeat_at: DateTime.add(DateTime.utc_now(), -120)]
+      set: [status: "running", activity: "compacting", heartbeat_at: DateTime.add(DateTime.utc_now(), -120)]
     )
 
     Repo.transaction(fn ->
@@ -136,7 +181,7 @@ defmodule Atlas.Orbit.RunsTest do
     end)
 
     Runs.resume_stale()
-    assert %Run{status: "queued", resume_count: 1} = Repo.get!(Run, run.id)
+    assert %Run{status: "queued", activity: nil, resume_count: 1} = Repo.get!(Run, run.id)
     assert_enqueued(worker: RunThread, args: %{"run_id" => run.id, "resume" => 1})
     assert Repo.get_by!(Message, run_id: run.id, tool_name: "get_account").tool_status == "cancelled"
 

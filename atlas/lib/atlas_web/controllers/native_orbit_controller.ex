@@ -9,6 +9,7 @@ defmodule AtlasWeb.NativeOrbitController do
   alias Atlas.Orbit
   alias Atlas.Orbit.Components
   alias Atlas.Orbit.Message
+  alias Atlas.Orbit.Progress
   alias Atlas.Orbit.Thread
   alias Atlas.Users.User
 
@@ -143,7 +144,7 @@ defmodule AtlasWeb.NativeOrbitController do
     if Orbit.agent_configured?(), do: "idle", else: "unconfigured"
   end
 
-  defp agent_status(run), do: run.status
+  defp agent_status(run), do: Progress.status(run)
 
   @doc false
   def message(%Message{} = message) do

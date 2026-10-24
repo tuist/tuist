@@ -53,6 +53,20 @@ pub(super) struct Thread {
     #[serde(default)]
     pub participants: Vec<Person>,
     pub updated_at: String,
+    #[serde(default)]
+    pub agent_status: Option<AgentStatus>,
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum AgentStatus {
+    Idle,
+    Queued,
+    Running,
+    Compacting,
+    Unconfigured,
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Deserialize, Serialize)]

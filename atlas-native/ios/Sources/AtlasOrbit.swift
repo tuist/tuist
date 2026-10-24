@@ -16,6 +16,7 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
     let ownerId: String?
     let participants: [AtlasThreadPerson]
     let updatedAt: String
+    let agentStatus: String?
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -104,6 +105,16 @@ final class AtlasOrbit: ObservableObject {
     var hasOlder: Bool { state?.hasOlder ?? false }
     var errorMessage: String? { adapterError ?? state?.error }
     var liveMessage: String? { state?.liveMessage }
+    var activityMessage: String? {
+        guard liveMessage == nil else { return nil }
+        let name = assistant?.name ?? "Pip"
+        switch selected?.agentStatus {
+        case "queued": return "\(name) is getting ready…"
+        case "running": return "\(name) is responding…"
+        case "compacting": return "Compacting context…"
+        default: return nil
+        }
+    }
 
     private let request: ([String: Any]) async throws -> Data
     private let localRequest: ([String: Any]) async throws -> Data

@@ -6,6 +6,10 @@ defmodule AtlasWeb.OrbitThreadChannelTest do
 
   alias Atlas.OAuth.AccessTokens
   alias Atlas.Orbit
+  alias Atlas.Orbit.Agent
+  alias Atlas.Orbit.Progress
+  alias Atlas.Orbit.Run
+  alias Atlas.Repo
   alias AtlasWeb.OrbitThreadChannel
   alias AtlasWeb.PresenceSocket
 
@@ -34,6 +38,29 @@ defmodule AtlasWeb.OrbitThreadChannelTest do
     send(owner_socket.channel_pid, :thread_changed)
     people = await_snapshot(fn snapshot -> Enum.find(snapshot.people, &(&1.id == member.id && &1.typing)) end).people
     assert Enum.all?(people, &(Map.keys(&1) |> Enum.sort() == [:id, :name, :typing]))
+  end
+
+  test "compaction activity pushes even when history revision is unchanged", %{owner: owner, thread: thread} do
+    run =
+      Repo.insert!(%Run{
+        thread_id: thread.id,
+        acting_user_id: owner.id,
+        status: "running",
+        trigger_seq: 0,
+        session_id: Ecto.UUID.generate()
+      })
+
+    {socket, initial} = join_as(owner, thread)
+    assert initial.agent_status == "running"
+    metadata = %{agent: Agent, session_id: run.session_id}
+    Progress.handle_event([:condukt, :compact, :start], %{}, metadata, nil)
+    send(socket.channel_pid, :thread_changed)
+    assert %{revision: revision} = await_snapshot(&(&1.agent_status == "compacting"))
+    assert revision == initial.revision
+
+    Progress.handle_event([:condukt, :compact, :stop], %{}, Map.put(metadata, :changed, false), nil)
+    send(socket.channel_pid, :thread_changed)
+    assert %{revision: ^revision} = await_snapshot(&(&1.agent_status == "running"))
   end
 
   test "new messages move the revision", %{owner: owner, thread: thread} do

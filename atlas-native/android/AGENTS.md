@@ -28,6 +28,11 @@ not use FCM/background notifications; the separate native push coordinator handl
 other fixed notification kinds.
 Results are fetched separately and oversized results stay on the protected web page.
 
+The bundled NSH thread-card host passes selected-theme text, secondary text, surface,
+border and tint tokens for both `result_table` and `account_card` v1. Rust validates
+types and source actions; Android never derives account fields from tool output.
+Unsupported runtimes retain the server's text fallback.
+
 Run root Mise Android build and Kotlin lint tasks. Keep new activities non-exported
 unless a deliberately validated deep-link contract is added; only the OAuth callback
 is currently exported. Do not persist drafts in saved-instance bundles or backups.

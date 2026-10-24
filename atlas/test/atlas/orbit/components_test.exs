@@ -29,6 +29,36 @@ defmodule Atlas.Orbit.ComponentsTest do
     assert Components.for_message(%{message | tool_output: "{}"}) == nil
   end
 
+  test "get_account projects a Noora account card using only durable allowlisted fields" do
+    message = %Message{
+      kind: "tool",
+      tool_status: "succeeded",
+      tool_name: "get_account",
+      tool_output:
+        JSON.encode!(%{
+          "account" => %{
+            "name" => "Northstar",
+            "primary_domain" => "northstar.example",
+            "status" => "active",
+            "segment" => "enterprise",
+            "token" => "never-display",
+            "metadata" => %{"private" => "omit"}
+          }
+        })
+    }
+
+    card = Components.for_message(message)
+    assert card.type == "account_card"
+    assert card.data.title == "Northstar"
+    assert card.data.columns == ["Field", "Value"]
+    assert card.data.rows == [["Domain", "northstar.example"], ["Status", "active"], ["Segment", "enterprise"]]
+    refute JSON.encode!(card) =~ "never-display"
+    refute JSON.encode!(card.data) =~ "private"
+    assert Components.for_message(%{message | tool_status: "failed"}) == nil
+    minimal = %{message | tool_output: JSON.encode!(%{"account" => %{"name" => "Northstar"}})}
+    assert Components.for_message(minimal).data.rows == [["Name", "Northstar"]]
+  end
+
   test "cards never bypass redaction or inspect encrypted model results" do
     message = %Message{
       kind: "tool",

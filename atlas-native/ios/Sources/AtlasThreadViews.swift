@@ -1,3 +1,4 @@
+import AVFoundation
 import Combine
 import SwiftUI
 
@@ -71,7 +72,9 @@ struct AtlasOrbitView: View {
                 }
             }
             .modifier(AtlasThemedContent())
+            .defaultScrollAnchor(.top)
             .navigationTitle("Orbit")
+            .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: AtlasThread.self) { thread in
                 AtlasThreadDetail(model: model, thread: thread, selfId: selfId)
             }
@@ -107,6 +110,8 @@ private struct AtlasThreadDetail: View {
     @State private var followLatest = true
     @State private var hasShownMessages = false
     @State private var showingInfo = false
+    @StateObject private var voice = AtlasVoiceInput()
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
 
     private var assistantName: String { model.assistant?.name ?? "Pip" }
@@ -188,8 +193,13 @@ private struct AtlasThreadDetail: View {
         }
         .sheet(isPresented: $showingInfo) { details }
         .task(id: thread.id) { presence?.show(); await model.open(thread) }
-        .onDisappear { model.leave(id: thread.id) }
-        .protectsAtlasNavigation(!model.draft.isEmpty || model.saving)
+        .onDisappear { voice.cancel(); model.leave(id: thread.id) }
+        .onChange(of: scenePhase) { _, phase in
+            // Permission alerts temporarily deactivate the scene before their callbacks return.
+            if phase == .background || (phase == .inactive && voice.phase != .requesting) { voice.cancel() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { _ in voice.cancel() }
+        .protectsAtlasNavigation(!model.draft.isEmpty || model.saving || voice.busy)
     }
 
     private func startsDay(at index: Int) -> Bool {
@@ -210,6 +220,14 @@ private struct AtlasThreadDetail: View {
                         .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("thread-presence")
                 }
             }
+            if let activity = model.activityMessage {
+                HStack(spacing: 10) {
+                    ProgressView().accessibilityHidden(true)
+                    Text(activity).font(.callout).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("thread-agent-activity")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             if thread.kind != "private" {
                 Button { addressAgent.toggle() } label: {
                     Label("Ask \(assistantName)", systemImage: addressAgent ? "checkmark.circle.fill" : "sparkles")
@@ -219,11 +237,34 @@ private struct AtlasThreadDetail: View {
                 .accessibilityValue(addressAgent ? "On" : "Off")
                 .accessibilityIdentifier("thread-address-agent")
             }
-            HStack(alignment: .bottom, spacing: 8) {
+            if let error = voice.errorMessage {
+                Text(error).font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("thread-voice-error")
+            }
+            if voice.busy {
+                AtlasVoiceInputView(phase: voice.phase, transcript: voice.transcript, levels: voice.levels,
+                                    cancel: voice.cancel) {
+                    voice.finish { text in model.draft = AtlasVoiceInput.appending(text, to: model.draft) }
+                }
+            } else {
+                textComposer
+            }
+        }
+        .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
+        .frame(maxWidth: .infinity).background(.bar)
+    }
+
+    private var textComposer: some View {
+        HStack(alignment: .bottom, spacing: 8) {
                 TextField(thread.kind == "private" ? "Message \(assistantName)" : "Message the team",
                           text: Binding(get: { model.draft }, set: { model.draft = $0 }), axis: .vertical)
                     .lineLimit(1...6).textFieldStyle(.plain).padding(.leading, 12).padding(.vertical, 12)
                     .accessibilityIdentifier("thread-composer")
+                Button {
+                    Task { await voice.start() }
+                } label: { Image(systemName: "mic").frame(width: 44, height: 44) }
+                .disabled(model.saving).accessibilityLabel("Transcribe a voice message")
+                .accessibilityIdentifier("thread-microphone")
                 Button {
                     followLatest = true
                     Task { await model.send(addressAgent: addressAgent) }
@@ -239,9 +280,6 @@ private struct AtlasThreadDetail: View {
                 .accessibilityIdentifier("thread-send")
             }
             .padding(6).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 28))
-        }
-        .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
-        .frame(maxWidth: .infinity).background(.bar)
     }
 
     private var details: some View {
@@ -296,7 +334,7 @@ private struct AtlasThreadMessageView: View {
                         if message.kind == "tool" {
                             tool.padding(14).background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 18))
                         } else {
-                            Text(message.body).textSelection(.enabled).padding(.horizontal, 16).padding(.vertical, 12)
+                            messageBody.padding(.horizontal, 16).padding(.vertical, 12)
                                 .foregroundStyle(outgoing
                                     ? palette.map { Color(atlasHex: $0.onAccent) } ?? AtlasSettingsStyle.onTint : .primary)
                                 .background(fill, in: RoundedRectangle(cornerRadius: 20))
@@ -310,6 +348,14 @@ private struct AtlasThreadMessageView: View {
             }
         }
         .accessibilityIdentifier("thread-message-\(message.id)")
+    }
+
+    @ViewBuilder private var messageBody: some View {
+        if message.kind == "agent" {
+            AtlasMarkdown(source: message.body)
+        } else {
+            Text(message.body).textSelection(.enabled)
+        }
     }
 
     private var tool: some View {
@@ -344,46 +390,4 @@ private struct AtlasThreadMessageView: View {
 private struct AtlasThreadBottom: PreferenceKey {
     static var defaultValue: CGFloat { .infinity }
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-private struct AtlasCreateThread: View {
-    @ObservedObject var model: AtlasOrbit
-    let people: [AtlasPerson]
-    let created: (AtlasThread) -> Void
-    @State private var title = ""
-    @State private var participants: Set<String> = []
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Purpose") { TextField("Thread title", text: $title).disabled(model.creating) }
-                Section {
-                    ForEach(people) { person in
-                        Toggle(person.name, isOn: Binding(get: { participants.contains(person.id) }, set: { value in
-                            if value { participants.insert(person.id) } else { participants.remove(person.id) }
-                        })).disabled(model.creating)
-                    }
-                } header: { Text("Participants") } footer: {
-                    Text("Only participants can read this thread. The server checks access before tools are used.")
-                }
-                if let error = model.errorMessage { Text(error).foregroundStyle(.red) }
-            }
-            .navigationTitle("New shared thread").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(model.creating) }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task {
-                            if let thread = await model.create(title: title, participants: Array(participants)) {
-                                created(thread)
-                            }
-                        }
-                    }.disabled(model.creating || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            .interactiveDismissDisabled(model.creating)
-            .protectsAtlasNavigation(model.creating || !title.isEmpty)
-        }
-    }
 }
