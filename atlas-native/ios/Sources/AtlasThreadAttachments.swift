@@ -173,7 +173,7 @@ struct AtlasAttachmentChip: View {
             Button(action: open) {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(attachment.filename).lineLimit(2)
+                        Text(attachment.filename).lineLimit(1).truncationMode(.middle)
                         Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.byteSize), countStyle: .file))
                             .font(.caption).foregroundStyle(.secondary)
                     }
