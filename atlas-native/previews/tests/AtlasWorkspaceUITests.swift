@@ -88,7 +88,7 @@ final class AtlasWorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Orbit"].exists)
         XCTAssertEqual(app.tabBars.buttons.count, 5)
         XCTAssertFalse(app.tabBars.buttons["More"].exists)
-        XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].waitForExistence(timeout: 5))
         attach(app, "ios-workspace-threads-preview")
         app.tabBars.buttons["Browse"].tap()
         try tap("workspace-section-tasks", in: app)
@@ -184,20 +184,19 @@ final class AtlasWorkspaceUITests: XCTestCase {
     @MainActor func testReturningToOrbitRetainsLoadedThreadsUntilExplicitRefresh() throws {
         let app = launch(arguments: ["--fail-orbit-refresh"])
         defer { app.terminate() }
-        XCTAssertTrue(app.staticTexts["Build listing latency"].waitForExistence(timeout: 5))
+        let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+        XCTAssertTrue(conversation.waitForExistence(timeout: 5))
         for title in ["Accounts", "Finance", "Browse", "Profile", "Orbit"] {
             app.tabBars.buttons[title].tap()
             XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
         }
         let failure = app.staticTexts["Preview refresh failed. Loaded threads are retained."]
         XCTAssertFalse(failure.waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Build listing latency"].exists)
-        XCTAssertTrue(app.buttons["orbit-private"].exists)
+        XCTAssertTrue(conversation.exists)
         attach(app, "ios-workspace-orbit-retained-preview")
         app.scrollContent(up: false)
         XCTAssertTrue(failure.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Build listing latency"].exists)
-        XCTAssertTrue(app.buttons["orbit-private"].exists)
+        XCTAssertTrue(conversation.exists)
         attach(app, "ios-workspace-orbit-failed-refresh-preview")
     }
 
@@ -207,7 +206,7 @@ final class AtlasWorkspaceUITests: XCTestCase {
         for title in ["Orbit", "Accounts", "Finance", "Browse", "Profile"] {
             app.tabBars.buttons[title].tap()
             switch title {
-            case "Orbit": XCTAssertTrue(app.buttons["orbit-private"].waitForExistence(timeout: 5))
+            case "Orbit": XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].waitForExistence(timeout: 5))
             case "Accounts": XCTAssertTrue(app.staticTexts["Northstar"].waitForExistence(timeout: 5))
             case "Finance": XCTAssertTrue(app.descendants(matching: .any)["finance-available-cash"].waitForExistence(timeout: 5))
             case "Profile": XCTAssertTrue(app.staticTexts["Taylor Morgan"].waitForExistence(timeout: 5))

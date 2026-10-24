@@ -31,7 +31,7 @@ defmodule AtlasWeb.OrbitThreadChannelTest do
     assert snapshot.revision == thread.last_seq
     assert snapshot.people |> Enum.map(& &1.id) |> Enum.sort() == Enum.sort([owner.id, member.id])
     assert Enum.all?(snapshot.people, &(&1.typing == false))
-    assert snapshot.agent_status == "unconfigured"
+    assert snapshot.agent_status == "idle"
 
     ref = Phoenix.ChannelTest.push(member_socket, "typing", %{"typing" => true})
     assert_reply ref, :ok

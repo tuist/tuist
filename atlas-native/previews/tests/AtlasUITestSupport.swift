@@ -5,7 +5,7 @@ extension XCUIApplication {
     private var contentBounds: CGRect {
         let top = navigationBars.firstMatch.frame.maxY
         var bottom = frame.maxY
-        for control in [tabBars.firstMatch, buttons["Save connection"], buttons["orbit-private"],
+        for control in [tabBars.firstMatch, buttons["Save connection"],
                         staticTexts["thread-presence"], buttons["thread-address-agent"], buttons["thread-attach"],
                         textFields["thread-composer"], keyboards.firstMatch] where control.exists {
             if control.frame.minY > top { bottom = min(bottom, control.frame.minY) }

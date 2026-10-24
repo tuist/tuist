@@ -2,7 +2,7 @@ defmodule Atlas.Orbit do
   @moduledoc """
   Orbit: persistent private and shared threads with the Atlas assistant.
 
-  Every person has one pinned private thread with the assistant. Shared
+  Every person can have multiple private conversations with the assistant. Shared
   threads have an owner and participants, and may be opened by a person or
   by a monitored signal (`open_for_signal/1`). The thread is the agentic
   session: messages, tool calls, and assistant replies form one ordered log.
@@ -16,6 +16,7 @@ defmodule Atlas.Orbit do
   alias Atlas.Audit
   alias Atlas.Authorization
   alias Atlas.Inference
+  alias Atlas.LLMs.Runner
   alias Atlas.Orbit.Access
   alias Atlas.Orbit.Attachments
   alias Atlas.Orbit.Message
@@ -34,7 +35,7 @@ defmodule Atlas.Orbit do
   @max_body_bytes 16_000
   @message_rate_limit 30
   @message_rate_window :timer.minutes(1)
-  @private_title "Private thread"
+  @private_title "New conversation"
   @notification_channel :atlas_orbit
 
   ## Assistant
@@ -42,6 +43,8 @@ defmodule Atlas.Orbit do
   def agent_name, do: "Pip"
 
   def agent_configured?, do: Inference.atlas_role_configured?(:orbit)
+
+  def agent_configured?(%User{} = user), do: Runner.orbit_configured?(user)
 
   def message_page_size, do: @message_page_size
 
@@ -70,7 +73,7 @@ defmodule Atlas.Orbit do
 
   ## Reads
 
-  def list_for_user(%User{} = user, page \\ 1) do
+  def list_for_user(%User{} = user, page \\ 1, kind \\ nil) do
     scopes = Atlas.Users.scopes_for(user)
 
     query =
@@ -84,6 +87,7 @@ defmodule Atlas.Orbit do
             type(^scopes, {:array, :string})
           )
 
+    query = if kind in ["private", "shared"], do: where(query, [thread], thread.kind == ^kind), else: query
     total_count = Repo.aggregate(query, :count)
     total_pages = max(1, ceil(total_count / @thread_page_size))
     page = page |> max(1) |> min(total_pages)
@@ -163,42 +167,69 @@ defmodule Atlas.Orbit do
 
   ## Creation
 
-  @doc "Returns the caller's pinned private thread, creating it on first use."
+  @doc "Returns the caller's latest private thread, creating it only on first use."
   def ensure_private(%User{} = user) do
-    case private_for(user) do
-      %Thread{} = thread ->
-        {:ok, thread, :existing}
+    private_transaction(user, fn ->
+      case private_for(user) do
+        %Thread{} = thread -> {thread, :existing}
+        nil -> {insert_private!(user, nil), :created}
+      end
+    end)
+  end
 
-      nil ->
-        Repo.transaction(fn ->
-          with {:ok, thread} <-
-                 %{kind: "private", title: @private_title, owner_id: user.id}
-                 |> Thread.create_changeset()
-                 |> Repo.insert(),
-               {:ok, _participant} <- insert_participant(thread, user.id, "owner") do
-            thread
-          else
-            {:error, reason} -> Repo.rollback(reason)
+  @doc "Creates a distinct owner-only conversation; a request UUID replays the same creation."
+  def create_private(%User{} = user, attrs) when is_map(attrs) do
+    case cast_uuid(attrs["request_id"]) do
+      {:ok, request_id} ->
+        private_transaction(user, fn ->
+          case Repo.get_by(Thread, owner_id: user.id, kind: "private", request_id: request_id) do
+            %Thread{} = thread -> {thread, :existing}
+            nil -> {insert_private!(user, request_id), :created}
           end
         end)
-        |> case do
-          {:ok, thread} ->
-            Audit.record("thread.created", thread_audit(thread, user))
-            {:ok, preload_thread(thread), :created}
 
-          {:error, %Ecto.Changeset{}} ->
-            # A concurrent request created it first.
-            case private_for(user) do
-              %Thread{} = thread -> {:ok, thread, :existing}
-              nil -> {:error, :conflict}
-            end
+      :error ->
+        {:error, {:invalid_field, :request_id}}
+    end
+  end
+
+  defp private_transaction(user, action) do
+    Repo.transaction(fn ->
+      # Also serialize legacy first-use requests now that private threads are not unique per owner.
+      Repo.one!(from owner in User, where: owner.id == ^user.id, lock: "FOR UPDATE")
+      action.()
+    end)
+    |> case do
+      {:ok, {thread, disposition}} ->
+        if disposition == :created do
+          Audit.record("thread.created", thread_audit(thread, user))
+          notify_changed(thread.id)
         end
+
+        {:ok, preload_thread(thread), disposition}
+
+      error ->
+        error
+    end
+  end
+
+  defp insert_private!(user, request_id) do
+    with {:ok, thread} <-
+           %{kind: "private", title: @private_title, owner_id: user.id, request_id: request_id}
+           |> Thread.create_changeset()
+           |> Repo.insert(),
+         {:ok, _participant} <- insert_participant(thread, user.id, "owner") do
+      thread
+    else
+      {:error, reason} -> Repo.rollback(reason)
     end
   end
 
   defp private_for(%User{id: user_id}) do
     Thread
     |> where([thread], thread.kind == "private" and thread.owner_id == ^user_id)
+    |> order_by([thread], desc: thread.updated_at, desc: thread.id)
+    |> limit(1)
     |> Repo.one()
     |> case do
       nil -> nil
@@ -396,6 +427,8 @@ defmodule Atlas.Orbit do
         {existing, :existing}
 
       true ->
+        maybe_title_private(thread, body)
+
         message =
           append!(thread, %{
             kind: "human",
@@ -411,6 +444,21 @@ defmodule Atlas.Orbit do
         {message, :created}
     end
   end
+
+  defp maybe_title_private(%Thread{kind: "private"} = thread, body) when body != "" do
+    previous_prompt? =
+      Repo.exists?(
+        from message in Message,
+          where: message.thread_id == ^thread.id and message.kind == "human" and message.body != ""
+      )
+
+    if !previous_prompt? do
+      title = body |> String.replace(~r/\s+/u, " ") |> String.codepoints() |> Enum.take(200) |> Enum.join()
+      thread |> Ecto.Changeset.change(title: title) |> Repo.update!()
+    end
+  end
+
+  defp maybe_title_private(_thread, _body), do: :ok
 
   defp message_body(attrs, attachment_ids) do
     case Map.get(attrs, "body", "") do
@@ -476,11 +524,10 @@ defmodule Atlas.Orbit do
       active_run(thread) ->
         :pending
 
-      not agent_configured?() ->
+      not agent_configured?(acting_user) ->
         append!(thread, %{
           kind: "system",
-          body:
-            "The assistant is not configured on this Atlas server. An administrator can assign an inference profile to Orbit."
+          body: "Connect an AI account in Settings, or ask an administrator to assign an inference profile to Orbit."
         })
 
         :unconfigured

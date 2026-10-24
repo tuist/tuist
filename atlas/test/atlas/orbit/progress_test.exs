@@ -46,6 +46,25 @@ defmodule Atlas.Orbit.ProgressTest do
     assert Repo.get!(Run, run.id).activity == nil
   end
 
+  test "a failed compaction stop clears activity without claiming success or failing the run" do
+    owner = user_fixture()
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    run = running(thread, owner)
+    metadata = %{agent: Agent, session_id: run.session_id}
+    Progress.handle_event([:condukt, :compact, :start], %{}, metadata, nil)
+
+    Progress.handle_event(
+      [:condukt, :compact, :stop],
+      %{},
+      Map.merge(metadata, %{status: :error, changed: false}),
+      nil
+    )
+
+    assert Repo.get!(Run, run.id).activity == nil
+    assert Repo.get!(Run, run.id).status == "running"
+    refute Repo.exists?(from message in Message, where: message.run_id == ^run.id)
+  end
+
   defp running(thread, user) do
     Repo.insert!(%Run{
       thread_id: thread.id,

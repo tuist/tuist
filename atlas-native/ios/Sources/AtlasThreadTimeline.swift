@@ -40,25 +40,30 @@ struct AtlasThreadTimeline: View {
     }
 
     var body: some View {
-        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-            if let first = group.messages.first {
-                if index == 0 || !sameDay(first.insertedAt, groups[index - 1].messages.last?.insertedAt),
-                   let date = ISO8601DateFormatter().date(from: first.insertedAt) {
-                    Text(date, format: .dateTime.month(.abbreviated).day().year())
-                        .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
-                }
-                if let nested = children[first.id] {
-                    AtlasToolActivity(messages: nested, selfId: selfId, parent: first, action: action)
-                } else if group.tools {
-                    AtlasToolActivity(messages: group.messages, selfId: selfId, action: action)
-                } else {
-                    AtlasThreadMessageView(message: first, selfId: selfId, openAttachment: openAttachment) { event in
-                        await action(first.id, event)
+        LazyVStack(spacing: 14) {
+            ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                VStack(spacing: 14) {
+                    if let first = group.messages.first {
+                        if index == 0 || !sameDay(first.insertedAt, groups[index - 1].messages.last?.insertedAt),
+                           let date = ISO8601DateFormatter().date(from: first.insertedAt) {
+                            Text(date, format: .dateTime.month(.abbreviated).day().year())
+                                .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
+                        }
+                        if let nested = children[first.id] {
+                            AtlasToolActivity(messages: nested, selfId: selfId, parent: first, action: action)
+                        } else if group.tools {
+                            AtlasToolActivity(messages: group.messages, selfId: selfId, action: action)
+                        } else {
+                            AtlasThreadMessageView(message: first, selfId: selfId, openAttachment: openAttachment) { event in
+                                await action(first.id, event)
+                            }
+                        }
                     }
-                    .id(first.id)
                 }
+                .id(group.id)
             }
         }
+        .scrollTargetLayout()
     }
 
     private func sameDay(_ current: String, _ previous: String?) -> Bool {
@@ -92,7 +97,12 @@ struct AtlasThreadNavigation: View {
                     .accessibilityLabel("Conversation prompts")
                     .accessibilityHint("Choose a prompt to jump back to it")
                     .accessibilityIdentifier("thread-prompts")
-                    .popover(isPresented: $showingPrompts) { promptList }
+                    .sheet(isPresented: $showingPrompts, onDismiss: {
+                        if let target = pendingPrompt {
+                            pendingPrompt = nil
+                            jump(target)
+                        }
+                    }, content: { promptList })
                 }
                 if showsLatest {
                     if !prompts.isEmpty || hasOlder { Divider().frame(height: 20) }
@@ -134,13 +144,6 @@ struct AtlasThreadNavigation: View {
         }
         .frame(idealWidth: 380, idealHeight: 440)
         .presentationDetents([.medium, .large])
-        .presentationCompactAdaptation(.sheet)
-        .onDisappear {
-            if let target = pendingPrompt {
-                pendingPrompt = nil
-                jump(target)
-            }
-        }
     }
 
     private func promptRow(_ message: AtlasThreadMessage) -> some View {

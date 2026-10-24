@@ -39,7 +39,7 @@ function Card() {
               {payload()!.card.type === "account_card" ? (
                 <View style={{ gap: 4, paddingTop: 8, borderTopWidth: 1, borderColor: payload()!.colors.border }}>
                   <Text style={{ fontSize: 12, color: payload()!.colors.secondary }}>{row[0]}</Text>
-                  <Text selectable={true} style={{ fontSize: 15, color: payload()!.colors.text }}>{row[1]}</Text>
+                  <Text selectable={true} style={{ fontSize: 17, color: payload()!.colors.text }}>{row[1]}</Text>
                 </View>
               ) : <Text style={{ fontSize: 12, color: payload()!.colors.secondary }}>{`Result ${index + 1}`}</Text>}
               {payload()!.card.type !== "account_card" && row.map((value, column) => (
@@ -47,7 +47,7 @@ function Card() {
                   <Text style={{ fontSize: 12, fontWeight: "600", color: payload()!.colors.secondary }}>
                     {payload()!.card.data.columns[column]}
                   </Text>
-                  <Text selectable={true} style={{ fontSize: 15, color: payload()!.colors.text }}>{value}</Text>
+                  <Text selectable={true} style={{ fontSize: 17, color: payload()!.colors.text }}>{value}</Text>
                 </View>
               ))}
             </View>
@@ -60,7 +60,7 @@ function Card() {
               style={{ minHeight: 64, justifyContent: "center", padding: 8 }}
               activeStyle={{ opacity: 0.6 }}
             >
-              <Text style={{ fontSize: 15, fontWeight: "600", color: payload()!.colors.accent }}>{action.label}</Text>
+              <Text style={{ fontSize: 17, fontWeight: "600", color: payload()!.colors.accent }}>{action.label}</Text>
             </View>
           ))}
         </View>

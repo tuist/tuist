@@ -28,10 +28,15 @@ self-test kind to the caller's own registrations under a per-user rate limit.
   user must match the registration owner. Missing/archived/deleted/inaccessible
   sources cancel as `destination_unavailable`, without retiring the registration
   or contacting providers. Never substitute the latest reply from another run.
-- The alert title is fixed to "Pip finished". The body contains the thread title
-  (80 Unicode codepoints) and a plain-text final-reply preview (160 codepoints),
-  with ellipses, whitespace/control-character cleanup, and no Markdown links,
-  HTML tags or fenced code. Codepoint bounds also cap UTF-8 bytes, even for
+- The alert title is the conversation title (80 Unicode codepoints), falling
+  back to "Pip" if empty after cleanup. APNs adds a "Pip" subtitle unless that
+  duplicates the title. The body is only the plain-text final-reply preview
+  (160 codepoints), with ellipses and whitespace/control-character cleanup.
+  MDEx parses headings, lists, nested/reference links and tables, retaining link
+  labels, table header/value relationships, inline code/identifiers, comparisons,
+  amounts and negation instead of deleting punctuation globally. Struck text is
+  explicitly marked removed; HTML tags and fenced code are omitted.
+  Codepoint bounds also cap UTF-8 bytes, even for
   combining-mark-heavy text. Only the authorized final agent body is used, never
   tool cards, raw tool results, checkpoints or diagnostics. Jobs/audits retain
   IDs only, not preview text. The preview goes to APNs/FCM and can appear on a
@@ -39,6 +44,17 @@ self-test kind to the caller's own registrations under a per-user rate limit.
 - `orbit_completed` accepts only an Orbit UUID destination and requires a UUID
   `message_id` option; neither HTTP nor MCP accepts arbitrary notification text.
   Other kinds keep their existing destination/delivery semantics.
+- APNs completion payloads use category `ATLAS_ORBIT_COMPLETED` and `thread-id`
+  equal to the thread UUID (never a title). iOS registers that exact category
+  with only `ATLAS_OPEN_CONVERSATION`, an "Open conversation" foreground action
+  requiring unlock. Default taps and that category-bound action re-enter existing
+  origin-bound navigation; dismissals and unknown actions do nothing. Generic
+  notifications retain their existing payloads. There is no background reply,
+  notification extension, arbitrary-recipient tool, or model-authored payload.
+- Automatic completion is a committed lifecycle event and needs no model tool.
+  Any future arbitrary send tool needs server-bound recipient/audience checks
+  and an explicit approval design; platform support for richer interactions is
+  not authorization to add them.
 
 ## Registrations
 
@@ -132,7 +148,9 @@ reason, kind, platform, environment). Metadata never contains tokens or alert te
 ## Tests
 
 `test/atlas/orbit/runs_test.exs` (transactional completion enqueue, opt-in and
-no-notify fences), `test/atlas/push_test.exs` (registry semantics), `test/atlas/push/workers/deliver_test.exs`
+no-notify fences), `test/atlas/push_test.exs` (registry semantics),
+`test/atlas/push/message_test.exs` (readable Markdown and Unicode preview bounds),
+`test/atlas/push/workers/deliver_test.exs`
 (provider requests, classification, caching, send-time checks against a Req plug),
 `test/atlas/push/config_test.exs`, `test/atlas_web/controllers/push_devices_controller_test.exs`
 and `test/atlas/mcp/tools/send_test_push_notification_test.exs`. Tests stub

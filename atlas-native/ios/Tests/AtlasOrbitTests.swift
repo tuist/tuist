@@ -25,6 +25,42 @@ struct AtlasOrbitTests {
         #expect(model.selected?.id == id)
     }
 
+    @Test func privateListAndDistinctCreationUseRustOwnedContract() async throws {
+        var commands: [[String: Any]] = []
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            commands.append(command)
+            return try snapshot(sequence: commands.count, selected: command["action"] as? String == "create_private")
+        }, localRequest: { _ in throw CancellationError() })
+        await model.load()
+        await model.load(more: true)
+        #expect(commands[0]["action"] as? String == "load")
+        #expect(commands[0]["kind"] as? String == "private")
+        #expect(commands[1]["action"] as? String == "load_more")
+        #expect(await model.newPrivateThread()?.id == id)
+        #expect(commands[2]["action"] as? String == "create_private")
+        #expect(commands[2].count == 1) // Replay UUID and owner identity belong to Rust/server.
+    }
+
+    @Test func aNewerSelectionSupersedesPendingConversationCreation() async throws {
+        var pending: CheckedContinuation<Data, Error>?
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            if command["action"] as? String == "create_private" {
+                return try await withCheckedThrowingContinuation { pending = $0 }
+            }
+            return try snapshot(sequence: 2, selected: true)
+        }, localRequest: { _ in throw CancellationError() })
+        let creation = Task { await model.newPrivateThread() }
+        while pending == nil { await Task.yield() }
+        #expect(await model.open(id: id)?.id == id)
+        pending?.resume(returning: try snapshot(sequence: 3, selected: true))
+        #expect(await creation.value == nil)
+        #expect(model.selected?.id == id)
+    }
+
     @Test func linkedThreadOpensWithoutLoadingAListAndRejectsADifferentSelection() async throws {
         let model = AtlasOrbit(request: { action in
             if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
@@ -214,7 +250,9 @@ struct AtlasOrbitTests {
         #expect(await action.value == false)
         #expect(model.messages.isEmpty)
     }
+}
 
+extension AtlasOrbitTests {
     private func snapshot(
         sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = [],
         agentStatus: String? = nil, liveMessage: String? = nil

@@ -286,8 +286,10 @@ defmodule Atlas.Push.Workers.DeliverTest do
 
       assert JSON.decode!(body) == %{
                "aps" => %{
-                 "alert" => %{"title" => "Pip finished", "body" => "Quarterly review: First reply is ready."},
-                 "sound" => "default"
+                 "alert" => %{"title" => "Quarterly review", "subtitle" => "Pip", "body" => "First reply is ready."},
+                 "sound" => "default",
+                 "category" => "ATLAS_ORBIT_COMPLETED",
+                 "thread-id" => thread.id
                },
                "schema_version" => 1,
                "registration_id" => installation.id,
@@ -300,11 +302,13 @@ defmodule Atlas.Push.Workers.DeliverTest do
       assert :ok = perform_job(Deliver, android_args)
       assert_received {:request, "fcm.googleapis.com", _, _, android_body}
       data = JSON.decode!(android_body)["message"]["data"]
-      assert data["title"] == "Pip finished" and data["body"] == "Quarterly review: First reply is ready."
+      assert data["title"] == "Quarterly review" and data["body"] == "First reply is ready."
       assert data["url"] == "dev.tuist.atlas://navigate/orbit/#{thread.id}?server=https%3A%2F%2Fatlas.example.com"
       refute android_body =~ "Later unrelated reply"
       refute inspect(all_enqueued(worker: Deliver)) =~ "First reply"
+      refute inspect(all_enqueued(worker: Deliver)) =~ "Quarterly review"
       refute inspect(Repo.all(Activity)) =~ "First reply"
+      refute inspect(Repo.all(from(a in Activity, where: like(a.action, "push_%")))) =~ "Quarterly review"
     end
 
     test "bounds and cleans context before either provider receives it", %{user: user} do
@@ -318,11 +322,12 @@ defmodule Atlas.Push.Workers.DeliverTest do
       assert :ok = perform_job(Deliver, queued_orbit_args(installation, thread, reply))
       assert_received {:request, "api.push.apple.com", _, _, body}
       alert = JSON.decode!(body)["aps"]["alert"]
-      assert alert["title"] == "Pip finished"
+      assert alert["title"] == String.duplicate("é", 79) <> "…"
+      assert alert["subtitle"] == "Pip"
       assert alert["body"] =~ "Summary done"
       refute alert["body"] =~ "raw tool evidence"
       refute alert["body"] =~ ~r/[\p{Cc}\p{Cf}<>*`#]/u
-      assert length(String.codepoints(alert["body"])) <= 242
+      assert length(String.codepoints(alert["body"])) <= 160
       assert byte_size(body) < 4096
     end
 

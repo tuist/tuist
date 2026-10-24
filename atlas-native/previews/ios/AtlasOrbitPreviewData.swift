@@ -8,12 +8,19 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var loads = 0
     private let clock = ContinuousClock()
     private var activityStarted: ContinuousClock.Instant?
+    private var followStarted: ContinuousClock.Instant?
     private var rich: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-rich") }
     private var activity: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-activity") }
+    private var follow: Bool { ProcessInfo.processInfo.arguments.contains("--orbit-follow") }
     private var selected: [String: Any]?
+    private var listKind: String?
+    private var createdThreads: [[String: Any]] = []
     private var draft = ""
     private var draftAttachments: [[String: Any]] = []
     private var sent: [[String: Any]] = []
+    private var drafts: [String: String] = [:]
+    private var attachmentsByThread: [String: [[String: Any]]] = [:]
+    private var sentByThread: [String: [[String: Any]]] = [:]
     private var seededAttachments = false
     private var olderPromptsLoaded = false
     private let promptTime = Date()
@@ -21,32 +28,54 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private let attachmentBytes = Data("Atlas attachment fixture. No private data.\n".utf8)
     private let privateID = "01922cc0-0000-7000-8000-000000000001"
     private let sharedID = "01922cc0-0000-7000-8000-000000000002"
+    private let secondPrivateID = "01922cc0-0000-7000-8000-000000000003"
 
     func request(_ action: [String: Any]) async throws -> Data {
         if action["action"] as? String == "open" { return Data("{\"connection\":\"preview-only\"}".utf8) }
         let command = action["command"] as? [String: Any] ?? [:]
         switch command["action"] as? String {
         case "load":
+            listKind = command["kind"] as? String
             loads += 1
             if loads > 1, ProcessInfo.processInfo.arguments.contains("--fail-orbit-refresh") {
                 throw AtlasAuthenticationError(kind: "server", message: "Preview refresh failed. Loaded threads are retained.")
             }
         case "private":
-            selected = thread(id: privateID, title: "Pip", kind: "private")
-            activityStarted = clock.now
+            select(thread(id: privateID, title: "Build listing latency", kind: "private"))
+        case "create_private":
+            let created = thread(id: UUID().uuidString.lowercased(), title: "New conversation", kind: "private")
+            createdThreads.insert(created, at: 0)
+            select(created)
         case "select":
+            if ProcessInfo.processInfo.arguments.contains("--delayed-orbit") { try await Task.sleep(for: .seconds(3)) }
             switch command["id"] as? String {
-            case privateID: selected = thread(id: privateID, title: "Pip", kind: "private")
-            case sharedID: selected = thread(id: sharedID, title: "Build listing latency", kind: "shared")
+            case privateID: select(thread(id: privateID, title: "Build listing latency", kind: "private"))
+            case secondPrivateID: select(thread(id: secondPrivateID, title: "Release checklist", kind: "private"))
+            case sharedID: select(thread(id: sharedID, title: "Build listing latency", kind: "shared"))
             default:
-                selected = nil
-                throw AtlasAuthenticationError(kind: "unavailable", message: "This thread is no longer available.")
+                if let created = createdThreads.first(where: { $0["id"] as? String == command["id"] as? String }) {
+                    select(created)
+                } else {
+                    select(nil)
+                    throw AtlasAuthenticationError(kind: "unavailable", message: "This thread is no longer available.")
+                }
             }
-        case "create": selected = thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared")
-        case "leave": selected = nil
+        case "create": select(thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared"))
+        case "leave": select(nil)
         case "history":
-            if command["older"] as? Bool == true { olderPromptsLoaded = true }
+            if command["older"] as? Bool == true {
+                if ProcessInfo.processInfo.arguments.contains("--delayed-orbit-history") {
+                    try await Task.sleep(for: .seconds(8))
+                }
+                olderPromptsLoaded = true
+            }
         case "send":
+            if sent.isEmpty, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let index = createdThreads.firstIndex(where: { $0["id"] as? String == selected?["id"] as? String }) {
+                let title = String(draft.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(200))
+                createdThreads[index]["title"] = title
+                selected?["title"] = title
+            }
             sent.append(message(id: UUID().uuidString, kind: "human", body: draft, extra: [
                 "author_id": "preview-self", "author_name": "Taylor", "attachments": draftAttachments
             ]))
@@ -74,14 +103,35 @@ final class AtlasOrbitPreviewData: ObservableObject {
             ])
         }
         if action["action"] as? String == "next" {
-            try await Task.sleep(for: .seconds(activity ? 1 : 30))
+            try await Task.sleep(for: .seconds(activity || follow ? 1 : 30))
         }
         if action["action"] as? String == "draft" { draft = action["body"] as? String ?? "" }
         return try snapshot()
     }
 
+    private func select(_ next: [String: Any]?) {
+        if let id = selected?["id"] as? String {
+            drafts[id] = draft
+            attachmentsByThread[id] = draftAttachments
+            sentByThread[id] = sent
+        }
+        selected = next
+        let id = next?["id"] as? String ?? ""
+        draft = drafts[id] ?? ""
+        draftAttachments = attachmentsByThread[id] ?? []
+        sent = sentByThread[id] ?? []
+        activityStarted = clock.now
+        followStarted = next == nil ? nil : clock.now
+        olderPromptsLoaded = false
+    }
+
     private func snapshot() throws -> Data {
         sequence += 1
+        if let id = selected?["id"] as? String {
+            drafts[id] = draft
+            attachmentsByThread[id] = draftAttachments
+            sentByThread[id] = sent
+        }
         if activity, selected != nil {
             let elapsed = activityStarted?.duration(to: clock.now).components.seconds ?? 0
             let step = min(3, Int(elapsed / 6))
@@ -116,6 +166,13 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 ]), at: 0)
             } else if ProcessInfo.processInfo.arguments.contains("--empty-private") {
                 messages = []
+            } else if selected?["id"] as? String == secondPrivateID {
+                messages = [
+                    message(id: "release-question", kind: "human", body: "Help me prepare a release checklist.", extra: [
+                        "author_id": "preview-self", "author_name": "Taylor"
+                    ]),
+                    message(id: "release-reply", kind: "agent", body: "Start with validation, release notes, and a rollback plan.")
+                ]
             }
             if ProcessInfo.processInfo.arguments.contains("--orbit-tool-tree") { messages = toolTree }
             if ProcessInfo.processInfo.arguments.contains("--orbit-attachments") {
@@ -127,15 +184,29 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 if !seededAttachments { draftAttachments = [attachment]; seededAttachments = true }
             }
             if ProcessInfo.processInfo.arguments.contains("--orbit-prompts") { messages = promptHistory }
+            if createdThreads.contains(where: { $0["id"] as? String == selected?["id"] as? String }) { messages = [] }
             messages += sent
+            if follow, let followStarted {
+                let elapsed = followStarted.duration(to: clock.now).components.seconds
+                if elapsed >= 6 {
+                    let body = elapsed < 12 ? "A new reply appeared." : "A new reply appeared.\n\n" +
+                        (1...12).map { "Step \($0): Compare the fixture evidence, validate the affected projects, and keep the rollout reversible." }
+                            .joined(separator: "\n\n") + "\n\nThe growing reply is complete."
+                    messages.append(message(id: "follow-reply", kind: "agent", body: body))
+                }
+            }
         }
+        let threads = createdThreads + [thread(id: privateID, title: "Build listing latency", kind: "private"),
+                                        thread(id: secondPrivateID, title: "Release checklist", kind: "private"),
+                                        thread(id: sharedID, title: "Build listing latency", kind: "shared")]
         return try JSONSerialization.data(withJSONObject: [
             "sequence": sequence, "assistant": ["name": "Pip", "configured": true],
-            "threads": [thread(id: privateID, title: "Pip", kind: "private"),
-                              thread(id: sharedID, title: "Build listing latency", kind: "shared")],
+            "threads": threads.filter { listKind == nil || $0["kind"] as? String == listKind },
+            "selection_id": selected?["id"] as Any? ?? NSNull(),
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
             "draft": draft, "draft_attachments": draftAttachments, "attachment_busy": false,
+            "has_drafts": !draft.isEmpty || !draftAttachments.isEmpty || drafts.values.contains(where: { !$0.isEmpty }),
             "loading": false, "history_loading": false, "saving": false,
             "has_more": false, "has_older": ProcessInfo.processInfo.arguments.contains("--orbit-prompts") && !olderPromptsLoaded,
             "needs_session": false
@@ -202,8 +273,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
     }
 
     private func thread(id: String, title: String, kind: String) -> [String: Any] {
-        ["id": id, "title": title, "kind": kind, "status": "Investigating", "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
-         "origin": kind == "private" ? "manual" : "monitor", "participants": [["id": privateID, "name": "Alex"]],
+        ["id": id, "title": title, "kind": kind, "status": "active", "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
+         "origin": kind == "private" ? "manual" : "signal", "owner_id": "preview-self", "participants": [["id": "preview-self", "name": "Taylor"]],
          "updated_at": "2027-06-07T10:42:00Z"]
     }
 

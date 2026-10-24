@@ -44,14 +44,23 @@ defmodule Atlas.Orbit.ModelFence do
       send(worker, {:thread_model_process, self()})
     end
 
-    if owns_run?(Keyword.fetch!(opts, :run_id), Keyword.fetch!(opts, :attempt)) do
-      dispatch(conn, Keyword.fetch!(opts, :inner))
+    run_id = Keyword.fetch!(opts, :run_id)
+    attempt = Keyword.fetch!(opts, :attempt)
+
+    if owns_run?(run_id, attempt) do
+      conn
+      |> put_private(:orbit_model_fence, {run_id, attempt})
+      |> dispatch(Keyword.fetch!(opts, :inner))
     else
       conn
       |> put_resp_content_type("application/json")
       |> send_resp(409, JSON.encode!(%{error: %{message: "This run attempt no longer owns the run.", type: "fenced"}}))
     end
   end
+
+  @doc "Rechecks the outer request's fence before a personal-provider fallback dispatch."
+  def authorized?(%{private: %{orbit_model_fence: {run_id, attempt}}}), do: owns_run?(run_id, attempt)
+  def authorized?(_conn), do: true
 
   defp owns_run?(run_id, attempt) do
     run =
@@ -79,8 +88,8 @@ defmodule Atlas.Orbit.ModelFence do
   Wraps the plug in `client_opts` with the fence for one run attempt.
 
   Thread client options always route model requests through a Req plug
-  (`Runner.profile_client_opts/2` uses the in-process relay). Options without
-  one raise instead of producing an unfenced run.
+  (`Runner.orbit_client_opts/2` resolves personal accounts and the explicit
+  system fallback). Options without one raise instead of producing an unfenced run.
   """
   def wrap(client_opts, %Run{id: run_id, resume_count: attempt}, worker) do
     Keyword.update!(client_opts, :llm_request_options, fn request_options ->

@@ -10,8 +10,7 @@ struct AtlasVoiceInputPreview: View {
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
-        _phase = State(initialValue: arguments.contains("--text-composer") ? .idle
-            : arguments.contains("--review-transcript") ? .reviewing : .recording)
+        _phase = State(initialValue: arguments.contains("--text-composer") ? .idle : .recording)
     }
 
     var body: some View {
@@ -19,7 +18,7 @@ struct AtlasVoiceInputPreview: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Voice input").font(.title2.bold())
-                    Text("Review the transcript, then use it in your draft. Nothing is sent automatically.")
+                    Text("Hold to dictate, then release to edit your draft. Or tap to start and stop. Nothing is sent automatically.")
                     Text("Preview samples only. The microphone and speech recognizer are not active.")
                         .font(.caption).foregroundStyle(.secondary)
                     AtlasThreadActivity(message: ProcessInfo.processInfo.arguments.contains("--typing-preview") ? "Typing…" : "Using account lookup…",
@@ -30,11 +29,12 @@ struct AtlasVoiceInputPreview: View {
             .safeAreaInset(edge: .bottom) {
                 VStack {
                     AtlasThreadComposer(draft: $draft, placeholder: "Ask Pip", saving: false,
-                                        phase: phase, transcript: transcript, levels: levels,
-                                        start: { phase = .recording }, review: { phase = .reviewing }, cancel: { phase = .idle }, accept: {
+                                        phase: phase, levels: levels,
+                                        start: { phase = .recording }, stop: {
+                        guard phase == .recording else { return }
                         draft = AtlasVoiceInput.appending(transcript, to: draft)
                         phase = .idle
-                    }, send: { draft = "" })
+                    }, cancel: { phase = .idle }, send: { draft = "" })
                     if phase == .idle {
                         Button("Transcribe fixture") { phase = .recording }.frame(minHeight: 44)
                     }

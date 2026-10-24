@@ -1,4 +1,4 @@
-use crate::transport::{Body, Network, Transport};
+use crate::transport::{Body, Transport};
 use crate::{Result, Session, error, invalid, now, validate_registration};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use reqwest::Method;
@@ -13,8 +13,13 @@ pub(super) const ATTACHMENT_ENVELOPE_BYTES: usize = 7 * 1024 * 1024 + 64 * 1024;
 pub(crate) enum Action {
     List {
         page: u32,
+        #[serde(default)]
+        kind: Option<String>,
     },
     Private,
+    CreatePrivate {
+        request_id: String,
+    },
     Create {
         title: String,
         participant_ids: Vec<String>,
@@ -236,10 +241,6 @@ pub(super) struct Sent {
     message: Message,
 }
 
-pub(super) fn request<T: DeserializeOwned>(session: Session, action: Action) -> Result<T> {
-    request_using(&Network, session, action)
-}
-
 pub(super) fn request_using<T: DeserializeOwned>(
     network: &impl Transport,
     session: Session,
@@ -253,9 +254,15 @@ pub(super) fn request_using<T: DeserializeOwned>(
         .join("api/native/orbit/threads")
         .map_err(|_| invalid())?;
     let (method, payload) = match &action {
-        Action::List { page } => {
+        Action::List { page, kind } => {
             validate_page(*page)?;
             url.query_pairs_mut().append_pair("page", &page.to_string());
+            if let Some(kind) = kind {
+                if !matches!(kind.as_str(), "private" | "shared") {
+                    return Err(invalid());
+                }
+                url.query_pairs_mut().append_pair("kind", kind);
+            }
             (Method::GET, None)
         }
         Action::Private => {
@@ -263,6 +270,13 @@ pub(super) fn request_using<T: DeserializeOwned>(
                 .map_err(|_| invalid())?
                 .push("private");
             (Method::POST, Some(json!({})))
+        }
+        Action::CreatePrivate { request_id } => {
+            crate::time_off::validate_id(request_id)?;
+            (
+                Method::POST,
+                Some(json!({"kind":"private","request_id":request_id})),
+            )
         }
         Action::Create {
             title,
