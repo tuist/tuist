@@ -77,7 +77,7 @@
     "echarts": "^6.1.0",
     "lit": "^3.3.3",
     "esbuild": "^0.27.0",
-    "happy-dom": "^20.0.0",
+    "happy-dom": "^21.0.0",
     "prettier": "^3.7.4",
     "prettier-plugin-css-order": "^2.1.2",
     "vitest": "^4.0.0"
