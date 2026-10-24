@@ -63,7 +63,12 @@ final class AtlasOrbitPreviewData: ObservableObject {
         case "create": select(thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared"))
         case "leave": select(nil)
         case "history":
-            if command["older"] as? Bool == true { olderPromptsLoaded = true }
+            if command["older"] as? Bool == true {
+                if ProcessInfo.processInfo.arguments.contains("--delayed-orbit-history") {
+                    try await Task.sleep(for: .seconds(8))
+                }
+                olderPromptsLoaded = true
+            }
         case "send":
             if sent.isEmpty, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let index = createdThreads.firstIndex(where: { $0["id"] as? String == selected?["id"] as? String }) {

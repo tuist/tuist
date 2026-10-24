@@ -41,12 +41,7 @@ defmodule Atlas.LLMs.PersonalTransport do
   defp personal_completion(conn, user, params, [provider | rest], last_status) do
     case Connections.credentials(user, provider) do
       {:ok, %{access_token: token}} ->
-        result =
-          if ModelFence.authorized?(conn),
-            do: PersonalProviders.complete(provider, token, params),
-            else: {:error, 409}
-
-        case result do
+        case authorized_completion(conn, provider, token, params) do
           {:ok, completion} ->
             {:ok, completion}
 
@@ -63,6 +58,12 @@ defmodule Atlas.LLMs.PersonalTransport do
       {:error, _category} ->
         personal_completion(conn, user, params, rest, last_status || 502)
     end
+  end
+
+  defp authorized_completion(conn, provider, token, params) do
+    if ModelFence.authorized?(conn),
+      do: PersonalProviders.complete(provider, token, params),
+      else: {:error, 409}
   end
 
   defp fallback(conn, params, last_status) do

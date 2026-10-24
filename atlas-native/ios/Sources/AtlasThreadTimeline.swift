@@ -97,7 +97,7 @@ struct AtlasThreadNavigation: View {
                             pendingPrompt = nil
                             jump(target)
                         }
-                    }) { promptList }
+                    }, content: { promptList })
                 }
                 if showsLatest {
                     if !prompts.isEmpty || hasOlder { Divider().frame(height: 20) }

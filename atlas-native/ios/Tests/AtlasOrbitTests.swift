@@ -250,7 +250,9 @@ struct AtlasOrbitTests {
         #expect(await action.value == false)
         #expect(model.messages.isEmpty)
     }
+}
 
+extension AtlasOrbitTests {
     private func snapshot(
         sequence: Int, selected: Bool = false, draft: String = "", messages: [[String: Any]] = [],
         agentStatus: String? = nil, liveMessage: String? = nil

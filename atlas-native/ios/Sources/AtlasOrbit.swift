@@ -171,13 +171,6 @@ final class AtlasOrbit: ObservableObject {
         await perform(more ? ["action": "load_more"] : ["action": "load", "kind": "private"])
     }
 
-    func newPrivateThread() async -> AtlasThread? {
-        selectionRevision = UUID()
-        let intent = selectionRevision
-        guard await perform(["action": "create_private"]), !Task.isCancelled, intent == selectionRevision else { return nil }
-        return selected
-    }
-
     func privateThread() async -> AtlasThread? {
         guard await perform(["action": "private"]) else { return nil }
         return selected
@@ -351,6 +344,13 @@ final class AtlasOrbit: ObservableObject {
 }
 
 extension AtlasOrbit {
+    func newPrivateThread() async -> AtlasThread? {
+        selectionRevision = UUID()
+        let intent = selectionRevision
+        guard await perform(["action": "create_private"]), !Task.isCancelled, intent == selectionRevision else { return nil }
+        return selected
+    }
+
     private struct Download: Decodable {
         let threadId: String
         let attachment: AtlasAttachmentBytes

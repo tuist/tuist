@@ -70,7 +70,8 @@ the person is at the bottom, preserving history readers' positions. Derive scrol
 atomic content-height/bottom geometry rather than drag lifetime so indirect scrolling and
 deceleration also stop following. Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
-previous first message as the anchor; keep manual retry and never loop failed requests.
+current visible message through SwiftUI scroll-position binding, not a forced jump to the
+old first row after the response. Keep manual retry and never loop failed requests.
 Keep the latest-message action beside the index
 and reserve transcript space so these controls do not cover message content.
 

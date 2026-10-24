@@ -59,34 +59,11 @@ final class AtlasVoiceInput: ObservableObject {
         transcript = ""
         levels = Array(repeating: 0, count: 24)
         errorMessage = nil
-        let speech = await speechPermission()
-        guard generation == attempt else { return }
-        guard !Task.isCancelled else { cancel(); return }
-        guard speech == .authorized else { fail("Allow speech recognition in Settings to transcribe on this device."); return }
-        let microphone = await microphonePermission()
-        guard generation == attempt else { return }
-        guard !Task.isCancelled else { cancel(); return }
-        guard microphone else { fail("Allow microphone access in Settings to record a message."); return }
+        guard await requestPermissions(attempt: attempt) else { return }
         do {
             phase = .recording
             try capture.start { [weak self] update in
-                guard let self, self.generation == attempt, self.phase == .recording, !self.captureEnded else { return }
-                switch update {
-                case .level(let level):
-                    self.levels.removeFirst()
-                    self.levels.append(level.isFinite ? min(1, max(0, level)) : 0)
-                case .transcript(let text, let final):
-                    self.transcript = text
-                    // A recognizer may finish before the person releases the mic.
-                    // Retain the snapshot for that explicit acceptance, never auto-append it.
-                    if final {
-                        self.captureEnded = true
-                        self.capture.stop()
-                        self.levels = Array(repeating: 0, count: 24)
-                    }
-                case .failed:
-                    self.fail("Transcription stopped. Your typed draft is unchanged; please try again.")
-                }
+                self?.receive(update, attempt: attempt)
             }
             guard generation == attempt, phase == .recording else { return }
             timeout = Task { [weak self] in
@@ -96,6 +73,44 @@ final class AtlasVoiceInput: ObservableObject {
             }
         } catch {
             fail((error as? AtlasVoiceCaptureError)?.message ?? "Could not start the microphone. Your typed draft is unchanged.")
+        }
+    }
+
+    private func requestPermissions(attempt: UUID) async -> Bool {
+        let speech = await speechPermission()
+        guard generation == attempt else { return false }
+        guard !Task.isCancelled else { cancel(); return false }
+        guard speech == .authorized else {
+            fail("Allow speech recognition in Settings to transcribe on this device.")
+            return false
+        }
+        let microphone = await microphonePermission()
+        guard generation == attempt else { return false }
+        guard !Task.isCancelled else { cancel(); return false }
+        guard microphone else {
+            fail("Allow microphone access in Settings to record a message.")
+            return false
+        }
+        return true
+    }
+
+    private func receive(_ update: AtlasVoiceCaptureUpdate, attempt: UUID) {
+        guard generation == attempt, phase == .recording, !captureEnded else { return }
+        switch update {
+        case .level(let level):
+            levels.removeFirst()
+            levels.append(level.isFinite ? min(1, max(0, level)) : 0)
+        case .transcript(let text, let final):
+            transcript = text
+            // A recognizer may finish before the person releases the mic.
+            // Retain the snapshot for that explicit acceptance, never auto-append it.
+            if final {
+                captureEnded = true
+                capture.stop()
+                levels = Array(repeating: 0, count: 24)
+            }
+        case .failed:
+            fail("Transcription stopped. Your typed draft is unchanged; please try again.")
         }
     }
 

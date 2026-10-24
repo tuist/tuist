@@ -415,6 +415,36 @@ final class AtlasOrbitUITests: XCTestCase {
         capture(app, "ios-orbit-automatically-paged-prompts-preview")
     }
 
+    @MainActor func testScrollingDuringEarlierPageLoadKeepsTheCurrentVisibleMessage() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--orbit-prompts", "--delayed-orbit-history"]
+        app.launch()
+        defer { app.terminate() }
+        XCUIDevice.shared.orientation = .portrait
+        let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+        XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+        conversation.tap()
+        XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+        let loading = app.buttons["Loading earlier messages…"]
+        for _ in 0..<8 {
+            if loading.exists { break }
+            app.scrollContent(up: false)
+        }
+        XCTAssertTrue(loading.waitForExistence(timeout: 3))
+        app.scrollContent()
+        let candidates = ["Check the build listing query plan.", "Does it affect other projects?", "Review the proposed index.",
+                          "What are the rollout risks?", "Include a concise validation checklist."]
+        let visible = try XCTUnwrap(candidates.map { app.staticTexts[$0] }.first {
+            $0.isHittable && $0.frame.minY > app.navigationBars.firstMatch.frame.maxY
+                && $0.frame.maxY < app.textFields["thread-composer"].frame.minY
+        })
+        let before = visible.frame
+        XCTAssertTrue(loading.waitForNonExistence(timeout: 12))
+        XCTAssertTrue(visible.isHittable)
+        XCTAssertEqual(visible.frame.minY, before.minY, accuracy: 3)
+        capture(app, "ios-orbit-earlier-page-retains-reader-preview")
+    }
+
     @MainActor private func capture(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
