@@ -50,8 +50,8 @@ these schemas persist volume identities and per-job uses.
   Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.
 - An open Linux or macOS session awaiting its verified execution binding returns pending
-  (425 to the authenticated agent). The agent retries for at most 30 seconds
-  (the macOS agent 25 seconds per Pod, shared by its checkout and volumes);
+  (425 to the authenticated agent). The Linux and macOS agents wait 25 seconds
+  per Pod, shared by its checkout and volumes, and ask once after that;
   unknown/closed sessions and denied provider identities remain unavailable.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
   job GitHub's API names the runner on and records it through
@@ -97,6 +97,10 @@ these schemas persist volume identities and per-job uses.
   or publication. A five-minute sweep and allocation/report paths invalidate
   expired generations under the volume lock; keep live copies until fenced and
   track physical deletion separately. Reusing an evicted identity starts cold.
+- The same sweep retires a copy no host has reported for a day
+  (`retire_unreported/1`), except the volume's saved head: it is deleted as an
+  acknowledged deletion would delete it, so storage and used space stop counting
+  it. A host that still reports a retired copy is told to `delete` it.
 
 - Volume-count history includes unmeasured allocations and counts each volume only once across its concurrent retained copies. Byte history remains unknown until measured. Gauge trends compare the selected period end with its start (the previous period end). Require a recorded baseline at the boundary for a calculated comparison; never substitute the first later measurement for missing history. The UI follows Jobs by rendering unavailable comparisons with the shared zero-trend fallback.
 
@@ -147,10 +151,6 @@ these schemas persist volume identities and per-job uses.
 
 - macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
-
-- `runner_cache_volumes.builtin_name`, `runner_cache_volume_uses.superseded_at` and
-  `runner_cache_volume_measurements.retired` are legacy columns of the removed
-  built-in volume. No schema reads them; drop them in a follow-up migration.
 
 - Allocation resolves execution binding and platform in one session query. Apply
   the platform rollout flag to that same result, including pending (425) sessions.

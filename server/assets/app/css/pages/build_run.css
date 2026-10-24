@@ -127,15 +127,7 @@
     }
 
     & [data-part="metadata-grid"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-9);
-
       & [data-part="metadata-row"] {
-        display: flex;
-        flex-direction: row;
-        gap: var(--noora-spacing-7);
-
         & > [data-part="metadata"] {
           display: flex;
           flex: 1;

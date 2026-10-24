@@ -4445,6 +4445,76 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_recordsTheCallersSkipsWithoutTheSkippedQuarantinedTests() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([Scheme.test(name: "ProjectScheme")])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(), MapperEnvironment())
+                }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist",
+                        url: URL(string: "https://example.com")!
+                    )
+                )
+
+            testCaseListService.reset()
+            given(testCaseListService)
+                .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
+                .willReturn([])
+            given(testCaseListService)
+                .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+                .willReturn([try TestIdentifier(target: "AppTests", class: "FlakyTests", method: "testFlaky()")])
+
+            xcResultService.reset()
+            given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+            given(xcResultService)
+                .parseTestStatuses(path: .any)
+                .willReturn(TestResultStatuses(testCases: []))
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath,
+                skipTestTargets: [try TestIdentifier(string: "AppTests/SlowTests")]
+            )
+
+            // Then
+            verify(uploadResultBundleService)
+                .uploadTestSummary(
+                    testSummary: .any,
+                    resultBundlePath: .any,
+                    projectDerivedDataDirectory: .any,
+                    config: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any,
+                    onlyTestIdentifiers: .value([]),
+                    skipTestIdentifiers: .value(["AppTests/SlowTests"]),
+                    stressNewTests: .any
+                )
+                .called(1)
+        }
+    }
+
     func test_run_passes_skipped_quarantined_tests_as_skip_testing() async throws {
         // Given
         givenGenerator()

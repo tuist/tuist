@@ -400,8 +400,10 @@ MANAGED_XCCONFIG="/Users/runner/.tuist-managed-cas.xcconfig"
 # The limits of a default-sized volume: `tuist-xcode` at 30 GB, `tuist-module` at
 # 20 GB. tuist-runner-cache replaces them with the limits for the capacity the
 # volume attaches at, which a job sets with `size`; the teardown prune reads the
-# compilation cache's back from its xcconfig (managed_xcode_cache_limit).
-MANAGED_XCODE_CACHE_LIMIT_BYTES=24000000000
+# compilation cache's back from its xcconfig (managed_xcode_cache_limit). The
+# compilation cache's limit bounds one generation of a store that keeps two, so
+# it is half the space the module cache's would be.
+MANAGED_XCODE_CACHE_LIMIT_BYTES=12000000000
 MANAGED_MODULE_CACHE_MAX_BYTES=16000000000
 # The compilation cache root teardown drains and prunes, and the limit it prunes
 # the stores under it to. Empty when the job did not use the compilation cache.
@@ -925,6 +927,15 @@ buildkite_job_result() {
   printf '%s' "${result}"
 }
 
+# cache_volumes_detached says whether teardown detaches the job's cache volumes,
+# given whether they may be saved (`$1`) and the job's result (`$2`). A job that
+# failed detaches them too: the server discards a failed job's volumes, and the
+# detach is what reports how full each one got, which is how a copy that ran
+# out of space clears the saved snapshot it started from.
+cache_volumes_detached() {
+  [ "$1" = "1" ] || [ "$2" = "failed" ]
+}
+
 # 2 s polling interval is the practical floor for "feels live" to
 # a customer staring at their CI dashboard without burning the
 # dispatch endpoint. Average pickup latency is ~1 s after a
@@ -1276,7 +1287,8 @@ HOOK
       # measured, and the Tuist launch agents, which the drain and the prune
       # still need, are stopped before anything detaches. The drain runs for
       # every job that used the cache, the prune only for one whose volumes are
-      # saved. A drain that cannot finish withholds the job's volumes.
+      # saved. A drain that cannot finish withholds the job's volumes. A failed
+      # job's volumes are detached anyway (cache_volumes_detached).
       custom_volumes_savable="${JOB_PASSED}"
       if [ -e "${RUNNER_CACHES_DIR}/xcode.used" ]; then
         CAS_STORE_ROOT="${MANAGED_XCODE_CACHE}"
@@ -1294,7 +1306,7 @@ HOOK
       if [ -x /usr/local/bin/tuist-cache-volume ] && [ -d "/Volumes/My Shared Files/custom-cache" ]; then
         /usr/local/bin/tuist-cache-volume --checkout-export || true
       fi
-      if [ "${custom_volumes_savable}" = "1" ] && [ -x /usr/local/bin/tuist-cache-volume ]; then
+      if cache_volumes_detached "${custom_volumes_savable}" "${JOB_RESULT}" && [ -x /usr/local/bin/tuist-cache-volume ]; then
         if ! /usr/local/bin/tuist-cache-volume --detach-all; then
           echo "$(date -u +%FT%TZ) dispatch-poll: WARNING custom cache detach failed; affected volumes will not be published" >&2
         fi

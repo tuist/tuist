@@ -144,6 +144,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetInsurancePolicy
   alias Atlas.MCP.Tools.GetMCPConnectionStatus
   alias Atlas.MCP.Tools.GetMonthlyInvoiceTotals
+  alias Atlas.MCP.Tools.GetMyProfile
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
   alias Atlas.MCP.Tools.GetOutreachContact
@@ -297,6 +298,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateHoliday
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateManualFinanceInvoice
+  alias Atlas.MCP.Tools.UpdateMyProfile
   alias Atlas.MCP.Tools.UpdateNote
   alias Atlas.MCP.Tools.UpdatePOC
   alias Atlas.MCP.Tools.UpdatePOCTimelineEntry
@@ -512,6 +514,8 @@ defmodule Atlas.MCP.Server do
   @automation_write_tools Interfaces.tools(:write)
   @static_tools [
     GetMCPConnectionStatus,
+    GetMyProfile,
+    UpdateMyProfile,
     ListLLMProviderConnections,
     ConnectClaudeProvider,
     StartChatGPTProviderLogin,
@@ -850,6 +854,9 @@ defmodule Atlas.MCP.Server do
   @doc "MCP protocol revisions this server can speak, newest first."
   def supported_protocol_versions, do: @supported_protocol_versions
 
+  @doc "Static Atlas tool modules, before per-caller filtering."
+  def tool_modules, do: @static_tools
+
   def handle_message(conn, raw) when is_binary(raw) do
     case JSON.decode(raw) do
       {:ok, request} -> handle_message(conn, request)
@@ -987,19 +994,27 @@ defmodule Atlas.MCP.Server do
           conn
           |> mcp_claim_metadata()
           |> Map.merge(%{
-            arguments: audit_arguments(name, arguments),
+            arguments: audit_arguments(conn, name, arguments),
             status: tool_call_status(response)
           })
       })
     end
   end
 
+  defp audit_arguments(conn, name, arguments)
+
+  # Orbit tool arguments can quote private thread content, which must not
+  # become readable through the audit trail. The thread itself keeps the
+  # rendered call for its participants.
+  defp audit_arguments(%{assigns: %{mcp_claims: %{"orbit_run_id" => _}}}, _name, _arguments), do: %{}
+  defp audit_arguments(_conn, name, arguments), do: audit_arguments(name, arguments)
+
   defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do
     Map.drop(arguments, ["bearer_token", :bearer_token])
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       when name in ~w(update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

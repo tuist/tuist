@@ -34,8 +34,8 @@ wrapper and does not provide offline editing.
 
 ## Object navigation
 
-Both clients accept server-bound native object links for Tasks, Accounts, Finance,
-Time off, People and Profile. A link can open a task, account or invoice directly
+Both clients accept server-bound native object links for Orbit, Tasks, Accounts, Finance,
+Time off, People and Profile. A link can open a thread, task, account or invoice directly
 by UUID, independently of loaded list pages. Notifications, other systems and UI
 agents use the same read-only destination contract and normal authentication.
 Supported hosted HTTPS links use iOS Universal Links and Android App Links, with
@@ -43,9 +43,9 @@ explicit **Open in Atlas** and browser fallback actions on the web. Native scree
 also offer **Open in browser** for richer web functionality. Automatic handoff
 requires an installed build and verified signing/domain setup; self-hosted
 instances use the server-bound custom scheme.
-The shared allowlist in `core/src/destinations.rs` defines six stable screen keys:
-`tasks`, `accounts`, `invoices`, `time-off`, `people`, and `profile`. Only the first
-three accept a record ID. Notifications should carry a `destination_url` using
+The shared allowlist in `core/src/destinations.rs` defines seven stable screen keys:
+`tasks`, `accounts`, `invoices`, `time-off`, `people`, `profile`, and `orbit`.
+Tasks, accounts, invoices, and Orbit accept a record ID. Notifications should carry a `destination_url` using
 this grammar, without credentials, titles, API paths, or mutation actions:
 
 ```text
@@ -59,7 +59,8 @@ and `/settings`. Matching is exact, not a claim on their descendants. The broade
 `/commercial/finance` dashboard stays in the browser; its header can explicitly
 open native invoices. Canonical share URLs always use `/open`, while the native
 browser escape opens a real web page. Account records have a browser detail;
-task and invoice records fall back to their collections.
+task and invoice records fall back to their collections. Orbit has no web view,
+so its browser fallback is the authenticated dashboard `/`; dashboard URLs are not claimed as Orbit links.
 
 Links never select a server, initiate login, or grant access. A signed-out link
 waits for normal sign-in, then must match its HTTPS origin. Pending links are

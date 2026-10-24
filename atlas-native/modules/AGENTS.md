@@ -22,6 +22,18 @@ The workspace currently requires macOS for iOS builds and does not set a custom
 selection if introducing such an override. Host probes participate in analysis
 observations and the resolved linker argument participates in action identity.
 
+`nsh.star` imports NSH 0.2.0's checksum-pinned release XCFramework slices and
+resource-free Android AAR through Once's public provider contracts. Downloads and
+AAR extraction are explicit cached actions, never analysis-time network calls.
+The adaptation references the pinned Once provider sources and their hashes;
+recheck those when upgrading. It also checks `cards/verify.py` before either
+mobile build so stale generated UI cannot ship. Resolve the real Python
+interpreter before sandbox execution, not a Mise shim that needs the parent PATH.
+Keep NSH out of the navigation/CLI/auth dependency closures. Android packages the
+arm64 runtime but instantiates it only on API 28+, retaining API-26 text fallback.
+Do not raise the app minimum or add Gradle. After SDK upgrades test actual card
+rendering alongside Atlas's Rust auth library, not just framework linking.
+
 Validate graph, device/simulator builds, `check-sdk.sh`, and rendered preview
 after Once upgrades. Require the actual selected SDK and iOS 17 minimum on
 packaged binaries. Do not raise minimum OS, fake plist provenance, or draw a

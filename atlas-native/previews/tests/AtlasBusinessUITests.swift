@@ -161,6 +161,11 @@ final class AtlasBusinessUITests: XCTestCase {
         app.launchArguments = ["--workspace"] + arguments
         app.launch()
         XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.tabBars.buttons["Browse"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Browse"].tap()
+        let tasks = app.descendants(matching: .any)["workspace-section-tasks"].firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 5))
+        tasks.tap()
         XCTAssertTrue(app.buttons["business-create"].waitForExistence(timeout: 10))
         return app
     }

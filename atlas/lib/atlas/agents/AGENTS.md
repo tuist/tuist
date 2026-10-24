@@ -7,7 +7,7 @@ ready for independent installation.
 
 ## Runtime and dependencies
 
-- The pinned Condukt 1.13.0 defaults `use Condukt` and anonymous runs to
+- The pinned Condukt 1.13.1 defaults `use Condukt` and anonymous runs to
   `Condukt.AgentRuntimes.Native`. Sessions default to `Condukt.Sandbox.Local`.
   That object accesses the local filesystem; it is not a security isolation
   boundary and does not provision a container or VM.
@@ -51,6 +51,7 @@ Paths in this table are relative to `lib/atlas/`. All are native execution.
 | `memory/{edge_classifier,bulletin_synthesizer}.ex` | Audited classification/synthesis from supplied memory data; no tools. |
 | `engineering/errors/agents/summary_agent.ex` | Audited structured operation over a bounded error snapshot; no domain tools. |
 | `slack/{conversation_agent,conversation_responder}.ex` | Native runs with inline account/content, search, memory, and MCP tools; buffered model delivery in local mode, incremental streaming for external providers. Account/systems investigator subagents are native sessions with explicit tool lists, not coding agents. |
+| `orbit/runs.ex` (`Orbit.Agent`) | Native runs prefer the acting person's ChatGPT account, then Claude, then the explicit `orbit` inference role, with fenced, read-only Atlas MCP tools executed in-process as the acting user. Credentials reload each turn and never enter options/checkpoints. Session rows store only a run label, a redacted result and fixed error categories; telemetry keeps names and timings. Per-turn snapshots are encrypted on the run row for resumption. |
 | `slack/mcp_tools.ex`, `memory/tools.ex`, `slack/url_content.ex` | Tool definitions, not remote runtimes. Atlas MCP calls run in-process with caller claims; optional proxy/provider calls retain their own transport and authorization. |
 
 `Atlas.LLMs.RunnerTest` checks compiled production Condukt callbacks and the

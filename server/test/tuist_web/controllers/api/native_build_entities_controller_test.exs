@@ -61,7 +61,7 @@ defmodule TuistWeb.API.NativeBuildEntitiesControllerTest do
 
   test "exact-key Xcode and Bazel cache actions are not exposed", %{conn: conn, user: user} do
     assert Enum.map(BuildEntityResources.all(), & &1.key) ==
-             ~w(gradle_tasks xcode_modules once_actions mix_files mix_modules)a
+             ~w(bazel_actions gradle_tasks xcode_modules once_actions mix_files mix_modules)a
 
     for {system, path} <- [xcode: "/xcode/cache-actions", bazel: "/bazel/cache-actions"] do
       project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: system)

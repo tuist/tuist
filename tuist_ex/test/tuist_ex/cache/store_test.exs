@@ -73,6 +73,106 @@ defmodule TuistEx.Cache.StoreTest do
     assert {:ok, 123} = Store.restore(remote, key, build, source)
   end
 
+  test "materialized native priv resources round-trip without the producer source directory",
+       context do
+    %{root: root, key: key, build: build, source: source, dir: dir} = context
+    File.mkdir_p!(Path.join(source, "priv/lib"))
+    File.write!(Path.join(source, "priv/lib/library.so.1"), "native library")
+    File.chmod!(Path.join(source, "priv/lib/library.so.1"), 0o755)
+    File.ln_s!("library.so.1", Path.join(source, "priv/lib/library.so"))
+
+    assert {:ok, metrics} =
+             Store.publish_with_metrics(root, key, build, source, 123, fn _ -> true end,
+               materialize_resources: true
+             )
+
+    assert metrics.write_bytes > byte_size("native library")
+    assert {:ok, binary} = Store.export_bundle(root, key)
+    File.rm_rf!(source)
+    File.rm_rf!(build)
+    remote = Path.join(dir, "remote-store")
+    assert {:ok, 123, _} = Store.restore_bundle(remote, key, binary, build, source)
+    assert File.lstat!(Path.join(build, "priv")).type == :directory
+    assert File.read!(Path.join(build, "priv/lib/library.so")) == "native library"
+    assert File.read_link!(Path.join(build, "priv/lib/library.so")) == "library.so.1"
+
+    assert Bitwise.band(File.stat!(Path.join(build, "priv/lib/library.so.1")).mode, 0o777) ==
+             0o755
+
+    assert {:ok, 123} = Store.restore(remote, key, build, source)
+  end
+
+  test "audited builders also materialize source-backed include and src resources", context do
+    %{root: root, key: key, build: build, source: source} = context
+
+    for name <- ["include", "src"] do
+      File.mkdir_p!(Path.join(source, name))
+      File.write!(Path.join([source, name, "generated"]), "generated resource")
+      File.ln_s!("generated", Path.join([source, name, "alias"]))
+      File.ln_s!("../source/#{name}", Path.join(build, name))
+    end
+
+    assert {:ok, _} =
+             Store.publish_with_metrics(root, key, build, source, 123, fn _ -> true end,
+               materialize_resources: true
+             )
+
+    File.rm_rf!(source)
+    File.rm_rf!(build)
+    assert {:ok, 123} = Store.restore(root, key, build, source)
+
+    for name <- ["include", "src"] do
+      assert File.lstat!(Path.join(build, name)).type == :directory
+      assert File.read!(Path.join([build, name, "alias"])) == "generated resource"
+    end
+  end
+
+  test "materializing native resources rejects escaping, absolute and cyclic symlinks", context do
+    %{root: root, key: key, build: build, source: source, dir: dir} = context
+    File.write!(Path.join(dir, "outside"), "private")
+
+    for target <- ["../../outside", Path.join(dir, "outside"), "link"] do
+      File.ln_s!(target, Path.join(source, "priv/link"))
+
+      assert {:error, :unsupported_outputs} =
+               Store.publish_with_metrics(root, key, build, source, 123, fn _ -> true end,
+                 materialize_resources: true
+               )
+
+      File.rm!(Path.join(source, "priv/link"))
+    end
+
+    refute File.exists?(Path.join(root, key))
+  end
+
+  test "invalid native link manifests never replace the existing build", context do
+    %{root: root, key: key, build: build, source: source, dir: dir} = context
+
+    assert {:ok, _} =
+             Store.publish_with_metrics(root, key, build, source, 123, fn _ -> true end,
+               materialize_resources: true
+             )
+
+    manifest_path = Path.join([root, key, "manifest.json"])
+    manifest = manifest_path |> File.read!() |> JSON.decode!()
+    File.write!(Path.join(dir, "outside"), "private")
+
+    for link <- [
+          %{path: "priv/escape", type: "symlink", target: "../../outside"},
+          %{path: "ebin/escape", type: "symlink", target: "probe.beam"},
+          %{path: "priv/cycle", type: "symlink", target: "cycle"},
+          %{path: "priv/missing-target", type: "symlink"}
+        ] do
+      files = [link | manifest["files"]]
+      File.write!(manifest_path, JSON.encode!(Map.put(manifest, "files", files)))
+      assert :miss = Store.restore(root, key, build, source)
+      assert {:ok, bundle} = Store.export_bundle(root, key)
+      assert :miss = Store.restore_bundle(Path.join(dir, "other"), key, bundle, build, source)
+      assert File.read!(Path.join(build, "ebin/probe.beam")) == "bytecode"
+      assert File.read!(Path.join(dir, "outside")) == "private"
+    end
+  end
+
   test "REAPI bundle corruption, truncation, extra bytes and traversal never replace a build",
        context do
     %{root: root, key: key, build: build, source: source, dir: dir} = context

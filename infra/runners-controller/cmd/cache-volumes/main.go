@@ -48,6 +48,7 @@ type agent struct {
 	grants                                 checkoutGrants
 	exports                                chan struct{}
 	checkoutRequests                       chan struct{}
+	executionWaits                         executionWaits
 	// maxVolumeBytes is the largest volume this host accepts.
 	maxVolumeBytes int64
 	// log receives server request retries; nil is slog.Default.
@@ -110,7 +111,7 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	body, _ := json.Marshal(fields)
 	authorizing := time.Now()
-	identity, err := a.authorize(ctx, body)
+	identity, err := a.authorize(ctx, input.PodUID, start, body)
 	identity.ManagedKey = cachevolumes.ManagedKey(input.Key)
 	if err == nil {
 		subject = cachevolumes.SubjectOf(cachevolumes.Slot{Identity: identity, PodName: input.PodName})
