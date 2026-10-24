@@ -212,6 +212,27 @@ defmodule TuistWeb.API.GenerationsControllerTest do
       assert is_binary(metadata["end_cursor"])
       assert metadata["has_previous_page"] == false
     end
+
+    test "returns a bad request when a cursor is not one returned by a previous response", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn = Authentication.put_current_user(conn, user)
+
+      before_response =
+        conn
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?before=2026-08-01T00:00:00Z")
+        |> json_response(:bad_request)
+
+      after_response =
+        conn
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?after=invalid")
+        |> json_response(:bad_request)
+
+      assert before_response["message"] == "`after` and `before` must be cursors returned by a previous response."
+      assert after_response["message"] == "`after` and `before` must be cursors returned by a previous response."
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/generations/:generation_id" do
