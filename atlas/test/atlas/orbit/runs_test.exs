@@ -30,8 +30,25 @@ defmodule Atlas.Orbit.RunsTest do
   alias Boruta.Ecto.Token
   alias ReqLLM.Error.API.Timeout
 
-  setup do
+  setup context do
     orbit_profile_fixture()
+
+    if context[:personal_inference] do
+      # Condukt's GenServer starts the model Task without the test's Mimic caller chain.
+      # These synchronous production-route tests must share mocks with root and child loops.
+      set_mimic_global(context)
+      test_pid = self()
+
+      unexpected_network = fn ->
+        send(test_pid, :unexpected_provider_network_request)
+        flunk("Unexpected inference network request")
+      end
+
+      stub(Finch, :request, fn _request, _pool, _opts -> unexpected_network.() end)
+      stub(Finch, :stream, fn _request, _pool, _acc, _callback, _opts -> unexpected_network.() end)
+      stub(Finch, :stream_while, fn _request, _pool, _acc, _callback, _opts -> unexpected_network.() end)
+    end
+
     :ok
   end
 
@@ -48,6 +65,7 @@ defmodule Atlas.Orbit.RunsTest do
     refute notice.body =~ "compaction"
   end
 
+  @tag :personal_inference
   test "personal transport failures persist timeout and outage categories through Condukt" do
     Repo.update_all(ModelBinding, set: [atlas_orbit: false])
     actor = user_fixture()
@@ -59,15 +77,17 @@ defmodule Atlas.Orbit.RunsTest do
         ] do
       {:ok, thread, _} = Orbit.ensure_private(actor)
       run = post_and_get_run(actor, thread, "Hello")
-      stub(Req, :post, fn _opts -> response end)
+      expect(Req, :post, fn _opts -> response end)
       assert :ok = Runs.execute(run.id)
       assert Repo.get!(Run, run.id).error_category == category
       notice = Repo.get_by!(Message, run_id: run.id, kind: "system")
       refute notice.body =~ "configure"
       refute notice.body =~ "private upstream outage"
+      refute_received :unexpected_provider_network_request
     end
   end
 
+  @tag :personal_inference
   test "production routing prefers the message author's personal account, including research children" do
     owner = user_fixture(["accounts:read"])
     actor = user_fixture(["accounts:read"])
@@ -79,7 +99,7 @@ defmodule Atlas.Orbit.RunsTest do
     run = post_and_get_run(actor, thread, "Research one question")
     test_pid = self()
 
-    stub(Req, :post, fn opts ->
+    expect(Req, :post, 3, fn opts ->
       assert opts[:url] == "https://api.anthropic.com/v1/messages"
       assert {"authorization", "Bearer " <> actor_token} in opts[:headers]
       refute {"authorization", "Bearer " <> owner_token} in opts[:headers]
@@ -89,6 +109,16 @@ defmodule Atlas.Orbit.RunsTest do
       parts =
         cond do
           not Enum.any?(tools, &(&1["name"] == "task")) ->
+            # Condukt replies before its final compaction, then terminates this
+            # session through DynamicSupervisor. Drain that callback on shutdown
+            # rather than killing a client of the shared sandbox mid-query.
+            [session | _] = Process.get(:"$callers")
+
+            :sys.replace_state(session, fn state ->
+              Process.flag(:trap_exit, true)
+              state
+            end)
+
             [%{"type" => "text", "text" => "Child evidence"}]
 
           Enum.any?(opts[:json]["messages"], fn message ->
@@ -107,6 +137,9 @@ defmodule Atlas.Orbit.RunsTest do
 
     assert :ok = Runs.execute(run.id)
     assert Repo.get!(Run, run.id).status == "succeeded"
+    task = Repo.get_by!(Message, run_id: run.id, tool_name: "task")
+    assert task.tool_status == "succeeded"
+    assert task.tool_output =~ "Child evidence"
     assert Repo.get_by!(Message, run_id: run.id, kind: "agent").body == "Research complete"
     assert_receive {:personal_request, root_tools}
     assert "task" in root_tools
@@ -114,8 +147,10 @@ defmodule Atlas.Orbit.RunsTest do
     refute "task" in child_tools
     assert_receive {:personal_request, _root_tools}
     refute inspect(Repo.all(Session)) =~ actor_token
+    refute_received :unexpected_provider_network_request
   end
 
+  @tag :personal_inference
   test "cancellation fences a blocked personal model loop without dispatching the system fallback" do
     actor = user_fixture()
     {:ok, _} = Connections.connect_claude(actor, "sk-ant-oat01-" <> String.duplicate("actor", 12))
@@ -123,7 +158,7 @@ defmodule Atlas.Orbit.RunsTest do
     run = post_and_get_run(actor, thread, "Hello")
     test_pid = self()
 
-    stub(Req, :post, fn _opts ->
+    expect(Req, :post, fn _opts ->
       send(test_pid, {:personal_model, self()})
 
       receive do
@@ -139,6 +174,7 @@ defmodule Atlas.Orbit.RunsTest do
     assert_receive {:DOWN, ^monitor, :process, ^model, _}
     assert Repo.get!(Run, run.id).status == "cancelled"
     refute Repo.exists?(from message in Message, where: message.run_id == ^run.id and message.kind == "agent")
+    refute_received :unexpected_provider_network_request
   end
 
   test "runs a read-only tool, ratchets its scopes, and posts the reply" do
