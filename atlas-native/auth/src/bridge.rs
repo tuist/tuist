@@ -33,6 +33,10 @@ enum Command {
         #[serde(flatten)]
         action: crate::presence::Action,
     },
+    OrbitSession {
+        #[serde(flatten)]
+        action: crate::orbit_session::Action,
+    },
     Business {
         session: Session,
         resource: crate::business::Resource,
@@ -58,10 +62,15 @@ enum Command {
 
 pub fn execute(input: &str) -> String {
     let result = std::panic::catch_unwind(|| -> crate::Result<Value> {
-        if input.len() > 1024 * 1024 {
+        if input.len() > crate::orbit::ATTACHMENT_ENVELOPE_BYTES {
             return Err(crate::invalid());
         }
         let command: Command = serde_json::from_str(input).map_err(|_| crate::invalid())?;
+        if input.len() > 1024 * 1024 && !matches!(&command,
+            Command::OrbitSession { action: crate::orbit_session::Action::Request {
+                connection, session, command: crate::orbit_session::Command::UploadAttachment { .. }
+            }} if connection.len() <= 128 && serde_json::to_vec(session).is_ok_and(|bytes| bytes.len() <= 64 * 1024)
+        ) { return Err(crate::invalid()); }
         match command {
             Command::Begin {
                 server,
@@ -78,6 +87,9 @@ pub fn execute(input: &str) -> String {
             Command::DefaultThemes => return Ok(crate::themes::defaults()),
             Command::Presence { action } => {
                 return crate::presence::execute(action);
+            }
+            Command::OrbitSession { action } => {
+                return crate::orbit_session::execute(action);
             }
             Command::Business {
                 session,

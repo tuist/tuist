@@ -18,6 +18,8 @@ defmodule Atlas.Application do
   alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
+  alias Atlas.Orbit.Checkpoints
+  alias Atlas.Orbit.Progress
   alias Atlas.Presence.Notifier
   alias Atlas.Push.Credentials
   alias Guardian.DB.Sweeper
@@ -26,6 +28,8 @@ defmodule Atlas.Application do
   def start(_type, _args) do
     attach_sentry_logger()
     TelemetryHandler.attach()
+    Checkpoints.attach()
+    Progress.attach()
     Atlas.Automations.TelemetryHandler.attach()
     HTTP.configure_req_defaults()
 
@@ -70,6 +74,7 @@ defmodule Atlas.Application do
         {Oban, Application.fetch_env!(:atlas, Oban)},
         AutomationNotifier,
         Notifier,
+        Atlas.Orbit.Notifier,
         {Task.Supervisor, name: Atlas.TaskSupervisor},
         Sweeper
       ] ++

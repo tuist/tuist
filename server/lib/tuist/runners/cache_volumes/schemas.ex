@@ -19,7 +19,7 @@ defmodule Tuist.Runners.CacheVolumes.Schemas do
         type: :integer,
         nullable: true,
         description:
-          "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets. Null for the built-in volume."
+          "The volume's capacity in bytes: what its saved copy was allocated at, or what its next empty copy gets."
       },
       pending_volume_bytes: %Schema{
         type: :integer,

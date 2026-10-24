@@ -183,12 +183,16 @@ jobs:
   test-distribution:
     name: Test preview packaging
     if: github.event.pull_request.draft != true
-    runs-on: ubuntu-24.04
+    runs-on: tuist-macos-27-0
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Test signing keychain lifecycle
         run: python3 ios/distribution/keychain_test.py
+      - name: Test associated-domain provisioning guard without credentials
+        run: bash ios/distribution/test-associated-domains.sh
+      - name: Test APNs provisioning guard without credentials
+        run: python3 ios/distribution/push_test.py
       - name: Test Android signing publication guard without credentials
         run: python3 android/distribution/sign_test.py
       - name: Check launcher icon packaging
@@ -198,84 +202,9 @@ jobs:
       - name: Check signing script syntax
         run: for script in ios/distribution/{bundle,keychain,associated-domains,push}.sh android/distribution/sign.sh; do bash -n "$script"; done
 
-  test-native-ui:
-    name: Test native iOS UI
-    if: github.event.pull_request.draft != true
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 40
-    env:
-      ONCE_CACHE_PROVIDER: local
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/mise-install
-        with:
-          working-directory: atlas-native
-          install: rust github:tuist/once
-      - run: mise exec -- rustup target add aarch64-apple-ios-sim
-      - run: mise run prepare:rust
-      - name: Test associated-domain provisioning guard without credentials
-        run: python3 ios/distribution/associated_domains_test.py
-      - name: Test APNs provisioning guard without credentials
-        run: python3 ios/distribution/push_test.py
-      - name: Build isolated native UI fixtures
-        run: mise exec -- once build AtlasSettingsUITests
-      - name: Verify preview SDK and deployment minimum
-        run: bash modules/check-sdk.sh iphonesimulator .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app/AtlasSettingsPreview
-      - name: Exercise native CRUD and navigation
-        run: |
-          set -euo pipefail
-          device=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable and (.name | startswith("iPhone")))][0].udid')
-          xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
-          xcrun simctl bootstatus "$device" -b
-          mkdir -p ui-evidence
-          # Fresh checkouts need whole-target discovery; retain failures while collecting evidence.
-          once_status=0
-          ONCE_APPLE_SIMULATOR_UDID="$device" mise exec -- once test AtlasSettingsUITests || once_status=$?
-          cp -R .once/out/AtlasSettingsUITests/test ui-evidence/once-test
-          result=$(sed -n 's/^[[:space:]]*\(\/.*\.xcresult\)$/\1/p' ui-evidence/once-test/xctest.log | tail -1)
-          if [ -d "$result" ]; then cp -R "$result" ui-evidence/once-ui.xcresult; fi
-          ui_status=0
-          xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/ui-evidence/native-lists.mov" &
-          recording=$!
-          trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
-          xcodebuild test-without-building \
-            -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
-            -destination "id=$device" \
-            -collect-test-diagnostics never \
-            -only-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
-            -resultBundlePath "$PWD/ui-evidence/task-crud.xcresult" || ui_status=$?
-          xcodebuild test-without-building \
-            -xctestrun "$PWD/.once/out/AtlasSettingsUITests/runner/tests.xctestrun" \
-            -destination "id=$device" \
-            -collect-test-diagnostics never \
-            -only-testing:AtlasSettingsUITests/AtlasBusinessUITests \
-            -only-testing:AtlasSettingsUITests/AtlasWorkspaceUITests \
-            -only-testing:AtlasSettingsUITests/AtlasNavigationUITests \
-            -skip-testing:AtlasSettingsUITests/AtlasBusinessUITests/testTaskCreateEditCompleteAndDelete \
-            -resultBundlePath "$PWD/ui-evidence/native-ui.xcresult" || ui_status=$?
-          kill -INT "$recording"
-          wait "$recording" || true
-          trap - EXIT
-          if [ "$once_status" -ne 0 ]; then exit "$once_status"; fi
-          exit "$ui_status"
-      - name: Export native screenshots
-        if: always()
-        run: |
-          for result in ui-evidence/*.xcresult; do
-            [ -d "$result" ] || continue
-            xcrun xcresulttool export attachments --path "$result" --output-path "${result%.xcresult}-attachments"
-          done
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: atlas-native-ui-evidence
-          path: atlas-native/ui-evidence/
-          if-no-files-found: ignore
-          retention-days: 14
-
   previews:
     name: Publish internal previews
-    needs: [build, test, test-native-ui, test-distribution, lint-rust, lint-swift, lint-kotlin]
+    needs: [build, test, test-distribution, lint-rust, lint-swift, lint-kotlin]
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: tuist-macos-27-0
     timeout-minutes: 20

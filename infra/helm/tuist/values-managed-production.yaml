@@ -1268,9 +1268,10 @@ ovhFleets:
       enabled: true
       item: OVH_FLEET_SSH
 
-# BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
-# 10GbE, 2 TB), three three-up trays on chain B (ber1-tor-b and ber1-pdu-b),
-# behind the rack's two edges. Declared here because the rack
+# BER1 rack fleet: M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB, 10GbE,
+# 2 TB) in three-up trays behind the rack's two edges, eight on each chain:
+# b01 to b06, b15 and b16 on chain B (ber1-tor-b and ber1-pdu-b), b07 to b14
+# on chain A (ber1-tor-a and ber1-pdu-a). Declared here because the rack
 # is in production (kubernetes.namespace in
 # infra/rack-switch-fleet/sites/ber1.json); no other env may declare it too.
 #
@@ -1325,10 +1326,10 @@ rackFleet:
     prewarm: ["27.1"]
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
-  # which both edges advertise to the tailnet as a /32. Each outlet is on the
-  # RackPDU ber1-pdu-b, which infra/rack-switch-fleet renders from the site
-  # definition and its controller adopts. A host's outlet and its ToR port are
-  # on the same chain, which the site's render checks.
+  # which both edges advertise to the tailnet as a /32. Each outlet is on a
+  # RackPDU, ber1-pdu-a or ber1-pdu-b, which infra/rack-switch-fleet renders
+  # from the site definition and its controller adopts. A host's outlet and its
+  # ToR port are on the same chain, which the site's render checks.
   hosts:
     - name: ber1-runner-b01
       serial: K9YLWQHQM2
@@ -1337,7 +1338,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "1"
+        outlet: "13"
       # Lent to staging, whose operator runs its runtime and whose rack pools
       # run its guests (rackFleet.borrow in values-managed-staging.yaml).
       lendTo: staging
@@ -1348,7 +1349,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "2"
+        outlet: "14"
       # Lent to canary, whose operator runs its runtime and whose rack pools
       # run its guests, including the deploy cascade's runners acceptance gate
       # (rackFleet.borrow in values-managed-canary.yaml).
@@ -1360,7 +1361,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "3"
+        outlet: "15"
     - name: ber1-runner-b04
       serial: H1060N7XQP
       address: 10.10.0.104
@@ -1368,7 +1369,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "6"
+        outlet: "10"
     - name: ber1-runner-b05
       serial: G54DV7JHJ7
       address: 10.10.0.105
@@ -1376,7 +1377,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "7"
+        outlet: "11"
     - name: ber1-runner-b06
       serial: FWVPQGL2C3
       address: 10.10.0.106
@@ -1384,31 +1385,87 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "8"
+        outlet: "12"
     - name: ber1-runner-b07
       serial: H7YDR4L71F
       address: 10.10.0.107
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "9"
+        pdu: ber1-pdu-a
+        outlet: "13"
     - name: ber1-runner-b08
       serial: J64HHMX93T
       address: 10.10.0.108
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "10"
+        pdu: ber1-pdu-a
+        outlet: "14"
     - name: ber1-runner-b09
       serial: C0YKJG7JLH
       address: 10.10.0.109
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
+        pdu: ber1-pdu-a
+        outlet: "15"
+    - name: ber1-runner-b10
+      serial: MVNN9473GC
+      address: 10.10.0.110
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
+        outlet: "10"
+    - name: ber1-runner-b11
+      serial: M2V3QN9M92
+      address: 10.10.0.111
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
         outlet: "11"
+    - name: ber1-runner-b12
+      serial: KMV5QJ0L9Q
+      address: 10.10.0.112
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
+        outlet: "12"
+    - name: ber1-runner-b13
+      serial: KV9M9KJVXC
+      address: 10.10.0.113
+      rack: prep
+      shelf: tray-b5
+      power:
+        pdu: ber1-pdu-a
+        outlet: "7"
+    - name: ber1-runner-b14
+      serial: HHJNHDFN2X
+      address: 10.10.0.114
+      rack: prep
+      shelf: tray-b5
+      power:
+        pdu: ber1-pdu-a
+        outlet: "8"
+    - name: ber1-runner-b15
+      serial: LP230KQTJ1
+      address: 10.10.0.115
+      rack: prep
+      shelf: tray-b5
+      power:
+        pdu: ber1-pdu-b
+        outlet: "7"
+    - name: ber1-runner-b16
+      serial: LWGC6JVT03
+      address: 10.10.0.116
+      rack: prep
+      shelf: tray-b6
+      power:
+        pdu: ber1-pdu-b
+        outlet: "8"
   machine:
     # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
     # `guestShapes` below), both dimensions binding at the same count, and 2 of
@@ -1451,7 +1508,7 @@ rackFleet:
   # the profile names, and one that spills over to the rented fleet runs at
   # that shape.
   #
-  # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
+  # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
   # and the `ber1` smoke pool share through the fleet allocator, apart from
   # the rented fleet's 14. A 12 vCPU profile's guest takes a whole host, so
   # that shape's ceiling is the host count.
@@ -1460,7 +1517,7 @@ rackFleet:
   # a cold one is the scale-up and the boot, 10 to 75 s even with the image on
   # the host. A floor on an image without jobs holds a slot a burst for
   # another image then waits for (warm runners give theirs up after 30 s,
-  # infra/runners-controller/AGENTS.md), so the rack's 14 production slots
+  # infra/runners-controller/AGENTS.md), so the rack's 28 production slots
   # keep floors only for the images that had a job in most working hours of
   # the week to 2026-10-22 (07:00 to 18:00 UTC, weekdays): 27.0 in 60 of 60
   # hours, 26.6 in 50, 26.3 in 36, 26.0.1 in 29. 27.0 keeps two, since its
@@ -1481,34 +1538,34 @@ rackFleet:
     autoscaling:
       enabled: true
       minWarmPoolFloor: 0
-      maxReplicas: 18
+      maxReplicas: 32
     xcodeOverrides:
       "27.0":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 2
-          maxReplicas: 18
+          maxReplicas: 32
       "26.6":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
-          maxReplicas: 18
+          maxReplicas: 32
       "26.3":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
-          maxReplicas: 18
+          maxReplicas: 32
       "26.0.1":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
-          maxReplicas: 18
+          maxReplicas: 32
     shapes:
       12vcpu-28gb:
         autoscaling:
           enabled: true
           minWarmPoolFloor: 0
-          maxReplicas: 9
+          maxReplicas: 16
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
@@ -2037,7 +2094,7 @@ runnersFleet:
   # It autoscales from zero so it shares the rack's guest slots with the
   # catalog's rack pools through the fleet allocator, which only counts
   # autoscaling pools: a fixed count would hold slots the allocator believes
-  # free. Eighteen is every guest slot in the rack, so a load run still reaches
+  # free. Thirty-two is every guest slot in the rack, so a load run still reaches
   # all of them when nothing else is running.
   #
   # The image is the catalog's 26.6 runner, so it follows runner releases.
@@ -2053,7 +2110,7 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 18
+        maxReplicas: 32
         # Smoke runs are dispatched by hand, so the last hour's peak does not
         # predict the next one.
         holdRecentPeak: false

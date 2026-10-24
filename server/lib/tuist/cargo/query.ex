@@ -46,6 +46,7 @@ defmodule Tuist.Cargo.Query do
       id: build.id,
       actor: Tuist.ReportActor.actor(build),
       command: presence(build.command),
+      custom_metadata: %{tags: build.custom_tags || [], values: build.custom_values || %{}},
       rust_version: presence(build.rust_version),
       status: build.status,
       duration_ms: build.duration_ms,
