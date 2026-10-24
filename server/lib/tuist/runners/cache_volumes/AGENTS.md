@@ -94,6 +94,10 @@ these schemas persist volume identities and per-job uses.
   or publication. A five-minute sweep and allocation/report paths invalidate
   expired generations under the volume lock; keep live copies until fenced and
   track physical deletion separately. Reusing an evicted identity starts cold.
+- The same sweep retires a copy no host has reported for a day
+  (`retire_unreported/1`), except the volume's saved head: it is deleted as an
+  acknowledged deletion would delete it, so storage and used space stop counting
+  it. A host that still reports a retired copy is told to `delete` it.
 
 - Volume-count history includes unmeasured allocations and counts each volume only once across its concurrent retained copies. Byte history remains unknown until measured. Gauge trends compare the selected period end with its start (the previous period end). Require a recorded baseline at the boundary for a calculated comparison; never substitute the first later measurement for missing history. The UI follows Jobs by rendering unavailable comparisons with the shared zero-trend fallback.
 

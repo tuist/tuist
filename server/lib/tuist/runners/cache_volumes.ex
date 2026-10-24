@@ -27,6 +27,7 @@ defmodule Tuist.Runners.CacheVolumes do
   alias Tuist.VCS
 
   @retention_seconds 7 * 24 * 60 * 60
+  @unreported_retirement_seconds 24 * 60 * 60
   @checkout_key "checkout"
   # A host uploads a master as one PUT (`upload`) or in parts (`upload` with
   # `multipart`, `upload_parts`, `complete`), then fast-forwards the HEAD to it.
@@ -544,6 +545,33 @@ defmodule Tuist.Runners.CacheVolumes do
     end)
   end
 
+  # Cross-account maintenance. A host reports every copy it holds while it holds
+  # it, so a copy no host has reported for a day is no longer stored anywhere the
+  # volume can use, and stops counting as stored. The saved head is kept: jobs
+  # restore it from the volume's master, not from the copy.
+  def retire_unreported(now \\ DateTime.utc_now()) do
+    threshold = DateTime.add(now, -@unreported_retirement_seconds)
+
+    Repo.transaction(fn ->
+      usages =
+        Repo.all(
+          from(u in Usage,
+            join: v in Volume,
+            on: v.id == u.volume_id,
+            where:
+              is_nil(u.deleted_at) and (is_nil(v.head_id) or v.head_id != u.id) and
+                coalesce(u.last_reported_at, type(u.inserted_at, :utc_datetime_usec)) <= ^threshold,
+            order_by: [asc: u.id],
+            limit: 500,
+            lock: "FOR UPDATE SKIP LOCKED"
+          )
+        )
+
+      Enum.each(usages, &mark_deleted!(&1, now, []))
+      length(usages)
+    end)
+  end
+
   defp expire_locked(volume, now) do
     if is_nil(volume.deleted_at) and not is_nil(volume.last_used_at) and
          DateTime.compare(volume.last_used_at, DateTime.add(now, -@retention_seconds)) != :gt do
@@ -611,28 +639,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   defp report_locked(volume, usage, %{"state" => "deleted"}) do
     now = DateTime.utc_now()
-
-    if is_nil(usage.deleted_at), do: record_measurement(usage, %{size_bytes: 0, capacity_bytes: 0}, now, true)
-
-    Repo.update!(
-      Ecto.Changeset.change(usage,
-        last_reported_at: now,
-        deleted_at: usage.deleted_at || now,
-        finished_at: usage.finished_at || now,
-        status: if(usage.status == "published", do: "published", else: "discarded")
-      )
-    )
-
+    mark_deleted!(usage, now, last_reported_at: now)
     if volume.head_id == usage.id, do: Repo.update!(Ecto.Changeset.change(volume, head_id: nil))
     %{action: "forget"}
   end
 
+  # A copy the sweep retired (retire_unreported/1) that its host still holds.
+  defp report_locked(_volume, %Usage{deleted_at: %DateTime{}}, _params), do: %{action: "delete"}
+
   defp report_locked(volume, usage, params) do
     now = DateTime.utc_now()
     metrics = report_metrics!(params)
-
-    if usage.deleted_at, do: Repo.rollback(:deleted)
-
     volume = expire_locked(volume, now)
     valid = volume.generation == usage.generation and is_nil(volume.deleted_at)
 
@@ -1255,6 +1272,24 @@ defmodule Tuist.Runners.CacheVolumes do
   defp discard(usage, now) do
     Repo.update!(Ecto.Changeset.change(usage, status: "discarded", finished_at: usage.finished_at || now))
     %{action: "delete"}
+  end
+
+  defp mark_deleted!(usage, now, changes) do
+    if is_nil(usage.deleted_at), do: record_measurement(usage, %{size_bytes: 0, capacity_bytes: 0}, now, true)
+
+    Repo.update!(
+      Ecto.Changeset.change(
+        usage,
+        Keyword.merge(
+          [
+            deleted_at: usage.deleted_at || now,
+            finished_at: usage.finished_at || now,
+            status: if(usage.status == "published", do: "published", else: "discarded")
+          ],
+          changes
+        )
+      )
+    )
   end
 
   defp record_measurement(usage, metrics, now, deleted) do
