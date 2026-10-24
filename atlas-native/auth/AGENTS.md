@@ -21,6 +21,7 @@ omitting it preserves generic browser login, including self-hosted providers.
   analytics. Errors expose fixed categories/messages, never raw transport bodies.
 - `time_off.rs` implements only the fixed owner-scoped `/api/me/time-off` list/create/update/cancel routes. It validates calendar dates and request IDs before networking, filters responses through personal request/public-holiday types, and never accepts owner/status/approval parameters or an arbitrary path. The API transport has feature-specific fixed error mappings so holiday errors do not become account-login expiry errors. Keep Rust sources in both production Once targets and test sources in the host test target.
 - `orbit_session.rs` is the shared thread feature model. `open` creates an opaque session-scoped handle; authenticated `request` commands update its credential snapshot and execute feature actions. Local `draft`, `active`, `next`, and `close` actions never require credential serialization. Draft, send, and leave carry the originating thread ID so late UI actions cannot target a newly selected thread; send also captures the text at tap time, while Rust owns its stable retry key. The model owns pagination, deduplication and ordering by server sequence, retained drafts and stable retry IDs, stale-selection fencing, and revocation cleanup. Swift/Kotlin render its monotonically sequenced snapshots rather than reimplementing those rules. `orbit.rs` filters the fixed `/api/native/orbit/threads` contract; `orbit_live.rs` uses the same authenticated WSS endpoint as presence but joins only the fixed inbox topic `orbit:me` or a validated `orbit:thread:<uuid>`. Inbox invalidations reload the authorized list, so monitored sessions appear without client polling. Live notifications invalidate authoritative HTTP history; they are not the durable event log. A refresh request replaces expired credentials and reopens live viewing. All handles are memory-only and must close at sign-out.
+- Direct `orbit_session` `select` accepts a validated UUID even outside loaded pages and reads only fixed `Messages { id, page: 1 }`. Additive snapshot `selection_id` is a navigation intent for Back/Retry, never authoritative metadata; `selected` stays null until matching protected history succeeds. Do not synthesize Thread metadata or page the list to resolve a link. `has_drafts` reports retained nonblank drafts across threads for platform protected-work guards. Unavailable reads revoke cached rows, history, presence and that thread's drafts/retry IDs, retain the target for explicit Retry, and invalidate older list/detail results; superseded failures cannot revoke a newer selection. Shared state tests inject transport at the actual typed route boundary, including unseen IDs, denial, mismatched metadata, retry, supersession and close.
 - `orbit_components.rs` filters the server-authored `result_table` v1 contract: at most three columns, five rows, bounded strings, one `show_evidence` action, no extra executable/navigation fields. Invalid/unknown versions drop only the component and preserve original tool evidence. Local `orbit_session` `component_action` events require the current active selected thread and a matching succeeded tool message's server-provided action; the sole effect reveals existing source evidence. No model run, business mutation, arbitrary request or thread state is authored by the client.
 - `themes.rs` implements `themes` (fixed public GET on the selected origin), `validate_themes` (including cached catalogs), and `default_themes` (bundled Atlas). Treat this as optional appearance data, never an authentication requirement. Public transport attaches no bearer token and never maps 401/403/404/501 to rejected credentials. Validate the version, stable IDs, limits, opaque colors, radii and WCAG contrast; serialize only allowlisted fields. Native adapters own per-origin preferences and cache, using separate workers and generation guards. Do not add theme networking to the credential queue.
 - `push.rs` implements only bearer-authenticated PUT/DELETE `/api/me/push-devices/:installation_id` through the `push` bridge command. Register accepts platform, token and environment (`sandbox|production`, Android production only), never an owner/app/topic/endpoint selector. UUID/token validation precedes networking; responses expose only registered/deleted status and the server registration UUID, never the token. Native coordinators own opt-in, device-only installation storage and logout cleanup. A deleted installation ID is terminal: clients rotate it only after successful cleanup. Keep this source in all three production Once targets.
@@ -87,3 +88,39 @@ Once runs iOS tests in an unhosted XCTest agent without Keychain access;
 app-hosted tests are not implemented in that release. The simulator app has its
 own Keychain entitlement. Real device/browser login and secure-storage smoke
 checks remain part of preview validation.
+
+## Orbit attachments and tool hierarchy
+
+`orbit_session` authenticated request commands include `upload_attachment`
+(`id`, `filename`, `content_type`, standard-base64 `data`; optional `client_id`),
+`retry_upload`/`discard_upload` (`id`), and `delete_attachment`/`download_attachment`
+(`id`, `attachment_id`). Rust generates the upload UUID, retains one bounded uncertain
+payload in memory, and reuses exactly that UUID/payload on retry. Submit picker batches
+sequentially. Snapshot additions are `draft_attachments` (typed metadata),
+`attachment_busy`, `upload_pending`, and nullable `upload_filename`; no bytes belong in
+snapshots. Local text `draft` preserves uploaded files. `has_drafts` includes files and
+uncertain uploads across threads. Send captures optional `attachment_ids` (default:
+current draft), supports attachment-only messages, and blocks unresolved uploads.
+Retry identity covers both text and files; a successful send removes sent files but
+preserves newer typing. Close/revocation releases pending bytes and retry state.
+
+All attachment routes are fixed `/api/native/orbit/threads/<uuid>/attachments[/<uuid>]`
+with the selected session's bearer token. Only upload bridge envelopes and typed
+attachment download HTTP responses may exceed the normal 1 MiB cap: their cap is
+7 MiB + 64 KiB, with decoded files independently limited to 5 MiB and four files per
+message. Validate base64, UUIDs, bounded names/types/sizes before mutation and filter
+returned metadata. Accept validated server-canonical filenames (120 codepoints), not
+an exact echo of the requested display name; require exact uploaded size/content type.
+No public URLs, arbitrary routes, local paths, or bytes in errors/logs are allowed.
+Download returns `{thread_id, attachment:{id,filename,content_type,byte_size,data}}`
+instead of a snapshot, only for known protected message/draft metadata and the current
+foreground selection. Selection, lifecycle, close, and revocation fence late bytes.
+Discarding an uncertain upload releases local state; without a confirmed remote ID it
+cannot promise synchronous remote deletion. Known pending chips use authenticated DELETE.
+
+Messages default missing `attachments` to empty. Optional `parent_message_id` is UUID
+metadata, never inferred from tool names/output; malformed linkage drops only the
+link, preserving evidence. Platform trees must keep orphan/off-page, cyclic, and
+deeper-than-one-level claims inspectable rather than silently hiding child messages.
+Rust tests inject the actual typed transport/state boundary and exercise the real
+bounded HTTP response reader, not a parallel imitation of session behavior.

@@ -28,7 +28,8 @@ struct AtlasWorkspaceView<Profile: View>: View {
 
     private var tabs: some View {
         TabView(selection: $navigation.selection) {
-            AtlasOrbitView(request: orbitRequest, localRequest: orbitLocalRequest)
+            AtlasOrbitView(recordID: navigation.destinations["orbit"]?.recordID, revision: navigation.revisions["orbit"],
+                           request: orbitRequest, localRequest: orbitLocalRequest)
                 .tabItem { Label("Orbit", systemImage: "bubble.left.and.bubble.right") }.tag("orbit")
             ForEach(AtlasBusinessResource.allCases.filter { $0 != .tasks }) { resource in
                 AtlasBusinessStack(resource: resource, recordID: navigation.destinations[resource.rawValue]?.recordID,

@@ -29,6 +29,15 @@ defmodule Atlas.Automations.DomainRegistryTest do
     assert Enum.all?(DomainRegistry.exclusions(), fn {_name, reason} -> byte_size(reason) > 20 end)
   end
 
+  test "personal profile tools stay outside workflow behaviors" do
+    for name <- ~w(get_my_profile update_my_profile) do
+      assert Map.has_key?(DomainRegistry.exclusions(), name)
+      refute Enum.any?(DomainRegistry.entries(), &(&1["source_tool"] == name))
+      refute Catalog.valid_type?(name)
+      assert {:error, _} = Catalog.builtin(name)
+    end
+  end
+
   test "frozen adapters and local contracts cannot silently drift" do
     local = Map.new(LocalOperations.contracts(), &{&1["name"], &1})
 

@@ -3,6 +3,7 @@ defmodule Atlas.Orbit.Message do
   use Atlas.Schema
 
   alias Atlas.Encrypted.Binary
+  alias Atlas.Orbit.Attachment
   alias Atlas.Orbit.Run
   alias Atlas.Orbit.Thread
   alias Atlas.Users.User
@@ -28,6 +29,8 @@ defmodule Atlas.Orbit.Message do
     belongs_to :thread, Thread
     belongs_to :run, Run
     belongs_to :author, User
+    belongs_to :parent_message, __MODULE__
+    has_many :attachments, Attachment, preload_order: [asc: :position]
 
     timestamps(type: :utc_datetime_usec)
   end

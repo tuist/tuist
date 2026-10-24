@@ -27,23 +27,68 @@ defmodule AtlasWeb.NativeControllerTest do
     {session, _user} = log_in_user(conn)
 
     for api <- [conn, session, put_req_header(build_conn(), "authorization", "Bearer invalid")],
-        {method, path} <- [{:get, "/api/native/profile"}] ++ endpoints() do
+        {method, path} <- [{:get, "/api/native/profile"}, {:patch, "/api/native/profile"}] ++ endpoints() do
       response = dispatch(api, @endpoint, method, path, %{})
       assert json_response(response, 401)["error"] == "invalid_token"
       assert get_resp_header(response, "cache-control") == ["no-store"]
     end
   end
 
-  test "profile exposes only caller name/email and the running application's version", %{api: api, user: user} do
+  test "profile exposes only caller identity, description and the running application's version", %{
+    api: api,
+    user: user
+  } do
     response = get(api, "/api/native/profile?user_id=someone-else")
 
     assert json_response(response, 200) == %{
              "server_version" => to_string(Application.spec(:atlas, :vsn)),
-             "user" => %{"name" => user.name, "email" => user.email},
+             "user" => %{"name" => user.name, "email" => user.email, "description" => ""},
              "push_notifications" => %{"ios" => false, "android" => false}
            }
 
     assert get_resp_header(response, "cache-control") == ["no-store"]
+  end
+
+  test "profile updates only the bearer caller and returns the same profile envelope", %{user: other} do
+    {api, user} = api_user([])
+    description = "I lead engineering.\nI prefer direct answers."
+    response = patch(api, "/api/native/profile", %{description: description})
+    profile = json_response(response, 200)
+    assert profile["user"] == %{"name" => user.name, "email" => user.email, "description" => description}
+    assert profile["server_version"] == to_string(Application.spec(:atlas, :vsn))
+    assert get_resp_header(response, "cache-control") == ["no-store"]
+    assert Atlas.Users.get_user(other.id).description == ""
+    assert api |> get("/api/native/profile") |> json_response(200) == profile
+
+    assert api
+           |> patch("/api/native/profile", %{description: ""})
+           |> json_response(200)
+           |> get_in(["user", "description"]) == ""
+  end
+
+  test "profile denies selectors, identity mass assignment and invalid descriptions", %{api: api, user: user} do
+    for params <- [
+          %{},
+          %{description: nil},
+          %{description: []},
+          %{description: %{text: "nested"}},
+          %{description: "no", user_id: user.id},
+          %{description: "no", name: "Renamed"},
+          %{description: "no", email: "changed@example.org"},
+          %{description: "no", roles: []},
+          %{description: String.duplicate("🦀", 4001)},
+          %{description: "null\0byte"}
+        ] do
+      response = patch(api, "/api/native/profile", params)
+      assert json_response(response, 422)["error"] in ["invalid_params", "validation_failed"]
+      refute response.resp_body =~ "Renamed"
+      assert get_resp_header(response, "cache-control") == ["no-store"]
+    end
+
+    assert Atlas.Users.get_user(user.id).description == ""
+    assert Atlas.Users.get_user(user.id).name == user.name
+    assert api |> patch("/api/native/profile?user_id=#{user.id}", %{description: "no"}) |> json_response(422)
+    assert api |> patch("/api/native/profile", %{description: String.duplicate("🦀", 4000)}) |> json_response(200)
   end
 
   test "any teammate can create, read, edit and complete shared tasks with string fields", %{user: user} do

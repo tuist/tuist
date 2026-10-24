@@ -17,6 +17,7 @@ defmodule Atlas.Orbit do
   alias Atlas.Authorization
   alias Atlas.Inference
   alias Atlas.Orbit.Access
+  alias Atlas.Orbit.Attachments
   alias Atlas.Orbit.Message
   alias Atlas.Orbit.Participant
   alias Atlas.Orbit.Rendering
@@ -145,7 +146,7 @@ defmodule Atlas.Orbit do
       |> order_by(desc: :position)
       |> limit(^@message_page_size)
       |> offset(^((page - 1) * @message_page_size))
-      |> preload(:author)
+      |> preload([:author, :attachments])
       |> Repo.all()
       |> Enum.reverse()
 
@@ -359,20 +360,21 @@ defmodule Atlas.Orbit do
   that is already in progress picks them up in a follow-up when it finishes.
   """
   def post_message(%User{} = user, %Thread{} = thread, attrs) when is_map(attrs) do
-    with {:ok, body} <- message_body(attrs),
+    with {:ok, attachment_ids} <- Attachments.ids(attrs),
+         {:ok, body} <- message_body(attrs, attachment_ids),
          {:ok, client_id} <- client_id(attrs),
          :ok <- rate_limit(user) do
       address_agent? = thread.kind == "private" or Map.get(attrs, "address_agent", true) != false
 
-      fn -> post_locked(user, thread.id, body, client_id, address_agent?) end
+      fn -> post_locked(user, thread.id, body, client_id, address_agent?, attachment_ids) end
       |> Repo.transaction()
       |> case do
         {:ok, {message, :created}} ->
           notify_changed(thread.id)
-          {:ok, Repo.preload(message, :author), :created}
+          {:ok, Repo.preload(message, [:author, :attachments]), :created}
 
         {:ok, {message, :existing}} ->
-          {:ok, Repo.preload(message, :author), :existing}
+          {:ok, Repo.preload(message, [:author, :attachments]), :existing}
 
         error ->
           error
@@ -380,7 +382,7 @@ defmodule Atlas.Orbit do
     end
   end
 
-  defp post_locked(user, thread_id, body, client_id, address_agent?) do
+  defp post_locked(user, thread_id, body, client_id, address_agent?, attachment_ids) do
     thread = lock!(thread_id)
 
     cond do
@@ -404,17 +406,18 @@ defmodule Atlas.Orbit do
             address_agent: address_agent?
           })
 
+        Attachments.claim!(attachment_ids, user, message)
         if address_agent?, do: request_run!(thread, message, user, user)
         {message, :created}
     end
   end
 
-  defp message_body(attrs) do
-    case Map.get(attrs, "body") do
+  defp message_body(attrs, attachment_ids) do
+    case Map.get(attrs, "body", "") do
       body when is_binary(body) ->
         trimmed = String.trim(body)
 
-        if trimmed != "" and byte_size(body) <= @max_body_bytes,
+        if (trimmed != "" or attachment_ids != []) and byte_size(body) <= @max_body_bytes,
           do: {:ok, trimmed},
           else: {:error, {:invalid_field, :body}}
 

@@ -1,10 +1,12 @@
 //! Shared thread state. Platform adapters render snapshots and own only
 //! credential persistence, foreground/background notifications and native views.
-use crate::orbit::{self, Assistant, Created, History, Message, Overview, Thread};
+use crate::orbit::{self, Assistant, Attachment, Created, History, Message, Overview, Thread};
 use crate::orbit_live;
+use crate::transport::{Network, Transport};
 use crate::{Result, Session, error, invalid};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -68,6 +70,30 @@ pub(crate) enum Command {
         id: String,
         body: String,
         address_agent: bool,
+        #[serde(default)]
+        attachment_ids: Option<Vec<String>>,
+    },
+    UploadAttachment {
+        id: String,
+        #[serde(default)]
+        client_id: Option<String>,
+        filename: String,
+        content_type: String,
+        data: String,
+    },
+    DeleteAttachment {
+        id: String,
+        attachment_id: String,
+    },
+    DownloadAttachment {
+        id: String,
+        attachment_id: String,
+    },
+    DiscardUpload {
+        id: String,
+    },
+    RetryUpload {
+        id: String,
     },
     Refresh,
     Active {
@@ -80,10 +106,17 @@ struct Snapshot {
     sequence: u64,
     assistant: Option<Assistant>,
     threads: Vec<Thread>,
+    // An untrusted navigation target, not thread metadata or permission to mutate.
+    selection_id: Option<String>,
     selected: Option<Thread>,
     messages: Vec<Message>,
     people: Vec<Viewer>,
     draft: String,
+    draft_attachments: Vec<Attachment>,
+    attachment_busy: bool,
+    upload_pending: bool,
+    upload_filename: Option<String>,
+    has_drafts: bool,
     loading: bool,
     history_loading: bool,
     saving: bool,
@@ -101,9 +134,20 @@ struct Viewer {
     typing: bool,
 }
 
+#[derive(Clone, Default)]
 struct Draft {
     body: String,
     client_id: String,
+    attachments: Vec<Attachment>,
+}
+
+struct UploadAttempt {
+    thread_id: String,
+    client_id: String,
+    digest: Vec<u8>,
+    filename: String,
+    content_type: String,
+    data: String,
 }
 
 struct State {
@@ -112,6 +156,7 @@ struct State {
     drafts: BTreeMap<String, Draft>,
     outbox: BTreeMap<String, Draft>,
     generation: u64,
+    access_generation: u64,
     list_page: u32,
     list_pending: bool,
     history_page: u32,
@@ -120,6 +165,8 @@ struct State {
     active: bool,
     closed: bool,
     last_typing: Option<Instant>,
+    lifecycle: u64,
+    upload_attempt: Option<UploadAttempt>,
 }
 
 struct Model {
@@ -147,6 +194,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     drafts: BTreeMap::new(),
                     outbox: BTreeMap::new(),
                     generation: 0,
+                    access_generation: 0,
                     list_page: 0,
                     list_pending: false,
                     history_page: 0,
@@ -155,6 +203,8 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     active: false,
                     closed: false,
                     last_typing: None,
+                    lifecycle: 0,
+                    upload_attempt: None,
                 }),
                 changed: Condvar::new(),
             });
@@ -179,6 +229,9 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     return Err(invalid());
                 }
                 state.session = session;
+            }
+            if let Command::DownloadAttachment { id, attachment_id } = command {
+                return download_using(&model, id, attachment_id, &Network);
             }
             perform(&model, command)?;
             snapshot(&model)
@@ -250,6 +303,7 @@ pub(crate) fn execute(action: Action) -> Result<Value> {
                     state.generation += 1;
                     state.drafts.clear();
                     state.outbox.clear();
+                    state.upload_attempt = None;
                     state.snapshot = Snapshot::default();
                     publish(&model, &mut state);
                     state.live.take()
@@ -276,6 +330,22 @@ fn snapshot(model: &Model) -> Result<Value> {
 }
 
 fn publish(model: &Model, state: &mut State) {
+    let pending = state.upload_attempt.as_ref().filter(|attempt| {
+        state
+            .snapshot
+            .selected
+            .as_ref()
+            .is_some_and(|item| item.id == attempt.thread_id)
+    });
+    state.snapshot.upload_pending = pending.is_some();
+    state.snapshot.upload_filename = pending.map(|attempt| attempt.filename.clone());
+    state.snapshot.draft_attachments = state
+        .snapshot
+        .selected
+        .as_ref()
+        .and_then(|item| state.drafts.get(&item.id))
+        .map(|draft| draft.attachments.clone())
+        .unwrap_or_default();
     state.snapshot.draft = state
         .snapshot
         .selected
@@ -283,6 +353,12 @@ fn publish(model: &Model, state: &mut State) {
         .and_then(|item| state.drafts.get(&item.id))
         .map(|draft| draft.body.clone())
         .unwrap_or_default();
+    state.snapshot.has_drafts = state
+        .drafts
+        .values()
+        .any(|draft| !draft.body.trim().is_empty() || !draft.attachments.is_empty())
+        || state.upload_attempt.is_some()
+        || state.snapshot.attachment_busy;
     state.snapshot.sequence += 1;
     model.changed.notify_all();
 }
@@ -357,7 +433,31 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
             id,
             body,
             address_agent,
-        } => send(model, id, body, address_agent),
+            attachment_ids,
+        } => send_using(model, id, body, attachment_ids, address_agent, &Network),
+        command @ Command::UploadAttachment { .. } => upload_using(model, command, &Network),
+        Command::DeleteAttachment { id, attachment_id } => {
+            delete_using(model, id, attachment_id, &Network)
+        }
+        Command::DownloadAttachment { .. } => Err(invalid()),
+        Command::RetryUpload { id } => retry_upload_using(model, id, &Network),
+        Command::DiscardUpload { id } => {
+            let mut state = model.state.lock().map_err(|_| invalid())?;
+            attachment_access(&state, &id, true)?;
+            if state.snapshot.attachment_busy {
+                return Err(error("busy", "Wait for the attachment request to finish."));
+            }
+            if state
+                .upload_attempt
+                .as_ref()
+                .is_some_and(|attempt| attempt.thread_id == id)
+            {
+                state.upload_attempt = None;
+                state.snapshot.error = None;
+            }
+            publish(model, &mut state);
+            Ok(())
+        }
         Command::Active { active } => set_active(model, active),
         Command::Refresh => {
             let live = {
@@ -373,7 +473,7 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
                 .lock()
                 .map_err(|_| invalid())?
                 .snapshot
-                .selected
+                .selection_id
                 .is_some()
             {
                 history(model, false)?;
@@ -386,7 +486,11 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
 }
 
 fn load(model: &Arc<Model>, more: bool) -> Result<()> {
-    let (session, page) = {
+    load_using(model, more, &Network)
+}
+
+fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Result<()> {
+    let (session, page, access_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -400,12 +504,18 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
         (
             state.session.clone(),
             if more { state.list_page + 1 } else { 1 },
+            state.access_generation,
         )
     };
-    let result = api::<Overview>(session, orbit::Action::List { page });
+    let result = orbit::request_using::<Overview>(network, session, orbit::Action::List { page });
     let mut state = model.state.lock().map_err(|_| invalid())?;
     state.snapshot.loading = false;
     if state.closed {
+        return Ok(());
+    }
+    if state.access_generation != access_generation {
+        state.list_pending = false;
+        publish(model, &mut state);
         return Ok(());
     }
     match result {
@@ -419,13 +529,17 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
             }
             state.list_page = value.threads.page;
             state.snapshot.has_more = state.list_page < value.threads.total_pages;
-            state.snapshot.error = None;
+            if state.snapshot.selection_id.is_none() {
+                state.snapshot.error = None;
+            }
         }
         Err(failure) => {
             if failure.kind == "unavailable" {
                 state.snapshot.threads.clear();
             }
-            note_failure(&mut state, failure);
+            if state.snapshot.selection_id.is_none() {
+                note_failure(&mut state, failure);
+            }
         }
     }
     let pending = state.list_pending;
@@ -433,7 +547,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
     publish(model, &mut state);
     drop(state);
     if pending {
-        load(model, false)?;
+        load_using(model, false, network)?;
     }
     Ok(())
 }
@@ -450,33 +564,31 @@ fn merge_thread(items: &mut Vec<Thread>, incoming: Thread) {
 }
 
 fn select(model: &Arc<Model>, id: Option<String>, expected: Option<String>) -> Result<()> {
+    select_using(model, id, expected, &Network)
+}
+
+fn select_using(
+    model: &Arc<Model>,
+    id: Option<String>,
+    expected: Option<String>,
+    network: &impl Transport,
+) -> Result<()> {
     let live = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed
             || expected.as_ref().is_some_and(|id| {
                 state
                     .snapshot
-                    .selected
+                    .selection_id
                     .as_ref()
-                    .is_none_or(|selected| &selected.id != id)
+                    .is_none_or(|selected| selected != id)
             })
         {
             return Ok(());
         }
-        let selected = match id {
-            Some(id) => Some(
-                state
-                    .snapshot
-                    .threads
-                    .iter()
-                    .find(|item| item.id == id)
-                    .cloned()
-                    .ok_or_else(invalid)?,
-            ),
-            None => None,
-        };
         state.generation += 1;
-        state.snapshot.selected = selected;
+        state.snapshot.selection_id = id;
+        state.snapshot.selected = None;
         state.snapshot.messages.clear();
         state.snapshot.people.clear();
         state.snapshot.error = None;
@@ -489,17 +601,21 @@ fn select(model: &Arc<Model>, id: Option<String>, expected: Option<String>) -> R
         state.live.take()
     };
     close_live(live);
-    history(model, false)?;
+    history_using(model, false, network)?;
     start_live(model)
 }
 
 fn history(model: &Arc<Model>, older: bool) -> Result<()> {
+    history_using(model, older, &Network)
+}
+
+fn history_using(model: &Arc<Model>, older: bool, network: &impl Transport) -> Result<()> {
     let (session, id, page, generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
         }
-        let Some(id) = state.snapshot.selected.as_ref().map(|item| item.id.clone()) else {
+        let Some(id) = state.snapshot.selection_id.clone() else {
             return Ok(());
         };
         if state.snapshot.history_loading {
@@ -515,7 +631,8 @@ fn history(model: &Arc<Model>, older: bool) -> Result<()> {
             state.generation,
         )
     };
-    let result = api::<History>(
+    let result = orbit::request_using::<History>(
+        network,
         session,
         orbit::Action::Messages {
             id: id.clone(),
@@ -550,7 +667,7 @@ fn history(model: &Arc<Model>, older: bool) -> Result<()> {
     };
     close_live(live);
     if pending {
-        history(model, false)?;
+        history_using(model, false, network)?;
     }
     Ok(())
 }
@@ -558,11 +675,14 @@ fn history(model: &Arc<Model>, older: bool) -> Result<()> {
 fn reconcile_history(state: &mut State, value: History, generation: u64, older: bool) -> bool {
     if state.closed
         || state.generation != generation
-        || state
-            .snapshot
-            .selected
-            .as_ref()
-            .is_none_or(|item| item.id != value.thread.id)
+        || state.snapshot.selection_id.as_deref() != Some(value.thread.id.as_str())
+        || value.messages.items.iter().any(|message| {
+            message.attachments.len() > 4
+                || message
+                    .attachments
+                    .iter()
+                    .any(|item| orbit::validate_attachment(item).is_err())
+        })
     {
         return false;
     }
@@ -601,13 +721,330 @@ fn reconcile_history(state: &mut State, value: History, generation: u64, older: 
     true
 }
 
+fn attachment_access(state: &State, id: &str, write: bool) -> Result<()> {
+    if state.closed
+        || !state.active
+        || state.snapshot.needs_session
+        || state
+            .snapshot
+            .selected
+            .as_ref()
+            .is_none_or(|item| item.id != id || (write && item.status == "archived"))
+    {
+        return Err(error(
+            "unavailable",
+            "Open this thread again to access its attachments.",
+        ));
+    }
+    Ok(())
+}
+
+fn retry_upload_using(model: &Arc<Model>, id: String, network: &impl Transport) -> Result<()> {
+    let command = {
+        let state = model.state.lock().map_err(|_| invalid())?;
+        attachment_access(&state, &id, true)?;
+        let attempt = state
+            .upload_attempt
+            .as_ref()
+            .filter(|attempt| attempt.thread_id == id)
+            .ok_or_else(invalid)?;
+        Command::UploadAttachment {
+            id,
+            client_id: Some(attempt.client_id.clone()),
+            filename: attempt.filename.clone(),
+            content_type: attempt.content_type.clone(),
+            data: attempt.data.clone(),
+        }
+    };
+    upload_using(model, command, network)
+}
+
+fn upload_using(model: &Arc<Model>, command: Command, network: &impl Transport) -> Result<()> {
+    let Command::UploadAttachment {
+        id,
+        client_id,
+        filename,
+        content_type,
+        data,
+    } = command
+    else {
+        return Err(invalid());
+    };
+    if let Some(client_id) = &client_id {
+        crate::time_off::validate_id(client_id)?;
+    }
+    let bytes = orbit::decode_attachment(&data)?;
+    orbit::validate_file(&filename, &content_type, bytes.len())?;
+    let size = bytes.len();
+    let digest = Sha256::digest(
+        serde_json::to_vec(&json!([filename, content_type, data])).map_err(|_| invalid())?,
+    )
+    .to_vec();
+    let (session, generation, client_id) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        attachment_access(&state, &id, true)?;
+        if state.snapshot.attachment_busy || state.snapshot.saving {
+            return Err(error("busy", "Wait for the attachment request to finish."));
+        }
+        if let Some(attempt) = &state.upload_attempt
+            && (attempt.thread_id != id
+                || client_id
+                    .as_ref()
+                    .is_some_and(|id| attempt.client_id != *id)
+                || attempt.digest != digest)
+        {
+            return Err(error(
+                "conflict",
+                "Retry the pending upload before attaching another file.",
+            ));
+        }
+        if state
+            .drafts
+            .get(&id)
+            .is_some_and(|draft| draft.attachments.len() >= 4)
+        {
+            return Err(invalid());
+        }
+        let client_id = state
+            .upload_attempt
+            .as_ref()
+            .map(|attempt| attempt.client_id.clone())
+            .or(client_id)
+            .map_or_else(random_uuid, Ok)?;
+        state.upload_attempt = Some(UploadAttempt {
+            thread_id: id.clone(),
+            client_id: client_id.clone(),
+            digest,
+            filename: filename.clone(),
+            content_type: content_type.clone(),
+            data: data.clone(),
+        });
+        state.snapshot.attachment_busy = true;
+        publish(model, &mut state);
+        (state.session.clone(), state.generation, client_id)
+    };
+    let result = orbit::request_using::<orbit::Attached>(
+        network,
+        session,
+        orbit::Action::UploadAttachment {
+            id: id.clone(),
+            client_id,
+            filename: filename.clone(),
+            content_type: content_type.clone(),
+            data,
+        },
+    );
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    state.snapshot.attachment_busy = false;
+    if state.closed {
+        return Ok(());
+    }
+    if state.generation != generation {
+        publish(model, &mut state);
+        return Ok(());
+    }
+    match result {
+        Ok(value)
+            if orbit::validate_attachment(&value.attachment).is_ok()
+                && value.attachment.content_type == content_type
+                && value.attachment.byte_size == size =>
+        {
+            let draft = state.drafts.entry(id).or_default();
+            if !draft
+                .attachments
+                .iter()
+                .any(|item| item.id == value.attachment.id)
+            {
+                draft.attachments.push(value.attachment);
+            }
+            draft.client_id = random_uuid()?;
+            state.upload_attempt = None;
+            state.snapshot.error = None;
+        }
+        Ok(_) => {
+            state.snapshot.error =
+                Some("Atlas returned an invalid attachment. Retry the upload.".into())
+        }
+        Err(failure) => {
+            if failure.kind == "unavailable" {
+                revoke(&mut state, &id);
+            }
+            // Definitively rejected uploads cannot have created a pending file.
+            if matches!(failure.kind, "invalid_request" | "unsupported" | "conflict") {
+                state.upload_attempt = None;
+            }
+            note_failure(&mut state, failure);
+        }
+    }
+    publish(model, &mut state);
+    Ok(())
+}
+
+fn delete_using(
+    model: &Arc<Model>,
+    id: String,
+    attachment_id: String,
+    network: &impl Transport,
+) -> Result<()> {
+    #[derive(Deserialize)]
+    struct Deleted {
+        deleted: bool,
+    }
+    let (session, generation) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        attachment_access(&state, &id, true)?;
+        if state.snapshot.attachment_busy || state.snapshot.saving {
+            return Err(error("busy", "Wait for the attachment request to finish."));
+        }
+        if !state.drafts.get(&id).is_some_and(|draft| {
+            draft
+                .attachments
+                .iter()
+                .any(|item| item.id == attachment_id)
+        }) {
+            return Err(invalid());
+        }
+        state.snapshot.attachment_busy = true;
+        publish(model, &mut state);
+        (state.session.clone(), state.generation)
+    };
+    let result = orbit::request_using::<Deleted>(
+        network,
+        session,
+        orbit::Action::DeleteAttachment {
+            id: id.clone(),
+            attachment_id: attachment_id.clone(),
+        },
+    );
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    state.snapshot.attachment_busy = false;
+    if state.closed {
+        return Ok(());
+    }
+    if state.generation != generation {
+        publish(model, &mut state);
+        return Ok(());
+    }
+    match result {
+        Ok(value) if value.deleted => {
+            if let Some(draft) = state.drafts.get_mut(&id) {
+                draft.attachments.retain(|item| item.id != attachment_id);
+                draft.client_id = random_uuid()?;
+            }
+            state.snapshot.error = None;
+        }
+        Ok(_) => state.snapshot.error = Some("Could not remove the attachment. Try again.".into()),
+        Err(failure) => {
+            if failure.kind == "unavailable" {
+                revoke(&mut state, &id);
+            }
+            note_failure(&mut state, failure);
+        }
+    }
+    publish(model, &mut state);
+    Ok(())
+}
+
+fn download_using(
+    model: &Arc<Model>,
+    id: String,
+    attachment_id: String,
+    network: &impl Transport,
+) -> Result<Value> {
+    let (session, generation, lifecycle, expected) = {
+        let state = model.state.lock().map_err(|_| invalid())?;
+        attachment_access(&state, &id, false)?;
+        let expected = state
+            .snapshot
+            .messages
+            .iter()
+            .flat_map(|message| &message.attachments)
+            .chain(
+                state
+                    .drafts
+                    .get(&id)
+                    .into_iter()
+                    .flat_map(|draft| &draft.attachments),
+            )
+            .find(|item| item.id == attachment_id)
+            .cloned()
+            .ok_or_else(invalid)?;
+        (
+            state.session.clone(),
+            state.generation,
+            state.lifecycle,
+            expected,
+        )
+    };
+    let result = orbit::request_using::<orbit::Downloaded>(
+        network,
+        session,
+        orbit::Action::DownloadAttachment {
+            id: id.clone(),
+            attachment_id,
+        },
+    );
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    attachment_access(&state, &id, false)?;
+    if state.generation != generation || state.lifecycle != lifecycle {
+        return Err(error(
+            "unavailable",
+            "Open this thread again to access its attachments.",
+        ));
+    }
+    let value = match result {
+        Ok(value) => value,
+        Err(failure) => {
+            if failure.kind == "unavailable" {
+                revoke(&mut state, &id);
+            }
+            let returned = error(failure.kind, failure.message);
+            note_failure(&mut state, failure);
+            publish(model, &mut state);
+            return Err(returned);
+        }
+    };
+    orbit::validate_attachment(&value.attachment.metadata)?;
+    let bytes = orbit::decode_attachment(&value.attachment.data)?;
+    if value.attachment.metadata != expected || bytes.len() != expected.byte_size {
+        return Err(invalid());
+    }
+    Ok(json!({"thread_id":id,"attachment":value.attachment}))
+}
+
+#[cfg(test)]
 fn send(model: &Arc<Model>, expected_id: String, body: String, address_agent: bool) -> Result<()> {
-    if body.trim().is_empty() || body.len() > 16000 {
+    send_using(model, expected_id, body, None, address_agent, &Network)
+}
+
+fn send_using(
+    model: &Arc<Model>,
+    expected_id: String,
+    body: String,
+    ids: Option<Vec<String>>,
+    address_agent: bool,
+    network: &impl Transport,
+) -> Result<()> {
+    if body.len() > 16000 {
         return Err(error("invalid_request", "Check the message and try again."));
     }
-    let (session, id, body, client_id, address_agent, generation) = {
+    let (session, id, body, client_id, attachment_ids, address_agent, generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
-        if state.snapshot.saving || state.closed {
+        if state
+            .upload_attempt
+            .as_ref()
+            .is_some_and(|attempt| attempt.thread_id == expected_id)
+        {
+            return Err(error(
+                "busy",
+                "Finish or discard the pending upload before sending.",
+            ));
+        }
+        if state.snapshot.saving
+            || state.snapshot.attachment_busy
+            || state.closed
+            || state.snapshot.needs_session
+        {
             return Ok(());
         }
         let Some(selected) = &state.snapshot.selected else {
@@ -617,13 +1054,38 @@ fn send(model: &Arc<Model>, expected_id: String, body: String, address_agent: bo
         if id != expected_id {
             return Ok(());
         }
+        if selected.status == "archived" {
+            return Err(invalid());
+        }
         let address_agent = selected.kind == "private" || address_agent;
-        let client_id = prepare_send(&mut state, &id, &body)?;
+        let attachments = state
+            .drafts
+            .get(&id)
+            .map(|draft| draft.attachments.clone())
+            .unwrap_or_default();
+        let attachment_ids =
+            ids.unwrap_or_else(|| attachments.iter().map(|item| item.id.clone()).collect());
+        orbit::validate_attachment_ids(&attachment_ids)?;
+        if body.trim().is_empty() && attachment_ids.is_empty() {
+            return Err(invalid());
+        }
+        let known = |key: &String| {
+            attachments.iter().any(|item| &item.id == key)
+                || state
+                    .outbox
+                    .get(&id)
+                    .is_some_and(|draft| draft.attachments.iter().any(|item| &item.id == key))
+        };
+        if !attachment_ids.iter().all(known) {
+            return Err(invalid());
+        }
+        let client_id = prepare_send_attachments(&mut state, &id, &body, &attachment_ids)?;
         let result = (
             state.session.clone(),
             id,
             body,
             client_id,
+            attachment_ids,
             address_agent,
             state.generation,
         );
@@ -631,13 +1093,15 @@ fn send(model: &Arc<Model>, expected_id: String, body: String, address_agent: bo
         publish(model, &mut state);
         result
     };
-    let result = orbit::request::<orbit::Sent>(
+    let result = orbit::request_using::<orbit::Sent>(
+        network,
         session,
         orbit::Action::Send {
             id: id.clone(),
             body,
             client_id: client_id.clone(),
             address_agent,
+            attachment_ids: attachment_ids.clone(),
         },
     );
     let (refresh, typing) = {
@@ -658,10 +1122,18 @@ fn send(model: &Arc<Model>, expected_id: String, body: String, address_agent: bo
                     .is_some_and(|draft| draft.client_id == client_id)
                 {
                     state.drafts.remove(&id);
+                } else if let Some(draft) = state.drafts.get_mut(&id) {
+                    // A new text draft must survive, but already-sent files must not be sent twice.
+                    draft
+                        .attachments
+                        .retain(|item| !attachment_ids.contains(&item.id));
                 }
             }
             Err(failure) => {
                 if state.generation == generation {
+                    if failure.kind == "unavailable" {
+                        revoke(&mut state, &id);
+                    }
                     note_failure(&mut state, failure);
                 }
             }
@@ -682,7 +1154,7 @@ fn send(model: &Arc<Model>, expected_id: String, body: String, address_agent: bo
         });
     }
     if refresh {
-        history(model, false)?;
+        history_using(model, false, network)?;
     }
     Ok(())
 }
@@ -703,13 +1175,34 @@ fn revoke(state: &mut State, id: &str) {
     state.history_pending = false;
     state.drafts.remove(id);
     state.outbox.remove(id);
+    if state
+        .upload_attempt
+        .as_ref()
+        .is_some_and(|attempt| attempt.thread_id == id)
+    {
+        state.upload_attempt = None;
+    }
     state.generation += 1;
+    state.access_generation += 1;
 }
 
+#[cfg(test)]
 fn prepare_send(state: &mut State, id: &str, body: &str) -> Result<String> {
-    let client_id = if let Some(draft) = state.drafts.get(id).filter(|draft| draft.body == body) {
+    prepare_send_attachments(state, id, body, &[])
+}
+
+fn prepare_send_attachments(
+    state: &mut State,
+    id: &str,
+    body: &str,
+    ids: &[String],
+) -> Result<String> {
+    let matches = |draft: &&Draft| {
+        draft.body == body && draft.attachments.iter().map(|item| &item.id).eq(ids.iter())
+    };
+    let client_id = if let Some(draft) = state.drafts.get(id).filter(matches) {
         draft.client_id.clone()
-    } else if let Some(attempt) = state.outbox.get(id).filter(|attempt| attempt.body == body) {
+    } else if let Some(attempt) = state.outbox.get(id).filter(matches) {
         return Ok(attempt.client_id.clone());
     } else {
         random_uuid()?
@@ -719,6 +1212,18 @@ fn prepare_send(state: &mut State, id: &str, body: &str) -> Result<String> {
         Draft {
             body: body.into(),
             client_id: client_id.clone(),
+            attachments: state
+                .drafts
+                .get(id)
+                .map(|draft| {
+                    draft
+                        .attachments
+                        .iter()
+                        .filter(|item| ids.contains(&item.id))
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default(),
         },
     );
     Ok(client_id)
@@ -743,11 +1248,17 @@ fn draft(model: &Model, id: String, body: String) -> Result<()> {
             return Ok(());
         }
         if state.drafts.get(&id).is_none_or(|draft| draft.body != body) {
+            let attachments = state
+                .drafts
+                .get(&id)
+                .map(|draft| draft.attachments.clone())
+                .unwrap_or_default();
             state.drafts.insert(
                 id,
                 Draft {
                     body: body.clone(),
                     client_id: random_uuid()?,
+                    attachments,
                 },
             );
         }
@@ -778,6 +1289,9 @@ fn set_active(model: &Arc<Model>, active: bool) -> Result<()> {
     let live = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         state.active = active;
+        if !active {
+            state.lifecycle += 1;
+        }
         state.snapshot.people.clear();
         let live = if active { None } else { state.live.take() };
         publish(model, &mut state);
@@ -792,7 +1306,11 @@ fn set_active(model: &Arc<Model>, active: bool) -> Result<()> {
 
 fn start_live(model: &Arc<Model>) -> Result<()> {
     let mut state = model.state.lock().map_err(|_| invalid())?;
-    if !state.active || state.closed || state.live.is_some() {
+    if !state.active
+        || state.closed
+        || state.live.is_some()
+        || (state.snapshot.selection_id.is_some() && state.snapshot.selected.is_none())
+    {
         return Ok(());
     }
     let is_list = state.snapshot.selected.is_none();

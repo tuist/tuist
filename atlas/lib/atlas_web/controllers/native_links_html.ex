@@ -16,6 +16,7 @@ defmodule AtlasWeb.NativeLinksHTML do
   def title({"time-off", nil}), do: gettext("Open Time off")
   def title({"people", nil}), do: gettext("Open People")
   def title({"profile", nil}), do: gettext("Open Profile")
+  def title({"orbit", _id}), do: gettext("Open in Atlas")
 
   # Phoenix only accepts known URL schemes as strings; the custom scheme is passed
   # as an explicit tuple after the link was built from the allowlist.

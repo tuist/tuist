@@ -25,17 +25,78 @@ struct AtlasOrbitTests {
         #expect(model.selected?.id == id)
     }
 
+    @Test func linkedThreadOpensWithoutLoadingAListAndRejectsADifferentSelection() async throws {
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            #expect(command["action"] as? String == "select")
+            return try snapshot(sequence: 1, selected: true)
+        }, localRequest: { _ in throw CancellationError() })
+        #expect(model.threads.isEmpty)
+        #expect(await model.open(id: id)?.id == id)
+        #expect(await model.open(id: "01922cc0-0000-7000-8000-000000000002") == nil)
+    }
+
+    @Test func attachmentDownloadKeepsBytesOnlyForTheAuthorizedSelection() async throws {
+        var revoked = false
+        var delayed = false
+        var pending: CheckedContinuation<Data, Error>?
+        let bytes = Data("Private file".utf8)
+        let attachment = AtlasThreadAttachment(id: "01922cc0-0000-7000-8000-000000000003", filename: "notes.txt",
+                                               contentType: "text/plain", byteSize: bytes.count)
+        let response = try JSONSerialization.data(withJSONObject: [
+            "thread_id": id, "attachment": ["data": bytes.base64EncodedString()]
+        ])
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"handle\"}".utf8) }
+            let command = action["command"] as? [String: Any]
+            if command?["action"] as? String == "download_attachment" {
+                if delayed { return try await withCheckedThrowingContinuation { pending = $0 } }
+                return response
+            }
+            return try snapshot(sequence: revoked ? 2 : 1, selected: !revoked)
+        }, localRequest: { _ in throw CancellationError() })
+        _ = await model.open(id: id)
+        #expect(await model.download(attachment) == bytes)
+        delayed = true
+        let download = Task { await model.download(attachment) }
+        while pending == nil { await Task.yield() }
+        revoked = true
+        await model.load()
+        pending?.resume(returning: response)
+        #expect(await download.value == nil)
+    }
+
+    @Test(arguments: [0, 5 * 1024 * 1024, 5 * 1024 * 1024 + 1])
+    func pickedFilesRejectEmptyAndOversizedDataWithoutTruncation(size: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("report.txt")
+        let data = Data(repeating: 0x31, count: size)
+        try data.write(to: url)
+        if size == 5 * 1024 * 1024 {
+            let file = try AtlasAttachmentFile.read(url)
+            #expect(file.data == data)
+            #expect(file.filename == "report.txt")
+            #expect(file.contentType == "text/plain")
+        } else {
+            #expect(throws: AtlasAttachmentFile.Failure.self) { try AtlasAttachmentFile.read(url) }
+        }
+    }
+
     @Test func activityUsesAuthoritativeStatusAndKeepsReconnectSeparate() async throws {
         var sequence = 0
         var status: String?
         var liveMessage: String?
+        var messages: [[String: Any]] = []
         let model = AtlasOrbit(request: { action in
             if action["action"] as? String == "open" { return Data("{\"connection\":\"local-handle\"}".utf8) }
             sequence += 1
-            return try snapshot(sequence: sequence, selected: true, agentStatus: status, liveMessage: liveMessage)
+            return try snapshot(sequence: sequence, selected: true, messages: messages, agentStatus: status, liveMessage: liveMessage)
         }, localRequest: { _ in throw CancellationError() })
         let cases: [(String?, String?)] = [
-            ("queued", "Pip is getting ready…"), ("running", "Pip is responding…"), ("compacting", "Compacting context…"),
+            ("queued", "Pip is getting ready…"), ("running", "Typing…"), ("compacting", "Compacting context…"),
             ("idle", nil), ("unknown", nil), (nil, nil)
         ]
         for (value, expected) in cases {
@@ -43,7 +104,26 @@ struct AtlasOrbitTests {
             await model.load()
             #expect(model.activityMessage == expected)
         }
+        messages = [[
+            "id": "lookup", "kind": "tool", "body": "", "author_name": "Pip", "inserted_at": "2026-10-24T12:00:00Z",
+            "tool_name": "get_account", "tool_status": "running", "tool_input": "", "tool_output": ""
+        ], [
+            "id": "finished", "kind": "tool", "body": "", "author_name": "Pip", "inserted_at": "2026-10-24T12:00:01Z",
+            "tool_name": "get_tasks", "tool_status": "succeeded", "tool_input": "", "tool_output": ""
+        ]]
         status = "running"
+        await model.load()
+        #expect(model.activityMessage == "Using get account…")
+        status = "compacting"
+        await model.load()
+        #expect(model.activityMessage == "Compacting context…")
+        status = "idle"
+        await model.load()
+        #expect(model.activityMessage == nil)
+        status = "running"
+        messages[0]["tool_status"] = "succeeded"
+        await model.load()
+        #expect(model.activityMessage == "Typing…")
         liveMessage = "Reconnecting…"
         await model.load()
         #expect(model.liveMessage == "Reconnecting…")

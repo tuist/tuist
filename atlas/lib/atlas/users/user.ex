@@ -13,6 +13,7 @@ defmodule Atlas.Users.User do
   schema "users" do
     field :email, :string
     field :name, :string
+    field :description, :string, default: "", redact: true
 
     field :time_off_location_id, Atlas.UUIDv7, read_after_writes: true
     belongs_to :time_off_location, Location, define_field: false
@@ -32,6 +33,14 @@ defmodule Atlas.Users.User do
     |> cast(attrs, [:email, :name])
     |> validate_required([:email])
     |> unique_constraint(:email)
+  end
+
+  def profile_changeset(user, description) do
+    user
+    |> cast(%{description: description}, [:description], empty_values: [])
+    |> validate_length(:description, max: 4000, count: :codepoints)
+    |> validate_length(:description, max: 16_000, count: :bytes)
+    |> update_change(:description, &String.trim/1)
   end
 
   def avatar_url(%__MODULE__{email: email}) do

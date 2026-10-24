@@ -144,6 +144,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetInsurancePolicy
   alias Atlas.MCP.Tools.GetMCPConnectionStatus
   alias Atlas.MCP.Tools.GetMonthlyInvoiceTotals
+  alias Atlas.MCP.Tools.GetMyProfile
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
   alias Atlas.MCP.Tools.GetOutreachContact
@@ -297,6 +298,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateHoliday
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateManualFinanceInvoice
+  alias Atlas.MCP.Tools.UpdateMyProfile
   alias Atlas.MCP.Tools.UpdateNote
   alias Atlas.MCP.Tools.UpdatePOC
   alias Atlas.MCP.Tools.UpdatePOCTimelineEntry
@@ -512,6 +514,8 @@ defmodule Atlas.MCP.Server do
   @automation_write_tools Interfaces.tools(:write)
   @static_tools [
     GetMCPConnectionStatus,
+    GetMyProfile,
+    UpdateMyProfile,
     ListLLMProviderConnections,
     ConnectClaudeProvider,
     StartChatGPTProviderLogin,
@@ -1010,7 +1014,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       when name in ~w(update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

@@ -56,10 +56,13 @@ defmodule Atlas.Orbit.Runs do
   alias Atlas.Orbit.ModelFence
   alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Run
+  alias Atlas.Orbit.Subagents
   alias Atlas.Orbit.Thread
   alias Atlas.Orbit.Tools
   alias Atlas.Orbit.Workers.RunThread
+  alias Atlas.Push
   alias Atlas.Repo
+  alias Atlas.Users
   alias Atlas.Users.User
   alias Condukt.Compactor.ToolResultPrune
 
@@ -377,24 +380,31 @@ defmodule Atlas.Orbit.Runs do
   defp invoke(run, parent, opts) do
     thread = Repo.get!(Thread, run.thread_id)
     audience = Access.audience(thread)
+    acting_user = run.acting_user_id && Repo.get(User, run.acting_user_id)
+    visibility = if thread.kind == "private", do: :private, else: :shared
+    description = Users.profile_description_for(acting_user, visibility)
 
     client_opts =
       opts
       |> Keyword.get_lazy(:client_opts, fn -> Runner.profile_client_opts(:orbit, timeout: @max_duration) end)
       |> ModelFence.wrap(run, parent)
 
-    {prompt, store_opts} =
+    {prompt, images, store_opts} =
       case Checkpoints.load(run) do
-        {:ok, snapshot} -> {resume_prompt(), [session_store: {Checkpoints.Store, snapshot: snapshot}]}
-        :none -> {Agent.transcript(transcript_messages(thread, run), run.id), []}
+        {:ok, snapshot} ->
+          {resume_prompt(), [], [session_store: {Checkpoints.Store, snapshot: snapshot}]}
+
+        :none ->
+          {prompt, images} = Agent.input(transcript_messages(thread, run), run.id, acting_user)
+          {prompt, images, []}
       end
 
     session_opts =
       client_opts ++
         store_opts ++
         [
-          tools: Tools.build(run),
-          system_prompt: Agent.system_prompt(thread, audience),
+          tools: Tools.build(run) ++ [Subagents.tool(run)],
+          system_prompt: Agent.system_prompt(thread, audience, description),
           load_project_instructions: false,
           compactor: {ToolResultPrune, keep_recent: 2, max_size: 4_000},
           max_tokens: @max_tokens
@@ -409,7 +419,7 @@ defmodule Atlas.Orbit.Runs do
           # Condukt starts sessions unlinked; the session does not trap exits.
           Process.link(pid)
           send(parent, {:orbit_session, pid})
-          Condukt.run(pid, prompt, max_turns: @max_turns, timeout: @max_duration)
+          Condukt.run(pid, prompt, images: images, max_turns: @max_turns, timeout: @max_duration)
         end)
 
       Process.put({__MODULE__, :result}, result)
@@ -498,14 +508,24 @@ defmodule Atlas.Orbit.Runs do
   end
 
   defp finish!(run, thread, {:ok, text}) when is_binary(text) and text != "" do
-    Orbit.append!(thread, %{
-      kind: "agent",
-      run_id: run.id,
-      body: Rendering.truncate(text, @reply_limit),
-      author_name: Orbit.agent_name()
-    })
+    message =
+      Orbit.append!(thread, %{
+        kind: "agent",
+        run_id: run.id,
+        body: Rendering.truncate(text, @reply_limit),
+        author_name: Orbit.agent_name()
+      })
 
     finalize!(run, "succeeded", nil, nil, thread)
+
+    {:ok, _queued} =
+      Push.notify_user(run.acting_user_id, "orbit_completed", {"orbit", thread.id},
+        message_id: message.id,
+        actor_id: run.acting_user_id,
+        interface: "worker"
+      )
+
+    :ok
   end
 
   defp finish!(run, thread, {:ok, _empty}) do
@@ -522,6 +542,8 @@ defmodule Atlas.Orbit.Runs do
 
   # Terminal statuses drop the cached snapshot; the log is the durable record.
   defp finalize!(run, status, category, notice, thread) do
+    close_running_tools!(run, "The run finished before this tool completed.")
+
     run
     |> Ecto.Changeset.change(
       status: status,
@@ -620,11 +642,11 @@ defmodule Atlas.Orbit.Runs do
     :requeued
   end
 
-  defp close_running_tools!(run) do
+  defp close_running_tools!(run, reason \\ "Interrupted by a restart.") do
     Message
     |> where([message], message.run_id == ^run.id and message.tool_status == "running")
     |> Repo.all()
-    |> Enum.each(&Orbit.touch!(&1, %{tool_status: "cancelled", tool_output: "Interrupted by a restart."}))
+    |> Enum.each(&Orbit.touch!(&1, %{tool_status: "cancelled", tool_output: reason}))
   end
 
   @doc "Checkpoints running runs whose lease expired, for example after a replica was lost."

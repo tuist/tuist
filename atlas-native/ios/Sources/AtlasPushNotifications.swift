@@ -299,7 +299,8 @@ struct AtlasPushSettingsView: View {
             )).disabled(notifications.busy)
             if let message = notifications.message { Text(message).font(.footnote).foregroundStyle(.secondary) }
         } footer: {
-            Text("Receive private, generic alerts on this device. Notification previews never include Atlas records.")
+            Text("Get notified when Pip finishes. Alerts include the thread title and a short reply preview. "
+                 + "Control lock-screen previews in iOS Settings.")
         }
     }
 }

@@ -205,11 +205,15 @@ defmodule AtlasWeb.Router do
     post "/orbit/threads/private", NativeOrbitController, :private
     get "/orbit/threads/:id/messages", NativeOrbitController, :messages
     post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
+    post "/orbit/threads/:id/attachments", NativeOrbitController, :upload_attachment
+    get "/orbit/threads/:id/attachments/:attachment_id", NativeOrbitController, :download_attachment
+    delete "/orbit/threads/:id/attachments/:attachment_id", NativeOrbitController, :delete_attachment
     post "/orbit/threads/:id/participants", NativeOrbitController, :add_participant
     delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
     post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
 
     get "/profile", NativeController, :profile
+    patch "/profile", NativeController, :update_profile
     get "/:resource", NativeController, :index
     post "/:resource", NativeController, :create
     get "/:resource/:id", NativeController, :show
