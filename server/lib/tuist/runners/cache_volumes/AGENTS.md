@@ -11,9 +11,8 @@ these schemas persist volume identities and per-job uses.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
   (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
   requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
-  attach. Dispatch still sends `automatic_caches: false` and
-  `managed_cache_volumes: true` for runner images that read them, and stamps
-  only the account label; the cache signing grant follows trust. The dashboard
+  attach. Dispatch stamps only the account label; the cache signing grant
+  follows trust. The dashboard
   names the volumes "Xcode cache" and "Module cache". There is no built-in
   per-account cache volume: HEADs, orphans and `runner-volume-masters` objects
   belong to custom volumes only.
