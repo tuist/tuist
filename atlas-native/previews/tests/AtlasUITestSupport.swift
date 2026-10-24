@@ -27,10 +27,12 @@ extension XCUIApplication {
             let bounds = contentBounds
             // Native accessibility can mark offscreen children as hittable.
             if let element = elements.first(where: {
-                $0.isHittable && bounds.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+                $0.isHittable && ($0.frame.height <= bounds.height
+                    ? bounds.contains($0.frame)
+                    : bounds.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)))
             }) { return element }
             let target = elements.first { $0.frame.height > 0 }
-            scrollContent(up: target.map { $0.frame.midY >= bounds.minY } ?? up)
+            scrollContent(up: target.map { $0.frame.maxY > bounds.maxY } ?? up)
         }
         return try XCTUnwrap(nil as XCUIElement?, "Missing visible control: \(id)")
     }
