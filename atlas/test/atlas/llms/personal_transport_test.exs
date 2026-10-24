@@ -82,6 +82,29 @@ defmodule Atlas.LLMs.PersonalTransportTest do
     end
   end
 
+  test "a streamed invalid request stops instead of hopping to the acting person's other account" do
+    actor = user_fixture()
+    connect(actor, "actor")
+
+    expect(Req, :post, fn opts ->
+      assert opts[:url] == "https://chatgpt.com/backend-api/codex/responses"
+
+      event = %{
+        "type" => "response.failed",
+        "response" => %{
+          "status" => "failed",
+          "error" => %{"type" => "invalid_request_error", "code" => nil, "message" => "private request details"}
+        }
+      }
+
+      {:ok, %{status: 200, body: "event: response.failed\ndata: #{JSON.encode!(event)}\n\n"}}
+    end)
+
+    conn = request(actor)
+    assert conn.status == 400
+    refute conn.resp_body =~ "private request details"
+  end
+
   defp connect(user, suffix) do
     Repo.insert!(%Connection{
       user_id: user.id,
