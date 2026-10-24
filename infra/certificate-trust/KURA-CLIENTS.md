@@ -95,8 +95,9 @@ summarizer did not recognize a legitimately empty lazy pressure counter.
 The next run (`39922891645`, source `406514e1c2`) similarly stopped on initial
 artifact egress, not a completed comparison. The source-qualified lazy schema
 now includes pressure transitions, artifact egress and segment refresh only;
-unknown metrics still refuse. Seed-probe work/actual egress must also match
-across runs. Nine contracts pass, and the captured real baseline samples were
+unknown metrics still refuse. Successful work/actual egress must match across
+runs. Convergence retries are now measured cost, not an outcome equality filter.
+Fourteen contracts pass, and the captured real baseline samples were
 used for a separate derived parser regression, without editing raw receipts or
 claiming resource clearance. Retry `40071266208` at `a9d2a42980` stopped before
 resource measurement on `utils::tests::read_request_to_temp_cleans_up_when_cancelled`
@@ -107,12 +108,20 @@ checks a real file/five-byte reservation, drops the future and waits through the
 budget notification path for a full-capacity reservation before asserting unlink
 and final zero. No production cleanup or admission limit changed. Fifty repeated
 cases, all four macOS Bazel targets (1,246 library cases/51 ignored, 11.762 s),
-Clippy and rustfmt passed. Build-only retry `40073713999` at `fe4c162fed` is pending.
+Clippy and rustfmt passed. Build-only retry `40073713999` at `fe4c162fed` then
+passed the complete Linux suite (1,250 library/52 ignored, 22.777 s), both release
+assemblies and all four workloads/retention/recovery checks. Its final comparison
+failed because expected convergence retries were incorrectly treated as unequal
+successful work. Corrected derived analysis preserves the original failed receipt
+and finds **+7.576 MiB/+3.325% peak anonymous memory**, beyond the 2.551 MiB
+baseline spread. Its cause remains unestablished; no budget approval follows.
+See the [resource receipt](KURA-RESOURCE.md) for exact identities, all four axes,
+observer-cost limits and run `40078717301` (three complete blocks, pending).
 
 ## Remaining gates
 
 - Supported distro/runtime variants and fresh final-source evidence remain distinct from the full Linux result above.
-- Sustained before/after stress against the main merge base on **memory/headroom, disk/retention, CPU/work and egress/work**, including post-load recovery. Unit tests do not satisfy Kura's four-axis budget policy; this behavior change remains incomplete until that gate is measured.
+- Sustained before/after stress against the main merge base on **memory/headroom, disk/retention, CPU/work and egress/work**, including post-load recovery. The private-peer measurements above are not budget clearance: the anonymous-memory delta needs investigation, native-client construction cost remains unmeasured, and exact/deployed paths remain separate. This behavior change remains incomplete under Kura's four-axis policy.
 - Exact Linux release images, macOS release binaries and minimum-supported-runtime qualification, plus deployed Sentry/OTLP/enrollment/Kubernetes integration where applicable. OTLP gRPC TLS remains unavailable, not silently protected or downgraded.
 - Owner-authorized publication, installed runtime floors, version-skew/backport qualification and health-gated replacement preserving instance pins, warm caches, pauses, access and patched rollback. No release, deployment or replacement is authorized by this receipt.
 

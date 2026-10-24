@@ -265,8 +265,13 @@ Bazel targets and opt-ins, and assembled both build-only release images. Its
 overall workflow failed in resource reporting after the first baseline run;
 retry `40071266208` stopped on a cancellation-test synchronization race before
 measurement. The test-only fix preserves unlink-before-release and passes fifty
-repeats/full macOS suites; build-only retry `40073713999` remains pending.
-Main-relative four-axis stress, final-source
+repeats/full macOS suites. Retry `40073713999` passed full Linux, both assemblies
+and all four resource workloads/retention/recovery, then failed a setup-probe
+equality check. Derived corrected analysis finds peak anonymous memory
++7.576 MiB/+3.325%, beyond baseline spread, with cause unestablished. No budget
+approval. Three-block investigation `40078717301` is pending; see the
+[resource receipt](KURA-RESOURCE.md). Native-client construction cost remains
+unmeasured. Main-relative four-axis qualification, final-source
 runtime variants and
 exact release/deployed integration remain required: this behavior change is
 not complete under Kura's resource policy. No publication or rollout is claimed.
