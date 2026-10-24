@@ -871,7 +871,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         var testError: Error?
 
         do {
-            try await xcodebuildController.run(arguments: xcodebuildArguments)
+            try await runCollectingCoverage(
+                arguments: xcodebuildArguments,
+                resultBundlePath: resultBundlePath,
+                config: config
+            )
         } catch {
             testError = error
         }
@@ -941,6 +945,49 @@ public struct TestService { // swiftlint:disable:this type_body_length
             quarantinedTests: quarantinedTests,
             stressResult: stressResult
         )
+    }
+
+    /// Runs `test-without-building` the way `testScheme` runs its test action: the coverage evidence
+    /// is recorded and the run's coverage exported as soon as it ends, failed or not, before a
+    /// stress pass replaces the profile both read. The profile is under the arguments'
+    /// `-derivedDataPath`, whether it came from `--derived-data-path` or after `--`.
+    private func runCollectingCoverage(
+        arguments: [String],
+        resultBundlePath: AbsolutePath?,
+        config: Tuist
+    ) async throws {
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let derivedDataPath = try passedValue(for: "-derivedDataPath", arguments: arguments).map {
+            try AbsolutePath(validating: $0, relativeTo: currentWorkingDirectory)
+        }
+        let session = await testCoverageEvidenceService.prepare(
+            platform: passedValue(for: "-destination", arguments: arguments)
+                .flatMap(TestCoverageEvidencePlatform.init(destination:)),
+            config: config
+        )
+        let runStartedAt = Date()
+        var runError: Error?
+        do {
+            try await XcodeBuildEnvironment.$additionalVariables.withValue(session?.environment ?? [:]) {
+                try await xcodebuildController.run(arguments: arguments)
+            }
+        } catch {
+            runError = error
+        }
+        if let session {
+            _ = await testCoverageEvidenceService.record(
+                session: session,
+                resultBundlePath: resultBundlePath,
+                derivedDataDirectory: derivedDataPath
+            )
+        }
+        _ = await coverageExportService.export(
+            resultBundlePath: resultBundlePath,
+            derivedDataDirectory: derivedDataPath,
+            config: config,
+            runStartedAt: runStartedAt
+        )
+        if let runError { throw runError }
     }
 
     /// Rethrows the `test-without-building` failure unless every failing test is muted, in which
@@ -1107,7 +1154,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         var testError: Error?
 
         do {
-            try await xcodebuildController.run(arguments: xcodebuildArguments)
+            try await runCollectingCoverage(
+                arguments: xcodebuildArguments,
+                resultBundlePath: resultBundlePath,
+                config: config
+            )
         } catch {
             testError = error
         }

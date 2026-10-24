@@ -29,6 +29,7 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Cache readiness probes keep their read side open until the daemon responds or closes the connection. Closing immediately after connecting can crash SwiftNIO on Darwin before it accepts the socket.
 - `tuist cache-proxy` hands over to `tuist-cas-proxy` with `posix_spawn` and `POSIX_SPAWN_SETEXEC`, clearing the signal mask and resetting every signal to its default action, never with a plain `execv`. The handoff runs on a Swift concurrency thread, which blocks SIGTERM, and `execv` would pass that on, so the proxy would ignore `launchctl bootout`.
 - When selective testing skips every test, publish a completed empty test run with the selected scheme name, recovering pruned workspace schemes from the initial graph. A build-only sharding run must also publish it when emitting an empty shard matrix, because no test job will follow.
+- Every path that runs an Xcode test action (`tuist test` on a scheme, `tuist test --without-building` on a shard or an `.xctestproducts` bundle, `tuist xcodebuild test`) prepares the coverage evidence before xcodebuild, runs it inside `XcodeBuildEnvironment.$additionalVariables`, and records the evidence and exports the coverage right after it, failed or not, before any stress pass. A new test path that skips this uploads no evidence and only the bundle's `xccov` coverage.
 
 ## Related Context
 - CLI entry point: `cli/Sources/tuist/AGENTS.md`
