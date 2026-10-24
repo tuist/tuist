@@ -84,7 +84,7 @@ struct AtlasSettingsView: View {
             } header: {
                 Text("AI accounts")
             } footer: {
-                Text("These accounts will power sessions you start. Sessions aren’t available yet.")
+                Text("These accounts power conversations you start with Pip.")
             }
             if let message = accounts.errorMessage {
                 Section {

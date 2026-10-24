@@ -72,6 +72,12 @@ nested child level. Orphan/off-page/cyclic/deeper claims remain visible roots. K
 children inspectable through the same tool/card/source controls; never infer hierarchy
 from tool names or evidence text, nor synthesize NSH payloads from tool output.
 
+The native Prompts list indexes loaded human messages with bounded previews, authors
+and relative timestamps. Load earlier uses the existing history command; selecting
+a prompt scrolls its actual message card and supersedes queued automatic scrolling.
+Selection/access/session changes close the list. It never edits drafts or restores
+execution state, and attachment-only messages remain discoverable by filename.
+
 `AtlasMessagingService` checks the encrypted session, enabled matching registration and
 canonical destination origin before rendering any data. Schema v1 optional `title`
 (80 codepoints) and `body` (320) are bounded plain text, not actions or HTML. Missing or
@@ -79,6 +85,8 @@ invalid text falls back to the generic alert for older servers. Completion conte
 BigTextStyle with PRIVATE visibility and an explicit generic public lock-screen version;
 Android's user/channel lock-screen preview controls remain authoritative. The only tap
 action is the separately validated destination URL. Never log push content or credentials.
+Profile's opt-in copy discloses the thread title/reply preview rather than promising
+generic-only alerts.
 
 Run root Mise Android build and Kotlin lint tasks. Keep new activities non-exported
 unless a deliberately validated deep-link contract is added; MainActivity exports only

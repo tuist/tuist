@@ -219,7 +219,10 @@ class AtlasAIAccountsScreen(
                 if (identity?.pushAvailable == true && pushStatus != null) {
                     heading("Notifications")
                     row("Push notifications", pushStatus?.invoke().orEmpty()) { pushToggle?.invoke() }
-                    text("Private, generic alerts on this device. Atlas records never appear in previews.")
+                    text(
+                        "Get notified when Pip finishes. Alerts include the thread title and a short reply preview. " +
+                            "Control lock-screen previews in Android notification settings.",
+                    )
                 }
                 heading("AI accounts")
                 row("Claude", status("claude")) {
@@ -232,7 +235,7 @@ class AtlasAIAccountsScreen(
                     scroll.scrollTo(0, 0)
                     accounts.open("chatgpt")
                 }
-                text("These accounts will power sessions you start. Sessions aren’t available yet.")
+                text("These accounts power conversations you start with Pip.")
                 heading("Session")
                 button("Sign out", enabled = true, primary = false) {
                     if (profile == null) {

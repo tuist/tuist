@@ -101,6 +101,8 @@ struct AtlasThreadMessageView: View {
         } label: {
             Label("\(message.toolName ?? "Tool") · \(message.toolStatus ?? "Working")", systemImage: "wrench.and.screwdriver")
                 .font(.subheadline)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
         }
         .multilineTextAlignment(.leading)
     }

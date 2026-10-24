@@ -77,6 +77,7 @@ struct AtlasThreadNavigation: View {
     let older: () async -> Void
     let jump: (String) -> Void
     @State private var showingPrompts = false
+    @State private var pendingPrompt: String?
 
     private var prompts: [AtlasThreadMessage] { messages.filter { $0.kind == "human" } }
 
@@ -84,19 +85,25 @@ struct AtlasThreadNavigation: View {
         if !prompts.isEmpty || hasOlder || showsLatest {
             HStack(spacing: 0) {
                 if !prompts.isEmpty || hasOlder {
-                    Button("Conversation prompts", systemImage: "list.bullet") { showingPrompts = true }
-                        .frame(width: 44, height: 44)
-                        .accessibilityHint("Choose a prompt to jump back to it")
-                        .accessibilityIdentifier("thread-prompts")
-                        .popover(isPresented: $showingPrompts) { promptList }
+                    Button { showingPrompts = true } label: {
+                        Image(systemName: "list.bullet")
+                            .frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Conversation prompts")
+                    .accessibilityHint("Choose a prompt to jump back to it")
+                    .accessibilityIdentifier("thread-prompts")
+                    .popover(isPresented: $showingPrompts) { promptList }
                 }
                 if showsLatest {
                     if !prompts.isEmpty || hasOlder { Divider().frame(height: 20) }
-                    Button("Latest messages", systemImage: "arrow.down") { jump("thread-latest") }
-                        .frame(width: 44, height: 44)
+                    Button { jump("thread-latest") } label: {
+                        Image(systemName: "arrow.down")
+                            .frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Latest messages")
                 }
             }
-            .labelStyle(.iconOnly).buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .background(.regularMaterial, in: Capsule())
             .overlay { Capsule().strokeBorder(.primary.opacity(0.12)) }
         }
@@ -112,8 +119,8 @@ struct AtlasThreadNavigation: View {
                 if prompts.isEmpty { Text("No prompts in loaded history.").foregroundStyle(.secondary) }
                 ForEach(prompts) { message in
                     Button {
+                        pendingPrompt = message.id
                         showingPrompts = false
-                        jump(message.id)
                     } label: {
                         promptRow(message)
                     }
@@ -128,6 +135,12 @@ struct AtlasThreadNavigation: View {
         .frame(idealWidth: 380, idealHeight: 440)
         .presentationDetents([.medium, .large])
         .presentationCompactAdaptation(.sheet)
+        .onDisappear {
+            if let target = pendingPrompt {
+                pendingPrompt = nil
+                jump(target)
+            }
+        }
     }
 
     private func promptRow(_ message: AtlasThreadMessage) -> some View {
@@ -145,6 +158,7 @@ struct AtlasThreadNavigation: View {
             .font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 }

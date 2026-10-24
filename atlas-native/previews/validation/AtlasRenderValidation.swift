@@ -111,6 +111,8 @@ final class AtlasRenderValidation: XCTestCase {
             group.tap()
             let lookup = try app.visibleElement("list_error_issues · succeeded", type: .button)
             lookup.tap()
+            capture(app, "tool-tree-tapped-\(dark ? "dark-large" : "light")")
+            print(app.debugDescription)
             _ = try app.visibleElement("Two fixture issues, both related to indexing.")
             capture(app, "tool-tree-expanded-\(dark ? "dark-large" : "light")")
             XCTAssertTrue(app.textFields["thread-composer"].isHittable)
@@ -210,6 +212,9 @@ final class AtlasRenderValidation: XCTestCase {
             first.tap()
             XCTAssertTrue(app.navigationBars["Prompts"].waitForNonExistence(timeout: 5))
             let attachment = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "release-notes.txt")).firstMatch
+            capture(app, "prompt-after-selection-\(dark ? "shared-dark-large" : "private-light")")
+            print(app.debugDescription)
+            XCTAssertTrue(attachment.waitForExistence(timeout: 5))
             XCTAssertTrue(attachment.isHittable)
             XCTAssertGreaterThanOrEqual(attachment.frame.minY, app.navigationBars.firstMatch.frame.maxY)
             XCTAssertEqual(composer.value as? String, "Keep this draft.")
