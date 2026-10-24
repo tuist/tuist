@@ -1168,6 +1168,26 @@ struct UploadResultBundleServiceTests {
         #expect(!got.contains("/elsewhere"))
     }
 
+    @Test(.inTemporaryDirectory)
+    func rootSpellings_includeTheTargetOfASymlinkedRoot() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let checkout = temporaryDirectory.appending(component: "checkout")
+        try await fileSystem.makeDirectory(at: checkout.appending(component: "Sources"))
+        try await fileSystem.writeText("", at: checkout.appending(components: "Sources", "A.swift"))
+        let link = temporaryDirectory.appending(component: "link")
+        try await fileSystem.createSymbolicLink(from: link, to: checkout)
+        let canonicalCheckout = PathCanonicalizer().canonical(checkout.pathString)
+
+        // Git reports the link; the build ran in the checkout it points to.
+        let got = UploadResultBundleService.rootSpellings(
+            of: link,
+            coveredFilePaths: [canonicalCheckout + "/Sources/A.swift"]
+        )
+
+        #expect(got.first == link.pathString)
+        #expect(got.contains(canonicalCheckout))
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadTestSummary_resolvesCoverageAgainstTheCheckoutTheProductsWereBuiltIn() async throws {
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"

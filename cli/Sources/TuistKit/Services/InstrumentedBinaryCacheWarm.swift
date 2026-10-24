@@ -1,5 +1,6 @@
 import Path
 import TuistCore
+import TuistSupport
 import XcodeGraph
 import XCResultParser
 
@@ -29,11 +30,7 @@ enum InstrumentedBinaryCacheWarm {
         var roots: [String] = []
         for spelling in spellings {
             roots.append(spelling)
-            if spelling.hasPrefix("/private/") {
-                roots.append(String(spelling.dropFirst("/private".count)))
-            } else if ["/tmp", "/var", "/etc"].contains(where: { spelling == $0 || spelling.hasPrefix($0 + "/") }) {
-                roots.append("/private" + spelling)
-            }
+            if let twin = macOSPrivateSymlinkTwin(of: spelling) { roots.append(twin) }
         }
         return roots.reduce(into: []) { unique, root in
             if !unique.contains(root) { unique.append(root) }
