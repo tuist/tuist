@@ -64,6 +64,14 @@ public protocol SwiftPackageManagerControlling {
     func packageRegistryLogout(
         registryURL: Foundation.URL
     ) async throws
+
+    /// Whether restoring the package would drop prebuilts that its workspace state records, because they were built
+    /// by another toolchain, for another pinned version, or are no longer extracted. Projects generated from that state
+    /// link prebuilts the compiler cannot import.
+    /// - Parameters:
+    ///     - path: Directory where the `Package.swift` is defined.
+    ///     - scratchDirectory: The Swift Package Manager scratch directory of the package.
+    func recordsOutdatedPrebuilts(at path: AbsolutePath, scratchDirectory: AbsolutePath) async throws -> Bool
 }
 
 protocol SwifterPMResolving: Sendable {
@@ -271,6 +279,13 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             ]
         )
         .concatenatedString()
+    }
+
+    public func recordsOutdatedPrebuilts(at path: AbsolutePath, scratchDirectory: AbsolutePath) async throws -> Bool {
+        try await SwifterPM().recordsOutdatedPrebuilts(
+            packageDirectory: URL(fileURLWithPath: path.pathString),
+            scratchDirectory: URL(fileURLWithPath: scratchDirectory.pathString)
+        )
     }
 
     // MARK: - Helpers

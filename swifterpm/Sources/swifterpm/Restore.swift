@@ -1528,7 +1528,7 @@ enum WorkspaceRestorer {
         try? await ManifestCache.prune(scratchDirectory: scratchDir, keeping: retainedPackages)
     }
 
-    private static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
+    static func existingWorkspacePrebuilts(scratchDir: URL) async throws -> [[String: Any]] {
         let statePath = scratchDir.appendingPathComponent("workspace-state.json")
         guard try await fileSystem.exists(statePath.absolutePath) else { return [] }
 
