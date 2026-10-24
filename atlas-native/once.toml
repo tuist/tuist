@@ -377,16 +377,3 @@ version_code = 1
 version_name = "0.1.0"
 launch_activity = "dev.tuist.atlas.preview.SettingsPreviewActivity"
 signing = "debug"
-
-[[target]]
-name = "AtlasOrbitRenderValidation"
-kind = "apple_test_bundle"
-srcs = ["previews/tests/AtlasOrbitUITests.swift", "previews/tests/AtlasUITestSupport.swift"]
-deps = ["./AtlasSettingsIOSPreview"]
-
-[target.attrs]
-platform = "ios"
-minimum_os = "17.0"
-sdk_variant = "simulator"
-bundle_id = "dev.tuist.atlas.orbit-render-validation"
-ui_testing = true
