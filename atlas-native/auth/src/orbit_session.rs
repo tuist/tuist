@@ -605,6 +605,9 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
             }
             Ok(None) => None,
             Err(failure) => {
+                if new_private && failure.kind == "conflict" {
+                    state.private_request_id = None;
+                }
                 // A timeout or invalid response may have committed. Replay the exact UUID next time.
                 if current {
                     note_failure(&mut state, failure);

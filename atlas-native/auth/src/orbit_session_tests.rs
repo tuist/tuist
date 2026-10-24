@@ -745,6 +745,53 @@ fn late_private_creation_never_replaces_a_newer_selection_and_close_discards_ret
 }
 
 #[test]
+fn promoted_creation_conflict_allows_an_explicit_new_attempt_without_replaying_forever() {
+    let (connection, model) = opened();
+    load_using(&model, false, &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+        Ok(json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}))
+    })).unwrap();
+    let attempts = std::cell::RefCell::new(Vec::new());
+    let network = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+        let crate::transport::Body::Api {
+            method, payload, ..
+        } = body
+        else {
+            panic!("expected bearer transport")
+        };
+        if method == reqwest::Method::GET {
+            return Ok(response(UNSEEN));
+        }
+        let payload = payload.unwrap();
+        let id = payload["request_id"].as_str().unwrap().to_owned();
+        let mut attempts = attempts.borrow_mut();
+        attempts.push(id);
+        match attempts.len() {
+            1 => Err(error("transport", "The connection was interrupted.")),
+            2 => {
+                assert_eq!(attempts[0], attempts[1]);
+                Err(error(
+                    "conflict",
+                    "This thread changed. Refresh it and try again.",
+                ))
+            }
+            3 => {
+                assert_ne!(attempts[1], attempts[2]);
+                Ok(json!({"thread":thread(UNSEEN, "private")}))
+            }
+            _ => panic!("creation must never retry automatically"),
+        }
+    });
+    create_using(&model, Command::CreatePrivate, &network).unwrap();
+    create_using(&model, Command::CreatePrivate, &network).unwrap();
+    assert_eq!(attempts.borrow().len(), 2);
+    assert!(snapshot(&model).unwrap()["selected"].is_null());
+    create_using(&model, Command::CreatePrivate, &network).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["id"], UNSEEN);
+    assert_eq!(attempts.borrow().len(), 3);
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
 fn unseen_selection_reads_exact_id_before_exposing_any_thread_or_mutations() {
     let (connection, model) = opened();
     draft(&model, FIRST.into(), "Retained draft".into()).unwrap();
