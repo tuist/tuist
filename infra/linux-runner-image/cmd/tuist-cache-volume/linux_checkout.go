@@ -84,8 +84,10 @@ func checkoutLinuxAt(ctx context.Context, workspace, root, statePath string, req
 		if !reasonPattern.MatchString(reason) {
 			reason = "error"
 		}
-		// These answers come with a grant: the host builds from what this job exports.
-		if reason == "cold" || reason == "capacity" || reason == "timeout" {
+		// Only these answers come with a grant, so only they let the host build
+		// from what this job exports. A timeout is mostly the server still waiting
+		// for GitHub to report the job, before anything was granted.
+		if reason == "cold" || reason == "capacity" {
 			_ = recordCheckout(statePath, workspace, false)
 		}
 		return "unavailable (" + reason + ")"
