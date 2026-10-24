@@ -982,11 +982,13 @@ defmodule Atlas.MCP.Server do
   defp error_context_tool_allowed?(_conn, _tool_module), do: true
 
   defp feature_flag_tool_allowed?(conn, tool_module) when tool_module in @feature_flag_read_tools do
-    Atlas.Users.has_scope?(Tool.current_user(conn), "feature_flags:read")
+    Atlas.TuistFeatureFlags.allowed_context?(conn) and
+      Atlas.Users.has_scope?(Tool.current_user(conn), "feature_flags:read")
   end
 
   defp feature_flag_tool_allowed?(conn, tool_module) when tool_module in @feature_flag_write_tools do
-    Atlas.Users.has_scope?(Tool.current_user(conn), "feature_flags:write")
+    Atlas.TuistFeatureFlags.allowed_context?(conn) and
+      Atlas.Users.has_scope?(Tool.current_user(conn), "feature_flags:write")
   end
 
   defp feature_flag_tool_allowed?(_conn, _tool_module), do: true

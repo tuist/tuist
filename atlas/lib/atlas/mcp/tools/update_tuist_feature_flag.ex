@@ -22,6 +22,6 @@ defmodule Atlas.MCP.Tools.UpdateTuistFeatureFlag do
   end
 
   def execute(conn, args) do
-    TuistFeatureFlags.update(Tool.current_user(conn), args, interface: Tool.audit_interface(conn))
+    TuistFeatureFlags.update(Tool.current_user(conn), args, TuistFeatureFlags.execution_opts(conn))
   end
 end

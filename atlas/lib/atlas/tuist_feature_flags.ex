@@ -8,6 +8,7 @@ defmodule Atlas.TuistFeatureFlags do
   """
 
   alias Atlas.Audit
+  alias Atlas.MCP.Tool
   alias Atlas.TuistServer
   alias Atlas.Users
   alias Atlas.Users.User
@@ -80,9 +81,17 @@ defmodule Atlas.TuistFeatureFlags do
     }
   end
 
+  # Slack tools run as a shared operator, not the requesting human. Preserve
+  # that origin even when an in-process caller omitted its audit interface.
+  def execution_opts(%{assigns: %{mcp_claims: %{"slack_agent" => _}}}), do: [interface: "slack"]
+  def execution_opts(conn), do: [interface: Tool.audit_interface(conn)]
+
+  def allowed_context?(conn), do: validate_interface(execution_opts(conn)) == :ok
+
   def list(user, args, opts \\ []) do
     result =
-      with :ok <- authorize(user, "feature_flags:read"),
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:read"),
            true <- args == %{} do
         TuistServer.list_feature_flags()
       else
@@ -95,7 +104,8 @@ defmodule Atlas.TuistFeatureFlags do
 
   def get(user, args, opts \\ []) do
     result =
-      with :ok <- authorize(user, "feature_flags:read"),
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:read"),
            :ok <- validate(@name_schema, args),
            :ok <- validate_name(args["name"]) do
         TuistServer.get_feature_flag(args["name"])
@@ -106,7 +116,8 @@ defmodule Atlas.TuistFeatureFlags do
 
   def evaluate(user, args, opts \\ []) do
     result =
-      with :ok <- authorize(user, "feature_flags:read"),
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:read"),
            :ok <- validate(@evaluation_schema, args) do
         TuistServer.evaluate_feature_flags(args)
       end
@@ -125,11 +136,11 @@ defmodule Atlas.TuistFeatureFlags do
 
   def update(user, args, opts \\ []) do
     result =
-      with :ok <- authorize(user, "feature_flags:write"),
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:write"),
            :ok <- validate(@update_schema, args),
            :ok <- validate_name(args["name"]),
-           :ok <- validate_update(args),
-           :ok <- validate_interface(opts) do
+           :ok <- validate_update(args) do
         attrs =
           args
           |> Map.delete("name")
@@ -197,7 +208,7 @@ defmodule Atlas.TuistFeatureFlags do
   end
 
   defp validate_interface(opts) do
-    if Keyword.get(opts, :interface, "mcp") in ~w(mcp worker slack api),
+    if Keyword.get(opts, :interface, "mcp") in ~w(mcp worker api),
       do: :ok,
       else: {:error, "Unsupported feature flag interface."}
   end

@@ -10,6 +10,7 @@ defmodule Atlas.MCP.ServerTest do
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
   alias Atlas.Users
   alias Atlas.Users.User
+  alias Ecto.Adapters.SQL.Sandbox
 
   setup :verify_on_exit!
 
@@ -388,6 +389,36 @@ defmodule Atlas.MCP.ServerTest do
     end
   end
 
+  test "shared Slack contexts cannot discover or dispatch flag tools even with every scope" do
+    stub(Proxy, :list_hoisted_tools, fn _conn -> [] end)
+    stub(Users, :has_scope?, fn %User{}, _scope -> true end)
+
+    for context <- [
+          %{audit_interface: "slack"},
+          %{mcp_claims: %{"slack_agent" => "systems_investigator", "mcp_tool_groups" => ["observability"]}},
+          %{audit_interface: "mcp", mcp_claims: %{"slack_agent" => "systems_investigator"}}
+        ] do
+      conn = %{assigns: Map.put(context, :current_user, %User{})}
+      response = Server.handle_message(conn, %{"jsonrpc" => "2.0", "id" => 1, "method" => "tools/list"})
+      names = Enum.map(response["result"]["tools"], & &1["name"])
+
+      for name <-
+            ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag) do
+        refute name in names
+
+        response =
+          Server.handle_message(conn, %{
+            "jsonrpc" => "2.0",
+            "id" => 2,
+            "method" => "tools/call",
+            "params" => %{"name" => name, "arguments" => %{}}
+          })
+
+        assert response["error"]["message"] =~ "not available"
+      end
+    end
+  end
+
   test "workflow feature flag scope declarations match execution authorization" do
     assert Server.workflow_tool_scopes(ListTuistFeatureFlags) == ["feature_flags:read"]
     assert Server.workflow_tool_scopes(GetTuistFeatureFlag) == ["feature_flags:read"]
@@ -407,8 +438,8 @@ defmodule Atlas.MCP.ServerTest do
   end
 
   test "returns a controlled tool error for scalar arguments" do
-    owner = Ecto.Adapters.SQL.Sandbox.start_owner!(Atlas.Repo, shared: false)
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(owner) end)
+    owner = Sandbox.start_owner!(Atlas.Repo, shared: false)
+    on_exit(fn -> Sandbox.stop_owner(owner) end)
 
     conn = %{assigns: %{current_user: %User{}}}
 

@@ -157,12 +157,35 @@ defmodule Atlas.TuistFeatureFlagsTest do
     assert {:error, _} = execute_tool(UpdateTuistFeatureFlag, conn, mutation())
   end
 
+  test "shared Slack contexts cannot directly execute flag tools even with write scope" do
+    user = insert_user!(%{scopes: ["feature_flags:write"]})
+    reject(TuistServer, :list_feature_flags, 0)
+    reject(TuistServer, :get_feature_flag, 1)
+    reject(TuistServer, :evaluate_feature_flags, 1)
+    reject(TuistServer, :update_feature_flag, 2)
+
+    for context <- [
+          %{audit_interface: "slack"},
+          %{mcp_claims: %{"slack_agent" => "systems_investigator"}},
+          %{audit_interface: "mcp", mcp_claims: %{"slack_agent" => "systems_investigator"}}
+        ],
+        {tool, args} <- [
+          {ListTuistFeatureFlags, %{}},
+          {GetTuistFeatureFlag, %{"name" => "rollout"}},
+          {EvaluateTuistFeatureFlags, %{"account_id" => 42}},
+          {UpdateTuistFeatureFlag, mutation()}
+        ] do
+      conn = %{assigns: Map.put(context, :current_user, user)}
+      assert {:error, _} = execute_tool(tool, conn, args)
+    end
+  end
+
   test "updates derive actor and interface from authenticated execution and retain the exact idempotent request" do
     user = insert_user!(%{scopes: ["feature_flags:write"]})
     args = mutation(%{"scope" => "percentage", "percentage" => 12.5})
     result = flag()
 
-    for interface <- ~w(mcp worker slack api) do
+    for interface <- ~w(mcp worker api) do
       conn = %{assigns: %{current_user: user, audit_interface: interface}}
 
       expect(TuistServer, :update_feature_flag, fn "rollout", attrs ->
@@ -179,8 +202,8 @@ defmodule Atlas.TuistFeatureFlagsTest do
     end
 
     {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_feature_flag.updated")
-    assert length(activities) == 4
-    assert Enum.sort(Enum.map(activities, & &1.interface)) == ~w(api mcp slack worker)
+    assert length(activities) == 3
+    assert Enum.sort(Enum.map(activities, & &1.interface)) == ~w(api mcp worker)
 
     for activity <- activities do
       assert activity.actor_email == user.email

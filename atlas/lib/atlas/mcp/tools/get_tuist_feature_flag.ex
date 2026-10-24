@@ -17,6 +17,6 @@ defmodule Atlas.MCP.Tools.GetTuistFeatureFlag do
   end
 
   def execute(conn, args) do
-    TuistFeatureFlags.get(Tool.current_user(conn), args, interface: Tool.audit_interface(conn))
+    TuistFeatureFlags.get(Tool.current_user(conn), args, TuistFeatureFlags.execution_opts(conn))
   end
 end
