@@ -14,8 +14,9 @@
 #
 # The Job applies with --mode no-reboot, so a change that needs a reboot
 # fails instead of rebooting a node. Nodes are patched one at a time, and
-# the next node waits until the API server, the node and every Deployment
-# are healthy again.
+# the next node waits until the API server, the node, its control-plane pods
+# (Ready without restarting for 90 seconds) and every Deployment are healthy
+# again.
 #
 # Only added and removed lines are printed: talosctl's dry-run diff also
 # shows unchanged context, which includes private keys, and this
@@ -125,18 +126,21 @@ job_manifest() {
   }'
 }
 
-# Runs talosctl in a Job and prints its output. The Job is deleted afterwards
-# so the full dry-run diff does not stay in the cluster's pod logs.
+# Runs talosctl in a Job and prints its output. The Job and its pod are
+# deleted afterwards so the full dry-run diff does not stay in the cluster's
+# pod logs.
 run_talosctl() {
   local job_name="$1"
   shift
   kubectl -n "$NAMESPACE" delete job "$job_name" --ignore-not-found >/dev/null
   job_manifest "$job_name" "$@" | kubectl apply -f - >/dev/null
 
+  # The pod phase comes from the kubelet. The Job status depends on
+  # kube-controller-manager, which a bad patch can take down.
   local status=""
   for _ in $(seq 1 120); do
-    status="$(kubectl -n "$NAMESPACE" get job "$job_name" -o jsonpath='{.status.succeeded}/{.status.failed}' 2>/dev/null || true)"
-    [[ "$status" == 1/* || "$status" == */1 ]] && break
+    status="$(kubectl -n "$NAMESPACE" get pods -l "job-name=$job_name" -o jsonpath='{.items[*].status.phase}' 2>/dev/null || true)"
+    [[ "$status" == Succeeded || "$status" == Failed ]] && break
     sleep 5
   done
 
@@ -145,13 +149,16 @@ run_talosctl() {
     output="$(kubectl -n "$NAMESPACE" logs "job/$job_name" 2>/dev/null)" && break
     sleep 5
   done
+  # Delete the pod too: garbage collection of a deleted Job's pods also
+  # depends on kube-controller-manager.
   kubectl -n "$NAMESPACE" delete job "$job_name" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl -n "$NAMESPACE" delete pods -l "job-name=$job_name" --ignore-not-found >/dev/null 2>&1 || true
 
-  if [[ "$status" != 1/* && -z "$output" ]]; then
+  if [[ "$status" != Succeeded && -z "$output" ]]; then
     echo "Job $job_name produced no output within 10 minutes. If it never started a pod, kube-controller-manager is probably down; fix the node with talosctl over the tailnet." >&2
   fi
   printf '%s\n' "$output"
-  [[ "$status" == 1/* ]]
+  [[ "$status" == Succeeded ]]
 }
 
 wait_until_healthy() {
@@ -162,25 +169,31 @@ wait_until_healthy() {
     sleep 5
   done
   kubectl wait --for=condition=Ready "node/$node" --timeout=10m >/dev/null
-  kubectl -n kube-system wait --for=condition=Ready pod -l tier=control-plane \
-    --field-selector "spec.nodeName=$node" --timeout=10m >/dev/null
-  kubectl wait --for=condition=Available deployment --all --all-namespaces --timeout=15m >/dev/null
 
   # Deployments stay Available while a control-plane component crash-loops,
-  # so require the static pods to stay up without restarting for a while.
-  local restarts
-  restarts="$(control_plane_restarts "$node")"
-  sleep 90
-  [[ "$(control_plane_restarts "$node")" == "$restarts" ]] ||
-    fail "a control-plane pod on $node restarted after the change; check kube-system and fix it with talosctl over the tailnet"
-  kubectl -n kube-system wait --for=condition=Ready pod -l tier=control-plane \
-    --field-selector "spec.nodeName=$node" --timeout=10s >/dev/null ||
-    fail "a control-plane pod on $node is not Ready after the change"
+  # and an API server restart briefly takes the controller-manager and
+  # scheduler down with it. So wait until the node's control-plane pods have
+  # all been Ready, with the same pods and restart counts, for a full window.
+  local deadline=$((SECONDS + 900)) state="" previous="" stable_since=$SECONDS
+  while true; do
+    state="$(control_plane_state "$node")"
+    if [[ "$state" != "$previous" || "$state" == *"=false"* || -z "$state" ]]; then
+      previous="$state"
+      stable_since=$SECONDS
+    elif (( SECONDS - stable_since >= 90 )); then
+      break
+    fi
+    (( SECONDS < deadline )) ||
+      fail "the control-plane pods on $node did not stay Ready for 90 seconds within 15 minutes of the change; check kube-system and fix the node with talosctl over the tailnet"
+    sleep 10
+  done
+  kubectl wait --for=condition=Available deployment --all --all-namespaces --timeout=15m >/dev/null
 }
 
-control_plane_restarts() {
+# One "name=uid:restarts:ready" entry per control-plane pod on the node.
+control_plane_state() {
   kubectl -n kube-system get pods -l tier=control-plane --field-selector "spec.nodeName=$1" \
-    -o jsonpath='{range .items[*]}{.metadata.name}={.status.containerStatuses[0].restartCount}{" "}{end}'
+    -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.uid}:{.status.containerStatuses[0].restartCount}:{.status.containerStatuses[0].ready}{" "}{end}' 2>/dev/null || true
 }
 
 nodes="$(kubectl get nodes -l node-role.kubernetes.io/control-plane \
