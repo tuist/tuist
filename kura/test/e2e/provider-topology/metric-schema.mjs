@@ -1,7 +1,8 @@
-// Prometheus omits an entire empty Family, including TYPE. Only these two
+// Prometheus omits an entire empty Family, including TYPE. Only these three
 // source-verified lazy Counter families may therefore start without samples.
 const families = [
   ["kura_memory_pressure_transitions_total", "memory_pressure_transitions", "MemoryPressureTransitionLabels"],
+  ["kura_artifact_egress_bytes_total", "artifact_egress_bytes", "ArtifactOpLabels"],
   ["kura_segment_refresh_bytes_total", "segment_refresh_bytes", "SegmentRefreshLabels"],
 ];
 export const lazyCounterNames = families.map(([name]) => name + "_total");

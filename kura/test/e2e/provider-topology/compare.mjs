@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 
 export function compare(runs) {
   if (runs.length !== 4) throw Error("four ABBA summaries are required");
-  const work = runs.map(run => [run.work.puts, run.work.gets, run.work.readBytes, run.work.handshakes, run.work.retainedObjects, run.clientWriteBytes, run.peerAppliedBytes]);
+  const work = runs.map(run => [run.work.puts, run.work.gets, run.work.readBytes, run.work.handshakes, run.work.retainedObjects, run.clientWriteBytes, run.peerAppliedBytes, run.work.seedProbeAttempts, run.work.seedProbeBytes, run.clientEgressBytes]);
   if (work.some(value => value.some(number => !Number.isFinite(number) || number < 0))) throw Error("completed work is missing or invalid");
   if (work.some(value => JSON.stringify(value) !== JSON.stringify(work[0]))) throw Error("completed work differs");
   const gib = 1024 ** 3;

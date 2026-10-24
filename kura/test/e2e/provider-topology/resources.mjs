@@ -119,7 +119,7 @@ const headers = {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const url = (port, key) =>
   `http://127.0.0.1:${port}/api/cache/gradle/${key}?tenant_id=default&namespace_id=bench`;
-const stats = { puts: 0, gets: 0, handshakes: 0, readBytes: 0, retainedObjects: 0, failures: [] };
+const stats = { puts: 0, gets: 0, handshakes: 0, readBytes: 0, retainedObjects: 0, seedProbeAttempts: 0, seedProbeBytes: 0, failures: [] };
 const tlsOptions = Object.fromEntries(["ca", "cert", "key"].map((key, index) => [key, fs.readFileSync(certs + "/" + ["ca.pem", "peer.pem", "peer.key"][index])]));
 function handshake(index) {
   return new Promise((resolve, reject) => {
@@ -209,8 +209,10 @@ for (let i = 0; i < 64; i++) await write(`seed-${i}`);
 for (const port of [4291, 4292, 4293]) {
   for (let i = 0; i < 64; i++) {
     for (let retry = 0; retry < 60; retry++) {
+      stats.seedProbeAttempts++;
       const r = await fetch(url(port, "seed-" + i), { headers });
       const data = Buffer.from(await r.arrayBuffer());
+      stats.seedProbeBytes += data.length;
       if (r.ok && data.equals(bodyFor("seed-" + i))) break;
       if (retry === 59) throw Error("replication did not converge: " + port + "/" + i);
       await sleep(1000);

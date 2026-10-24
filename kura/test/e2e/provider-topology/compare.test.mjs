@@ -4,7 +4,7 @@ import { compare } from "./compare.mjs";
 
 function run(cpu = 5) {
   return {
-    work: { puts: 320, gets: 1728, readBytes: 1728 * 1024 ** 2, handshakes: 1280, retainedObjects: 960, loadDurationMs: 64000 },
+    work: { seedProbeAttempts: 192, seedProbeBytes: 192 * 1024 ** 2, puts: 320, gets: 1728, readBytes: 1728 * 1024 ** 2, handshakes: 1280, retainedObjects: 960, loadDurationMs: 64000 },
     clientWriteBytes: 320 * 1024 ** 2, clientEgressBytes: 1920 * 1024 ** 2, peerAppliedBytes: 640 * 1024 ** 2,
     anonymous: { peakBytes: 500, cooldownBytes: 200 }, allocated: { peakBytes: 300, cooldownBytes: 100 },
     resident: { peakBytes: 400, cooldownBytes: 150 },
@@ -34,6 +34,10 @@ test("missing metrics, unequal work, nonfinite values and wrong order count refu
   assert.throws(() => compare([run(), run()]), /four ABBA/);
   const unequal = run(); unequal.work.handshakes--;
   assert.throws(() => compare([run(), unequal, run(), run()]), /work differs/);
+  const extraReads = run(); extraReads.clientEgressBytes++;
+  assert.throws(() => compare([run(), extraReads, run(), run()]), /work differs/);
+  const extraProbes = run(); extraProbes.work.seedProbeAttempts++;
+  assert.throws(() => compare([run(), extraProbes, run(), run()]), /work differs/);
   const missing = run(); delete missing.work.retainedObjects;
   assert.throws(() => compare([run(), missing, run(), run()]), /work is missing/);
   const metric = run(); delete metric.anonymous.cooldownBytes;

@@ -48,7 +48,10 @@ for (const directory of process.argv.slice(2)) {
   const writes = delta("kura_artifact_write_bytes_total_total");
   const reads = delta("kura_artifact_egress_bytes_total_total");
   const replicated = delta("kura_backfill_applied_bytes_total_total");
-  if (result.stats.failures.length || result.stats.handshakes !== 1280 || result.stats.retainedObjects !== 960 || writes !== 320 * 1024 ** 2 || replicated !== writes * 2) {
+  if (result.stats.failures.length || result.stats.handshakes !== 1280 || result.stats.retainedObjects !== 960
+      || result.stats.puts !== 320 || result.stats.gets !== 1728 || result.stats.readBytes !== 1728 * 1024 ** 2
+      || !(result.stats.seedProbeAttempts >= 192) || !(result.stats.seedProbeBytes >= 192 * 1024 ** 2)
+      || reads !== 1920 * 1024 ** 2 || writes !== 320 * 1024 ** 2 || replicated !== writes * 2) {
     throw Error(`incomplete work or replication: ${directory}`);
   }
   const transientCapacityBytes = total(samples.at(-1), "kura_memory_transient_capacity_bytes");

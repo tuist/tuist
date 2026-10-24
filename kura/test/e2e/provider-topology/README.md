@@ -36,7 +36,7 @@ two-second intervals throughout seeding, load and cooldown.
 The summary writes `summary.json` and aggregates simultaneous memory samples across all three nodes,
 reports peak and cooldown values, uses the doubled `_total_total` counters,
 and normalizes CPU to completed client bytes. Prometheus omits unused labeled
-counter families entirely, including their TYPE lines. Only pressure transitions
+counter families entirely, including their TYPE lines. Only pressure transitions, artifact egress
 and segment refresh may start empty, after verifying their `Family<..., Counter>`
 declarations and unconditional registrations in the exact built `metrics.rs`.
 The result records that source hash/schema. Arbitrary missing metrics still

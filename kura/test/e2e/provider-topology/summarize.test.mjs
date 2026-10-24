@@ -14,7 +14,7 @@ function fixture(run) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "kura-resource-summary-"));
   try {
     const host = { processCpu: "1 (kura) " + ["S", ...Array(10).fill("0"), "100", "50"].join(" ") + "\n100\n", disk: "100 /data", diskAllocated: "4096 /data", net: "eth0: 100 0 0 0 0 0 0 0 200 0 0 0 0 0 0 0" };
-    const result = { samples: 2, before: [host, host, host], after: [host, host, host], stats: { failures: [], handshakes: 1280, retainedObjects: 960, puts: 320, gets: 1728, readBytes: 1728 * 1024 ** 2, loadDurationMs: 64000 } };
+    const result = { samples: 2, before: [host, host, host], after: [host, host, host], stats: { seedProbeAttempts: 192, seedProbeBytes: 192 * 1024 ** 2, failures: [], handshakes: 1280, retainedObjects: 960, puts: 320, gets: 1728, readBytes: 1728 * 1024 ** 2, loadDurationMs: 64000 } };
     fs.writeFileSync(path.join(directory, "result.json"), JSON.stringify(result));
     for (const index of [0, 1]) for (const port of [4291, 4292, 4293]) {
       const metrics = [
@@ -23,7 +23,7 @@ function fixture(run) {
         "kura_memory_transient_reserved_bytes 0", "kura_memory_transient_capacity_bytes 100",
         "# TYPE kura_memory_pressure_transitions_total counter", "kura_capacity_sheds_total_total 0",
         `kura_artifact_write_bytes_total_total ${index && port === 4291 ? 320 * 1024 ** 2 : 0}`,
-        "kura_artifact_egress_bytes_total_total 100",
+        `kura_artifact_egress_bytes_total_total ${index && port === 4291 ? 1920 * 1024 ** 2 : 0}`,
         `kura_backfill_applied_bytes_total_total ${index && port !== 4291 ? 320 * 1024 ** 2 : 0}`,
         // An exported empty counter family is known zero, not a missing metric.
         "# TYPE kura_segment_refresh_bytes_total counter",
@@ -60,7 +60,9 @@ test("source-verified lazy families can be empty without weakening unknown metri
   fs.writeFileSync(filename, JSON.stringify(result));
   for (const file of fs.readdirSync(directory).filter(file => file.endsWith(".prom"))) {
     const name = path.join(directory, file);
-    fs.writeFileSync(name, fs.readFileSync(name, "utf8").replace(/^# TYPE kura_(?:memory_pressure_transitions|segment_refresh_bytes)_total counter\n/gm, ""));
+    let text = fs.readFileSync(name, "utf8").replace(/^# TYPE kura_(?:memory_pressure_transitions|artifact_egress_bytes|segment_refresh_bytes)_total counter\n/gm, "");
+    if (file.startsWith("0-")) text = text.replace(/^kura_artifact_egress_bytes_total_total .*\n/gm, "");
+    fs.writeFileSync(name, text);
   }
   execFileSync(process.execPath, [script, directory]);
   const summary = JSON.parse(fs.readFileSync(path.join(directory, "summary.json"), "utf8"));

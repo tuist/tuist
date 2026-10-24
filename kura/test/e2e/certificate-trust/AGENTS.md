@@ -12,7 +12,7 @@ logs into a registry, configures a remote cache, publishes or contacts a cluster
   post-load recovery. Positive deltas outside baseline variation need review;
   successful script execution is not an automatic resource-budget waiver.
 - Pass the exact built `metrics.rs` to the harness. Only source-verified lazy
-  pressure-transition/refresh counter families may begin empty; unknown metrics
+  pressure-transition/artifact-egress/refresh counter families may begin empty; unknown metrics
   still fail. Record the metrics source hash and do not retrofit raw receipts.
 - The resource fixture covers local private-peer mTLS, not native-client build
   cost, provider networks, fleet capacity or deployed Sentry/OTLP/Kubernetes.
