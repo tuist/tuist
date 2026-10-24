@@ -17,6 +17,8 @@ defmodule Atlas.Orbit.Message do
     field :author_name, :string, default: ""
     field :client_id, Ecto.UUID
     field :address_agent, :boolean, default: false
+    field :mentioned_user_ids, {:array, Ecto.UUID}, default: []
+    field :notice_kind, :string
     field :tool_name, :string
     field :tool_status, :string
     field :tool_input, :string, default: ""

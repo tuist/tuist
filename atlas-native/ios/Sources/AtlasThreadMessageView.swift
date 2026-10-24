@@ -24,7 +24,7 @@ struct AtlasThreadMessageView: View {
                 if message.noticeKind == "handoff" {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Conversation recap", systemImage: "person.badge.plus").font(.headline)
-                        Text(message.body).font(.callout).textSelection(.enabled)
+                        AtlasMarkdown(source: message.body)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)

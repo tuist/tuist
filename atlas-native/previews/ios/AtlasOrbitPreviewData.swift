@@ -78,17 +78,20 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 olderPromptsLoaded = true
             }
         case "send":
-            if !draftMentions.isEmpty, let id = selected?["id"] as? String {
+            var handoff: [String: Any]?
+            if !draftMentions.isEmpty, let id = selected?["id"] as? String, !promotedIDs.contains(id) {
                 promotedIDs.insert(id)
                 selected?["kind"] = "shared"
                 if let index = createdThreads.firstIndex(where: { $0["id"] as? String == id }) { createdThreads[index]["kind"] = "shared" }
-                sent.append(message(id: "handoff-\(sent.count)", kind: "system", body: """
-                    Taylor invited Alex Morgan.
+                handoff = message(id: "handoff-\(sent.count)", kind: "system", body: """
+                    Conversation so far — excerpts for new participants (not an AI-generated summary).
 
-                    Initial request: Check whether other projects are affected too.
+                    Initial request (excerpt):
+                    > Check whether other projects are affected too.
 
-                    Latest reply: The build listing became slower after this morning’s deployment. I’m comparing the query plans.
-                    """, extra: ["notice_kind": "handoff"]))
+                    Latest Pip reply (excerpt):
+                    > The build listing became slower after this morning’s deployment. I’m comparing the query plans.
+                    """, extra: ["notice_kind": "handoff"])
             }
             if sent.isEmpty, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let index = createdThreads.firstIndex(where: { $0["id"] as? String == selected?["id"] as? String }) {
@@ -99,6 +102,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
             sent.append(message(id: UUID().uuidString, kind: "human", body: draft, extra: [
                 "author_id": "preview-self", "author_name": "Taylor", "attachments": draftAttachments
             ]))
+            if let handoff { sent.append(handoff) }
             draft = ""
             draftMentions = []
             draftAttachments = []

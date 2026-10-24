@@ -31,7 +31,7 @@ defmodule AtlasWeb.NativeOrbitController do
         {items, meta} = Orbit.list_for_user(user, page, kind)
 
         json(conn, %{
-          assistant: %{name: Orbit.agent_name(), configured: Orbit.agent_configured?(user)},
+          assistant: %{name: Orbit.agent_name(), configured: Orbit.agent_configured?(user), can_create_private: true},
           threads: Map.put(meta, :items, Enum.map(items, &thread/1))
         })
 
@@ -89,10 +89,21 @@ defmodule AtlasWeb.NativeOrbitController do
            Orbit.post_message(
              conn.assigns.current_user,
              thread,
-             Map.take(params, ["body", "client_id", "address_agent", "attachment_ids"])
+             Map.take(params, ["body", "client_id", "address_agent", "attachment_ids", "mention_ids"])
            ) do
       status = if created == :created, do: :created, else: :ok
       conn |> put_status(status) |> json(%{message: message(message)})
+    else
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def people(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, people} <- Orbit.mention_people(user, thread, Map.get(params, "query", "")) do
+      json(conn, %{people: people})
     else
       {:error, reason} -> respond_error(conn, reason)
     end
@@ -196,6 +207,8 @@ defmodule AtlasWeb.NativeOrbitController do
       id: message.id,
       kind: message.kind,
       body: message.body,
+      notice_kind: message.notice_kind,
+      mentioned_user_ids: message.mentioned_user_ids,
       author_id: if(message.kind == "human", do: message.author_id),
       author_name: author_name(message),
       inserted_at: DateTime.to_iso8601(message.inserted_at),
@@ -248,6 +261,7 @@ defmodule AtlasWeb.NativeOrbitController do
   defp respond_error(conn, :not_found), do: error(conn, :not_found, "not_found")
   defp respond_error(conn, :forbidden), do: error(conn, :forbidden, "forbidden")
   defp respond_error(conn, :archived), do: error(conn, :conflict, "archived")
+  defp respond_error(conn, :thread_promoted), do: error(conn, :conflict, "thread_promoted")
   defp respond_error(conn, :rate_limited), do: error(conn, :too_many_requests, "rate_limited")
   defp respond_error(conn, :storage_unavailable), do: error(conn, :service_unavailable, "storage_unavailable")
   defp respond_error(conn, _reason), do: error(conn, :conflict, "conflict")
