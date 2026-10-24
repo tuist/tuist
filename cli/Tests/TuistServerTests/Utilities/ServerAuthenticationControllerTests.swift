@@ -1062,6 +1062,173 @@ struct ServerAuthenticationControllerTests {
             refreshToken: newRefreshToken.token
         )
     }
+
+    // MARK: - OIDC account token renewal
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func authenticationToken_renews_an_expired_oidc_account_token() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+        let newAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+        let oidcAccountTokenRefresher = MockOIDCAccountTokenRefreshing()
+        given(oidcAccountTokenRefresher).canRefreshAccountToken().willReturn(true)
+        given(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).willReturn(newAccessToken.token)
+
+        let (token, storedCredentials) = try await resolveAccountToken(
+            accessToken: accessToken,
+            oidcAccountTokenRefresher: oidcAccountTokenRefresher,
+            date: date
+        )
+
+        #expect(token == .account(try JWT.parse(newAccessToken.token)))
+        #expect(storedCredentials == ServerCredentials(accessToken: newAccessToken.token))
+        verify(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).called(1)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func authenticationToken_renews_an_oidc_account_token_within_the_renewal_margin() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+120), typ: "access", type: "account")
+        let newAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+        let oidcAccountTokenRefresher = MockOIDCAccountTokenRefreshing()
+        given(oidcAccountTokenRefresher).canRefreshAccountToken().willReturn(true)
+        given(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).willReturn(newAccessToken.token)
+
+        let (token, _) = try await resolveAccountToken(
+            accessToken: accessToken,
+            oidcAccountTokenRefresher: oidcAccountTokenRefresher,
+            date: date
+        )
+
+        #expect(token == .account(try JWT.parse(newAccessToken.token)))
+        verify(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).called(1)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func authenticationToken_does_not_renew_an_oidc_account_token_outside_the_renewal_margin() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+3000), typ: "access", type: "account")
+        let oidcAccountTokenRefresher = MockOIDCAccountTokenRefreshing()
+        given(oidcAccountTokenRefresher).canRefreshAccountToken().willReturn(true)
+
+        let (token, storedCredentials) = try await resolveAccountToken(
+            accessToken: accessToken,
+            oidcAccountTokenRefresher: oidcAccountTokenRefresher,
+            date: date
+        )
+
+        #expect(token == .account(try JWT.parse(accessToken.token)))
+        #expect(storedCredentials == ServerCredentials(accessToken: accessToken.token))
+        verify(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).called(0)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func authenticationToken_returns_nil_for_an_expired_account_token_that_cant_be_renewed() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+        let oidcAccountTokenRefresher = MockOIDCAccountTokenRefreshing()
+        given(oidcAccountTokenRefresher).canRefreshAccountToken().willReturn(false)
+
+        let (token, _) = try await resolveAccountToken(
+            accessToken: accessToken,
+            oidcAccountTokenRefresher: oidcAccountTokenRefresher,
+            date: date
+        )
+
+        #expect(token == nil)
+        verify(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).called(0)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func authenticationToken_keeps_a_valid_account_token_when_renewal_fails() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+120), typ: "access", type: "account")
+        let oidcAccountTokenRefresher = MockOIDCAccountTokenRefreshing()
+        given(oidcAccountTokenRefresher).canRefreshAccountToken().willReturn(true)
+        given(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).willThrow(TestError())
+
+        let (token, storedCredentials) = try await resolveAccountToken(
+            accessToken: accessToken,
+            oidcAccountTokenRefresher: oidcAccountTokenRefresher,
+            date: date
+        )
+
+        #expect(token == .account(try JWT.parse(accessToken.token)))
+        #expect(storedCredentials == ServerCredentials(accessToken: accessToken.token))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func authenticationToken_throws_when_renewing_an_expired_account_token_fails() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access", type: "account")
+        let oidcAccountTokenRefresher = MockOIDCAccountTokenRefreshing()
+        given(oidcAccountTokenRefresher).canRefreshAccountToken().willReturn(true)
+        given(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).willThrow(TestError())
+
+        await #expect(throws: TestError.self) {
+            try await resolveAccountToken(
+                accessToken: accessToken,
+                oidcAccountTokenRefresher: oidcAccountTokenRefresher,
+                date: date
+            )
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
+    func refreshToken_renews_a_valid_oidc_account_token() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+3000), typ: "access", type: "account")
+        let newAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "access", type: "account")
+        let oidcAccountTokenRefresher = MockOIDCAccountTokenRefreshing()
+        given(oidcAccountTokenRefresher).canRefreshAccountToken().willReturn(true)
+        given(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).willReturn(newAccessToken.token)
+
+        let (_, storedCredentials) = try await resolveAccountToken(
+            accessToken: accessToken,
+            oidcAccountTokenRefresher: oidcAccountTokenRefresher,
+            date: date,
+            forceRefresh: true
+        )
+
+        #expect(storedCredentials == ServerCredentials(accessToken: newAccessToken.token))
+        verify(oidcAccountTokenRefresher).refreshAccountToken(serverURL: .any).called(1)
+    }
+
+    @discardableResult
+    private func resolveAccountToken(
+        accessToken: JWT,
+        oidcAccountTokenRefresher: MockOIDCAccountTokenRefreshing,
+        date: Date,
+        forceRefresh: Bool = false
+    ) async throws -> (AuthenticationToken?, ServerCredentials?) {
+        let serverURL: URL = .test()
+        let subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            refreshOAuthTokenService: refreshOAuthTokenService,
+            oidcAccountTokenRefresher: oidcAccountTokenRefresher,
+            cachedValueStore: CachedValueStore(backend: .inSystemProcess)
+        )
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        let credentialsBox = TestStore<ServerCredentials?>(ServerCredentials(accessToken: accessToken.token))
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in credentialsBox.value }
+        given(serverCredentialsStore).store(credentials: .any, serverURL: .value(serverURL)).willProduce { credentials, _ in
+            credentialsBox.value = credentials
+        }
+
+        let token = try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            try await Date.$now.withValue({ date }) {
+                if forceRefresh {
+                    try await subject.refreshToken(serverURL: serverURL)
+                    return nil as AuthenticationToken?
+                } else {
+                    return try await subject.authenticationToken(serverURL: serverURL)
+                }
+            }
+        }
+        verify(refreshAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
+        verify(refreshOAuthTokenService).refreshTokens(serverURL: .any, refreshToken: .any).called(0)
+        return (token, credentialsBox.value)
+    }
 }
 
 private final class TestStore<T>: @unchecked Sendable {
