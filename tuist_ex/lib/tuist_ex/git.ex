@@ -214,13 +214,7 @@ defmodule TuistEx.Git do
   end
 
   defp with_boundary_parents(commits, dir) do
-    boundary =
-      with {:ok, path} <- capture(dir, ["rev-parse", "--git-path", "shallow"]),
-           {:ok, contents} <- File.read(Path.expand(String.trim(path), dir)) do
-        contents |> String.split("\n", trim: true) |> MapSet.new()
-      else
-        _ -> MapSet.new()
-      end
+    boundary = dir |> shallow_commits() |> MapSet.new()
 
     case Enum.filter(commits, &MapSet.member?(boundary, &1.sha)) do
       [] ->
@@ -303,7 +297,14 @@ defmodule TuistEx.Git do
       limits.remote_access != :history ->
         {nil, ref, ["shallow clone: the merge base with #{base_branch} is not in the checkout"]}
 
-      sha = deepen(dir, ref, head, refspec, deadline, max(limits.window_commits, 50), 0, 50) ->
+      sha =
+          deepen(
+            dir,
+            %{ref: ref, head: head, refspec: refspec, deadline: deadline},
+            max(limits.window_commits, 50),
+            {0, 50},
+            true
+          ) ->
         {sha, ref, []}
 
       true ->
@@ -314,28 +315,56 @@ defmodule TuistEx.Git do
     end
   end
 
-  defp deepen(dir, ref, head, refspec, deadline, max_depth, depth, step) do
+  defp deepen(dir, target, max_depth, {depth, step}, name_shallow?) do
     step = min(step, max_depth - depth)
 
-    if System.monotonic_time(:millisecond) < deadline and depth < max_depth and
-         match?(
-           {:succeeded, _},
-           run_until(
-             dir,
-             [
-               "fetch",
-               "--quiet",
-               "--no-tags",
-               "--filter=blob:none",
-               "--deepen=#{step}",
-               "origin",
-               refspec
-             ],
-             deadline
-           )
-         ) do
-      merge_base(dir, ref, head) ||
-        deepen(dir, ref, head, refspec, deadline, max_depth, depth + step, step * 2)
+    with true <- System.monotonic_time(:millisecond) < target.deadline and depth < max_depth,
+         {:succeeded, name_shallow?} <- deepen_step(dir, target, step, name_shallow?) do
+      merge_base(dir, target.ref, target.head) ||
+        deepen(dir, target, max_depth, {depth + step, step * 2}, name_shallow?)
+    else
+      _ -> nil
+    end
+  end
+
+  # The checkout's own shallow commits, such as a pull request's merge commit,
+  # are named too: Git 2.54 and later deepen only the shallow commits a
+  # fetch's wants reach, so the head's side would stay cut off from the base
+  # branch. A remote that refuses commits by SHA deepens the base branch alone,
+  # as before.
+  defp deepen_step(dir, target, step, name_shallow?) do
+    fetch = [
+      "fetch",
+      "--quiet",
+      "--no-tags",
+      "--filter=blob:none",
+      "--deepen=#{step}",
+      "origin",
+      target.refspec
+    ]
+
+    boundary = if name_shallow?, do: shallow_commits(dir), else: []
+
+    case run_until(dir, fetch ++ boundary, target.deadline) do
+      {:succeeded, _} ->
+        {:succeeded, name_shallow?}
+
+      :failed when boundary != [] ->
+        with {:succeeded, _} <- run_until(dir, fetch, target.deadline), do: {:succeeded, false}
+
+      other ->
+        other
+    end
+  end
+
+  # The commits a shallow clone's `shallow` file lists, which it has without
+  # their parents; none when the clone is not shallow.
+  defp shallow_commits(dir) do
+    with {:ok, path} <- capture(dir, ["rev-parse", "--git-path", "shallow"]),
+         {:ok, contents} <- File.read(Path.expand(String.trim(path), dir)) do
+      String.split(contents, "\n", trim: true)
+    else
+      _ -> []
     end
   end
 

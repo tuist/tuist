@@ -137,7 +137,10 @@ parents read from the commit objects), and whether the checkout is dirty
 (`git status --porcelain`, untracked files included). What reaches the remote
 is `Git.history/4`'s `remote_access`: `:history` only with `--cover` (the base
 branch fetched and a shallow clone deepened within the server's budget until
-the merge base is found), `:base_head` otherwise (a checkout without the base
+the merge base is found, each deepen also naming the checkout's own shallow
+commits, since Git 2.54 and later deepen only those the fetch's wants reach,
+and the base branch alone from then on when the remote refuses commits by
+SHA), `:base_head` otherwise (a checkout without the base
 branch gets its latest commit from one `git ls-remote`, killed at the budget),
 `:none` with `TUIST_GIT_UNSHALLOW_ENABLED=false`. Every remote call is a round
 trip whatever it transfers, which is why only coverage fetches.
