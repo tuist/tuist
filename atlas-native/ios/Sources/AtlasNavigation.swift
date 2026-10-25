@@ -48,7 +48,7 @@ struct AtlasDestination: Equatable, Hashable {
         components.fragment = nil
         guard let server = components.url, Self.origin(server.absoluteString) != nil else { return nil }
         let pages = AtlasCore.destinationPaths()
-        if let screen = pages.first(where: { $0.value == path })?.key {
+        if let screen = pages.first(where: { $0.value == path && path != "/" })?.key {
             self.init(screen: screen, server: server)
             return
         }
@@ -150,7 +150,7 @@ final class AtlasNavigation: ObservableObject {
         }
         message = nil
         destination = pending
-        selection = ["accounts", "invoices", "profile"].contains(pending.screen) ? pending.screen : "browse"
+        selection = ["orbit", "accounts", "invoices", "profile"].contains(pending.screen) ? pending.screen : "browse"
         destinations[selection] = pending
         revision = UUID()
         revisions[selection] = revision

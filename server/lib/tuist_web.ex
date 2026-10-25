@@ -16,7 +16,7 @@ defmodule TuistWeb do
   below. Instead, define additional modules and import
   those modules here.
   """
-  use Boundary, deps: [Tuist], exports: [Endpoint, Router]
+  use Boundary, deps: [Tuist], exports: [Draining, Endpoint, Router]
 
   alias Plug.Conn
   alias TuistWeb.Controller

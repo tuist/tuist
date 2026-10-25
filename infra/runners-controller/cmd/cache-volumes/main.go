@@ -48,7 +48,7 @@ type agent struct {
 	grants                                 checkoutGrants
 	exports                                chan struct{}
 	checkoutRequests                       chan struct{}
-	executionWaits                         executionWaits
+	executionWaits                         cachevolumes.ExecutionWaits
 	// maxVolumeBytes is the largest volume this host accepts.
 	maxVolumeBytes int64
 	// log receives server request retries; nil is slog.Default.
@@ -249,7 +249,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// The timeout bounds metadata requests; archive transfers drop it and end on a stall instead.
-	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := cachevolumes.NewServerClient(6 * time.Minute)
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
 	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes, Log: metrics.logger}
 	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Log: metrics.logger, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}

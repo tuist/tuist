@@ -67,6 +67,7 @@ defmodule Tuist.Application do
 
   @impl true
   def prep_stop(state) do
+    TuistWeb.Draining.start()
     EndpointDrainer.drain(TuistWeb.Endpoint)
     state
   end
@@ -389,7 +390,7 @@ defmodule Tuist.Application do
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
         redis_children() ++
-        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
+        [TuistWeb.Draining, TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
         once_events_grpc_children() ++
         RuntimeChildren.readiness_server(Environment.mode())
 

@@ -622,9 +622,7 @@ clickhouse:
         memory: 96Gi
     persistence:
       # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
-      # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
-      # September and grows about 0.25 TiB a month, so that is over a year of
-      # headroom even at a 70% fill target.
+      # 1.92 TB pair is left out of the array.
       #
       # The local PV is not a quota. The pod can use whatever `/data` has, so
       # this is a statement of intent and the number to watch is the
@@ -2263,9 +2261,17 @@ runnersFleetLinux:
         minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
-    - { vcpus: 8, memoryGb: 16 }
+    # 8vcpu-16gb and 16vcpu-32gb have jobs in most weekday working hours,
+    # arriving in fan-outs that take two and one runners respectively.
+    - vcpus: 8
+      memoryGb: 16
+      autoscaling:
+        minWarmPoolFloor: 2
     - { vcpus: 8, memoryGb: 32 }
-    - { vcpus: 16, memoryGb: 32 }
+    - vcpus: 16
+      memoryGb: 32
+      autoscaling:
+        minWarmPoolFloor: 1
     # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
     # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to

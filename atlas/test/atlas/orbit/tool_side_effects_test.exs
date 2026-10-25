@@ -11,6 +11,7 @@ defmodule Atlas.Orbit.ToolSideEffectsTest do
 
   alias Atlas.MCP.Server
   alias Atlas.Orbit.ToolPolicy
+  alias Atlas.Repo
 
   @moduletag :capture_log
 
@@ -35,12 +36,40 @@ defmodule Atlas.Orbit.ToolSideEffectsTest do
       end
 
     assert writers == []
+  end
 
-    # The detector itself catches the write-on-read tool the policy excludes.
+  test "the detector catches the write-on-read tool the policy excludes" do
+    user = user_fixture(Atlas.Authorization.executive_scopes())
+
+    conn = %{
+      assigns: %{
+        current_user: user,
+        audit_interface: "worker",
+        mcp_claims: %{"scopes" => ["mcp"], "orbit_run_id" => Ecto.UUID.generate()}
+      }
+    }
+
     before = writes()
     call(conn, "list_gtm_research_topics")
-    assert changed_tables(before, writes()) != []
+    assert Enum.any?(changed_tables(before, writes()), fn {_schema, table} -> table == "gtm_signal_queries" end)
     refute Map.has_key?(ToolPolicy.policy(), "list_gtm_research_topics")
+  end
+
+  test "same-named tables in isolated schemas retain independent write counters" do
+    user_fixture()
+    schema = "orbit_tool_stats_#{System.unique_integer([:positive])}"
+    Repo.query!("CREATE SCHEMA #{schema}")
+
+    for table <- ["users", "oban_jobs"] do
+      before = writes()
+      Repo.query!("CREATE TABLE #{schema}.#{table} (id bigint)")
+
+      assert changed_tables(before, writes()) == []
+
+      before = writes()
+      Repo.query!("INSERT INTO #{schema}.#{table} VALUES (1)")
+      assert changed_tables(before, writes()) == [{schema, table}]
+    end
   end
 
   # Some tools raise on missing arguments; run each call in its own process, as
@@ -59,13 +88,17 @@ defmodule Atlas.Orbit.ToolSideEffectsTest do
   end
 
   defp writes do
-    Atlas.Repo.query!("SELECT relname, n_tup_ins + n_tup_upd + n_tup_del FROM pg_stat_xact_user_tables").rows
-    |> Map.new(fn [table, count] -> {table, count} end)
+    # This view includes isolated migration schemas, not just the application's
+    # schema. Same-named tables must never overwrite each other's counters.
+    Repo.query!("SELECT schemaname, relname, n_tup_ins + n_tup_upd + n_tup_del FROM pg_stat_xact_user_tables").rows
+    |> Map.new(fn [schema, table, count] -> {{schema, table}, count} end)
   end
 
   defp changed_tables(before, current) do
     current
-    |> Enum.reject(fn {table, count} -> table == "audit_activities" or Map.get(before, table, 0) == count end)
+    |> Enum.reject(fn {{_schema, table} = relation, count} ->
+      table == "audit_activities" or Map.get(before, relation, 0) == count
+    end)
     |> Enum.map(&elem(&1, 0))
   end
 end

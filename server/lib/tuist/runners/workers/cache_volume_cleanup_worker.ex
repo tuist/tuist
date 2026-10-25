@@ -6,7 +6,9 @@ defmodule Tuist.Runners.Workers.CacheVolumeCleanupWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"action" => "evict"}}) do
-    with {:ok, _count} <- CacheVolumes.expire_inactive(), do: :ok
+    with {:ok, _count} <- CacheVolumes.expire_inactive(),
+         {:ok, _count} <- CacheVolumes.retire_unreported(),
+         do: :ok
   end
 
   def perform(_job), do: CacheVolumes.prune_history()

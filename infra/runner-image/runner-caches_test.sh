@@ -7,8 +7,8 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 fail() { echo "FAIL: $*" >&2; exit 1; }
 eq() { [ "$1" = "$2" ] || fail "expected [$1], got [$2]"; }
 
-eval "$(awk '/^(stage_runner_caches|stage_managed_cache_volumes|cas_store_root|cas_spool_dirs|cas_store_dirs|managed_xcode_cache_limit)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
-for function in stage_runner_caches stage_managed_cache_volumes cas_store_root cas_spool_dirs cas_store_dirs managed_xcode_cache_limit; do
+eval "$(awk '/^(stage_runner_caches|stage_managed_cache_volumes|cas_store_root|cas_spool_dirs|cas_store_dirs|managed_xcode_cache_limit|cache_volumes_detached)\(\)/ {copy=1} copy {print} copy && /^}$/ {copy=0}' "$ROOT/dispatch-poll.sh")"
+for function in stage_runner_caches stage_managed_cache_volumes cas_store_root cas_spool_dirs cas_store_dirs managed_xcode_cache_limit cache_volumes_detached; do
   declare -F "$function" >/dev/null || fail "$function missing"
 done
 base=$(mktemp -d)
@@ -214,6 +214,15 @@ test_limits_keep_room_on_small_volumes() {
     stage_runner_caches >/dev/null
     VOLUME_BLOCKS="$blocks" activate xcode >/dev/null 2>&1 || fail 'xcode activation failed'
     eq "$expected" "$(managed_xcode_cache_limit)"
+  done
+}
+
+test_failed_jobs_detach_their_volumes_for_measurement() {
+  cache_volumes_detached 1 succeeded || fail 'a savable job kept its volumes attached'
+  cache_volumes_detached 0 failed || fail 'a failed job kept its volumes attached'
+  cache_volumes_detached 1 failed || fail 'a failed job kept its volumes attached'
+  for result in succeeded canceled cancelled unknown ""; do
+    ! cache_volumes_detached 0 "$result" || fail "a withheld job with result [$result] detached its volumes"
   done
 }
 

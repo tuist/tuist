@@ -26,8 +26,11 @@ defmodule Atlas.Orbit.ModelFence do
   import Ecto.Query
   import Plug.Conn
 
+  alias Atlas.Orbit.Access
   alias Atlas.Orbit.Run
+  alias Atlas.Orbit.Thread
   alias Atlas.Repo
+  alias Atlas.Users.User
 
   @impl true
   def init(opts), do: opts
@@ -41,8 +44,13 @@ defmodule Atlas.Orbit.ModelFence do
       send(worker, {:thread_model_process, self()})
     end
 
-    if owns_run?(Keyword.fetch!(opts, :run_id), Keyword.fetch!(opts, :attempt)) do
-      dispatch(conn, Keyword.fetch!(opts, :inner))
+    run_id = Keyword.fetch!(opts, :run_id)
+    attempt = Keyword.fetch!(opts, :attempt)
+
+    if owns_run?(run_id, attempt) do
+      conn
+      |> put_private(:orbit_model_fence, {run_id, attempt})
+      |> dispatch(Keyword.fetch!(opts, :inner))
     else
       conn
       |> put_resp_content_type("application/json")
@@ -50,13 +58,26 @@ defmodule Atlas.Orbit.ModelFence do
     end
   end
 
+  @doc "Rechecks the outer request's fence before a personal-provider fallback dispatch."
+  def authorized?(%{private: %{orbit_model_fence: {run_id, attempt}}}), do: owns_run?(run_id, attempt)
+  def authorized?(_conn), do: true
+
   defp owns_run?(run_id, attempt) do
-    Repo.exists?(
-      from run in Run,
-        where:
-          run.id == ^run_id and run.status == "running" and run.resume_count == ^attempt and
-            is_nil(run.cancel_requested_at)
-    )
+    run =
+      Repo.one(
+        from run in Run,
+          where:
+            run.id == ^run_id and run.status == "running" and run.resume_count == ^attempt and
+              is_nil(run.cancel_requested_at)
+      )
+
+    with %Run{acting_user_id: user_id, thread_id: thread_id} when is_binary(user_id) <- run,
+         %Thread{status: "active"} = thread <- Repo.get(Thread, thread_id),
+         %User{} = user <- Repo.get(User, user_id) do
+      Access.can_read?(thread, user)
+    else
+      _ -> false
+    end
   end
 
   defp dispatch(conn, fun) when is_function(fun, 1), do: fun.(conn)
@@ -67,8 +88,8 @@ defmodule Atlas.Orbit.ModelFence do
   Wraps the plug in `client_opts` with the fence for one run attempt.
 
   Thread client options always route model requests through a Req plug
-  (`Runner.profile_client_opts/2` uses the in-process relay). Options without
-  one raise instead of producing an unfenced run.
+  (`Runner.orbit_client_opts/2` resolves personal accounts and the explicit
+  system fallback). Options without one raise instead of producing an unfenced run.
   """
   def wrap(client_opts, %Run{id: run_id, resume_count: attempt}, worker) do
     Keyword.update!(client_opts, :llm_request_options, fn request_options ->
