@@ -7,7 +7,7 @@ struct AtlasThreadDetail: View {
     let thread: AtlasThread
     let selfId: String?
     @State private var addressAgent = false
-    @State private var scrolling = AtlasThreadScrollState()
+    @StateObject private var scrolling = AtlasThreadScrollState()
     @State private var latestScrollRequest = 0
     @State private var visibleMessageID: String?
     @State private var jumpingToPrompt = false
@@ -58,7 +58,7 @@ struct AtlasThreadDetail: View {
                                 }
                             }
                         }
-                        AtlasThreadTimeline(messages: model.messages, selfId: selfId, openAttachment: openAttachment) { id, event in
+                        AtlasThreadTimeline(timeline: model.timeline, selfId: selfId, openAttachment: openAttachment) { id, event in
                             await model.componentAction(messageId: id, event: event)
                         }
                         if let activity = model.activityMessage {
@@ -76,11 +76,13 @@ struct AtlasThreadDetail: View {
                     .frame(maxWidth: 720)
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: showsWelcome ? .top : .bottom)
                     .background {
-                        GeometryReader { content in
-                            Color.clear.preference(key: AtlasThreadScrollPreference.self, value: AtlasThreadScrollMetrics(
-                                height: content.size.height,
-                                bottom: content.frame(in: .global).maxY - geometry.frame(in: .global).minY,
-                                viewport: geometry.size.height))
+                        if #unavailable(iOS 18.0) {
+                            GeometryReader { content in
+                                Color.clear.preference(key: AtlasThreadScrollPreference.self, value: AtlasThreadScrollMetrics(
+                                    height: content.size.height,
+                                    bottom: content.frame(in: .global).maxY - geometry.frame(in: .global).minY,
+                                    viewport: geometry.size.height))
+                            }
                         }
                     }
                 }
@@ -114,6 +116,9 @@ struct AtlasThreadDetail: View {
                 }
                 .onChange(of: geometry.size.height) { _, _ in
                     if scrolling.following, !showsWelcome { latestScrollRequest += 1 }
+                }
+                .onChange(of: scrolling.following) { _, following in
+                    if following { visibleMessageID = nil }
                 }
                 .overlay(alignment: .bottomTrailing) {
                     AtlasThreadNavigation(messages: model.messages, shared: current.kind != "private",
@@ -290,7 +295,7 @@ private struct AtlasThreadScrollPreference: PreferenceKey {
 
 private struct AtlasThreadScrollObserver: ViewModifier {
     let update: (AtlasThreadScrollMetrics) -> Void
-    let interaction: (Bool) -> Void
+    let interaction: (Bool?) -> Void
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
@@ -310,6 +315,9 @@ private struct AtlasThreadScrollObserver: ViewModifier {
             content.onPreferenceChange(AtlasThreadScrollPreference.self) { metrics in
                 if let metrics { update(metrics) }
             }
+            .simultaneousGesture(DragGesture(minimumDistance: 1)
+                .onChanged { _ in interaction(true) }
+                .onEnded { _ in interaction(nil) })
         }
     }
 }

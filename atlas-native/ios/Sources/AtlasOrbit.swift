@@ -11,6 +11,7 @@ final class AtlasOrbit: ObservableObject {
     @Published private var adapterError: String?
     @Published private var submitting = false
     @Published private var attaching = false
+    private(set) var timeline = AtlasThreadTimelineData(messages: [])
     @Published var draft = "" {
         didSet { if !applyingDraft { writeDraft() } }
     }
@@ -260,6 +261,7 @@ final class AtlasOrbit: ObservableObject {
 
     private func apply(_ snapshot: Snapshot) {
         guard snapshot.sequence >= (state?.sequence ?? 0) else { return }
+        if state?.messages != snapshot.messages { timeline = AtlasThreadTimelineData(messages: snapshot.messages) }
         state = snapshot
         if pendingDrafts == 0 {
             applyingDraft = true

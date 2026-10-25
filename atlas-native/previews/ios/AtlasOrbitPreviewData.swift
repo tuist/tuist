@@ -223,6 +223,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 if !seededAttachments { draftAttachments = [attachment]; seededAttachments = true }
             }
             if ProcessInfo.processInfo.arguments.contains("--orbit-prompts") { messages = promptHistory }
+            if ProcessInfo.processInfo.arguments.contains("--orbit-long-history") { messages = longHistory }
             if createdThreads.contains(where: { $0["id"] as? String == selected?["id"] as? String }) { messages = [] }
             messages += sent
             if follow, let followStarted {
@@ -281,6 +282,27 @@ final class AtlasOrbitPreviewData: ObservableObject {
                     """, extra: ["inserted_at": date])]
         }
     }
+
+    private lazy var longHistory: [[String: Any]] = {
+        (0..<120).flatMap { index -> [[String: Any]] in
+            var rows = [self.message(id: "long-prompt-\(index)", kind: "human", body: "Review evidence for step \(index).", extra: [
+                "author_id": "preview-self", "author_name": "Taylor"
+            ])]
+            if index.isMultiple(of: 3) {
+                rows += (0..<4).map { tool in
+                    self.message(id: "long-tool-\(index)-\(tool)", kind: "tool", body: "", extra: [
+                        "tool_name": "get_builds", "tool_status": "succeeded", "tool_output": "Offline fixture evidence."
+                    ])
+                }
+            }
+            let paragraphs = (0..<(index == 119 ? 16 : index % 4 + 1)).map { paragraph in
+                "Evidence \(index).\(paragraph): **Compare the affected projects**, validate the query plan, and retain a rollback path."
+            }.joined(separator: "\n\n")
+            rows.append(self.message(id: "long-reply-\(index)", kind: "agent", body: paragraphs +
+                (index == 119 ? "\n\nThe long conversation is still visible." : "")))
+            return rows
+        }
+    }()
 
     private var toolTree: [[String: Any]] {
         let parent = "01922cc0-0000-7000-8000-000000000020"

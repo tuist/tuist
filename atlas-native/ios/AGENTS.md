@@ -80,9 +80,14 @@ Reduce Motion jumps without animation. Follow appended and growing content only 
 the person is at the bottom, preserving history readers' positions. `AtlasThreadScrollState`
 keeps follow intent through lazy layout, activity and keyboard corrections. Native scroll
 phases distinguish user scrolling/deceleration on iOS 18+; iOS 17 rebases geometry across
-layout changes and accumulates slow movement. Preserve row-position binding only while
+layout changes, tracks genuine drags and accumulates slow movement after corrections settle.
+Only follow-intent changes publish view updates, not every offset sample. Bottom settlement
+requires proximity to the viewport's bottom edge in both directions; accepting an overscrolled
+content bottom can leave every message above the screen. Preserve row-position binding only while
 reading history; it must not compete with the bottom anchor. Coalesce bottom requests
 after layout and keep correcting until geometry reaches the bottom, including content insets.
+Prepare timeline groups once per changed message snapshot, never inside lazy row builders.
+Unchanged Markdown avoids reparsing during scroll, presence and draft updates.
 Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
 current visible message through SwiftUI scroll-position binding, not a forced jump to the

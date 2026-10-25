@@ -20,7 +20,7 @@ extension AtlasOrbitTests {
     }
 
     @Test func bottomFollowingSurvivesLayoutCorrectionsButStopsForUserHistoryScrolling() {
-        var state = AtlasThreadScrollState()
+        let state = AtlasThreadScrollState()
         let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
         state.userScrolling = false
         #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
@@ -38,13 +38,18 @@ extension AtlasOrbitTests {
         #expect(state.following)
         #expect(update(.init(height: 2500, bottom: 760, viewport: 400, inset: 200)))
         #expect(state.following)
+        // Lazy estimates can leave every message above the viewport, not at its bottom edge.
+        #expect(update(.init(height: 2500, bottom: 50, viewport: 400, inset: 200)))
+        #expect(update(.init(height: 2500, bottom: -30, viewport: 400, inset: 200)))
+        #expect(!update(.init(height: 2500, bottom: 400, viewport: 400, inset: 200)))
     }
 
     @Test func fallbackScrollAccumulatesSlowMovementAndRebasesContentGrowth() {
-        var state = AtlasThreadScrollState()
+        let state = AtlasThreadScrollState()
         let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
         #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
         #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
+        #expect(update(.init(height: 2200, bottom: 880, viewport: 600)))
         #expect(state.following)
         #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
         for step in 1...50 { _ = state.update(.init(height: 2200, bottom: 600 + CGFloat(step) / 2, viewport: 600)) }
@@ -241,6 +246,7 @@ extension AtlasOrbitTests {
         status = "running"
         await model.load()
         #expect(model.activityMessage == "Using get account…")
+        #expect(model.timeline.groups.first?.messages.map(\.toolStatus) == ["running", "succeeded"])
         status = "compacting"
         await model.load()
         #expect(model.activityMessage == "Compacting context…")
@@ -251,6 +257,7 @@ extension AtlasOrbitTests {
         messages[0]["tool_status"] = "succeeded"
         await model.load()
         #expect(model.activityMessage == "Typing…")
+        #expect(model.timeline.groups.first?.messages.map(\.toolStatus) == ["succeeded", "succeeded"])
         liveMessage = "Reconnecting…"
         await model.load()
         #expect(model.liveMessage == "Reconnecting…")
@@ -340,6 +347,7 @@ extension AtlasOrbitTests {
         pending?.resume(returning: effect)
         #expect(await action.value == false)
         #expect(model.messages.isEmpty)
+        #expect(model.timeline.groups.isEmpty)
     }
 }
 

@@ -97,6 +97,72 @@ jobs:
           platform: ${{ matrix.platform }}
           operation: build
           authenticated: ${{ github.repository == 'tuist/tuist' && matrix.platform != 'ios-device' && matrix.platform != 'android' }}
+      - name: Temporary before-after Orbit scroll validation
+        if: matrix.platform == 'ios'
+        env:
+          ONCE_CACHE_PROVIDER: local
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable and (.name | startswith("iPhone")))][0].udid')
+          xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl status_bar "$device" override --time '13:05' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+          mkdir -p scroll-validation
+          xcrun simctl list devices available -j > scroll-validation/devices.json
+          export ONCE_APPLE_SIMULATOR_UDID="$device"
+          export TMPDIR="$RUNNER_TEMP/atlas-orbit-scroll-validation"
+          mkdir -p "$TMPDIR/tools"
+          export ATLAS_REAL_XCODEBUILD=$(xcrun --find xcodebuild)
+          cat > "$TMPDIR/tools/xcodebuild" <<'SH'
+          #!/bin/bash
+          if [[ "$1" == test-without-building ]]; then
+            extra=()
+            if [[ "${ORBIT_BASELINE:-0}" == 1 ]]; then
+              extra+=("-only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testLongThreadStaysVisibleWhenScrollingAndOpeningKeyboard")
+            fi
+            exec "$ATLAS_REAL_XCODEBUILD" "$@" -collect-test-diagnostics never "${extra[@]}"
+          fi
+          exec "$ATLAS_REAL_XCODEBUILD" "$@"
+          SH
+          chmod +x "$TMPDIR/tools/xcodebuild"
+          export PATH="$TMPDIR/tools:$PATH"
+          validate() (
+            phase="$1"
+            mkdir -p "scroll-validation/$phase"
+            mise exec -- once build AtlasSettingsIOSPreview
+            xcrun simctl install "$device" .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app
+            xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/scroll-validation/$phase/interaction.mov" > "scroll-validation/$phase/recording.log" 2>&1 &
+            recording=$!
+            trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
+            result=0
+            mise exec -- once test AtlasOrbitScrollValidation > "scroll-validation/$phase/native-validation.log" 2>&1 || result=$?
+            kill -INT "$recording"
+            wait "$recording" || true
+            trap - EXIT
+            cat "scroll-validation/$phase/native-validation.log"
+            if [[ -d .once/out/AtlasOrbitScrollValidation/test ]]; then
+              cp -R .once/out/AtlasOrbitScrollValidation/test "scroll-validation/$phase/test-results"
+              bundle=$(sed -n 's/^[[:space:]]*\(\/.*\.xcresult\)$/\1/p' "scroll-validation/$phase/test-results/xctest.log" | tail -n 1)
+              if [[ -d "$bundle" ]]; then
+                xcrun xcresulttool export attachments --path "$bundle" --output-path "scroll-validation/$phase/capture-attachments"
+                xcrun xcresulttool get test-results metrics --path "$bundle" > "scroll-validation/$phase/metrics.json" || true
+              fi
+            fi
+            exit "$result"
+          )
+          git fetch --no-tags --depth=1 origin 672b480016b51f2d010db3e525e2105eaae04476
+          git restore --source=672b480016b51f2d010db3e525e2105eaae04476 --worktree -- ios/Sources
+          baseline=0
+          ORBIT_BASELINE=1 validate before || baseline=$?
+          printf '%s\n' "$baseline" > scroll-validation/baseline-exit-status
+          git restore --source=HEAD --worktree -- ios/Sources
+          validate after
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.platform == 'ios'
+        with:
+          name: atlas-orbit-scroll-validation
+          path: atlas-native/scroll-validation/
+          if-no-files-found: ignore
 
   build-fork:
     name: Build fork (${{ matrix.platform }})

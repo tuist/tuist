@@ -397,6 +397,56 @@ final class AtlasOrbitUITests: XCTestCase {
         }
     }
 
+    @MainActor func testLongThreadStaysVisibleWhenScrollingAndOpeningKeyboard() throws {
+        for appearance in ["light", "dark-large"] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace", "--orbit-long-history"] +
+                (appearance == "light" ? [] : ["--dark", "--large-text"])
+            app.launch()
+            defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
+            let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+            XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+            conversation.tap()
+            let latest = app.staticTexts["The long conversation is still visible."]
+            let composer = app.textFields["thread-composer"]
+            XCTAssertTrue(composer.waitForExistence(timeout: 10))
+            assertLatestVisible(app, latest: latest, composer: composer)
+            capture(app, "ios-orbit-long-history-entry-\(appearance)-preview")
+            if appearance == "light" {
+                let options = XCTMeasureOptions()
+                options.iterationCount = 3
+                measure(metrics: [XCTCPUMetric(application: app), XCTOSSignpostMetric.scrollingAndDecelerationMetric], options: options) {
+                    app.scrollContent(up: false)
+                    app.scrollContent(up: false)
+                    app.scrollContent()
+                    app.scrollContent()
+                }
+            } else {
+                app.scrollContent(up: false)
+                app.scrollContent()
+            }
+            if app.buttons["Latest messages"].exists { app.buttons["Latest messages"].tap() }
+            assertLatestVisible(app, latest: latest, composer: composer)
+            composer.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+            assertLatestVisible(app, latest: latest, composer: composer)
+            composer.typeText("Keep the latest reply visible.\nWhile this draft grows.\nAnd the keyboard stays open.")
+            assertLatestVisible(app, latest: latest, composer: composer)
+            XCTAssertFalse(app.buttons["Latest messages"].exists)
+            capture(app, "ios-orbit-long-history-keyboard-\(appearance)-preview")
+            app.terminate()
+        }
+    }
+
+    @MainActor private func assertLatestVisible(_ app: XCUIApplication, latest: XCUIElement, composer: XCUIElement) {
+        let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            latest.exists && latest.isHittable && latest.frame.minY >= app.navigationBars.firstMatch.frame.maxY &&
+                latest.frame.maxY <= composer.frame.minY
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 10), .completed)
+    }
+
     @MainActor func testBottomFollowsAppendedAndGrowingReplyWithoutMovingHistoryReaders() throws {
         for mode in ["short", "long", "keyboard", "history"] {
             let readingHistory = mode == "history"
