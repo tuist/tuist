@@ -20,7 +20,9 @@ import unittest
 DIRECTORY = Path(__file__).resolve().parent
 MODULES = DIRECTORY.parents[1] / "modules"
 CERTIFICATE = b"fixture distribution certificate, not a real identity"
-IDENTITY = hashlib.sha1(CERTIFICATE).hexdigest().upper()
+# Apple uses SHA-1 certificate identifiers. Keep the synthetic fixture's expected
+# identifier independent of the signing script's fingerprint calculation.
+IDENTITY = "9B79E9B8396E56510F653C48F5AFEF97A959B373"
 TOOL = r'''#!/usr/bin/env python3
 import base64
 import datetime
