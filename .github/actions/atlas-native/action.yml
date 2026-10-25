@@ -97,10 +97,12 @@ runs:
         if [ "$TARGET_SURFACE" = ios ]; then
           bash modules/check-sdk.sh iphonesimulator .once/out/AtlasIOS/Atlas.app/Atlas
           bash modules/check-sdk.sh iphonesimulator .once/out/AtlasIOS/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
+          bash modules/check-widget.sh .once/out/AtlasIOS/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
           ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOS/Atlas.app Atlas-ios-simulator.zip
         elif [ "$TARGET_SURFACE" = ios-device ]; then
           bash modules/check-sdk.sh iphoneos .once/out/AtlasIOSDevice/Atlas.app/Atlas
           bash modules/check-sdk.sh iphoneos .once/out/AtlasIOSDevice/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
+          bash modules/check-widget.sh .once/out/AtlasIOSDevice/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
           ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOSDevice/Atlas.app Atlas-ios-device.zip
         elif [ "$TARGET_SURFACE" = cli ]; then
           .once/out/AtlasCLI/atlas --help

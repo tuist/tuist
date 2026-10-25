@@ -42,6 +42,8 @@ directly in that same workflow. Keep permission decisions in the workflow:
   Mach-O SDK must match the selected Xcode SDK while minimum OS stays iOS 17.
   Check both the host binary and the embedded Live Activity executable, so a
   missing extension or mismatched SDK cannot produce a published app archive.
+  `modules/check-widget.sh` also checks each embedded extension's real Mach-O
+  startup: system `_NSExtensionMain` entry with retained Swift main/entry metadata.
   The isolated UI preview has the same gate before simulator tests. A successful
   compile alone does not verify modern system appearance.
 - The CLI is a command-line artifact, not an Android/iOS preview. Keep its artifact

@@ -37,6 +37,16 @@ Compiler/frontend/Clang/linker bytes, SDK and toolchain library
 trees identify the action and isolate its cleaned module cache. Do not copy private
 Once prelude helpers or weaken this identity to a version string.
 
+Run `/bin/bash modules/check-widget.sh <path-to-AtlasLiveActivity-executable>` on
+macOS for the built production simulator, device, and Settings preview extensions.
+This public Mach-O gate uses `xcrun nm` and `otool` to require a defined Swift
+`_main`, nonempty `__TEXT,__swift5_entry`, and an `LC_MAIN` file offset mapping to
+the `_NSExtensionMain` indirect-symbol stub in `__TEXT,__stubs`, not its pointer
+entry or Swift main. This is a runtime-startup contract, not a compiler/linker flag
+check: direct Swift entry can compile and exit successfully without serving
+WidgetKit. Keep this gate separate from `check-sdk.sh`, which validates the
+selected SDK and minimum iOS version. New build automation must use Bash.
+
 Each host must depend on its matching extension target and declare a cacheable
 `postbuild_actions` embedding hook before Once signs the host. Once stages the
 dependency as `<host build_dir>/AtlasLiveActivity.appex`; declare that tree and

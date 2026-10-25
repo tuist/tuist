@@ -40,15 +40,17 @@ profile-validation framework.
 - Only the protected main-branch publication job receives distribution secrets.
   Device enrollment and vault references are in the [README](../../README.md).
 - Validate with `python3 ios/distribution/keychain_test.py`,
-  `python3 ios/distribution/live_activity_test.py`,
+  `bash ios/distribution/test-live-activity.sh`,
   `bash ios/distribution/test-associated-domains.sh` (16 macOS fixtures), `bash -n`, ShellCheck
   and an actual signing run. The credential-free tests cover ordered search-list
   restoration, paths with spaces, an empty list, and setup/import failures.
   Live Activity fixtures cover profile/device/certificate rejection, version and
-  entitlement isolation, embedding cleanup and signing order/failure. They fake
-  Xcode/signing; on Linux they also fake Apple's plist/date tools. Module declaration
-  fixtures are not a native Swift compile: additionally run
+  entitlement isolation, embedding cleanup, signing order/failure and credential-read
+  preflight ordering through the real bundle script. These Bash fixtures run on
+  macOS with real plist/date tools and fake only Xcode, signing and vault commands.
+  Additionally run
   `once query validate-module modules/widget.star --format json`, build simulator
-  and device targets on macOS/Xcode, inspect extension SDK metadata and entitlements,
+  and device targets on macOS/Xcode, run `bash modules/check-widget.sh` against
+  each extension executable, inspect SDK metadata and entitlements,
   and test installation/ActivityKit rendering on a registered physical device.
   Signature verification does not establish installation on a registered physical device.
