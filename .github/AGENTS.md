@@ -356,9 +356,11 @@ which the CLI reads from Xcode's raw profiles (the targets don't link
 TestCoverageAttribution, so there is no per-test evidence): the server carries
 targets selective testing skipped only from runs that recorded evidence, main's
 full runs for every selective run and a pull request's own runs for its later
-pushes. Tests skipped by identifier (`--skip-test-targets`, `-skip-testing`)
-aren't carried and stay gaps (`not_linked`); quarantined tests are outside the
-figure either way. Every merge runs on its own (no queue); a new push to a
+pushes. Targets are carried only whole: a skipped target no run recorded
+under the same hash (or whose source run fails the server's checks) has no
+per-test fallback, and neither do tests skipped by identifier
+(`--skip-test-targets`, `-skip-testing`), so both stay gaps (`not_linked`).
+Quarantined tests are outside the figure either way. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
 commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1
