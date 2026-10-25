@@ -484,6 +484,9 @@ nothing but seeds sealed to a pinned TPM, which only that TPM can open, and
 serves nothing to netboot. With it configured, the operator publishes the
 install of an edge whose TPM is pinned even with no other edge of its site to
 serve it: the first edge of a site asks the internet boot server for it.
+Production runs it at `rack-boot.tuist.dev` and lists the RS501A in
+`rackLinuxFleet.preinstall.products`, so a vendor's image for production is
+written with `--internet-server https://rack-boot.tuist.dev`.
 
 casper takes the first live medium it finds. Booting the image on a drive that
 already holds an installer partition can boot that partition's tree instead,
