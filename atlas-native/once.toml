@@ -381,7 +381,7 @@ signing = "debug"
 [[target]]
 name = "AtlasOrbitScrollValidation"
 kind = "apple_test_bundle"
-srcs = ["previews/tests/AtlasOrbitUITests.swift", "previews/tests/AtlasUITestSupport.swift"]
+srcs = ["previews/tests/AtlasOrbitUITests.swift", "previews/tests/AtlasWorkspaceUITests.swift", "previews/tests/AtlasUITestSupport.swift"]
 deps = ["./AtlasSettingsIOSPreview"]
 
 [target.attrs]

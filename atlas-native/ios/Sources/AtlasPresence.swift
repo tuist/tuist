@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct AtlasPerson: Decodable, Identifiable {
+struct AtlasPerson: Decodable, Identifiable, Equatable {
     let id: String
     let name: String
     let email: String
@@ -84,9 +84,9 @@ final class AtlasPresence: ObservableObject {
                         people = []
                         errorMessage = error == "sign_in_required" ? "Sign in to Atlas again." : "Reconnecting to Atlas…"
                     } else if snapshot.location == location {
-                        selfId = snapshot.selfId
-                        people = snapshot.people
-                        errorMessage = nil
+                        if selfId != snapshot.selfId { selfId = snapshot.selfId }
+                        if people != snapshot.people { people = snapshot.people }
+                        if errorMessage != nil { errorMessage = nil }
                     }
                 }
             } catch {

@@ -260,10 +260,10 @@ final class AtlasOrbit: ObservableObject {
     }
 
     private func apply(_ snapshot: Snapshot) {
-        guard snapshot.sequence >= (state?.sequence ?? 0) else { return }
+        if let state, snapshot.sequence <= state.sequence { return }
         if state?.messages != snapshot.messages { timeline = AtlasThreadTimelineData(messages: snapshot.messages) }
         state = snapshot
-        if pendingDrafts == 0 {
+        if pendingDrafts == 0, draft != snapshot.draft {
             applyingDraft = true
             draft = snapshot.draft
             applyingDraft = false

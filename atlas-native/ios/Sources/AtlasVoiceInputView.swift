@@ -17,6 +17,7 @@ struct AtlasThreadComposer: View {
     @Environment(\.atlasTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var recording: Bool { phase != .idle }
     private var canSubmit: Bool {
@@ -59,7 +60,8 @@ struct AtlasThreadComposer: View {
                         .accessibilityIdentifier("thread-voice-recording")
                     } else {
                         TextField(placeholder, text: $draft, axis: .vertical)
-                            .lineLimit(1...6).textFieldStyle(.plain).padding(.vertical, 11)
+                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 3 : 6))
+                            .textFieldStyle(.plain).padding(.vertical, 11)
                             .accessibilityIdentifier("thread-composer")
                     }
                 }

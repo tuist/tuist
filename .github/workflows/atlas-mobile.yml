@@ -116,11 +116,12 @@ jobs:
           #!/bin/bash
           real=$(xcrun --find xcodebuild)
           if [[ "$1" == test-without-building ]]; then
-            extra=()
-            if [[ -f "${0%/*}/baseline" ]]; then
-              extra+=("-only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testLongThreadStaysVisibleWhenScrollingAndOpeningKeyboard")
-            fi
-            exec "$real" "$@" -collect-test-diagnostics never "${extra[@]}"
+            exec "$real" "$@" -collect-test-diagnostics never \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests \
+              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testPresenceUsesNativeToolbarWithoutCoveringNavigation \
+              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testEmptyPresenceKeepsNativeRootAndDetailNavigation \
+              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testThemeCatalogLightDarkAndPersistence \
+              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testReturningToOrbitRetainsLoadedThreadsUntilExplicitRefresh
           fi
           exec "$real" "$@"
           SH
@@ -150,14 +151,6 @@ jobs:
             fi
             exit "$result"
           )
-          git fetch --no-tags --depth=1 origin 672b480016b51f2d010db3e525e2105eaae04476
-          git restore --source=672b480016b51f2d010db3e525e2105eaae04476 --worktree -- ios/Sources
-          baseline=0
-          touch "$TMPDIR/tools/baseline"
-          validate before || baseline=$?
-          printf '%s\n' "$baseline" > scroll-validation/baseline-exit-status
-          rm "$TMPDIR/tools/baseline"
-          git restore --source=HEAD --worktree -- ios/Sources
           validate after
       - uses: actions/upload-artifact@v4
         if: always() && matrix.platform == 'ios'

@@ -521,9 +521,13 @@ final class AtlasOrbitUITests: XCTestCase {
         conversation.tap()
         let loading = app.descendants(matching: .any)["thread-history-loading"].firstMatch
         XCTAssertTrue(loading.waitForExistence(timeout: 2))
+        XCTAssertEqual(app.progressIndicators.count, 1)
+        XCTAssertFalse(app.staticTexts["Private · Only you and Pip"].exists)
+        XCTAssertFalse(app.textFields["thread-composer"].isEnabled)
         XCTAssertFalse(app.buttons["Compare recent builds"].exists)
         capture(app, "ios-orbit-history-loading-preview")
         XCTAssertTrue(loading.waitForNonExistence(timeout: 8))
+        XCTAssertTrue(app.textFields["thread-composer"].isEnabled)
         XCTAssertTrue(app.staticTexts["Summarize the next steps."].isHittable)
         for _ in 0..<8 { app.scrollContent(up: false) }
         app.buttons["thread-prompts"].tap()

@@ -49,7 +49,7 @@ struct AtlasThreadDetail: View {
                                 .disabled(model.loadingHistory || pagingHistory).frame(minHeight: 44)
                                 .accessibilityIdentifier("thread-earlier")
                         }
-                        if current.kind == "private" {
+                        if current.kind == "private", !model.messages.isEmpty || showsWelcome {
                             Label("Private · Only you and \(assistantName)", systemImage: "lock")
                                 .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
                             if showsWelcome {
@@ -65,7 +65,6 @@ struct AtlasThreadDetail: View {
                             AtlasThreadActivity(message: activity,
                                                 typing: model.selected?.agentStatus == "running" && model.activeToolName == nil)
                         }
-                        if model.loadingHistory { ProgressView("Loading history") }
                         if let error = model.errorMessage {
                             Text(error).font(.callout).foregroundStyle(.red)
                             Button("Retry") { Task { await model.history() } }.frame(minHeight: 44)
@@ -137,7 +136,7 @@ struct AtlasThreadDetail: View {
                     .padding()
                 }
                 .overlay {
-                    if openingHistory && model.messages.isEmpty {
+                    if (openingHistory || model.loadingHistory) && model.messages.isEmpty {
                         ProgressView("Loading conversation…").accessibilityIdentifier("thread-history-loading")
                     }
                 }
@@ -252,7 +251,7 @@ extension AtlasThreadDetail {
             }, send: {
                 if current.kind == "private", !model.draftMentions.isEmpty { confirmingShare = true } else { send() }
             })
-            .disabled(model.selected?.id != thread.id)
+            .disabled(model.selected?.id != thread.id || openingHistory || (model.loadingHistory && model.messages.isEmpty))
         }
         .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
         .frame(maxWidth: .infinity)

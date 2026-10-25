@@ -88,6 +88,9 @@ reading history; it must not compete with the bottom anchor. Coalesce bottom req
 after layout and keep correcting until geometry reaches the bottom, including content insets.
 Prepare timeline groups once per changed message snapshot, never inside lazy row builders.
 Unchanged Markdown avoids reparsing during scroll, presence and draft updates.
+Ignore repeated Orbit snapshot sequences and unchanged presence values rather than
+invalidating the navigation stack on idle long-poll responses. Theme arrival must change
+scroll-container styling without replacing its structural identity.
 Show loading feedback before the first protected history
 request completes. Approaching the top automatically loads one earlier page, retaining the
 current visible message through SwiftUI scroll-position binding, not a forced jump to the
