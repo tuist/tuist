@@ -13,8 +13,11 @@
 //! With that option the build system asks every key twice: a local-only lookup
 //! (`globally = false`) on its scheduling thread, then a key query
 //! (`globally = true`) that runs alongside the rest of the build. Only the key
-//! query reaches the remote, so no lookup holds up task scheduling. A CAS
-//! created without the option reads through to the remote on every lookup.
+//! query reaches the remote, so no lookup holds up task scheduling. Inside the
+//! build service a local-only lookup stays local on every handle, including the
+//! ones the Swift driver opens from compiler flags while it plans a module,
+//! which never carry the option. A compiler frontend's CAS created without the
+//! option reads through to the remote on every lookup.
 
 pub mod analytics;
 pub mod endpoint;
@@ -327,6 +330,22 @@ fn upload_in_background(
     resolved(cas_dir).starts_with(resolved(std::path::Path::new(drained_store)))
 }
 
+/// Whether a local-only lookup (`globally = false`) answers a local miss without
+/// asking the remote.
+///
+/// The build system marks its own handles with `remote-service-path` and runs a
+/// key query (`globally = true`) for every local miss, so their local-only lookups
+/// never need the remote. The Swift driver runs inside the build service too and
+/// opens a handle of its own from the compiler flags, which carry only the
+/// `tuist-*` options. While it plans a module it asks that handle locally whether
+/// every explicit module dependency is already built, before the build system has
+/// materialized any of them, so reading through turned each of those questions into
+/// a serial remote round trip inside "Planning Swift module". Compiler frontends
+/// still read through: they are not the build service.
+fn local_lookups_stay_local(remote_service_path: bool, in_build_service: bool) -> bool {
+    remote_service_path || in_build_service
+}
+
 /// How long a put waits for its upload before leaving it to the proxy.
 const UPLOAD_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
@@ -349,10 +368,8 @@ struct CasState {
     upload: bool,
     // See `resolve_upload_in_background`.
     upload_in_background: bool,
-    // Set when the build system passes `remote-service-path`: it then follows
-    // every local miss with a key query of its own (`globally = true`), off its
-    // scheduling thread, so a local-only lookup answers from the local store.
-    build_system_queries_remote: bool,
+    // See `local_lookups_stay_local`.
+    local_lookups_stay_local: bool,
     // (key -> value digest) associations served FROM the remote by this
     // process, so the client's end-of-job re-puts of replayed results skip
     // the publish path entirely (see actioncache_put_remote).
@@ -636,7 +653,10 @@ pub unsafe extern "C" fn llcas_cas_create(
         proxy_instance,
         upload: resolve_upload(state),
         upload_in_background,
-        build_system_queries_remote: option_value(state, "remote-service-path").is_some(),
+        local_lookups_stay_local: local_lookups_stay_local(
+            option_value(state, "remote-service-path").is_some(),
+            proxy_failure::running_in_build_service(),
+        ),
         created_at: std::time::Instant::now(),
         cas_dir,
         published: Mutex::new(std::collections::HashSet::new()),
@@ -1248,7 +1268,7 @@ unsafe fn actioncache_get_impl(
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         return result;
     }
-    if !globally && state.build_system_queries_remote {
+    if !globally && state.local_lookups_stay_local {
         return LLCAS_LOOKUP_RESULT_NOTFOUND;
     }
 
@@ -1657,6 +1677,20 @@ mod tests {
         assert!(!is_cache_poisoned("No space left on device"));
         assert!(!is_cache_poisoned("failed to open the action cache"));
         assert!(!is_cache_poisoned("poisoned lock in the object store"));
+    }
+
+    #[test]
+    fn local_only_lookups_stay_local_in_the_build_service_and_on_build_system_handles() {
+        assert!(local_lookups_stay_local(true, true));
+        assert!(
+            local_lookups_stay_local(false, true),
+            "the Swift driver's handle in the build service has no remote-service-path"
+        );
+        assert!(local_lookups_stay_local(true, false));
+        assert!(
+            !local_lookups_stay_local(false, false),
+            "a compiler frontend without the option still reads through"
+        );
     }
 
     // tests/client_errors.rs drives the load paths through Apple's plugin. Its
