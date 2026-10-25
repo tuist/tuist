@@ -103,7 +103,7 @@ A commit's figure is folded again whenever more of its data lands: another run, 
 
 The carried lines are read last, for the sources that passed, merged per file in ClickHouse, so a fold receives one set of lines per file however many tests and runs it carries. A file counts when it's product code, not test code, isn't an excluded path, and the source run reported it.
 
-**What the coverage holds decides which carry steps can run.** A run that reported only `run` coverage gives nothing to carry: its commits can be `measured`, or `partial` when tests were skipped. `target` evidence enables step 5, and `test` and `suite` evidence enable step 6. Swift Testing running in parallel, or without the attribution trait, records only `target` evidence, so its skipped tests are carried only with their whole target. Mix records only `run` coverage today, so a Mix commit that skipped tests is `partial`.
+**What the coverage holds decides which carry steps can run.** A run that reported only `run` coverage gives nothing to carry: its commits can be `measured`, or `partial` when tests were skipped. `target` evidence enables step 5, and `test` and `suite` evidence enable step 6. A test target that doesn't link TestCoverageAttribution, and Swift Testing running in parallel or without the attribution trait, records only `target` evidence, so its skipped tests are carried only with their whole target. Mix records only `run` coverage today, so a Mix commit that skipped tests is `partial`.
 
 ### Search bounds
 
@@ -168,13 +168,13 @@ Which of them the pages read:
 
 ## Xcode
 
-Xcode measures only the `run` scope itself. The other three come from [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution), a package linked into the test targets that attributes Xcode's coverage counters to the code each test process and each test executed.
+Xcode measures only the `run` scope itself. The CLI reads `target` from the raw profiles Xcode writes per test process. `test` and `suite` come from [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution), a package linked into the test targets that attributes Xcode's coverage counters to the code each test executed.
 
 | Scope | Source | Requirements |
 | --- | --- | --- |
 | `run` | Xcode's coverage, read with `xccov` (`view --report` for targets and functions, `view --archive` for per-line execution counts), on the macOS xcresult processor for uploaded result bundles or on the client in local mode. | `-enableCodeCoverage YES`. Files compiled only into `.xctest` bundles are flagged as test code and left out of every figure. |
-| `target` | TestCoverageAttribution: everything the target's test process executed. | The package linked into the test target, and a run that uploads coverage (Tuist then sets `TEST_COVERAGE_ATTRIBUTION_DIR` for the test process). Works with parallel testing and with Swift Testing suites that lack the trait. |
-| `test` | TestCoverageAttribution: one record per test. | Same as `target`. XCTest needs nothing more. Swift Testing needs the `.coverageAttribution` trait on its suites. Tests must run one at a time (`-parallel-testing-enabled NO`): a test that overlaps another is flagged as overlapped and gets no evidence of its own (`test_case_runs.coverage_evidence` = `overlapped`). |
+| `target` | Xcode's raw profiles: everything the target's test processes executed, the host app's launch included. Xcode writes one `<uuid>-<pid>.profraw` per process next to `Coverage.profdata`. The CLI matches each to the test bundle whose own functions ran in it, merges each target's profiles, and reports them with `llvm-cov`. When none can be read, the union of TestCoverageAttribution's records stands in. | A run that uploads coverage, on macOS or a simulator. Nothing to link. Works with parallel testing, XCTest and Swift Testing. A UI-tested app's own process is left out. |
+| `test` | TestCoverageAttribution: one record per test. | The package linked into the test target, and a run that uploads coverage (Tuist then sets `TEST_COVERAGE_ATTRIBUTION_DIR` for the test process). XCTest needs nothing more. Swift Testing needs the `.coverageAttribution` trait on its suites. Tests must run one at a time (`-parallel-testing-enabled NO`): a test that overlaps another is flagged as overlapped and gets no evidence of its own (`test_case_runs.coverage_evidence` = `overlapped`). |
 | `suite` | TestCoverageAttribution: the records of what ran between tests. | Same as `test`. |
 
 **What makes a run partial.** The CLI marks a run's coverage partial when it left tests out: `-only-testing`, `-skip-testing` (quarantined tests aside), Tuist's `--test-targets` and `--skip-test-targets`, or a selective-testing hit.
