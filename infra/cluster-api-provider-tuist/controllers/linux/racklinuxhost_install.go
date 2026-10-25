@@ -648,19 +648,28 @@ func rackHostKnownKey(ctx context.Context, creds *credentials.Manager, host *inf
 
 // renderBootInstallerOnceScript sets BootNext to the host's installer and
 // reboots a few seconds later, after the SSH session ends. The installer is the
+// installer partition a preinstalled host carries on its boot drive, else the
 // install stick when one is plugged in, which boots with the firmware as it
 // ships, and otherwise the firmware's IPv4 network boot entry for mac. The
-// stick gets a boot entry of its own, left out of BootOrder, since the firmware
-// lists a removable disk only after booting with it.
+// partition and the stick get a boot entry of their own, made afresh: the
+// firmware lists a removable disk only after booting with it, and turns an
+// entry whose partition is gone into another under the same name.
 func renderBootInstallerOnceScript(mac string) string {
 	return fmt.Sprintf(`set -eu
 mac=%[1]s
 label='tuist install stick'
+installer=/dev/disk/by-label/%[4]s
 entries() {
-  efibootmgr | awk -v label="$label" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { name = substr($0, 9); sub(/^[* ] /, "", name); sub(/\t.*/, "", name); if (name == label) print substr($1, 5, 4) }'
+  efibootmgr | awk -v label="${1:-$label}" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { name = substr($0, 9); sub(/^[* ] /, "", name); sub(/\t.*/, "", name); if (name == label) print substr($1, 5, 4) }'
 }
 %[3]sentry= via=
-if find_install_stick; then
+if [ -e "$installer" ]; then
+  part=$(readlink -f "$installer")
+  for old in $(entries '%[5]s'); do efibootmgr -q -b "$old" -B; done
+  efibootmgr -q -C -d "/dev/$(lsblk -no PKNAME "$part")" -p 1 -L '%[5]s' -l '\EFI\boot\bootx64.efi'
+  entry=$(entries '%[5]s' | head -n 1)
+  via="the installer partition $part"
+elif find_install_stick; then
   for old in $(entries); do efibootmgr -q -b "$old" -B; done
   efibootmgr -q -C -d "$stick_disk" -p "${stick_esp##*[!0-9]}" -L "$label" -l '\EFI\BOOT\BOOTX64.EFI'
   entry=$(entries | head -n 1)
@@ -678,7 +687,7 @@ fi
 efibootmgr -q -n "$entry"
 echo "tuist-install: BootNext=$entry, $via"
 nohup sh -c 'sleep 3; systemctl reboot' >/dev/null 2>&1 &
-`, strings.ReplaceAll(strings.ToLower(mac), ":", ""), mac, findInstallStickShell)
+`, strings.ReplaceAll(strings.ToLower(mac), ":", ""), mac, findInstallStickShell, rackinstall.InstallerLabel, rackinstall.InstallerBootEntry)
 }
 
 // findInstallStickShell defines find_install_stick, which sets stick_disk and

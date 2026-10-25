@@ -110,7 +110,13 @@ sync
 efi='` + p.Tools + `/tuist-efibootmgr'
 dpkg -x "$(ls "$cdrom"/pool/main/e/efibootmgr/efibootmgr_*_amd64.deb | head -n 1)" "$efi" || fail "unpacking efibootmgr from the medium"
 efibootmgr=$(ls "$efi"/bin/efibootmgr "$efi"/usr/bin/efibootmgr 2>/dev/null | head -n 1)
-"${efibootmgr:-missing}" -q -c -d "$target" -p 1 -L '` + InstallerBootEntry + `' -l '\EFI\boot\bootx64.efi' || fail "adding the boot entry"
+[ -n "$efibootmgr" ] || fail "no efibootmgr in the medium's pool"
+# An entry an earlier deploy added points at a partition that is gone; the
+# firmware keeps it, under the same name, as a group of its network entries.
+for entry in $("$efibootmgr" | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} ` + InstallerBootEntry + `\([[:space:]].*\)\{0,1\}$/\1/p'); do
+  "$efibootmgr" -q -b "$entry" -B
+done
+"$efibootmgr" -q -c -d "$target" -p 1 -L '` + InstallerBootEntry + `' -l '\EFI\boot\bootx64.efi' || fail "adding the boot entry"
 
 dmi="$sys/class/dmi/id"
 ek=$("$cdrom/tuist/rack-node" ek 2>/dev/null)

@@ -94,7 +94,14 @@ esac`,
 		// dpkg -x unpacks an efibootmgr that logs its calls.
 		"dpkg": `[ "$1" = -x ] && [ -f "$2" ] || exit 2
 mkdir -p "$3/usr/bin"
-printf '#!/bin/sh\nprintf "%%s %%s\\n" efibootmgr "$*" >>"%s"\n' "` + w.calls + `" >"$3/usr/bin/efibootmgr"
+cat >"$3/usr/bin/efibootmgr" <<'FAKE'
+#!/bin/sh
+if [ $# -eq 0 ]; then
+  printf 'BootCurrent: 0009\nBootOrder: 0009,0000\nBoot0000* tuist installer\tVenHw(99e275e7-75a0-4b37-a2e6-c5385e6c00cb)\nBoot0009* Ubuntu\tHD(2,GPT,x)\n'
+  exit 0
+fi
+FAKE
+printf 'printf "%%s %%s\\n" efibootmgr "$*" >>"%s"\n' "` + w.calls + `" >>"$3/usr/bin/efibootmgr"
 chmod 755 "$3/usr/bin/efibootmgr"`,
 		"poweroff": log,
 		"sleep":    `:`,
@@ -149,6 +156,7 @@ func TestDeployWritesTheInstallerOntoABlankBootDrive(t *testing.T) {
 		"sgdisk -n 1:1MiB:+4GiB -t 1:EF00 -c 1:tuist-installer /dev/nvme0n1",
 		"mkfs.vfat -F 32 -n TUISTINST " + filepath.Join(w.partDir, InstallerPartLabel),
 		`efibootmgr -q -c -d /dev/nvme0n1 -p 1 -L tuist installer -l \EFI\boot\bootx64.efi`,
+		"efibootmgr -q -b 0000 -B",
 		"poweroff -f",
 	} {
 		if !strings.Contains(calls, want+"\n") {

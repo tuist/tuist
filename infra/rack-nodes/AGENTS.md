@@ -92,7 +92,8 @@ only route out, its provisioning lease.
 
 - A box with an empty disk boots the stick on its own, with the firmware's
   defaults: Secure Boot on and the network stack off.
-- To reinstall a running host, the operator looks for a USB disk whose ISO
+- To reinstall a running host, the operator boots the installer partition of a
+  preinstalled host (below), else looks for a USB disk whose ISO
   carries `nocloud/tuist-install-stick`, gives its EFI partition a boot entry of
   its own (`tuist install stick`, left out of `BootOrder`), sets `BootNext` to
   it and reboots. A host without one netboots instead.
@@ -441,7 +442,10 @@ virtual media or a stick), its deploy seed:
    and the resident seed in place of its own;
 3. adds a UEFI boot entry `tuist installer`, first in `BootOrder`, with the
    efibootmgr from the ISO's pool (the live system has its libraries but not
-   the binary);
+   the binary), after deleting any entry of that name: the ASUS firmware keeps
+   an entry whose partition is gone, turned into a group of its network
+   entries (`VenHw(99e275e7-…)`). Without the entry the firmware lists no disk
+   option and boots the partition only after every network entry failed;
 4. prints the unit sheet on the screen and the serial console, and to
    `TUISTINST:/tuist/unit-sheet.txt`: product, serial, SMBIOS UUID, each NIC's
    MAC, driver and name, the TPM endorsement key's SHA-256, and its check
