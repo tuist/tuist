@@ -111,6 +111,48 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
     }
 }
 
+/// Captures the traits each package is mapped with, so assertions fail with readable values instead of
+/// relying on the mocking library's verification reporting.
+private final class PackageInfoMapperTraitsSpy: PackageInfoMapping, @unchecked Sendable {
+    struct Mapping: Equatable {
+        let packageInfoName: String
+        let enabledTraits: Set<String>
+    }
+
+    private let mappings = Mutex<[Mapping]>([])
+
+    var captured: [Mapping] {
+        mappings.withLock { $0 }
+    }
+
+    func resolveExternalDependencies(
+        path _: Path.AbsolutePath,
+        packagePath _: Path.AbsolutePath?,
+        packageInfos _: [String: PackageInfo],
+        packageToFolder _: [String: Path.AbsolutePath],
+        packageToTargetsToArtifactPaths _: [String: [String: Path.AbsolutePath]],
+        packageModuleAliases _: [String: [String: String]],
+        packageSettings _: TuistCore.PackageSettings
+    ) async throws -> ResolvedExternalDependencies {
+        ResolvedExternalDependencies(products: [:], packageProducts: [:])
+    }
+
+    func map(
+        packageInfo: PackageInfo,
+        path _: Path.AbsolutePath,
+        packageType _: PackageType,
+        packageSettings _: TuistCore.PackageSettings,
+        packageModuleAliases _: [String: [String: String]],
+        packageProducts _: [String: [String: [ProjectDescription.TargetDependency]]],
+        enabledTraits: Set<String>
+    ) async throws -> ProjectDescription.Project? {
+        mappings.withLock {
+            $0.append(Mapping(packageInfoName: packageInfo.name, enabledTraits: enabledTraits))
+        }
+        return ProjectDescription.Project(name: packageInfo.name, targets: [])
+    }
+}
+
 struct SwiftPackageManagerGraphLoaderTests {
     private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
     private let packageInfoMapper = MockPackageInfoMapping()
@@ -750,6 +792,133 @@ struct SwiftPackageManagerGraphLoaderTests {
                         enabledTraits: .any
                     )
                     .called(1)
+            }
+        }
+    }
+
+    @Test
+    func load_when_registry_dependency_uses_default_trait_maps_with_resolved_traits() async throws {
+        // Regression test for https://github.com/tuist/tuist/issues/12338: the root manifest refers to
+        // the package by its source-control identity ("hummingbird") while SwiftPM resolves it through
+        // the registry under a scoped identity ("hummingbird-project.hummingbird"). The call site that
+        // maps each package must pass the traits resolved for the canonical destination.
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
+                // Given
+                let packageSettings = PackageSettings.test()
+
+                let rootPackageInfo = PackageInfo.test(
+                    name: "RootPackage",
+                    dependencies: [
+                        PackageDependency(
+                            identity: "hummingbird",
+                            traits: [PackageDependencyTrait(name: "default")]
+                        ),
+                    ]
+                )
+                let registryPackageInfo = PackageInfo.test(
+                    name: "hummingbird",
+                    traits: [
+                        PackageTrait(
+                            enabledTraits: ["ConfigurationSupport"],
+                            name: "default",
+                            description: "The default traits of this package."
+                        ),
+                        PackageTrait(
+                            enabledTraits: [],
+                            name: "ConfigurationSupport",
+                            description: "Enable support for swift-configuration package."
+                        ),
+                    ]
+                )
+
+                let workspacePath = temporaryDirectory.appending(components: [
+                    ".build", "workspace-state.json",
+                ])
+                try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+                try await fileSystem.writeText(
+                    """
+                    {
+                      "object" : {
+                        "artifacts" : [],
+                        "dependencies" : [
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "hummingbird-project.hummingbird",
+                              "kind" : "registry",
+                              "location" : "hummingbird-project.hummingbird",
+                              "name" : "hummingbird"
+                            },
+                            "state" : {
+                              "name" : "registryDownload",
+                              "version" : "1.0.0"
+                            },
+                            "subpath" : "hummingbird-project/hummingbird/1.0.0"
+                          }
+                        ],
+                      }
+                    }
+                    """,
+                    at: workspacePath
+                )
+
+                try await fileSystem.makeDirectory(
+                    at: temporaryDirectory.appending(components: [".build", "Derived"])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(components: [
+                        ".build", "Derived", "Package.resolved",
+                    ])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(component: "Package.resolved")
+                )
+
+                let registryPackageFolder = temporaryDirectory.appending(components: [
+                    ".build", "registry", "downloads",
+                    "hummingbird-project", "hummingbird", "1.0.0",
+                ])
+                let mapperSpy = PackageInfoMapperTraitsSpy()
+                let manifestLoader = MockManifestLoading()
+                given(manifestLoader)
+                    .loadPackage(at: .any, disableSandbox: .value(true))
+                    .willProduce { path, _ in
+                        if path == temporaryDirectory { return rootPackageInfo }
+                        if path == registryPackageFolder { return registryPackageInfo }
+                        return .test()
+                    }
+                let contentHasher = MockContentHashing()
+                given(contentHasher)
+                    .hash(Parameter<[String]>.any)
+                    .willProduce { $0.joined(separator: "-") }
+                let subject = SwiftPackageManagerGraphLoader(
+                    swiftPackageManagerController: swiftPackageManagerController,
+                    packageInfoMapper: mapperSpy,
+                    manifestLoader: manifestLoader,
+                    fileSystem: fileSystem,
+                    contentHasher: contentHasher
+                )
+
+                // When
+                let (got, _) = try await subject.load(
+                    packagePath: temporaryDirectory.appending(component: "Package.swift"),
+                    packageSettings: packageSettings,
+                    disableSandbox: true
+                )
+
+                // Then
+                #expect(got.externalProjects.count == 1)
+                #expect(
+                    mapperSpy.captured
+                        == [
+                            PackageInfoMapperTraitsSpy.Mapping(
+                                packageInfoName: "hummingbird",
+                                enabledTraits: Set(["default", "ConfigurationSupport"])
+                            ),
+                        ]
+                )
             }
         }
     }

@@ -7116,6 +7116,29 @@ struct PackageInfoMapperTests {
     }
 
     @Test(.withMockedSwiftVersionProvider)
+    func canonicalIdentity_whenIdentityIsNotAKnownRegistryIdentity_preservesFullIdentity() {
+        // Only known registry identities may lose their scope. A dotted identity that
+        // is not a registry identity (e.g. an SCM package with a dot in its name) must
+        // keep all of its components.
+        #expect(
+            SwiftPackageManagerGraphLoader.canonicalIdentity(
+                "HummingbirdProject.Hummingbird",
+                registryIdentities: ["hummingbird-project.hummingbird"]
+            ) == "hummingbirdproject.hummingbird"
+        )
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func canonicalIdentity_whenRegistryIdentityIsMixedCase_stripsScope() {
+        #expect(
+            SwiftPackageManagerGraphLoader.canonicalIdentity(
+                "HummingbirdProject.Hummingbird",
+                registryIdentities: ["hummingbirdproject.hummingbird"]
+            ) == "hummingbird"
+        )
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
     func enabledTraits_whenConditionalTraitWithMatchingCondition_enablesTrait() {
         let rootPackageInfo = PackageInfo.test(
             name: "RootPackage",
