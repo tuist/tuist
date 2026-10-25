@@ -41,6 +41,19 @@ gates:
   portSpanningTree: true
   siteServices: true
 
+# PicOS switches, reached over SSH and NETCONF with the controller's key,
+# which the zero-touch bootstrap installs for user. Unset sshKeyItem means
+# the controller manages no PicOS switch.
+picos:
+  # 1Password SSH key item; its "private key" field is the controller's key.
+  sshKeyItem: ""
+  # 1Password item whose password field admin gets when a switch is adopted.
+  adminPasswordItem: ""
+  user: tuist
+  # The rollback timer of every commit: a change the controller cannot read
+  # back over a new connection in this time undoes itself.
+  confirmAfter: 5m
+
 credentials:
   secretStoreRef:
     name: onepassword
