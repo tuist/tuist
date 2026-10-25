@@ -4128,7 +4128,30 @@ rule moves. The paired controller error lines are
 `upstream sent no valid HTTP/1.0 header` and
 `no connection data found for keepalive http2 connection`. Gateway gRPC now
 reaches Kura on a dedicated port (PR #13227), so the two lanes no longer share a
-pool.
+pool; a firing on a `-grpc` upstream has one of the causes below.
+
+A burst of 502s on the `-grpc` upstream whose request times all sit just above
+one second, paired with
+`recv() failed (104: Connection reset by peer) while reading response header from upstream`
+(upstream `grpc://<pod ip>:4001`), is the pod's listen queue overflowing rather
+than Kura answering. It shows up as `ByteStream/Write` uploads from one Bazel
+client that hang for about a second and then fail together across dozens of
+connections, while requests a millisecond later succeed. nginx opens one
+upstream connection per concurrent gRPC call, so a Bazel upload burst arrives as
+hundreds of simultaneous handshakes. Past the listen backlog the kernel drops
+SYNs (the one-second retry), then switches the port to SYN cookies and resets
+connections whose request bytes arrive before Kura accepts them. The node
+journal shows `Possible SYN flooding on port 0.0.0.0:4001. Sending cookies.`
+in the same second. Kura bound its public, HTTPS and gateway gRPC listeners
+with tokio's default backlog of 128, which a single burst exceeds, until it
+moved them to 1024. A burst of more than about a thousand new upstream
+connections can still overflow 1024: that shows as nginx upstream connect times
+of about one second with no 502s, so this rule stays quiet, and the journal
+line above only returns if the overflow reaches SYN cookies again. Kura never
+accepts these connections, so they are absent from its warn-level
+`public HTTP connection failed` log; that log covers resets on connections Kura
+did accept:
+`{cluster="tuist-production", namespace="kura", service_name="kura"} |= "public HTTP connection failed"`.
 
 A 502 on an upload (`POST` or `PUT`) with upstream status 502 and 0 upstream
 bytes is a connection Kura closed with request bytes still unread. The paired
@@ -4139,17 +4162,6 @@ never show it. Kura answers an upload of a blob it already stores after reading
 the body. Releases older than that answer first, which turns a steady fraction of
 an account's duplicate uploads into 502s while Kura's own request metrics count
 them as successes.
-
-A 502 on a `-grpc` upstream whose controller error line is
-`recv() failed (104: Connection reset by peer) while reading response header from upstream`
-(upstream `grpc://<pod ip>:4001`) is Kura resetting the gateway gRPC
-connections the controller had open. It shows up as `ByteStream/Write` uploads
-from one Bazel client that hang for about a second and then fail together
-across dozens of connections, while requests a millisecond later succeed. The
-cause is not yet known. Kura logs each failed connection on the gateway gRPC
-listener at warn as `public HTTP connection failed`, with the HTTP/2 cause, the
-peer and the connection age:
-`{cluster="tuist-production", namespace="kura", service_name="kura"} |= "public HTTP connection failed"`.
 
 `upstream` is the instance's backend, which identifies the account:
 `kura-kura-<instance>-http` for the HTTP lane (pod port 4000) and

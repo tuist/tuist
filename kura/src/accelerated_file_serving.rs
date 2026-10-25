@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     io::Write,
+    net::SocketAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -16,7 +17,7 @@ use hyper_util::{
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpSocket, TcpStream},
     sync::{Semaphore, watch},
 };
 use tokio_rustls::TlsAcceptor;
@@ -60,6 +61,16 @@ const CONNECTION_MAX_AGE_GRACE: Duration = Duration::from_secs(900);
 const IO_TIMEOUT: Duration = Duration::from_secs(120);
 const KEEP_ALIVE_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+// The gateway's nginx opens one upstream connection per concurrent gRPC call,
+// so a client's upload burst reaches a public listener as hundreds of
+// simultaneous handshakes. At tokio's default backlog of 128 the kernel drops
+// the excess SYNs (clients retry after a second) and then falls back to SYN
+// cookies, resetting connections whose request bytes arrive before Kura
+// accepts them: 502s at the gateway that Kura never sees. 1024 absorbs those
+// bursts without the cookie fallback. It stays well below `net.core.somaxconn`
+// because a queued connection keeps its first request window (about 64 KiB)
+// in node kernel memory, outside the pod's limit, until Kura accepts it.
+const PUBLIC_LISTEN_BACKLOG: u32 = 1024;
 const NX_NAMESPACE_ID: &str = "nx";
 const METRO_NAMESPACE_ID: &str = "metro";
 const TENANT_SCOPE_NAMESPACE_ID: &str = "";
@@ -70,6 +81,17 @@ const TENANT_SCOPE_NAMESPACE_ID: &str = "";
 // HTTP/2 windows (so co-hosted REAPI uploads are not throttled) while the plain
 // public port keeps its own tuning.
 type Http2BuilderConfig = fn(&mut HttpBuilder<TokioExecutor>);
+
+pub(crate) fn bind_public_listener(address: SocketAddr) -> std::io::Result<TcpListener> {
+    let socket = if address.is_ipv4() {
+        TcpSocket::new_v4()?
+    } else {
+        TcpSocket::new_v6()?
+    };
+    socket.set_reuseaddr(true)?;
+    socket.bind(address)?;
+    socket.listen(PUBLIC_LISTEN_BACKLOG)
+}
 
 // The gateway gRPC port is reached only through the regional ingress, which
 // does not drop upstream connections on its own, so a connection error there
@@ -1837,6 +1859,41 @@ mod tests {
         peek_request, request_wants_keep_alive, sanitized_content_type, serve_accelerated,
         system_page_bytes,
     };
+
+    // A burst of handshakes larger than tokio's default backlog of 128 must all
+    // complete while nothing accepts: past the backlog the kernel drops SYNs
+    // (a one-second client retry) and then resets connections it answered with
+    // SYN cookies, which a gateway reports as 502.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn public_listener_absorbs_a_handshake_burst_beyond_the_default_backlog() {
+        const BURST: usize = 512;
+        let somaxconn = std::fs::read_to_string("/proc/sys/net/core/somaxconn")
+            .ok()
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .unwrap_or(0);
+        if somaxconn <= BURST {
+            eprintln!("skipping: net.core.somaxconn {somaxconn} cannot hold {BURST} handshakes");
+            return;
+        }
+        let listener =
+            super::bind_public_listener(std::net::SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
+        let address = listener.local_addr().unwrap();
+
+        let attempts = (0..BURST).map(|_| {
+            tokio::time::timeout(
+                Duration::from_millis(500),
+                tokio::net::TcpStream::connect(address),
+            )
+        });
+        let connected = futures_util::future::join_all(attempts)
+            .await
+            .into_iter()
+            .filter(|attempt| matches!(attempt, Ok(Ok(_))))
+            .count();
+
+        assert_eq!(connected, BURST);
+    }
 
     fn benchmark_artifact_request() -> ArtifactRequest {
         ArtifactRequest {
