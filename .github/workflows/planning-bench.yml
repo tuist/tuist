@@ -65,12 +65,12 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: A/B
+      - name: Cold and warm store
         env:
           DYLIBS: ${{ runner.temp }}/dylibs
-        run: bash .github/scripts/planning-bench/ab.sh
+        run: bash .github/scripts/planning-bench/store.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: planning-ab-${{ matrix.environment }}
-          path: ${{ runner.temp }}/planning-ab/out
+          name: planning-store-${{ matrix.environment }}
+          path: ${{ runner.temp }}/planning-store/out
