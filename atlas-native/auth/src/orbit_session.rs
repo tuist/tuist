@@ -792,11 +792,11 @@ fn archive_using(
             ));
         }
         if !state.snapshot.threads.iter().any(|item| item.id == id)
-            && !state
+            && state
                 .snapshot
                 .selected
                 .as_ref()
-                .is_some_and(|item| item.id == id)
+                .is_none_or(|item| item.id != id)
         {
             return Err(invalid());
         }

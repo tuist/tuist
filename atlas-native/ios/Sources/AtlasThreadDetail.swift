@@ -42,7 +42,7 @@ struct AtlasThreadDetail: View {
             ScrollViewReader { scroll in
                 ScrollView {
                     VStack(spacing: 14) {
-                        if model.hasOlder {
+                        if model.hasOlder, !model.messages.isEmpty {
                             Button(model.loadingHistory || pagingHistory ? "Loading earlier messages…" : "Load earlier messages") {
                                 Task { await loadEarlier() }
                             }
@@ -121,7 +121,7 @@ struct AtlasThreadDetail: View {
                 }
                 .overlay(alignment: .bottomTrailing) {
                     AtlasThreadNavigation(messages: model.messages, shared: current.kind != "private",
-                                          hasOlder: model.hasOlder, loading: model.loadingHistory,
+                                          hasOlder: model.hasOlder && !model.messages.isEmpty, loading: model.loadingHistory,
                                           showsLatest: !scrolling.following && !showsWelcome && !model.messages.isEmpty,
                                           older: { await loadEarlier() }, jump: { id in
                         scrolling.following = id == "thread-latest"
@@ -131,6 +131,7 @@ struct AtlasThreadDetail: View {
                         } completion: {
                             scrolling.following = id == "thread-latest"
                             jumpingToPrompt = false
+                            if scrolling.following { latestScrollRequest += 1 }
                         }
                     })
                     .padding()
@@ -148,8 +149,10 @@ struct AtlasThreadDetail: View {
                     Label("Archived conversation", systemImage: "archivebox").font(.subheadline).foregroundStyle(.secondary)
                     Spacer()
                     if let selfId, current.ownerId == selfId {
-                        Button("Restore") { Task { await model.archive(current, archived: false) } }
-                            .disabled(model.saving).frame(minHeight: 44).accessibilityIdentifier("thread-restore")
+                        Button { Task { await model.archive(current, archived: false) } } label: {
+                            Text("Restore").frame(minWidth: 44, minHeight: 44)
+                        }
+                        .disabled(model.saving).accessibilityIdentifier("thread-restore")
                     }
                 }
                 .padding(.horizontal).padding(.bottom, 8).background(.bar)

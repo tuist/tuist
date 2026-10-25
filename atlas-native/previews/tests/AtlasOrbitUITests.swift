@@ -315,7 +315,7 @@ final class AtlasOrbitUITests: XCTestCase {
             XCTAssertEqual(composer.value as? String, "Keep this draft.")
             capture(app, "ios-orbit-prompt-jump-\(dark ? "shared-dark-large" : "private-light")")
             app.buttons["Latest messages"].tap()
-            XCTAssertTrue(app.staticTexts["Summarize the next steps."].isHittable)
+            assertLatestVisible(app, latest: app.staticTexts["Summarize the next steps."], composer: composer)
             XCTAssertFalse(attachment.isHittable)
             XCTAssertEqual(composer.value as? String, "Keep this draft.")
             app.terminate()
@@ -441,8 +441,8 @@ final class AtlasOrbitUITests: XCTestCase {
 
     @MainActor private func assertLatestVisible(_ app: XCUIApplication, latest: XCUIElement, composer: XCUIElement) {
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            latest.exists && latest.isHittable && latest.frame.minY >= app.navigationBars.firstMatch.frame.maxY &&
-                latest.frame.maxY <= composer.frame.minY
+            latest.exists && latest.frame.height > 0 && latest.frame.minY >= app.navigationBars.firstMatch.frame.maxY &&
+                latest.frame.maxY <= composer.frame.minY && latest.isHittable
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 10), .completed)
     }
@@ -521,9 +521,11 @@ final class AtlasOrbitUITests: XCTestCase {
         conversation.tap()
         let loading = app.descendants(matching: .any)["thread-history-loading"].firstMatch
         XCTAssertTrue(loading.waitForExistence(timeout: 2))
-        XCTAssertEqual(app.progressIndicators.count, 1)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "thread-history-loading").count, 1)
         XCTAssertFalse(app.staticTexts["Private · Only you and Pip"].exists)
         XCTAssertFalse(app.textFields["thread-composer"].isEnabled)
+        XCTAssertFalse(app.buttons["thread-earlier"].exists)
+        XCTAssertFalse(app.buttons["thread-prompts"].exists)
         XCTAssertFalse(app.buttons["Compare recent builds"].exists)
         capture(app, "ios-orbit-history-loading-preview")
         XCTAssertTrue(loading.waitForNonExistence(timeout: 8))

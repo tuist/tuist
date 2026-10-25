@@ -86,13 +86,6 @@ final class AtlasOrbit: ObservableObject {
         await perform(command)
     }
 
-    func archive(_ thread: AtlasThread, archived: Bool) async {
-        guard !saving else { return }
-        submitting = true
-        defer { submitting = false }
-        await perform(["action": "archive", "id": thread.id, "archived": archived])
-    }
-
     func privateThread() async -> AtlasThread? {
         guard await perform(["action": "private"]) else { return nil }
         return selected
@@ -288,6 +281,13 @@ final class AtlasOrbit: ObservableObject {
 }
 
 extension AtlasOrbit {
+    func archive(_ thread: AtlasThread, archived: Bool) async {
+        guard !saving else { return }
+        submitting = true
+        defer { submitting = false }
+        await perform(["action": "archive", "id": thread.id, "archived": archived])
+    }
+
     func newPrivateThread() async -> AtlasThread? {
         selectionRevision = UUID()
         let intent = selectionRevision
