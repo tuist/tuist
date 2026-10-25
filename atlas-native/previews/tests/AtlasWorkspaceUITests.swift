@@ -272,6 +272,30 @@ final class AtlasWorkspaceUITests: XCTestCase {
         }
     }
 
+    @MainActor func testSocialScreenshotsWithFictionalBusinessData() throws {
+        for mode in ["light", "dark"] {
+            let app = launch(arguments: ["--social-screenshots"] + (mode == "dark" ? ["--dark"] : []))
+            defer { app.terminate() }
+            let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+            XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["Next week’s customer calls"].exists)
+            attach(app, "atlas-social-orbit-\(mode)")
+            conversation.tap()
+            XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Start with Northstar: it has the nearest deadline."].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Start with Northstar: it has the nearest deadline."].isHittable)
+            attach(app, "atlas-social-pip-\(mode)")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            app.tabBars.buttons["Accounts"].tap()
+            XCTAssertTrue(app.staticTexts["Harbor Labs"].waitForExistence(timeout: 5))
+            attach(app, "atlas-social-accounts-\(mode)")
+            app.tabBars.buttons["Finance"].tap()
+            XCTAssertTrue(app.descendants(matching: .any)["finance-available-cash"].waitForExistence(timeout: 5))
+            attach(app, "atlas-social-finance-\(mode)")
+            app.terminate()
+        }
+    }
+
     @MainActor private func launch(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = ["--workspace"] + arguments

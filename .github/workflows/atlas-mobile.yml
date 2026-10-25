@@ -106,7 +106,7 @@ jobs:
           device=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.isAvailable and (.name | startswith("iPhone")))][0].udid')
           xcrun simctl boot "$device" || xcrun simctl bootstatus "$device" -b
           xcrun simctl bootstatus "$device" -b
-          xcrun simctl status_bar "$device" override --time '13:05' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+          xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
           mkdir -p scroll-validation
           xcrun simctl list devices available -j > scroll-validation/devices.json
           export ONCE_APPLE_SIMULATOR_UDID="$device"
@@ -121,10 +121,12 @@ jobs:
               -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testFailedArchiveKeepsConversationAndHistoryAvailable \
               -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testLongThreadStaysVisibleWhenScrollingAndOpeningKeyboard \
               -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testSlowConversationEntryShowsLoadingThenPagesAutomaticallyUpward \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testScrollingDuringEarlierPageLoadKeepsTheCurrentVisibleMessage \
               -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testPrivateThreadAndSharedToolEvidence \
               -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testComposeCreatesSeparatePrivateConversationsWithSuggestions \
               -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testBottomFollowsAppendedAndGrowingReplyWithoutMovingHistoryReaders \
               -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testPromptIndexLoadsEarlierAndJumpsWithoutLosingDrafts \
+              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testSocialScreenshotsWithFictionalBusinessData \
               -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testReturningToOrbitRetainsLoadedThreadsUntilExplicitRefresh
           fi
           exec "$real" "$@"

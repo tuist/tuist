@@ -64,13 +64,14 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 if selected?["id"] as? String == id { selected?["status"] = archived ? "archived" : "active" }
             }
         case "select":
-            if ProcessInfo.processInfo.arguments.contains("--delayed-orbit") { try await Task.sleep(for: .seconds(3)) }
+            if ProcessInfo.processInfo.arguments.contains("--delayed-orbit") { try await Task.sleep(for: .seconds(8)) }
             switch command["id"] as? String {
             case privateID: select(thread(id: privateID, title: "Build listing latency", kind: "private"))
             case secondPrivateID: select(thread(id: secondPrivateID, title: "Release checklist", kind: "private"))
             case sharedID: select(thread(id: sharedID, title: "Build listing latency", kind: "shared"))
             default:
-                if let created = createdThreads.first(where: { $0["id"] as? String == command["id"] as? String }) {
+                let available = createdThreads + (AtlasSocialPreviewData.enabled ? AtlasSocialPreviewData.threads : [])
+                if let created = available.first(where: { $0["id"] as? String == command["id"] as? String }) {
                     select(created)
                 } else {
                     select(nil)
@@ -237,6 +238,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
             }
             if ProcessInfo.processInfo.arguments.contains("--orbit-prompts") { messages = promptHistory }
             if ProcessInfo.processInfo.arguments.contains("--orbit-long-history") { messages = longHistory }
+            if AtlasSocialPreviewData.enabled { messages = AtlasSocialPreviewData.messages(threadID: selected?["id"] as? String ?? "") }
             if createdThreads.contains(where: { $0["id"] as? String == selected?["id"] as? String }) { messages = [] }
             messages += sent
             if follow, let followStarted {
@@ -255,9 +257,12 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 }
             }
         }
-        let threads = (createdThreads + [thread(id: privateID, title: "Build listing latency", kind: "private"),
-                                         thread(id: secondPrivateID, title: "Release checklist", kind: "private"),
-                                         thread(id: sharedID, title: "Build listing latency", kind: "shared")]).map { value in
+        let seedThreads = AtlasSocialPreviewData.enabled ? AtlasSocialPreviewData.threads : [
+            thread(id: privateID, title: "Build listing latency", kind: "private"),
+            thread(id: secondPrivateID, title: "Release checklist", kind: "private"),
+            thread(id: sharedID, title: "Build listing latency", kind: "shared")
+        ]
+        let threads = (createdThreads + seedThreads).map { value in
             var thread = value
             thread["status"] = archivedIDs.contains(value["id"] as? String ?? "") ? "archived" : "active"
             return thread
@@ -359,6 +364,10 @@ final class AtlasOrbitPreviewData: ObservableObject {
     }
 
     private func thread(id: String, title: String, kind: String) -> [String: Any] {
+        if AtlasSocialPreviewData.enabled, var social = AtlasSocialPreviewData.threads.first(where: { $0["id"] as? String == id }) {
+            social["status"] = archivedIDs.contains(id) ? "archived" : "active"
+            return social
+        }
         let updated = id == secondPrivateID ? Calendar.current.date(byAdding: .day, value: -1, to: promptTime)! : promptTime
         return ["id": id, "title": title, "kind": promotedIDs.contains(id) ? "shared" : kind,
          "status": archivedIDs.contains(id) ? "archived" : "active",
