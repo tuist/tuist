@@ -112,25 +112,25 @@ jobs:
           export ONCE_APPLE_SIMULATOR_UDID="$device"
           export TMPDIR="$RUNNER_TEMP/atlas-orbit-scroll-validation"
           mkdir -p "$TMPDIR/tools"
-          export ATLAS_REAL_XCODEBUILD=$(xcrun --find xcodebuild)
           cat > "$TMPDIR/tools/xcodebuild" <<'SH'
           #!/bin/bash
+          real=$(xcrun --find xcodebuild)
           if [[ "$1" == test-without-building ]]; then
             extra=()
-            if [[ "${ORBIT_BASELINE:-0}" == 1 ]]; then
+            if [[ -f "${0%/*}/baseline" ]]; then
               extra+=("-only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testLongThreadStaysVisibleWhenScrollingAndOpeningKeyboard")
             fi
-            exec "$ATLAS_REAL_XCODEBUILD" "$@" -collect-test-diagnostics never "${extra[@]}"
+            exec "$real" "$@" -collect-test-diagnostics never "${extra[@]}"
           fi
-          exec "$ATLAS_REAL_XCODEBUILD" "$@"
+          exec "$real" "$@"
           SH
           chmod +x "$TMPDIR/tools/xcodebuild"
           export PATH="$TMPDIR/tools:$PATH"
           validate() (
             phase="$1"
             mkdir -p "scroll-validation/$phase"
-            mise exec -- once build AtlasSettingsIOSPreview
-            xcrun simctl install "$device" .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app
+            mise exec -- once build AtlasSettingsIOSPreview || exit $?
+            xcrun simctl install "$device" .once/out/AtlasSettingsIOSPreview/AtlasSettingsPreview.app || exit $?
             xcrun simctl io "$device" recordVideo --codec=h264 "$PWD/scroll-validation/$phase/interaction.mov" > "scroll-validation/$phase/recording.log" 2>&1 &
             recording=$!
             trap 'kill -INT "$recording" 2>/dev/null || true; wait "$recording" || true' EXIT
@@ -153,8 +153,10 @@ jobs:
           git fetch --no-tags --depth=1 origin 672b480016b51f2d010db3e525e2105eaae04476
           git restore --source=672b480016b51f2d010db3e525e2105eaae04476 --worktree -- ios/Sources
           baseline=0
-          ORBIT_BASELINE=1 validate before || baseline=$?
+          touch "$TMPDIR/tools/baseline"
+          validate before || baseline=$?
           printf '%s\n' "$baseline" > scroll-validation/baseline-exit-status
+          rm "$TMPDIR/tools/baseline"
           git restore --source=HEAD --worktree -- ios/Sources
           validate after
       - uses: actions/upload-artifact@v4
