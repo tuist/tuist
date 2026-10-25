@@ -203,6 +203,7 @@ defmodule AtlasWeb.Router do
     get "/orbit/threads", NativeOrbitController, :index
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
+    patch "/orbit/threads/:id", NativeOrbitController, :update
     get "/orbit/threads/:id/people", NativeOrbitController, :people
     get "/orbit/threads/:id/messages", NativeOrbitController, :messages
     post "/orbit/threads/:id/messages", NativeOrbitController, :post_message

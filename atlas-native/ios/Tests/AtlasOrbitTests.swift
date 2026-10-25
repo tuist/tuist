@@ -96,6 +96,49 @@ extension AtlasOrbitTests {
         #expect(commands[2].count == 1) // Replay UUID and owner identity belong to Rust/server.
     }
 
+    @Test func archivingKeepsHistoryAndDraftWhileReconcilingAuthoritativeStatus() async throws {
+        var sequence = 0
+        var status = "active"
+        var filter = "active"
+        let message: [String: Any] = [
+            "id": "history", "kind": "human", "body": "Keep this conversation.", "author_name": "Taylor",
+            "inserted_at": "2026-10-24T12:00:00Z", "tool_input": "", "tool_output": ""
+        ]
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"archive-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            switch command["action"] as? String {
+            case "load":
+                filter = command["status"] as? String ?? filter
+            case "archive":
+                #expect(command["id"] as? String == id)
+                status = command["archived"] as? Bool == true ? "archived" : "active"
+            default: throw CancellationError()
+            }
+            sequence += 1
+            let thread: [String: Any] = [
+                "id": id, "title": "Keep this conversation", "kind": "private", "status": status,
+                "summary": "", "origin": "manual", "participants": [], "updated_at": "2026-10-24T12:00:00Z"
+            ]
+            return try snapshot(sequence: sequence, selected: true, draft: "An unsent thought", messages: [message], fields: [
+                "selected": thread, "threads": status == filter ? [thread] : [], "status_filter": filter
+            ])
+        }, localRequest: { _ in throw CancellationError() })
+        await model.load()
+        let thread = try #require(model.selected)
+        await model.archive(thread, archived: true)
+        #expect(model.selected?.status == "archived")
+        #expect(model.threads.isEmpty)
+        await model.load(status: "archived")
+        #expect(model.statusFilter == "archived")
+        #expect(model.threads.first?.status == "archived")
+        await model.archive(try #require(model.selected), archived: false)
+        #expect(model.selected?.status == "active")
+        #expect(model.threads.isEmpty)
+        #expect(model.messages.map(\.body) == ["Keep this conversation."])
+        #expect(model.draft == "An unsent thought")
+    }
+
     @Test func mentionSelectionUsesRustIdentityAndRetainsTheEditableDraft() async throws {
         let personId = "01922cc0-0000-7000-8000-000000000099"
         var sequence = 0

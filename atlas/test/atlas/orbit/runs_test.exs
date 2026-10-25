@@ -302,7 +302,7 @@ defmodule Atlas.Orbit.RunsTest do
     refute body =~ "Discard this response"
   end
 
-  for boundary <- [:cancelled, :deadline] do
+  for boundary <- [:cancelled, :archived, :deadline] do
     test "#{boundary} stops a blocked research child through the real run worker" do
       owner = user_fixture()
       {:ok, thread, _} = Orbit.ensure_private(owner)
@@ -328,12 +328,13 @@ defmodule Atlas.Orbit.RunsTest do
 
       case unquote(boundary) do
         :cancelled -> {:ok, _} = Orbit.cancel_run(owner, thread, run.id)
+        :archived -> {:ok, _} = Orbit.set_status(owner, thread, "archived")
         :deadline -> send(worker.pid, :deadline)
       end
 
       assert :ok = Task.await(worker, 5_000)
       assert_receive {:DOWN, ^monitor, :process, ^child, _}, 2_000
-      expected = if unquote(boundary) == :cancelled, do: "cancelled", else: "failed"
+      expected = if unquote(boundary) == :deadline, do: "failed", else: "cancelled"
       assert Repo.get!(Run, run.id).status == expected
       assert Repo.get_by!(Message, run_id: run.id, tool_name: "task").tool_status != "running"
       refute Repo.exists?(from message in Message, where: message.run_id == ^run.id and message.kind == "agent")

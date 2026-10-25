@@ -566,6 +566,84 @@ final class AtlasOrbitUITests: XCTestCase {
         capture(app, "ios-orbit-earlier-page-retains-reader-preview")
     }
 
+    @MainActor func testArchiveAndRestoreKeepReadableHistoryInLightAndLargeDarkText() throws {
+        for appearance in ["light", "dark-large"] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace"] + (appearance == "light" ? [] : ["--dark", "--large-text"])
+            app.launch()
+            defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
+            let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+            XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+            let filter = app.segmentedControls["orbit-status"]
+            XCTAssertTrue(filter.buttons["Active"].isSelected)
+            capture(app, "ios-orbit-inbox-\(appearance)-preview")
+            conversation.swipeLeft()
+            XCTAssertTrue(app.buttons["Archive"].waitForExistence(timeout: 5))
+            capture(app, "ios-orbit-archive-action-\(appearance)-preview")
+            app.buttons["Archive"].tap()
+            XCTAssertTrue(conversation.waitForNonExistence(timeout: 5))
+            filter.buttons["Archived"].tap()
+            XCTAssertTrue(conversation.waitForExistence(timeout: 5))
+            capture(app, "ios-orbit-archived-inbox-\(appearance)-preview")
+            conversation.tap()
+            let restore = app.buttons["thread-restore"]
+            XCTAssertTrue(restore.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(restore.frame.height, 44)
+            XCTAssertFalse(app.textFields["thread-composer"].exists)
+            XCTAssertTrue(app.staticTexts["Check whether other projects are affected too."].isHittable)
+            capture(app, "ios-orbit-archived-history-\(appearance)-preview")
+            restore.tap()
+            XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(filter.waitForExistence(timeout: 5))
+            XCTAssertFalse(conversation.exists)
+            filter.buttons["Active"].tap()
+            XCTAssertTrue(conversation.waitForExistence(timeout: 5))
+            let shared = app.buttons["thread-01922cc0-0000-7000-8000-000000000002"]
+            for _ in 0..<3 where !shared.isHittable { app.scrollContent() }
+            shared.swipeLeft()
+            app.buttons["Archive"].tap()
+            let confirmation = app.sheets.firstMatch
+            XCTAssertTrue(confirmation.buttons["Archive conversation"].waitForExistence(timeout: 5))
+            XCTAssertTrue(confirmation.staticTexts["It will become read-only for everyone. You can restore it from Archived."].exists)
+            capture(app, "ios-orbit-shared-archive-confirmation-\(appearance)-preview")
+            confirmation.buttons["Cancel"].tap()
+            XCTAssertTrue(shared.exists)
+            shared.swipeLeft()
+            app.buttons["Archive"].tap()
+            confirmation.buttons["Archive conversation"].tap()
+            XCTAssertTrue(shared.waitForNonExistence(timeout: 5))
+            app.scrollContent(up: false)
+            filter.buttons["Archived"].tap()
+            XCTAssertTrue(shared.waitForExistence(timeout: 5))
+            shared.tap()
+            XCTAssertTrue(restore.waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["thread-address-agent"].exists)
+            restore.tap()
+            XCTAssertTrue(app.buttons["thread-address-agent"].waitForExistence(timeout: 5))
+            app.terminate()
+        }
+    }
+
+    @MainActor func testFailedArchiveKeepsConversationAndHistoryAvailable() throws {
+        let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+        app.launchArguments = ["--workspace", "--fail-orbit-archive"]
+        app.launch()
+        defer { app.terminate() }
+        let conversation = app.buttons["thread-01922cc0-0000-7000-8000-000000000001"]
+        XCTAssertTrue(conversation.waitForExistence(timeout: 10))
+        conversation.swipeLeft()
+        app.buttons["Archive"].tap()
+        XCTAssertTrue(app.staticTexts["Preview archive failed. Your conversation is still here."].waitForExistence(timeout: 5))
+        XCTAssertTrue(conversation.exists)
+        capture(app, "ios-orbit-archive-failure-preview")
+        conversation.tap()
+        XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Check whether other projects are affected too."].isHittable)
+        XCTAssertFalse(app.buttons["thread-restore"].exists)
+    }
+
     @MainActor private func capture(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

@@ -12,6 +12,7 @@ struct AtlasOrbitView: View {
     @State private var handledRevision: UUID?
     @State private var navigationIntent = UUID()
     @State private var selfId: String?
+    @State private var confirmingArchive: AtlasThread?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
 
@@ -25,6 +26,19 @@ struct AtlasOrbitView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
+                Section {
+                    Picker("Conversations", selection: Binding(get: { model.statusFilter }, set: { status in
+                        Task { await model.load(status: status) }
+                    })) {
+                        Text("Active").tag("active")
+                        Text("Archived").tag("archived")
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(model.loading || model.saving)
+                    .accessibilityIdentifier("orbit-status")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
                 if let assistant = model.assistant {
                     if !assistant.configured {
                         Section {
@@ -35,38 +49,25 @@ struct AtlasOrbitView: View {
                         }
                     }
                 }
-                Section {
-                    let conversations = model.threads
-                    ForEach(conversations) { thread in
-                        Button { path.append(thread) } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(thread.title).font(.body).foregroundStyle(.primary).lineLimit(2)
-                                HStack(spacing: 8) {
-                                    if thread.kind != "private" { Label("Shared", systemImage: "person.2") }
-                                    if let date = thread.updatedDate { Text(date, style: .relative) }
-                                }
-                                .font(.subheadline).foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .padding(.vertical, 8)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
+                ForEach(conversationSections, id: \.title) { section in
+                    Section(section.title) {
+                        ForEach(section.threads) { thread in conversationRow(thread) }
+                    }
+                    .textCase(nil)
+                }
+                if model.threads.isEmpty, !model.loading, model.assistant != nil {
+                    ContentUnavailableView(model.statusFilter == "archived" ? "No archived conversations" : "Your conversations with Pip",
+                                           systemImage: model.statusFilter == "archived" ? "archivebox" : "bubble.left.and.bubble.right",
+                                           description: Text(model.statusFilter == "archived"
+                                               ? "Archived conversations stay here until you restore them."
+                                               : "Start a conversation using the compose button above."))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
-                        .accessibilityIdentifier("thread-\(thread.id)")
-                    }
-                    if conversations.isEmpty, !model.loading, model.assistant != nil {
-                        ContentUnavailableView("Your conversations with Pip", systemImage: "bubble.left.and.bubble.right",
-                                               description: Text("Start a conversation using the compose button above."))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    }
-                    if model.hasMore {
-                        HStack {
-                            Button("Load more") { Task { await model.load(more: true) } }.disabled(model.loading)
-                            if model.loading { ProgressView().accessibilityLabel("Loading more threads") }
-                        }
+                }
+                if model.hasMore {
+                    HStack {
+                        Button("Load more") { Task { await model.load(more: true) } }.disabled(model.loading)
+                        if model.loading { ProgressView().accessibilityLabel("Loading more threads") }
                     }
                 }
                 if let error = model.errorMessage {
@@ -103,6 +104,13 @@ struct AtlasOrbitView: View {
             .refreshable { await model.load() }
             .onAppear { presence?.show() }
         }
+        .confirmationDialog("Archive this shared conversation?", isPresented: Binding(
+            get: { confirmingArchive != nil }, set: { if !$0 { confirmingArchive = nil } }
+        ), titleVisibility: .visible, presenting: confirmingArchive) { thread in
+            Button("Archive conversation") { Task { await model.archive(thread, archived: true) } }
+        } message: { _ in
+            Text("It will become read-only for everyone. You can restore it from Archived.")
+        }
         .toolbar(path.isEmpty ? .visible : .hidden, for: .tabBar)
         .overlay {
             if openingLinkedThread || openingPrivate {
@@ -130,6 +138,69 @@ struct AtlasOrbitView: View {
         .onAppear { model.setActive(scenePhase == .active) }
         .onChange(of: scenePhase) { _, phase in model.setActive(phase == .active) }
         .onDisappear { model.setActive(false) }
+    }
+
+    private var conversationSections: [(title: String, threads: [AtlasThread])] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: model.threads) { thread in
+            guard let date = thread.updatedDate else { return "Earlier" }
+            if calendar.isDateInToday(date) { return "Today" }
+            return calendar.isDateInYesterday(date) ? "Yesterday" : "Earlier"
+        }
+        return ["Today", "Yesterday", "Earlier"].compactMap { title in
+            groups[title].map { (title: title, threads: $0) }
+        }
+    }
+
+    private func conversationRow(_ thread: AtlasThread) -> some View {
+        Button { path.append(thread) } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(thread.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
+                if !thread.summary.isEmpty {
+                    Text(thread.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                }
+                HStack(spacing: 10) {
+                    Label(thread.kind == "private" ? "Private" : "Shared", systemImage: thread.kind == "private" ? "lock" : "person.2")
+                    if ["queued", "running", "compacting"].contains(thread.agentStatus ?? "") {
+                        Label("Working", systemImage: "sparkles")
+                    }
+                    Spacer(minLength: 0)
+                    if let date = thread.updatedDate {
+                        if Calendar.current.isDateInToday(date) {
+                            Text(date, format: .dateTime.hour().minute())
+                        } else {
+                            Text(date, format: .dateTime.month(.abbreviated).day().year())
+                        }
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(Color.clear)
+        .accessibilityIdentifier("thread-\(thread.id)")
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if let selfId, thread.ownerId == selfId { archiveAction(thread) }
+        }
+        .contextMenu {
+            if let selfId, thread.ownerId == selfId { archiveAction(thread) }
+        }
+    }
+
+    private func archiveAction(_ thread: AtlasThread) -> some View {
+        Button(thread.status == "archived" ? "Restore" : "Archive",
+               systemImage: thread.status == "archived" ? "tray.and.arrow.up" : "archivebox") {
+            if thread.kind != "private", thread.status != "archived" {
+                confirmingArchive = thread
+            } else {
+                Task { await model.archive(thread, archived: thread.status != "archived") }
+            }
+        }
+        .tint(.orange)
+        .disabled(model.saving || model.loading)
     }
 
     private func openPrivateThread() async {

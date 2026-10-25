@@ -32,6 +32,7 @@ final class AtlasOrbit: ObservableObject {
     var creating: Bool { loading }
     var hasMore: Bool { state?.hasMore ?? false }
     var hasOlder: Bool { state?.hasOlder ?? false }
+    var statusFilter: String { state?.statusFilter ?? "active" }
     var errorMessage: String? { adapterError ?? state?.error }
     var liveMessage: String? { state?.liveMessage }
     var activeToolName: String? {
@@ -79,8 +80,17 @@ final class AtlasOrbit: ObservableObject {
         }
     }
 
-    func load(more: Bool = false) async {
-        await perform(more ? ["action": "load_more"] : ["action": "load"])
+    func load(more: Bool = false, status: String? = nil) async {
+        var command: [String: Any] = ["action": more ? "load_more" : "load"]
+        if let status { command["status"] = status }
+        await perform(command)
+    }
+
+    func archive(_ thread: AtlasThread, archived: Bool) async {
+        guard !saving else { return }
+        submitting = true
+        defer { submitting = false }
+        await perform(["action": "archive", "id": thread.id, "archived": archived])
     }
 
     func privateThread() async -> AtlasThread? {

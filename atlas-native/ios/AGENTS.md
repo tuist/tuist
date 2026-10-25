@@ -49,8 +49,13 @@ WebView, remote images, custom-scheme links or executable fenced content.
 Orbit's welcome and empty private thread use the bundled `AtlasPipView` mascot and
 draft suggestions. Touch duration and tap cadence vary its expressions; never claim
 pressure sensing. Reduce Motion preserves expression changes without movement.
-Orbit lists authorized private and shared conversations as flat title/date rows on the theme
-canvas, without grouped surfaces or disclosure chevrons. Shared rows disclose their audience.
+Orbit lists authorized private and shared conversations in a native plain inbox with
+Today/Yesterday/Earlier sections, title, available summary and private/shared metadata.
+Use static localized times/dates, not a ticking relative-time label. Active/Archived is a
+native segmented picker; eligible owners get swipe/context Archive and Restore actions.
+Confirm shared archive because it makes the conversation read-only for everyone. Archived
+details preserve readable history and replace the composer with an owner-only Restore action;
+restoring does not ask Pip to resume. Server ownership and status remain authoritative.
 Dates accept server microseconds and legacy whole seconds. Navbar compose opens a distinct
 private conversation with welcome/suggestions, rather than a fixed bottom Ask bar. Suggestions
 append to the existing draft and never send. Notification links select an authorized

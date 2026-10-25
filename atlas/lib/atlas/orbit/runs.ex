@@ -467,6 +467,22 @@ defmodule Atlas.Orbit.Runs do
 
   ## Completion
 
+  @doc false
+  # The caller holds the archived thread's row lock. Finish queued/running work
+  # here so a restore before its worker exits cannot restart pre-archive follow-ups.
+  def archive!(%Thread{status: "archived"} = thread) do
+    from(run in Run,
+      where: run.thread_id == ^thread.id and run.status in ^Run.active_statuses(),
+      lock: "FOR UPDATE"
+    )
+    |> Repo.all()
+    |> Enum.each(fn run ->
+      run = Repo.update!(Ecto.Changeset.change(run, cancel_requested_at: run.cancel_requested_at || DateTime.utc_now()))
+      finalize!(run, "cancelled", "archived", nil, thread)
+      Orbit.notify_cancel(run.id)
+    end)
+  end
+
   @doc """
   Finishes `attempt`. The reply is written only while the attempt still owns
   the run, the run was not cancelled, the thread is active, and the

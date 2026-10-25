@@ -117,10 +117,14 @@ jobs:
           real=$(xcrun --find xcodebuild)
           if [[ "$1" == test-without-building ]]; then
             exec "$real" "$@" -collect-test-diagnostics never \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests \
-              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testPresenceUsesNativeToolbarWithoutCoveringNavigation \
-              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testEmptyPresenceKeepsNativeRootAndDetailNavigation \
-              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testThemeCatalogLightDarkAndPersistence \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testArchiveAndRestoreKeepReadableHistoryInLightAndLargeDarkText \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testFailedArchiveKeepsConversationAndHistoryAvailable \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testLongThreadStaysVisibleWhenScrollingAndOpeningKeyboard \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testSlowConversationEntryShowsLoadingThenPagesAutomaticallyUpward \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testPrivateThreadAndSharedToolEvidence \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testComposeCreatesSeparatePrivateConversationsWithSuggestions \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testBottomFollowsAppendedAndGrowingReplyWithoutMovingHistoryReaders \
+              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testPromptIndexLoadsEarlierAndJumpsWithoutLosingDrafts \
               -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testReturningToOrbitRetainsLoadedThreadsUntilExplicitRefresh
           fi
           exec "$real" "$@"

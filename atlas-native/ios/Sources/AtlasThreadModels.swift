@@ -18,9 +18,8 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
     let agentStatus: String?
 
     var updatedDate: Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: updatedAt) ?? ISO8601DateFormatter().date(from: updatedAt)
+        (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(updatedAt))
+            ?? (try? Date.ISO8601FormatStyle().parse(updatedAt))
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
@@ -146,6 +145,7 @@ extension AtlasOrbit {
         let saving: Bool
         let hasMore: Bool
         let hasOlder: Bool
+        let statusFilter: String?
         let error: String?
         let liveMessage: String?
         let needsSession: Bool

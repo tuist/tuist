@@ -33,7 +33,7 @@ struct AtlasThreadDetail: View {
     private var current: AtlasThread { model.selected ?? thread }
     private var showsWelcome: Bool {
         current.kind == "private" && model.selected?.id == thread.id && model.messages.isEmpty
-            && !openingHistory && !model.loadingHistory && model.errorMessage == nil
+            && current.status != "archived" && !openingHistory && !model.loadingHistory && model.errorMessage == nil
             && !["queued", "running", "compacting"].contains(current.agentStatus ?? "")
     }
 
@@ -142,7 +142,21 @@ struct AtlasThreadDetail: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if current.status == "archived" {
+                HStack {
+                    Label("Archived conversation", systemImage: "archivebox").font(.subheadline).foregroundStyle(.secondary)
+                    Spacer()
+                    if let selfId, current.ownerId == selfId {
+                        Button("Restore") { Task { await model.archive(current, archived: false) } }
+                            .disabled(model.saving).frame(minHeight: 44).accessibilityIdentifier("thread-restore")
+                    }
+                }
+                .padding(.horizontal).padding(.bottom, 8).background(.bar)
+            } else {
+                composer
+            }
+        }
         .navigationTitle(current.kind == "private" ? assistantName : current.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
