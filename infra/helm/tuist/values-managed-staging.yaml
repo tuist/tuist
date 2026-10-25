@@ -1035,3 +1035,44 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 1
           maxReplicas: 2
+
+# A temporary bench site: the first ASUS RS501A edge, preinstalled with the
+# preinstall image and enrolled over the internet boot server by its TPM's
+# check code, rehearses a first edge's adoption before rack 2. Nothing at the
+# bench serves netboot, so the site's boot server matches no node.
+rackLinuxFleet:
+  enabled: true
+  site: bench
+  sshExternalSecret:
+    enabled: true
+    item: BENCH_FLEET_SSH
+  tailscale:
+    externalSecret:
+      enabled: true
+      item: TAILSCALE_RACK_NODES
+  roles:
+    edge:
+      tailnetTags: [tag:tuist-rack-edge]
+      nodeLabels:
+        tuist.dev/rack-edge: bench
+      nodeTaints:
+        - {key: tuist.dev/rack-edge, value: bench, effect: NoSchedule}
+  hosts:
+    - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
+      hostname: bench-edge-1
+      role: edge
+      tpmCheckCode: 921d-3fe4-7a7b-a3ea
+  preinstall:
+    products: ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]
+  authorizedKeys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
+  boot:
+    enabled: true
+    site: bench-no-netboot
+    address: 192.0.2.1
+    internet:
+      enabled: true
+      host: rack-boot-staging.tuist.dev
+      tlsSecretName: rack-boot-staging-tls
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-cloudflare
