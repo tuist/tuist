@@ -21,8 +21,10 @@ omitting it preserves generic browser login, including self-hosted providers.
   analytics. Errors expose fixed categories/messages, never raw transport bodies.
 - `time_off.rs` implements only the fixed owner-scoped `/api/me/time-off` list/create/update/cancel routes. It validates calendar dates and request IDs before networking, filters responses through personal request/public-holiday types, and never accepts owner/status/approval parameters or an arbitrary path. The API transport has feature-specific fixed error mappings so holiday errors do not become account-login expiry errors. Keep Rust sources in both production Once targets and test sources in the host test target.
 - `orbit_session.rs` is the shared thread feature model. `open` creates an opaque session-scoped handle; authenticated `request` commands update its credential snapshot and execute feature actions. Local `draft`, `active`, `next`, and `close` actions never require credential serialization. Draft, send, and leave carry the originating thread ID so late UI actions cannot target a newly selected thread; send also captures the text at tap time, while Rust owns its stable retry key. The model owns pagination, deduplication and ordering by server sequence, retained drafts and stable retry IDs, stale-selection fencing, and revocation cleanup. Swift/Kotlin render its monotonically sequenced snapshots rather than reimplementing those rules. `orbit.rs` filters the fixed `/api/native/orbit/threads` contract; `orbit_live.rs` uses the same authenticated WSS endpoint as presence but joins only the fixed inbox topic `orbit:me` or a validated `orbit:thread:<uuid>`. Inbox invalidations reload the authorized list, so monitored sessions appear without client polling. Live notifications invalidate authoritative HTTP history; they are not the durable event log. A refresh request replaces expired credentials and reopens live viewing. All handles are memory-only and must close at sign-out.
-- `load` accepts optional `kind=private|shared`; omitted means the legacy unfiltered list, preserving Android's contract. A changed filter resets pagination and fences older list results. `load_more`, foreground reconciliation and live invalidations retain the selected filter. Swift's `AtlasOrbit.load()` defaults to private-only pagination without restricting authorized shared UUID deep links.
+- `load` accepts optional `kind=private|shared`; omitted means the legacy unfiltered list, preserving Android's contract. A changed filter resets pagination and fences older list results. `load_more`, foreground reconciliation and live invalidations retain the selected filter. Swift loads the unfiltered authorized list so private conversations promoted to shared remain visible; protected history updates authoritative selected metadata and merges the thread into the list.
 - `create_private` creates a distinct owner-only Pip conversation through `POST /api/native/orbit/threads {kind: private, request_id: UUID}`. Rust generates and retains that exact UUID after an uncertain response until creation is confirmed; neither Swift nor Kotlin supplies an owner or synthesizes a new conversation by relabeling an old thread. Close/sign-out releases the memory-only replay identity. A confirmed creation reads protected history before exposing selected metadata and cannot replace a newer selection. The legacy `private` action still opens the latest existing private conversation (or creates only on first use); shared creation and direct reads remain supported. Swift exposes distinct creation as `newPrivateThread()`.
+- A definitive creation `409` (including replay after promotion) releases the rejected UUID without automatically issuing another POST. A subsequent explicit New action may create a fresh private conversation; uncertain transport/invalid-response failures must still replay the original UUID. Recover the promoted shared conversation through the ordinary authorized list.
+- Optional list metadata `assistant.can_create_private` defaults to false and passes through snapshots. Before distinct creation, an absent/false capability triggers a fresh typed `List`/`Overview` read using the current kind filter; apply only assistant metadata, preserving rows, pagination, selection, history and drafts. A still-unsupported server returns a fixed update-and-retry explanation, and a failed preflight retains its fixed transport/auth error. Neither case sends a POST, generates a new replay UUID, or falls back to legacy `/private`. Retrying in the same session must discover an upgraded server without restarting. Capability true preserves the existing exact UUID-replay-safe creation contract; superseded/closed preflights cannot start a creation.
 - Direct `orbit_session` `select` accepts a validated UUID even outside loaded pages and reads only fixed `Messages { id, page: 1 }`. Additive snapshot `selection_id` is a navigation intent for Back/Retry, never authoritative metadata; `selected` stays null until matching protected history succeeds. Do not synthesize Thread metadata or page the list to resolve a link. `has_drafts` reports retained nonblank drafts across threads for platform protected-work guards. Unavailable reads revoke cached rows, history, presence and that thread's drafts/retry IDs, retain the target for explicit Retry, and invalidate older list/detail results; superseded failures cannot revoke a newer selection. Shared state tests inject transport at the actual typed route boundary, including unseen IDs, denial, mismatched metadata, retry, supersession and close.
 - `orbit_components.rs` filters the server-authored `result_table` v1 contract: at most three columns, five rows, bounded strings, one `show_evidence` action, no extra executable/navigation fields. Invalid/unknown versions drop only the component and preserve original tool evidence. Local `orbit_session` `component_action` events require the current active selected thread and a matching succeeded tool message's server-provided action; the sole effect reveals existing source evidence. No model run, business mutation, arbitrary request or thread state is authored by the client.
 - `themes.rs` implements `themes` (fixed public GET on the selected origin), `validate_themes` (including cached catalogs), and `default_themes` (bundled Atlas). Treat this as optional appearance data, never an authentication requirement. Public transport attaches no bearer token and never maps 401/403/404/501 to rejected credentials. Validate the version, stable IDs, limits, opaque colors, radii and WCAG contrast; serialize only allowlisted fields. Native adapters own per-origin preferences and cache, using separate workers and generation guards. Do not add theme networking to the credential queue.
@@ -91,6 +93,39 @@ app-hosted tests are not implemented in that release. The simulator app has its
 own Keychain entitlement. Real device/browser login and secure-storage smoke
 checks remain part of preview validation.
 
+## Orbit mentions
+
+Authenticated session command `people {id, query}` uses only protected GET
+`/api/native/orbit/threads/<uuid>/people?query=...`. Queries are at most 100 bytes,
+without control characters, and must match the current draft's trailing `@query`.
+Native adapters must await their pending local draft update before searching.
+Responses expose only up to 20 eligible `{id, name}` candidates, never email or
+arbitrary response fields. Snapshot `mention_candidates`, `mention_loading`, and
+nullable `mention_error` are independent of global loading/saving/message errors.
+Selection, query/request generation, access, lifecycle, and close fence late results.
+People 403/404/501 means unavailable suggestions with a fixed explanation; it must
+not erase authorized history, selection or drafts on an older server. Only a current
+authoritative history denial establishes lost thread access, not a People failure.
+
+Local action `mention {connection, id, user_id}` requires that user to be a current
+candidate in the active protected selection. Rust replaces trailing `@query` with
+`@Full Name ` and retains typed identities in the per-thread draft. Snapshot
+`draft_mentions` contains only `{id, name}`. Existing `draft` edits remove selections
+whose visible `@Name` token disappears and preserve attachments; never infer identities
+from arbitrary text. Navigation retains mentions, while revoke/close clears them.
+
+Session `send` accepts optional `mention_ids` (up to 10 distinct UUIDs), defaulting to
+the originating Rust draft/retry metadata. Capture explicit IDs alongside body and
+attachment IDs at tap time, before awaiting other work; supplied IDs must already be
+known from that thread's Rust draft/outbox and visible in the captured body. Retry
+identity includes exact body, files, and mention IDs, so identical names/text with
+different invitees cannot reuse a confirmed send. Uncertain retries retain those exact
+identities, and successful sends preserve newer drafts/mentions. Empty mention IDs
+are omitted from HTTP requests for compatibility. Messages default omitted additions
+to `notice_kind: null` and `mentioned_user_ids: []`; retain only the known `handoff`
+notice and valid UUID entries. Promotion to participant-scoped shared, title derivation,
+notification delivery, and factual handoff text belong to Atlas, never client inference.
+
 ## Orbit attachments and tool hierarchy
 
 `orbit_session` authenticated request commands include `upload_attachment`
@@ -103,7 +138,7 @@ sequentially. Snapshot additions are `draft_attachments` (typed metadata),
 snapshots. Local text `draft` preserves uploaded files. `has_drafts` includes files and
 uncertain uploads across threads. Send captures optional `attachment_ids` (default:
 current draft), supports attachment-only messages, and blocks unresolved uploads.
-Retry identity covers both text and files; a successful send removes sent files but
+Retry identity covers text, files, and selected mention IDs; a successful send removes sent files but
 preserves newer typing. Close/revocation releases pending bytes and retry state.
 
 All attachment routes are fixed `/api/native/orbit/threads/<uuid>/attachments[/<uuid>]`

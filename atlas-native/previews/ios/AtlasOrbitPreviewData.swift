@@ -16,6 +16,10 @@ final class AtlasOrbitPreviewData: ObservableObject {
     private var listKind: String?
     private var createdThreads: [[String: Any]] = []
     private var draft = ""
+    private var draftMentions: [[String: String]] = []
+    private var mentionCandidates: [[String: String]] = []
+    private var mentionsByThread: [String: [[String: String]]] = [:]
+    private var promotedIDs: Set<String> = []
     private var draftAttachments: [[String: Any]] = []
     private var sent: [[String: Any]] = []
     private var drafts: [String: String] = [:]
@@ -62,6 +66,10 @@ final class AtlasOrbitPreviewData: ObservableObject {
             }
         case "create": select(thread(id: sharedID, title: command["title"] as? String ?? "A new thread", kind: "shared"))
         case "leave": select(nil)
+        case "people":
+            let query = command["query"] as? String ?? ""
+            mentionCandidates = query.isEmpty || "Alex Morgan".localizedCaseInsensitiveContains(query)
+                ? [["id": "01922cc0-0000-7000-8000-000000000099", "name": "Alex Morgan"]] : []
         case "history":
             if command["older"] as? Bool == true {
                 if ProcessInfo.processInfo.arguments.contains("--delayed-orbit-history") {
@@ -70,6 +78,21 @@ final class AtlasOrbitPreviewData: ObservableObject {
                 olderPromptsLoaded = true
             }
         case "send":
+            var handoff: [String: Any]?
+            if !draftMentions.isEmpty, let id = selected?["id"] as? String, !promotedIDs.contains(id) {
+                promotedIDs.insert(id)
+                selected?["kind"] = "shared"
+                if let index = createdThreads.firstIndex(where: { $0["id"] as? String == id }) { createdThreads[index]["kind"] = "shared" }
+                handoff = message(id: "handoff-\(sent.count)", kind: "system", body: """
+                    Conversation so far — excerpts for new participants (not an AI-generated summary).
+
+                    Initial request (excerpt):
+                    > Check whether other projects are affected too.
+
+                    Latest Pip reply (excerpt):
+                    > The build listing became slower after this morning’s deployment. I’m comparing the query plans.
+                    """, extra: ["notice_kind": "handoff"])
+            }
             if sent.isEmpty, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let index = createdThreads.firstIndex(where: { $0["id"] as? String == selected?["id"] as? String }) {
                 let title = String(draft.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(200))
@@ -79,7 +102,9 @@ final class AtlasOrbitPreviewData: ObservableObject {
             sent.append(message(id: UUID().uuidString, kind: "human", body: draft, extra: [
                 "author_id": "preview-self", "author_name": "Taylor", "attachments": draftAttachments
             ]))
+            if let handoff { sent.append(handoff) }
             draft = ""
+            draftMentions = []
             draftAttachments = []
         case "upload_attachment":
             let bytes = Data(base64Encoded: command["data"] as? String ?? "") ?? Data()
@@ -105,19 +130,32 @@ final class AtlasOrbitPreviewData: ObservableObject {
         if action["action"] as? String == "next" {
             try await Task.sleep(for: .seconds(activity || follow ? 1 : 30))
         }
-        if action["action"] as? String == "draft" { draft = action["body"] as? String ?? "" }
+        if action["action"] as? String == "draft" {
+            draft = action["body"] as? String ?? ""
+            draftMentions.removeAll { !draft.contains("@" + ($0["name"] ?? "")) }
+        }
+        if action["action"] as? String == "mention",
+           let person = mentionCandidates.first(where: { $0["id"] == action["user_id"] as? String }),
+           let at = draft.lastIndex(of: "@") {
+            draft.replaceSubrange(at..., with: "@" + (person["name"] ?? "") + " ")
+            draftMentions.append(person)
+            mentionCandidates = []
+        }
         return try snapshot()
     }
 
     private func select(_ next: [String: Any]?) {
         if let id = selected?["id"] as? String {
             drafts[id] = draft
+            mentionsByThread[id] = draftMentions
             attachmentsByThread[id] = draftAttachments
             sentByThread[id] = sent
         }
         selected = next
         let id = next?["id"] as? String ?? ""
         draft = drafts[id] ?? ""
+        draftMentions = mentionsByThread[id] ?? []
+        mentionCandidates = []
         draftAttachments = attachmentsByThread[id] ?? []
         sent = sentByThread[id] ?? []
         activityStarted = clock.now
@@ -129,6 +167,7 @@ final class AtlasOrbitPreviewData: ObservableObject {
         sequence += 1
         if let id = selected?["id"] as? String {
             drafts[id] = draft
+            mentionsByThread[id] = draftMentions
             attachmentsByThread[id] = draftAttachments
             sentByThread[id] = sent
         }
@@ -188,10 +227,16 @@ final class AtlasOrbitPreviewData: ObservableObject {
             messages += sent
             if follow, let followStarted {
                 let elapsed = followStarted.duration(to: clock.now).components.seconds
+                selected?["agent_status"] = elapsed < 6 ? "queued" : (elapsed < 18 ? "running" : "idle")
                 if elapsed >= 6 {
-                    let body = elapsed < 12 ? "A new reply appeared." : "A new reply appeared.\n\n" +
-                        (1...12).map { "Step \($0): Compare the fixture evidence, validate the affected projects, and keep the rollout reversible." }
-                            .joined(separator: "\n\n") + "\n\nThe growing reply is complete."
+                    let steps = min(12, max(0, Int(elapsed - 9) * 2))
+                    var body = "A new reply appeared."
+                    if steps > 0 {
+                        body += "\n\n" + (1...steps).map {
+                            "Step \($0): Compare the fixture evidence, validate the affected projects, and keep the rollout reversible."
+                        }.joined(separator: "\n\n")
+                    }
+                    if elapsed >= 18 { body += "\n\nThe growing reply is complete." }
                     messages.append(message(id: "follow-reply", kind: "agent", body: body))
                 }
             }
@@ -205,7 +250,8 @@ final class AtlasOrbitPreviewData: ObservableObject {
             "selection_id": selected?["id"] as Any? ?? NSNull(),
             "selected": selected as Any? ?? NSNull(), "messages": messages,
             "people": selected?["kind"] as? String == "shared" ? [["id": "online", "name": "Alex", "typing": false]] : [],
-            "draft": draft, "draft_attachments": draftAttachments, "attachment_busy": false,
+            "draft": draft, "draft_mentions": draftMentions, "mention_candidates": mentionCandidates,
+            "draft_attachments": draftAttachments, "attachment_busy": false,
             "has_drafts": !draft.isEmpty || !draftAttachments.isEmpty || drafts.values.contains(where: { !$0.isEmpty }),
             "loading": false, "history_loading": false, "saving": false,
             "has_more": false, "has_older": ProcessInfo.processInfo.arguments.contains("--orbit-prompts") && !olderPromptsLoaded,
@@ -273,9 +319,10 @@ final class AtlasOrbitPreviewData: ObservableObject {
     }
 
     private func thread(id: String, title: String, kind: String) -> [String: Any] {
-        ["id": id, "title": title, "kind": kind, "status": "active", "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
+        ["id": id, "title": title, "kind": promotedIDs.contains(id) ? "shared" : kind, "status": "active",
+         "summary": kind == "shared" ? "Comparing query plans across affected projects." : "",
          "origin": kind == "private" ? "manual" : "signal", "owner_id": "preview-self", "participants": [["id": "preview-self", "name": "Taylor"]],
-         "updated_at": "2027-06-07T10:42:00Z"]
+         "updated_at": "2026-10-24T10:42:00.123456Z"]
     }
 
     private func message(id: String, kind: String, body: String, extra: [String: Any] = [:]) -> [String: Any] {

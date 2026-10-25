@@ -83,6 +83,22 @@ defmodule Atlas.Push.Workers.Deliver do
     end
   end
 
+  defp notification_alert(%{"kind" => "orbit_mentioned", "record_id" => thread_id} = args, installation) do
+    with {:ok, message_id} <- Ecto.UUID.cast(args["message_id"]),
+         %Thread{status: "active", kind: "shared"} = thread <- Repo.get(Thread, thread_id),
+         %User{} = user <- Repo.get(User, installation.user_id),
+         true <- Access.can_read?(thread, user),
+         %OrbitMessage{thread_id: ^thread_id, kind: "human", mentioned_user_ids: ids} <-
+           Repo.get(OrbitMessage, message_id),
+         true <- user.id in ids do
+      {:ok, %{title: "Atlas", body: "You were mentioned in an Orbit conversation"}}
+    else
+      _ ->
+        Push.audit_delivery(installation, args, "cancelled", :destination_unavailable)
+        :destination_unavailable
+    end
+  end
+
   defp notification_alert(_args, _installation), do: {:ok, %{title: Message.title(), body: Message.body()}}
 
   defp send_message(%Installation{platform: "ios"} = installation, message, alert, opts),

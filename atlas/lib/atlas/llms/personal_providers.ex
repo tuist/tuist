@@ -2,43 +2,67 @@ defmodule Atlas.LLMs.PersonalProviders do
   @moduledoc """
   Subscription-account protocols, not OpenAI/Anthropic API-key endpoints.
   Translates the buffered OpenAI tool protocol used by Orbit to Codex Responses
-  and Claude Messages. Provider errors are reduced to HTTP status only.
+  and Claude Messages. Provider errors return only sanitized HTTP statuses;
+  diagnostics contain fixed categories, never upstream messages or bodies.
   """
+
+  alias OpenTelemetry.Tracer
+
+  require Logger
 
   @timeout :timer.seconds(45)
 
   def complete("chatgpt", token, params) do
-    with {:ok, account_id} <- chatgpt_account_id(token),
-         {:ok, body} <-
-           request(
-             "https://chatgpt.com/backend-api/codex/responses",
-             [
-               {"authorization", "Bearer " <> token},
-               {"chatgpt-account-id", account_id},
-               {"openai-beta", "responses=experimental"},
-               {"accept", "text/event-stream"}
-             ],
-             responses_request(params)
-           ) do
-      responses_completion(body)
-    end
+    result =
+      with {:ok, account_id} <- chatgpt_account_id(token),
+           {:ok, body} <-
+             request(
+               "https://chatgpt.com/backend-api/codex/responses",
+               [
+                 {"authorization", "Bearer " <> token},
+                 {"chatgpt-account-id", account_id},
+                 {"openai-beta", "responses=experimental"},
+                 {"accept", "text/event-stream"}
+               ],
+               responses_request(params)
+             ) do
+        responses_completion(body)
+      end
+
+    report_result("chatgpt", result)
   end
 
   def complete("claude", token, params) do
-    with {:ok, body} <-
-           request(
-             "https://api.anthropic.com/v1/messages",
-             [
-               {"authorization", "Bearer " <> token},
-               {"anthropic-version", "2023-06-01"},
-               {"anthropic-beta", "claude-code-20250219,oauth-2025-04-20"},
-               {"x-app", "cli"}
-             ],
-             messages_request(params)
-           ) do
-      messages_completion(body)
-    end
+    result =
+      with {:ok, body} <-
+             request(
+               "https://api.anthropic.com/v1/messages",
+               [
+                 {"authorization", "Bearer " <> token},
+                 {"anthropic-version", "2023-06-01"},
+                 {"anthropic-beta", "claude-code-20250219,oauth-2025-04-20"},
+                 {"x-app", "cli"}
+               ],
+               messages_request(params)
+             ) do
+        messages_completion(body)
+      end
+
+    report_result("claude", result)
   end
+
+  defp report_result(provider, {:error, status, category}) do
+    Tracer.add_event("orbit.personal_provider.failed", %{
+      "provider" => provider,
+      "status" => status,
+      "category" => Atom.to_string(category)
+    })
+
+    Logger.warning("Orbit personal provider failed: provider=#{provider} category=#{category} status=#{status}")
+    {:error, status}
+  end
+
+  defp report_result(_provider, result), do: result
 
   defp request(url, headers, body) do
     case Req.post(
@@ -51,9 +75,9 @@ defmodule Atlas.LLMs.PersonalProviders do
            finch: [conn_opts: [transport_opts: [timeout: 5_000]]]
          ) do
       {:ok, %{status: 200, body: body}} -> {:ok, body}
-      {:ok, %{status: status}} -> {:error, status}
-      {:error, %{reason: :timeout}} -> {:error, 504}
-      {:error, _reason} -> {:error, 502}
+      {:ok, %{status: status}} -> {:error, status, :http_error}
+      {:error, %{reason: :timeout}} -> {:error, 504, :timeout}
+      {:error, _reason} -> {:error, 502, :request_failed}
     end
   end
 
@@ -67,7 +91,7 @@ defmodule Atlas.LLMs.PersonalProviders do
            get_in(claims, ["https://api.openai.com/auth", "chatgpt_account_id"]) do
       {:ok, id}
     else
-      _ -> {:error, 401}
+      _ -> {:error, 401, :invalid_account_claim}
     end
   end
 
@@ -117,27 +141,87 @@ defmodule Atlas.LLMs.PersonalProviders do
     end)
   end
 
-  # The Codex endpoint requires SSE, but its final event contains the complete
-  # output items, including tool IDs/names/arguments. Never use text deltas as a
-  # substitute: that silently loses tool calls or accepts truncated streams.
+  # Codex can deliver complete items separately from a metadata-only terminal.
+  # Never substitute deltas or accept done items without successful completion:
+  # that silently loses tool calls or accepts truncated streams.
   defp responses_completion(body) when is_binary(body) do
-    events = ServerSentEvents.decode_stream([body])
+    result =
+      body
+      |> then(&ServerSentEvents.decode_stream([&1]))
+      |> Enum.reduce_while([], fn event, output ->
+        case JSON.decode(event.data) do
+          {:ok, event} -> responses_event(event, output)
+          _ -> {:cont, output}
+        end
+      end)
 
-    Enum.find_value(events, {:error, 502}, fn event ->
-      case JSON.decode(event.data) do
-        {:ok, %{"type" => type, "response" => %{"status" => "completed", "output" => output} = response}}
-        when type in ["response.completed", "response.done"] ->
-          if Enum.any?(output, &(&1["type"] == "reasoning")),
-            do: {:error, 502},
-            else: response_items(response, output)
-
-        _ ->
-          nil
-      end
-    end)
+    case result do
+      output when is_list(output) -> {:error, 502, :incomplete_stream}
+      result -> result
+    end
   end
 
-  defp responses_completion(_body), do: {:error, 502}
+  defp responses_completion(_body), do: {:error, 502, :invalid_response}
+
+  defp responses_event(%{"type" => "response.output_item.done", "item" => item}, output) when is_map(item),
+    do: {:cont, [item | output]}
+
+  defp responses_event(%{"type" => type, "response" => response}, output)
+       when type in ["response.completed", "response.done"] and is_map(response) do
+    {:halt, completed_response(response, output)}
+  end
+
+  defp responses_event(%{"type" => "response.failed", "response" => %{"error" => error}}, _output),
+    do: {:halt, upstream_error(error)}
+
+  defp responses_event(%{"type" => "error"} = event, _output), do: {:halt, upstream_error(event["error"] || event)}
+
+  defp responses_event(%{"type" => "response.incomplete"}, _output), do: {:halt, {:error, 502, :incomplete_response}}
+
+  defp responses_event(%{"type" => type}, _output)
+       when type in ["response.completed", "response.done", "response.failed"],
+       do: {:halt, {:error, 502, :invalid_response}}
+
+  defp responses_event(_event, output), do: {:cont, output}
+
+  defp completed_response(response, output) do
+    cond do
+      response["status"] not in [nil, "completed"] -> {:error, 502, :invalid_response}
+      Enum.any?(output, &unsupported_reasoning?/1) -> {:error, 502, :unsupported_reasoning}
+      is_list(response["output"]) -> response_items(response, response["output"])
+      not Map.has_key?(response, "output") and output != [] -> response_items(response, Enum.reverse(output))
+      true -> {:error, 502, :invalid_response}
+    end
+  end
+
+  # An empty envelope has no state to replay. Opaque or visible reasoning does:
+  # Condukt 1.13's chat translation cannot preserve Responses reasoning items.
+  defp unsupported_reasoning?(%{"type" => "reasoning"} = item) do
+    Enum.any?(["encrypted_content", "summary", "content"], &(item[&1] not in [nil, "", []]))
+  end
+
+  defp unsupported_reasoning?(_item), do: false
+
+  # HTTP 200 does not mean an SSE request succeeded. Use only known structured
+  # codes, never message text (which can contain prompts or misleading words).
+  defp upstream_error(%{"code" => code}) when code in ["rate_limit_exceeded", "slow_down"],
+    do: {:error, 429, :rate_limited}
+
+  defp upstream_error(%{"code" => code})
+       when code in [
+              "insufficient_quota",
+              "credit_balance_exhausted",
+              "organization_spend_limit_exceeded",
+              "project_spend_limit_exceeded"
+            ], do: {:error, 402, :billing}
+
+  defp upstream_error(%{"code" => code}) when code in ["context_length_exceeded", "invalid_prompt"],
+    do: {:error, 400, :invalid_request}
+
+  defp upstream_error(%{"type" => "invalid_request_error"}), do: {:error, 400, :invalid_request}
+  defp upstream_error(%{"type" => "usage_limit_reached"}), do: {:error, 429, :rate_limited}
+
+  defp upstream_error(_error), do: {:error, 502, :upstream_error}
 
   defp response_items(response, output) do
     text =
@@ -150,7 +234,9 @@ defmodule Atlas.LLMs.PersonalProviders do
         tool_call(item["call_id"], item["name"], item["arguments"])
       end
 
-    completion(response["id"], response["model"], text, calls, response["usage"] || %{})
+    if Enum.any?(output, &unsupported_reasoning?/1),
+      do: {:error, 502, :unsupported_reasoning},
+      else: completion(response["id"], response["model"], text, calls, response["usage"] || %{})
   end
 
   defp messages_request(params) do
@@ -215,6 +301,8 @@ defmodule Atlas.LLMs.PersonalProviders do
     end)
   end
 
+  defp messages_completion(%{"stop_reason" => "max_tokens"}), do: {:error, 502, :incomplete_response}
+
   defp messages_completion(%{"id" => id, "model" => model, "content" => parts} = body) do
     text = for %{"type" => "text", "text" => text} <- parts, do: text
 
@@ -226,7 +314,7 @@ defmodule Atlas.LLMs.PersonalProviders do
     completion(id, model, text, calls, body["usage"] || %{})
   end
 
-  defp messages_completion(_body), do: {:error, 502}
+  defp messages_completion(_body), do: {:error, 502, :invalid_response}
 
   defp completion(id, model, text, calls, usage) do
     message = %{"role" => "assistant", "content" => Enum.join(text, "\n")}

@@ -262,6 +262,46 @@ defmodule Atlas.Orbit.RunsTest do
     refute inspect(request["messages"]) =~ "Private role context: engineering lead"
   end
 
+  test "addressed promotion starts a fresh shared follow-up without private description or checkpoint" do
+    owner = user_fixture()
+    newcomer = user_fixture()
+    {:ok, thread, _} = Orbit.ensure_private(owner)
+    {:ok, _} = Users.update_my_profile(owner, "Private profile description marker")
+    run = post_and_get_run(owner, thread, "Initial request")
+    run = Repo.update!(Ecto.Changeset.change(run, status: "running", session_id: Condukt.SessionID.generate()))
+    Checkpoints.record(run.session_id, [Condukt.Message.user("Private checkpoint marker")], 1)
+
+    assert {:ok, message, :created} =
+             Orbit.post_message(owner, thread, %{
+               "body" => "Discuss together",
+               "client_id" => Ecto.UUID.generate(),
+               "mention_ids" => [newcomer.id],
+               "address_agent" => true
+             })
+
+    assert message.address_agent
+    assert :ok = Runs.complete(run.id, 0, {:ok, "Discard this response"})
+    assert Repo.reload!(run).checkpoint == nil
+    successor = Orbit.active_run(thread)
+    assert successor.id != run.id and successor.status == "queued" and successor.checkpoint == nil
+
+    test_pid = self()
+
+    plug = fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      send(test_pid, {:shared_request, body})
+      Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "Shared reply"}))
+    end
+
+    assert :ok = Runs.execute(successor.id, client_opts: client_opts(plug))
+    assert_receive {:shared_request, body}
+    assert body =~ "shared thread titled"
+    assert body =~ newcomer.name
+    refute body =~ "Private profile description marker"
+    refute body =~ "Private checkpoint marker"
+    refute body =~ "Discard this response"
+  end
+
   for boundary <- [:cancelled, :deadline] do
     test "#{boundary} stops a blocked research child through the real run worker" do
       owner = user_fixture()
