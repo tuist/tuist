@@ -21,7 +21,7 @@ if ! command -v "$TUIST_BIN" >/dev/null 2>&1 && [[ ! -x "$TUIST_BIN" ]]; then
     exit 2
 fi
 
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/issue12338.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/registry-spm-traits.XXXXXX")"
 cleanup() {
     if [[ "${KEEP_WORKDIR:-0}" == "1" ]]; then
         echo "Kept working directory: $WORK_DIR"

@@ -1,4 +1,4 @@
-# Issue 12338 reproducer
+# Registry SPM traits reproducer
 
 Reproducer for [Missing SPM traits in tuist generated xcodeproject from Registry Style](https://github.com/tuist/tuist/issues/12338).
 

@@ -7,7 +7,7 @@ let project = Project(
             name: "App",
             destinations: [.mac],
             product: .app,
-            bundleId: "dev.tuist.issue12338",
+            bundleId: "dev.tuist.registry-spm-traits",
             sources: ["Sources/App"],
             dependencies: [
                 .external(name: "Dependencies"),

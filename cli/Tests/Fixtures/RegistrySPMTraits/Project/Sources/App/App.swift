@@ -2,10 +2,10 @@ import Dependencies
 import SwiftUI
 
 @main
-struct Issue12338App: App {
+struct RegistrySPMTraitsApp: App {
     var body: some Scene {
         WindowGroup {
-            Text("Issue 12338")
+            Text("Registry SPM traits")
         }
     }
 }
