@@ -3,7 +3,7 @@
 `Atlas.Push` separates product intent from platform delivery. Product code calls
 `notify_user(user_id, "activity", {screen, record_id})` with a fixed kind from
 `@kinds` (`activity`, 24-hour lifetime; `self_test`, 10 minutes;
-`orbit_completed`, one hour) and a destination
+`orbit_completed` and `orbit_mentioned`, one hour) and a destination
 accepted by `AtlasWeb.NativeLinks.for_open/1`. It never supplies text, tokens, or
 devices. Activity and self-test alerts remain generic. Orbit completion is an
 explicit content-preview exception described below. Adding a kind means adding it
@@ -55,6 +55,26 @@ self-test kind to the caller's own registrations under a per-user rate limit.
   Any future arbitrary send tool needs server-bound recipient/audience checks
   and an explicit approval design; platform support for richer interactions is
   not authorization to add them.
+
+## Orbit mentions
+
+- A newly committed human message with explicit selected `mention_ids` queues
+  `orbit_mentioned` for each distinct non-author recipient, using the exact human
+  message ID and `{"orbit", thread.id}`. Promotion, membership, handoff, message
+  and jobs share the thread-locked transaction; client UUID replay queues nothing.
+- Opt-in and platform/session rules are unchanged. Jobs include IDs only and
+  expire after one hour. Every attempt requires an active shared thread, current
+  participant membership and all ratcheted scopes, plus that same thread's human
+  source whose `mentioned_user_ids` contains this recipient. Missing, removed,
+  revoked, archived or mismatched sources cancel without provider calls or
+  registration retirement. Never substitute a newer message.
+- Alerts are generic: "Atlas" / "You were mentioned in an Orbit conversation".
+  No title, author name, message excerpt or handoff reaches APNs/FCM. Routing uses
+  the existing origin-bound thread destination with ordinary foreground taps;
+  completion's category/preview exception is not reused. There is no standalone
+  HTTP/MCP notification send or new per-kind preference.
+- Tests cover atomic enqueue/replay/rollback and source/access revocation in
+  `orbit/mentions_test.exs`, `push_test.exs` and `push/workers/deliver_test.exs`.
 
 ## Registrations
 

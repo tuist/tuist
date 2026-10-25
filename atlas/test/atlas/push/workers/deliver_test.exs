@@ -78,6 +78,93 @@ defmodule Atlas.Push.Workers.DeliverTest do
     )
   end
 
+  describe "Orbit mentions" do
+    test "delivers a generic ping for the exact human source, without leaking title or contents", %{user: user} do
+      installation = register(user, ios_device())
+      owner = Atlas.OrbitFixtures.user_fixture()
+      {:ok, thread} = Orbit.create_shared(owner, %{"title" => "Private business title", "participant_ids" => [user.id]})
+
+      {:ok, source, :created} =
+        Orbit.post_message(owner, thread, %{
+          "body" => "Sensitive message text",
+          "client_id" => Ecto.UUID.generate(),
+          "address_agent" => false,
+          "mention_ids" => [user.id]
+        })
+
+      job_args =
+        args(installation, %{
+          "kind" => "orbit_mentioned",
+          "screen" => "orbit",
+          "record_id" => thread.id,
+          "message_id" => source.id
+        })
+
+      assert :ok = perform_job(Deliver, job_args)
+      assert_received {:request, _, _, _, body}
+
+      assert JSON.decode!(body)["aps"]["alert"] == %{
+               "title" => "Atlas",
+               "body" => "You were mentioned in an Orbit conversation"
+             }
+
+      refute body =~ "Private business title"
+      refute body =~ "Sensitive message text"
+    end
+
+    for boundary <- [:removed, :revoked, :archived, :deleted_source, :wrong_thread, :not_mentioned, :agent_source] do
+      test "#{boundary} cancels a queued mention without contacting a provider or retiring registration", %{user: user} do
+        installation = register(user, android_device())
+        owner = Atlas.OrbitFixtures.user_fixture()
+        {:ok, thread} = Orbit.create_shared(owner, %{"title" => "Team", "participant_ids" => [user.id]})
+
+        {:ok, source, :created} =
+          Orbit.post_message(owner, thread, %{
+            "body" => "Selected mention",
+            "client_id" => Ecto.UUID.generate(),
+            "address_agent" => false,
+            "mention_ids" => [user.id]
+          })
+
+        case unquote(boundary) do
+          :removed ->
+            Orbit.remove_participant(owner, thread, user.id)
+
+          :revoked ->
+            Repo.update!(Ecto.Changeset.change(thread, required_scopes: ["finance:read"]))
+
+          :archived ->
+            Repo.update!(Ecto.Changeset.change(thread, status: "archived"))
+
+          :deleted_source ->
+            Repo.delete!(source)
+
+          :wrong_thread ->
+            {:ok, other} = Orbit.create_shared(owner, %{"title" => "Other"})
+            Repo.update!(Ecto.Changeset.change(source, thread_id: other.id))
+
+          :not_mentioned ->
+            Repo.update!(Ecto.Changeset.change(source, mentioned_user_ids: []))
+
+          :agent_source ->
+            Repo.update!(Ecto.Changeset.change(source, kind: "agent", mentioned_user_ids: []))
+        end
+
+        job_args =
+          args(installation, %{
+            "kind" => "orbit_mentioned",
+            "screen" => "orbit",
+            "record_id" => thread.id,
+            "message_id" => source.id
+          })
+
+        assert {:cancel, :destination_unavailable} = perform_job(Deliver, job_args)
+        refute_received {:request, _, _, _, _}
+        assert Repo.reload!(installation).retired_at == nil
+      end
+    end
+  end
+
   describe "APNs" do
     test "sends a generic alert to the stored environment with a signed provider token", %{user: user, apns: apns} do
       token = ios_token()

@@ -36,20 +36,24 @@ struct AtlasOrbitView: View {
                     }
                 }
                 Section {
-                    let conversations = model.threads.filter { $0.kind == "private" }
+                    let conversations = model.threads
                     ForEach(conversations) { thread in
-                        NavigationLink(value: thread) {
+                        Button { path.append(thread) } label: {
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(thread.title).font(.body.weight(.medium)).lineLimit(2)
-                                if !thread.summary.isEmpty {
-                                    Text(thread.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                                Text(thread.title).font(.body).foregroundStyle(.primary).lineLimit(2)
+                                HStack(spacing: 8) {
+                                    if thread.kind != "private" { Label("Shared", systemImage: "person.2") }
+                                    if let date = thread.updatedDate { Text(date, style: .relative) }
                                 }
-                                if let date = ISO8601DateFormatter().date(from: thread.updatedAt) {
-                                    Text(date, style: .relative).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }.frame(minHeight: 44)
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                         .accessibilityIdentifier("thread-\(thread.id)")
                     }
                     if conversations.isEmpty, !model.loading, model.assistant != nil {
@@ -76,6 +80,7 @@ struct AtlasOrbitView: View {
                     }
                 }
             }
+            .listStyle(.plain)
             .modifier(AtlasThemedContent())
             .overlay {
                 if model.loading, model.assistant == nil { ProgressView("Loading threads") }

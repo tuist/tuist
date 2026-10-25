@@ -156,3 +156,10 @@ func TestPrefetchHandsCustomHeadsToTheCustomAgent(t *testing.T) {
 		t.Fatalf("prefetch polls = %d after an interval, want 2", got)
 	}
 }
+
+func TestPrefetchServerClientDropsIdleConnectionsBeforeTheServer(t *testing.T) {
+	transport, ok := prefetchHTTPClient.Transport.(*http.Transport)
+	if !ok || transport.IdleConnTimeout != cachevolumes.ServerIdleTimeout {
+		t.Fatalf("prefetch client transport = %#v, want idle timeout %s", prefetchHTTPClient.Transport, cachevolumes.ServerIdleTimeout)
+	}
+}

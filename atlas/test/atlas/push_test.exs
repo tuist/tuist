@@ -243,35 +243,37 @@ defmodule Atlas.PushTest do
       end
     end
 
-    test "Orbit completion requires a thread UUID and source message ID, never arbitrary alert text", context do
-      {:ok, _} = Push.register(context.user, context.client_id, context.installation_id, ios_device())
-      thread_id = Ecto.UUID.generate()
-      message_id = Ecto.UUID.generate()
+    for kind <- ["orbit_completed", "orbit_mentioned"] do
+      test "#{kind} requires a thread UUID and source message ID, never arbitrary alert text", context do
+        {:ok, _} = Push.register(context.user, context.client_id, context.installation_id, ios_device())
+        thread_id = Ecto.UUID.generate()
+        message_id = Ecto.UUID.generate()
 
-      for {destination, opts} <- [
-            {{"tasks", thread_id}, [message_id: message_id]},
-            {{"orbit", nil}, [message_id: message_id]},
-            {{"orbit", "not-a-uuid"}, [message_id: message_id]},
-            {{"orbit", thread_id}, []},
-            {{"orbit", thread_id}, [message_id: "not-a-uuid"]},
-            {{"orbit", thread_id}, [title: "Injected", body: "Injected"]}
-          ] do
-        assert {:error, :invalid_notification} = Push.notify_user(context.user.id, "orbit_completed", destination, opts)
+        for {destination, opts} <- [
+              {{"tasks", thread_id}, [message_id: message_id]},
+              {{"orbit", nil}, [message_id: message_id]},
+              {{"orbit", "not-a-uuid"}, [message_id: message_id]},
+              {{"orbit", thread_id}, []},
+              {{"orbit", thread_id}, [message_id: "not-a-uuid"]},
+              {{"orbit", thread_id}, [title: "Injected", body: "Injected"]}
+            ] do
+          assert {:error, :invalid_notification} = Push.notify_user(context.user.id, unquote(kind), destination, opts)
+        end
+
+        refute_enqueued(worker: Deliver)
+
+        assert {:ok, 1} =
+                 Push.notify_user(context.user.id, unquote(kind), {"orbit", thread_id},
+                   message_id: message_id,
+                   title: "Ignored title",
+                   body: "Ignored body"
+                 )
+
+        assert [%Oban.Job{args: args}] = all_enqueued(worker: Deliver)
+        assert args["message_id"] == message_id
+        refute Map.has_key?(args, "title")
+        refute Map.has_key?(args, "body")
       end
-
-      refute_enqueued(worker: Deliver)
-
-      assert {:ok, 1} =
-               Push.notify_user(context.user.id, "orbit_completed", {"orbit", thread_id},
-                 message_id: message_id,
-                 title: "Ignored title",
-                 body: "Ignored body"
-               )
-
-      assert [%Oban.Job{args: args}] = all_enqueued(worker: Deliver)
-      assert args["message_id"] == message_id
-      refute Map.has_key?(args, "title")
-      refute Map.has_key?(args, "body")
     end
   end
 

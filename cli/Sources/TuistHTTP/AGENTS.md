@@ -17,6 +17,7 @@ This module provides HTTP client helpers used by server and cache integrations.
 ## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
+- Every Tuist session closes a connection idle for 10 seconds (Darwin `_connectionCachePurgeTimeout`, set only when the configuration responds to its setter), below the server's 15-second keep-alive idle timeout, so a request is not written on a connection the server is closing. FoundationNetworking (Linux) exposes no idle timeout, so Linux sessions keep libcurl's connection reuse.
 - `URLSession.tuistDiscovery` creates an isolated session honoring runtime proxy/private-CA settings, with 10-second request/resource limits, no cookies or credential storage, and no redirects (including with a custom CA).
 - `TuistURLSessionTransport` materializes the whole response body before returning, so every body a client middleware receives is re-iterable and a failed transfer is replayed from the start rather than resumed.
 - [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry behavior uses one shared policy with environment-configurable retry count and base delay, with bounded attempts and per-attempt delay. `RetryMiddleware` defaults to five attempts over about three to four seconds so a server rollout is ridden out; `RetryProvider` wrappers keep their own shorter defaults so the two layers do not multiply into a long wait.

@@ -517,8 +517,7 @@ async fn initialize_and_serve(
     let https_task = if let Some(public_tls) = state.config.public_tls.clone() {
         let tls_config = build_public_rustls_config(&public_tls).await?.get_inner();
         let https_router = cohosted_router(state.clone(), reapi_routes.clone());
-        let https_listener = tokio::net::TcpListener::bind(https_address)
-            .await
+        let https_listener = accelerated_file_serving::bind_public_listener(https_address)
             .map_err(|error| format!("failed to bind public HTTPS listener: {error}"))?;
         let https_shutdown_rx = public_shutdown_rx.clone();
         let https_drain_rx = public_drain_rx.clone();
@@ -547,10 +546,11 @@ async fn initialize_and_serve(
     // here, so its h2c connections never share a pool with the HTTP/1.1
     // connections it opens to the co-hosted port.
     let gateway_grpc_task = if let Some(port) = state.config.gateway_grpc_port {
-        let grpc_listener =
-            tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, port)))
-                .await
-                .map_err(|error| format!("failed to bind gateway gRPC listener: {error}"))?;
+        let grpc_listener = accelerated_file_serving::bind_public_listener(SocketAddr::from((
+            Ipv4Addr::UNSPECIFIED,
+            port,
+        )))
+        .map_err(|error| format!("failed to bind gateway gRPC listener: {error}"))?;
         let grpc_router = gateway_grpc_router(reapi_routes.clone());
         let grpc_state = state.clone();
         let grpc_serving_config = gateway_grpc_serving_config(&state.config);

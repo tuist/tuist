@@ -28,12 +28,18 @@ pub(crate) enum Action {
         id: String,
         page: u32,
     },
+    People {
+        id: String,
+        query: String,
+    },
     Send {
         id: String,
         body: String,
         client_id: String,
         address_agent: bool,
         attachment_ids: Vec<String>,
+        #[serde(default)]
+        mention_ids: Vec<String>,
     },
     UploadAttachment {
         id: String,
@@ -134,16 +140,68 @@ pub(super) fn validate_attachment_ids(ids: &[String]) -> Result<()> {
     Ok(())
 }
 
+pub(super) fn validate_mention_ids(ids: &[String]) -> Result<()> {
+    if ids.len() > 10 {
+        return Err(invalid());
+    }
+    for (index, id) in ids.iter().enumerate() {
+        crate::time_off::validate_id(id)?;
+        if ids[..index].contains(id) {
+            return Err(invalid());
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_people_query(query: &str) -> Result<()> {
+    if query.len() > 100 || query.chars().any(char::is_control) {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 pub(super) struct Assistant {
     pub name: String,
     pub configured: bool,
+    #[serde(default)]
+    pub can_create_private: bool,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
 pub(super) struct Person {
     pub id: String,
     pub name: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(super) struct People {
+    #[serde(deserialize_with = "deserialize_people")]
+    pub people: Vec<Person>,
+}
+
+fn deserialize_people<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<Person>, D::Error> {
+    let values = serde_json::Value::deserialize(deserializer)?;
+    let mut people = Vec::<Person>::new();
+    if let Some(values) = values.as_array() {
+        for value in values {
+            if let Ok(person) = serde_json::from_value::<Person>(value.clone())
+                && crate::time_off::validate_id(&person.id).is_ok()
+                && !person.name.trim().is_empty()
+                && person.name.chars().count() <= 200
+                && !person.name.chars().any(char::is_control)
+                && !people.iter().any(|known| known.id == person.id)
+            {
+                people.push(person);
+                if people.len() == 20 {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(people)
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -212,6 +270,41 @@ pub(super) struct Message {
     pub attachments: Vec<Attachment>,
     #[serde(default, deserialize_with = "deserialize_parent")]
     pub parent_message_id: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_notice")]
+    pub notice_kind: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_mentions")]
+    pub mentioned_user_ids: Vec<String>,
+}
+
+fn deserialize_notice<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(value
+        .as_str()
+        .filter(|kind| *kind == "handoff")
+        .map(str::to_owned))
+}
+
+fn deserialize_mentions<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<String>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let mut ids = Vec::new();
+    if let Some(values) = value.as_array() {
+        for value in values {
+            if let Some(id) = value.as_str()
+                && crate::time_off::validate_id(id).is_ok()
+                && !ids.iter().any(|known| known == id)
+            {
+                ids.push(id.to_owned());
+                if ids.len() == 10 {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(ids)
 }
 
 fn deserialize_parent<'de, D: serde::Deserializer<'de>>(
@@ -303,28 +396,38 @@ pub(super) fn request_using<T: DeserializeOwned>(
             url.query_pairs_mut().append_pair("page", &page.to_string());
             (Method::GET, None)
         }
+        Action::People { id, query } => {
+            crate::time_off::validate_id(id)?;
+            validate_people_query(query)?;
+            url.path_segments_mut()
+                .map_err(|_| invalid())?
+                .extend([id.as_str(), "people"]);
+            url.query_pairs_mut().append_pair("query", query);
+            (Method::GET, None)
+        }
         Action::Send {
             id,
             body,
             client_id,
             address_agent,
             attachment_ids,
+            mention_ids,
         } => {
             crate::time_off::validate_id(id)?;
             crate::time_off::validate_id(client_id)?;
             validate_attachment_ids(attachment_ids)?;
+            validate_mention_ids(mention_ids)?;
             if body.len() > 16000 || (body.trim().is_empty() && attachment_ids.is_empty()) {
                 return Err(invalid());
             }
             url.path_segments_mut()
                 .map_err(|_| invalid())?
                 .extend([id.as_str(), "messages"]);
-            (
-                Method::POST,
-                Some(
-                    json!({"body":body,"client_id":client_id,"address_agent":address_agent,"attachment_ids":attachment_ids}),
-                ),
-            )
+            let mut payload = json!({"body":body,"client_id":client_id,"address_agent":address_agent,"attachment_ids":attachment_ids});
+            if !mention_ids.is_empty() {
+                payload["mention_ids"] = json!(mention_ids);
+            }
+            (Method::POST, Some(payload))
         }
         Action::UploadAttachment {
             id,
@@ -372,9 +475,24 @@ pub(super) fn request_using<T: DeserializeOwned>(
         method,
         token: &session.access_token,
         payload,
-        failure: response_failure,
+        failure: if matches!(action, Action::People { .. }) {
+            people_failure
+        } else {
+            response_failure
+        },
     };
     network.request(&url, body)
+}
+
+fn people_failure(status: u16, bytes: &[u8]) -> crate::AuthError {
+    if matches!(status, 403 | 404 | 501) {
+        error(
+            "unsupported",
+            "Mention suggestions are unavailable on this Atlas server. Your draft has been kept.",
+        )
+    } else {
+        response_failure(status, bytes)
+    }
 }
 
 fn validate_page(page: u32) -> Result<()> {

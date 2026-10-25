@@ -13,6 +13,9 @@ fn execute_using(network: &impl Transport, session: Session, action: Action) -> 
         Action::Messages { .. } => {
             serde_json::to_value(request_using::<History>(network, session, action)?)
         }
+        Action::People { .. } => {
+            serde_json::to_value(request_using::<People>(network, session, action)?)
+        }
         Action::Send { .. } => {
             serde_json::to_value(request_using::<Sent>(network, session, action)?)
         }
@@ -74,7 +77,7 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             "GET",
             "?page=1&kind=private".into(),
             Value::Null,
-            json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}),
+            json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}),
         ),
         (
             Action::CreatePrivate {
@@ -106,12 +109,37 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             json!({"thread":thread(),"messages":{"items":[message()],"page":1,"total_pages":1,"total_count":1}}),
         ),
         (
+            Action::People {
+                id: ID.into(),
+                query: "Ali & Bob".into(),
+            },
+            "GET",
+            format!("/{ID}/people?query=Ali+%26+Bob"),
+            Value::Null,
+            json!({"people":[{"id":ID,"name":"Alice Smith","email":"must-not-forward"}]}),
+        ),
+        (
+            Action::Send {
+                id: ID.into(),
+                body: "@Alice Smith please investigate".into(),
+                client_id: ID.into(),
+                address_agent: false,
+                attachment_ids: vec![],
+                mention_ids: vec![ID.into()],
+            },
+            "POST",
+            format!("/{ID}/messages"),
+            json!({"body":"@Alice Smith please investigate","client_id":ID,"address_agent":false,"attachment_ids":[],"mention_ids":[ID]}),
+            json!({"message":message()}),
+        ),
+        (
             Action::Send {
                 id: ID.into(),
                 body: "Please investigate".into(),
                 client_id: ID.into(),
                 address_agent: true,
                 attachment_ids: vec![],
+                mention_ids: vec![],
             },
             "POST",
             format!("/{ID}/messages"),
@@ -123,6 +151,12 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
         let network = MockTransport::new(vec![response]);
         let value = execute_using(&network, saved(), action).unwrap();
         assert!(!value.to_string().contains("must-not-forward"));
+        if value.get("assistant").is_some() {
+            assert_eq!(
+                value["assistant"]["can_create_private"],
+                suffix.contains("kind=private")
+            );
+        }
         let requests = network.requests.borrow();
         assert_eq!(
             requests[0].0,
@@ -171,6 +205,7 @@ fn invalid_paths_pages_and_messages_never_leave_device() {
             client_id: ID.into(),
             address_agent: false,
             attachment_ids: vec![],
+            mention_ids: vec![],
         },
         Action::Send {
             id: ID.into(),
@@ -178,6 +213,7 @@ fn invalid_paths_pages_and_messages_never_leave_device() {
             client_id: ID.into(),
             address_agent: false,
             attachment_ids: vec![],
+            mention_ids: vec![],
         },
         Action::Send {
             id: ID.into(),
@@ -185,9 +221,55 @@ fn invalid_paths_pages_and_messages_never_leave_device() {
             client_id: "bad".into(),
             address_agent: false,
             attachment_ids: vec![],
+            mention_ids: vec![],
         },
     ] {
         assert!(execute_using(&network, saved(), action).is_err());
+    }
+    for query in ["x".repeat(101), "line\nbreak".into()] {
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                Action::People {
+                    id: ID.into(),
+                    query
+                }
+            )
+            .is_err()
+        );
+    }
+    assert!(
+        execute_using(
+            &network,
+            saved(),
+            Action::People {
+                id: "../admin".into(),
+                query: "".into()
+            }
+        )
+        .is_err()
+    );
+    for mention_ids in [
+        vec!["../user".into()],
+        vec![ID.into(); 11],
+        vec![ID.into(); 2],
+    ] {
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                Action::Send {
+                    id: ID.into(),
+                    body: "Hello".into(),
+                    client_id: ID.into(),
+                    address_agent: false,
+                    attachment_ids: vec![],
+                    mention_ids,
+                }
+            )
+            .is_err()
+        );
     }
     assert!(network.requests.borrow().is_empty());
 }
@@ -337,4 +419,50 @@ fn parent_links_are_optional_validated_uuid_metadata_not_inferred_hierarchy() {
         );
         assert_eq!(parsed.body, "Please investigate");
     }
+    let legacy: Message = serde_json::from_value(message()).unwrap();
+    assert!(legacy.notice_kind.is_none());
+    assert!(legacy.mentioned_user_ids.is_empty());
+    for notice in [
+        json!("handoff"),
+        json!(null),
+        json!(42),
+        json!({"kind":"handoff"}),
+        json!("unknown"),
+    ] {
+        let mut value = message();
+        value["notice_kind"] = notice.clone();
+        value["mentioned_user_ids"] = json!([ID, 42, "../user", ID, null]);
+        let parsed: Message = serde_json::from_value(value).unwrap();
+        assert_eq!(
+            parsed.notice_kind.as_deref(),
+            if notice == "handoff" {
+                Some("handoff")
+            } else {
+                None
+            }
+        );
+        assert_eq!(parsed.mentioned_user_ids, vec![ID]);
+    }
+    for ids in [json!(null), json!(42), json!("not-an-array")] {
+        let mut value = message();
+        value["mentioned_user_ids"] = ids;
+        assert!(
+            serde_json::from_value::<Message>(value)
+                .unwrap()
+                .mentioned_user_ids
+                .is_empty()
+        );
+    }
+    let mut choices = vec![
+        json!({"id":"../invalid","name":"No"}),
+        json!({"id":ID,"name":42}),
+    ];
+    choices.extend((1..=25).map(|index| json!({"id":format!("01922cc0-0000-7000-8000-{index:012}"),"name":"A colleague","email":"must-not-forward"})));
+    let people: People = serde_json::from_value(json!({"people":choices})).unwrap();
+    assert_eq!(people.people.len(), 20);
+    assert!(
+        !serde_json::to_string(&people)
+            .unwrap()
+            .contains("must-not-forward")
+    );
 }
