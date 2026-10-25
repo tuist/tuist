@@ -467,6 +467,15 @@ What the BMC does differently from the standard:
   reads an HTTPS image only from port 443, with a file name of letters, digits
   and underscores, and refuses one without a user name and password for the
   server. It does not check the server's certificate.
+- `CertificateService.ReplaceCertificate` on
+  `Managers/Self/NetworkProtocol/HTTPS/Certificates/1` takes the certificate
+  followed by its private key (PKCS#1) in `CertificateString`; the web server
+  serves it within seconds and keeps it across a BMC restart. A certificate
+  alone, even one issued for the BMC's own `GenerateCSR`, answers 204 and
+  shows in the collection, but the web server never serves it and a restart
+  reverts it. `GenerateCSR` also puts the IP addresses in `AlternativeNames`
+  as DNS names. A BMC restart (`Manager.Reset` takes `ForceRestart` only)
+  takes about two and a half minutes and leaves the host running.
 - Serial-over-LAN is IPMI over LAN with the same accounts
   (`ipmitool -I lanplus -H <bmc> -U admin -E sol activate`).
 - Besides `admin` and the factory `Administrator`, the BMC carries a
