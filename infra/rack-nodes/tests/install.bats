@@ -172,7 +172,7 @@ render() {
   [ "$status" -eq 0 ]
   seed="$BATS_TEST_TMPDIR/seed/user-data"
   [ "$(yq -r '.autoinstall.network.ethernets | keys | join(",")' "$seed")" = uplinks ]
-  [ "$(yq -r '.autoinstall.network.ethernets.uplinks.match.driver' "$seed")" = i40e ]
+  [ "$(yq -r '.autoinstall.network.ethernets.uplinks.match.driver | join(",")' "$seed")" = i40e,bnxt_en ]
   [ "$(yq -r '.autoinstall.network.ethernets.uplinks.dhcp4' "$seed")" = true ]
 }
 
