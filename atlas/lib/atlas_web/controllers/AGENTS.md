@@ -57,6 +57,55 @@ Coverage lives in `test/atlas_web/controllers/native_orbit_controller_test.exs` 
 
 Semantics and delivery live in [push](../../atlas/push/AGENTS.md). Coverage is `push_devices_controller_test.exs`.
 
+## Pip Live Activity
+
+`AtlasWeb.OrbitLiveActivityController` serves bearer-only, `no-store` routes with
+the same `NativeOAuthClient` gate as push devices; browser sessions and other
+OAuth clients cannot use them. This registration is independent of ordinary
+notification permission/opt-in. iOS locally starts one aggregate ActivityKit
+activity and uploads its per-activity update token; Atlas never remotely starts
+an activity or keeps an assistant/channel running in the background.
+
+- `GET /api/me/orbit-live-activity` returns exactly `{available: boolean,
+  content: {active_count: nonnegative integer, conversations: [{id: lowercase
+  thread UUID, title: string (≤80 Unicode codepoints),
+  status: queued|running|compacting|using_tools, started_at: Unix
+  seconds integer, completed_steps: nonnegative integer}], updated_at: Unix
+  seconds integer}}`. `available` means APNs is configured. Entries contain only
+  the caller's own current eligible runs with current thread membership/history
+  scopes; max three, earliest real run start (queue time before start) then run
+  UUID. Count includes eligible work beyond the three shown. Completed steps
+  count actually finished succeeded/failed tool calls. The stored `Thread.title`
+  is trimmed after collapsing whitespace and Unicode control/format characters
+  to spaces; blank titles become `Conversation`. This bounded contextual title
+  is an explicit exception to the previous content-free contract: Apple receives
+  it on every currently authorized send, and it can appear on the Lock Screen.
+  No names, raw prompts/replies, tool names/arguments/results or percentage claims
+  appear. No latest-message lookup, inferred summary, new model request, logging
+  or persisted title snapshot is introduced. Older servers omit `title`; native
+  clients accept missing/null titles without changing old serialized snapshots.
+- `PUT /api/me/orbit-live-activity/:registration_id` accepts **exactly**
+  `{token: even hex string, environment: sandbox|production}`. Token length is
+  32–512 characters and is normalized lowercase. Success is `{registered: true}`.
+  Registration ID is an app-generated lowercase UUID, **not** Apple's opaque
+  `Activity.id`. It is immutable for that user **and** native OAuth client.
+- `DELETE` on the same path returns `{deleted: true}` for any valid UUID,
+  independent of whether the caller can retire it. It retires only an exact
+  user/client binding. Unknown IDs become tombstones; a late PUT cannot resurrect
+  them. Locally end the activity on logout even when DELETE is offline.
+- 400 `invalid_live_activity` means malformed body/ID; 409
+  `registration_retired` requires a new local activity and new registration UUID;
+  409 `registration_conflict` is a foreign user/client or duplicate token;
+  401 `session_ended` means no current refresh grant; 503
+  `live_activity_unavailable` means unconfigured APNs/environment or registration
+  persistence failure. PUT/DELETE are capped at 120 per user per hour (429
+  `rate_limited`). Registration is best effort and must not block conversation UI.
+  GET remains useful with `available: false`; older servers' 404 is unsupported.
+
+The lifetime, delivery and retention fences are documented in
+[push](../../atlas/push/AGENTS.md#pip-live-activities). Regressions live in
+`orbit_live_activity_controller_test.exs` and `atlas/push/orbit_live_activity_test.exs`.
+
 ## Native link endpoints
 
 `AtlasWeb.NativeLinksController` serves the app association files and the `/open` landing from the `:native_links` pipeline (secure headers only; no Accept negotiation, session, CSRF, or user lookup). Association files return 404 until `AtlasWeb.NativeLinks.Config` lists verified identities, and set public caching. The Android statement delegates `handle_all_urls` to the fixed `dev.tuist.atlas` package. `/open` validates `screen` and the optional UUID against `AtlasWeb.NativeLinks` and returns 404 otherwise, including encoded slashes and extra segments.

@@ -101,3 +101,58 @@ Sign-out, opt-out, account switches on the same app, an ended app session (the a
 Every delivery shares data with the platform provider, Apple Push Notification service for iOS or Firebase Cloud Messaging (Google) for Android. They receive the device token, the title/body, the server registration UUID, the notification UUID (as the APNs collapse ID, or in the FCM data), and the destination link. That link carries the Atlas server origin, the native screen name and, for record destinations, the record UUID (task, account, invoice or Orbit thread). Activity/self-test alerts do not disclose names, email addresses, record titles or contents. Opted-in Orbit completion is an explicit exception: Apple/Google receive the bounded thread title and final-reply preview, which may contain business or personal information from that authorized reply. OS notification-preview settings govern lock-screen display. Raw tool results, checkpoints and diagnostics are never used as alert content. Apple and Google retain their own delivery records under their terms, outside Atlas's deletion and export controls.
 
 For a verified data request, select live `push_installations` by `user_id` and export platform, environment and timestamps. Never export device tokens: they are delivery credentials, not user content, and users can remove them by disabling notifications or signing out. Tombstones are not attributable to a user and are not part of a personal export. Database backups include encrypted token columns and follow the deployment's existing backup retention.
+
+## Pip Live Activity registrations
+
+`orbit_live_activities` stores an app-generated registration UUID (not Apple's
+`Activity.id`), owning `user_id`, native OAuth client ID, encrypted APNs
+per-activity update token and redacted SHA-256 hash, sandbox/production environment,
+eight-hour expiry, retirement, last-delivery and reconciliation timestamps, the
+last APNs Unix timestamp and a hash of the last authorized projection. There
+are no device descriptors or stored content snapshots. PUT cannot transfer a
+binding between users/clients or extend its original eight-hour lifetime. A new
+aggregate for the same user/client retires its predecessor. Ordinary notification
+permissions and `push_installations` remain independent.
+
+Apple receives the update token, registration UUID as collapse ID, and only a
+freshly authorized aggregate: total current eligible run count, at most three
+thread UUIDs with bounded stored conversation titles, generic
+queued/running/compacting/using-tools statuses, real
+start/queue Unix timestamps, counts of actually finished tool calls, and an update
+timestamp. Titles are an explicit contextual exception to the previous
+content-free contract: the existing `orbit_threads.title` is whitespace/control/
+format-character cleaned, trimmed and bounded to 80 Unicode codepoints, with
+`Conversation` for blank values. Apple receives these titles, which may contain
+business or personal information and can appear on the Lock Screen. Raw prompts,
+tool names/inputs/results, replies, author names, sound and alerts remain excluded.
+No prompt/latest-message lookup, inferred summary or new model request supplies a
+title. Generic phase labels are drawn on the device. Titles are recomputed under
+the same authorization fences for each send, never logged or persisted as delivery
+snapshots. Apple retains delivery records under its own terms. Data sent before
+access removal cannot be recalled; the two-minute stale date limits freshness
+claims if end delivery is lost.
+
+Jobs hold only the registration UUID, not a token or snapshot, and have Oban's
+existing seven-day retention. Every send rechecks the current refresh grant,
+actor, active thread, membership and all history scopes. Last-work completion,
+cancellation/archive, logout/grant expiry, access loss or lifetime expiry removes
+ineligible work and ends an empty aggregate. DELETE tombstones even an unknown
+UUID. Retirement forbids any further content update; the encrypted token is kept
+only for best-effort empty end delivery, then token/hash/owner are cleared on end
+success, provider invalidation/permanent rejection, five failed attempts or a
+two-minute end retry window. A bounded sweep detects missed events. User deletion
+clears the owner reference so the sweep sends an empty end and drops the token.
+Tokenless tombstones retain registration/client IDs and timestamps for 180 days
+to block delayed PUTs. Audit rows (`orbit_live_activity.registered`, `.retired`,
+`.updated`, `.ended`, `.invalidated`) carry IDs and fixed outcomes only and follow
+existing audit retention; backups contain encrypted tokens under existing backup
+retention.
+
+For a verified export, select `orbit_live_activities` by `user_id`, including
+pending-end rows, and export registration/client IDs, environment, lifecycle and
+delivery timestamps, excluding token, token hash and projection hash (delivery
+credentials/internal caches, not content). Related audit rows can be located by
+actor or `target_type = 'orbit_live_activity'` and registration UUID. Completed
+tombstones have no user reference; use audit records for attributed historical
+lifecycle events where required. Export run/message history from the Orbit
+tables under their existing rules, not from this native status projection.

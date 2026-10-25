@@ -224,6 +224,14 @@ defmodule AtlasWeb.Router do
     post "/:resource/:id/complete", NativeController, :complete
   end
 
+  scope "/api/me", AtlasWeb do
+    pipe_through :native
+
+    get "/orbit-live-activity", OrbitLiveActivityController, :show
+    put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update
+    delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api, :mcp]
 
