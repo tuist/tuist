@@ -31,7 +31,7 @@ struct AtlasThreadComposer: View {
                         Button("Photo Library", systemImage: "photo.on.rectangle", action: addPhotos)
                         Button("Choose Files", systemImage: "doc", action: addFiles)
                     } label: {
-                        Image(systemName: "plus").font(.title3).frame(width: 44, height: 44)
+                        Image(systemName: "plus").font(.system(size: 20)).frame(width: 44, height: 44)
                             .foregroundStyle(.secondary)
                             .background { Circle().fill(Color(uiColor: .tertiarySystemFill)).padding(4) }
                     }
@@ -69,7 +69,7 @@ struct AtlasThreadComposer: View {
                 .padding(.leading, recording ? 52 : 0).padding(.trailing, recording ? 8 : 44)
                 if recording {
                     Button(action: cancel) {
-                        Image(systemName: "xmark").font(.title3).frame(width: 44, height: 44)
+                        Image(systemName: "xmark").font(.system(size: 20)).frame(width: 44, height: 44)
                             .foregroundStyle(.secondary)
                             .background { Circle().fill(Color(uiColor: .tertiarySystemFill)).padding(4) }
                             .contentShape(Rectangle())
@@ -81,7 +81,11 @@ struct AtlasThreadComposer: View {
                 } else {
                     Button(action: send) {
                         Group {
-                            if saving { ProgressView() } else { Image(systemName: "arrow.up").font(.title3.bold()) }
+                            if saving {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.up").font(.system(size: 20, weight: .bold))
+                            }
                         }.frame(width: 44, height: 44)
                     }
                     .buttonStyle(AtlasComposerSendStyle())
