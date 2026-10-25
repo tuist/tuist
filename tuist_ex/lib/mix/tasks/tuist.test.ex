@@ -392,7 +392,7 @@ defmodule Mix.Tasks.Tuist.Test do
     mute? =
       muted > 0 and
         cond do
-          "--warnings-as-errors" in test_args ->
+          warnings_as_errors?(test_args) ->
             Mix.shell().info(
               "warning: Tuist does not apply muted tests when `--warnings-as-errors` is given; " <>
                 "their failures fail the run."
@@ -472,13 +472,16 @@ defmodule Mix.Tasks.Tuist.Test do
 
     # A suite cut short by `--max-failures` left tests unrun. Retrying the
     # failures it did reach could pass and hide the ones it never got to, so
-    # such a run is reported as it is and stays failed.
-    complete? =
-      deferred != [] and not Enum.any?(deferred, fn {_payload, _opts, aborted?} -> aborted? end)
+    # such a run is reported as it is and stays failed. So does one that
+    # failed outside its tests, which no retry reruns and no muted test
+    # accounts for.
+    recoverable? =
+      deferred != [] and
+        not Enum.any?(deferred, fn {_payload, _opts, unrecoverable?} -> unrecoverable? end)
 
     {suite, attempts} =
       cond do
-        suite != :failed or not complete? or retries == 0 ->
+        suite != :failed or not recoverable? or retries == 0 ->
           {suite, []}
 
         # Tests that all ran out of time point at what they wait on, such as
@@ -496,54 +499,54 @@ defmodule Mix.Tasks.Tuist.Test do
       end
 
     deferred =
-      Enum.map(deferred, fn {payload, opts, aborted?} ->
-        {ExUnitFormatter.merge_retries(payload, attempts), opts, aborted?}
+      Enum.map(deferred, fn {payload, opts, unrecoverable?} ->
+        {ExUnitFormatter.merge_retries(payload, attempts), opts, unrecoverable?}
       end)
 
-    {suite, deferred} = unmute(suite, complete?, deferred, options)
+    {suite, deferred} = unmute(suite, recoverable?, deferred, options)
     submit_runs(deferred, options, history, network_publishing?)
 
     if suite == :failed, do: fail(test_args)
     :ok
   end
 
-  # A complete run whose only failures are muted tests passes, and is
+  # A recoverable run whose only failures are muted tests passes, and is
   # reported as passing; each muted test keeps its own failure.
   defp unmute(:failed, true, deferred, options) do
     if options[:mute] == true and
-         Enum.all?(deferred, fn {payload, _opts, _aborted?} ->
+         Enum.all?(deferred, fn {payload, _opts, _unrecoverable?} ->
            payload.status == "success" or
              Quarantine.only_muted_failed?(payload, options[:quarantine])
          end) do
       Mix.shell().info("Tuist: only muted tests failed, so the run passes.")
 
       {:passed,
-       Enum.map(deferred, fn {payload, opts, aborted?} ->
-         {%{payload | status: "success"}, opts, aborted?}
+       Enum.map(deferred, fn {payload, opts, unrecoverable?} ->
+         {%{payload | status: "success"}, opts, unrecoverable?}
        end)}
     else
       {:failed, deferred}
     end
   end
 
-  defp unmute(suite, _complete?, deferred, _options), do: {suite, deferred}
+  defp unmute(suite, _recoverable?, deferred, _options), do: {suite, deferred}
 
   # A run counting natively leaves Mix's coverage tool out, so its summary
   # and threshold are printed and checked here, from the counts the formatter
   # read when the suite finished.
   defp summarize_coverage(deferred) do
-    Enum.map(deferred, fn {payload, opts, aborted?} ->
+    Enum.map(deferred, fn {payload, opts, unrecoverable?} ->
       {lines, payload} = Map.pop(payload, :coverage_lines)
       if lines, do: CoverageSummary.report(lines, opts[:coverage_summary])
-      {payload, opts, aborted?}
+      {payload, opts, unrecoverable?}
     end)
   end
 
   defp pop_timed_out(deferred) do
     deferred =
-      Enum.map(deferred, fn {payload, opts, aborted?} ->
+      Enum.map(deferred, fn {payload, opts, unrecoverable?} ->
         {timed_out, payload} = Map.pop(payload, :timed_out, false)
-        {timed_out, {payload, opts, aborted?}}
+        {timed_out, {payload, opts, unrecoverable?}}
       end)
 
     {deferred != [] and Enum.all?(deferred, &elem(&1, 0)), Enum.map(deferred, &elem(&1, 1))}
@@ -555,7 +558,7 @@ defmodule Mix.Tasks.Tuist.Test do
   defp submit_runs(deferred, options, history, network_publishing?) do
     upload_history(history, &GitHistory.publish/2, network_publishing?)
 
-    for {payload, opts, _aborted?} <- deferred do
+    for {payload, opts, _unrecoverable?} <- deferred do
       payload
       |> with_coverage(options, opts, history, network_publishing?)
       |> ExUnitFormatter.submit(opts)
@@ -753,6 +756,14 @@ defmodule Mix.Tasks.Tuist.Test do
     Keyword.get(opts, :exit_status, 2)
   end
 
+  # Read the way `mix test` reads it, so `--warnings-as-errors=true` counts.
+  defp warnings_as_errors?(test_args) do
+    {opts, _rest, _invalid} =
+      OptionParser.parse(test_args, switches: [warnings_as_errors: :boolean])
+
+    Keyword.get(opts, :warnings_as_errors, false)
+  end
+
   # Retrying needs the first run to raise when it fails. `mix test` then
   # raises before it gets to `--warnings-as-errors`, so the retries would
   # pass and the warnings would never fail the run. In an umbrella it raises
@@ -764,7 +775,7 @@ defmodule Mix.Tasks.Tuist.Test do
       count == 0 ->
         0
 
-      "--warnings-as-errors" in test_args ->
+      warnings_as_errors?(test_args) ->
         Mix.shell().info(
           "warning: Tuist does not retry failed tests when `--warnings-as-errors` is given."
         )

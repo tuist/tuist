@@ -50,7 +50,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
        excluded: [],
        excluded_tags: MapSet.new(Keyword.get(merged, :coverage_excluded_tags, [])),
        skipped_but_ran: [],
-       aborted?: false,
+       unrecoverable?: false,
        failures: nil,
        monotonic_start_ns: System.monotonic_time(),
        ran_at: DateTime.utc_now(),
@@ -133,7 +133,20 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   # ExUnit stopped early because of `--max-failures`: tests it never reached
   # are neither passed nor failed, so the run cannot be recovered by retrying
   # the failures it did see.
-  def handle_cast(:max_failures_reached, state), do: {:noreply, %{state | aborted?: true}}
+  def handle_cast(:max_failures_reached, state), do: {:noreply, %{state | unrecoverable?: true}}
+
+  # A module can fail with none of its tests failing, such as an `on_exit`
+  # that `setup_all` registered raising once they all passed. No test carries
+  # that failure, so neither a retry nor muting can account for it. When
+  # `setup_all` itself fails, its tests are invalid and carry it.
+  def handle_cast(
+        {:module_finished, %ExUnit.TestModule{state: {:failed, _}, tests: tests}},
+        state
+      ) do
+    if Enum.any?(tests, &match?(%ExUnit.Test{state: {:invalid, _}}, &1)),
+      do: {:noreply, state},
+      else: {:noreply, %{state | unrecoverable?: true}}
+  end
 
   def handle_cast({:suite_finished, times}, state) do
     duration_ms = suite_duration_ms(times, state.monotonic_start_ns)
@@ -155,7 +168,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
             |> put_coverage_lines(state.opts)
             |> put_timed_out(state.failures)
 
-          send(owner, {@deferred, {payload, state.opts, state.aborted?}})
+          send(owner, {@deferred, {payload, state.opts, state.unrecoverable?}})
 
         :submit ->
           submit(build_payload(tests, duration_ms, state.ran_at, state.opts), state.opts)
@@ -313,8 +326,9 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
   @doc """
   Returns the runs `{:defer, owner}` mode sent to the calling process, one
-  `{payload, opts, aborted?}` per suite that ran (an umbrella runs one per
-  application). `aborted?` says the suite stopped before running every test.
+  `{payload, opts, unrecoverable?}` per suite that ran (an umbrella runs one per
+  application). `unrecoverable?` says the suite stopped before running every
+  test, or failed outside any of them.
   Call it once ExUnit is done, when its formatters have stopped.
   """
   def take_deferred do

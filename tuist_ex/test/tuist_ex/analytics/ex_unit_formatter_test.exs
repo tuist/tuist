@@ -209,6 +209,38 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
            ] = ExUnitFormatter.take_deferred()
   end
 
+  test "notes a module that failed outside its tests in defer mode, but not one whose tests carry the failure" do
+    failure = {:failed, [{:error, %RuntimeError{message: "cleanup failed"}, []}]}
+    passed = new_test(module: GammaTest)
+    invalid = new_test(module: DeltaTest, state: {:invalid, %ExUnit.TestModule{name: DeltaTest}})
+
+    for {test, module} <- [
+          {passed, %ExUnit.TestModule{name: GammaTest, state: failure, tests: [passed]}},
+          {invalid, %ExUnit.TestModule{name: DeltaTest, state: failure, tests: [invalid]}}
+        ] do
+      {:ok, pid} =
+        GenServer.start_link(ExUnitFormatter,
+          environment: &environment/1,
+          submit: fn _payload, _opts -> :ok end,
+          mode: {:defer, self()}
+        )
+
+      send_lifecycle(pid, [
+        {:suite_started, []},
+        {:test_finished, test},
+        {:module_finished, module},
+        {:suite_finished, %{run: 1_000}}
+      ])
+
+      :ok = GenServer.stop(pid)
+    end
+
+    assert [
+             {%{test_modules: [%{name: "GammaTest", status: "success"}]}, _, true},
+             {%{test_modules: [%{name: "DeltaTest", status: "failure"}]}, _, false}
+           ] = ExUnitFormatter.take_deferred()
+  end
+
   test "reports the execution variant as the run scheme" do
     {:ok, pid} =
       GenServer.start_link(ExUnitFormatter,

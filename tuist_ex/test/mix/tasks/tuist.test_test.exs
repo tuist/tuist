@@ -321,13 +321,21 @@ defmodule Mix.Tasks.Tuist.TestTest do
             1
           end)
 
-          for {failed, passes?} <- [{["flakes"], true}, {["flakes", "breaks"], false}] do
+          # A module that failed outside its tests, such as an `on_exit` from
+          # `setup_all` raising, fails the run whatever the muted tests did.
+          for {failed, module_failed?, passes?} <- [
+                {["flakes"], false, true},
+                {["flakes", "breaks"], false, false},
+                {[], true, false},
+                {["flakes"], true, false}
+              ] do
             Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
               send(owner, {:args, args})
               cases = Enum.map(failed, &%{name: &1, status: "failure", duration: 1})
-              module = %{name: "CartTest", status: "failure", duration: 2, test_suites: [], test_cases: cases}
-              run = %{test_modules: [module], status: "failure"}
-              send(self(), {:deferred_test_run, {run, [], false}})
+              status = if failed == [], do: "success", else: "failure"
+              module = %{name: "CartTest", status: status, duration: 2, test_suites: [], test_cases: cases}
+              run = %{test_modules: [module], status: status}
+              send(self(), {:deferred_test_run, {run, [], module_failed?}})
               Mix.raise(~s("mix test" failed))
             end)
 
@@ -347,7 +355,8 @@ defmodule Mix.Tasks.Tuist.TestTest do
             assert_received {:args, args}
             assert ["--exclude", "test:test add/2 hangs"] -- args == []
             assert_received {:submitted, payload}
-            assert payload.status == if(passes?, do: "success", else: "failure")
+            # The run's status is its tests'.
+            assert payload.status == if(passes? or failed == [], do: "success", else: "failure")
           end
 
           # ExUnit keeps a failure on record until the test passes, so
