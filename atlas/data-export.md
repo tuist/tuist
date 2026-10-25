@@ -2,6 +2,14 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Tuist feature flag operation audits
+
+Atlas stores no local feature flag rules or evaluation snapshots. Tuist Server owns the persisted gates and authoritative, atomic change audit. Atlas sends the authenticated operator's Atlas user UUID and email, the execution interface (`mcp`, `worker` or `api`), change UUID, reason, expected revision, operation/scope and any Tuist account/project ID or rollout percentage to the internal Tuist feature flag API. These are operator actions, not end-user analytics.
+
+`audit_activities` stores `tuist_feature_flag.listed`, `.inspected`, `.evaluated` and `.updated` request outcomes: actor identity, interface, flag-name target (when applicable), status, and for updates the supplied operation/scope, account/project IDs or percentage, expected revision, reason, change UUID and resulting revision when successful. Resource evaluations retain the requested Tuist account or project ID and outcome, but not the returned flag decisions or an evaluation snapshot. Shared-identity Slack execution is denied locally; its rejected request-outcome audits may retain `interface=slack`, but no flag request is forwarded to Tuist. The ordinary `mcp.tool_called` audit also retains tool arguments and outcome under existing tool-audit rules. No workload tokens, raw transport errors or remote response bodies are stored in these domain events. An Atlas error outcome does not prove the remote rules were unchanged; reconcile with Tuist's audit using the change UUID.
+
+These rows follow Atlas's existing audit retention and backup policies; clearing a flag or deleting an account does not remove operator audit history. For a verified export, select `audit_activities` by `actor_id` (or actor email for historical identities), by `tuist_feature_flag` target/name, or by the relevant Tuist account/project IDs and change UUIDs in metadata. Include matching `mcp.tool_called` entries for these tool names; organizational exports must match IDs inside their argument metadata too. Retrieve authoritative rules and change audits separately from Tuist Server. There are no new Atlas tables, S3 paths or local credential copies.
+
 ## Personal profile context
 
 `users.description` stores optional self-authored information about the person's role, personality and communication preferences, up to 4,000 Unicode codepoints / 16,000 UTF-8 bytes. Only the authenticated person can update it through native Profile or the caller-only `update_my_profile` MCP tool; `get_my_profile` reads the same person's profile. Profile-update tool arguments are omitted from audit metadata.
@@ -72,6 +80,8 @@ Orbit threads store people's messages to each other and to Pip, Atlas's fixed-na
 
 Thread run audit rows in `agent_sessions` store only an `orbit_run:<id>` label, a redacted result marker and fixed error categories. `agent_session_events` keep tool names, statuses and timings. Tool calls produce `mcp.tool_called` audit events with the thread and run IDs but without arguments. Membership changes, creation and signals produce `thread.*` audit events. Inference usage rows follow the existing relay retention.
 
+Owner-only archive/restore changes the existing `orbit_threads.status` (`active`/`archived`) and records `thread.status_changed` with the new status, not message/file content. Archive is not deletion or a retention cutoff: messages, memberships and attached files remain protected and exportable as before. Active runs are cancelled/finalized, clearing encrypted checkpoints and tool-result caches under their existing terminal-run policy; delayed workers cannot revive them after restore. Restore does not start inference. Native lists default to active and offer an archived filter, but legal exports must include both statuses. No new customer-data columns or storage categories are introduced.
+
 Native rich result cards are data-only projections of the existing redacted `orbit_messages.tool_output`, with no additional database rows, files, retention period or customer data collection. Their server-provided fallback is the same bounded evidence; export the source messages, not client renderer packages or caches.
 
 Explicit native mentions store selected user UUIDs in `orbit_messages.mentioned_user_ids` (at most ten; empty for old messages). They are persistent attribution, not membership: removed/deleted users' UUIDs remain in the source message, and delivery always rechecks current access. Include these UUIDs in message exports and assess third-party redaction as for the other shared history. An owner mentioning a new eligible person promotes a private conversation to participant-scoped shared history, never public or company-wide visibility. All invitees must hold every ratcheted history scope. Audience expansion appends a system message with `notice_kind = "handoff"`: clearly labeled, bounded conversation-so-far excerpts from the first human request and latest Pip reply, not a generated summary or a new provider call. Excerpts duplicate already-retained source text and follow the same history retention/export controls. Promotion and invitations have `thread.promoted` / `thread.participant_added` audits. Name-only mention search stores no query or new directory records. A promoted thread retains its creation UUID: a private-creation replay conflicts safely rather than creating a second conversation.
@@ -99,3 +109,58 @@ Sign-out, opt-out, account switches on the same app, an ended app session (the a
 Every delivery shares data with the platform provider, Apple Push Notification service for iOS or Firebase Cloud Messaging (Google) for Android. They receive the device token, the title/body, the server registration UUID, the notification UUID (as the APNs collapse ID, or in the FCM data), and the destination link. That link carries the Atlas server origin, the native screen name and, for record destinations, the record UUID (task, account, invoice or Orbit thread). Activity/self-test alerts do not disclose names, email addresses, record titles or contents. Opted-in Orbit completion is an explicit exception: Apple/Google receive the bounded thread title and final-reply preview, which may contain business or personal information from that authorized reply. OS notification-preview settings govern lock-screen display. Raw tool results, checkpoints and diagnostics are never used as alert content. Apple and Google retain their own delivery records under their terms, outside Atlas's deletion and export controls.
 
 For a verified data request, select live `push_installations` by `user_id` and export platform, environment and timestamps. Never export device tokens: they are delivery credentials, not user content, and users can remove them by disabling notifications or signing out. Tombstones are not attributable to a user and are not part of a personal export. Database backups include encrypted token columns and follow the deployment's existing backup retention.
+
+## Pip Live Activity registrations
+
+`orbit_live_activities` stores an app-generated registration UUID (not Apple's
+`Activity.id`), owning `user_id`, native OAuth client ID, encrypted APNs
+per-activity update token and redacted SHA-256 hash, sandbox/production environment,
+eight-hour expiry, retirement, last-delivery and reconciliation timestamps, the
+last APNs Unix timestamp and a hash of the last authorized projection. There
+are no device descriptors or stored content snapshots. PUT cannot transfer a
+binding between users/clients or extend its original eight-hour lifetime. A new
+aggregate for the same user/client retires its predecessor. Ordinary notification
+permissions and `push_installations` remain independent.
+
+Apple receives the update token, registration UUID as collapse ID, and only a
+freshly authorized aggregate: total current eligible run count, at most three
+thread UUIDs with bounded stored conversation titles, generic
+queued/running/compacting/using-tools statuses, real
+start/queue Unix timestamps, counts of actually finished tool calls, and an update
+timestamp. Titles are an explicit contextual exception to the previous
+content-free contract: the existing `orbit_threads.title` is whitespace/control/
+format-character cleaned, trimmed and bounded to 80 Unicode codepoints, with
+`Conversation` for blank values. Apple receives these titles, which may contain
+business or personal information and can appear on the Lock Screen. Raw prompts,
+tool names/inputs/results, replies, author names, sound and alerts remain excluded.
+No prompt/latest-message lookup, inferred summary or new model request supplies a
+title. Generic phase labels are drawn on the device. Titles are recomputed under
+the same authorization fences for each send, never logged or persisted as delivery
+snapshots. Apple retains delivery records under its own terms. Data sent before
+access removal cannot be recalled; the two-minute stale date limits freshness
+claims if end delivery is lost.
+
+Jobs hold only the registration UUID, not a token or snapshot, and have Oban's
+existing seven-day retention. Every send rechecks the current refresh grant,
+actor, active thread, membership and all history scopes. Last-work completion,
+cancellation/archive, logout/grant expiry, access loss or lifetime expiry removes
+ineligible work and ends an empty aggregate. DELETE tombstones even an unknown
+UUID. Retirement forbids any further content update; the encrypted token is kept
+only for best-effort empty end delivery, then token/hash/owner are cleared on end
+success, provider invalidation/permanent rejection, five failed attempts or a
+two-minute end retry window. A bounded sweep detects missed events. User deletion
+clears the owner reference so the sweep sends an empty end and drops the token.
+Tokenless tombstones retain registration/client IDs and timestamps for 180 days
+to block delayed PUTs. Audit rows (`orbit_live_activity.registered`, `.retired`,
+`.updated`, `.ended`, `.invalidated`) carry IDs and fixed outcomes only and follow
+existing audit retention; backups contain encrypted tokens under existing backup
+retention.
+
+For a verified export, select `orbit_live_activities` by `user_id`, including
+pending-end rows, and export registration/client IDs, environment, lifecycle and
+delivery timestamps, excluding token, token hash and projection hash (delivery
+credentials/internal caches, not content). Related audit rows can be located by
+actor or `target_type = 'orbit_live_activity'` and registration UUID. Completed
+tombstones have no user reference; use audit records for attributed historical
+lifecycle events where required. Export run/message history from the Orbit
+tables under their existing rules, not from this native status projection.

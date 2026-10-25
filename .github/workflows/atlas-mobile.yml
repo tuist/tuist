@@ -193,6 +193,8 @@ jobs:
         run: bash ios/distribution/test-associated-domains.sh
       - name: Test APNs provisioning guard without credentials
         run: python3 ios/distribution/push_test.py
+      - name: Test Live Activity embedding and provisioning without credentials
+        run: bash ios/distribution/test-live-activity.sh
       - name: Test Android signing publication guard without credentials
         run: python3 android/distribution/sign_test.py
       - name: Check launcher icon packaging
@@ -200,7 +202,7 @@ jobs:
       - name: Test Firebase dependency integrity and manifest/resource gates
         run: python3 android/push/push_test.py
       - name: Check signing script syntax
-        run: for script in ios/distribution/{bundle,keychain,associated-domains,push}.sh android/distribution/sign.sh; do bash -n "$script"; done
+        run: for script in ios/distribution/{bundle,keychain,associated-domains,push,live-activity,test-live-activity}.sh modules/{embed-widget,check-widget}.sh android/distribution/sign.sh; do bash -n "$script"; done
 
   previews:
     name: Publish internal previews

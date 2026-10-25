@@ -40,9 +40,14 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var presenceModel: AtlasPresence?
     private var sessionIdentity = UUID()
     let pushNotifications = AtlasPushNotifications()
+    let liveActivity = AtlasOrbitLiveActivity()
 
     var pushRequest: ([String: Any]) async throws -> Data {
         authenticatedRequest(operation: "push")
+    }
+
+    var liveActivityRequest: ([String: Any]) async throws -> Data {
+        authenticatedRequest(operation: "orbit_activity")
     }
 
     var presence: AtlasPresence {
@@ -116,6 +121,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             await presenceModel?.stop()
             await accountModel?.cancelLogin()
             await pushNotifications.signOut()
+            await liveActivity.signOut()
             await acquireAPI()
             defer { releaseAPI() }
             do {
@@ -131,6 +137,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             origin = (session["registration"] as? [String: Any])?["server"] as? String ?? origin
         }
         pushNotifications.prepareForSessionEnd(origin: origin)
+        liveActivity.invalidate()
         try AtlasSecureStorage.delete("automation.admission")
         try AtlasSecureStorage.delete("session")
         presenceModel?.setActive(false)

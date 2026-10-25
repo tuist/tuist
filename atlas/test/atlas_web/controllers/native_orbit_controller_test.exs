@@ -20,6 +20,7 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
           {:get, "/api/native/orbit/threads"},
           {:post, "/api/native/orbit/threads"},
           {:post, "/api/native/orbit/threads/private"},
+          {:patch, "/api/native/orbit/threads/#{id}"},
           {:get, "/api/native/orbit/threads/#{id}/people"},
           {:get, "/api/native/orbit/threads/#{id}/messages"},
           {:post, "/api/native/orbit/threads/#{id}/messages"},
@@ -33,7 +34,7 @@ defmodule AtlasWeb.NativeOrbitControllerTest do
     end
   end
 
-  test "lists the bot and the caller's threads, private thread first" do
+  test "lists the bot and the caller's active threads, most recently updated first" do
     user = user_fixture()
     api = bearer(user)
 

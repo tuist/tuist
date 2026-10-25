@@ -24,7 +24,8 @@ Controller regressions live in `test/atlas_web/controllers/native_controller_tes
 
 `AtlasWeb.NativeOrbitController` serves fixed routes under `/api/native/orbit/threads`, declared before the dynamic native resource routes and protected by the same bearer-only, `no-store` pipeline. Older servers answer the list route with the dynamic resource's 404, which clients treat as unsupported. Domain rules live in [Orbit](../../atlas/orbit/AGENTS.md). Threads a caller cannot read return `404 {"error":"not_found"}`, indistinguishable from missing ones.
 
-- `GET /api/native/orbit/threads?page=N&kind=private|shared` returns `{assistant: {name, configured, can_create_private: true}, threads: {items, page, total_pages, total_count}}`. The optional kind filter applies before pagination/counts; omission preserves the unfiltered contract. There are 25 items per page: private conversations first, then most recently updated. `assistant.name` is always `Pip`, the fixed mascot/assistant identity. `configured` includes the caller's connected ChatGPT/Claude accounts or the enabled Orbit role. The additive `can_create_private` capability advertises distinct UUID-replay-safe creation independently of inference configuration; older clients ignore it. New clients default an absent flag to false, refresh typed list metadata before attempting distinct creation, and show an update-and-retry explanation if it remains false. They never silently fall back to legacy `/private`, which could reopen an existing conversation. This supports staggered native/server releases and recovery in the same native session after a server upgrade.
+- `GET /api/native/orbit/threads?page=N&kind=private|shared&status=active|archived` returns `{assistant: {name, configured, can_create_private: true}, threads: {items, page, total_pages, total_count}}`. Status defaults to active. Optional kind and status filters apply before pagination/counts. There are 25 items per page ordered by `updated_at DESC, id DESC` across kinds; private threads do not take precedence. Context callers omitting the optional status argument retain the legacy all-status, private-first behavior. `assistant.name` is always `Pip`, the fixed mascot/assistant identity. `configured` includes the caller's connected ChatGPT/Claude accounts or the enabled Orbit role. The additive `can_create_private` capability advertises distinct UUID-replay-safe creation independently of inference configuration; older clients ignore it. New clients default an absent flag to false, refresh typed list metadata before attempting distinct creation, and show an update-and-retry explanation if it remains false. They never silently fall back to legacy `/private`, which could reopen an existing conversation. This supports staggered native/server releases and recovery in the same native session after a server upgrade.
+- `PATCH /:id {status: "archived" | "active"}` returns 200 `{thread}`. Only a currently authorized private/shared owner may archive/restore (readable members get 403; malformed, missing and inaccessible IDs get the same generic 404). Extra fields never change owner/audience/title. Same-status requests are idempotent. Real transitions increment the thread revision and publish normal list/history invalidations. Archive atomically cancels/finalizes queued/running work, clears checkpoints/tool results and fences delayed callbacks; restore starts no run or pre-archive follow-up. History and attached downloads remain readable under unchanged permissions, while sends/uploads remain blocked while archived. Use existing authoritative `owner_id` for native action eligibility, not a new capability flag. Regressions: `native_orbit_archive_controller_test.exs` and the real-worker archive test in `runs_test.exs`.
 - `POST /api/native/orbit/threads/private` returns the caller's latest private conversation, creating only on first use: 201 initially and 200 afterwards.
 - `POST /api/native/orbit/threads` with `{kind: "private", request_id: UUID}` creates a distinct owner-only conversation: 201 initially, 200 on same-owner UUID replay. Extra ownership/participant fields never grant access. `{title (≤200 chars, non-blank), participant_ids (≤30 UUIDs), kind?: "shared"}` retains shared creation; malformed or unknown IDs return 422 `fields.participant_ids`.
 - Private creation whose original request UUID now belongs to a promoted shared conversation returns `409 {error: "thread_promoted"}`. It never creates a duplicate or returns a shared record as a successful private creation. Refresh the ordinary thread list to find that conversation; its ID and creation UUID remain unchanged.
@@ -55,6 +56,55 @@ Coverage lives in `test/atlas_web/controllers/native_orbit_controller_test.exs` 
 - 409 `installation_retired` means the ID was deleted or reassigned; the client rotates its installation UUID and retries. 409 `installation_conflict` means another user's live installation. 503 `push_unavailable` means the platform's provider is not configured. 429 `rate_limited` caps each user at 120 requests per hour.
 
 Semantics and delivery live in [push](../../atlas/push/AGENTS.md). Coverage is `push_devices_controller_test.exs`.
+
+## Pip Live Activity
+
+`AtlasWeb.OrbitLiveActivityController` serves bearer-only, `no-store` routes with
+the same `NativeOAuthClient` gate as push devices; browser sessions and other
+OAuth clients cannot use them. This registration is independent of ordinary
+notification permission/opt-in. iOS locally starts one aggregate ActivityKit
+activity and uploads its per-activity update token; Atlas never remotely starts
+an activity or keeps an assistant/channel running in the background.
+
+- `GET /api/me/orbit-live-activity` returns exactly `{available: boolean,
+  content: {active_count: nonnegative integer, conversations: [{id: lowercase
+  thread UUID, title: string (≤80 Unicode codepoints),
+  status: queued|running|compacting|using_tools, started_at: Unix
+  seconds integer, completed_steps: nonnegative integer}], updated_at: Unix
+  seconds integer}}`. `available` means APNs is configured. Entries contain only
+  the caller's own current eligible runs with current thread membership/history
+  scopes; max three, earliest real run start (queue time before start) then run
+  UUID. Count includes eligible work beyond the three shown. Completed steps
+  count actually finished succeeded/failed tool calls. The stored `Thread.title`
+  is trimmed after collapsing whitespace and Unicode control/format characters
+  to spaces; blank titles become `Conversation`. This bounded contextual title
+  is an explicit exception to the previous content-free contract: Apple receives
+  it on every currently authorized send, and it can appear on the Lock Screen.
+  No names, raw prompts/replies, tool names/arguments/results or percentage claims
+  appear. No latest-message lookup, inferred summary, new model request, logging
+  or persisted title snapshot is introduced. Older servers omit `title`; native
+  clients accept missing/null titles without changing old serialized snapshots.
+- `PUT /api/me/orbit-live-activity/:registration_id` accepts **exactly**
+  `{token: even hex string, environment: sandbox|production}`. Token length is
+  32–512 characters and is normalized lowercase. Success is `{registered: true}`.
+  Registration ID is an app-generated lowercase UUID, **not** Apple's opaque
+  `Activity.id`. It is immutable for that user **and** native OAuth client.
+- `DELETE` on the same path returns `{deleted: true}` for any valid UUID,
+  independent of whether the caller can retire it. It retires only an exact
+  user/client binding. Unknown IDs become tombstones; a late PUT cannot resurrect
+  them. Locally end the activity on logout even when DELETE is offline.
+- 400 `invalid_live_activity` means malformed body/ID; 409
+  `registration_retired` requires a new local activity and new registration UUID;
+  409 `registration_conflict` is a foreign user/client or duplicate token;
+  401 `session_ended` means no current refresh grant; 503
+  `live_activity_unavailable` means unconfigured APNs/environment or registration
+  persistence failure. PUT/DELETE are capped at 120 per user per hour (429
+  `rate_limited`). Registration is best effort and must not block conversation UI.
+  GET remains useful with `available: false`; older servers' 404 is unsupported.
+
+The lifetime, delivery and retention fences are documented in
+[push](../../atlas/push/AGENTS.md#pip-live-activities). Regressions live in
+`orbit_live_activity_controller_test.exs` and `atlas/push/orbit_live_activity_test.exs`.
 
 ## Native link endpoints
 

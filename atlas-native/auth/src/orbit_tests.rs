@@ -7,7 +7,10 @@ fn execute_using(network: &impl Transport, session: Session, action: Action) -> 
         Action::List { .. } => {
             serde_json::to_value(request_using::<Overview>(network, session, action)?)
         }
-        Action::Private | Action::CreatePrivate { .. } | Action::Create { .. } => {
+        Action::Private
+        | Action::CreatePrivate { .. }
+        | Action::Create { .. }
+        | Action::Archive { .. } => {
             serde_json::to_value(request_using::<Created>(network, session, action)?)
         }
         Action::Messages { .. } => {
@@ -56,6 +59,7 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             Action::List {
                 page: 2,
                 kind: None,
+                status: None,
             },
             "GET",
             "?page=2".to_owned(),
@@ -73,11 +77,32 @@ fn fixed_routes_use_selected_instance_and_filter_payloads() {
             Action::List {
                 page: 1,
                 kind: Some("private".into()),
+                status: Some("archived".into()),
             },
             "GET",
-            "?page=1&kind=private".into(),
+            "?page=1&kind=private&status=archived".into(),
             Value::Null,
             json!({"assistant":{"name":"Pip","configured":true,"can_create_private":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}),
+        ),
+        (
+            Action::Archive {
+                id: ID.into(),
+                archived: true,
+            },
+            "PATCH",
+            format!("/{ID}"),
+            json!({"status":"archived"}),
+            json!({"thread":thread()}),
+        ),
+        (
+            Action::Archive {
+                id: ID.into(),
+                archived: false,
+            },
+            "PATCH",
+            format!("/{ID}"),
+            json!({"status":"active"}),
+            json!({"thread":thread()}),
         ),
         (
             Action::CreatePrivate {
@@ -183,10 +208,21 @@ fn invalid_paths_pages_and_messages_never_leave_device() {
         Action::List {
             page: 0,
             kind: None,
+            status: None,
         },
         Action::List {
             page: 1,
             kind: Some("../admin".into()),
+            status: None,
+        },
+        Action::List {
+            page: 1,
+            kind: None,
+            status: Some("deleted".into()),
+        },
+        Action::Archive {
+            id: "../admin".into(),
+            archived: true,
         },
         Action::CreatePrivate {
             request_id: "not-a-uuid".into(),

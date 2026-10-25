@@ -15,6 +15,8 @@ pub(crate) enum Action {
         page: u32,
         #[serde(default)]
         kind: Option<String>,
+        #[serde(default)]
+        status: Option<String>,
     },
     Private,
     CreatePrivate {
@@ -31,6 +33,10 @@ pub(crate) enum Action {
     People {
         id: String,
         query: String,
+    },
+    Archive {
+        id: String,
+        archived: bool,
     },
     Send {
         id: String,
@@ -347,7 +353,7 @@ pub(super) fn request_using<T: DeserializeOwned>(
         .join("api/native/orbit/threads")
         .map_err(|_| invalid())?;
     let (method, payload) = match &action {
-        Action::List { page, kind } => {
+        Action::List { page, kind, status } => {
             validate_page(*page)?;
             url.query_pairs_mut().append_pair("page", &page.to_string());
             if let Some(kind) = kind {
@@ -355,6 +361,12 @@ pub(super) fn request_using<T: DeserializeOwned>(
                     return Err(invalid());
                 }
                 url.query_pairs_mut().append_pair("kind", kind);
+            }
+            if let Some(status) = status {
+                if !matches!(status.as_str(), "active" | "archived") {
+                    return Err(invalid());
+                }
+                url.query_pairs_mut().append_pair("status", status);
             }
             (Method::GET, None)
         }
@@ -404,6 +416,14 @@ pub(super) fn request_using<T: DeserializeOwned>(
                 .extend([id.as_str(), "people"]);
             url.query_pairs_mut().append_pair("query", query);
             (Method::GET, None)
+        }
+        Action::Archive { id, archived } => {
+            crate::time_off::validate_id(id)?;
+            url.path_segments_mut().map_err(|_| invalid())?.push(id);
+            (
+                Method::PATCH,
+                Some(json!({"status": if *archived { "archived" } else { "active" }})),
+            )
         }
         Action::Send {
             id,

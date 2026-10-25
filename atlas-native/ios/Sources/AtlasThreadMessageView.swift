@@ -25,7 +25,7 @@ struct AtlasThreadMessageView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Conversation recap", systemImage: "person.badge.plus").font(.headline)
                             .accessibilityAddTraits(.isHeader)
-                        AtlasMarkdown(source: message.body)
+                        AtlasMarkdown(source: message.body).equatable()
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
@@ -50,7 +50,7 @@ struct AtlasThreadMessageView: View {
                                     ? palette.map { Color(atlasHex: $0.onAccent) } ?? AtlasSettingsStyle.onTint : .primary)
                                 .background(fill, in: RoundedRectangle(cornerRadius: 20))
                         }
-                        if let date = ISO8601DateFormatter().date(from: message.insertedAt) {
+                        if let date = message.insertedDate {
                             Text(date, style: .time).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 12)
                         }
                     }
@@ -65,7 +65,7 @@ struct AtlasThreadMessageView: View {
         VStack(alignment: .leading, spacing: 8) {
             if !message.body.isEmpty {
                 if message.kind == "agent" {
-                    AtlasMarkdown(source: message.body)
+                    AtlasMarkdown(source: message.body).equatable()
                 } else {
                     Text(message.body).textSelection(.enabled)
                 }

@@ -541,7 +541,31 @@ What the BMC does differently from the standard:
   `AMIVirtualMedia.ConfigureCDInstance` before `VirtualMedia/CD1` exists. It
   reads an HTTPS image only from port 443, with a file name of letters, digits
   and underscores, and refuses one without a user name and password for the
-  server. It does not check the server's certificate.
+  server. It takes a self-signed certificate, but only one that names the
+  server's address: with another name it hangs up after the handshake without
+  a request. It offers `h2` in ALPN, and a server that negotiated HTTP/2 got
+  no HTTP/2 preface from it; one that offers only HTTP/1.1 works. A failed
+  open leaves `CD1` at `Stopped - Unable to Open`, and the BMC makes no
+  further attempt until it restarts.
+- `CertificateService.ReplaceCertificate` on
+  `Managers/Self/NetworkProtocol/HTTPS/Certificates/1` takes the certificate
+  followed by its private key (PKCS#1) in `CertificateString`; the web server
+  serves it within seconds and keeps it across a BMC restart. A certificate
+  alone, even one issued for the BMC's own `GenerateCSR`, answers 204 and
+  shows in the collection, but the web server never serves it and a restart
+  reverts it. `GenerateCSR` also puts the IP addresses in `AlternativeNames`
+  as DNS names. A BMC restart (`Manager.Reset` takes `ForceRestart` only)
+  takes about two and a half minutes and leaves the host running.
+- A PSU that loses AC keeps `Status.State: Present` in `Chassis/Self/Power`,
+  and its `Status.Health` becomes a raw hex code (`0x2849`) rather than
+  Warning or Critical. The SEL records `Power Supply PSUn AC lost`
+  asserted and deasserted, and the PSU's `PowerInputWatts` and
+  `LineInputVoltage` drop to about zero. `PowerControl` `PowerConsumedWatts`
+  lags and reads low; the PSU inputs are the chassis's draw.
+- The BMC's clock follows NTP (`pool.ntp.org`), but `DateTimeLocalOffset`
+  is a fixed offset, `+02:00` from the factory, which DST does not move, and
+  the SEL is stamped in local time. Set it to `+00:00` (PATCH
+  `Managers/Self`).
 - Serial-over-LAN is IPMI over LAN with the same accounts
   (`ipmitool -I lanplus -H <bmc> -U admin -E sol activate`).
 - Besides `admin` and the factory `Administrator`, the BMC carries a
