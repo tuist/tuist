@@ -493,6 +493,7 @@ async fn initialize_and_serve(
     let router = cohosted_router(state.clone(), reapi_routes.clone());
     let public_shutdown_state = state.clone();
     let (public_shutdown_tx, public_shutdown_rx) = watch::channel(false);
+    let public_drain_rx = public_drain_signal(state.runtime.clone());
     let mut termination = bootstrap.termination();
     tokio::spawn(
         async move {
@@ -519,6 +520,7 @@ async fn initialize_and_serve(
         let https_listener = accelerated_file_serving::bind_public_listener(https_address)
             .map_err(|error| format!("failed to bind public HTTPS listener: {error}"))?;
         let https_shutdown_rx = public_shutdown_rx.clone();
+        let https_drain_rx = public_drain_rx.clone();
         Some(tokio::spawn(
             async move {
                 if let Err(error) = accelerated_file_serving::serve_public_tls(
@@ -526,6 +528,7 @@ async fn initialize_and_serve(
                     https_router,
                     tls_config,
                     https_shutdown_rx,
+                    https_drain_rx,
                     configure_http_builder,
                 )
                 .await
@@ -552,6 +555,7 @@ async fn initialize_and_serve(
         let grpc_state = state.clone();
         let grpc_serving_config = gateway_grpc_serving_config(&state.config);
         let grpc_shutdown_rx = public_shutdown_rx.clone();
+        let grpc_drain_rx = public_drain_rx.clone();
         Some(tokio::spawn(
             async move {
                 if let Err(error) = accelerated_file_serving::serve_public_http(
@@ -560,6 +564,7 @@ async fn initialize_and_serve(
                     grpc_state,
                     grpc_serving_config,
                     grpc_shutdown_rx,
+                    grpc_drain_rx,
                     configure_http_builder,
                     accelerated_file_serving::ConnectionErrorLog::Warn,
                 )
@@ -589,6 +594,7 @@ async fn initialize_and_serve(
         state.clone(),
         state.config.accelerated_file_serving.clone(),
         public_shutdown_rx,
+        public_drain_rx,
         configure_http_builder,
         accelerated_file_serving::ConnectionErrorLog::Debug,
     )
@@ -1482,6 +1488,21 @@ fn parse_status_memory_kib(status: &str, field: &str) -> Option<u64> {
         .and_then(|value| value.parse::<u64>().ok())
 }
 
+// Flips when the runtime starts draining. preStop drains the pod (SIGUSR1) a
+// full delay before SIGTERM, and the public listeners recycle the connections
+// open at that moment so clients stop sending work a draining node refuses.
+fn public_drain_signal(runtime: Arc<RuntimeState>) -> watch::Receiver<bool> {
+    let (drain_tx, drain_rx) = watch::channel(runtime.is_draining());
+    tokio::spawn(
+        async move {
+            runtime.wait_for_drain().await;
+            drain_tx.send_replace(true);
+        }
+        .in_current_span(),
+    );
+    drain_rx
+}
+
 async fn wait_for_inflight_drain(state: Arc<AppState>, budget: ShutdownBudget) -> bool {
     loop {
         let inflight_changed = state.runtime.inflight_changed();
@@ -2035,6 +2056,7 @@ mod tests {
             state.clone(),
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
             configure_http_builder,
             accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
@@ -2111,6 +2133,90 @@ mod tests {
         let _ = server.await;
     }
 
+    // A Kura pod drains (preStop's SIGUSR1) well before it terminates, and
+    // refuses every request in between. An HTTP/2 connection that was open
+    // when the drain began must get a GOAWAY right then, so the gRPC channel
+    // on it reconnects to a serving replica instead of spending the whole
+    // drain on refusals, while the listener keeps accepting until termination.
+    #[tokio::test]
+    async fn draining_recycles_open_connections_before_termination() {
+        use axum::{body::Body, http::Request};
+        use hyper_util::rt::{TokioExecutor, TokioIo};
+
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+            .await
+            .expect("bind co-hosted test listener");
+        let addr = listener.local_addr().expect("co-hosted listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
+            configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
+        ));
+
+        let h2c = |addr: SocketAddr| async move {
+            let stream = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect to the co-hosted listener");
+            hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(stream))
+                .await
+                .expect("h2c handshake")
+        };
+        let up = |addr: SocketAddr| {
+            Request::builder()
+                .uri(format!("http://{addr}/up"))
+                .body(Body::empty())
+                .expect("build /up request")
+        };
+
+        let (mut open_before_drain, connection) = h2c(addr).await;
+        let open_before_drain_connection = tokio::spawn(connection);
+        let response = open_before_drain
+            .send_request(up(addr))
+            .await
+            .expect("request before the drain succeeds");
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        assert!(state.runtime.request_drain());
+
+        let closed = tokio::time::timeout(Duration::from_secs(5), open_before_drain_connection)
+            .await
+            .expect("a connection open when the drain began should get a GOAWAY")
+            .expect("client connection task");
+        assert!(
+            closed.is_ok(),
+            "the connection should close cleanly through GOAWAY: {closed:?}"
+        );
+
+        // A stale endpoint list can still route a new connection here during
+        // the drain. It is accepted and kept, so its requests are refused with
+        // a status rather than failing on a closed connection.
+        let (mut opened_during_drain, connection) = h2c(addr).await;
+        let opened_during_drain_connection = tokio::spawn(connection);
+        let response = opened_during_drain
+            .send_request(up(addr))
+            .await
+            .expect("a connection opened during the drain is still served");
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        assert!(!opened_during_drain_connection.is_finished());
+
+        shutdown_tx.send(true).expect("signal termination");
+        let closed = tokio::time::timeout(Duration::from_secs(5), opened_during_drain_connection)
+            .await
+            .expect("termination should recycle connections opened during the drain")
+            .expect("client connection task");
+        assert!(closed.is_ok(), "clean GOAWAY at termination: {closed:?}");
+        let _ = server.await;
+    }
+
     #[tokio::test]
     async fn gateway_grpc_listener_serves_grpc_and_refuses_http() {
         use bazel_remote_apis::build::bazel::remote::execution::v2::{
@@ -2133,6 +2239,7 @@ mod tests {
             state.clone(),
             gateway_grpc_serving_config(&state.config),
             shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
             configure_http_builder,
             accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
@@ -2293,6 +2400,7 @@ mod tests {
             state.clone(),
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
             configure_http_builder,
             accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
@@ -2470,6 +2578,7 @@ mod tests {
             cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
             tls_config,
             shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
             configure_http_builder,
         ));
 
