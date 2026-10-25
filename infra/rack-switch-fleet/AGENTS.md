@@ -1744,3 +1744,76 @@ verifier.
 What adoption does to a configured switch is now measured, on `ber1-mgmt`; see
 "Adoption, measured on ber1-mgmt" in the assessment and "Switches the
 controller has adopted" above.
+
+## PicOS switches
+
+Rack 2's ToRs are FS S5860-24XMG on PicOS (`s5860-24xmg` in `models.json`,
+`"os": "picos"`). The rack switch controller writes them over SSH and NETCONF
+(`driver: picos`, see
+[`rack-switch-controller`](../rack-switch-controller/AGENTS.md)), so the render
+gives a PicOS switch a RackSwitch object and no configuration text: no
+`configs/<site>/<switch>.cfg`, and a `configRevision` that is the digest of the
+object's `config`. Ports are `te-1/1/1` to `te-1/1/32`: 1 to 24 copper (100M to
+10G), 25 to 28 SFP+, 29 to 32 SFP28 in one speed group that ZTP sets to 10G.
+
+### Zero touch, served by the edge
+
+A PicOS switch provisions itself only over its management port, eth0, and
+rack 2 has no management switch, so each ToR's eth0 is cabled straight to an
+edge's first onboard port. The edge node says so:
+
+```json
+{"name": "ber2-edge-a", "role": "edge", "hardware": "rs501a-e12",
+ "tor_management": {"switch": "ber2-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
+```
+
+The ToR's `mgmt_address` is the other host on that /30, and its `mac` is the
+one on its label, which is eth0's. `management.picos` holds what the bootstrap
+needs, all of it public: `authorized_keys` (the rack switch controller's public
+key) and `ntp` (servers' addresses). `rack:fleet render` then writes, for the
+rack-edge chart:
+
+- `picos-bootstrap.sh`, from `picos/bootstrap.sh.tmpl`: what a factory switch
+  runs from ZTP. It adds `credentials.username` as a super-user with the
+  controller's key, gives admin and that user random passwords generated on
+  the switch, sets NTP, enables NETCONF, puts the SFP28 group at 10G, turns ZTP
+  off, and logs `rack-ztp` lines that `show log` lists. It carries no secret;
+  the controller sets admin's real password when it adopts the switch.
+- `ztp-<edge>.conf`: dnsmasq on that edge's link, answering DHCP for the ToR's
+  MAC alone, with options 66 (the edge), 67 (`picos-bootstrap.sh`) and 7 (the
+  edge, for ZTP's syslog), and serving the chart's site files over TFTP.
+- `ztp.sh`, which the static pod's `ztp` container runs: the edge's address on
+  the link, an nftables table that forwards the ToR's NTP and nothing else it
+  starts (and clamps its MSS into the tailnet), then that dnsmasq.
+- In `tailnet-routes.sh`, the ToR's address, advertised by the edge holding
+  its end of the link.
+
+### What the bench showed
+
+Measured on an S5860-24XMG with PicOS 4.7.1M-EC1, 22 to 25 October 2026:
+
+- ZTP is on from the factory and runs once per boot, about 93 seconds after
+  power-on, from the eth0 lease alone: no lease with options 66 and 67 (or 67 as
+  an `http://` URL) at that moment, no ZTP until the next boot. An edge cannot
+  be up that fast after a site power cut, so a ToR that boots unprovisioned has
+  to be rebooted once its edge serves; nothing does that yet.
+- Its DHCP vendor class (option 60) is `S5860-24XMG`, not the `pica8-p<model>`
+  the documentation gives, and it asks for options 66, 67, 7, 43 and 42.
+- ZTP fetches the script into `/cftmp/provision.sh` and runs it as root before
+  PicOS's CLI exists; the CLI is reached from a `/cftmp/auto/post-xorplus` hook,
+  which runs as the CLI starts. `/cftmp/auto` is in the config backup, so a hook
+  deletes itself.
+- `set system login user <u> authentication public-key` is not valid on
+  4.7.1M-EC1; keys go in as `~<u>/.ssh/authorized_keys`, and survive a reboot
+  only when listed in `/etc/picos/user_backup_files.lst` before a commit saves.
+- ZTP stays on until something turns it off: `ztp_disable` from
+  `/usr/bin/ztp-functions.sh` and `set system ztp enable false`.
+- The factory reset is `save_config factory-default` (root), which keeps the
+  licence. It restores the original `/etc/shadow`, so the reset and the reboot
+  go in one `sudo sh -c '/usr/sbin/save_config factory-default &&
+  /pica/bin/reboot.sh'`, and nobody may log in between them:
+  `/etc/profile.d/picos.sh` saves the running configuration over the reset on
+  any login. A reset gives the switch new SSH host keys.
+- The RTC is set eight hours fast from the factory; NTP corrects the clock and,
+  after about eleven minutes, the RTC.
+- The controller's `tuist` user can `sudo` without a password.

@@ -155,6 +155,17 @@ fleet_model() {
   echo "$spec"
 }
 
+# The operating system a switch model runs: omada (TP-Link, written through the
+# Omada controller or over SSH by rack:fleet) unless models.json says picos
+# (written by the rack switch controller over SSH and NETCONF).
+fleet_model_os() { jq -r --arg m "$1" '.[$m].os // "omada"' "$FLEET_MODELS"; }
+
+# A device's switch operating system.
+fleet_device_os() {
+  local site_file="$1" name="$2"
+  fleet_model_os "$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .model' "$site_file")"
+}
+
 fleet_normalize() { tr -d '\000' | awk -v mode=normalize -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
 fleet_context()   { tr -d '\000' | awk -v mode=context   -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
 fleet_clean()     { tr -d '\000' | awk -v mode=clean     -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
@@ -904,10 +915,13 @@ fleet_config_revision() {
 fleet_render_k8s() {
   local site_file="$1" name="$2" rendered="${3:-}" device revision
   device="$(fleet_device "$site_file" "$name")" || return 1
-  if [ -n "$rendered" ]; then
-    revision="$(shasum -a 256 < "$rendered" | cut -c1-16)"
-  else
-    revision="$(fleet_config_revision "$site_file" "$name")"
+  # A PicOS switch has no configuration text; its revision is set below.
+  if [ "$(fleet_model_os "$(jq -r '.model' <<<"$device")")" != picos ]; then
+    if [ -n "$rendered" ]; then
+      revision="$(shasum -a 256 < "$rendered" | cut -c1-16)"
+    else
+      revision="$(fleet_config_revision "$site_file" "$name")"
+    fi
   fi
   # The desired configuration, for the reconciler that writes it through the
   # controller: the same site data the configuration text is rendered from, so
@@ -937,9 +951,17 @@ fleet_render_k8s() {
       lags: [$d.lags[]? | {id, name: (.name // "lag\(.id)"), ports}],
       ports: $ports
     }')"
+  # A PicOS switch has no configuration text: the rack switch controller writes
+  # it from this object alone, so its revision is the digest of what it asks.
+  local os
+  os="$(jq -r '.os // "omada"' <<<"$spec")"
+  if [ "$os" = picos ]; then
+    revision="$(jq -cS . <<<"$config" | shasum -a 256 | cut -c1-16)"
+  fi
   jq -n --argjson d "$device" \
         --arg site "$(jq -r '.site' "$site_file")" \
         --arg revision "$revision" \
+        --arg os "$os" \
         --argjson config "$config" \
         --argjson ports "$(fleet_port_map "$site_file" "$name" | jq -R -s '
             split("\n") | map(select(length > 0) | split("\t")) |
@@ -960,7 +982,8 @@ fleet_render_k8s() {
         credentialItem: $d.credential_item,
         configRevision: $revision,
         config: $config
-      } + (if ($ports | length) > 0 then { ports: $ports } else {} end))
+      } + (if ($ports | length) > 0 then { ports: $ports } else {} end)
+        + (if $os == "picos" then { driver: "picos" } else {} end))
     }' | yq -P -
 }
 

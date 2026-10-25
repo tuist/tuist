@@ -157,6 +157,33 @@ spec:
         - name: config
           mountPath: /etc/rack-edge
           readOnly: true
+    {{- if $root.Files.Get (printf "sites/%s/ztp.sh" $site) }}
+    # A PicOS ToR's zero-touch provisioning, on this edge's link to its
+    # management port: DHCP and the bootstrap over TFTP (see lib/edge.sh).
+    - name: ztp
+      image: {{ $image | quote }}
+      imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+      command: [sh, /etc/rack-edge/ztp.sh]
+      env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+          # Ports 67 and 69, and the link's address and forwarding.
+          add: [NET_BIND_SERVICE, NET_ADMIN, NET_RAW]
+      resources:
+        {{- toYaml $root.Values.resources | nindent 8 }}
+      volumeMounts:
+        - name: config
+          mountPath: /etc/rack-edge
+          readOnly: true
+        - name: leases
+          mountPath: /var/lib/misc
+    {{- end }}
     {{- if $root.Files.Get (printf "sites/%s/bird.conf" $site) }}
     # The site's own prefixes, announced to the WAN's upstream over BGP. Both
     # edges run it, and only the one holding the WAN address has a session
