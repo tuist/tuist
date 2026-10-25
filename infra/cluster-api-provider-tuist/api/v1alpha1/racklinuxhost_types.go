@@ -59,6 +59,15 @@ type RackLinuxHostSpec struct {
 	// +optional
 	Node RackLinuxHostNode `json:"node,omitempty"`
 
+	// TPMCheckCode is the check code of the machine's TPM endorsement key from
+	// the vendor's acceptance report, which the preinstall image's unit sheet
+	// shows: the first 64 bits of the key's SHA-256 in hex. Set, the host's TPM
+	// is pinned only to a key that has it, and the internet boot server takes
+	// the machine's announcements.
+	// +kubebuilder:validation:Pattern=`^[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}$`
+	// +optional
+	TPMCheckCode string `json:"tpmCheckCode,omitempty"`
+
 	// Online is whether the host should be powered on. The operator powers it
 	// on or off through AMT to match.
 	// +kubebuilder:default=true
