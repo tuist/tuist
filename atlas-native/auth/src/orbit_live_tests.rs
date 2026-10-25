@@ -40,13 +40,13 @@ fn live_thread_joins_fixed_topic_pushes_typing_and_filters_snapshots() {
             join,
             json!(["1", "1", format!("orbit:thread:{ID}"), "phx_join", {}])
         );
-        let snapshot = json!({"revision":1,"people":[{"id":ID,"name":"Colleague","typing":false,"draft":"must-not-forward"}],"token":"must-not-forward"});
+        let snapshot = json!({"revision":1,"agent_status":"running","people":[{"id":ID,"name":"Colleague","typing":false,"draft":"must-not-forward"}],"token":"must-not-forward"});
         socket.send(Message::Text(json!(["1","1",format!("orbit:thread:{ID}"),"phx_reply",{"status":"ok","response":snapshot}]).to_string().into())).unwrap();
         let typing: Value =
             serde_json::from_str(socket.read().unwrap().to_text().unwrap()).unwrap();
         assert_eq!(typing[3], "typing");
         assert_eq!(typing[4], json!({"typing":true}));
-        socket.send(Message::Text(json!(["1",null,format!("orbit:thread:{ID}"),"snapshot",{"revision":2,"people":[]}]).to_string().into())).unwrap();
+        socket.send(Message::Text(json!(["1",null,format!("orbit:thread:{ID}"),"snapshot",{"revision":1,"agent_status":"compacting","people":[]}]).to_string().into())).unwrap();
         events.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(matches!(socket.read().unwrap(), Message::Close(_)));
     });
@@ -58,6 +58,7 @@ fn live_thread_joins_fixed_topic_pushes_typing_and_filters_snapshots() {
     })
     .unwrap();
     assert_eq!(initial["revision"], 1);
+    assert_eq!(initial["agent_status"], "running");
     assert!(!initial.to_string().contains("must-not-forward"));
     execute(Action::Typing {
         connection: connection.clone(),
@@ -69,7 +70,8 @@ fn live_thread_joins_fixed_topic_pushes_typing_and_filters_snapshots() {
         after: initial["sequence"].as_u64().unwrap(),
     })
     .unwrap();
-    assert_eq!(pushed["revision"], 2);
+    assert_eq!(pushed["revision"], 1);
+    assert_eq!(pushed["agent_status"], "compacting");
     execute(Action::Close {
         connection: connection.clone(),
     })

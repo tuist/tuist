@@ -2,8 +2,8 @@ defmodule AtlasWeb.OrbitThreadChannel do
   @moduledoc """
   Live viewers, typing, and history invalidation for one thread.
 
-  Pushes `snapshot` with `%{revision, people}`; clients fetch messages over HTTP
-  when the revision moves. Every join, push, typing update, and renewal
+  Pushes `snapshot` with `%{revision, people, agent_status}`; clients fetch messages
+  over HTTP when the revision moves and apply activity even without a new revision. Every join, push, typing update, and renewal
   re-checks the OAuth grant and the caller's current read access; losing either
   stops the channel.
   """

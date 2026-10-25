@@ -71,7 +71,10 @@ struct AtlasTimeOffView: View {
         }
         .modifier(AtlasThemedContent())
         .navigationTitle(title)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "time-off") } }
+        .toolbar {
+            AtlasPresenceToolbar()
+            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "time-off") }
+        }
         .disabled(model.busy)
         .protectsAtlasNavigation(model.mutating && editor == nil)
         .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)

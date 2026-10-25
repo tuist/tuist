@@ -11,9 +11,8 @@ these schemas persist volume identities and per-job uses.
 - Every macOS job keeps its Xcode and module caches on the `tuist-xcode`
   (30 GB by default) and `tuist-module` (20 GB) custom volumes, which take
   requested sizes like any custom volume and which the module-cache and xcode-cache actions, Buildkite plugins and GitLab snippets
-  attach. Dispatch still sends `automatic_caches: false` and
-  `managed_cache_volumes: true` for runner images that read them, and stamps
-  only the account label; the cache signing grant follows trust. The dashboard
+  attach. Dispatch stamps only the account label; the cache signing grant
+  follows trust. The dashboard
   names the volumes "Xcode cache" and "Module cache". There is no built-in
   per-account cache volume: HEADs, orphans and `runner-volume-masters` objects
   belong to custom volumes only.
@@ -50,11 +49,15 @@ these schemas persist volume identities and per-job uses.
   Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.
 - An open Linux or macOS session awaiting its verified execution binding returns pending
-  (425 to the authenticated agent). The agent retries for at most 30 seconds;
+  (425 to the authenticated agent). The Linux and macOS agents wait 25 seconds
+  per Pod, shared by its checkout and volumes, and ask once after that;
   unknown/closed sessions and denied provider identities remain unavailable.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
-  runner's `in_progress` job from GitHub's API and records it through
+  job GitHub's API names the runner on and records it through
   `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  The API's job status can still read `queued` for minutes after the job
+  started, so a `queued` job carrying the runner's name binds too; the log line
+  `recorded execution from GitHub API` says which status bound it.
   An agent that is still answered 425 at its deadline reports `execution_pending`
   (macOS reason, Linux 425 to the guest), never `denied`.
 - Logical invalidation and acknowledged physical deletion are distinct states.
@@ -93,6 +96,10 @@ these schemas persist volume identities and per-job uses.
   or publication. A five-minute sweep and allocation/report paths invalidate
   expired generations under the volume lock; keep live copies until fenced and
   track physical deletion separately. Reusing an evicted identity starts cold.
+- The same sweep retires a copy no host has reported for a day
+  (`retire_unreported/1`), except the volume's saved head: it is deleted as an
+  acknowledged deletion would delete it, so storage and used space stop counting
+  it. A host that still reports a retired copy is told to `delete` it.
 
 - Volume-count history includes unmeasured allocations and counts each volume only once across its concurrent retained copies. Byte history remains unknown until measured. Gauge trends compare the selected period end with its start (the previous period end). Require a recorded baseline at the boundary for a calculated comparison; never substitute the first later measurement for missing history. The UI follows Jobs by rendering unavailable comparisons with the shared zero-trend fallback.
 

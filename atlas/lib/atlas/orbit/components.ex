@@ -11,11 +11,12 @@ defmodule Atlas.Orbit.Components do
   def for_message(%Message{kind: "tool", tool_status: "succeeded", tool_output: output} = message)
       when is_binary(output) and byte_size(output) <= 16_000 do
     with {:ok, value} <- JSON.decode(output),
-         {columns, rows} when columns != [] and rows != [] <- table(Rendering.redact(value)) do
+         value = Rendering.redact(value),
+         {type, title, columns, rows} when columns != [] and rows != [] <- projection(message, value) do
       %{
-        type: "result_table",
+        type: type,
         version: 1,
-        data: %{title: Rendering.truncate(message.tool_name || "Tool result", 120), columns: columns, rows: rows},
+        data: %{title: title, columns: columns, rows: rows},
         actions: [%{id: "show_evidence", label: "View source"}],
         fallback: Rendering.truncate(Rendering.output(value), 4_000)
       }
@@ -25,6 +26,37 @@ defmodule Atlas.Orbit.Components do
   end
 
   def for_message(_message), do: nil
+
+  defp projection(%Message{tool_name: "get_account"}, %{"account" => %{"name" => name} = account})
+       when is_binary(name) and name != "" do
+    rows =
+      [
+        {"Domain", "primary_domain"},
+        {"Status", "status"},
+        {"Segment", "segment"},
+        {"Deal stage", "deal_stage"},
+        {"Legal name", "legal_name"}
+      ]
+      |> Enum.flat_map(fn {label, key} ->
+        case Map.get(account, key) do
+          value when is_binary(value) and value != "" -> [[label, cell(value)]]
+          _ -> []
+        end
+      end)
+
+    rows = if rows == [], do: [["Name", cell(name)]], else: rows
+    {"account_card", Rendering.truncate(name, 120), ["Field", "Value"], rows}
+  end
+
+  defp projection(message, value) do
+    case table(value) do
+      {columns, rows} ->
+        {"result_table", Rendering.truncate(message.tool_name || "Tool result", 120), columns, rows}
+
+      _ ->
+        nil
+    end
+  end
 
   defp table(value) when is_map(value) do
     # MCP list tools commonly wrap their rows in a named collection.

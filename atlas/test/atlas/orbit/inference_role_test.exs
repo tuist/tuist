@@ -2,14 +2,53 @@ defmodule Atlas.Orbit.InferenceRoleTest do
   # These tests assign and reassign the singleton Orbit role.
   # credo:disable-for-next-line Credo.Check.Warning.AsyncTests
   use AtlasWeb.ConnCase, async: false
+  use Mimic
 
   import Atlas.OrbitFixtures
   import Phoenix.LiveViewTest
 
   alias Atlas.Inference
   alias Atlas.Inference.Usage
+  alias Atlas.LLMs.Connections
   alias Atlas.LLMs.LocalTransport
+  alias Atlas.LLMs.PersonalTransport
   alias Atlas.Repo
+
+  test "personal inference falls back only to the configured Orbit role after a personal provider rejection" do
+    actor = user_fixture()
+    {:ok, _} = Connections.connect_claude(actor, "sk-ant-oat01-" <> String.duplicate("actor", 12))
+    {profile, token} = orbit_profile_fixture()
+    test_pid = self()
+
+    expect(Req, :post, fn _opts ->
+      send(test_pid, :personal_attempted)
+      {:ok, %{status: 401, body: "private rejection"}}
+    end)
+
+    Inference.put_process_config(
+      providers: %{profile.upstream_provider => %{base_url: "https://provider.example/v1", api_key: "system-secret"}},
+      request: fn options ->
+        send(test_pid, {:system_attempted, options[:json]["model"]})
+        {:ok, %Req.Response{status: 200, body: completion(%{"role" => "assistant", "content" => "Fallback reply"})}}
+      end
+    )
+
+    on_exit(&Inference.delete_process_config/0)
+
+    response =
+      Plug.Test.conn(
+        :post,
+        "/chat/completions",
+        JSON.encode!(%{"messages" => [%{"role" => "user", "content" => "Hi"}]})
+      )
+      |> PersonalTransport.call(user_id: actor.id)
+
+    assert response.status == 200
+    assert_receive :personal_attempted
+    assert_receive {:system_attempted, "example"}
+    assert Repo.get_by!(Usage, token_id: token.id).model_binding_id == profile.id
+    refute response.resp_body =~ "private rejection"
+  end
 
   test "the Orbit role is a singleton with its own token and no output cap" do
     {first, token} = orbit_profile_fixture()

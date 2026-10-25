@@ -73,6 +73,42 @@ struct TestCoverageEvidenceServiceTests {
         ))
     }
 
+    @Test func takesATargetFromItsProcessesWhenTheyWereRead() {
+        let evidence = TestCoverageEvidenceService.reduce(
+            outputs: [output([
+                .init(
+                    kind: .xctest,
+                    overlapped: false,
+                    module: "AppTests",
+                    suite: "MathTests",
+                    name: "testAdd",
+                    counters: [0: [0]]
+                ),
+            ])],
+            filesByFunction: ["/products/App": ["add": ["/src/Math.swift"]]],
+            targets: [
+                "AppTests": ["/src/Math.swift": IndexSet([3, 4]), "/src/Launch.swift": IndexSet([1])],
+                "OtherTests": ["/src/Other.swift": IndexSet(integersIn: 2 ... 5)],
+            ]
+        )
+
+        #expect(evidence == TestCoverageEvidence(
+            paths: ["/src/Launch.swift", "/src/Math.swift", "/src/Other.swift"],
+            scopes: [
+                .init(kind: .target, module: "AppTests", suite: "", name: "", files: [0, 1], lines: [[1, 1], [3, 4]]),
+                .init(kind: .test, module: "AppTests", suite: "MathTests", name: "testAdd()", files: [1]),
+                .init(kind: .target, module: "OtherTests", suite: "", name: "", files: [2], lines: [[2, 5]]),
+            ]
+        ))
+    }
+
+    @Test func namesATestModuleAfterItsBundle() {
+        #expect(TestCoverageEvidenceService
+            .testModule(ofImage: "/p/Debug/CoreTests.xctest/Contents/MacOS/CoreTests") == "CoreTests")
+        #expect(TestCoverageEvidenceService.testModule(ofImage: "/p/App.app/PlugIns/AppTests.xctest/AppTests") == "AppTests")
+        #expect(TestCoverageEvidenceService.testModule(ofImage: "/p/Debug/Core.framework/Core") == nil)
+    }
+
     @Test func namesAnXCTestTestAsTheResultBundleDoes() {
         #expect(TestCoverageEvidenceService.testName(xctestSelector: "testAdd") == "testAdd()")
         #expect(TestCoverageEvidenceService.testName(xctestSelector: "testAddAndReturnError:") == "testAdd()")

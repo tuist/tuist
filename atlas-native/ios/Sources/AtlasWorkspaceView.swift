@@ -21,9 +21,6 @@ struct AtlasWorkspaceView<Profile: View>: View {
         }
         .environment(\.atlasPresence, presence)
         .environment(\.atlasNavigation, navigation)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if let presence { AtlasAlsoHere(presence: presence).padding(.horizontal) }
-        }
         .onAppear { presence?.setActive(scenePhase == .active) }
         .onChange(of: scenePhase) { _, phase in presence?.setActive(phase == .active) }
         .onDisappear { presence?.setActive(false) }
@@ -31,7 +28,8 @@ struct AtlasWorkspaceView<Profile: View>: View {
 
     private var tabs: some View {
         TabView(selection: $navigation.selection) {
-            AtlasOrbitView(request: orbitRequest, localRequest: orbitLocalRequest)
+            AtlasOrbitView(recordID: navigation.destinations["orbit"]?.recordID, revision: navigation.revisions["orbit"],
+                           request: orbitRequest, localRequest: orbitLocalRequest)
                 .tabItem { Label("Orbit", systemImage: "bubble.left.and.bubble.right") }.tag("orbit")
             ForEach(AtlasBusinessResource.allCases.filter { $0 != .tasks }) { resource in
                 AtlasBusinessStack(resource: resource, recordID: navigation.destinations[resource.rawValue]?.recordID,
@@ -135,7 +133,9 @@ private struct AtlasBrowsePage: View {
             }
         }
         .modifier(AtlasThemedContent())
+        .defaultScrollAnchor(.top)
         .navigationTitle(group?.title ?? "Browse")
+        .navigationBarTitleDisplayMode(.large)
         .searchable(text: $query, prompt: "Find a feature")
         .autocorrectionDisabled().textInputAutocapitalization(.never)
         .onAppear { presence?.show() }

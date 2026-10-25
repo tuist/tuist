@@ -138,7 +138,7 @@ You can configure external services through the application Secret and environme
 
 ## Enable Orbit
 
-Orbit is the native apps' space for working with Pip, Atlas's assistant and mascot, in private or shared threads. Pip's name is fixed, not a deployment setting. The assistant uses an inference profile you choose for the whole workspace, not people's personal AI accounts. Until a profile is assigned, threads still work between people and the apps explain that the assistant isn't configured.
+Orbit is the native apps' space for working with Pip, Atlas's assistant and mascot, in private or shared threads. Pip's name is fixed, not a deployment setting. Model turns prefer the message author's connected ChatGPT account, then Claude. You can configure a workspace-wide fallback for people without a connection or when their provider is unavailable. No other participant's account is borrowed. Without either option, threads retain messages and explain how to connect inference.
 
 1. In **Admin → Inference**, add a provider and a profile for the model you want to use.
 2. Open the profile, choose **Edit profile**, then **Use for Orbit**. Only one profile can hold this role, and Atlas never falls back to another profile.

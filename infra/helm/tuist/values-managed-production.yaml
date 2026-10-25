@@ -622,9 +622,7 @@ clickhouse:
         memory: 96Gi
     persistence:
       # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
-      # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
-      # September and grows about 0.25 TiB a month, so that is over a year of
-      # headroom even at a 70% fill target.
+      # 1.92 TB pair is left out of the array.
       #
       # The local PV is not a quota. The pod can use whatever `/data` has, so
       # this is a statement of intent and the number to watch is the
@@ -1338,7 +1336,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "1"
+        outlet: "13"
       # Lent to staging, whose operator runs its runtime and whose rack pools
       # run its guests (rackFleet.borrow in values-managed-staging.yaml).
       lendTo: staging
@@ -1349,7 +1347,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "2"
+        outlet: "14"
       # Lent to canary, whose operator runs its runtime and whose rack pools
       # run its guests, including the deploy cascade's runners acceptance gate
       # (rackFleet.borrow in values-managed-canary.yaml).
@@ -1361,7 +1359,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "3"
+        outlet: "15"
     - name: ber1-runner-b04
       serial: H1060N7XQP
       address: 10.10.0.104
@@ -1369,7 +1367,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "6"
+        outlet: "10"
     - name: ber1-runner-b05
       serial: G54DV7JHJ7
       address: 10.10.0.105
@@ -1377,7 +1375,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "7"
+        outlet: "11"
     - name: ber1-runner-b06
       serial: FWVPQGL2C3
       address: 10.10.0.106
@@ -1385,7 +1383,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "8"
+        outlet: "12"
     - name: ber1-runner-b07
       serial: H7YDR4L71F
       address: 10.10.0.107
@@ -1393,7 +1391,7 @@ rackFleet:
       shelf: tray-b3
       power:
         pdu: ber1-pdu-a
-        outlet: "1"
+        outlet: "13"
     - name: ber1-runner-b08
       serial: J64HHMX93T
       address: 10.10.0.108
@@ -1401,7 +1399,7 @@ rackFleet:
       shelf: tray-b3
       power:
         pdu: ber1-pdu-a
-        outlet: "2"
+        outlet: "14"
     - name: ber1-runner-b09
       serial: C0YKJG7JLH
       address: 10.10.0.109
@@ -1409,7 +1407,7 @@ rackFleet:
       shelf: tray-b3
       power:
         pdu: ber1-pdu-a
-        outlet: "3"
+        outlet: "15"
     - name: ber1-runner-b10
       serial: MVNN9473GC
       address: 10.10.0.110
@@ -1417,7 +1415,7 @@ rackFleet:
       shelf: tray-b4
       power:
         pdu: ber1-pdu-a
-        outlet: "4"
+        outlet: "10"
     - name: ber1-runner-b11
       serial: M2V3QN9M92
       address: 10.10.0.111
@@ -1425,7 +1423,7 @@ rackFleet:
       shelf: tray-b4
       power:
         pdu: ber1-pdu-a
-        outlet: "5"
+        outlet: "11"
     - name: ber1-runner-b12
       serial: KMV5QJ0L9Q
       address: 10.10.0.112
@@ -1433,7 +1431,7 @@ rackFleet:
       shelf: tray-b4
       power:
         pdu: ber1-pdu-a
-        outlet: "6"
+        outlet: "12"
     - name: ber1-runner-b13
       serial: KV9M9KJVXC
       address: 10.10.0.113
@@ -1457,7 +1455,7 @@ rackFleet:
       shelf: tray-b5
       power:
         pdu: ber1-pdu-b
-        outlet: "9"
+        outlet: "7"
     - name: ber1-runner-b16
       serial: LWGC6JVT03
       address: 10.10.0.116
@@ -1465,7 +1463,7 @@ rackFleet:
       shelf: tray-b6
       power:
         pdu: ber1-pdu-b
-        outlet: "10"
+        outlet: "8"
   machine:
     # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
     # `guestShapes` below), both dimensions binding at the same count, and 2 of
@@ -2263,9 +2261,17 @@ runnersFleetLinux:
         minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
-    - { vcpus: 8, memoryGb: 16 }
+    # 8vcpu-16gb and 16vcpu-32gb have jobs in most weekday working hours,
+    # arriving in fan-outs that take two and one runners respectively.
+    - vcpus: 8
+      memoryGb: 16
+      autoscaling:
+        minWarmPoolFloor: 2
     - { vcpus: 8, memoryGb: 32 }
-    - { vcpus: 16, memoryGb: 32 }
+    - vcpus: 16
+      memoryGb: 32
+      autoscaling:
+        minWarmPoolFloor: 1
     # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
     # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to

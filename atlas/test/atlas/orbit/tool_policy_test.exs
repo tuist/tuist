@@ -32,4 +32,16 @@ defmodule Atlas.Orbit.ToolPolicyTest do
     refute "list_briefs" in names.(["briefs:read"])
     assert "list_briefs" in names.(["briefs:read", "admin:read"])
   end
+
+  test "the offered nudge schema rejects the reported state-only call and accepts each account identifier" do
+    descriptor = Enum.find(ToolPolicy.available(MapSet.new(["accounts:read"])), &(&1["name"] == "list_account_nudges"))
+    schema = ExJsonSchema.Schema.resolve(descriptor["inputSchema"])
+    assert {:error, _} = ExJsonSchema.Validator.validate(schema, %{"state" => "pending_post"})
+
+    for identifier <- ~w(account_id account_key handle) do
+      assert :ok = ExJsonSchema.Validator.validate(schema, %{identifier => "example", "state" => "pending_post"})
+    end
+
+    assert descriptor["description"] =~ "state alone is not sufficient"
+  end
 end

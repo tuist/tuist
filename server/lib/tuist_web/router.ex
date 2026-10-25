@@ -250,7 +250,7 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
     plug :google_one_tap_content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
-    plug Localization, :redirect_to_localized_route
+    plug Localization, :negotiate_locale
     plug Localization, :put_locale
     plug TuistWeb.Marketing.Preferences
   end
@@ -1074,6 +1074,7 @@ defmodule TuistWeb.Router do
   scope "/api", TuistWeb.API do
     pipe_through [:open_api, :non_authenticated_api]
 
+    get "/metadata/limits", MetadataController, :limits
     get "/auth/device_code/:device_code", AuthController, :device_code
     post "/auth/refresh_token", AuthController, :refresh_token
 

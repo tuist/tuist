@@ -454,7 +454,7 @@ load helpers
 
 @test "two power appliances cannot share a management address" {
     local site="$BATS_TEST_TMPDIR/address.json"
-    jq '(.nodes[] | select(.name == "ber1-pdu-a")).mgmt_address = "192.168.0.16"' "$SITE_FILE" > "$site"
+    jq '(.nodes[] | select(.name == "ber1-pdu-b")).mgmt_address = "192.168.0.16"' "$SITE_FILE" > "$site"
     run fleet_check_power "$site"
     [ "$status" -eq 1 ]
     [[ "$output" == *"ber1-pdu-a and ber1-pdu-b share management address 192.168.0.16"* ]]
@@ -869,11 +869,11 @@ mini_referencing() {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *$'\ndhcp-host=00:20:85:b8:0e:3e,192.168.0.16,ber1-pdu-b,infinite\n'* ]]
-    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
+    [[ "$output" == *$'\ndhcp-host=00:20:85:b8:0e:3e,192.168.0.16,ber1-pdu-a,infinite\n'* ]]
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
     run fleet_edge_dhcp "$BATS_TEST_TMPDIR/nomac.json"
     [ "$status" -eq 0 ]
-    [[ "$output" != *"ber1-pdu-b"* ]]
+    [[ "$output" != *"ber1-pdu-a"* ]]
     # the switch behind the edge keeps its reservation, and an unknown MAC
     # still gets the provisioning pool
     [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
@@ -887,10 +887,10 @@ mini_referencing() {
 @test "each PDU with a management address is a RackPDU, adopted by the controller once installed" {
     run fleet_pdus "$SITE_FILE"
     [ "$output" = $'ber1-pdu-a\nber1-pdu-b' ]
-    run fleet_render_pdu "$SITE_FILE" ber1-pdu-b
+    run fleet_render_pdu "$SITE_FILE" ber1-pdu-a
     [ "$status" -eq 0 ]
-    [ "$(yq 'select(.kind == "RackPDU") | .metadata.name' <<<"$output")" = "ber1-pdu-b" ]
-    [ "$(yq 'select(.kind == "RackPDU") | .spec | [.site, .model, .address, .chain, .managedBy] | join(" ")' <<<"$output")" = "ber1 evmafc20a 192.168.0.16 ber1-ats-3 controller" ]
+    [ "$(yq 'select(.kind == "RackPDU") | .metadata.name' <<<"$output")" = "ber1-pdu-a" ]
+    [ "$(yq 'select(.kind == "RackPDU") | .spec | [.site, .model, .address, .chain, .managedBy] | join(" ")' <<<"$output")" = "ber1 evmafc20a 192.168.0.16 ber1-ats-2 controller" ]
     [ "$(yq 'select(.kind == "RackPDU") | .spec.mac' <<<"$output")" = "00:20:85:b8:0e:3e" ]
     # quoted, or YAML 1.1 reads it as a boolean and the CRD refuses it
     [[ "$output" == *'outletStateOnStartup: "on"'* ]]
@@ -900,8 +900,8 @@ mini_referencing() {
     [[ "$output" != *"PushSecret"* ]]
 
     # without a recorded MAC the object says nothing about one
-    jq '(.nodes[] | select(.name == "ber1-pdu-b")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
-    run fleet_render_pdu "$BATS_TEST_TMPDIR/nomac.json" ber1-pdu-b
+    jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= del(.mac)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nomac.json"
+    run fleet_render_pdu "$BATS_TEST_TMPDIR/nomac.json" ber1-pdu-a
     [ "$(yq 'select(.kind == "RackPDU") | .spec | has("mac")' <<<"$output")" = "false" ]
 
     # a PDU not installed yet is standalone

@@ -174,8 +174,13 @@ for kubelet's directory to disappear. No runtime socket enters a workflow pod.
 
 GitHub's execution webhook can arrive after the first workflow step. An open
 Linux session without that verified binding returns an explicit pending response;
-the agent waits up to 30 seconds, retrying once per second. A denied identity is
-not retried, and no volume is allocated before verified attribution arrives.
+the agent retries once per second. A Pod waits for the binding once: its first
+pending response starts one 25-second wait that its checkout (still capped at
+15 seconds) and every later volume share, and a request after that wait asks the
+server once. During GitHub incidents the binding can arrive minutes after the job
+started, so a wait per request only delays a job that runs cold anyway. A denied
+identity is not retried, and no volume is allocated before verified attribution
+arrives.
 Every agent request to the server is idempotent and is sent again, within the
 same budget, when a server rollout closes its connection or the server answers
 502, 503 or 504 (`DoServer` in `../runner-cache`).

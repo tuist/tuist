@@ -7,8 +7,10 @@ defmodule Tuist.Tests.Coverage.Reported do
   skipped would have covered lines too. The skipped tests are those Tuist
   skipped: every test of a target selective testing skipped (the command
   event names it as a hit, a scheme skipped whole included) and the tests
-  the runs' skip identifiers name (quarantine, `-skip-testing`), less what
-  another run of their scheme executed at the commit. A target's tests are the ones it executed in the nearest
+  the runs' skip identifiers name (`--skip-test-targets`, `-skip-testing`),
+  less what another run of their scheme executed at the commit. A test
+  quarantine skipped is outside the suite: the client doesn't report it, so
+  it is neither carried nor a gap. A target's tests are the ones it executed in the nearest
   ancestor run that ran it, and per-test evidence
   (`Tuist.Tests.Coverage.Evidence`) says which lines each of them ran the
   last time it executed. What a caller's `-only-testing` left out was never
@@ -267,14 +269,16 @@ defmodule Tuist.Tests.Coverage.Reported do
 
       true ->
         project_id = context.project.id
-        observed = observed_targets(project_id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), live)
+        linked = linked_targets(project_id, tests |> Enum.map(& &1.module_name) |> Enum.uniq(), live)
         overlapped = overlapped_tests(project_id, Enum.map(tests, & &1.test_case_id), live)
 
+        # A target whose tests all overlapped records no test evidence either,
+        # so the overlap is told first.
         tests
         |> Enum.map(fn test ->
           cond do
-            not MapSet.member?(observed, test.module_name) -> :not_linked
             MapSet.member?(overlapped, test.test_case_id) -> :overlapped
+            not MapSet.member?(linked, test.module_name) -> :not_linked
             true -> :no_evidence
           end
         end)
@@ -303,19 +307,21 @@ defmodule Tuist.Tests.Coverage.Reported do
         do: id
   end
 
-  # The targets some of the runs recorded evidence for: a target that links
-  # TestCoverageAttribution always records its process's.
-  defp observed_targets(project_id, modules, run_ids) do
+  # The targets some of the runs recorded test-level evidence for. Only
+  # TestCoverageAttribution records `test` and `suite` scopes; every target has
+  # a `target` scope, which the client reads from Xcode's raw profiles. Their
+  # `scope_id` starts with the module (`Evidence.test_scope_id/3`).
+  defp linked_targets(project_id, modules, run_ids) do
     run_ids
     |> Enum.chunk_every(@run_id_chunk)
     |> Enum.flat_map(fn runs ->
       ClickHouseRepo.all(
         from(f in CoverageFile,
           where:
-            f.project_id == ^project_id and f.scope_kind == "target" and f.scope_id in ^modules and
-              f.test_run_id in ^runs,
+            f.project_id == ^project_id and f.test_run_id in ^runs and f.scope_kind in ["test", "suite"] and
+              fragment("splitByChar('\\x1F', ?)[1]", f.scope_id) in ^modules,
           distinct: true,
-          select: f.scope_id
+          select: fragment("splitByChar('\\x1F', ?)[1]", f.scope_id)
         )
       )
     end)
