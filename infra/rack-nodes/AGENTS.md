@@ -418,6 +418,80 @@ ssh tuist@<LAN address> sudo tailscale up --hostname=<host> --advertise-tags=<ta
 
 A tailnet admin opens the login URL it prints.
 
+## The ASUS RS501A and its BMC
+
+From rack 2 on, edges and storage nodes are ASUS RS501A-E12-RS12U/1G servers
+with an ASMB11-iKVM BMC (AMI MegaRAC on an AST2600), driven over Redfish by
+`rack-bmc` (`infra/cluster-api-provider-tuist/cmd/rack-bmc`, client in
+`internal/redfish`). The BMC's dedicated port is the leftmost of the three
+RJ45 ports at the back, LAN port 1 the middle one, LAN port 2 the right one.
+
+```
+go build -o rack-bmc ./cmd/rack-bmc        # in infra/cluster-api-provider-tuist
+export RACK_BMC_PASSWORD=...               # the BMC's admin password
+./rack-bmc -bmc https://<bmc> inventory    # serial, SMBIOS UUID, MACs, versions, TPM, Secure Boot
+./rack-bmc -bmc https://<bmc> check        # the BIOS against the baseline; exits 3 on drift
+./rack-bmc -bmc https://<bmc> power off && ./rack-bmc -bmc https://<bmc> apply && ./rack-bmc -bmc https://<bmc> power on
+./rack-bmc -bmc https://<bmc> rotate Administrator <new-password-file
+```
+
+The baseline (`redfish.Baseline`): Restore AC Power Loss Power On
+(`AridApmLastState`), Network Stack, IPv4 PXE and IPv4 HTTP boot on
+(`NWSK000`, `NWSK001`, `NWSK006`), TPM on (`TCG001`), console redirection on
+COM2 for serial-over-LAN (`TER002`), and Secure Boot on with the factory keys,
+whose db holds Microsoft's UEFI CA 2011 and 2023, so Ubuntu's shim boots.
+
+What the BMC does differently from the standard:
+
+- BIOS settings go to `Systems/Self/Bios/SD` and the BIOS applies them at its
+  next POST, which takes about three minutes. The BMC answers 503 to a BIOS
+  write, and to a one-time boot, while the host is running or in POST
+  (`ServiceTemporarilyUnavailableDueToHostBooting`): write them with it off.
+- The BIOS lists in its `MAPIDS` attribute which attributes Redfish may set.
+  Secure Boot (`SECB001`) is not one of them, and the BIOS drops it at POST;
+  `rack-bmc` enables it through `Systems/Self/SecureBoot` instead.
+- The attribute registry (`/redfish/v1/Registries/BiosAttributeRegistryS0310.en-US.13.1.0.json`)
+  is served gzip-compressed.
+- Reset takes On, ForceOff, ForceRestart and GracefulShutdown; a power cycle
+  is ForceOff, then On.
+- A one-time boot is `Systems/Self/SD` with `Boot.BootSourceOverrideEnabled: Once` and mode UEFI.
+  A CD boot needs the virtual CD attached for some seconds before power-on,
+  or POST finds no USB CD and falls through to network boot. The BMC accepts
+  `Boot.HttpBootUri` but the firmware ignores it: HTTP boot takes its URL from
+  DHCP alone.
+- With no UEFI entry for a disk, the firmware lists no disk boot option: it
+  tries every network entry (about eight minutes with no DHCP on LAN port 1),
+  then falls back to the first disk's `\EFI\BOOT\BOOTX64.EFI`.
+- Virtual media needs the OEM actions `AMIVirtualMedia.EnableRMedia` and
+  `AMIVirtualMedia.ConfigureCDInstance` before `VirtualMedia/CD1` exists. It
+  reads an HTTPS image only from port 443, with a file name of letters, digits
+  and underscores, and refuses one without a user name and password for the
+  server. It does not check the server's certificate.
+- `CertificateService.ReplaceCertificate` on
+  `Managers/Self/NetworkProtocol/HTTPS/Certificates/1` takes the certificate
+  followed by its private key (PKCS#1) in `CertificateString`; the web server
+  serves it within seconds and keeps it across a BMC restart. A certificate
+  alone, even one issued for the BMC's own `GenerateCSR`, answers 204 and
+  shows in the collection, but the web server never serves it and a restart
+  reverts it. `GenerateCSR` also puts the IP addresses in `AlternativeNames`
+  as DNS names. A BMC restart (`Manager.Reset` takes `ForceRestart` only)
+  takes about two and a half minutes and leaves the host running.
+- A PSU that loses AC keeps `Status.State: Present` in `Chassis/Self/Power`,
+  and its `Status.Health` becomes a raw hex code (`0x2849`) rather than
+  Warning or Critical. The SEL records `Power Supply PSUn AC lost`
+  asserted and deasserted, and the PSU's `PowerInputWatts` and
+  `LineInputVoltage` drop to about zero. `PowerControl` `PowerConsumedWatts`
+  lags and reads low; the PSU inputs are the chassis's draw.
+- The BMC's clock follows NTP (`pool.ntp.org`), but `DateTimeLocalOffset`
+  is a fixed offset, `+02:00` from the factory, which DST does not move, and
+  the SEL is stamped in local time. Set it to `+00:00` (PATCH
+  `Managers/Self`).
+- Serial-over-LAN is IPMI over LAN with the same accounts
+  (`ipmitool -I lanplus -H <bmc> -U admin -E sol activate`).
+- Besides `admin` and the factory `Administrator`, the BMC carries a
+  `HostInterfaceAdministrator` account for the in-band Redfish host
+  interface (`usb0`, 169.254.0.17 on the BMC side).
+
 ## Roles
 
 `edge` and `services` install with Ubuntu's `direct` layout. `storage` lays out
