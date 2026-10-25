@@ -37,6 +37,10 @@ const (
 	dockerLedgerRefresh = 24 * time.Hour
 	// dockerBuildCacheBudget is what the build cache keeps.
 	dockerBuildCacheBudget = "10gb"
+	// dockerBuildCacheChange is how much the build cache must change for a data
+	// root with the same images to be saved again. Every build adds a small
+	// record for its context, which alone must not republish the data root.
+	dockerBuildCacheChange = 1_000_000_000
 	dockerReferenceLimit   = 16
 )
 
@@ -196,6 +200,9 @@ type dockerLedger map[string]dockerLedgerEntry
 type dockerLedgerEntry struct {
 	LastUsedAt time.Time `json:"last_used_at"`
 	References []string  `json:"references"`
+	// Pulled records that a job pulled the image from a registry; teardown
+	// removes the digest that showed it.
+	Pulled bool `json:"pulled"`
 }
 
 // dockerImage is an image as `docker image inspect` reports it.
@@ -236,10 +243,12 @@ type dockerPlan struct {
 	Stale bool
 }
 
-// planDockerTeardown decides what survives. A job used an image when one of
-// its containers ran it, or when it has a registry reference: teardown removes
-// every registry reference, so one present now was pulled, tagged or built by
-// this job.
+// planDockerTeardown decides what survives. Only images pulled from a registry
+// stay: an image has a registry digest once a job pulled it, and the ledger
+// remembers it after teardown removed the digest. Images a job built or loaded
+// are removed; the build cache keeps their layers. A job used a kept image when
+// one of its containers ran it or it has a registry reference: teardown removes
+// every one, so a reference present now was pulled or tagged by this job.
 func planDockerTeardown(images []dockerImage, containerImages map[string]bool, saved dockerLedger, now time.Time) dockerPlan {
 	plan := dockerPlan{Keep: dockerLedger{}}
 	for _, image := range images {
@@ -248,7 +257,12 @@ func planDockerTeardown(images []dockerImage, containerImages map[string]bool, s
 		}
 		external := image.externalReferences()
 		entry, known := saved[image.ID]
-		used := containerImages[image.ID] || len(external) > 0 || !known
+		if !entry.Pulled && !slices.ContainsFunc(external, isDigestReference) {
+			plan.Remove = append(plan.Remove, image.ID)
+			continue
+		}
+		entry.Pulled = true
+		used := containerImages[image.ID] || len(external) > 0
 		if used {
 			entry.LastUsedAt = now
 			entry.References = mergeReferences(external, entry.References)
@@ -270,6 +284,8 @@ func planDockerTeardown(images []dockerImage, containerImages map[string]bool, s
 	sort.Strings(plan.Tag)
 	return plan
 }
+
+func isDigestReference(reference string) bool { return strings.Contains(reference, "@sha256:") }
 
 // mergeReferences keeps the most recent references first, valid and bounded.
 func mergeReferences(recent, older []string) []string {
@@ -297,8 +313,8 @@ type dockerReportedImage struct {
 	LastUsedAt time.Time `json:"last_used_at"`
 }
 
-// dockerSnapshot is what decides whether a data root changed: its images and
-// the bytes its build cache holds.
+// dockerSnapshot is what decides whether a data root changed: its images, and
+// its build cache when that changed by dockerBuildCacheChange or more.
 type dockerSnapshot struct {
 	Images          []string
 	BuildCacheBytes int64
@@ -308,7 +324,8 @@ func (s dockerSnapshot) differs(other dockerSnapshot) bool {
 	a, b := slices.Clone(s.Images), slices.Clone(other.Images)
 	sort.Strings(a)
 	sort.Strings(b)
-	return !slices.Equal(a, b) || s.BuildCacheBytes != other.BuildCacheBytes
+	growth := s.BuildCacheBytes - other.BuildCacheBytes
+	return !slices.Equal(a, b) || growth >= dockerBuildCacheChange || -growth >= dockerBuildCacheChange
 }
 
 func dockerReportImages(images []dockerImage, keep dockerLedger) []dockerReportedImage {

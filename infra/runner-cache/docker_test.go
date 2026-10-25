@@ -259,3 +259,29 @@ func TestDockerAdmissionReservesTheSavedRootPlusGrowth(t *testing.T) {
 		t.Fatalf("measured docker root expects %d", got)
 	}
 }
+
+type dockerHeadTransfer struct {
+	*testTransfer
+	head int64
+}
+
+func (t dockerHeadTransfer) Head(Slot) (Identity, error) { return Identity{BaseGeneration: t.head}, nil }
+
+func TestDockerSealSkipsADataRootAnotherJobSuperseded(t *testing.T) {
+	b, remote := newLocal(t)
+	b.Transfer = dockerHeadTransfer{testTransfer: remote, head: 3}
+	slot := dockerSlot(first)
+	path := attachDocker(t, b, slot)
+	writeSuperblock(t, b.image(slot), 1, 0, 0)
+	writeDockerReport(t, path, DockerReport{Clean: true, Changed: true})
+	if err := b.Seal(slot, path); !errors.Is(err, ErrSuperseded) {
+		t.Fatalf("seal = %v", err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("compressed and uploaded a superseded data root")
+	}
+	b.Transfer = dockerHeadTransfer{testTransfer: remote, head: 0}
+	if err := b.Seal(slot, path); err != nil || remote.uploads != 1 {
+		t.Fatalf("seal = %v, uploads %d", err, remote.uploads)
+	}
+}

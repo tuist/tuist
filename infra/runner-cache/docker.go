@@ -64,6 +64,10 @@ type DockerImage struct {
 
 var errNoDockerReport = fmt.Errorf("%w: no teardown report", ErrWithheld)
 
+// ErrSuperseded withholds a data root whose lineage another job saved since it
+// was mounted: it could only lose the compare-and-swap, so it is not compressed.
+var ErrSuperseded = fmt.Errorf("%w: superseded", ErrWithheld)
+
 // ReadDockerReport reads and validates the guest's report in the pod's volume
 // directory without following links. Anything malformed is no report.
 func ReadDockerReport(path string) (DockerReport, error) {
@@ -175,6 +179,11 @@ func (b *LocalImages) sealDocker(slot Slot, path string) error {
 	}
 	if allocatedBytes(b.image(slot)) > DockerPublishBytes {
 		return ErrFull
+	}
+	if heads, ok := b.Transfer.(HeadReader); ok {
+		if head, err := heads.Head(slot); errors.Is(err, ErrConflict) || (err == nil && head.BaseGeneration != slot.BaseGeneration) {
+			return ErrSuperseded
+		}
 	}
 	return b.publish(slot)
 }
