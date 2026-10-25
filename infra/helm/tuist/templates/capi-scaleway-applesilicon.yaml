@@ -450,6 +450,12 @@ spec:
             - --rack-linux-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
             {{- if .Values.rackLinuxFleet.boot.enabled }}
             - --rack-linux-install-server-url=http://{{ .Values.rackLinuxFleet.boot.address }}:{{ .Values.rackLinuxFleet.boot.httpPort }}
+            {{- if .Values.rackLinuxFleet.boot.internet.enabled }}
+            - --rack-linux-internet-boot-server-url=https://{{ required "rackLinuxFleet.boot.internet.host is the internet boot server's name" .Values.rackLinuxFleet.boot.internet.host }}
+            {{- end }}
+            {{- range .Values.rackLinuxFleet.preinstall.products }}
+            - {{ printf "--rack-linux-preinstalled-product=%s" . | quote }}
+            {{- end }}
             {{- range .Values.rackLinuxFleet.authorizedKeys }}
             - {{ printf "--rack-linux-authorized-key=%s" . | quote }}
             {{- end }}

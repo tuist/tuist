@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -58,6 +59,17 @@ type RackInstall struct {
 	// ServerURL is the boot server's HTTP address as a host's installer on the
 	// rack's management segment reaches it.
 	ServerURL string
+
+	// InternetServerURL is the boot server a preinstalled box reaches over the
+	// internet before its site has one. Set, an edge whose TPM is pinned has
+	// its install published with no other edge of its site to serve it: the
+	// first edge of a site, which that server hands its seed to, sealed.
+	InternetServerURL string
+
+	// PreinstalledProducts are the hardware models, as their SMBIOS vendor and
+	// product a machine announces, that arrive with the preinstall image's
+	// installer partition on their boot drive. Their installs keep it.
+	PreinstalledProducts []string
 
 	// AuthorizedKeys are people's SSH keys, authorized beside the fleet key.
 	AuthorizedKeys []string
@@ -149,7 +161,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		if edges, err = r.servingEdges(ctx, host); err != nil {
 			return 0, err
 		}
-		if len(edges) == 0 && (inst == nil || inst.TriggeredAt == nil) {
+		if len(edges) == 0 && !r.internetServes(host) && (inst == nil || inst.TriggeredAt == nil) {
 			if inst != nil {
 				if err := r.withdrawInstall(ctx, host); err != nil {
 					return 0, err
@@ -289,6 +301,9 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		Built:           now,
 		HostKey:         hostKey,
 		Edge:            rackEdgeNetwork(host.Spec.Edge),
+	}
+	if hw := host.Status.Hardware; hw != nil && slices.Contains(r.Install.PreinstalledProducts, hw.Product) {
+		seed.ResidentInstaller = true
 	}
 	userData, err := rackinstall.UserData(seed)
 	if err != nil {
@@ -696,4 +711,11 @@ func rackEdgeNetwork(e *infrav1.RackLinuxHostEdge) *rackinstall.EdgeNetwork {
 		return nil
 	}
 	return &rackinstall.EdgeNetwork{Uplinks: e.Uplinks, VLAN: int(e.VRRP.VLAN), Address: e.VRRP.Address, Peer: e.VRRP.Peer}
+}
+
+// internetServes reports whether the internet boot server can hand the host
+// its seed: one is configured and the host's TPM is pinned, which for a host
+// declared with its vendor's check code means pinned to that key.
+func (r *RackLinuxHostReconciler) internetServes(host *infrav1.RackLinuxHost) bool {
+	return r.Install.InternetServerURL != "" && host.Status.TPM != nil
 }
