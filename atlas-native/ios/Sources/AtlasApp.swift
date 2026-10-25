@@ -19,6 +19,11 @@ struct AtlasApp: App {
             }
             .modifier(AtlasThemeScope(appearance: appearance, server: authentication.server))
             .task(id: authentication.server) {
+                await authentication.liveActivity.configure(
+                    server: authentication.server,
+                    request: authentication.server == nil ? nil : authentication.liveActivityRequest
+                )
+                authentication.liveActivity.setActive(scenePhase == .active)
                 await appearance.configure(server: authentication.server)
                 await authentication.pushNotifications.configure(
                     server: authentication.server,
@@ -36,10 +41,12 @@ struct AtlasApp: App {
                 if let url { navigation.receive(url, server: authentication.server); pushDelegate.destination = nil }
             }
             .onChange(of: scenePhase) { _, phase in
+                authentication.liveActivity.setActive(phase == .active)
                 if phase == .active {
                     Task { await appearance.refresh(); await authentication.pushNotifications.refresh() }
                 }
             }
+            .environment(\.atlasLiveActivity, authentication.liveActivity)
             .environment(\.atlasNavigation, navigation)
             .task { await authentication.restore(); navigation.resolve(server: authentication.server) }
             .onOpenURL { navigation.receive($0, server: authentication.server) }

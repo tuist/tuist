@@ -48,6 +48,11 @@ enum Command {
         #[serde(flatten)]
         action: crate::push::Action,
     },
+    OrbitActivity {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::orbit_activity::Action,
+    },
     TimeOff {
         session: Session,
         #[serde(flatten)]
@@ -100,6 +105,9 @@ pub fn execute(input: &str) -> String {
             }
             Command::Push { session, action } => {
                 return crate::push::execute(session, action);
+            }
+            Command::OrbitActivity { session, action } => {
+                return crate::orbit_activity::execute(session, action);
             }
             Command::TimeOff { session, action } => {
                 return crate::time_off::execute(session, action);

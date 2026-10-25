@@ -229,16 +229,24 @@ fn duplicate_submission_reuses_key_but_retyping_the_same_text_is_a_new_message()
 }
 
 #[test]
-fn reconciliation_deduplicates_and_keeps_private_thread_first() {
-    let mut items = vec![];
-    merge_thread(&mut items, thread(SECOND, "shared"));
-    merge_thread(&mut items, thread(FIRST, "private"));
+fn reconciliation_deduplicates_and_orders_across_kinds_by_updated_at_then_descending_id() {
+    let (connection, model) = opened();
+    let mut state = model.state.lock().unwrap();
+    state.snapshot.threads.clear();
+    merge_list_thread(&mut state, thread(SECOND, "shared"));
+    merge_list_thread(&mut state, thread(FIRST, "private"));
     let mut updated = thread(SECOND, "shared");
     updated.title = "Updated".into();
-    merge_thread(&mut items, updated);
-    assert_eq!(items.len(), 2);
-    assert_eq!(items[0].id, FIRST);
-    assert_eq!(items[1].title, "Updated");
+    merge_list_thread(&mut state, updated);
+    assert_eq!(state.snapshot.threads.len(), 2);
+    assert_eq!(state.snapshot.threads[0].id, SECOND);
+    assert_eq!(state.snapshot.threads[0].title, "Updated");
+    let mut newer = thread(FIRST, "private");
+    newer.updated_at = "2027-06-08T10:00:00Z".into();
+    merge_list_thread(&mut state, newer);
+    assert_eq!(state.snapshot.threads[0].id, FIRST);
+    drop(state);
+    execute(Action::Close { connection }).unwrap();
 }
 
 #[test]
@@ -370,7 +378,10 @@ fn invalid_drafts_and_cross_instance_session_are_rejected() {
         execute(Action::Request {
             connection: id.clone(),
             session,
-            command: Command::Load { kind: None }
+            command: Command::Load {
+                kind: None,
+                status: None
+            }
         })
         .is_err()
     );
@@ -422,7 +433,7 @@ fn assert_messages_request(url: &url::Url, body: crate::transport::Body<'_>, id:
 fn private_creation_refreshes_capability_then_replays_uuid_and_creates_distinct_histories() {
     use std::cell::{Cell, RefCell};
     let (connection, model) = opened();
-    set_list_kind(&model, Some("private".into())).unwrap();
+    set_list_filters(&model, Some("private".into()), None).unwrap();
     select_using(
         &model,
         Some(UNSEEN.into()),
@@ -452,7 +463,7 @@ fn private_creation_refreshes_capability_then_replays_uuid_and_creates_distinct_
         };
         assert_eq!(token, "atlas-access");
         if method == reqwest::Method::GET && url.path() == "/api/native/orbit/threads" {
-            assert_eq!(url.query(), Some("page=1&kind=private"));
+            assert_eq!(url.query(), Some("page=1&kind=private&status=active"));
             assert!(payload.is_none());
             list_calls.set(list_calls.get() + 1);
             if fail_preflight.get() {
@@ -623,12 +634,12 @@ fn private_creation_refreshes_capability_then_replays_uuid_and_creates_distinct_
 fn private_list_filter_survives_pagination_refresh_and_shared_direct_selection() {
     use std::cell::Cell;
     let (connection, model) = opened();
-    set_list_kind(&model, Some("private".into())).unwrap();
+    set_list_filters(&model, Some("private".into()), None).unwrap();
     let expected_page = Cell::new(1);
     let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
         assert_eq!(
             url.query(),
-            Some(format!("page={}&kind=private", expected_page.get()).as_str())
+            Some(format!("page={}&kind=private&status=active", expected_page.get()).as_str())
         );
         Ok(
             json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[thread(if expected_page.get()==1 {FIRST} else {SECOND},"private")],"page":expected_page.get(),"total_pages":2,"total_count":2}}),
@@ -662,16 +673,16 @@ fn private_list_filter_survives_pagination_refresh_and_shared_direct_selection()
     )
     .unwrap();
     assert_eq!(snapshot(&model).unwrap()["selected"]["kind"], "shared");
-    assert!(set_list_kind(&model, Some("invalid".into())).is_err());
-    let Command::Load { kind } =
+    assert!(set_list_filters(&model, Some("invalid".into()), None).is_err());
+    let Command::Load { kind, status } =
         serde_json::from_value::<Command>(json!({"action":"load"})).unwrap()
     else {
         panic!("expected legacy load")
     };
-    set_list_kind(&model, kind).unwrap();
+    set_list_filters(&model, kind, status).unwrap();
     assert_eq!(model.state.lock().unwrap().list_page, 0);
     load_using(&model, false, &InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
-        assert_eq!(url.query(), Some("page=1"));
+        assert_eq!(url.query(), Some("page=1&status=active"));
         Ok(json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[thread(UNSEEN,"shared")],"page":1,"total_pages":1,"total_count":1}}))
     })).unwrap();
     assert_eq!(snapshot(&model).unwrap()["threads"][0]["kind"], "shared");
@@ -685,7 +696,7 @@ fn late_private_creation_never_replaces_a_newer_selection_and_close_discards_ret
         let network = InspectTransport(|url: &url::Url, body: crate::transport::Body<'_>| {
             assert_eq!(
                 url.as_str(),
-                "https://atlas.example/api/native/orbit/threads?page=1"
+                "https://atlas.example/api/native/orbit/threads?page=1&status=active"
             );
             let crate::transport::Body::Api { method, .. } = body else {
                 panic!("expected bearer transport")
@@ -1175,7 +1186,7 @@ fn mention_candidates_fence_queries_selection_access_and_local_actions_without_l
                     begin_selection(&mut model.state.lock().unwrap(), Some(SECOND.into()));
                 }
                 "access" => {
-                    set_list_kind(&model, Some("shared".into())).unwrap();
+                    set_list_filters(&model, Some("shared".into()), None).unwrap();
                 }
                 "background" => {
                     set_active(&model, false).unwrap();
@@ -1647,6 +1658,289 @@ fn superseded_uploads_never_publish_files_and_close_clears_uncertain_bytes() {
     assert!(model.state.lock().unwrap().drafts.is_empty());
     execute(Action::Close { connection }).unwrap();
     assert!(model.state.lock().unwrap().upload_attempt.is_none());
+}
+
+#[test]
+fn archive_restore_reconciles_status_without_erasing_history_drafts_or_retry_identity() {
+    let (connection, model) = attachment_model();
+    draft(&model, FIRST.into(), "Keep this draft".into()).unwrap();
+    let key = model.state.lock().unwrap().drafts[FIRST].client_id.clone();
+    let messages = snapshot(&model).unwrap()["messages"].clone();
+    let before = snapshot(&model).unwrap()["sequence"].as_u64().unwrap();
+    let command: Command =
+        serde_json::from_value(json!({"action":"archive","id":FIRST,"archived":true})).unwrap();
+    assert!(matches!(command, Command::Archive { archived: true, .. }));
+    let mutation = |archived: bool| {
+        InspectTransport(move |url: &url::Url, body: crate::transport::Body<'_>| {
+            let crate::transport::Body::Api {
+                method, payload, ..
+            } = body
+            else {
+                panic!()
+            };
+            if method == reqwest::Method::GET {
+                assert_eq!(
+                    url.as_str(),
+                    "https://atlas.example/api/native/orbit/threads?page=1&status=archived"
+                );
+                return Ok(
+                    json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[],"page":1,"total_pages":1,"total_count":0}}),
+                );
+            }
+            assert_eq!(
+                url.as_str(),
+                format!("https://atlas.example/api/native/orbit/threads/{FIRST}")
+            );
+            assert_eq!(method, reqwest::Method::PATCH);
+            let status = if archived { "archived" } else { "active" };
+            assert_eq!(payload.unwrap(), json!({"status":status}));
+            let mut value = thread(FIRST, "shared");
+            value.status = status.into();
+            Ok(json!({"thread":value}))
+        })
+    };
+    archive_using(&model, FIRST.into(), true, &mutation(true)).unwrap();
+    let value = snapshot(&model).unwrap();
+    assert_eq!(value["selected"]["status"], "archived");
+    assert!(
+        value["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["id"] != FIRST)
+    );
+    assert_eq!(value["messages"], messages);
+    assert_eq!(value["draft"], "Keep this draft");
+    assert!(value["sequence"].as_u64().unwrap() > before);
+
+    let before = value["sequence"].as_u64().unwrap();
+    set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+    assert!(snapshot(&model).unwrap()["sequence"].as_u64().unwrap() > before);
+    let Command::Load { kind, status } = serde_json::from_value(json!({"action":"load"})).unwrap()
+    else {
+        panic!()
+    };
+    set_list_filters(&model, kind, status).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["status_filter"], "archived");
+    let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
+        assert!(url.query().unwrap().ends_with("status=archived"));
+        let mut archived = thread(FIRST, "shared");
+        archived.status = "archived".into();
+        Ok(
+            json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[archived],"page":1,"total_pages":1,"total_count":1}}),
+        )
+    });
+    load_using(&model, false, &network).unwrap();
+    load_using(&model, true, &network).unwrap();
+    assert_eq!(snapshot(&model).unwrap()["threads"][0]["id"], FIRST);
+    archive_using(&model, FIRST.into(), false, &mutation(false)).unwrap();
+    let value = snapshot(&model).unwrap();
+    assert_eq!(value["selected"]["status"], "active");
+    assert_eq!(value["threads"], json!([]));
+    assert_eq!(value["messages"], messages);
+    assert_eq!(model.state.lock().unwrap().drafts[FIRST].client_id, key);
+    assert!(
+        serde_json::from_value::<Command>(json!({"action":"load","status":"deleted"})).is_err()
+    );
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn archive_route_denials_and_old_servers_do_not_revoke_protected_history_or_drafts() {
+    for status in [403, 404, 501, 422, 500] {
+        let (connection, model) = attachment_model();
+        draft(&model, FIRST.into(), "Keep me".into()).unwrap();
+        let before = snapshot(&model).unwrap();
+        let network = InspectTransport(|_: &url::Url, body: crate::transport::Body<'_>| {
+            let crate::transport::Body::Api { failure, .. } = body else {
+                panic!()
+            };
+            Err(failure(status, b"must-not-forward"))
+        });
+        archive_using(&model, FIRST.into(), true, &network).unwrap();
+        let after = snapshot(&model).unwrap();
+        assert_eq!(after["selected"], before["selected"]);
+        assert_eq!(after["messages"], before["messages"]);
+        assert_eq!(after["draft"], "Keep me");
+        assert!(!after["error"].is_null());
+        assert!(!after.to_string().contains("must-not-forward"));
+        assert!(!after["saving"].as_bool().unwrap());
+        execute(Action::Close { connection }).unwrap();
+    }
+}
+
+#[test]
+fn late_list_and_history_reads_cannot_undo_archive_and_late_mutation_cannot_replace_selection() {
+    for read in ["list", "history"] {
+        let (connection, model) = attachment_model();
+        let network = InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            archive_using(
+                &model,
+                FIRST.into(),
+                true,
+                &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                    let mut archived = thread(FIRST, "shared");
+                    archived.status = "archived".into();
+                    Ok(json!({"thread":archived}))
+                }),
+            )
+            .unwrap();
+            if read == "list" {
+                Ok(
+                    json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[thread(FIRST,"shared")],"page":1,"total_pages":1,"total_count":1}}),
+                )
+            } else {
+                Ok(response(FIRST))
+            }
+        });
+        if read == "list" {
+            load_using(&model, false, &network).unwrap();
+        } else {
+            history_using(&model, false, &network).unwrap();
+        }
+        assert_eq!(snapshot(&model).unwrap()["selected"]["status"], "archived");
+        assert!(
+            snapshot(&model).unwrap()["threads"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|item| item["id"] != FIRST)
+        );
+        execute(Action::Close { connection }).unwrap();
+    }
+    let (connection, model) = attachment_model();
+    archive_using(
+        &model,
+        FIRST.into(),
+        true,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            select_using(
+                &model,
+                Some(SECOND.into()),
+                None,
+                &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                    Ok(response(SECOND))
+                }),
+            )
+            .unwrap();
+            let mut archived = thread(FIRST, "shared");
+            archived.status = "archived".into();
+            Ok(json!({"thread":archived}))
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["id"], SECOND);
+    assert_eq!(
+        snapshot(&model).unwrap()["messages"][0]["tool_output"],
+        "protected evidence"
+    );
+    execute(Action::Close { connection }).unwrap();
+}
+
+#[test]
+fn archive_callbacks_cannot_restore_revoked_closed_or_background_state() {
+    for fence in [
+        "revoke",
+        "close",
+        "background",
+        "filter",
+        "wrong_id",
+        "wrong_status",
+    ] {
+        let (connection, model) = attachment_model();
+        archive_using(
+            &model,
+            FIRST.into(),
+            true,
+            &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                match fence {
+                    "revoke" => {
+                        history_using(
+                            &model,
+                            false,
+                            &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+                                Err(error("unavailable", "Denied"))
+                            }),
+                        )
+                        .unwrap();
+                    }
+                    "close" => {
+                        execute(Action::Close {
+                            connection: connection.clone(),
+                        })
+                        .unwrap();
+                    }
+                    "background" => {
+                        set_active(&model, false).unwrap();
+                    }
+                    "filter" => {
+                        set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+                    }
+                    _ => {}
+                }
+                let mut archived =
+                    thread(if fence == "wrong_id" { SECOND } else { FIRST }, "shared");
+                if fence != "wrong_status" {
+                    archived.status = "archived".into();
+                }
+                Ok(json!({"thread":archived}))
+            }),
+        )
+        .unwrap();
+        let value = snapshot(&model).unwrap();
+        if matches!(fence, "revoke" | "close") {
+            assert!(value["selected"].is_null());
+            assert_eq!(value["messages"], json!([]));
+        } else {
+            assert_eq!(value["selected"]["status"], "active");
+            assert!(!value["messages"].as_array().unwrap().is_empty());
+        }
+        assert_eq!(value["saving"], false);
+        execute(Action::Close { connection }).unwrap();
+    }
+}
+
+#[test]
+fn status_filter_fences_old_pages_and_protected_history_keeps_archived_rows_out_of_active_list() {
+    let (connection, model) = attachment_model();
+    let calls = std::cell::Cell::new(0);
+    let network = InspectTransport(|url: &url::Url, _: crate::transport::Body<'_>| {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 {
+            assert!(url.query().unwrap().ends_with("status=active"));
+            set_list_filters(&model, None, Some(StatusFilter::Archived)).unwrap();
+            load_using(&model, false, &crate::tests::MockTransport::new(vec![])).unwrap();
+        } else {
+            assert!(url.query().unwrap().ends_with("status=archived"));
+        }
+        let mut item = thread(FIRST, "shared");
+        if calls.get() > 1 {
+            item.status = "archived".into();
+        }
+        Ok(
+            json!({"assistant":{"name":"Pip","configured":true},"threads":{"items":[item],"page":1,"total_pages":1,"total_count":1}}),
+        )
+    });
+    load_using(&model, false, &network).unwrap();
+    assert_eq!(calls.get(), 2);
+    assert_eq!(
+        snapshot(&model).unwrap()["threads"][0]["status"],
+        "archived"
+    );
+    set_list_filters(&model, None, Some(StatusFilter::Active)).unwrap();
+    history_using(
+        &model,
+        false,
+        &InspectTransport(|_: &url::Url, _: crate::transport::Body<'_>| {
+            let mut value = response(FIRST);
+            value["thread"]["status"] = json!("archived");
+            Ok(value)
+        }),
+    )
+    .unwrap();
+    assert_eq!(snapshot(&model).unwrap()["selected"]["status"], "archived");
+    assert_eq!(snapshot(&model).unwrap()["threads"], json!([]));
+    execute(Action::Close { connection }).unwrap();
 }
 
 #[test]

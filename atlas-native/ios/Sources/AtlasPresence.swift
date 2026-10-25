@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct AtlasPerson: Decodable, Identifiable {
+struct AtlasPerson: Decodable, Identifiable, Equatable {
     let id: String
     let name: String
     let email: String
@@ -79,15 +79,7 @@ final class AtlasPresence: ObservableObject {
                     guard active, generation == started else { break }
                     sequence = snapshot.sequence
                     if snapshot.needsSession == true { selfId = nil; refreshSession = true; break }
-                    if let error = snapshot.error {
-                        selfId = nil
-                        people = []
-                        errorMessage = error == "sign_in_required" ? "Sign in to Atlas again." : "Reconnecting to Atlas…"
-                    } else if snapshot.location == location {
-                        selfId = snapshot.selfId
-                        people = snapshot.people
-                        errorMessage = nil
-                    }
+                    apply(snapshot)
                 }
             } catch {
                 if active, generation == started { errorMessage = "Presence is unavailable. Reopen Atlas to retry." }
@@ -96,6 +88,18 @@ final class AtlasPresence: ObservableObject {
             connection = nil
             worker = nil
             if active, refreshSession || generation != started { start() }
+        }
+    }
+
+    private func apply(_ snapshot: Snapshot) {
+        if let error = snapshot.error {
+            selfId = nil
+            people = []
+            errorMessage = error == "sign_in_required" ? "Sign in to Atlas again." : "Reconnecting to Atlas…"
+        } else if snapshot.location == location {
+            if selfId != snapshot.selfId { selfId = snapshot.selfId }
+            if people != snapshot.people { people = snapshot.people }
+            if errorMessage != nil { errorMessage = nil }
         }
     }
 
