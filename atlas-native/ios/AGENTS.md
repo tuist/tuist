@@ -22,6 +22,17 @@ inaccessible data after revocation. Backgrounding must not cancel the durable ru
 Automation has no Live Activity or background execution/approval notification integration;
 the separate native push coordinator supports APNs for other fixed notification kinds.
 
+Orbit uses one aggregate ActivityKit Live Activity for the signed-in person's active
+work. `AtlasOrbitLiveActivity` reconciles the authorized fixed-route Rust projection
+in the foreground and registers per-activity tokens for server APNs updates in the
+background. End on sign-out, unavailable access or no remaining work; keep transient
+failures visibly stale rather than inventing progress. Suppress recreation of work
+the person dismissed. Lead with the authorized bounded conversation title and
+secondary phase; titles can appear on the Lock Screen and travel through APNs.
+Mark titles privacy-sensitive for system redaction. Never add message excerpts,
+people, tool names or results. The data contract and WidgetKit renderer live in
+[LiveActivity](LiveActivity/AGENTS.md); the extension has no credentials/networking.
+
 `AtlasVoiceInput` owns local microphone/Apple Speech lifecycle, required on-device
 recognition, permission errors and generation-fenced callbacks. Never fall back to
 remote transcription, upload audio or auto-send the accepted text. Cancel on scene

@@ -21,10 +21,34 @@ profile-validation framework.
   entitlement. The unsigned Once
   device build does not require distribution capabilities.
 - `push.sh` additionally requires a production `aps-environment` in the profile before reading the distribution certificate. Enable Push Notifications on the Atlas App ID and regenerate the ad-hoc profile. `bundle.sh` copies that authorized entitlement and stamps `AtlasPushEnvironment=production` into the temporary signing copy only. Unsigned device builds remain unconfigured; simulator builds use development/sandbox. Validate the credential-free guard with `python3 ios/distribution/push_test.py` on macOS. Never invent a production entitlement for an old profile.
+- `live-activity.sh` requires a device `PlugIns/AtlasLiveActivity.appex` with the
+  production ID `dev.tuist.atlas.live-activity` and WidgetKit extension point before
+  reading profiles. A **separate, newly required** ad-hoc profile must be supplied
+  at `op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision`.
+  Provisioning that App ID/profile is a separate authorized human operation; the
+  build and credential-free tests neither create it nor access the vault. It must
+  use team `U6LC622NKF`, authorize the app's chosen distribution certificate, remain
+  unexpired and cover every registered device in the host profile. All extension
+  profile checks run before fetching the private certificate. Do not reuse the
+  host profile or its APNs, Associated Domains or Keychain entitlements.
+- Only the temporary distribution copy receives the extension profile and matching
+  host marketing/build versions. Scan both executables for Swift runtime libraries,
+  sign libraries and nested frameworks inside-out, then sign/verify the extension
+  with its own identity-only entitlements, then sign/verify the containing app with
+  its existing entitlements. `--deep` is verification only, never a signing shortcut.
+  The simulator/preview ad-hoc signature is not a device distribution identity.
 - Only the protected main-branch publication job receives distribution secrets.
   Device enrollment and vault references are in the [README](../../README.md).
 - Validate with `python3 ios/distribution/keychain_test.py`,
+  `python3 ios/distribution/live_activity_test.py`,
   `bash ios/distribution/test-associated-domains.sh` (16 macOS fixtures), `bash -n`, ShellCheck
   and an actual signing run. The credential-free tests cover ordered search-list
   restoration, paths with spaces, an empty list, and setup/import failures.
+  Live Activity fixtures cover profile/device/certificate rejection, version and
+  entitlement isolation, embedding cleanup and signing order/failure. They fake
+  Xcode/signing; on Linux they also fake Apple's plist/date tools. Module declaration
+  fixtures are not a native Swift compile: additionally run
+  `once query validate-module modules/widget.star --format json`, build simulator
+  and device targets on macOS/Xcode, inspect extension SDK metadata and entitlements,
+  and test installation/ActivityKit rendering on a registered physical device.
   Signature verification does not establish installation on a registered physical device.

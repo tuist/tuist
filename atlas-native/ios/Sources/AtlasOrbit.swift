@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 
@@ -65,6 +66,7 @@ final class AtlasOrbit: ObservableObject {
     private var applyingDraft = false
     private var pendingDrafts = 0
     private var selectionRevision = UUID()
+    let workChanges = PassthroughSubject<Void, Never>()
 
     init(request: @escaping ([String: Any]) async throws -> Data,
          localRequest: @escaping ([String: Any]) async throws -> Data) {
@@ -264,8 +266,10 @@ final class AtlasOrbit: ObservableObject {
 
     private func apply(_ snapshot: Snapshot) {
         if let state, snapshot.sequence <= state.sequence { return }
+        let previousWork = workFingerprint(state)
         if state?.messages != snapshot.messages { timeline = AtlasThreadTimelineData(messages: snapshot.messages) }
         state = snapshot
+        if previousWork != workFingerprint(snapshot) { workChanges.send() }
         if pendingDrafts == 0, draft != snapshot.draft {
             applyingDraft = true
             draft = snapshot.draft
@@ -273,14 +277,23 @@ final class AtlasOrbit: ObservableObject {
         }
     }
 
+}
+
+extension AtlasOrbit {
     private func decode<T: Decodable>(_ data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(T.self, from: data)
     }
-}
 
-extension AtlasOrbit {
+    private func workFingerprint(_ snapshot: Snapshot?) -> [String] {
+        guard let snapshot else { return [] }
+        var parts = snapshot.threads.map { "\($0.id):\($0.agentStatus ?? "idle"):\($0.status)" }
+        if let selected = snapshot.selected { parts.append("\(selected.id):\(selected.agentStatus ?? "idle")") }
+        parts += snapshot.messages.filter { $0.kind == "tool" }.map { "\($0.id):\($0.toolStatus ?? "")" }
+        return parts
+    }
+
     func archive(_ thread: AtlasThread, archived: Bool) async {
         guard !saving else { return }
         submitting = true

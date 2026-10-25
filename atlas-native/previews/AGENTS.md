@@ -2,6 +2,16 @@
 
 These independent Once targets render the production native Settings views with fixed, in-memory API responses. They make screenshots reproducible without real provider credentials, browser authentication, a public development server, or an Atlas-authorized ChatGPT client.
 
+`--live-activity` renders the shared production ActivityKit view and requests real
+local activities through the preview's separately identified WidgetKit extension.
+Start/update/stale/end controls use fictional conversation titles, generic phases
+and counts; requests use `pushType: nil` and never contact Atlas or APNs.
+`--long-activity-title` exercises title wrapping/truncation without extra inference.
+`AtlasLiveActivityUITests`
+exercises local lifecycle and system presentation plus accessible-text rendering.
+Lock Screen/Dynamic Island screenshots are demo data, not background APNs delivery,
+physical-device signing, inference or the authenticated coordinator's end-to-end proof.
+
 The iOS `--orbit-long-history` fixture supplies 400 messages with consecutive tools and uneven Markdown heights, ending in a very tall reply. Its UI regression checks real final-line visibility on entry and after idle keyboard/multiline-draft changes in light and dark accessibility text. CPU and native scrolling metrics accompany repeated history gestures; simulator numbers are comparative evidence, not physical-device frame-rate claims.
 
 Orbit archive fixtures retain status, filter and history in memory. UI checks exercise native swipe actions, shared confirmation/cancellation, read-only archived history and restore in light and dark accessibility text. `--fail-orbit-archive` injects a failed mutation without removing the conversation. These are presentation/adapter checks; server tests own owner authorization/run cancellation and Rust tests own request, retry and stale-response fences.

@@ -22,6 +22,34 @@ The workspace currently requires macOS for iOS builds and does not set a custom
 selection if introducing such an override. Host probes participate in analysis
 observations and the resolved linker argument participates in action identity.
 
+`widget.star` exports `atlas_widget_extension` for Once 0.68.2. Required attributes
+are `sdk_variant` (`simulator` or `device`), `bundle_id` (production or Settings
+preview Live Activity ID), and `info_plist`. Supply the shared activity attributes,
+renderer and WidgetBundle entry point as Swift-only `srcs`; there are no assets or
+transitive libraries. It emits arm64/iOS-17 `AtlasLiveActivity.appex`, substitutes
+the three `ATLAS_ACTIVITY_BUNDLE_ID`, `ATLAS_SUPPORTED_PLATFORM` and
+`ATLAS_PLATFORM_NAME` plist variables, and ad-hoc signs the complete tree. Link with
+`_NSExtensionMain` for system extension startup and explicitly retain Swift's `_main`
+with `-u` alongside its `__swift5_entry` metadata. Direct Swift startup exited
+without serving WidgetKit descriptors in the iOS 26.5 simulator. Set both Swift's
+`-application-extension` and the linker's `-application_extension` safety flag.
+Compiler/frontend/Clang/linker bytes, SDK and toolchain library
+trees identify the action and isolate its cleaned module cache. Do not copy private
+Once prelude helpers or weaken this identity to a version string.
+
+Each host must depend on its matching extension target and declare a cacheable
+`postbuild_actions` embedding hook before Once signs the host. Once stages the
+dependency as `<host build_dir>/AtlasLiveActivity.appex`; declare that tree and
+`modules/embed-widget.sh` as hook inputs and the final
+`<host build_dir>/<product>.app/PlugIns/AtlasLiveActivity.appex` as its output.
+Invoke `/bin/bash modules/embed-widget.sh` with either source/destination arguments
+or `ATLAS_WIDGET_SOURCE`/`ATLAS_WIDGET_DESTINATION` environment values. For Once's
+configured build directories, set the hook's `build_dir` to its declared directory
+and use absolute workspace-prefixed environment paths: Once rebases those and the
+declared inputs/outputs, but not argv strings. Keep embedding confined to the host
+copy, not the extension's cached output. Distribution profile checks and inside-out
+re-signing live in [iOS distribution](../ios/distribution/AGENTS.md).
+
 `nsh.star` imports NSH 0.2.0's checksum-pinned release XCFramework slices and
 resource-free Android AAR through Once's public provider contracts. Downloads and
 AAR extraction are explicit cached actions, never analysis-time network calls.

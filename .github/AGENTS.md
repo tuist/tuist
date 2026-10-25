@@ -98,7 +98,10 @@ link domain. Its provisioning guard accepts Apple's scalar wildcard authorizatio
 as well as domain arrays, without copying a wildcard into the app signature. Credential-free Android signing, associated-domain and APNs capability,
 keychain-lifecycle and launcher-packaging tests also gate publication through
 `test-distribution`, which runs on macOS because the iOS capability guards require
-PlistBuddy and plutil. Android builds verify locked Firebase dependencies,
+PlistBuddy and plutil. That job also checks Live Activity extension embedding,
+separate profile/device/certificate authorization and inside-out signing without
+credentials. The device signing copy requires its own Live Activity ad-hoc profile;
+ordinary simulator/device builds never provision one. Android builds verify locked Firebase dependencies,
 explicitly merged SDK manifests, and
 library R IDs against the final APK. Portable importer integrity/resource tests
 run without provider credentials; device signing requires a Push-enabled profile.

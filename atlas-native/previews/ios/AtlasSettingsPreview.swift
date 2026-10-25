@@ -53,7 +53,9 @@ struct AtlasSettingsPreview: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if ProcessInfo.processInfo.arguments.contains("--voice-input") {
+                if ProcessInfo.processInfo.arguments.contains("--live-activity") {
+                    AtlasLiveActivityPreview()
+                } else if ProcessInfo.processInfo.arguments.contains("--voice-input") {
                     AtlasVoiceInputPreview()
                 } else if ProcessInfo.processInfo.arguments.contains("--notification-settings") {
                     NavigationStack {

@@ -40,6 +40,8 @@ directly in that same workflow. Keep permission decisions in the workflow:
   publication job owns signing, not this shared PR/fork action.
 - Both iOS builds run `atlas-native/modules/check-sdk.sh` before packaging: the
   Mach-O SDK must match the selected Xcode SDK while minimum OS stays iOS 17.
+  Check both the host binary and the embedded Live Activity executable, so a
+  missing extension or mismatched SDK cannot produce a published app archive.
   The isolated UI preview has the same gate before simulator tests. A successful
   compile alone does not verify modern system appearance.
 - The CLI is a command-line artifact, not an Android/iOS preview. Keep its artifact

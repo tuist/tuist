@@ -15,6 +15,7 @@ struct AtlasOrbitView: View {
     @State private var confirmingArchive: AtlasThread?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
+    @Environment(\.atlasLiveActivity) private var liveActivity
 
     init(recordID: String? = nil, revision: UUID? = nil, request: @escaping ([String: Any]) async throws -> Data,
          localRequest: @escaping ([String: Any]) async throws -> Data) {
@@ -135,6 +136,7 @@ struct AtlasOrbitView: View {
             }
         }
         .onReceive(presence?.$selfId.eraseToAnyPublisher() ?? Just(nil).eraseToAnyPublisher()) { selfId = $0 }
+        .onReceive(model.workChanges) { liveActivity?.refresh() }
         .onAppear { model.setActive(scenePhase == .active) }
         .onChange(of: scenePhase) { _, phase in model.setActive(phase == .active) }
         .onDisappear { model.setActive(false) }
