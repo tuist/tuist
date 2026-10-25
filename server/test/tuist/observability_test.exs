@@ -43,6 +43,69 @@ defmodule Tuist.ObservabilityTest do
     refute inspect(event.extra) =~ "private input"
   end
 
+  @tag capture_log: true
+  test "task crash reports retain the child's cohort without inheriting the caller's request context" do
+    parent = self()
+
+    filter = fn event, owner ->
+      if owner in Map.get(event.meta, :callers, []), do: event, else: :stop
+    end
+
+    :ok =
+      :logger.add_handler(__MODULE__, Sentry.LoggerHandler, %{
+        filters: [{:owned_task, {filter, parent}}],
+        config: %{metadata: [:file, :line], sync_threshold: nil}
+      })
+
+    on_exit(fn -> :logger.remove_handler(__MODULE__) end)
+
+    expect(Sentry, :capture_exception, fn exception, opts ->
+      event =
+        opts
+        |> Keyword.delete(:result)
+        |> Keyword.put(:exception, exception)
+        |> Sentry.Event.create_event()
+
+      send(parent, {:reported, event})
+      {:ok, event.event_id}
+    end)
+
+    selected = %Account{id: 42, name: "child"}
+    Observability.set_selection(%{selected_account: selected})
+    Observability.feature_flag_evaluated(:runners, selected, true)
+    snapshot = Observability.snapshot()
+    supervisor = start_supervised!(Task.Supervisor)
+
+    {:ok, child} =
+      Task.Supervisor.start_child(supervisor, fn ->
+        Observability.attach(snapshot)
+        send(parent, :attached)
+
+        receive do
+          :crash -> raise "task failed"
+        end
+      end)
+
+    monitor = Process.monitor(child)
+    assert_receive :attached, 5_000
+    other = %Account{id: 43, name: "parent"}
+    Observability.set_selection(%{selected_account: other})
+    Observability.feature_flag_evaluated(:runners, other, false)
+    Sentry.Context.set_request_context(%{headers: %{"private-header" => "parent-only"}})
+    Sentry.Context.set_extra_context(%{private_value: "parent-only"})
+    send(child, :crash)
+
+    assert_receive {:reported, event}, 5_000
+    assert_receive {:DOWN, ^monitor, :process, ^child, _reason}, 5_000
+    assert event.tags.selected_account_id == 42
+    assert event.tags["feature_flag.runners"] == "true"
+    assert [%{actor_id: 42, enabled: true, flag: "runners"}] = event.extra.feature_flags
+    refute Map.has_key?(event.extra, :private_value)
+    refute inspect(event.request) =~ "parent-only"
+    assert Logger.metadata()[:selected_account_id] == 43
+    assert Sentry.Context.get_all().tags["feature_flag.runners"] == "false"
+  end
+
   test "batch evaluations never replace the selected target or attach another tenant's decision" do
     selected = %Account{id: 42, name: "selected"}
     other = %Account{id: 43, name: "other"}

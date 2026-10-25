@@ -32,8 +32,9 @@ defmodule Atlas.MCP.Tools.GetErrorEventContexts do
       "not the customer's selected_project_id. This is a bounded sample, not an error rate or evidence of causation."
   end
 
-  def execute(conn, %{"id" => id}) do
+  def execute(conn, args) do
     with :ok <- Tool.authorize_scope(conn, "engineering:read", "Error event context"),
+         {:ok, id} <- validate_arguments(args),
          {:ok, issue} <- Errors.fetch_issue(id) do
       contexts = id |> Errors.list_events_for_issue(limit: 20) |> Enum.map(&event_context/1)
       {:ok, %{"issue_id" => issue.id, "service_project_id" => issue.project_id, "event_contexts" => contexts}}
@@ -43,9 +44,20 @@ defmodule Atlas.MCP.Tools.GetErrorEventContexts do
     end
   end
 
+  defp validate_arguments(args) do
+    schema = ExJsonSchema.Schema.resolve(input_schema())
+
+    with :ok <- ExJsonSchema.Validator.validate(schema, args),
+         {:ok, id} <- Ecto.UUID.cast(args["id"]) do
+      {:ok, id}
+    else
+      _ -> {:error, "Arguments do not match the error event context tool schema."}
+    end
+  end
+
   defp event_context(event) do
     payload = event.payload || %{}
-    tags = scalar_context(payload["tags"])
+    tags = payload["tags"] |> normalize_tags() |> scalar_context()
     extra = scalar_context(payload["extra"])
 
     %{
@@ -56,6 +68,12 @@ defmodule Atlas.MCP.Tools.GetErrorEventContexts do
       context: Map.merge(extra, tags)
     }
   end
+
+  defp normalize_tags(tags) when is_list(tags) do
+    Map.new(for [key, value] <- tags, is_binary(key), do: {key, value})
+  end
+
+  defp normalize_tags(tags), do: tags
 
   defp scalar_context(context) when is_map(context) do
     context

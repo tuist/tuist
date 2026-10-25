@@ -117,14 +117,22 @@ defmodule Tuist.TasksTest do
     stub(Environment, :error_tracking_enabled?, fn -> true end)
     Observability.set_selection(%{selected_account: %Account{id: 42, name: "caller"}})
 
-    assert_raise RuntimeError, "failure", fn ->
-      Tasks.run_async(fn ->
-        Observability.set_selection(%{selected_account: %Account{id: 43, name: "task"}})
-        raise "failure"
-      end)
-    end
+    for sentry <- [nil, [tags: %{caller_tag: "preserved"}]] do
+      Logger.metadata(sentry: sentry)
 
-    assert Logger.metadata()[:selected_account_id] == 42
-    assert Sentry.Context.get_all().tags.selected_account_id == 42
+      assert_raise RuntimeError, "failure", fn ->
+        Tasks.run_async(fn ->
+          Observability.set_selection(%{selected_account: %Account{id: 43, name: "task"}})
+          raise "failure"
+        end)
+      end
+
+      assert Logger.metadata()[:selected_account_id] == 42
+      assert Sentry.Context.get_all().tags.selected_account_id == 42
+      assert Logger.metadata()[:sentry] == sentry
+
+      assert {:ok, _pid} = Tasks.run_async(fn -> :ok end)
+      assert Logger.metadata()[:sentry] == sentry
+    end
   end
 end

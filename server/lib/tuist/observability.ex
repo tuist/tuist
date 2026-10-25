@@ -91,11 +91,15 @@ defmodule Tuist.Observability do
   def attach(snapshot) do
     token = :otel_ctx.attach(snapshot.otel_context)
     replace(snapshot.context)
+    # The logger handler otherwise merges live $callers context over this
+    # process's Sentry context. An explicit empty override blocks that fallback.
+    Logger.metadata(sentry: %{})
     token
   end
 
   def with_snapshot(snapshot, fun) do
     previous = current()
+    previous_sentry = Logger.metadata()[:sentry]
     token = attach(snapshot)
 
     try do
@@ -103,6 +107,7 @@ defmodule Tuist.Observability do
     after
       :otel_ctx.detach(token)
       replace(previous)
+      Logger.metadata(sentry: previous_sentry)
     end
   end
 
