@@ -121,10 +121,16 @@ jobs:
           platforms: linux/amd64
           build-args: |
             ATLAS_VERSION=${{ needs.check.outputs.next-version-number }}
+            APT_CACHE_BUST=${{ needs.check.outputs.next-version-number }}
             MIX_ENV=prod
           tags: |
             ghcr.io/tuist/atlas:${{ needs.check.outputs.next-version-number }}
             ghcr.io/tuist/atlas:latest
+          # Reuse layers from the previous release. The Dockerfile declares
+          # ATLAS_VERSION after compilation, so only the release step and the
+          # layers whose inputs changed rebuild.
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-atlas
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-atlas,mode=max
 
       - name: Publish matching Helm chart
         env:

@@ -211,6 +211,56 @@ spec:
                 outletCount:
                   description: OutletCount is how many outlets the card reports.
                   type: integer
+                outlets:
+                  description: |-
+                    Outlets is every outlet's switch state and meter reading, whatever is
+                    plugged into it, as the controller's account last read them. Empty when
+                    the last read of the card failed.
+                  items:
+                    description: RackPDUOutlet is one outlet as the controller last read it.
+                    properties:
+                      activePowerWatts:
+                        anyOf:
+                          - type: integer
+                          - type: string
+                        description: ActivePowerWatts is the real power drawn, in watts.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      apparentPowerVA:
+                        anyOf:
+                          - type: integer
+                          - type: string
+                        description: |-
+                          ApparentPowerVA is the apparent power, in volt-amperes. A cord plugged in
+                          to a machine that is off still reads a few VA, an empty outlet none.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      currentAmps:
+                        anyOf:
+                          - type: integer
+                          - type: string
+                        description: CurrentAmps is the RMS current, in amperes.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      number:
+                        description: Number is the outlet's 1-based number on the PDU, as printed on it.
+                        type: integer
+                      state:
+                        description: |-
+                          State is whether the outlet is switched On or Off, or Unknown when the
+                          card did not say.
+                        type: string
+                    required:
+                      - number
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - number
+                  x-kubernetes-list-type: map
+                outletsReadAt:
+                  description: OutletsReadAt is when Outlets was read.
+                  format: date-time
+                  type: string
                 presentedFingerprint:
                   description: |-
                     PresentedFingerprint is the certificate the card presents when it no

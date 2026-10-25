@@ -40,6 +40,12 @@ type ATS struct {
 	// EditInput, when set, changes an input as served, for a card that
 	// reports one oddly.
 	EditInput func(n int, input map[string]any)
+	// Outputs are the measures of outputs 1, 2, ..., served under
+	// powerDistributions/1/outputs; none, and the resource is not found.
+	Outputs []map[string]any
+	// OutputMeasuresApart serves each output's measures at its own measures
+	// resource rather than embedded.
+	OutputMeasuresApart bool
 }
 
 // Source is one input of the switch.
@@ -157,6 +163,29 @@ func (c *Card) serveATS(w http.ResponseWriter, r *http.Request, path string, adm
 			return true
 		}
 		body, _ := json.Marshal(a.input(n))
+		answer(w, http.StatusOK, string(body))
+	case r.Method == http.MethodGet && path == "/powerDistributions/1/outputs" && len(a.Outputs) > 0:
+		members := make([]string, 0, len(a.Outputs))
+		for n := range a.Outputs {
+			members = append(members, fmt.Sprintf(`{"@id":"%s/powerDistributions/1/outputs/%d"}`, api, n+1))
+		}
+		fmt.Fprintf(w, `{"@id":"%s/powerDistributions/1/outputs","members@count":%d,"members":[%s]}`, api, len(members), strings.Join(members, ","))
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/powerDistributions/1/outputs/") && len(a.Outputs) > 0:
+		rest := strings.TrimPrefix(path, "/powerDistributions/1/outputs/")
+		number, apart := strings.CutSuffix(rest, "/measures")
+		n, err := strconv.Atoi(number)
+		if err != nil || n < 1 || n > len(a.Outputs) || (apart && !a.OutputMeasuresApart) {
+			answer(w, http.StatusNotFound, `{"code":"NotFound"}`)
+			return true
+		}
+		output := map[string]any{"@id": fmt.Sprintf("%s/powerDistributions/1/outputs/%d", api, n), "id": strconv.Itoa(n)}
+		switch {
+		case apart:
+			output = a.Outputs[n-1]
+		case !a.OutputMeasuresApart:
+			output["measures"] = a.Outputs[n-1]
+		}
+		body, _ := json.Marshal(output)
 		answer(w, http.StatusOK, string(body))
 	case r.Method == http.MethodGet && path == "/powerDistributions/1/settings":
 		body, _ := json.Marshal(a.Settings)

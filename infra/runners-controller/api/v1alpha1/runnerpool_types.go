@@ -225,6 +225,16 @@ type RunnerPoolAutoscaling struct {
 	// via ScaleDownCooldownSecondsOrDefault.
 	// +optional
 	ScaleDownCooldownSeconds *int32 `json:"scaleDownCooldownSeconds,omitempty"`
+
+	// HoldRecentPeak keeps the pool sized to the server's 95th percentile
+	// of concurrent runners over the last hour after load falls. False
+	// sizes it to current load plus minWarmPoolFloor, for pools whose jobs
+	// arrive in one-off bursts the last hour does not predict.
+	//
+	// Pointer so a deliberate false survives serialization; nil means
+	// unset and defaults to true. Read via HoldRecentPeakOrDefault.
+	// +optional
+	HoldRecentPeak *bool `json:"holdRecentPeak,omitempty"`
 }
 
 const (
@@ -295,6 +305,15 @@ func (a *RunnerPoolAutoscaling) ScaleDownCooldownSecondsOrDefault() int32 {
 	return *a.ScaleDownCooldownSeconds
 }
 
+// HoldRecentPeakOrDefault returns the configured value, or the CRD
+// default (true) when unset.
+func (a *RunnerPoolAutoscaling) HoldRecentPeakOrDefault() bool {
+	if a == nil || a.HoldRecentPeak == nil {
+		return true
+	}
+	return *a.HoldRecentPeak
+}
+
 // RunnerPoolRollout carries the Pod-template rollout throttle knob.
 // Its own pointer struct keeps the spec wire-identical for pools that
 // do not override the default.
@@ -336,6 +355,13 @@ type RunnerPoolStatus struct {
 	// freshly-created pool.
 	// +optional
 	ObservedImage string `json:"observedImage,omitempty"`
+
+	// PreviousImage is the `spec.image` the pool ran before
+	// ObservedImage. tart-kubelet reads it to pull the current image on
+	// hosts that hold the previous one before its GC reaps that golden,
+	// so a release costs those hosts only what changed.
+	// +optional
+	PreviousImage string `json:"previousImage,omitempty"`
 
 	// ImageRolledAt is when the controller most recently observed
 	// `spec.image` changing. The server-side dispatch endpoint reads

@@ -217,6 +217,15 @@ spec:
                         demand before scaling down. Anti-thrash guard so a
                         single brief idle window doesn't deprovision warm
                         capacity that's about to be reused.
+                    holdRecentPeak:
+                      type: boolean
+                      default: true
+                      description: |
+                        Keep the pool sized to the server's 95th percentile
+                        of concurrent runners over the last hour after load
+                        falls. False sizes it to current load plus
+                        minWarmPoolFloor, for pools whose jobs arrive in
+                        one-off bursts the last hour does not predict.
                 rollout:
                   type: object
                   description: |
@@ -252,6 +261,9 @@ spec:
                 observedImage:
                   type: string
                   description: spec.image value the controller last recorded an imageRolledAt for. Bumped together on every image change.
+                previousImage:
+                  type: string
+                  description: spec.image value the pool ran before observedImage. tart-kubelet pulls the current image on hosts that hold this one before its garbage collector reaps it, so a release costs those hosts only what changed.
                 imageRolledAt:
                   type: string
                   format: date-time

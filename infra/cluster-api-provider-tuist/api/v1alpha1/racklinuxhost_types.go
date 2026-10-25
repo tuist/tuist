@@ -75,6 +75,73 @@ type RackLinuxHostSpec struct {
 	// the management port and can power a host whose OS is gone.
 	// +optional
 	AMT RackLinuxHostAMT `json:"amt,omitempty"`
+
+	// Edge is how an edge reaches the internet on its first boot, before its
+	// rack-edge pod runs: through the other edge, over the site's VRRP VLAN.
+	// The chart renders it from the site definition
+	// (infra/helm/tuist/rack-sites/<site>.yaml, written by rack:fleet
+	// render). Unset, an edge's install takes DHCP on its uplinks.
+	// +optional
+	Edge *RackLinuxHostEdge `json:"edge,omitempty"`
+
+	// ClusterNetwork joins the host to the cluster's pod network (Cilium)
+	// instead of the rack-local bridge, so its pods reach Services and other
+	// nodes' pods and are reached from them. Unset, the host runs the
+	// rack-local bridge and nothing in the cluster reaches its pods.
+	// +optional
+	ClusterNetwork *RackLinuxHostClusterNetwork `json:"clusterNetwork,omitempty"`
+}
+
+// RackLinuxHostClusterNetwork is how the rest of the cluster reaches a rack
+// host that runs Cilium. Every node tunnels to every other at its InternalIP,
+// so the host needs one the cluster can reach: the site's public address,
+// whose ports the site's edges forward to the host.
+type RackLinuxHostClusterNetwork struct {
+	// PublicAddress is the site's WAN address. It becomes the Node's
+	// InternalIP, and the host holds it on a dummy interface so the kubelet
+	// and Cilium can bind it. The site's edges forward the cluster's tunnel
+	// (8472/udp), Cilium health (4240/tcp) and kubelet (10250/tcp) ports on
+	// it to Address, from the cluster's nodes only. One host per address.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
+	PublicAddress string `json:"publicAddress"`
+
+	// Address is the host's own address on the site's machines segment, the
+	// one the edges forward to.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
+	Address string `json:"address"`
+}
+
+// RackLinuxHostEdge is an edge's end of the site's VRRP VLAN, as the
+// rack-edge pod sets it up: an active-backup bond, vrrp0, over one VLAN
+// interface per uplink, vrrp0-<n> on the n-th uplink, with the edge's VRRP
+// address and a default route through the other edge.
+type RackLinuxHostEdge struct {
+	// Uplinks are the OS names of the interfaces the edge's data links leave
+	// from, in the site's order.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=2
+	// +kubebuilder:validation:items:Pattern=`^[a-z][a-z0-9]{0,14}$`
+	Uplinks []string `json:"uplinks"`
+
+	// VRRP is the edge's address on the site's VRRP VLAN, and its way out.
+	VRRP RackLinuxHostEdgeVRRP `json:"vrrp"`
+}
+
+// RackLinuxHostEdgeVRRP is an edge's address on the site's VRRP VLAN.
+type RackLinuxHostEdgeVRRP struct {
+	// VLAN is the site's VRRP VLAN.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=4094
+	VLAN int32 `json:"vlan"`
+
+	// Address is the edge's VRRP address, with the prefix length.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$`
+	Address string `json:"address"`
+
+	// Peer is the other edge's VRRP address, the edge's default route until
+	// keepalived gives it the WAN.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
+	Peer string `json:"peer"`
 }
 
 // RackLinuxHostNode is what a rack host's Node registers with.
@@ -462,6 +529,7 @@ type RackLinuxHostTailnetStatus struct {
 // +kubebuilder:resource:path=racklinuxhosts,scope=Namespaced,categories=cluster-api,shortName=rlh
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.matches('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')",message="a RackLinuxHost is named after the machine's SMBIOS UUID, in lowercase"
 // +kubebuilder:validation:XValidation:rule="self.spec.location.site != ''",message="spec.location.site is required; it composes the providerID"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.edge) || self.spec.role == 'edge'",message="only an edge has spec.edge"
 // +kubebuilder:printcolumn:name="Hostname",type=string,JSONPath=".spec.hostname"
 // +kubebuilder:printcolumn:name="Role",type=string,JSONPath=".spec.role"
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=".status.provisioning.state"

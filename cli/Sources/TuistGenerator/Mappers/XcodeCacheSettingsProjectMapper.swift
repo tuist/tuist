@@ -52,20 +52,31 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         // compiler version already invalidated the cache.
         //
         // The compiler writes the mapped paths (`/^src/…`, `/^root/…`) into the
-        // coverage mapping too, and nothing maps them back, so xccov drops every
-        // source compiled with them from the report. A coverage build therefore
-        // compiles unmapped: `SWIFT_ENABLE_PREFIX_MAPPING` and
+        // coverage mapping too, and xccov drops every source compiled with them
+        // from the report. Tuist's own upload maps them back (it exports with
+        // llvm-cov and reads each target's compilation-prefix-map.json), but Xcode's
+        // coverage UI, xccov and tooling built on it don't, so a coverage build
+        // compiles unmapped by default: `SWIFT_ENABLE_PREFIX_MAPPING` and
         // `CLANG_ENABLE_PREFIX_MAPPING` gate every other mapping, and they resolve
         // through `CLANG_COVERAGE_MAPPING`, which Xcode turns on for test actions
-        // that gather coverage.
+        // that gather coverage. A project that only needs Tuist's coverage keeps
+        // those builds path-independent with `coverage.prefixMapping`.
         if await Self.isPrefixMappingSupported() {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
-            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+            // The project mappings (`/^src`, `/^derived`, `/^built`, `/^workspace`) name a
+            // different directory in every project, and the debugger gets a single source
+            // map, so it would resolve other projects' paths against the debugged target's
+            // project. The workspace-wide mappings from XcodeCachePrefixMappingWorkspaceMapper
+            // cover the same directories, so they stay off unless a project turns them on.
+            baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] =
+                baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "NO"
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] = Self.prefixMappingUnlessCoverage
-            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] = "YES"
+            baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] =
+                baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] ?? "NO"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_"] = "YES"
             baseSettings["\(Self.prefixMappingForCoverageSetting)_NO"] = "YES"
-            baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] = "NO"
+            baseSettings["\(Self.prefixMappingForCoverageSetting)_YES"] =
+                tuist.project.generatedProject?.generationOptions.coverage.prefixMapping == true ? "YES" : "NO"
         }
 
         var casPluginOptions: [String] = []

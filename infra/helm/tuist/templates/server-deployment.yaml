@@ -1,4 +1,7 @@
 {{- if .Values.server.enabled }}
+{{- if and (not .Values.server.cluster.enabled) (or (gt (int .Values.server.replicaCount) 1) (and .Values.server.autoscaling.enabled (gt (int .Values.server.autoscaling.maxReplicas) 1))) }}
+{{- fail "Multiple server replicas require server.cluster.enabled=true so Erlang nodes can discover one another." }}
+{{- end }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
@@ -84,6 +87,8 @@ spec:
             {{- if .Values.server.cluster.enabled }}
             - name: epmd
               containerPort: 4369
+            - name: erlang-dist
+              containerPort: {{ .Values.server.cluster.distributionPort }}
             {{- end }}
           env:
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
@@ -343,11 +348,22 @@ spec:
             {{- $sitePools = append $sitePools (printf "%s-%s=%s:%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool")) .name .site $platform) }}
             {{- end }}
             {{- end }}
+            {{- range include "tuist.rackCatalogPools" . | fromJsonArray }}
+            {{- $sitePools = append $sitePools (printf "%s=%s:macos" .name .site) }}
+            {{- end }}
             {{- with $sitePools }}
             # Pools racked at a site, as `<RunnerPool name>=<site>:<platform>`.
-            # Their jobs take the site's runner-cache region.
+            # Their jobs take the site's runner-cache region, and an account
+            # on the `runner_site` flag has its profiles routed to the site's
+            # catalog pools listed here.
             - name: TUIST_RUNNERS_SITE_POOLS
               value: {{ join "," . | quote }}
+            {{- end }}
+            {{- if eq (include "tuist.runnersFleetRentsMacOS" .) "false" }}
+            # No rented macOS hosts back the site's pools, so their jobs
+            # wait at the site rather than falling back to the rented fleet.
+            - name: TUIST_RUNNERS_RENTED_MACOS_FLEET
+              value: "false"
             {{- end }}
             {{- with .Values.runnersFleet.shapes }}
             # Same projection as the Linux shapes above, for the macOS
@@ -394,6 +410,13 @@ spec:
               value: {{ include "tuist.serverHeadlessServiceName" . | quote }}
             - name: TUIST_CLUSTER_APP_NAME
               value: {{ .Values.server.cluster.applicationName | quote }}
+            - name: TUIST_CLUSTER_DISTRIBUTION_PORT
+              value: {{ .Values.server.cluster.distributionPort | quote }}
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.cluster.cookieExistingSecret | default (include "tuist.componentName" (dict "root" . "component" "server-cluster")) }}
+                  key: {{ .Values.server.cluster.cookieExistingSecretKey | quote }}
             - name: POD_IP
               valueFrom:
                 fieldRef:

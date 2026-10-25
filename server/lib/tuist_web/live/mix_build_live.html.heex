@@ -1,4 +1,4 @@
-<div id="build-run">
+<div id="build-run" data-build-system="mix">
   <.button
     label={dgettext("dashboard_builds", "Builds")}
     data-part="back-button"
@@ -57,6 +57,11 @@
       patch={"?#{Query.put(@uri.query, "tab", "timeline")}"}
     />
     <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Mix cache")}
+      selected={@selected_tab == "cache"}
+      patch={"?#{Query.put(@uri.query, "tab", "cache")}"}
+    />
+    <.tab_menu_horizontal_item
       label={dgettext("dashboard_builds", "Warnings")}
       selected={@selected_tab == "warnings"}
       patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
@@ -67,6 +72,293 @@
       patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
     />
   </.tab_menu_horizontal>
+  <%= if @selected_tab == "cache" do %>
+    <div data-part="cache">
+      <.async_card
+        :let={ready?}
+        results={[@cache_summary]}
+        title={dgettext("dashboard_builds", "Cache Summary")}
+        icon="chart_arcs"
+        data-part="cache-summary-card"
+      >
+        <.card_section data-part="widgets-card-section">
+          <.widget
+            :for={metric <- ~w(hits misses hit_rate read_bytes write_bytes)}
+            id={"mix-build-cache-widget-#{metric}"}
+            title={cache_title(metric)}
+            description={cache_description(metric)}
+            loading={!ready?}
+            value={
+              if ready?,
+                do:
+                  cache_value(
+                    Map.fetch!(@cache_summary.result, String.to_existing_atom(metric)),
+                    metric
+                  )
+            }
+          />
+        </.card_section>
+      </.async_card>
+      <.tab_menu_horizontal>
+        <.tab_menu_horizontal_item
+          :for={
+            {tab, label} <- [
+              {"cacheable-tasks", dgettext("dashboard_builds", "Cacheable Tasks")},
+              {"cas-outputs", dgettext("dashboard_builds", "CAS Outputs")}
+            ]
+          }
+          label={label}
+          selected={@selected_cache_tab == tab}
+          patch={"?#{@uri.query |> Query.put("cache-tab", tab) |> Query.drop("cache-output-key") |> Query.put("cache-output-page", "1")}"}
+        />
+      </.tab_menu_horizontal>
+      <.async_card
+        :let={ready?}
+        :if={@selected_cache_tab == "cacheable-tasks"}
+        results={[@cache_summary, @cache_events]}
+        title={dgettext("dashboard_builds", "Mix cache")}
+        icon="database"
+        data-part="mix-cache-card"
+      >
+        <.card_section data-part="mix-cache-card-section">
+          <.card_section
+            :if={ready? and @cache_summary.result.hits + @cache_summary.result.misses > 0}
+            data-part="cacheable-tasks-card-section"
+          >
+            <div data-part="title">
+              <span data-part="label">{dgettext("dashboard_builds", "Cacheable tasks:")}</span>
+              <span data-part="value">{format_number(
+                @cache_summary.result.hits + @cache_summary.result.misses
+              )}</span>
+            </div>
+            <.chart
+              id="mix-build-cache-breakdown-chart"
+              type="bar"
+              series={cache_breakdown_series(@cache_summary.result)}
+              extra_options={
+                %{
+                  grid: %{width: "99%", left: "0%", height: "60%", top: "0%"},
+                  legend: %{
+                    show: true,
+                    left: "-0.3%",
+                    top: "bottom",
+                    orient: "horizontal",
+                    textStyle: %{
+                      color: "var:noora-surface-label-primary",
+                      fontFamily: "monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      lineHeight: 12
+                    },
+                    icon:
+                      "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.895431 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                    itemWidth: 8,
+                    itemHeight: 4
+                  },
+                  tooltip: %{trigger: "axis", axisPointer: %{type: "none"}},
+                  xAxis: %{type: "value", axisLabel: %{show: false}, splitLine: %{show: false}},
+                  yAxis: %{
+                    type: "category",
+                    data: [dgettext("dashboard_builds", "Cacheable tasks")],
+                    axisLabel: %{show: false}
+                  }
+                }
+              }
+              x_axis_min={0}
+              x_axis_max={@cache_summary.result.hits + @cache_summary.result.misses}
+            />
+          </.card_section>
+          <div data-part="latency-widgets">
+            <.percentile_dropdown_widget
+              :for={
+                {operation, type} <- [
+                  {"read", @cache_read_latency_type},
+                  {"write", @cache_write_latency_type}
+                ]
+              }
+              id={"mix-build-cache-#{operation}-latency"}
+              title={cache_latency_title(type, operation)}
+              description={
+                dgettext(
+                  "dashboard",
+                  "Successful client CAS transfer or local fallback copy time. Local operations include verification and installation; remote transfers exclude local installation. Task rows identify the source. Excludes cache-key latency and compilation."
+                )
+              }
+              loading={!ready?}
+              value={
+                if ready?,
+                  do: cache_latency_value(cache_latency(@cache_summary.result, operation, type))
+              }
+              metrics={if ready?, do: cache_latency_metrics(@cache_summary.result, operation)}
+              selected_type={type}
+              event_name={"select_cache_#{operation}_latency"}
+              empty={ready? and cache_latency(@cache_summary.result, operation, "avg") == nil}
+              empty_label={dgettext("dashboard_builds", "No data")}
+            />
+          </div>
+          <div data-part="filters">
+            <.form
+              id="mix-build-cache-search-form"
+              for={to_form(%{"search" => @cache_search})}
+              phx-change="search-cache"
+              phx-submit="search-cache"
+            >
+              <.text_input
+                name="search"
+                value={@cache_search}
+                placeholder={dgettext("dashboard_builds", "Search...")}
+                type="search"
+                show_suffix={false}
+                data-part="search"
+                phx-debounce="200"
+              />
+            </.form>
+            <.dropdown
+              id="mix-build-cache-outcome"
+              label={dgettext("dashboard_builds", "Filter")}
+            >
+              <:icon><.filter /></:icon>
+              <.dropdown_item
+                :for={outcome <- ~w(all local_hit remote_hit miss bypass)}
+                value={outcome}
+                label={cache_outcome_label(outcome)}
+                patch={"?#{@uri.query |> Query.put("cache-outcome", outcome) |> Query.put("cache-page", "1")}"}
+                data-selected={@cache_outcome == outcome}
+              />
+            </.dropdown>
+          </div>
+          <.skeleton_chart :if={!ready?} />
+          <.table
+            :if={ready?}
+            id="mix-build-cache-entries"
+            rows={@cache_events.result.rows}
+            row_key={&cache_entry_id(&1.dependency)}
+            row_expandable={fn _entry -> true end}
+            row_toggle={
+              fn entry ->
+                JS.push("toggle-cache-entry", value: %{dependency: entry.dependency})
+              end
+            }
+            expanded_rows={Enum.map(@cache_expanded_entries, &cache_entry_id/1)}
+          >
+            <:col
+              :let={entry}
+              label={dgettext("dashboard_builds", "Task")}
+              patch={"?#{@uri.query |> Query.put("cache-sort-order", if(@cache_sort_order == :asc, do: "desc", else: "asc")) |> Query.put("cache-page", "1")}"}
+              sort_order={@cache_sort_order}
+            >
+              <.text_cell label={entry.dependency} />
+            </:col>
+            <:col :let={entry} label={dgettext("dashboard_builds", "Hit")}>
+              <.badge_cell
+                label={cache_hit_label(entry.outcome)}
+                color={cache_outcome_color(entry.outcome)}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={_entry} label={dgettext("dashboard_builds", "Type")}>
+              <.text_cell label={dgettext("dashboard_builds", "Dependency compilation")} />
+            </:col>
+            <:col :let={entry} label={dgettext("dashboard_builds", "Cache key")}>
+              <.text_cell label={
+                if entry.key == "", do: "–", else: String.slice(entry.key, 0, 30) <> "..."
+              } />
+            </:col>
+            <:col :let={entry}>
+              <.button_cell>
+                <:button>
+                  <.button
+                    :if={entry.key != ""}
+                    id={"#{cache_entry_id(entry.dependency)}-copy"}
+                    variant="secondary"
+                    size="small"
+                    icon_only
+                    phx-hook="Clipboard"
+                    data-clipboard-value={entry.key}
+                  >
+                    <.copy />
+                  </.button>
+                </:button>
+              </.button_cell>
+            </:col>
+            <:expanded_content :let={entry}>
+              <div data-part="cache-entry-outputs">
+                <div
+                  :if={@cache_task_outputs.loading && !@cache_task_outputs.failed}
+                  data-part="task-cas-loading"
+                >
+                  <.skeleton_box width="100%" height="40px" />
+                </div>
+                <.error_state :if={@cache_task_outputs.failed} data-part="task-cas-error" />
+                <div
+                  :if={
+                    @cache_task_outputs.ok? and !@cache_task_outputs.failed and
+                      !@cache_task_outputs.loading
+                  }
+                  data-part="cas-outputs-list"
+                >
+                  <div
+                    :for={
+                      output <-
+                        @cache_task_outputs.result
+                        |> Enum.filter(&(&1.target_label == entry.dependency))
+                        |> Enum.uniq_by(& &1.action_digest)
+                    }
+                    data-part="cas-output-item"
+                  >
+                    <span data-part="cas-output-text">
+                      <span data-part="cas-output-label">
+                        {dgettext("dashboard_builds", "CAS output")} {dgettext(
+                          "dashboard_builds",
+                          "Dependency bundle"
+                        )}:
+                      </span>
+                      <.link
+                        data-part="trigger"
+                        patch={"?#{ReapiCacheOutputs.output_link(@uri.query, output.action_digest)}"}
+                      >
+                        {String.slice(output.action_digest, 0, 30)}...
+                      </.link>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </:expanded_content>
+            <:empty_state>
+              <.table_empty_state title={
+                if @cache_search != "" or @cache_outcome != "all",
+                  do: dgettext("dashboard", "No matching cache entries"),
+                  else: dgettext("dashboard_builds", "No cacheable tasks found")
+              } />
+            </:empty_state>
+          </.table>
+          <div :if={ready? and @cache_events.result.total > 20} data-part="pagination">
+            <.button
+              label={dgettext("dashboard", "Previous")}
+              variant="secondary"
+              disabled={@cache_page <= 1}
+              patch={"?#{Query.put(@uri.query, "cache-page", to_string(max(@cache_page - 1, 1)))}"}
+            />
+            <.button
+              label={dgettext("dashboard", "Next")}
+              variant="secondary"
+              disabled={@cache_page * 20 >= @cache_events.result.total}
+              patch={"?#{Query.put(@uri.query, "cache-page", to_string(@cache_page + 1))}"}
+            />
+          </div>
+        </.card_section>
+      </.async_card>
+      <ReapiCacheOutputs.card
+        :if={@selected_cache_tab == "cas-outputs"}
+        metrics={@cache_transport}
+        outputs={@cache_outputs}
+        uri={@uri}
+        title={dgettext("dashboard_builds", "Mix cache")}
+        artifact_type={dgettext("dashboard_builds", "Dependency bundle")}
+        id="mix-build-cas-outputs"
+      />
+    </div>
+  <% end %>
   <section :if={@selected_tab == "timeline"}>
     <.build_timeline_section
       timeline={@timeline}
@@ -87,7 +379,7 @@
       <.card_section data-part="build-details-section">
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
-            <div data-part="metadata">
+            <div data-part="metadata" data-field="command">
               <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
               <span data-part="command-label">
                 mix compile
@@ -145,24 +437,6 @@
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_builds", "Elixir version")}</div>
-              <span data-part="label">
-                {if(@run.elixir_version == "",
-                  do: dgettext("dashboard_builds", "Unknown"),
-                  else: @run.elixir_version
-                )}
-              </span>
-            </div>
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_builds", "OTP version")}</div>
-              <span data-part="label">
-                {if(@run.otp_version == "",
-                  do: dgettext("dashboard_builds", "Unknown"),
-                  else: @run.otp_version
-                )}
-              </span>
-            </div>
-            <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_builds", "Mix environment")}</div>
               <span data-part="label">
                 {if(@run.mix_env == "",
@@ -173,34 +447,16 @@
             </div>
           </div>
         </div>
-        <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
-          <span data-part="custom-metadata-label">
-            {dgettext("dashboard_builds", "Custom metadata")}
-          </span>
-          <.table
-            id="custom-metadata-table"
-            rows={Map.to_list(@run.custom_values)}
-            row_key={fn {key, _value} -> key end}
-          >
-            <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
-              <.text_cell label={key} />
-            </:col>
-            <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
-              <a
-                :if={url?(value)}
-                href={value}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-part="custom-metadata-link"
-              >
-                {value}
-              </a>
-              <.text_cell :if={not url?(value)} label={value} />
-            </:col>
-          </.table>
-        </div>
+        <TuistWeb.Components.BuildMetadata.build_metadata values={@run.custom_values || %{}} />
       </.card_section>
     </.card>
+    <TuistWeb.Components.BuildMetadata.environment_metadata
+      values={@run.custom_values || %{}}
+      fields={[
+        {dgettext("dashboard_builds", "Elixir version"), @run.elixir_version},
+        {dgettext("dashboard_builds", "OTP version"), @run.otp_version}
+      ]}
+    />
     <.card
       :if={not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)}
       title={dgettext("dashboard_builds", "Errors and Warnings")}

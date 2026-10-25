@@ -6,18 +6,27 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import TuistHTTP
+#if canImport(XCResultParser)
+    import XCResultParser
 
-/// Coverage a client uploaded to object storage instead of sending inline with the run: the key
-/// the server handed out for the run's id, and whether the run left tests out on purpose.
-public struct XcodeCoverageUpload: Equatable, Sendable {
-    public let storageKey: String
-    public let partial: Bool
+    /// A run's coverage as the client sends it: measured by `tool` (`llvm-cov` over the test
+    /// products, or `xccov`'s report as the fallback), inline as `files` when small, or already in
+    /// object storage under `storageKey`, the key the server handed out for the run's id.
+    public struct TestRunCoverage: Equatable, Sendable {
+        public let tool: String
+        /// Whether the run left tests out on purpose.
+        public let partial: Bool
+        public let files: [XcodeCoverageFile]?
+        public let storageKey: String?
 
-    public init(storageKey: String, partial: Bool) {
-        self.storageKey = storageKey
-        self.partial = partial
+        public init(tool: String, partial: Bool, files: [XcodeCoverageFile]? = nil, storageKey: String? = nil) {
+            self.tool = tool
+            self.partial = partial
+            self.files = files
+            self.storageKey = storageKey
+        }
     }
-}
+#endif
 
 enum CoverageUploadServiceError: LocalizedError {
     case unknownError(Int)
@@ -147,17 +156,17 @@ public protocol CoverageFileUploading {
 }
 
 public struct CoverageFileUploader: CoverageFileUploading {
-    private let urlSession: URLSession
+    private let transfer: RetryingURLTransfer
 
-    public init(urlSession: URLSession = .shared) {
-        self.urlSession = urlSession
+    public init(urlSession: URLSession = .tuistLargeTransfer, retryProvider: RetryProviding = RetryProvider()) {
+        transfer = RetryingURLTransfer(urlSession: urlSession, retryProvider: retryProvider)
     }
 
     public func upload(file: AbsolutePath, to url: URL) async throws {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        let (_, response) = try await urlSession.upload(for: request, fromFile: URL(fileURLWithPath: file.pathString))
+        let (_, response) = try await transfer.upload(request, fromFile: URL(fileURLWithPath: file.pathString))
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw CoverageUploadServiceError.uploadFailed((response as? HTTPURLResponse)?.statusCode ?? -1)
         }

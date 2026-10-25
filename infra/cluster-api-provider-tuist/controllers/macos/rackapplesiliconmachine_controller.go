@@ -2,6 +2,9 @@ package macos
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -75,10 +78,26 @@ type RackAppleSiliconMachineReconciler struct {
 	// which both the push and the hash go through.
 	FleetConfig bootstrap.Config
 
+	// TartReleases are the Tart tarballs the operator image carries, by version.
+	// A Machine pinned to one with TartVersionAnnotation runs it instead of
+	// FleetConfig.TartVersion.
+	TartReleases map[string][]byte
+
 	// VMCacheGatewayCIDRs are the rack's runner-cache gateways, which a rack
 	// host's Tart VMs may reach on TCP 443. Overlaid by rackFleetConfig, so
 	// the rented fleets sharing FleetConfig never pass them.
 	VMCacheGatewayCIDRs []string
+
+	// ImageMirrors are the rack's VM image caches, which a rack host's
+	// tart-kubelet tries before the upstream when it pulls a golden base.
+	// Overlaid by rackFleetConfig, like VMCacheGatewayCIDRs, on the hosts
+	// ImageMirrorHosts names.
+	ImageMirrors []string
+
+	// ImageMirrorHosts are the RackHosts that get ImageMirrors, or `*` for
+	// every one, so one host can carry the caches before the rest. Only the
+	// hosts it names drift when it changes.
+	ImageMirrorHosts []string
 
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine that does
 	// not set spec.guestCapacity.
@@ -131,8 +150,25 @@ type RackAppleSiliconMachineReconciler struct {
 	// field for why this is not operator-facing.
 	PowerCycleSettle time.Duration
 
+	// Env is the environment this operator runs in. It is the runtime owner
+	// every push to a rack host claims (bootstrap.RuntimeOwnerPath) and the
+	// lender a RackHostLease names. Empty claims nothing and lends nothing.
+	Env string
+
+	// Borrowers reaches the clusters RackHost.spec.lendTo names. Nil lends to
+	// none.
+	Borrowers BorrowerClients
+
+	// Tailnet clears the devices a returned host ran as. Nil leaves that to a
+	// person, with an event naming them.
+	Tailnet TailnetDevices
+
 	// osUpdateDial opens the SSH side of an in-place macOS update; nil dials the host.
 	osUpdateDial osUpdateDialFunc
+
+	// handOverRuntime moves a host's runtime owner and lease key; nil is
+	// bootstrap.HandOverRuntime.
+	handOverRuntime func(ctx context.Context, cfg bootstrap.Config, owner, leaseKey string) (string, error)
 }
 
 func (r *RackAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
@@ -292,24 +328,68 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		sudoPassword:     sudoPassword,
 		knownFingerprint: knownFingerprint,
 	}
+
+	// A host lent to another env runs that env's runtime, and this reconcile
+	// pushes nothing to it but what the borrower asks for; see rack_lend.go.
+	gate, err := r.reconcileLending(ctx, osUpdate)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if gate.stop {
+		if _, byLease := machine.Annotations[leaseOSUpdateAnnotation]; !byLease && osUpdatePending(machine) {
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "OSUpdateWhileLent",
+				"Not updating %s's macOS while it is lent: the borrower asks for it with %s on its RackHostLease", host.Name, OSUpdateAnnotation)
+		}
+		return gate.result, nil
+	}
+
 	if osUpdateRunsFirst(machine) {
 		if result, updateErr := r.reconcileOSUpdate(ctx, osUpdate); updateErr != nil || !result.IsZero() {
 			return result, updateErr
 		}
 	}
 
+	// A host lent to another cluster has no Node here, and must not keep a way
+	// to register one: its identity in this cluster is revoked and the Node it
+	// had is deleted, before the push that points tart-kubelet elsewhere. Only
+	// once the other cluster's kubeconfig is readable, so a missing Secret
+	// leaves the host serving here rather than in neither cluster.
+	if machine.Spec.NodeCluster != nil {
+		if _, prepErr := r.nodeKubeconfig(ctx, machine); prepErr != nil {
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, prepErr.reason,
+				"Not lending %s yet: %v", host.Name, prepErr.err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		if err := r.retireLocalNode(ctx, machine); err != nil {
+			logger.Error(err, "retire the lent host's local Node; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+	}
+
 	// Bootstrap previously succeeded but the Node is gone: re-running bootstrap
 	// reloads launchd and tart-kubelet re-registers. Flipping the condition
-	// False lets the stage below drive the repair.
-	if missing, lookupErr := nodeMissingAfterBootstrap(ctx, r.Client, machine, machine.Name); lookupErr != nil {
-		logger.Error(lookupErr, "Node existence check failed; will retry")
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-	} else if missing {
-		conditions.MarkFalse(machine, BootstrappedCondition, "NodeMissing",
-			clusterv1.ConditionSeverityWarning,
-			"Node %s not found in cluster despite Bootstrapped=True; re-running bootstrap", machine.Name)
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NodeMissing",
-			"Node %s missing; reloading tart-kubelet on %s to re-register", machine.Name, host.Name)
+	// False lets the stage below drive the repair. A lent host's Node is in
+	// another cluster, so its absence here says nothing, and so may a host on
+	// its way to another env, which can already run that env's runtime.
+	if !gate.skipDrift {
+		if missing, lookupErr := r.nodeMissingAfterBootstrap(ctx, machine); lookupErr != nil {
+			logger.Error(lookupErr, "Node existence check failed; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		} else if missing {
+			conditions.MarkFalse(machine, BootstrappedCondition, "NodeMissing",
+				clusterv1.ConditionSeverityWarning,
+				"Node %s not found in cluster despite Bootstrapped=True; re-running bootstrap", machine.Name)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NodeMissing",
+				"Node %s missing; reloading tart-kubelet on %s to re-register", machine.Name, host.Name)
+		}
+	}
+
+	// A host on its way to another env is not bootstrapped (see lendingGate).
+	if !conditions.IsTrue(machine, BootstrappedCondition) && gate.skipBootstrap {
+		conditions.MarkFalse(machine, BootstrappedCondition, "Lending", clusterv1.ConditionSeverityInfo,
+			"%s is being lent to %s and is not bootstrapped here meanwhile", host.Name, host.Spec.LendTo)
+		machine.Status.Phase = "Lending"
+		return gate.result, nil
 	}
 
 	// Stage 2: bootstrap (idempotent; re-running picks up where it left off).
@@ -324,6 +404,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 				clusterv1.ConditionSeverityWarning, "%v", prepErr.err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		perHost.TakeOver = gate.takeOver
 
 		fingerprint, runErr := bootstrap.Run(ctx, r.hostConfig(machine, host, perHost))
 		// Persist whatever fingerprint Run captured even on the error path, so
@@ -334,6 +415,8 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
+		conditions.Delete(machine, LentCondition)
+		r.finishReclaim(ctx, host)
 		// A long retry chain that finally succeeded is, from the cluster's
 		// perspective, the same shape as a first-try success.
 		machine.Status.BootstrapAttempts = 0
@@ -351,8 +434,11 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 	}
 
 	// Stage 3: host-config drift.
-	if result, driftErr := r.reconcileHostConfigDrift(ctx, machine, host, sshKey, sudoPassword, knownFingerprint); driftErr != nil || !result.IsZero() {
-		return result, driftErr
+	// Nothing is pushed while a lend settles.
+	if !gate.skipDrift {
+		if result, driftErr := r.reconcileHostConfigDrift(ctx, machine, host, sshKey, sudoPassword, knownFingerprint); driftErr != nil || !result.IsZero() {
+			return result, driftErr
+		}
 	}
 
 	// Stage 4: the per-machine Tailscale egress Service. Doesn't gate on
@@ -381,6 +467,9 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 			return result, updateErr
 		}
 	}
+	if !gate.result.IsZero() {
+		return gate.result, nil
+	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -400,6 +489,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	reportUnavailableTartPin(machine, r.FleetConfig, r.TartReleases, r.Recorder)
 	desiredHash := r.desiredHostConfigHash(machine, host)
 	drift := hostConfigDrift(desiredHash, machine.Status.HostConfigHash)
 	terminal := machine.Status.FailureReason != nil
@@ -545,12 +635,21 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 ) ctrl.Result {
 	logger := log.FromContext(ctx)
 
+	// Another env runs the host, maybe with jobs on it. Nothing here may touch
+	// it until a person lends it back or takes it back (rack_lend.go).
+	if bootstrap.IsRuntimeOwnerError(cause) {
+		conditions.MarkFalse(machine, BootstrappedCondition, "RuntimeOwnedElsewhere", clusterv1.ConditionSeverityError,
+			"%v; set lendTo back, or annotate the RackHost %s=true to take it back", cause, ReclaimRuntimeAnnotation)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RuntimeOwnedElsewhere", "%v", cause)
+		return ctrl.Result{RequeueAfter: lendingRequeue}
+	}
+
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
 
-	conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
+	conditions.MarkFalse(machine, BootstrappedCondition, bootstrapFailureReason(cause),
 		clusterv1.ConditionSeverityWarning, "%v", cause)
-	r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
+	r.Recorder.Eventf(machine, corev1.EventTypeWarning, bootstrapFailureReason(cause),
 		"%v (attempt %d on %s, will retry)", cause, attempts, host.Name)
 
 	switch {
@@ -578,7 +677,22 @@ func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapExhausted",
 			"Quarantined %s after %d bootstrap failures; bootstrap starts over when the quarantine expires", host.Name, attempts)
 
+	case r.BootstrapRebootAfter > 0 && attempts >= r.BootstrapRebootAfter && bootstrap.RestartUnsafe(cause):
+		// A power cycle would leave a FileVault host at the unlock screen with
+		// no sshd, the restart bootstrap itself refused.
+		if attempts == r.BootstrapRebootAfter {
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoverySkipped",
+				"Not cycling %s's outlet: FileVault is on, so the host would not come back over SSH", host.Name)
+		}
 	case r.BootstrapRebootAfter > 0 && attempts >= r.BootstrapRebootAfter && !machine.Status.BootstrapRebootIssued:
+		if m, off := r.poweredOffAtOutlet(ctx, host); off {
+			// The flag stays clear, so a host that is started but still fails
+			// gets its cycle on a later attempt.
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "PowerButtonNeeded",
+				"Not cycling %s's outlet after %d bootstrap failures: the mini is plugged in and powered off (%s), and a cycle starts one only once bootstrap has set `pmset autorestart 1`. Press its power button.",
+				host.Name, attempts, m)
+			break
+		}
 		if err := r.cycleHostPower(ctx, host); err != nil {
 			logger.Error(err, "power cycle for bootstrap recovery failed; will retry on the next attempt")
 			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoveryFailed",
@@ -616,6 +730,34 @@ func (r *RackAppleSiliconMachineReconciler) retireIdentity(
 	return nil
 }
 
+// retireLocalNode revokes the machine's kubelet identity in this cluster and
+// deletes its Node here. Revoking first matters: tart-kubelet on a host that has
+// not yet been pushed the other cluster's kubeconfig would otherwise register
+// the Node again.
+func (r *RackAppleSiliconMachineReconciler) retireLocalNode(
+	ctx context.Context,
+	machine *infrav1.RackAppleSiliconMachine,
+) error {
+	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
+		return fmt.Errorf("revoke node identity: %w", err)
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: machine.Name}}
+	if err := r.Client.Delete(ctx, node); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete Node: %w", err)
+	}
+	return nil
+}
+
+func (r *RackAppleSiliconMachineReconciler) nodeMissingAfterBootstrap(
+	ctx context.Context,
+	machine *infrav1.RackAppleSiliconMachine,
+) (bool, error) {
+	if machine.Spec.NodeCluster != nil {
+		return false, nil
+	}
+	return nodeMissingAfterBootstrap(ctx, r.Client, machine, machine.Name)
+}
+
 // quarantineHost holds off the host's bootstrap until the RackHost controller
 // expires the quarantine.
 func (r *RackAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, host *infrav1.RackHost, reason string) error {
@@ -635,6 +777,27 @@ func (r *RackAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, 
 	r.Recorder.Eventf(fresh, corev1.EventTypeWarning, "Quarantined",
 		"Bootstrap held off: %s", reason)
 	return nil
+}
+
+// poweredOffAtOutlet reads the host's outlet and its meter, and reports a mini
+// plugged in and off (power.DrawPoweredOff). An outlet that cannot be read, or
+// has no meter, is not: the cycle goes ahead as it would without a meter.
+func (r *RackAppleSiliconMachineReconciler) poweredOffAtOutlet(ctx context.Context, host *infrav1.RackHost) (power.Measures, bool) {
+	logger := log.FromContext(ctx)
+	driver, outlet, err := rackHostOutlet(ctx, r.Client, r.Power, r.SecretsNamespace, r.egressConfig(), host)
+	if err != nil {
+		return power.Measures{}, false
+	}
+	state, err := driver.State(ctx, outlet)
+	if err != nil {
+		logger.Info("could not read the outlet before a recovery cycle; cycling anyway", "host", host.Name, "error", err.Error())
+		return power.Measures{}, false
+	}
+	draw, m, err := outletDraw(ctx, driver, outlet, state)
+	if err != nil && !errors.Is(err, power.ErrMeasuresUnsupported) {
+		logger.Info("could not read the outlet's meter before a recovery cycle; cycling anyway", "host", host.Name, "error", err.Error())
+	}
+	return m, draw == power.DrawPoweredOff
 }
 
 func (r *RackAppleSiliconMachineReconciler) cycleHostPower(ctx context.Context, host *infrav1.RackHost) error {
@@ -766,13 +929,9 @@ func (r *RackAppleSiliconMachineReconciler) perHostConfig(
 	sshKey []byte,
 	sudoPassword, knownFingerprint string,
 ) (bootstrap.PerHost, *prepError) {
-	identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
-	if err != nil {
-		return bootstrap.PerHost{}, &prepError{"NodeIdentityUnavailable", fmt.Errorf("ensure node identity: %w", err)}
-	}
-	kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
-	if err != nil {
-		return bootstrap.PerHost{}, &prepError{"KubeconfigUnavailable", fmt.Errorf("render kubeconfig: %w", err)}
+	kubeconfigYAML, prepErr := r.nodeKubeconfig(ctx, machine)
+	if prepErr != nil {
+		return bootstrap.PerHost{}, prepErr
 	}
 	// Read on the drift path too, not just at bootstrap: the launchd plist is
 	// re-rendered on every push, and without the key the renderer drops
@@ -806,7 +965,37 @@ func (r *RackAppleSiliconMachineReconciler) perHostConfig(
 		NodeLabels:           rackMachineNodeLabels(machine),
 		KnownHostFingerprint: knownFingerprint,
 		ExpectedSerial:       host.Spec.Serial,
+		RuntimeOwner:         r.Env,
 	}, nil
+}
+
+// nodeKubeconfig is what tart-kubelet authenticates with: an identity minted
+// in this cluster, or for a host lent to another cluster, the kubeconfig that
+// cluster issued, read from the Secret its RackHost names.
+func (r *RackAppleSiliconMachineReconciler) nodeKubeconfig(
+	ctx context.Context,
+	machine *infrav1.RackAppleSiliconMachine,
+) (string, *prepError) {
+	if lent := machine.Spec.NodeCluster; lent != nil {
+		secret := &corev1.Secret{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: lent.KubeconfigSecret}, secret); err != nil {
+			return "", &prepError{"NodeClusterKubeconfigUnavailable", fmt.Errorf("read the node cluster kubeconfig Secret %s: %w", lent.KubeconfigSecret, err)}
+		}
+		kubeconfigYAML := string(secret.Data["kubeconfig"])
+		if kubeconfigYAML == "" {
+			return "", &prepError{"NodeClusterKubeconfigUnavailable", fmt.Errorf("the node cluster kubeconfig Secret %s has no `kubeconfig` key", lent.KubeconfigSecret)}
+		}
+		return kubeconfigYAML, nil
+	}
+	identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
+	if err != nil {
+		return "", &prepError{"NodeIdentityUnavailable", fmt.Errorf("ensure node identity: %w", err)}
+	}
+	kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
+	if err != nil {
+		return "", &prepError{"KubeconfigUnavailable", fmt.Errorf("render kubeconfig: %w", err)}
+	}
+	return kubeconfigYAML, nil
 }
 
 // persistFingerprint stores a newly-observed TOFU pin. Failures are logged, not
@@ -912,6 +1101,7 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 	if gib := machine.Spec.RunnerCacheVolumeGiB; gib != nil && *gib >= 0 {
 		sizing.RunnerCacheVolumeGiB = *gib
 	}
+	sizing.TartVersion, sizing.TartTarball = hostTart(machine, r.FleetConfig, r.TartReleases)
 	return sizing
 }
 
@@ -925,7 +1115,8 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 //   - its SSH ingress guard admits the host's subnet routers, the source its
 //     LAN dial arrives from.
 //
-// It also carries the rack's cache gateways into the VM egress firewall.
+// It also carries the rack's cache gateways into the VM egress firewall and
+// the rack's image caches into tart-kubelet.
 //
 // Both push paths and the stamped hash go through here, so a change to any of
 // them drifts the host rather than being recorded as converged without
@@ -935,6 +1126,13 @@ func (r *RackAppleSiliconMachineReconciler) rackFleetConfig(host *infrav1.RackHo
 	cfg.TailscalePersistentDevice = true
 	cfg.SSHIngressAllowCIDRs = append(slices.Clone(r.FleetConfig.SSHIngressAllowCIDRs), host.Spec.SSHIngressAllowCIDRs...)
 	cfg.VMCacheGatewayCIDRs = slices.Clone(r.VMCacheGatewayCIDRs)
+	if slices.Contains(r.ImageMirrorHosts, "*") || slices.Contains(r.ImageMirrorHosts, host.Name) {
+		cfg.ImageMirrors = slices.Clone(r.ImageMirrors)
+	}
+	// A lent host's custom cache volumes are the other cluster's server's.
+	if lent := host.Spec.NodeCluster; lent != nil {
+		cfg.CustomCacheURL = lent.CacheVolumesURL
+	}
 	return cfg
 }
 
@@ -946,11 +1144,26 @@ func (r *RackAppleSiliconMachineReconciler) hostConfig(
 	return applyHostSizing(r.rackFleetConfig(host), r.hostSizing(machine), perHost)
 }
 
+// desiredHostConfigHash also covers the Node's fleet label and the cluster the
+// Node registers in when the host is lent. Both are per-host, which
+// HostConfigHash strips, so without this a lent host would read as converged
+// and keep the label and kubeconfig it registered with. A host on the
+// operator's fleet and cluster hashes exactly as before. Rotating the
+// kubeconfig inside the same Secret does not drift the host: rename the Secret.
 func (r *RackAppleSiliconMachineReconciler) desiredHostConfigHash(
 	machine *infrav1.RackAppleSiliconMachine,
 	host *infrav1.RackHost,
 ) string {
-	return hostConfigHashFor(r.rackFleetConfig(host), r.hostSizing(machine))
+	hash := hostConfigHashFor(r.rackFleetConfig(host), r.hostSizing(machine))
+	if hash == "" || (machine.Spec.NodeFleet == "" && machine.Spec.NodeCluster == nil) {
+		return hash
+	}
+	material := hash + "\nnodeFleet=" + machine.Spec.NodeFleet
+	if machine.Spec.NodeCluster != nil {
+		material += "\nnodeCluster=" + machine.Spec.NodeCluster.KubeconfigSecret
+	}
+	sum := sha256.Sum256([]byte(material))
+	return hex.EncodeToString(sum[:])
 }
 
 // rackProviderID composes the providerID from the host's two durable physical
@@ -979,12 +1192,17 @@ func providerIDOfRack(m *infrav1.RackAppleSiliconMachine) string {
 
 // rackMachineNodeLabels are the labels tart-kubelet stamps on the Node it
 // registers: the fleet membership label workloads pin to via nodeSelector,
-// matching what the Scaleway kind writes so one workload can target both.
+// matching what the Scaleway kind writes so one workload can target both. A
+// host lent to another fleet's pools carries that fleet instead.
 func rackMachineNodeLabels(m *infrav1.RackAppleSiliconMachine) map[string]string {
-	if m.Spec.FleetName == "" {
+	fleet := m.Spec.FleetName
+	if m.Spec.NodeFleet != "" {
+		fleet = m.Spec.NodeFleet
+	}
+	if fleet == "" {
 		return nil
 	}
-	return map[string]string{"tuist.dev/fleet": m.Spec.FleetName}
+	return map[string]string{"tuist.dev/fleet": fleet}
 }
 
 func (r *RackAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {

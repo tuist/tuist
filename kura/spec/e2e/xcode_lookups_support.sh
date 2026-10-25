@@ -16,10 +16,12 @@ setup_xcode_lookups() {
   local plugin_bin="${KURA_E2E_CAS_BIN:-$release_bin}"
   mkdir "$LOOKUP_TEST_ROOT/bin" || return 1
   cp "$plugin_bin/libtuist_cas_plugin.dylib" "$plugin_bin/tuist-cas-proxy" \
-    "$release_bin/examples/chunking_fault_gate" "$LOOKUP_TEST_ROOT/bin/" || return 1
+    "$plugin_bin/examples/chunking_fault_gate" "$LOOKUP_TEST_ROOT/bin/" || return 1
   cp "$KURA_PROJECT_ROOT/spec/fixtures/xcode-lookups/Project.swift" \
     "$KURA_PROJECT_ROOT/spec/fixtures/xcode-lookups/Tuist.swift" \
-    "$KURA_PROJECT_ROOT/spec/fixtures/xcode-lookups/Fixture.swift" "$LOOKUP_TEST_ROOT/" || return 1
+    "$KURA_PROJECT_ROOT/spec/fixtures/xcode-lookups/Fixture.swift" \
+    "$KURA_PROJECT_ROOT/spec/fixtures/xcode-lookups/Dependency.swift" \
+    "$KURA_PROJECT_ROOT/spec/fixtures/xcode-lookups/Fixture.m" "$LOOKUP_TEST_ROOT/" || return 1
   tuist generate --path "$LOOKUP_TEST_ROOT" --no-open --cache-profile none >"$LOOKUP_TEST_ROOT/generate.log" 2>&1 || {
     cat "$LOOKUP_TEST_ROOT/generate.log" >&2
     return 1
@@ -47,7 +49,7 @@ teardown_xcode_lookups() {
 # remote is the gate in front of Kura. `namespace` selects the Kura namespace,
 # so a phase only finds what an earlier phase of the same namespace uploaded.
 run_lookup_phase() {
-  local phase="$1" namespace="$2" upload="$3" mode="$4" _attempt control="$LOOKUP_TEST_ROOT/$1-control"
+  local phase="$1" namespace="$2" upload="$3" mode="$4" keep_proxy="${5:-false}" _attempt control="$LOOKUP_TEST_ROOT/$1-control"
   local instance
   instance="chunking-test/$(basename "$LOOKUP_TEST_ROOT")-$namespace"
   mkdir -p "$control" "$LOOKUP_TEST_ROOT/$phase-reader" || return 1
@@ -73,6 +75,27 @@ run_lookup_phase() {
     sleep 0.1
   done
   [ -S "$LOOKUP_TEST_SOCKET" ] || return 1
+  build_lookup_fixture "$phase" "$instance" "$upload" || {
+    stop_lookup_processes
+    return 1
+  }
+  if [ "$upload" = true ]; then
+    local store_path
+    store_path="$(cut -f1 "$LOOKUP_TEST_ROOT/$phase-reader/registry")" || return 1
+    "$LOOKUP_TEST_ROOT/bin/tuist-cas-proxy" --drain "$store_path" \
+      --socket "$LOOKUP_TEST_SOCKET" --timeout-ms 60000 >"$LOOKUP_TEST_ROOT/$phase.drain.log" 2>&1 || return 1
+  fi
+  [ "$keep_proxy" != true ] || return 0
+  stop_lookup_processes
+  mv "$LOOKUP_TEST_DERIVED" "$LOOKUP_TEST_ROOT/$phase" || return 1
+}
+
+build_lookup_fixture() {
+  local phase="$1" instance="$2" upload="$3"
+  local cas_args=()
+  if [ -n "${LOOKUP_TEST_CAS_PATH:-}" ]; then
+    cas_args=("COMPILATION_CACHE_CAS_PATH=$LOOKUP_TEST_CAS_PATH")
+  fi
   env TUIST_CAS_PROXY_SOCKET="$LOOKUP_TEST_SOCKET" TUIST_CAS_UPLOAD="$upload" \
     TUIST_CAS_LOG="$LOOKUP_TEST_ROOT/$phase.plugin.log" \
     xcodebuild build -workspace "$LOOKUP_TEST_ROOT/LookupFixture.xcworkspace" -scheme LookupFixture \
@@ -80,18 +103,39 @@ run_lookup_phase() {
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
     "TUIST_XCODE_TEST_PLUGIN=$LOOKUP_TEST_ROOT/bin/libtuist_cas_plugin.dylib" \
     "TUIST_XCODE_TEST_SOCKET=$LOOKUP_TEST_SOCKET" "TUIST_XCODE_TEST_INSTANCE=$instance" \
-    >"$LOOKUP_TEST_ROOT/$phase.build.log" 2>&1 || {
-      stop_lookup_processes
-      return 1
-    }
-  if [ "$upload" = true ]; then
-    local store_path
-    store_path="$(cut -f1 "$LOOKUP_TEST_ROOT/$phase-reader/registry")" || return 1
-    "$LOOKUP_TEST_ROOT/bin/tuist-cas-proxy" --drain "$store_path" \
-      --socket "$LOOKUP_TEST_SOCKET" --timeout-ms 60000 >"$LOOKUP_TEST_ROOT/$phase.drain.log" 2>&1 || return 1
+    "${cas_args[@]}" >"$LOOKUP_TEST_ROOT/$phase.build.log" 2>&1
+}
+
+run_repeated_lookup_wipes() {
+  : "${LOOKUP_TEST_ROOT:?}" "${LOOKUP_TEST_DERIVED:?}"
+  [ "$LOOKUP_TEST_ROOT" != / ] && [ "$LOOKUP_TEST_DERIVED" = "$LOOKUP_TEST_ROOT/DerivedData" ] || return 1
+  local LOOKUP_TEST_CAS_PATH="$LOOKUP_TEST_ROOT/repeated-compilation-cache"
+  local status=0
+  rm -rf "$LOOKUP_TEST_DERIVED" || return 1
+  run_repeated_lookup_wipe_builds || status=$?
+  if [ -d "$LOOKUP_TEST_DERIVED" ]; then
+    mv "$LOOKUP_TEST_DERIVED" "$LOOKUP_TEST_ROOT/repeated" || return 1
   fi
-  stop_lookup_processes
-  mv "$LOOKUP_TEST_DERIVED" "$LOOKUP_TEST_ROOT/$phase" || return 1
+  return "$status"
+}
+
+run_repeated_lookup_wipe_builds() {
+  local round instance proxy_pid
+  instance="chunking-test/$(basename "$LOOKUP_TEST_ROOT")-repeated"
+  run_lookup_phase repeated-seed repeated true none true || return 1
+  proxy_pid="$LOOKUP_TEST_PROXY_PID"
+  for round in 1 2 3; do
+    rm -rf "$LOOKUP_TEST_DERIVED" "$LOOKUP_TEST_CAS_PATH" || return 1
+    kill -0 "$proxy_pid" || return 1
+    build_lookup_fixture "repeated-$round" "$instance" false || return 1
+    kill -0 "$proxy_pid" || return 1
+    [ "$(lookup_hits "repeated-$round")" = "$(lookup_tasks "repeated-$round")/$(lookup_tasks "repeated-$round")" ] || return 1
+    [ "$(lookup_tasks "repeated-$round")" -ge 20 ] || return 1
+    if grep -Eq 'CAS (error|operation failed):|missing object' "$LOOKUP_TEST_ROOT/repeated-$round.build.log"; then
+      return 1
+    fi
+  done
+  [ "$(grep -c 'cas store replaced:' "$LOOKUP_TEST_ROOT/repeated-seed.proxy.log")" -eq 3 ]
 }
 
 # The most action lookups the gate held at the same time during a phase.

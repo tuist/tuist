@@ -81,7 +81,9 @@ defmodule Tuist.Runners.GitLab do
     attrs = attrs |> Map.put(:account_id, account_id) |> Map.put(:enabled, true)
 
     attrs =
-      if connection.id && Map.get(attrs, :runner_token) in [nil, ""], do: Map.delete(attrs, :runner_token), else: attrs
+      Enum.reduce([:runner_token, :api_token], attrs, fn field, attrs ->
+        if connection.id && Map.get(attrs, field) in [nil, ""], do: Map.delete(attrs, field), else: attrs
+      end)
 
     connection |> Connection.changeset(attrs) |> Repo.insert_or_update()
   end

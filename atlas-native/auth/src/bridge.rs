@@ -1,0 +1,163 @@
+use crate::{LoginProvider, PendingLogin, Registration, Session, begin, complete, error, restore};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::ffi::{CStr, CString, c_char};
+
+#[derive(Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case")]
+enum Command {
+    Begin {
+        server: String,
+        registration: Option<Registration>,
+        provider: Option<LoginProvider>,
+    },
+    Complete {
+        pending: PendingLogin,
+        callback: String,
+    },
+    Restore {
+        session: Session,
+    },
+    Native {
+        session: Session,
+        request: crate::api::Request,
+    },
+    Themes {
+        server: String,
+    },
+    ValidateThemes {
+        catalog: Value,
+    },
+    DefaultThemes,
+    Presence {
+        #[serde(flatten)]
+        action: crate::presence::Action,
+    },
+    OrbitSession {
+        #[serde(flatten)]
+        action: crate::orbit_session::Action,
+    },
+    Business {
+        session: Session,
+        resource: crate::business::Resource,
+        #[serde(flatten)]
+        action: crate::business::Action,
+    },
+    Push {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::push::Action,
+    },
+    TimeOff {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::time_off::Action,
+    },
+    AiAccounts {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::accounts::Action,
+    },
+}
+
+pub fn execute(input: &str) -> String {
+    let result = std::panic::catch_unwind(|| -> crate::Result<Value> {
+        if input.len() > crate::orbit::ATTACHMENT_ENVELOPE_BYTES {
+            return Err(crate::invalid());
+        }
+        let command: Command = serde_json::from_str(input).map_err(|_| crate::invalid())?;
+        if input.len() > 1024 * 1024 && !matches!(&command,
+            Command::OrbitSession { action: crate::orbit_session::Action::Request {
+                connection, session, command: crate::orbit_session::Command::UploadAttachment { .. }
+            }} if connection.len() <= 128 && serde_json::to_vec(session).is_ok_and(|bytes| bytes.len() <= 64 * 1024)
+        ) { return Err(crate::invalid()); }
+        match command {
+            Command::Begin {
+                server,
+                registration,
+                provider,
+            } => serde_json::to_value(begin(&server, registration, provider)?),
+            Command::Complete { pending, callback } => {
+                serde_json::to_value(complete(pending, &callback)?)
+            }
+            Command::Restore { session } => serde_json::to_value(restore(session)?),
+            Command::Native { session, request } => return crate::api::execute(session, request),
+            Command::Themes { server } => return crate::themes::fetch(&server),
+            Command::ValidateThemes { catalog } => return crate::themes::validate(catalog),
+            Command::DefaultThemes => return Ok(crate::themes::defaults()),
+            Command::Presence { action } => {
+                return crate::presence::execute(action);
+            }
+            Command::OrbitSession { action } => {
+                return crate::orbit_session::execute(action);
+            }
+            Command::Business {
+                session,
+                resource,
+                action,
+            } => {
+                return crate::business::execute(session, resource, action);
+            }
+            Command::Push { session, action } => {
+                return crate::push::execute(session, action);
+            }
+            Command::TimeOff { session, action } => {
+                return crate::time_off::execute(session, action);
+            }
+            Command::AiAccounts { session, action } => {
+                return crate::accounts::execute(session, action);
+            }
+        }
+        .map_err(|_| crate::invalid())
+    })
+    .unwrap_or_else(|_| Err(error("internal", "Could not complete sign-in.")));
+    match result {
+        Ok(value) => json!({ "ok": value }).to_string(),
+        Err(error) => json!({ "error": error }).to_string(),
+    }
+}
+
+/// Executes on the caller's thread. Call off the UI thread.
+///
+/// # Safety
+/// `input` must be a live NUL-terminated UTF-8 string for this call's duration.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn atlas_auth_execute(input: *const c_char) -> *mut c_char {
+    let output = if input.is_null() {
+        json!({"error": crate::invalid()}).to_string()
+    } else {
+        // SAFETY: the caller owns a valid C string for the duration of this call.
+        match unsafe { CStr::from_ptr(input) }.to_str() {
+            Ok(input) => execute(input),
+            Err(_) => json!({"error": crate::invalid()}).to_string(),
+        }
+    };
+    CString::new(output)
+        .expect("JSON escapes NUL bytes")
+        .into_raw()
+}
+
+/// # Safety
+/// Pass an allocated result from `atlas_auth_execute` exactly once, or null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn atlas_auth_free(output: *mut c_char) {
+    if !output.is_null() {
+        // SAFETY: this allocation came from CString::into_raw in atlas_auth_execute.
+        drop(unsafe { CString::from_raw(output) });
+    }
+}
+
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_tuist_atlas_AtlasAuth_execute(
+    mut env: jni::JNIEnv,
+    _instance: jni::objects::JObject,
+    input: jni::objects::JString,
+) -> jni::sys::jstring {
+    let output = match env.get_string(&input) {
+        Ok(input) => execute(&String::from(input)),
+        Err(_) => return std::ptr::null_mut(),
+    };
+    env.new_string(output)
+        .map_or(std::ptr::null_mut(), |value| value.into_raw())
+}

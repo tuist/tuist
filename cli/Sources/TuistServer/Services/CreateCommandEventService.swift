@@ -40,27 +40,21 @@
         }
     }
 
+    /// Sends the event through the server client, whose `RetryMiddleware` replays it after a lost response. The
+    /// server deduplicates the replay by the event's `id`, which is the generation's id or one generated here.
     public struct CreateCommandEventService: CreateCommandEventServicing {
-        private let retryProvider: RetryProviding
-
-        public init(
-            retryProvider: RetryProviding = RetryProvider()
-        ) {
-            self.retryProvider = retryProvider
-        }
+        public init() {}
 
         public func createCommandEvent(
             commandEvent: CommandEvent,
             projectId: String,
             serverURL: URL
         ) async throws -> ServerCommandEvent {
-            try await retryProvider.runWithRetries {
-                try await sendCreateCommandEvent(
-                    commandEvent: commandEvent,
-                    projectId: projectId,
-                    serverURL: serverURL
-                )
-            }
+            try await sendCreateCommandEvent(
+                commandEvent: commandEvent,
+                projectId: projectId,
+                serverURL: serverURL
+            )
         }
 
         private func sendCreateCommandEvent(
@@ -69,6 +63,7 @@
             serverURL: URL
         ) async throws -> ServerCommandEvent {
             let client = Client.authenticated(serverURL: serverURL)
+            let id = commandEvent.generationId ?? UUIDv7.generate()
             let errorMessage: String?
             let status: Operations.createCommandEvent.Input.Body.jsonPayload.statusPayload?
             switch commandEvent.status {
@@ -97,7 +92,7 @@
                             git_commit_sha: commandEvent.gitCommitSHA,
                             git_ref: commandEvent.gitRef,
                             git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
-                            id: commandEvent.generationId,
+                            id: id,
                             is_ci: commandEvent.isCI,
                             macos_version: commandEvent.macOSVersion,
                             module_cache_outputs: commandEvent.moduleCacheOutputs.map { map(moduleCacheOutput: $0) },
@@ -166,6 +161,7 @@
                                         return .init(
                                             hash: binaryCacheMetadata.hash,
                                             hit: hit,
+                                            instrumented: binaryCacheMetadata.instrumented,
                                             subhashes: binaryCacheMetadata.subhashes.map { subhashes in
                                                 .init(
                                                     additional_hashing_inputs: subhashes.additionalHashingInputs,

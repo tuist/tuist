@@ -15,7 +15,9 @@ defmodule Tuist.Kura.PromExPlugin do
     * per-region admission headroom: the gibibytes `Tuist.Kura.Admission` can
       still place, as the minute-old reading placement acts on. Occupancy alone
       cannot give it, because admission also counts rows the cluster has not
-      observed yet.
+      observed yet. Private runner-cache regions report it too: admission
+      refuses their instances and claim growths the same way. The other gauges
+      cover the public regions only.
     * hit-rate recovery — the cache hit ratio of account-regions that returned
       from archive recently, against the same ratio for instances that did
       not. A cold return that never recovers its hit rate is the cost the
@@ -341,7 +343,7 @@ defmodule Tuist.Kura.PromExPlugin do
 
   @doc false
   def execute_admission_headroom_telemetry_event do
-    Enum.each(lifecycle_regions(), fn %Regions{id: region_id} = region ->
+    Enum.each(admission_regions(), fn %Regions{id: region_id} = region ->
       case Capacity.admission_headroom_gib(region) do
         :unbounded ->
           :ok
@@ -473,5 +475,9 @@ defmodule Tuist.Kura.PromExPlugin do
     else
       []
     end
+  end
+
+  defp admission_regions do
+    if Environment.tuist_hosted?(), do: Regions.available(), else: []
   end
 end

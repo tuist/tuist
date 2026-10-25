@@ -35,4 +35,9 @@ Flaky tests are tests that produce different results (pass or fail) when run mul
     details="Detect and manage flaky tests in Elixir projects with test retries."
     link="/guides/features/test-insights/flaky-tests/elixir"
 />
+  <.home_card
+    title="Rust"
+    details="Detect and investigate flaky Cargo tests using results across CI runs."
+    link="/guides/features/test-insights/flaky-tests/rust"
+/>
 </.home_cards>

@@ -39,6 +39,7 @@ defmodule Tuist.Tests.XcresultProcessing do
     Map.merge(
       %{
         id: args["test_run_id"],
+        source_test_run_id: Map.get(args, "source_test_run_id", args["test_run_id"]),
         project_id: args["project_id"],
         account_id: args["account_id"],
         is_ci: Map.get(args, "is_ci", false),
@@ -56,6 +57,8 @@ defmodule Tuist.Tests.XcresultProcessing do
         build_run_id: Map.get(args, "build_run_id"),
         shard_plan_id: Map.get(args, "shard_plan_id"),
         shard_index: Map.get(args, "shard_index"),
+        shard_attempt: Map.get(args, "shard_attempt"),
+        shard_report_revision: Map.get(args, "shard_report_revision"),
         ran_at: args |> Map.get("ran_at") |> deserialize_ran_at()
       },
       carried_attrs(args)
@@ -64,7 +67,7 @@ defmodule Tuist.Tests.XcresultProcessing do
 
   @carried_keys ~w(stress_mode stress_outcome stress_skip_reason stress_new_count stress_stressed_count stress_excluded_count stress_known_count
                    base_branch merge_base_sha is_pull_request pull_request_number git_object_format history_source
-                   history_fallback_reason git_repository_id git_dirty execution_mode)
+                   history_fallback_reason git_repository_id git_dirty execution_mode coverage_enabled actor_account_id claimed_actor_id submission_auth)
 
   # Only what the job carried: a job enqueued without them leaves the columns to
   # their defaults, as for jobs enqueued before these fields rode along.

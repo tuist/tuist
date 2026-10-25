@@ -3,6 +3,7 @@ defmodule Atlas.MCP.Proxy.Server do
   Runtime configuration for an upstream MCP server that Atlas can proxy.
   """
 
+  @derive {Inspect, except: [:bearer_token, :client_secret, :headers, :token_headers]}
   @enforce_keys [:name, :url]
   defstruct [
     :name,

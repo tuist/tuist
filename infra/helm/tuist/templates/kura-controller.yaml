@@ -83,8 +83,18 @@ rules:
     resources: [pods]
     # delete lets a new Kura image replace pods that cannot pass readiness on
     # the previous image. Ready pods remain under the StatefulSet's ordinary
-    # ordered rollout.
-    verbs: [get, list, watch, delete]
+    # ordered rollout. patch relabels a pod with the StatefulSet's update
+    # revision once its CPU request has been resized in place.
+    verbs: [get, list, watch, delete, patch]
+  # CPU request changes reach running pods through the resize subresource
+  # instead of a rolling restart; the controller compares the pods' and the
+  # update's ControllerRevisions to confirm nothing else changed.
+  - apiGroups: [""]
+    resources: [pods/resize]
+    verbs: [patch]
+  - apiGroups: ["apps"]
+    resources: [controllerrevisions]
+    verbs: [get]
   # Pods of instances with spec.nodeLocalNetwork sit on a pod network the
   # controller cannot route to, so their /status/rollout is read through the
   # API server's port-forward, upgraded over SPDY (POST).
@@ -257,6 +267,12 @@ rules:
     verbs: [get, list]
   - apiGroups: [""]
     resources: [pods]
+    verbs: [list]
+  # Capacity admission charges a node-local volume no claim is bound to any
+  # more, such as a quarantined replica's retained volume, against the node and
+  # region whose disk it still holds.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
     verbs: [list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

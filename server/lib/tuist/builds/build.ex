@@ -20,6 +20,9 @@ defmodule Tuist.Builds.Build do
 
   import Ecto.Changeset
 
+  alias Tuist.Accounts.Account
+  alias Tuist.Builds.Metadata
+
   @status_values ["success", "failure", "processing", "failed_processing"]
   @category_values ["clean", "incremental"]
   @ci_provider_values ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
@@ -37,13 +40,24 @@ defmodule Tuist.Builds.Build do
       :xcode_version,
       :macos_version,
       :account_id,
+      :verified_actor,
+      :claimed_actor_id,
       :is_ci,
       :ci_provider,
       :cacheable_tasks_count,
       :custom_tags,
       :inserted_at
     ],
-    sortable: [:failure_category, :id, :inserted_at, :duration]
+    sortable: [:failure_category, :id, :inserted_at, :duration],
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
   }
 
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
@@ -52,6 +66,10 @@ defmodule Tuist.Builds.Build do
     field :duration, Ch, type: "Int32"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
     field :macos_version, :string, default: ""
     field :xcode_version, :string, default: ""
     field :is_ci, :boolean
@@ -78,9 +96,10 @@ defmodule Tuist.Builds.Build do
     field :generation_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :updated_at, Ch, type: "DateTime64(6)"
+    field :started_at, Ch, type: "Nullable(DateTime64(6))"
 
     belongs_to :project, Tuist.Projects.Project, define_field: false
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+    belongs_to :ran_by_account, Account, foreign_key: :account_id, define_field: false
     has_many :issues, Tuist.Builds.BuildIssue, foreign_key: :build_run_id
     has_many :files, Tuist.Builds.BuildFile, foreign_key: :build_run_id
     has_many :targets, Tuist.Builds.BuildTarget, foreign_key: :build_run_id
@@ -90,6 +109,7 @@ defmodule Tuist.Builds.Build do
   def create_changeset(build \\ %__MODULE__{}, attrs) do
     attrs
     |> normalize_datetime_attr(:inserted_at)
+    |> normalize_datetime_attr(:started_at)
     |> default_to_empty_string([
       :status,
       :category,
@@ -118,8 +138,12 @@ defmodule Tuist.Builds.Build do
         :scheme,
         :project_id,
         :account_id,
+        :actor_account_id,
+        :claimed_actor_id,
+        :submission_auth,
         :inserted_at,
         :updated_at,
+        :started_at,
         :status,
         :category,
         :configuration,
@@ -181,7 +205,7 @@ defmodule Tuist.Builds.Build do
   def to_buffer_map(%__MODULE__{} = build) do
     build
     |> Map.from_struct()
-    |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets, :failure_category])
+    |> Map.drop([:__meta__, :project, :ran_by_account, :actor_account, :issues, :files, :targets, :failure_category])
     |> Map.update(:id, UUIDv7.generate(), fn id -> id || UUIDv7.generate() end)
     |> Map.update(:inserted_at, NaiveDateTime.utc_now(), fn
       nil -> NaiveDateTime.utc_now()
@@ -233,8 +257,8 @@ defmodule Tuist.Builds.Build do
 
   defp validate_custom_values(changeset) do
     validate_change(changeset, :custom_values, fn :custom_values, values ->
-      if map_size(values) > 20 do
-        [{:custom_values, "cannot have more than 20 key-value pairs"}]
+      if map_size(values) > Metadata.limit() do
+        [{:custom_values, "cannot have more than #{Metadata.limit()} key-value pairs"}]
       else
         Enum.flat_map(values, fn {key, value} ->
           key_errors =

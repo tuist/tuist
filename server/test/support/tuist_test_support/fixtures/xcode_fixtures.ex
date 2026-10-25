@@ -29,7 +29,9 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
         id: id,
         name: name,
         command_event_id: command_event_id,
+        project_id: Keyword.get(opts, :project_id, 0),
         binary_build_duration: binary_build_duration,
+        modules_count: Keyword.get(opts, :modules_count),
         inserted_at: NaiveDateTime.truncate(inserted_at, :second)
       }
 
@@ -195,6 +197,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
           test_runtime: Keyword.get(opts, :test_runtime),
           destinations: Keyword.get(opts, :destinations, []),
           binary_cache_hit: binary_cache_hit,
+          binary_cache_instrumented: Keyword.get(opts, :binary_cache_instrumented),
           selective_testing_hash: selective_testing_hash,
           selective_testing_hit: selective_testing_hit,
           product: Keyword.get(opts, :product, ""),

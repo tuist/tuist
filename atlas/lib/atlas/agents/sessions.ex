@@ -17,6 +17,13 @@ defmodule Atlas.Agents.Sessions do
 
   @atlas_opts [:account_id]
 
+  # Agents whose prompts, results, and failures can contain private
+  # Orbit thread content. Their rows keep only a label and fixed categories;
+  # the thread log is the readable record, scoped to its participants.
+  @redacted_agents [inspect(Atlas.Orbit.Agent)]
+  @category ~r/\A[a-z_]{1,64}\z/
+  @label ~r/\A[a-z_]{1,64}:[0-9a-f-]{36}\z/
+
   @doc """
   Wraps `Condukt.run(agent_module, prompt, opts)` where `agent_module`
   is a real `use Condukt` module.
@@ -147,7 +154,7 @@ defmodule Atlas.Agents.Sessions do
       %{
         id: session_id,
         agent: inspect(agent_module),
-        prompt: prompt,
+        prompt: stored_prompt(inspect(agent_module), prompt),
         status: "running",
         started_at: started_at,
         account_id: Keyword.get(atlas_opts, :account_id)
@@ -156,6 +163,24 @@ defmodule Atlas.Agents.Sessions do
       |> Repo.insert!()
 
     {session, Keyword.put(condukt_opts, :id, session_id)}
+  end
+
+  defp stored_prompt(agent, prompt) when agent in @redacted_agents do
+    if Regex.match?(@label, prompt), do: prompt, else: "redacted"
+  end
+
+  defp stored_prompt(_agent, prompt), do: prompt
+
+  defp finalize(%Session{agent: agent} = session, result) when agent in @redacted_agents do
+    case result do
+      {:ok, _result} ->
+        update_session!(session, "succeeded", %{"redacted" => true}, nil)
+        result
+
+      {:error, reason} ->
+        update_session!(session, "failed", nil, redacted_error(reason))
+        {:error, reason}
+    end
   end
 
   defp finalize(session, {:ok, result}) do
@@ -175,6 +200,16 @@ defmodule Atlas.Agents.Sessions do
     update_session!(session, "failed", nil, format_error(reason))
     {:error, reason}
   end
+
+  # Only fixed snake_case categories pass through; exceptions keep their module
+  # name and thrown/exited terms their kind, never messages or payloads.
+  defp redacted_error(reason) when is_binary(reason) do
+    if Regex.match?(@category, reason), do: reason, else: "redacted"
+  end
+
+  defp redacted_error(%{__exception__: true, __struct__: module}), do: "exception:" <> inspect(module)
+  defp redacted_error({kind, _reason}) when kind in [:exit, :throw, :error], do: Atom.to_string(kind)
+  defp redacted_error(_reason), do: "redacted"
 
   defp sanitize_error({:session_exit, reason}), do: {:session_exit, sanitize_exit(reason)}
   defp sanitize_error(reason), do: reason

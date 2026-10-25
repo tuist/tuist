@@ -140,7 +140,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         Client.patch(
           "/apis/kura.tuist.dev/v1alpha1/namespaces/#{@namespace}/kurainstances/#{name}",
           operations,
-          kubernetes_client_opts(region)
+          Keyword.put(kubernetes_client_opts(region), :timeout, 3_000)
         )
       end
     end
@@ -250,8 +250,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def rollout_health(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"rolloutHealth" => health}}} when is_map(health) ->
-        {:ok, parse_rollout_health(health)}
+      {:ok, %{"status" => %{"rolloutHealth" => health} = status}} when is_map(health) ->
+        {:ok, health |> parse_rollout_health() |> Map.put(:image_hold, image_hold(status))}
 
       {:ok, _} ->
         {:ok, nil}
@@ -283,6 +283,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       sampled_at: datetime_field(health, "sampledAt")
     }
   end
+
+  # `status.imageHold` names the operator procedure the requested image waits
+  # on (a fenced instance's runtime pin or manual replacement, a replica
+  # recovery's hold). Absent or empty, the controller converges it alone.
+  defp image_hold(%{"imageHold" => hold}) when is_binary(hold) and hold != "", do: hold
+  defp image_hold(_status), do: nil
 
   # The cumulative failure counters are read as `nil` when the aggregate does
   # not carry them, not as 0. They are the two fields the gate compares a
@@ -479,7 +485,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
-          "nodeLocalNetwork" => node_local_network(region),
           "extraEnv" => auth_env(region, claim, entitlements)
         }
         |> Map.merge(StableEndpoint.intent(%{server | account: account}, region))
@@ -670,12 +675,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "plane=#{config[:data_plane]}",
           "node-port=#{config[:expose_node_port]}"
         ] ++
-          Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}") ++
-          Enum.map(get_in(config, [:node_local_network, :nameservers]) || [], &"nameserver=#{&1}") ++
-          if(config[:node_local_network] && config[:otlp_traces_endpoint],
-            do: ["otlp=#{config[:otlp_traces_endpoint]}"],
-            else: []
-          )
+          Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}")
 
       digest = revision_digest(inputs)
       "+replicas#{replicas(region)}+endpoint#{digest}"
@@ -865,8 +865,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       replication_pull_env(entitlements) ++
       backfill_env(entitlements) ++
       node_location_env(region) ++
-      telemetry_env(region) ++
-      node_local_env(region)
+      telemetry_env(region)
   end
 
   # Where the node runs, straight from the region's datacenter. Kura stamps it
@@ -1051,31 +1050,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp telemetry_env(_), do: []
-
-  # A region whose pods run on a pod network the cluster does not route
-  # (`Regions` `node_local_network`): its pods resolve through the region's
-  # nameservers and the controller samples them through the API server.
-  defp node_local_network(%Regions{provisioner_config: %{node_local_network: %{nameservers: [_ | _] = nameservers}}}) do
-    %{"nameservers" => nameservers}
-  end
-
-  defp node_local_network(_), do: nil
-
-  # Such a pod reaches no Service: analytics go to the server's public URL.
-  # Its traces go where the environment points node-local instances
-  # (telemetry_env/1), and stay off without one rather than queueing for the
-  # in-cluster collector, which it cannot reach.
-  defp node_local_env(%Regions{} = region) do
-    case node_local_network(region) do
-      nil -> []
-      _ -> [env_var("KURA_ANALYTICS_SERVER_URL", tuist_base_url(region))] ++ node_local_traces_off(region)
-    end
-  end
-
-  defp node_local_traces_off(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})
-       when is_binary(endpoint) and endpoint != "", do: []
-
-  defp node_local_traces_off(_), do: [env_var("KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")]
 
   defp env_var(name, value), do: %{"name" => name, "value" => value}
   defp maybe_env_var(_name, nil), do: []

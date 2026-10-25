@@ -96,7 +96,7 @@ struct CommandEventFactoryTests {
         }
         // A real lookup of the same key can now hit; it must survive snapshot restoration.
         await current.update(binaryCacheItems: [path: [
-            "A": .test(name: "A", hash: "same-key", source: .remote, cacheCategory: .binaries),
+            "A": .test(name: "A", hash: "same-key", source: .remote, cacheCategory: .binaries, instrumented: true),
         ]])
         if restoration == "after" {
             await current.restoreMetadata(from: path)
@@ -107,6 +107,7 @@ struct CommandEventFactoryTests {
         #expect(targets.count == 1)
         #expect(targets.first?.binaryCacheMetadata?.hash == "same-key")
         #expect(targets.first?.binaryCacheMetadata?.hit == .remote)
+        #expect(targets.first?.binaryCacheMetadata?.instrumented == true)
     }
 
     private func makeTestEvent(

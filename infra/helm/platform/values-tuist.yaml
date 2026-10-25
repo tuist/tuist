@@ -3,6 +3,7 @@
 
 cacheDNS:
   enabled: true
+  activationIngressClass: nginx-grpc
   hostedZoneId: Z046862130S1WUMPV7Z3P
   ownerId: tuist-production-cache
   externalSecret:
@@ -267,4 +268,7 @@ kura-us-central-ingress-nginx:
 # this to let a gateway reach Kura pods on the other boxes. Without it those
 # requests are dropped by the per-instance NetworkPolicy and answer 504.
 kuraGatewayNetworkPolicy:
+  enabled: true
+
+clusterPortsHostPolicy:
   enabled: true

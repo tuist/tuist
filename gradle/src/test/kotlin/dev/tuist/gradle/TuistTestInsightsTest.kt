@@ -1,8 +1,12 @@
 package dev.tuist.gradle
 
+import com.google.gson.Gson
 import org.gradle.api.tasks.testing.TestResult
 import org.junit.jupiter.api.Test
+import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -34,6 +38,50 @@ class TuistTestInsightsTest {
         assertEquals("https://github.com/tuist/tuist.git", report.gitRemoteUrlOrigin)
         assertNull(report.gradleBuildId)
         assertTrue(report.testModules.isEmpty())
+    }
+
+    @Test
+    fun `buildReport gives every report its own id`() {
+        val collector = TestReportCollector()
+
+        val ids = List(2) {
+            Gson().toJsonTree(collector.buildReport(10, true, "app", "main", "head", null, null, null)).asJsonObject["id"]?.asString
+        }
+
+        ids.forEach { assertEquals(it, it?.let { id -> UUID.fromString(id).toString() }, "Got $ids") }
+        assertNotEquals(ids[0], ids[1])
+    }
+
+    @Test
+    fun `buildReport serializes the run's Git history`() {
+        val collector = TestReportCollector()
+        val history = TestRunGitHistory(
+            baseBranch = "main",
+            mergeBaseSha = "base",
+            isPullRequest = true,
+            pullRequestNumber = 7,
+            objectFormat = "sha1",
+            source = "client",
+            fallbackReason = null
+        )
+
+        val withHistory = Gson().toJsonTree(
+            collector.buildReport(10, true, "app", "feature", "head", "refs/pull/7/merge", null, null, gitHistory = history)
+        ).asJsonObject
+        val withoutHistory = Gson().toJsonTree(
+            collector.buildReport(10, true, "app", "feature", "head", null, null, null)
+        ).asJsonObject
+
+        assertEquals("main", withHistory.get("base_branch").asString)
+        assertEquals("base", withHistory.get("merge_base_sha").asString)
+        assertEquals(true, withHistory.get("is_pull_request").asBoolean)
+        assertEquals(7, withHistory.get("pull_request_number").asInt)
+        assertEquals("sha1", withHistory.get("git_object_format").asString)
+        assertEquals("client", withHistory.get("history_source").asString)
+        assertFalse(withHistory.has("history_fallback_reason"))
+        for (key in listOf("base_branch", "merge_base_sha", "is_pull_request", "pull_request_number", "git_object_format", "history_source")) {
+            assertFalse(withoutHistory.has(key), key)
+        }
     }
 
     @Test

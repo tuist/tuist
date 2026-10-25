@@ -117,6 +117,61 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "site_pool_name/1" do
+    setup do
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+      shape = non_default_macos_shape()
+      shape_key = "#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{
+          "tuist-runner-pool-ber1" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ber1-26-6-#{shape_key}" => %{site: "ber1", platform: :macos},
+          "#{prefix}-ams1-26-6" => %{site: "ams1", platform: :macos}
+        }
+      end)
+
+      %{prefix: prefix, shape: shape, shape_key: shape_key}
+    end
+
+    test "names the same Xcode racked at a site, the first site by name of several", %{prefix: prefix} do
+      assert Catalog.site_pool_name(%{platform: :macos, xcode_version: "26.6"}) == "#{prefix}-ams1-26-6"
+    end
+
+    test "keeps the shape suffix last, so the site pool resolves to its shape", %{
+      prefix: prefix,
+      shape: shape,
+      shape_key: shape_key
+    } do
+      profile = %{platform: :macos, xcode_version: "26.6", vcpus: shape.vcpus, memory_gb: shape.memory_gb}
+      site_pool = Catalog.site_pool_name(profile)
+
+      assert site_pool == "#{prefix}-ber1-26-6-#{shape_key}"
+
+      assert Catalog.resources_for_fleet(site_pool) ==
+               {:ok, %{platform: :macos, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+    end
+
+    test "answers nil for an Xcode no site racks" do
+      assert Catalog.site_pool_name(%{platform: :macos, xcode_version: "26.5"}) == nil
+    end
+
+    test "answers nil for a Linux profile" do
+      assert Catalog.site_pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}) == nil
+    end
+
+    test "rented_pool_name/1 drops the site from a site's catalog pool and nothing else", %{
+      prefix: prefix,
+      shape_key: shape_key
+    } do
+      assert Catalog.rented_pool_name("#{prefix}-ber1-26-6") == "#{prefix}-26-6"
+      assert Catalog.rented_pool_name("#{prefix}-ber1-26-6-#{shape_key}") == "#{prefix}-26-6-#{shape_key}"
+      assert Catalog.rented_pool_name("tuist-runner-pool-ber1") == nil
+      assert Catalog.rented_pool_name("#{prefix}-26-6") == nil
+    end
+  end
+
   describe "resources_for_fleet/1" do
     test "resolves Linux pool names through the configured shape catalog" do
       Enum.each(Catalog.shapes(:linux), fn shape ->

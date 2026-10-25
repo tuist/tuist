@@ -6,39 +6,6 @@ import TuistHTTP
 /// A run's place in the repository's history, as the client sends it with the run. The server
 /// keeps whatever is set and may complete the rest from the VCS provider.
 public struct TestRunGitHistory: Equatable, Sendable {
-    public struct ChangedFile: Equatable, Sendable {
-        public let path: String
-        public let previousPath: String?
-        /// `added`, `modified`, `deleted` or `renamed`.
-        public let status: String
-        public let blobId: String?
-        /// Inclusive line ranges changed at the head, as `(start, end)`.
-        public let hunks: [(start: Int, end: Int)]
-        public let truncated: Bool
-
-        public init(
-            path: String,
-            previousPath: String?,
-            status: String,
-            blobId: String?,
-            hunks: [(start: Int, end: Int)],
-            truncated: Bool
-        ) {
-            self.path = path
-            self.previousPath = previousPath
-            self.status = status
-            self.blobId = blobId
-            self.hunks = hunks
-            self.truncated = truncated
-        }
-
-        public static func == (lhs: ChangedFile, rhs: ChangedFile) -> Bool {
-            lhs.path == rhs.path && lhs.previousPath == rhs.previousPath && lhs.status == rhs.status
-                && lhs.blobId == rhs.blobId && lhs.truncated == rhs.truncated
-                && lhs.hunks.map(\.start) == rhs.hunks.map(\.start) && lhs.hunks.map(\.end) == rhs.hunks.map(\.end)
-        }
-    }
-
     public let baseBranch: String?
     public let mergeBaseSHA: String?
     public let isPullRequest: Bool
@@ -48,7 +15,6 @@ public struct TestRunGitHistory: Equatable, Sendable {
     /// Whether the client collected the history (`client`) or could not (`none`).
     public let source: String
     public let fallbackReason: String?
-    public let changedFiles: [ChangedFile]
     /// Whether the checkout had uncommitted changes: the run then measured code that is not the
     /// commit's, and the server keeps its coverage at run level.
     public let dirty: Bool
@@ -61,7 +27,6 @@ public struct TestRunGitHistory: Equatable, Sendable {
         objectFormat: String?,
         source: String,
         fallbackReason: String?,
-        changedFiles: [ChangedFile],
         dirty: Bool = false
     ) {
         self.baseBranch = baseBranch
@@ -71,7 +36,6 @@ public struct TestRunGitHistory: Equatable, Sendable {
         self.objectFormat = objectFormat
         self.source = source
         self.fallbackReason = fallbackReason
-        self.changedFiles = changedFiles
         self.dirty = dirty
     }
 }

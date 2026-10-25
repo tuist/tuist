@@ -7,9 +7,12 @@ import { field, number, frame, request } from "./protocol.mjs";
 
 const [mode, primaryURL, standbyURL, primaryPod, standbyPod] =
   process.argv.slice(2);
-if (!["handover", "partition", "leader-restart"].includes(mode) || !standbyPod)
+if (
+  !["handover", "partition", "api-recovery", "leader-restart"].includes(mode) ||
+  !standbyPod
+)
   throw new Error(
-    "usage: client.mjs handover|partition|leader-restart PRIMARY_URL STANDBY_URL PRIMARY_POD STANDBY_POD",
+    "usage: client.mjs handover|partition|api-recovery|leader-restart PRIMARY_URL STANDBY_URL PRIMARY_POD STANDBY_POD",
   );
 const context = process.env.KURA_SPEC98_CONTEXT;
 if (!context)
@@ -25,8 +28,22 @@ const kube = (...args) =>
     { encoding: "utf8", timeout: 30_000 },
   );
 const sessions = [http2.connect(primaryURL), http2.connect(standbyURL)];
-const report = async (url) =>
-  (await (await fetch(`${url}/status/rollout`)).json()).serving_authority;
+const report = async (url) => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch(`${url}/status/rollout`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      assert.equal(response.status, 200);
+      return (await response.json()).serving_authority;
+    } catch (error) {
+      // Port-forward connections can close between polls. Only this idempotent
+      // observation retries; HTTP/gRPC writes and their failures remain exact.
+      if (attempt === 2) throw error;
+      await sleep(100);
+    }
+  }
+};
 const capabilities = (session) =>
   request(
     session,
@@ -106,11 +123,21 @@ try {
       }),
     );
     let after;
-    const deadline = Date.now() + 330_000;
+    let intentObserved = false;
+    const deadline =
+      Date.now() + (target.preparation_supported ? 1_530_000 : 330_000);
     while (Date.now() < deadline) {
       await sleep(1000);
       after = await report(standbyURL);
       if (after.valid && after.epoch > before.epoch) break;
+      assert.notEqual(
+        after.observed?.phase,
+        "Fencing",
+        "handover entered recovery",
+      );
+      if (after.observed?.handover?.id === id) intentObserved = true;
+      if (intentObserved)
+        assert(after.observed?.handover, "handover was aborted");
     }
     assert.equal(after.valid, true);
     assert.equal(after.epoch, before.epoch + 1);
@@ -297,6 +324,94 @@ try {
         observations,
       }),
     );
+    if (mode === "api-recovery") {
+      const recoveryStarted = Date.now();
+      kube("label", "pod", primaryPod, "spec98.tuist.dev/api-partition-");
+      policyInstalled = false;
+      let resumed;
+      for (let i = 0; i < 60; i++) {
+        resumed = await report(primaryURL);
+        if (resumed.valid && resumed.epoch > before.epoch) break;
+        await sleep(1000);
+      }
+      assert.equal(
+        resumed.valid,
+        true,
+        "live writer did not resume after API recovery",
+      );
+      assert.equal(resumed.epoch, before.epoch + 1);
+      assert.deepEqual(resumed.identity, before.identity);
+      assert.equal((await report(standbyURL)).valid, false);
+      assert.equal((await write(sessions[0])).status, 204);
+      assert.equal((await capabilities(sessions[0])).grpc, "0");
+      const read = await request(
+        sessions[0],
+        `/api/cache/keyvalue/${key}${query}`,
+      );
+      assert.equal(read.status, 200);
+      assert.equal(JSON.parse(read.body).entries[0].value, key);
+      const retainedBlob = await request(
+        sessions[0],
+        "/google.bytestream.ByteStream/Read",
+        "POST",
+        frame(field(1, `e2e/blobs/${hash}/${blob.length}`)),
+        true,
+      );
+      assert.equal(retainedBlob.grpc, "0");
+      assert(retainedBlob.body.includes(blob));
+      const freshBlob = Buffer.from(`after-recovery-${key}`);
+      const freshHash = createHash("sha256").update(freshBlob).digest("hex");
+      const freshWrite = await request(
+        sessions[0],
+        "/google.bytestream.ByteStream/Write",
+        "POST",
+        frame(
+          Buffer.concat([
+            field(
+              1,
+              `e2e/uploads/resumed/blobs/${freshHash}/${freshBlob.length}`,
+            ),
+            number(3, 1),
+            field(10, freshBlob),
+          ]),
+        ),
+        true,
+      );
+      assert.equal(freshWrite.grpc, "0");
+      const freshRead = await request(
+        sessions[0],
+        "/google.bytestream.ByteStream/Read",
+        "POST",
+        frame(field(1, `e2e/blobs/${freshHash}/${freshBlob.length}`)),
+        true,
+      );
+      assert.equal(freshRead.grpc, "0");
+      assert(freshRead.body.includes(freshBlob));
+      const missing = await request(
+        sessions[0],
+        "/google.bytestream.ByteStream/Read",
+        "POST",
+        frame(field(1, `e2e/blobs/${lateHash}/${lateBlob.length}`)),
+        true,
+      );
+      assert.equal(
+        missing.grpc,
+        "5",
+        "expired write appeared after resumption",
+      );
+      console.log(
+        JSON.stringify({
+          mode,
+          sameWriterResumed: true,
+          epoch: resumed.epoch,
+          recoverySeconds: (Date.now() - recoveryStarted) / 1000,
+          persistentHTTP: true,
+          persistentGRPC: true,
+          retainedRead: true,
+          lateWriteAbsent: true,
+        }),
+      );
+    }
   }
 } finally {
   if (policyInstalled)

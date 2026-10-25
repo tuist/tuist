@@ -188,7 +188,7 @@ defmodule Tuist.Kura.IdentityTest do
     assert DateTime.after?(client_url_deadline(original.name), earlier_deadline)
   end
 
-  test "endpoint migration defaults off for already-renamed accounts independently of the rename gate" do
+  test "regional endpoint migration defaults off while stable DNS follows the current handle" do
     original = AccountsFixtures.organization_fixture().account
     refute Identity.endpoint_migration_paused?(original)
     server = KuraFixtures.active_server_fixture(original, region: "eu-west")
@@ -205,10 +205,23 @@ defmodule Tuist.Kura.IdentityTest do
     other = AccountsFixtures.organization_fixture().account
     FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: other)
 
-    for environment <- [:test, :can, :prod] do
+    for {environment, suffix} <- [test: nil, stag: "-staging", can: "-canary", prod: ""] do
       stub(Environment, :env, fn -> environment end)
       refute Identity.endpoint_migration_enabled?(renamed)
-      assert KubernetesController.manifest(ref, "0.52.1", renamed, region, server) == before
+
+      stable_fields =
+        if suffix do
+          %{
+            "stableHost" => "#{renamed.name}#{suffix}.cache.tuist.dev",
+            "stableAWSRegion" => "eu-west-3",
+            "stableAdvertise" => true
+          }
+        else
+          %{}
+        end
+
+      expected = update_in(before["spec"], &Map.merge(&1, stable_fields))
+      assert KubernetesController.manifest(ref, "0.52.1", renamed, region, server) == expected
       assert KubernetesController.manifest_revision(server, region) == before_revision
       assert Provisioner.public_url(renamed, server) == original_url
       assert Identity.endpoint_redirects(renamed) == %{}

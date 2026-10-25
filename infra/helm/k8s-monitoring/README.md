@@ -104,7 +104,7 @@ The same receiver serves a `loki.source.api` on 3100 for everything running on a
 
 - The **Tart guests** (xcresult processor) — Alloy cannot read a VM's filesystem, and `kubectl logs` cannot resolve their tailnet-only kubelet hostnames.
 - The **Mac mini hosts themselves** — a Pod scheduled to a macOS Node *is* a Tart VM, so a DaemonSet-shaped collector lands inside a guest and never sees `/var/log/tart-kubelet.log`. The host runs [`infra/macos-log-shipper`](../../macos-log-shipper) instead, installed by the CAPI provider's bootstrap alongside `node_exporter`. Query it as `{job="tuist-macos-tart-kubelet"}`.
-- The **rack's Linux nodes** (its edges, with the `rack-edge` DaemonSet in `omada`, see [`infra/rack-switch-fleet`](../../rack-switch-fleet/AGENTS.md), and its storage nodes, see [`infra/rack-nodes`](../../rack-nodes/AGENTS.md)) — the Cilium agent never runs there, so `alloy-logs` and `alloy-metrics` have no route in. `alloy-rack` runs on each node's host network instead: it reads `/var/log/pods` itself and labels lines from the file path, and scrapes the node's node-local Kura pods (`tuist.dev/node-local-network=true`, which `alloy-metrics` skips) under `job="kura"` and the host itself under `job="integrations/node_exporter"` (below). Query logs like any pod: `{namespace="omada", container="dhcp"}`. Enabled per env where a rack is joined (production today).
+- The **rack's Linux nodes** (its edges, with the `rack-edge` DaemonSet in `omada`, see [`infra/rack-switch-fleet`](../../rack-switch-fleet/AGENTS.md), and its storage nodes, see [`infra/rack-nodes`](../../rack-nodes/AGENTS.md)) — the Cilium agent does not run on the edges, and a storage node on the cluster network (`publicAddress`) keeps its rack taint, so `alloy-logs` and `alloy-metrics` never land on either. `alloy-rack` runs on each node's host network instead: it reads `/var/log/pods` itself and labels lines from the file path, and scrapes the node's node-local Kura pods (`tuist.dev/node-local-network=true`, which `alloy-metrics` skips) under `job="kura"` and the host itself under `job="integrations/node_exporter"` (below). Query logs like any pod: `{namespace="omada", container="dhcp"}`. Enabled per env where a rack is joined (production today).
 
 All of them reach it at the receiver Service's **tailnet** hostname, set by the `tailscale.com/expose` annotations in each env's `values-{staging,canary,production}.yaml`, not at the in-cluster address Linux workloads use. Pushing here rather than to Grafana Cloud keeps the ingest credential in one place: Alloy forwards with the token it already holds, so no Mac mini or edge node carries one and the tailnet ACL is the access control. The receiver stamps each line with the time it arrives.
 
@@ -207,6 +207,28 @@ and the next cycle reapplies it. Pair every deletion with the query that
 protects it, which for Kura page cache is the **Page cache by node** panel in
 `infra/grafana-dashboards/tuist-kura-region-scalability.json`.
 
+**Counters need `sum:counter`.** A rule's `aggregations` decide which queries the
+aggregated series answers. Plain `sum` stores the sum of the raw values, which
+drops whenever a source restarts, and `rate()` or `increase()` over it return
+an empty result rather than an error. `sum:counter` stores a counter-aware sum
+that `rate()` reads. The `tuist_` prefix rule (drops `pod`, `instance`,
+`pod_template_hash`; stores `sum`, `count`, `max`) catches every `tuist_*`
+metric without an exact rule, so a new counter under that prefix cannot be
+rated until it gets an exact rule with `sum:counter`. An exact rule takes
+precedence over a prefix rule, as `tuist_runners_dispatch_request_count`
+shows. `tuist_runner_cache_volume_operations_total` and
+`tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}` got
+theirs on 2026-10-22 at 16:50 UTC; samples stored before then still cannot be
+rated.
+
+`sum:counter` cannot count an increment it never saw. A counter series a
+source creates on its first increment (a label combination the code does not
+initialize to 0) appears already at 1, and that first 1 is lost. Over
+17:20 to 18:20 UTC on 2026-10-22 the cache volume counter read 12 to 31% below
+the host logs for successes, and showed none of the hour's single macOS publish
+error or Linux acquire error. Alert on a rare failure from logs, or initialize
+its series to 0 in the code first.
+
 `recommendations/config` also carries a global `keep_labels` list: a label named
 there is never proposed for aggregation on any metric. It is empty today.
 Putting `cluster` in it would end this whole class of bug, at the cost of every
@@ -216,36 +238,118 @@ Restoring a label restores its cardinality. `node_memory_Cached_bytes` and
 `node_memory_MemFree_bytes` are 59 hosts each, so about 120 series and a dollar
 a month at the stack's measured rate.
 
-### The apiserver request rules are load-bearing for cost
+### API-server aggregation must happen before export
 
-The control-plane collector drops `resource`, `scope`, `subresource` and the
-other per-API labels from `apiserver_request_total` and
-`apiserver_request_duration_seconds_bucket`. Without them, many series share
-one label set in a single scrape. Adaptive Metrics sums those samples when a
-rule aggregates the metric. Without a rule they go straight to storage, where
-Mimir keeps one sample per label set and timestamp and rejects the rest as
-`err-mimir-sample-duplicate-timestamp`. Rejected samples are still billed:
-Grafana Cloud charges for data points per minute, not only for stored series.
+The previous control-plane collector removed `component`, `dry_run`, `group`,
+`resource`, `scope`, `subresource`, and `version` without summing their samples.
+That produces colliding counters and histogram buckets. Restoring Adaptive
+Metrics rules on October 5 changed rejection patterns but did not establish
+correctness: on October 14, `sample_duplicate_timestamp` still ran near 2,000/s,
+while `new-value-for-timestamp` was only around 74/s. Downstream counter
+aggregation is not a repair for identities already destroyed in the collector.
 
-On 2026-09-30 at about 17:50 UTC the rules for these two metrics disappeared
-(most likely through auto-apply, since the alerts started reading `cluster`).
-Ingested samples went from about 3,900/s to 7,100/s, duplicate-timestamp
-rejections from about 100/s to 2,500/s, and billable series from about 240k to
-447k with no change in active series. The rules were restored on 2026-10-05.
-They drop only `env`, `instance` and `k8s_cluster_name`, so the alerts keep
-`cluster`, `verb`, `code` and `le`:
+Removing the collector's labeldrop before fixing the source would restore up
+to roughly 61k series at two DPM, adding about $260/month in production alone
+and potentially $950/month fleet-wide. Keep the default-false
+`k8s-monitoring.global.apiServerMetricsAggregated` chart gate until the source
+is verified. `infra/k8s/clusters/clusterclass-tuist.yaml` adds the default-off
+`aggregateApiServerMetrics` variable to normalize excluded label values to
+`unexpected` **before** Kubernetes updates its metrics. The manifest covers
+`apiserver_request_total`, `apiserver_request_duration_seconds` (the histogram
+base name), and `apiserver_request_terminations_total`. `verb`, `code`, and `le`
+remain available. The management cluster is not covered by this ClusterClass.
 
-```json
-{"metric":"apiserver_request_duration_seconds_bucket","match_type":"exact","drop_labels":["env","instance","k8s_cluster_name"],"aggregations":["sum:counter"]}
-{"metric":"apiserver_request_total","match_type":"exact","drop_labels":["env","instance","k8s_cluster_name"],"aggregations":["sum:counter"]}
+Ship the default-off chart gate, then enable the ClusterClass variable on
+staging, canary, pentest, and production one at a time, while keeping the legacy
+collector rule. Changing the variable rolls the control plane. Verify the mounted
+`/etc/kubernetes/metric-labels.yaml` is a flat `metric,label: "__none__"` map,
+and confirm each restarted API server exports `resource="unexpected"` and
+correct monotonic counters on **every** control-plane node. Kubernetes logs
+manifest read/parse failures but can start without applying it, so readiness
+alone is not sufficient. Only then set `apiServerMetricsAggregated: true` in
+that cluster's chart overlay to remove the legacy labeldrop. Until then, old
+sources still have the existing collision problem; this gate does not repair
+it by itself. Management needs an independently verified source configuration
+before its chart gate can be enabled.
+
+After the chart gate is enabled, disabling the ClusterClass variable preserves
+correct metric dimensions but increases billed series/DPM. Budget that emergency
+rollback explicitly; never reintroduce labeldrop on an unaggregated source.
+Before the chart gate is enabled, roll back only to a verified source-aggregated
+control-plane configuration. Do not delete existing Adaptive Metrics rules as
+part of this code rollout.
+
+During rollout, inspect both rejection reasons using the query below, but
+leave the live duplicate-sample paging rule unchanged. Adding the second reason
+at the existing 500/s threshold would page continuously on today's known
+~2,000/s backlog. Update the live rule only after the workload clusters are
+aggregated and the combined baseline is below the threshold (or explicitly use
+a separate rollout warning). Watch the `grafanacloud-usage` datasource:
+
+```promql
+sum by (reason) (grafanacloud_instance_samples_discarded_per_second{
+  id="1774467", reason=~"new-value-for-timestamp|sample_duplicate_timestamp"
+})
 ```
 
-If either rule is missing, the same jump happens again. The fastest check is
-`grafanacloud_instance_samples_discarded_per_second{reason="new-value-for-timestamp"}`
-on the `grafanacloud-usage` data source, plus the
-`err-mimir-sample-duplicate-timestamp` lines in the
-`grafanacloud-tuist-usage-insights` Loki data source, which name the colliding
-series.
+Use the duplicate-timestamp lines in `grafanacloud-tuist-usage-insights` to
+identify the actual colliding metric. Also verify API-server p99 and error-rate
+queries against fresh samples after the rollout.
+
+## Kura latency migration and log cost controls
+
+Kura exports a sibling `kura_public_request_latency_by_transport_seconds`
+histogram using exactly the route histogram's bucket boundaries. It observes
+all HTTP and gRPC requests once, including cached ByteStream/REAPI paths.
+Route counts and sums remain, as do SplitBlob/SpliceBlob latency buckets. No
+replication bucket thinning is added: previous thinning materially biased p99.
+
+The migration is intentionally default-off:
+
+1. Ship the Kura runtime and collector rules with
+   `destinations.grafana-cloud-metrics.extraLabels.kura_latency_aggregate_enabled`
+   set to the string `"false"`. The new family is discarded and the route
+   histogram's migration marker is removed before storage.
+2. Import the updated hosted dashboards and update the **live** “Kura - public
+   request latency high” alert using the expression in `alerts.md`. The per-pod
+   `or` selects the transport histogram when available and falls back to old
+   complete route distributions. Changing this file does not update that alert.
+3. Set the destination flag to `"true"`. New pods lose ordinary route buckets;
+   older or rolled-back pods keep them. Retained partial route distributions
+   carry `latency_aggregate="true"` so queries cannot mistake chunking-only
+   buckets for all traffic. Both distributions receive identical bucket thinning.
+   The temporary control label is never stored. Redundant transport counts/sums
+   and file-operation histogram counts are dropped; the latter's two dashboard
+   consumers now use the equivalent file-operation counter.
+4. Check fresh p50/p95/p99, request rates, chunking panels, and active series.
+   Disable the flag to restore complete route histograms if needed. Before
+   changing it again, allow at least a full query window of stable scraping.
+
+The server logger marks only genuine action-cache misses. Alloy retains 1% of
+those info-level GET 404 completions, without sampling unexpected 404s, warnings,
+errors, or operator-access audit records. Oban start messages are debug-level;
+stop/failure messages retain job identity and timings without copying `args` or
+`meta`. Non-job Oban diagnostics still use the default logger. Job exception
+banners and stacktraces are bounded separately before and after flattening,
+each with a 2,048-character budget. The combined line is capped at 4,096
+characters, so even a verbose multiline reason cannot crowd out every
+stack frame. Exception text itself may still contain sensitive worker details.
+
+Run `bash test-cost-controls.sh` from this directory after building Helm
+dependencies. It starts the rendered log-processing block with the deployed
+`grafana/alloy:v1.15.0` image, without network access. This catches invalid
+LogQL selectors that static Alloy validation misses and verifies sampling with
+real CRI records, including unexpected 404s, misleading status text in paths,
+copied completion text in error messages, and both operator-audit exemptions. Also run
+`bash test-kura-latency-query.sh` with promtool available to exercise the actual
+dashboard queries against old, new, mixed, same-region mixed, and rolled-back runtimes. Helm CI runs
+both checks, including all eight dashboard/alert expressions with different
+old/new latency distributions. `python3 test-metric-cost-controls.py` additionally
+feeds a static Kura exposition through the rendered production remote-write
+rules into a local Prometheus receiver. It verifies both migration flag values,
+marker cleanup, old-pod fallback, bucket thinning, and redundant-family drops.
+This test strips Cloud authentication and replaces the destination with the
+local receiver; it does not contact the production metrics endpoint.
 
 ## Metrics scrape cadence
 

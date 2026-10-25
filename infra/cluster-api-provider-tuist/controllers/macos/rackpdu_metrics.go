@@ -44,10 +44,11 @@ func recordRackPDUMetrics(pdu *infrav1.RackPDU) {
 	rackPDUReadyGauge.WithLabelValues(labels...).Set(boolGauge(conditions.IsTrue(pdu, clusterv1.ReadyCondition)))
 	rackPDUDriftedGauge.WithLabelValues(labels...).Set(boolGauge(pdu.Status.Drift == infrav1.RackCardDriftDrifted))
 	rackPDUCertificateChangedGauge.WithLabelValues(labels...).Set(boolGauge(conditions.IsTrue(pdu, RackPDUCertificateChangedCondition)))
+	recordRackPDUOutletMetrics(pdu)
 }
 
 func forgetRackPDUMetrics(name string) {
-	for _, g := range []*prometheus.GaugeVec{rackPDUAdoptedGauge, rackPDUReadyGauge, rackPDUDriftedGauge, rackPDUCertificateChangedGauge} {
+	for _, g := range append([]*prometheus.GaugeVec{rackPDUAdoptedGauge, rackPDUReadyGauge, rackPDUDriftedGauge, rackPDUCertificateChangedGauge}, rackPDUOutletGauges...) {
 		g.DeletePartialMatch(prometheus.Labels{"pdu": name})
 	}
 }

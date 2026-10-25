@@ -100,7 +100,7 @@ public struct SupportCachePruner {
         guard try await fileSystem.exists(directory) else { return [] }
 
         var survivors: [Entry] = []
-        for path in try await fileSystem.glob(directory: directory, include: ["*"]).collect() {
+        for path in try await fileSystem.glob(directory: directory, include: [category.entryGlob]).collect() {
             // An entry that cannot be measured — a permission bit off, a symlink left dangling by
             // an interrupted write — is left where it is. Propagating here would abort retention
             // for good, since the next command meets the same entry and stops in the same place.

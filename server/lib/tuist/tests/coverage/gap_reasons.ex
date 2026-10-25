@@ -14,9 +14,12 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     collected evidence for its target (no `.coverageAttribution` trait, or
     the test didn't run there).
   - `collection_off`: no ancestor run collected evidence at all.
-  - `not_linked`: ancestor runs collected evidence, but none for the test's
-    target: the target doesn't link TestCoverageAttribution. A target whose
-    evidence only expired reads as this too when other evidence is live.
+  - `not_linked`: ancestor runs collected evidence, but no test-level
+    evidence (`test` or `suite` scopes) for the test's target: the target
+    doesn't link TestCoverageAttribution. Its `target` scope doesn't count,
+    since the client reads every target's from Xcode's raw profiles. A target
+    whose evidence only expired reads as this too when other evidence is
+    live.
   - `test_failed`: the test failed in the run its evidence comes from.
   - `evidence_without_lines`: the evidence names files but not the lines.
   - `executed_file_changed`: a file the test executed changed since.
@@ -40,11 +43,18 @@ defmodule Tuist.Tests.Coverage.GapReasons do
   - `dirty_run_excluded`: a scheme's coverage only came from CI runs on a
     dirty checkout, which measured code that is not the commit's and never
     count.
-  - `target_without_history`: selective testing skipped a test target no
-    ancestor run executed, so which tests it holds is unknown.
+  - `target_without_history`: selective testing skipped a test target that
+    no run was recorded under with its hash and the commit's baseline did
+    not execute, so which tests it holds is unknown.
   - `caller_selected_tests`: every run of a scheme executed only the tests
     its caller selected (`-only-testing`), so what the rest would have
     covered is unknown.
+  - `uninstrumented_code`: a scheme's runs reused prebuilt code without
+    coverage counters (a binary cache), and none of them ran every test from
+    sources (`Tuist.Tests.Coverage.Instrumentation`).
+  - `test_list_changed`: a skipped test target's test files changed since
+    the commit's baseline, and no run was recorded under its hash, so which
+    tests it holds now is unknown.
   """
   import Bitwise
 
@@ -65,7 +75,9 @@ defmodule Tuist.Tests.Coverage.GapReasons do
     :overlapped,
     :dirty_run_excluded,
     :target_without_history,
-    :caller_selected_tests
+    :caller_selected_tests,
+    :uninstrumented_code,
+    :test_list_changed
   ]
 
   @bits @reasons |> Enum.with_index() |> Map.new(fn {reason, index} -> {reason, 1 <<< index} end)

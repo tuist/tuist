@@ -10,7 +10,9 @@ defmodule TuistWeb.CoverageDetailLiveTest do
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Test
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Errors.NotFoundError
 
   defp file(path, counts), do: CoverageFixtures.file(path, counts, targets: ["Calculator"])
@@ -99,6 +101,69 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits&commits-status=incomplete")
     assert has_element?(lv, "#coverage-commit-status-a")
     refute has_element?(lv, "#coverage-commit-status-b")
+  end
+
+  test "lists a branch's measured commits by default, and every commit under any status", %{conn: conn, base: base} do
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
+    assert has_element?(lv, "#coverage-commits-status-dropdown-label-portal", "Measured")
+    assert has_element?(lv, "#coverage-commit-status-b")
+    refute has_element?(lv, "#coverage-commit-status-a")
+
+    # Any is asked for explicitly; Measured, the default, leaves the query.
+    html = render(lv)
+    assert html =~ ~r/href="\?commits-status=any&amp;tab=commits"[^>]*data-value="any"/
+    assert html =~ ~r/href="\?tab=commits"[^>]*data-value="measured"/
+
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits&commits-status=any")
+    assert has_element?(lv, "#coverage-commit-status-b")
+    assert has_element?(lv, "#coverage-commit-status-a", "Not measured")
+
+    {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits&commits-status=not-measured")
+    assert has_element?(lv, "#coverage-commit-status-a")
+    refute has_element?(lv, "#coverage-commit-status-b")
+  end
+
+  test "lists the targets taken from the binary cache without counters as not measured, and says why the commit is incomplete",
+       %{conn: conn, base: base, organization: organization, project: project, run: run} do
+    # Calculator was measured; Net came plain from the cache in the only run that executed its tests.
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+    XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "Net", binary_cache_hit: :local)
+    Commits.signal_complete(project, "b")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=targets")
+    assert has_element?(lv, "#coverage-targets-table #target-Calculator", "66.7%")
+    assert has_element?(lv, "#coverage-targets-table #target-Net", "Not measured")
+    assert lv |> element("#target-Net-unmeasured") |> render() =~ "without coverage counters"
+    refute has_element?(lv, "[data-part='empty-targets']")
+
+    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Incomplete"
+    assert lv |> element("#coverage-status") |> render() =~ "binary cache"
+
+    # The search applies to them as to the measured ones.
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=targets&targets-search=net")
+    assert has_element?(lv, "#coverage-targets-table #target-Net")
+    refute has_element?(lv, "#coverage-targets-table #target-Calculator")
+
+    # A commit whose runs measured no product line lists only such targets, and no empty state.
+    CoverageFixtures.seed_history(organization.account, [
+      CoverageFixtures.commit("c", ["b"], 2, DateTime.add(DateTime.utc_now(), -1, :day))
+    ])
+
+    plain =
+      CoverageFixtures.run_with_coverage(
+        project,
+        organization.account,
+        [CoverageFixtures.file("Tests/ATests.swift", [1], is_test: true)],
+        %{git_commit_sha: "c"}
+      )
+
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: plain.id)
+    XcodeFixtures.xcode_target_fixture(command_event_id: event.id, name: "Calculator", binary_cache_hit: :local)
+    Commits.signal_complete(project, "c")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/c?tab=targets")
+    assert has_element?(lv, "#coverage-targets-table #target-Calculator", "Not measured")
+    refute has_element?(lv, "[data-part='empty-targets']")
   end
 
   test "lists a run from a dirty checkout as discarded, and says why the commit is incomplete", %{
@@ -289,6 +354,48 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=runs&runs-search=missing")
     assert has_element?(lv, "#coverage-runs-table", "No run matches these filters")
+  end
+
+  test "names Mix runs and their Command filter options after the command", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
+    now = NaiveDateTime.utc_now()
+
+    for {scheme, offset} <- [{"", -600}, {"clickhouse-current", -300}] do
+      CoverageFixtures.run_with_coverage(project, organization.account, [file("lib/a.ex", [1, 0])], %{
+        git_commit_sha: "c",
+        build_system: "mix",
+        scheme: scheme,
+        ran_at: NaiveDateTime.add(now, offset)
+      })
+    end
+
+    path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/c"
+
+    labels = fn lv ->
+      lv
+      |> element("#coverage-runs-table")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find("tbody tr td:first-child [data-part='label']")
+      |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
+    end
+
+    {:ok, lv, _html} = live(conn, path <> "?tab=runs")
+    assert labels.(lv) == ["mix test · clickhouse-current", "mix test"]
+
+    {:ok, lv, _html} =
+      live(conn, path <> "?tab=runs&filter_run_scheme_op=%3D%3D&filter_run_scheme_val=clickhouse-current")
+
+    assert has_element?(
+             lv,
+             "[data-part='item'][data-value='clickhouse-current'][data-label='mix test · clickhouse-current']"
+           )
+
+    assert labels.(lv) == ["mix test · clickhouse-current"]
   end
 
   test "opens a file of the commit on its own page, at that commit", %{conn: conn, base: base} do

@@ -90,7 +90,7 @@ func (r *RackHostReconciler) reconcileMachine(ctx context.Context, host *infrav1
 		return ctrl.Result{}, nil
 	}
 
-	if machine != nil && ownerRemediationRequested(machine) {
+	if machine != nil && !nodeElsewhere(host) && ownerRemediationRequested(machine) {
 		if err := r.Delete(ctx, machine); err != nil && !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, fmt.Errorf("delete unhealthy Machine %s: %w", machine.Name, err)
 		}
@@ -107,11 +107,15 @@ func (r *RackHostReconciler) reconcileMachine(ctx context.Context, host *infrav1
 }
 
 func (r *RackHostReconciler) machineLabels(host *infrav1.RackHost) map[string]string {
-	return map[string]string{
+	labels := map[string]string{
 		clusterv1.ClusterNameLabel: r.Machines.ClusterName,
 		"tuist.dev/fleet":          r.Machines.FleetName,
 		RackHostLabel:              host.Name,
 	}
+	if site := host.Spec.Location.Site; site != "" {
+		labels[infrav1.RackSiteNodeLabel] = site
+	}
+	return labels
 }
 
 func (r *RackHostReconciler) keepInfraMachine(ctx context.Context, host *infrav1.RackHost, key types.NamespacedName) error {
@@ -120,6 +124,8 @@ func (r *RackHostReconciler) keepInfraMachine(ctx context.Context, host *infrav1
 		setRackLabels(&infra.ObjectMeta, r.machineLabels(host))
 		infra.Spec.Host = host.Name
 		infra.Spec.FleetName = r.Machines.FleetName
+		infra.Spec.NodeFleet = host.Spec.NodeFleet
+		infra.Spec.NodeCluster = host.Spec.NodeCluster.DeepCopy()
 		sizing := host.Spec.Machine
 		infra.Spec.HostCPU = sizing.HostCPU
 		infra.Spec.HostMemoryMB = sizing.HostMemoryMB
@@ -142,6 +148,7 @@ func (r *RackHostReconciler) keepMachine(ctx context.Context, host *infrav1.Rack
 	machine := &clusterv1.Machine{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace}}
 	op, err := controllerutil.CreateOrPatch(ctx, r.Client, machine, func() error {
 		setRackLabels(&machine.ObjectMeta, r.machineLabels(host))
+		keepLentMachineOffRemediation(&machine.ObjectMeta, host)
 		if err := controllerutil.SetControllerReference(host, machine, r.Scheme); err != nil {
 			return err
 		}
@@ -169,6 +176,32 @@ func (r *RackHostReconciler) keepMachine(ctx context.Context, host *infrav1.Rack
 	return nil
 }
 
+// lentSkipRemediationAnnotation marks a skip-remediation this controller set
+// for a lent host, so returning the host removes only that one and never an
+// operator's own.
+const lentSkipRemediationAnnotation = "tuist.dev/lent-skip-remediation"
+
+// keepLentMachineOffRemediation keeps the fleet's MachineHealthCheck off the
+// Machine of a host whose Node is in another cluster. This cluster never sees
+// that Node, so the check would find it missing and remediate the Machine,
+// which re-bootstraps the host in a loop.
+func keepLentMachineOffRemediation(meta *metav1.ObjectMeta, host *infrav1.RackHost) {
+	if nodeElsewhere(host) {
+		if meta.Annotations == nil {
+			meta.Annotations = map[string]string{}
+		}
+		if _, set := meta.Annotations[clusterv1.MachineSkipRemediationAnnotation]; !set {
+			meta.Annotations[clusterv1.MachineSkipRemediationAnnotation] = ""
+			meta.Annotations[lentSkipRemediationAnnotation] = "true"
+		}
+		return
+	}
+	if meta.Annotations[lentSkipRemediationAnnotation] == "true" {
+		delete(meta.Annotations, clusterv1.MachineSkipRemediationAnnotation)
+		delete(meta.Annotations, lentSkipRemediationAnnotation)
+	}
+}
+
 func setRackLabels(meta *metav1.ObjectMeta, labels map[string]string) {
 	if meta.Labels == nil {
 		meta.Labels = map[string]string{}
@@ -183,4 +216,10 @@ func setRackLabels(meta *metav1.ObjectMeta, labels map[string]string) {
 func ownerRemediationRequested(machine *clusterv1.Machine) bool {
 	return conditions.IsFalse(machine, clusterv1.MachineHealthCheckSucceededCondition) &&
 		conditions.IsFalse(machine, clusterv1.MachineOwnerRemediatedCondition)
+}
+
+// nodeElsewhere reports a host whose Node is, or may be, in another cluster:
+// lent by hand, being lent (lendTo), or lent and not yet back.
+func nodeElsewhere(host *infrav1.RackHost) bool {
+	return host.Spec.NodeCluster != nil || host.Spec.LendTo != "" || host.Status.Lease != nil
 }

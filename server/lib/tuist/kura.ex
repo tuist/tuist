@@ -82,8 +82,8 @@ defmodule Tuist.Kura do
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
   @version_rollout_batch_size 100
 
-  @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
-  def reconcile_orphaned_deployments, do: Reconciler.reconcile()
+  @doc "Enqueues unique reconciliation of desired Kura server rows with the observed Kubernetes state."
+  def enqueue_reconcile_orphaned_deployments, do: %{} |> Reconciler.new() |> Oban.insert!()
 
   # How long a server that has stopped receiving new traffic keeps serving
   # before its resources are torn down, so persistent gRPC channels and
@@ -1725,7 +1725,10 @@ defmodule Tuist.Kura do
     case Repo.transaction(fn ->
            server = lock_with_status(server, :active, :not_drainable)
 
-           with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :drain_pending}) |> Repo.update(),
+           with {:ok, server} <-
+                  server
+                  |> Server.lifecycle_changeset(%{status: :drain_pending, drain_started_at: now_truncated()})
+                  |> Repo.update(),
                 :ok <- cancel_open_deployments(server) do
              server
            else
@@ -1784,7 +1787,7 @@ defmodule Tuist.Kura do
     Repo.transaction(fn ->
       server = lock_with_status(server, :drain_pending, :not_draining)
 
-      case server |> Server.lifecycle_changeset(%{status: :active}) |> Repo.update() do
+      case server |> Server.lifecycle_changeset(%{status: :active, drain_started_at: nil}) |> Repo.update() do
         {:ok, server} -> server
         {:error, reason} -> Repo.rollback(reason)
       end
@@ -1822,6 +1825,7 @@ defmodule Tuist.Kura do
                 |> Server.lifecycle_changeset(%{
                   status: :archived,
                   url: nil,
+                  drain_started_at: nil,
                   current_image_tag: nil,
                   observed_image_tag: nil,
                   last_ready_at: nil

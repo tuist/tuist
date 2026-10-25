@@ -5,6 +5,8 @@ defmodule TuistWeb.BuildRunLive do
 
   import Phoenix.Component
   import TuistWeb.Components.BuildTimeline
+  import TuistWeb.Components.CacheBreakdown
+  import TuistWeb.Components.CacheOutputList
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.MachineMetricsCharts
@@ -120,7 +122,7 @@ defmodule TuistWeb.BuildRunLive do
       end
 
     test_run =
-      case Tests.get_latest_test_by_build_run_id(run.id) do
+      case Tests.get_latest_test_by_build_run_id(run.id, run.project_id) do
         {:ok, test} -> test
         {:error, :not_found} -> nil
       end
@@ -1595,15 +1597,6 @@ defmodule TuistWeb.BuildRunLive do
         [0, 0, 0, 0]
     end
   end
-
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
 
   defp define_binary_cache_filters do
     [

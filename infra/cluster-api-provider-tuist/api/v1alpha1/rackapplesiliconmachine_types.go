@@ -37,6 +37,16 @@ type RackAppleSiliconMachineSpec struct {
 	// +optional
 	FleetName string `json:"fleetName,omitempty"`
 
+	// NodeFleet, when set, replaces FleetName as the `tuist.dev/fleet` label on
+	// the Node: the host's RackHost `nodeFleet`.
+	// +optional
+	NodeFleet string `json:"nodeFleet,omitempty"`
+
+	// NodeCluster, when set, is the other cluster the host's Node registers
+	// in: the host's RackHost `nodeCluster`.
+	// +optional
+	NodeCluster *RackHostNodeCluster `json:"nodeCluster,omitempty"`
+
 	// KubeletVersion override; defaults to the operator's chart-level value
 	// when empty.
 	// +optional
@@ -77,7 +87,7 @@ type RackAppleSiliconMachineSpec struct {
 	MaxPods int `json:"maxPods,omitempty"`
 
 	// RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS volume
-	// bootstrap provisions to hold per-account cache-volume images. Unset
+	// bootstrap provisions to hold the runner cache volumes. Unset
 	// (nil) falls back to the operator's global default; an explicit 0
 	// disables cache volumes on this host entirely.
 	//

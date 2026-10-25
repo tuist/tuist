@@ -1,4 +1,4 @@
-{{- if .Values.xcresultProcessor.enabled }}
+{{- if include "tuist.rendersXcresultProcessor" . }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 ---
@@ -14,11 +14,8 @@ spec:
   # maxSurge: 0 (below) replaces one Tart VM at a time: terminate the
   # old VM to free hostPort 9091, then boot a fresh one. A full macOS
   # VM teardown + boot routinely overruns the 600s k8s default, which
-  # flips the Deployment to Progress-deadline-exceeded mid-roll. The
-  # deploy's `helm upgrade --atomic` then rolls back the whole release,
-  # so a slow processor image bump (e.g. 0.23.1 -> 0.24.0) blocks every
-  # prod deploy until it lands. Give a single VM cycle ample headroom,
-  # still well under helm's 60m --timeout.
+  # would flip the Deployment to Progress-deadline-exceeded mid-roll.
+  # Give a single VM cycle ample headroom.
   progressDeadlineSeconds: 1800
   strategy:
     {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
@@ -33,6 +30,15 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- if and .Values.clickhouse.managed.enabled .Values.clickhouse.managed.tailscale.enabled }}
+        # The processor reads `url-tailnet` only at startup, so a change to the
+        # name it dials has to restart it to take effect.
+        tuist.dev/clickhouse-tailnet-host: {{ include "tuist.clickhouseTailnetHost" . | quote }}
+        {{- end }}
+        {{- if and .Values.postgresql.cnpg.pooler.enabled .Values.postgresql.cnpg.pooler.tailscale.enabled }}
+        # Likewise for the database URL it reads at startup.
+        tuist.dev/pg-pooler-tailnet-host: {{ include "tuist.poolerTailnetHost" . | quote }}
+        {{- end }}
         # tart-kubelet honours these by spinning up a host-side HTTP
         # reverse proxy on <node_ip>:9091 → <vm_ip>:9091 for the Tart
         # VM and rewriting Pod.Status.PodIP to the Mac mini's host
@@ -113,6 +119,30 @@ spec:
               containerPort: 9091
               hostPort: 9091
               protocol: TCP
+            # Tuist.Readiness.Plug, served in xcresult_processor mode. No
+            # hostPort: tart-kubelet probes the guest IP from the host.
+            - name: readiness
+              containerPort: 9092
+              protocol: TCP
+          {{- with .Values.xcresultProcessor.readinessProbe }}
+          {{- if .enabled }}
+          # tart-kubelet runs this against the guest and holds the Pod
+          # NotReady until Postgres (via the pooler), ClickHouse (including
+          # the in-cluster server over the tailnet, when configured) and the
+          # :process_xcresult Oban queue all answer. That is what lets the
+          # rolling update stop on a processor that boots but cannot reach
+          # its dependencies.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: readiness
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            successThreshold: {{ .successThreshold }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          {{- end }}
           env:
             # Boot mode: queue-only consumer for :process_xcresult.
             # Tuist.Environment.mode/0 reads TUIST_MODE (collapse-
@@ -124,6 +154,12 @@ spec:
             # leaving ProcessXcresultWorker's queue starved.
             - name: TUIST_MODE
               value: "xcresult_processor"
+            # Read by the guest's fetch-release.sh, which installs this
+            # release before the BEAM starts.
+            - name: TUIST_XCRESULT_PROCESSOR_RELEASE_REPOSITORY
+              value: {{ .Values.xcresultProcessor.release.repository | quote }}
+            - name: TUIST_XCRESULT_PROCESSOR_RELEASE_DIGEST
+              value: {{ required "xcresultProcessor.release.digest is required: the processor image carries no server release" .Values.xcresultProcessor.release.digest | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             # Tuist.License.assert_valid!/0 runs unconditionally at boot
@@ -236,15 +272,10 @@ spec:
                   fieldPath: metadata.name
             {{- end }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
-            # This processor writes the test tables, so it needs the in-cluster
-            # server like every other writer: as the mirror destination while
-            # ClickHouse Cloud is the system of record, and as its ClickHouse
-            # once the in-cluster server is.
-            #
-            # The tailnet variant, because this is the one writer that is not
-            # on the pod network: it runs in a Tart VM with a tailnet address,
-            # so the in-cluster Service name every other writer uses does not
-            # resolve here.
+            # The tailnet variant of the in-cluster ClickHouse URL, because this
+            # is the one writer that is not on the pod network: it runs in a
+            # Tart VM with a tailnet address, so the in-cluster Service name
+            # every other writer uses does not resolve here.
             {{- include "tuist.clickhouseManagedTailnetEnv" . | nindent 12 }}
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}

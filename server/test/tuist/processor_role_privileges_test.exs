@@ -9,7 +9,9 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
   alias Tuist.Bazel.TestInvocation
   alias Tuist.Bazel.Workers.ProcessProfileWorker
   alias Tuist.Bazel.Workers.ProcessTestInvocationWorker
+  alias Tuist.BuildEntities
   alias Tuist.Builds.Workers.ProcessBuildWorker
+  alias Tuist.GitHistory
   alias Tuist.MCP.Events.Subscription
   alias Tuist.MCP.Events.Workers.FanoutWorker
   alias Tuist.Processor.BuildProcessor
@@ -43,6 +45,25 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
     assert :ok == process_build_as_processor(context, "success")
   end
 
+  test "opted-in build ingestion derives module timings with processor privileges", context do
+    FunWithFlags.enable(:build_entities, for_actor: context.project)
+
+    targets = [
+      %{
+        "name" => "Core",
+        "project" => "App",
+        "compilation_duration" => 120,
+        "build_duration" => 500,
+        "status" => "success"
+      }
+    ]
+
+    assert :ok == process_build_as_processor(context, "success", targets)
+
+    assert {[%{name: "Core", duration_samples: 1, p90_duration_ms: 120}], _} =
+             BuildEntities.list(context.project.id, :xcode, "module")
+  end
+
   test "a failed build publishes its event to a subscribed agent with processor privileges", context do
     subscribe(context.project, "build.failed")
 
@@ -52,6 +73,37 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
 
   test "the xcresult ingestion path only reads and writes granted tables", context do
     assert :ok == process_xcresult_as_processor(context, "success")
+  end
+
+  test "the xcresult ingestion path reads the account's commit graph to classify new test cases", context do
+    repository = GitHistory.repository_id(context.project.account_id, "git@github.com:acme/app.git")
+
+    GitHistory.record_commits(repository, "main1", [
+      %{sha: "main1", parents: [], committed_at: ~U[2026-09-01 00:00:00Z]}
+    ])
+
+    GitHistory.record_branch_head(repository, "main", "main1", "main")
+
+    test_modules = [
+      %{
+        "name" => "AppModuleTests",
+        "status" => "success",
+        "duration" => 30,
+        "test_suites" => [%{"name" => "AppSuite", "status" => "success", "duration" => 30}],
+        "test_cases" => [
+          %{
+            "name" => "test_example",
+            "test_suite_name" => "AppSuite",
+            "status" => "success",
+            "duration" => 10,
+            "failures" => [],
+            "repetitions" => []
+          }
+        ]
+      }
+    ]
+
+    assert :ok == process_xcresult_as_processor(context, "success", test_modules)
   end
 
   test "a failed test run publishes its event to a subscribed agent with processor privileges", context do
@@ -200,14 +252,14 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
              end)
   end
 
-  defp process_build_as_processor(%{account: account, project: project, build: build}, status) do
+  defp process_build_as_processor(%{account: account, project: project, build: build}, status, targets \\ []) do
     stub(Tuist.Storage, :download_to_file, fn @storage_key, _path, _account -> {:ok, :done} end)
 
     stub(BuildProcessor, :process_build, fn _path, _upload_enabled, consume ->
       consume.(%{
         "duration" => 1200,
         "status" => status,
-        "targets" => [],
+        "targets" => targets,
         "issues" => [],
         "files" => [],
         "cacheable_tasks" => [],
@@ -232,7 +284,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
     ProcessorRole.as_processor(fn -> ProcessBuildWorker.perform(job) end)
   end
 
-  defp process_xcresult_as_processor(%{account: account, project: project}, status) do
+  defp process_xcresult_as_processor(%{account: account, project: project}, status, test_modules \\ []) do
     stub(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
 
     stub(XCResultProcessor, :process_local, fn _path, _opts ->
@@ -241,7 +293,7 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
          "test_plan_name" => "AppTests",
          "status" => status,
          "duration" => 45,
-         "test_modules" => []
+         "test_modules" => test_modules
        }}
     end)
 

@@ -56,8 +56,8 @@ public actor RunMetadataStorage {
         self.binaryCacheItems = binaryCacheItems
     }
 
-    /// Tests the run skipped because they are quarantined. They are left out on every run, so a run
-    /// that skips only them still runs its whole selection.
+    /// Tests the run skipped because they are quarantined. They are left out on every run, so they
+    /// aren't reported as skipped: a run that skips only them still runs its whole selection.
     public private(set) var skippedQuarantinedTestIdentifiers: Set<String> = []
     public func update(skippedQuarantinedTestIdentifiers: Set<String>) {
         self.skippedQuarantinedTestIdentifiers = skippedQuarantinedTestIdentifiers
@@ -214,7 +214,12 @@ public actor RunMetadataStorage {
 
     /// Restores the build's `CoverageBuildSources` from the `.xctestproducts` bundle at
     /// `testProductsPath`. No-op when the build did not record them.
+    /// The `.xctestproducts` bundle a run tests without building, when it restored anything
+    /// from one: where the products the coverage export reads live.
+    public private(set) var testProductsPath: AbsolutePath?
+
     public func restoreCoverageBuildSources(from testProductsPath: AbsolutePath) async {
+        self.testProductsPath = testProductsPath
         let sourcesPath = testProductsPath.appending(component: CoverageBuildSources.fileName)
         guard (try? await fileSystem.exists(sourcesPath)) == true else { return }
         do {

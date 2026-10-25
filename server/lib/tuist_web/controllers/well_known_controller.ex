@@ -3,6 +3,7 @@ defmodule TuistWeb.WellKnownController do
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.MCP.Server
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
@@ -27,6 +28,12 @@ defmodule TuistWeb.WellKnownController do
     |> put_resp_header("content-type", AgentDiscovery.api_catalog_content_type())
     |> put_resp_header("link", AgentDiscovery.api_catalog_link_header_value())
     |> send_resp(:ok, JSON.encode!(catalog))
+  end
+
+  def tuist_discovery(conn, _params) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> json(%{network_trusted_report_publishing: Environment.network_trusted_report_publishing_enabled?()})
   end
 
   def agent_skills_index(conn, _params) do
@@ -122,7 +129,7 @@ defmodule TuistWeb.WellKnownController do
   Returns the MCP Server Card for agent discovery (SEP-1649).
   """
   def mcp_server_card(conn, _params) do
-    server = Tuist.MCP.Server.server()
+    server = Server.server()
     origin = RequestOrigin.from_conn(conn)
 
     capabilities =
@@ -132,7 +139,7 @@ defmodule TuistWeb.WellKnownController do
         {map_size(server.prompts) > 0, :prompts}
       ]
       |> Enum.filter(fn {present, _} -> present end)
-      |> Map.new(fn {_, name} -> {name, %{listChanged: true}} end)
+      |> Map.new(fn {_, name} -> {name, %{}} end)
 
     card = %{
       version: "1.0",

@@ -3,6 +3,7 @@ defmodule TuistWeb.WellKnownControllerTest do
   use Mimic
 
   alias Tuist.Environment
+  alias Tuist.MCP.Server
   alias TuistWeb.AgentSkillsDiscovery
 
   setup do
@@ -17,6 +18,18 @@ defmodule TuistWeb.WellKnownControllerTest do
     end)
 
     :ok
+  end
+
+  describe "GET /.well-known/tuist.json" do
+    test "advertises the current instance policy without authentication or caching", %{conn: conn} do
+      for enabled <- [false, true, false] do
+        stub(Environment, :network_trusted_report_publishing_enabled?, fn -> enabled end)
+        response = get(conn, "/.well-known/tuist.json")
+        assert json_response(response, 200) == %{"network_trusted_report_publishing" => enabled}
+        assert get_resp_header(response, "cache-control") == ["no-store"]
+        assert get_resp_header(response, "set-cookie") == []
+      end
+    end
   end
 
   describe "GET /.well-known/api-catalog" do
@@ -238,7 +251,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       conn = get(conn, "/.well-known/mcp/server-card.json")
 
       response = json_response(conn, 200)
-      server = Tuist.MCP.Server.server()
+      server = Server.server()
 
       assert get_resp_header(conn, "content-type") == ["application/json; charset=utf-8"]
       assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
@@ -248,12 +261,12 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
-      assert response["serverInfo"]["version"] == "1.35.0"
+      assert response["serverInfo"]["version"] == "1.42.0"
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
-      assert response["capabilities"]["tools"] == %{"listChanged" => true}
-      assert response["capabilities"]["prompts"] == %{"listChanged" => true}
+      assert response["capabilities"]["tools"] == %{}
+      assert response["capabilities"]["prompts"] == %{}
 
       assert response["authentication"] == %{
                "required" => true,

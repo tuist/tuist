@@ -12,7 +12,7 @@ const StickMarker = "tuist-install-stick"
 var stickServerPattern = regexp.MustCompile(`^http://[A-Za-z0-9.-]+(:[0-9]+)?$`)
 
 type stickPaths struct {
-	Seed, Autoinstall, Console, Sys, Node string
+	Seed, Autoinstall, Console, Sys, Node, Uptime string
 }
 
 // StickUserData renders the seed of a site's install stick, which carries no
@@ -29,7 +29,7 @@ func StickUserData(server string) (string, error) {
 	if !stickServerPattern.MatchString(server) {
 		return "", fmt.Errorf("%q is not the boot server's http:// address", server)
 	}
-	script := stickScript(server, stickPaths{Seed: "/run/tuist-user-data", Autoinstall: "/autoinstall.yaml", Console: "/dev/console", Sys: "/sys", Node: "/usr/local/bin/tuist-rack-node"})
+	script := stickScript(server, stickPaths{Seed: "/run/tuist-user-data", Autoinstall: "/autoinstall.yaml", Console: "/dev/console", Sys: "/sys", Node: "/usr/local/bin/tuist-rack-node", Uptime: "/proc/uptime"})
 	return "#cloud-config\nautoinstall:\n  version: 1\n  early-commands:\n    - |\n" + indent(script, "      ") +
 		"    - |\n" + indent(keepStick, "      "), nil
 }
@@ -67,13 +67,19 @@ ethernets:
 // published seed there makes it the install. While nothing is published, it
 // announces the machine's SMBIOS identity, NICs and TPM endorsement key to the
 // boot server once a minute.
+//
+// Its five minutes are on the clock, since a pass that cannot reach the boot
+// server takes longer than its ten seconds' sleep: without its provisioning
+// lease the machine sends the connection out the default route an uplink's
+// DHCP gave it, where nothing answers, and only the connect timeout ends it.
 func stickScript(server string, p stickPaths) string {
 	return `server='` + server + `'
 node='` + p.Node + `'
 say() { echo "tuist: $*" >>` + p.Console + `; }
+uptime() { cut -d. -f1 ` + p.Uptime + `; }
 fetch_node() {
   [ -x "$node" ] && return 0
-  curl -fsS --max-time 120 -o "$node.new" "$server/tools/rack-node" 2>/dev/null && chmod 755 "$node.new" && mv "$node.new" "$node"
+  curl -fsS --connect-timeout 10 --max-time 120 -o "$node.new" "$server/tools/rack-node" 2>/dev/null && chmod 755 "$node.new" && mv "$node.new" "$node"
 }
 announce() {
   dmi=` + p.Sys + `/class/dmi/id
@@ -90,7 +96,7 @@ announce() {
     ek=$("$node" ek) && [ -n "$ek" ] && printf 'ek=%s\n' "$ek"
   } 2>/dev/null | curl -fsS --max-time 10 --data-binary @- "$server/cgi-bin/announce" >/dev/null 2>&1 || true
 }
-waited=0
+started=$(uptime) said=""
 while :; do
   answered=0 code=1
   macs=$(ip -o link show | awk '{for (i = 1; i < NF; i++) if ($i == "link/ether") print $(i + 1)}' | tr 'A-F:' 'a-f-')
@@ -108,16 +114,18 @@ while :; do
       exit 0
     fi
   fi
+  waited=$(($(uptime) - started))
   if [ "$answered" = 1 ] || [ "$waited" -ge 300 ]; then
 ` + indent(handover(`grep -q '^tailnet_key=' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null`,
 		"no install is published for this machine"), "    ") + `  fi
-  if [ $((waited % 60)) -eq 0 ]; then
+  if [ -z "$said" ] || [ $((waited - said)) -ge 60 ]; then
+    said=$waited
     say "waiting for $server to publish an install for this machine"
+    [ "$answered" = 1 ] || say "no answer from $server; addresses: $(ip -4 -o addr show scope global | awk '{printf "%s %s; ", $2, $4}')"
     [ ! -s ` + p.Seed + `.err ] || say "$(tail -n 1 ` + p.Seed + `.err)"
     announce
   fi
   sleep 10
-  waited=$((waited + 10))
 done
 `
 }

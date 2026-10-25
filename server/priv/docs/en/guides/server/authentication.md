@@ -28,13 +28,19 @@ The CLI will automatically look up the credentials when making requests to the s
 
 For CI environments that support OpenID Connect (OIDC), Tuist can authenticate automatically without requiring you to manage long-lived secrets. When running in a supported CI environment, the CLI will automatically detect the OIDC token provider and exchange the CI-provided token for a Tuist access token.
 
-### Supported CI providers {#supported-ci-providers}
+### Supported providers {#supported-ci-providers}
+
+Tuist recognizes these CI providers and maps their tokens to projects through your repository connection:
 
 - GitHub Actions
 - CircleCI
 - Bitrise
 
+Any other identity provider that issues OpenID Connect tokens can authenticate through a [workload identity trust policy](#workload-identity-trust-policies) that you configure once for all current and future projects in your account, for example [Fly.io Machines](#flyio-machines).
+
 ### Setting up OIDC authentication {#setting-up-oidc-authentication}
+
+For GitHub Actions, CircleCI, and Bitrise:
 
 1. **Connect your repository to Tuist**: Follow the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link> to connect your GitHub repository to your Tuist project.
 
@@ -42,17 +48,117 @@ For CI environments that support OpenID Connect (OIDC), Tuist can authenticate a
 
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific configuration examples.
 
+### Workload identity trust policies {#workload-identity-trust-policies}
+
+A trust policy lets workloads from another identity provider, such as a deployment platform, a Kubernetes cluster, or a self-managed CI system, access a project without a long-lived Tuist secret. The provider must:
+
+- Be reachable over HTTPS at a public address. Tuist doesn't follow redirects and doesn't connect to private or internal network addresses, including from self-hosted Tuist servers.
+- Issue JWTs signed with an asymmetric key, for example `RS256` or `ES256`. Unsigned tokens and tokens signed with a shared secret (`HS256` and similar) are rejected.
+- Publish its signing keys as a JSON Web Key Set (JWKS) at a fixed HTTPS URL. The response must be at most 64 KiB and contain at most 20 keys.
+- Include an expiration (`exp`) in every token.
+
+GitHub Actions, CircleCI, and Bitrise issuers are reserved for the repository-based flow above and can't be used in a trust policy.
+
+> [!NOTE]
+> For a self-hosted rollout, apply the database migrations and upgrade every serving Tuist server replica before configuring workload identities or moving jobs to them. Then upgrade the CLI or Elixir integration to a version that supports `TUIST_OIDC_TOKEN` and `TUIST_OIDC_ACCOUNT`. Existing GitHub Actions, CircleCI, and Bitrise jobs keep using repository-based authorization and don't require an account handle. Before switching production jobs, verify a short-lived token exchange and a cache operation with the intended workload. To stop new exchanges, remove the policy; allow up to one hour for already-issued Tuist access tokens to expire. Deleting a policy does not immediately revoke those tokens.
+
+#### Create a policy {#create-a-trust-policy}
+
+In the Tuist dashboard, open your account's **Settings** > **Authentication** and find the **Workload identities** section. You must be an account administrator (or the owner of a personal account). Each account can have up to 20 policies. Configure an identity once for account-wide CI access; no project selection is required.
+
+Use the switch beside **Workload identities** to open the policy form. The section appears below **SCIM provisioning** for organizations. Hiding the form preserves your draft and does not disable workload authentication: the saved-identity cards and setup documentation link stay visible. Each card shows the identity's name, issuer and JWKS URLs, audience, exact JSON claims, account-wide scope and creation time. Remove an identity using the action on its card.
+
+Choose **Custom provider** to enter the fields below, or **Fly.io Machines** to generate them from your organization slug and numeric organization and application IDs. The Fly template keeps the generated issuer, JWKS URL, and claims editable under **Advanced configuration**. Changing templates or helper values preserves fields you have manually edited. If your issuer, JWKS URL, or claims override the template, Tuist expands **Advanced configuration** and shows a warning so you can review the policy that will be saved. Switch back to **Custom provider** to continue without the Fly helpers. Templates only fill configuration and don't change how Tuist verifies tokens.
+
+| Field | Description |
+| --- | --- |
+| Name | A label to recognize the policy, unique within the account. |
+| Issuer URL | The token's `iss` claim. It must match exactly, including any trailing slash. |
+| JWKS URL | The HTTPS URL of the provider's signing keys. Tuist uses this URL directly and doesn't read the provider's OpenID Connect discovery document, so copy the `jwks_uri` from the provider's documentation or from `<issuer>/.well-known/openid-configuration`. |
+| Audience | The audience the token must be issued for, `tuist` by default. The token's `aud` must equal it or, when `aud` is a list, contain it. Use a value that only Tuist accepts so tokens minted for other services can't be replayed here. |
+| Claims | A JSON object with 1 to 10 claims that the token must contain, for example `{"sub": "system:serviceaccount:ci:builder"}`. The JSON input is limited to 8 KiB. Values must be strings, signed 64-bit integers, or booleans, and they must match exactly, including their type: `"123"` doesn't match `123`. Nested objects, lists, and time or token claims such as `iss`, `aud`, `exp`, `nbf`, `iat`, and `jti` aren't allowed. |
+
+Each policy grants CI access to **all current and future projects owned by the account**, without selecting individual projects. You can configure an identity before creating the first project. This does not grant account administration or access to another account.
+
+Every workload that can obtain a token with matching claims can access all of those projects, so choose claims that the provider guarantees and that nobody can reuse. Prefer stable numeric IDs over names that can be renamed or registered again after deletion.
+
+> [!WARNING]
+> On a shared identity provider, bind the policy to your organization or tenant **and** the intended application, project, or service account. A branch name such as `main`, an environment such as `production`, or a generic role alone is not an identity boundary: another tenant may obtain a token with the same values. For example, a GitLab.com policy must include the intended project's stable `project_id`, not only `ref`. A matching token grants account-wide CI access, including cache writes, so a policy that trusts unrelated workloads can allow cache poisoning.
+
+Tuist grants access only for policies whose own JWKS URL holds the key that signed the token, after checking the issuer, audience, expiration, not-before time (with up to 60 seconds of clock skew), and every claim. The issued one-hour CI token is account-wide, not a snapshot of project IDs: it includes projects created or transferred into the account after issuance. Project authorization still requires current account ownership, so transferring a project out removes its access under that account's token.
+
+#### Authenticate a workload {#authenticate-a-workload}
+
+1. Request an identity token from your provider with the policy's audience.
+2. Set `TUIST_OIDC_TOKEN` to that token and `TUIST_OIDC_ACCOUNT` to the handle of the Tuist account that owns the project. The account is required for every trust policy exchange. It only selects where to look and grants nothing by itself.
+3. Run `tuist auth login`. For Elixir projects, you can use `mix tuist.login` instead, or let the Elixir integration exchange the token automatically when no `TUIST_TOKEN` or valid stored credentials are available.
+
+The resulting Tuist access token has only the `ci` scope group and covers all current and future projects owned by the selected account. Exchanges fail if more than 20 policies in the account match the same token or if they use more than two different JWKS URLs.
+
+Tuist doesn't refresh these sessions. Access tokens expire after one hour and have no refresh token. Provider identity tokens are often valid for only a few minutes, so keeping an old `TUIST_OIDC_TOKEN` isn't a renewal strategy: for jobs that run longer than an hour, request a new identity token and log in again before the Tuist session expires. Removing a policy stops new exchanges, but access tokens that were already issued remain valid until they expire.
+
+Tuist caches a provider's signing keys for up to 15 minutes after a successful fetch in a dedicated, size-limited cache. Entries may be evicted earlier and fetched again. Failed fetches aren't cached. If your provider rotates keys, it should publish the new key in its JWKS at least 15 minutes before signing tokens with it, because tokens signed with a key that isn't in the cached set are rejected until the cache expires. Tokens without a key ID (`kid`) are accepted only when the JWKS contains a single eligible signing key. When a key ID is present in the JWKS, it must be a string of at most 256 bytes.
+
+> [!NOTE]
+> `TUIST_OIDC_TOKEN` is a generic token input, not a way to bypass server trust. It takes precedence over CI provider detection, and the server still accepts only the built-in providers and identities with a matching trust policy. Do not put an identity token in `TUIST_TOKEN`, which expects a Tuist credential.
+
+If the exchange fails, check that the issuer, audience, and every claim in the policy exactly match the token, that the JWKS URL serves the key that signed the token, that the policy hasn't been removed, and that `TUIST_OIDC_ACCOUNT` names the account that owns the project. To avoid exposing which identities are trusted, Tuist returns the same error for all of these cases.
+
+### Fly.io Machines {#flyio-machines}
+
+[Fly.io supports OIDC workload identity](https://docs.fly.io/reference/openid-connect/). A Machine can request a short-lived, signed identity token from its local `/.fly/api` Unix socket, without a Fly API token or a long-lived Tuist secret. Fly tokens identify an organization and application, not a source repository, so use a trust policy instead of connecting a GitHub repository:
+
+1. Obtain the issuer (`iss`), organization ID (`org_id`), and application ID (`app_id`) from an identity token issued inside your Fly Machine. The issuer is `https://oidc.fly.io/<organization-slug>`. Use the numeric IDs, not organization or app names.
+2. [Create a trust policy](#create-a-trust-policy) using the **Fly.io Machines** template and enter the organization slug and both numeric IDs. It fills the values below and keeps the IDs as strings. You can also enter them manually using **Custom provider**; keep the quotes around the IDs in the claims.
+
+   | Field | Value |
+   | --- | --- |
+   | Issuer URL | `https://oidc.fly.io/<organization-slug>` |
+   | JWKS URL | `https://oidc.fly.io/<organization-slug>/.well-known/jwks` |
+   | Audience | `tuist` |
+   | Claims | `{"org_id": "<organization-id>", "app_id": "<application-id>"}` |
+
+3. Inside the Machine, set `TUIST_OIDC_ACCOUNT` to the Tuist account handle that owns the project (not the Fly organization slug), request a token with audience `tuist`, and pass it to `tuist auth login` using `TUIST_OIDC_TOKEN`:
+
+```bash
+set -euo pipefail
+export TUIST_OIDC_ACCOUNT="my-tuist-account"
+
+TUIST_OIDC_TOKEN="$(curl --fail --silent --show-error \
+  --unix-socket /.fly/api \
+  -X POST http://localhost/v1/tokens/oidc \
+  -H 'Content-Type: application/json' \
+  --data '{"aud":"tuist"}')"
+export TUIST_OIDC_TOKEN
+
+tuist auth login
+unset TUIST_OIDC_TOKEN
+```
+
+For the initial setup, you can inspect only the identity fields locally, after exporting the token and before unsetting it. This decodes claims for configuration; Tuist separately verifies the signature during authentication:
+
+```bash
+python3 - <<'PY'
+import base64, json, os
+payload = os.environ["TUIST_OIDC_TOKEN"].split(".")[1]
+claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+print(json.dumps({key: claims[key] for key in ("iss", "org_id", "app_id")}, indent=2))
+PY
+```
+
+Do not print or commit the token itself. Every Machine in the authorized Fly app can authenticate to all current and future projects in the Tuist account. Create a separate policy for each additional app. Fly identity tokens expire after about ten minutes, so on long-running Machines request a new one and run `tuist auth login` again before the one-hour Tuist session expires.
+
 ### OIDC token scopes {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group, which provides access to all projects connected to the repository. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
+OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
 
 > [!TIP]
 > **Security Benefits**
 >
 > OIDC authentication is more secure than long-lived tokens because:
 > - No secrets to rotate or manage
-> - Tokens are short-lived and scoped to individual workflow runs
-> - Authentication is tied to your repository identity
+> - Tokens are short-lived
+> - Authentication is tied to your repository identity or an explicitly authorized workload identity
 
 
 ## Gradle plugin authentication {#gradle-plugin-authentication}
@@ -121,10 +227,12 @@ The command accepts the following options:
 | `account:members:write` | Manage account members |
 | `account:registry:read` | Read from the Swift package registry |
 | `account:registry:write` | Publish to the Swift package registry |
+| `account:runners:read` | Read runner jobs, workflows, profiles, and volumes |
+| `account:runners:write` | Manage runner profiles and clear runner volumes |
 | `project:previews:read` | Download previews |
 | `project:previews:write` | Upload previews |
-| `project:admin:read` | Read project settings |
-| `project:admin:write` | Manage project settings |
+| `project:admin:read` | Read projects and their settings |
+| `project:admin:write` | Create, update, and delete projects. Creating a project requires a token with access to all projects |
 | `project:cache:read` | Download cached binaries |
 | `project:cache:write` | Upload cached binaries |
 | `project:bundles:read` | View bundles |

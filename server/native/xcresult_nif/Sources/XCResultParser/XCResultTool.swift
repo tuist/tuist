@@ -222,17 +222,31 @@ private final class XCResultToolProcess: @unchecked Sendable {
         guard event.ident == UInt(processIdentifier), event.filter == Int16(EVFILT_PROC) else {
             throw POSIXError(.EIO)
         }
-        try lock.withLock {
-            defer { self.processIdentifier = nil }
-            // The event preserves the status even when the host auto-reaps children.
-            // Ordinary hosts still need waitpid to release the exited process.
-            while waitpid(processIdentifier, nil, 0) == -1 {
-                if errno == EINTR { continue }
-                if errno == ECHILD { break }
-                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-            }
-        }
+        // Cancellation runs under the same lock, so it must not be held while reaping.
+        lock.withLock { self.processIdentifier = nil }
+        try reapExitedChild(processIdentifier)
         return Int32(event.data)
+    }
+}
+
+/// The event preserves the status even when the host auto-reaps children.
+/// Ordinary hosts still need waitpid to release the exited process.
+///
+/// Never blocks: a host that ignores SIGCHLD, like the BEAM, gets `NOTE_EXIT` before the kernel
+/// reaps the child, and a blocking `waitpid` that reaches the child in between sleeps until every
+/// other child of the host has exited too.
+func reapExitedChild(_ processIdentifier: pid_t) throws {
+    let deadline = Date().addingTimeInterval(5)
+    while true {
+        let result = waitpid(processIdentifier, nil, WNOHANG)
+        if result == processIdentifier { return }
+        if result == -1 {
+            if errno == EINTR { continue }
+            if errno == ECHILD { return }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        if Date() >= deadline { return }
+        usleep(1000)
     }
 }
 

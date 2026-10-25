@@ -7,6 +7,8 @@ defmodule Atlas.Application do
 
   alias Atlas.Accounts.HandleRegistry
   alias Atlas.Agents.Sessions.TelemetryHandler
+  alias Atlas.Automations.JavaScript
+  alias Atlas.Automations.Notifier, as: AutomationNotifier
   alias Atlas.Demo
   alias Atlas.Engineering.Errors.DropAlerter
   alias Atlas.Engineering.Errors.Event.Buffer
@@ -16,15 +18,19 @@ defmodule Atlas.Application do
   alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
-  alias Atlas.Licenses.RateLimiter
-  alias EMCP.SessionStore.ETS
+  alias Atlas.Orbit.Checkpoints
+  alias Atlas.Orbit.Progress
+  alias Atlas.Presence.Notifier
+  alias Atlas.Push.Credentials
   alias Guardian.DB.Sweeper
 
   @impl true
   def start(_type, _args) do
     attach_sentry_logger()
     TelemetryHandler.attach()
-    ETS.init()
+    Checkpoints.attach()
+    Progress.attach()
+    Atlas.Automations.TelemetryHandler.attach()
     HTTP.configure_req_defaults()
 
     :ok = Application.ensure_started(:logger)
@@ -57,22 +63,34 @@ defmodule Atlas.Application do
       Atlas.Vault,
       Atlas.Repo,
       HTTP.finch_child_spec(),
+      Credentials,
       {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Atlas.PubSub},
       HandleRegistry,
-      RateLimiter,
-      GitHubAppBootstrap,
-      {Oban, Application.fetch_env!(:atlas, Oban)},
-      {Task.Supervisor, name: Atlas.TaskSupervisor},
-      {Atlas.RateLimit, clean_period: :timer.minutes(10)},
-      Sweeper
+      GitHubAppBootstrap
     ] ++
+      automation_children() ++
+      [
+        {Oban, Application.fetch_env!(:atlas, Oban)},
+        AutomationNotifier,
+        Notifier,
+        Atlas.Orbit.Notifier,
+        {Task.Supervisor, name: Atlas.TaskSupervisor},
+        Sweeper
+      ] ++
       clickhouse_children() ++
       BrowseChrome.children() ++
       [
         # Start to serve requests, typically the last entry
         AtlasWeb.Endpoint
       ]
+  end
+
+  defp automation_children do
+    case JavaScript.child_spec() do
+      nil -> []
+      spec -> [spec]
+    end
   end
 
   # ClickHouse-backed Engineering.Errors pipeline. Gated on

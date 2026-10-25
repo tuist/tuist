@@ -31,6 +31,7 @@ struct XcodeBuildTestCommandService {
     private let uploadResultBundleService: UploadResultBundleServicing
     private let testExecutionModeResolver: TestExecutionModeResolving
     private let testCoverageEvidenceService: TestCoverageEvidenceServicing
+    private let coverageExportService: CoverageExportServicing
     private let xcResultService: XCResultServicing
     private let rootDirectoryLocator: RootDirectoryLocating
     private let testQuarantineService: TestQuarantineServicing
@@ -52,6 +53,7 @@ struct XcodeBuildTestCommandService {
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         testExecutionModeResolver: TestExecutionModeResolving = TestExecutionModeResolver(),
         testCoverageEvidenceService: TestCoverageEvidenceServicing = TestCoverageEvidenceService(),
+        coverageExportService: CoverageExportServicing = CoverageExportService(),
         xcResultService: XCResultServicing = XCResultService(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
@@ -72,6 +74,7 @@ struct XcodeBuildTestCommandService {
         self.uploadResultBundleService = uploadResultBundleService
         self.testExecutionModeResolver = testExecutionModeResolver
         self.testCoverageEvidenceService = testCoverageEvidenceService
+        self.coverageExportService = coverageExportService
         self.xcResultService = xcResultService
         self.rootDirectoryLocator = rootDirectoryLocator
         self.testQuarantineService = testQuarantineService
@@ -197,10 +200,11 @@ struct XcodeBuildTestCommandService {
         }
 
         do {
-            try await runCollectingCoverageEvidence(
+            try await runCollectingCoverage(
                 arguments: xcodeBuildArgumentsWithSkip,
                 resultBundlePath: resultBundlePath,
-                derivedDataPath: derivedDataPath
+                derivedDataPath: derivedDataPath,
+                config: config
             )
         } catch {
             if let derivedDataPath {
@@ -581,7 +585,8 @@ extension XcodeBuildTestCommandService {
                     onlyTestIdentifiers: onlyTestIdentifiers,
                     skipTestIdentifiers: skipTestIdentifiers,
                     stressNewTests: stressNewTests?.serverPayload,
-                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? []
+                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? [],
+                    scheme: scheme
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
@@ -645,17 +650,21 @@ extension XcodeBuildTestCommandService {
 
 extension XcodeBuildTestCommandService {
     /// Runs xcodebuild telling the test processes where to record when the run collects evidence, and
-    /// reduces what it wrote before anything else (a stress pass) runs tests over the same
-    /// derived data. The run's own outcome is what the caller sees.
-    private func runCollectingCoverageEvidence(
+    /// reduces what it wrote, and exports the run's coverage, before anything else (a stress pass)
+    /// runs tests over the same derived data and replaces the profile. The run's own outcome is
+    /// what the caller sees.
+    private func runCollectingCoverage(
         arguments: [String],
         resultBundlePath: AbsolutePath?,
-        derivedDataPath: AbsolutePath?
+        derivedDataPath: AbsolutePath?,
+        config: Tuist
     ) async throws {
         let session = await testCoverageEvidenceService.prepare(
             platform: passedValue(for: "-destination", arguments: arguments)
-                .flatMap(TestCoverageEvidencePlatform.init(destination:))
+                .flatMap(TestCoverageEvidencePlatform.init(destination:)),
+            config: config
         )
+        let runStartedAt = Date()
         var runError: Error?
         do {
             try await XcodeBuildEnvironment.$additionalVariables.withValue(session?.environment ?? [:]) {
@@ -671,6 +680,12 @@ extension XcodeBuildTestCommandService {
                 derivedDataDirectory: derivedDataPath
             )
         }
+        _ = await coverageExportService.export(
+            resultBundlePath: resultBundlePath,
+            derivedDataDirectory: derivedDataPath,
+            config: config,
+            runStartedAt: runStartedAt
+        )
         if let runError { throw runError }
     }
 }

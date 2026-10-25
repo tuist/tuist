@@ -61,6 +61,37 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert Enum.at(run_urls, 1) =~ run_two.id
     end
 
+    test "defaults to a page size of 20", %{conn: conn, user: user, project: project} do
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs")
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["page_size"] == 20
+    end
+
+    test "accepts a page size of 1000 and returns more than 100 runs", %{conn: conn, user: user, project: project} do
+      runs =
+        Enum.map(1..101, fn _ ->
+          CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        end)
+
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1000")
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["page_size"] == 1000
+      assert response["pagination_metadata"]["has_next_page"] == false
+      assert MapSet.new(response["runs"], & &1["id"]) == MapSet.new(runs, & &1.id)
+    end
+
+    test "rejects page sizes above 1000", %{conn: conn, user: user, project: project} do
+      conn
+      |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1001")
+      |> json_response(:bad_request)
+    end
+
     test "paginates forward with cursors", %{conn: conn, user: user, project: project} do
       # Given
       date = ~U[2026-09-01 10:00:00.000000Z]
@@ -638,7 +669,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                }
              ]
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -684,7 +715,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.project_id == project.id
       assert build.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -731,7 +762,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -835,7 +866,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.ci_host == ""
       assert build.ci_provider == ""
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -880,7 +911,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.project_id == project.id
       assert build.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -922,7 +953,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.ci_host == "gitlab.example.com"
       assert build.ci_provider == "gitlab"
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1500,
@@ -1004,7 +1035,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       assert actual_tasks == expected_tasks
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -1049,7 +1080,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       assert cacheable_tasks == []
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -1166,7 +1197,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       assert actual_outputs == expected_outputs
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -1256,7 +1287,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.project_id == project.id
       assert build.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -1346,7 +1377,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       assert actual_tasks == expected_tasks
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -1397,7 +1428,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.project_id == project.id
       assert test_run.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 5000,
@@ -1516,7 +1547,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       assert length(test_cases) == 3
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 10_000,
@@ -1663,7 +1694,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.project_id == project.id
       assert test_run.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 0,
@@ -1729,7 +1760,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       [test_case] = test_cases
       assert test_case.status == "skipped"
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 3000,
@@ -1780,7 +1811,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.duration == 5000
       assert test_run.status == "success"
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 5000,
@@ -1825,7 +1856,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.project_id == project.id
       assert test_run.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 5000,
@@ -1869,7 +1900,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.ci_host == "gitlab.example.com"
       assert test_run.ci_provider == "gitlab"
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 8000,

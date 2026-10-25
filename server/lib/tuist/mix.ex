@@ -9,10 +9,12 @@ defmodule Tuist.Mix do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
   alias Tuist.Mix.Build
+  alias Tuist.Mix.Cache
   alias Tuist.Mix.CompiledFile
   alias Tuist.Mix.Diagnostic
   alias Tuist.Mix.Step
@@ -24,7 +26,7 @@ defmodule Tuist.Mix do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          %Build{} = build <-
            ClickHouseRepo.one(from(b in Build, where: b.id == ^uuid and b.project_id == ^project_id, limit: 1)) do
-      {:ok, build}
+      {:ok, Tuist.ReportActor.preload(build)}
     else
       _ -> {:error, :not_found}
     end
@@ -34,24 +36,27 @@ defmodule Tuist.Mix do
   Returns the project's most recent Mix builds, newest first.
   """
   def list_recent_builds(project_id, limit) do
-    ClickHouseRepo.all(
-      from(b in Build,
-        where: b.project_id == ^project_id,
-        order_by: [desc: b.inserted_at],
-        limit: ^limit
-      )
+    from(b in Build,
+      where: b.project_id == ^project_id,
+      order_by: [desc: b.inserted_at],
+      limit: ^limit
     )
+    |> ClickHouseRepo.all()
+    |> Tuist.ReportActor.preload()
   end
 
   @doc """
   Lists a project's Mix builds with Flop pagination, filtering, and sorting.
   """
   def list_builds(project_id, flop_params \\ %{}) do
-    Tuist.ClickHouseFlop.validate_and_run!(
-      from(b in Build, where: b.project_id == ^project_id),
-      flop_params,
-      for: Build
-    )
+    {builds, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(
+        from(b in Build, where: b.project_id == ^project_id),
+        flop_params,
+        for: Build
+      )
+
+    {Tuist.ReportActor.preload(builds), meta}
   end
 
   @doc """
@@ -255,7 +260,8 @@ defmodule Tuist.Mix do
            BuildRun.validate_custom_metadata(
              Map.get(attrs, :custom_tags, []),
              Map.get(attrs, :custom_values, %{})
-           ) do
+           ),
+         :ok <- Cache.validate(Map.get(attrs, :dependency_cache, [])) do
       insert_build(attrs)
     end
   end
@@ -279,8 +285,15 @@ defmodule Tuist.Mix do
       now
     )
 
-    insert_compiled_files(build_id, attrs.project_id, attrs |> Map.get(:files, []) |> Enum.take(@max_files), now)
+    files = attrs |> Map.get(:files, []) |> Enum.take(@max_files)
+    compiled_files = insert_compiled_files(build_id, attrs.project_id, files, now)
+
+    if BuildEntities.enabled?(build_entry.project_id) do
+      BuildEntities.Producers.mix_build(build_entry, Enum.zip(files, compiled_files))
+    end
+
     insert_steps(build_id, attrs.project_id, attrs |> Map.get(:steps, []) |> Enum.take(@max_steps), now)
+    Cache.insert(attrs, now)
 
     {:ok, build_id}
   end
@@ -307,6 +320,9 @@ defmodule Tuist.Mix do
       id: build_id,
       project_id: attrs.project_id,
       account_id: attrs.account_id,
+      actor_account_id: Map.get(attrs, :actor_account_id, 0),
+      claimed_actor_id: Map.get(attrs, :claimed_actor_id, ""),
+      submission_auth: Map.get(attrs, :submission_auth, ""),
       duration_ms: attrs |> Map.get(:duration_ms, 0) |> max(0) |> min(@int64),
       status: attrs.status,
       is_ci: Map.get(attrs, :is_ci, false),
@@ -378,7 +394,7 @@ defmodule Tuist.Mix do
   defp percent(value) when is_number(value), do: value |> max(0) |> min(100) |> Kernel./(1)
   defp percent(_value), do: 0.0
 
-  defp insert_compiled_files(_build_id, _project_id, [], _now), do: :ok
+  defp insert_compiled_files(_build_id, _project_id, [], _now), do: []
 
   defp insert_compiled_files(build_id, project_id, files, now) do
     rows =
@@ -408,7 +424,7 @@ defmodule Tuist.Mix do
       end)
 
     CompiledFile.Buffer.insert_all(rows)
-    :ok
+    rows
   end
 
   @step_categories ~w(type_check write compiler other)

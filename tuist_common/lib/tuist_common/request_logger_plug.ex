@@ -24,6 +24,7 @@ defmodule TuistCommon.RequestLoggerPlug do
         route: conn.private[:phoenix_route],
         request_path: conn.request_path,
         status: conn.status,
+        cache_outcome: conn.assigns[:cache_outcome],
         duration_ms: duration_ms
       )
 

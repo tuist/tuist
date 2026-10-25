@@ -295,6 +295,7 @@ struct RunCommandService {
                 guard let preview = try await listPreviewsService.listPreviews(
                     displayName: displayName,
                     specifier: specifier,
+                    track: nil,
                     supportedPlatforms: Platform.allCases.map(DestinationType.simulator),
                     page: 1,
                     pageSize: 1,
@@ -624,7 +625,11 @@ struct RunCommandService {
         ) async throws {
             let graph: Graph
             let config = try await configLoader.loadConfig(path: path)
-            let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+            let generator = generatorFactory.defaultGenerator(
+                config: config,
+                includedTargets: [],
+                coverage: .resolved(config: config)
+            )
             let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
             if generate || workspacePath == nil {
                 Logger.current.notice("Generating project for running", metadata: .section)

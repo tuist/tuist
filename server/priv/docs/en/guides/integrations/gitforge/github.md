@@ -14,9 +14,19 @@ Git repositories are the centerpiece of the vast majority of software projects o
 You will need to install the Tuist GitHub app in the `Integrations` tab of your organization:
 ![An image that shows the integrations tab](/images/guides/integrations/gitforge/github/integrations.png)
 
+You can also install the app directly from GitHub. Log in to Tuist if needed, authorize the GitHub App so Tuist can verify your access to the installation, and choose the Tuist organization to connect. You must own the GitHub organization (or the personal GitHub account) where the app is installed. Only Tuist organizations you administer and your personal Tuist account are available. If only one account is available, Tuist connects it automatically without showing the chooser. When you start from Tuist, the organization is already selected and this step is skipped.
+
 After that, you can add a project connection between your GitHub repository and your Tuist project:
 
 ![An image that shows adding the project connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
+
+Once the app is installed, you can also link a project without the dashboard:
+
+- **CLI:** `tuist project repository connect owner/name`, and `tuist project repository disconnect` to remove the link.
+- **REST API:** `PUT` and `DELETE` on `/api/projects/{account_handle}/{project_handle}/vcs-connection`.
+- **Model Context Protocol:** the `connect_project_repository` and `disconnect_project_repository` tools.
+
+The repository must be one the GitHub App installation can access, and the project adopts the repository's default branch. Account tokens need the `project:admin:write` scope.
 
 > [!TIP]
 > **Ip Allowlisting**

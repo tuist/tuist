@@ -33,7 +33,8 @@ struct GitHistoryServiceTests {
             missingCommitsService: missingCommitsService,
             uploadCommitsService: uploadCommitsService,
             missingListingsService: missingListingsService,
-            uploadListingService: uploadListingService
+            uploadListingService: uploadListingService,
+            cache: GitHistoryCache()
         )
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController)
@@ -48,7 +49,6 @@ struct GitHistoryServiceTests {
                         GitHistoryCommit(sha: "base", parents: [], committedAt: Date(timeIntervalSince1970: 1)),
                         GitHistoryCommit(sha: "head", parents: ["base"], committedAt: Date(timeIntervalSince1970: 2)),
                     ],
-                    changedFiles: [],
                     fallbackReason: nil
                 )
             )
@@ -117,6 +117,368 @@ struct GitHistoryServiceTests {
             shas: .any
         ).called(0)
         verify(gitController).commitFiles(workingDirectory: .any, sha: .any, limit: .any).called(0)
+    }
+
+    @Test(.withMockedEnvironment())
+    func collectsOnCIWithoutCoverageButNeverUploadsAListing() async throws {
+        Environment.mocked?.variables["CI"] = "1"
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn(["head"])
+        given(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .willReturn(())
+
+        let collected = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+
+        #expect(collected != nil)
+        verify(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .called(1)
+        verify(missingListingsService).findMissingCommitListings(
+            fullHandle: .any,
+            serverURL: .any,
+            repositoryURL: .any,
+            shas: .any
+        ).called(0)
+    }
+
+    @Test(.withMockedEnvironment())
+    func publishesOnceAndTheReportReusesTheCollection() async throws {
+        // The stress gate publishes before its plan; the run's report then reads the same checkout.
+        Environment.mocked?.variables["CI"] = "1"
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn(["head"])
+        given(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .willReturn(())
+        given(missingListingsService)
+            .findMissingCommitListings(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn([])
+
+        let published = await subject.publish(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+        let collected = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+
+        #expect(published != nil)
+        #expect(collected == published)
+        verify(gitController).gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any).called(1)
+        verify(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .called(1)
+        // The listing still goes up with the report, once the run exists.
+        verify(missingListingsService).findMissingCommitListings(
+            fullHandle: .any,
+            serverURL: .any,
+            repositoryURL: .any,
+            shas: .any
+        ).called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func retriesCommitsTheEarlyPublishCouldNotUpload() async throws {
+        Environment.mocked?.variables["CI"] = "1"
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willThrow(TestError("unavailable"))
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn(["head"])
+        given(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .willReturn(())
+
+        let published = await subject.publish(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+        await subject.upload(published, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+
+        verify(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func collectsNothingOutsideCIWithoutCoverage() async throws {
+        let collected = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+
+        #expect(collected == nil)
+        verify(gitController).gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any).called(0)
+    }
+
+    @Test(.withMockedEnvironment())
+    func collectsNothingWhenTheUploadIsDisabled() async throws {
+        Environment.mocked?.variables["CI"] = "1"
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_GIT_UPLOAD_ENABLED"] = "false"
+
+        let collected = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+
+        #expect(collected == nil)
+        verify(gitController).gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any).called(0)
+    }
+
+    @Test(.withMockedEnvironment())
+    func readsTheCheckoutWithoutFetchingWhenUnshallowingIsDisabled() async throws {
+        Environment.mocked?.variables["CI"] = "1"
+        Environment.mocked?.variables["TUIST_GIT_UNSHALLOW_ENABLED"] = "false"
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+
+        _ = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+
+        verify(gitController)
+            .gitHistory(
+                workingDirectory: .any,
+                headSHA: .any,
+                baseBranch: .any,
+                limits: .value(GitHistoryLimits(windowDays: 30, windowCommits: 100, deepenBudgetSeconds: 10, remoteAccess: .none))
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment(), arguments: [
+        (false, GitHistoryRemoteAccess.baseHead),
+        (true, GitHistoryRemoteAccess.history),
+    ])
+    func fetchesHistoryOnlyForCoverage(coverage: Bool, remoteAccess: GitHistoryRemoteAccess) async throws {
+        Environment.mocked?.variables["CI"] = "1"
+        if coverage { Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1" }
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+
+        _ = await subject.collect(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        )
+
+        verify(gitController)
+            .gitHistory(
+                workingDirectory: .any,
+                headSHA: .any,
+                baseBranch: .any,
+                limits: .value(GitHistoryLimits(
+                    windowDays: 30,
+                    windowCommits: 100,
+                    deepenBudgetSeconds: 10,
+                    remoteAccess: remoteAccess
+                ))
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func reportsTheBaseBranchHeadTheRemoteGaveWithoutTheCheckoutHavingIt() async throws {
+        // The merge queue's run that tested the commit sent it; this checkout only knows its SHA.
+        Environment.mocked?.variables["CI"] = "1"
+        let gitController = MockGitControlling()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController)
+            .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
+            .willReturn(
+                GitHistory(
+                    objectFormat: "sha1",
+                    headSHA: "head",
+                    baseBranch: "main",
+                    mergeBaseSHA: nil,
+                    baseHeadSHA: "mainhead",
+                    commits: [GitHistoryCommit(sha: "head", parents: ["base"], committedAt: Date(timeIntervalSince1970: 2))],
+                    fallbackReason: "the base branch main is not in the checkout"
+                )
+            )
+        let subject = GitHistoryService(
+            gitController: gitController,
+            settingsService: settingsService,
+            missingCommitsService: missingCommitsService,
+            uploadCommitsService: uploadCommitsService,
+            missingListingsService: missingListingsService,
+            uploadListingService: uploadListingService,
+            cache: GitHistoryCache()
+        )
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn([])
+        given(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .willReturn(())
+
+        let collected = try #require(
+            await subject.publish(
+                gitInfo: gitInfo,
+                workingDirectory: workingDirectory,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL
+            )
+        )
+
+        verify(uploadCommitsService).uploadCommits(
+            fullHandle: .any,
+            serverURL: .any,
+            repositoryURL: .any,
+            objectFormat: .any,
+            commits: .value([]),
+            branchHeads: .value([
+                GitHistoryBranchHead(branch: "feature", sha: "head", observedAt: collected.observedAt),
+                GitHistoryBranchHead(branch: "main", sha: "mainhead", observedAt: collected.observedAt),
+            ])
+        ).called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func reportsTheBaseBranchHeadTheCheckoutSaw() async throws {
+        Environment.mocked?.variables["CI"] = "1"
+        let gitController = MockGitControlling()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(gitController)
+            .gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any)
+            .willReturn(
+                GitHistory(
+                    objectFormat: "sha1",
+                    headSHA: "head",
+                    baseBranch: "main",
+                    mergeBaseSHA: "base",
+                    baseHeadSHA: "mainhead",
+                    commits: [
+                        GitHistoryCommit(sha: "mainhead", parents: ["base"], committedAt: Date(timeIntervalSince1970: 3)),
+                        GitHistoryCommit(sha: "head", parents: ["base"], committedAt: Date(timeIntervalSince1970: 2)),
+                        GitHistoryCommit(sha: "base", parents: [], committedAt: Date(timeIntervalSince1970: 1)),
+                    ],
+                    fallbackReason: nil
+                )
+            )
+        let subject = GitHistoryService(
+            gitController: gitController,
+            settingsService: settingsService,
+            missingCommitsService: missingCommitsService,
+            uploadCommitsService: uploadCommitsService,
+            missingListingsService: missingListingsService,
+            uploadListingService: uploadListingService,
+            cache: GitHistoryCache()
+        )
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn([])
+        given(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .willReturn(())
+
+        let collected = try #require(
+            await subject.collect(
+                gitInfo: gitInfo,
+                workingDirectory: workingDirectory,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL
+            )
+        )
+        await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
+
+        verify(uploadCommitsService).uploadCommits(
+            fullHandle: .any,
+            serverURL: .any,
+            repositoryURL: .any,
+            objectFormat: .any,
+            commits: .any,
+            branchHeads: .value([
+                GitHistoryBranchHead(branch: "feature", sha: "head", observedAt: collected.observedAt),
+                GitHistoryBranchHead(branch: "main", sha: "mainhead", observedAt: collected.observedAt),
+            ])
+        ).called(1)
     }
 
     @Test(.withMockedEnvironment())
@@ -277,7 +639,6 @@ struct GitHistoryServiceTests {
                     baseBranch: nil,
                     mergeBaseSHA: nil,
                     commits: [],
-                    changedFiles: [],
                     fallbackReason: "no base branch is known"
                 )
             )
@@ -287,7 +648,8 @@ struct GitHistoryServiceTests {
             missingCommitsService: missingCommitsService,
             uploadCommitsService: uploadCommitsService,
             missingListingsService: missingListingsService,
-            uploadListingService: uploadListingService
+            uploadListingService: uploadListingService,
+            cache: GitHistoryCache()
         )
         given(missingListingsService)
             .findMissingCommitListings(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
@@ -350,7 +712,8 @@ struct GitHistoryServiceTests {
             missingCommitsService: missingCommitsService,
             uploadCommitsService: uploadCommitsService,
             missingListingsService: missingListingsService,
-            uploadListingService: uploadListingService
+            uploadListingService: uploadListingService,
+            cache: GitHistoryCache()
         )
         let gitInfo = GitInfo(
             ref: "refs/pull/7/merge",

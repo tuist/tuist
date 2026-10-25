@@ -109,6 +109,23 @@ defmodule Tuist.Tests.Coverage.History do
     %{grouping: grouping, points: points}
   end
 
+  @doc """
+  The SHA of the branch's latest complete commit, the newest point its trend
+  over all time ends at (`trend_points/3`), or nil. One read over the same
+  range, newest first and limited to one row, which the indexes on
+  `(project_id, ref_id, committed_at)` and `(project_id, git_branch, ran_at)`
+  serve.
+  """
+  def latest_complete_commit(%Project{} = project, branch) do
+    {query, at} = trend_query(project, branch, [])
+
+    query
+    |> order_by([c], desc: field(c, ^at), desc: c.git_commit_sha)
+    |> limit(1)
+    |> select([c], c.git_commit_sha)
+    |> Repo.one()
+  end
+
   defp trend_query(project, branch, opts) do
     base = where(CoverageCommit, [c], c.project_id == ^project.id and c.complete)
 
@@ -244,15 +261,19 @@ defmodule Tuist.Tests.Coverage.History do
   ran. Each complete commit's `change` is how far it moved coverage from the
   complete commit before it, settled over the page and the #{@lookback}
   measured commits below it, as the trend compares them
-  (`trend_points/3`); other commits have none. The period bounds the commits
-  (`since`/`until`); `page_size` is 20 by default.
+  (`trend_points/3`); other commits have none. A `partial` commit with no
+  measured line (its runs' product code all came from the binary cache
+  without counters) is listed as incomplete (`Commits.listed/1`), out of the
+  trend and the changes. The period bounds the commits (`since`/`until`);
+  `page_size` is 20 by default.
 
   `search` keeps the commits whose SHA starts with it and `status` those of
   one status (`Tuist.Tests.Coverage.Commits.status/1`): `complete` (its
   pipeline signalled it finished and its figure is whole), `incomplete`
   (signalled, its figure a lower bound), `in-progress` (measured, not yet
-  signalled) or `not-measured` (on the branch, no run measured it). Each is
-  stored, so they narrow the query the page is read with.
+  signalled) or `not-measured` (on the branch, no run measured it), or
+  `measured` for every status but `not-measured`. Each is stored, so they
+  narrow the query the page is read with.
   """
   def commit_cursor_page(%Project{} = project, branch, opts \\ []) do
     size = Keyword.get(opts, :page_size, 20)
@@ -265,7 +286,7 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   # The branch's graph commits narrowed by `search` and `status`: a commit
-  # is measured when it has a published, comparable figure (`Commits.all/2`).
+  # is measured when it has a published figure a list shows (`Commits.listed/1`).
   defp graph_filter(project_id, opts) do
     {search, status} = commit_filter(opts)
 
@@ -274,7 +295,7 @@ defmodule Tuist.Tests.Coverage.History do
     else
       measured =
         from(m in CoverageCommit, where: m.project_id == ^project_id)
-        |> Commits.comparable()
+        |> Commits.listed()
         |> select([m], %{sha: m.git_commit_sha, complete: m.complete, reported_kind: m.reported_kind})
 
       fn query ->
@@ -285,6 +306,8 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   defp by_status(query, "", _measured), do: query
+
+  defp by_status(query, "measured", measured), do: from(c in query, join: m in subquery(measured), on: m.sha == c.sha)
 
   defp by_status(query, "not-measured", measured),
     do: from(c in query, left_join: m in subquery(measured), on: m.sha == c.sha, where: is_nil(m.sha))
@@ -317,7 +340,7 @@ defmodule Tuist.Tests.Coverage.History do
     query = if search == "", do: query, else: where(query, [c], like(c.git_commit_sha, ^sha_prefix(search)))
 
     case status do
-      "" -> query
+      status when status in ["", "measured"] -> query
       "complete" -> where(query, [c], c.complete and c.reported_kind != "partial")
       "incomplete" -> where(query, [c], c.complete and c.reported_kind == "partial")
       "in-progress" -> where(query, [c], not c.complete)
@@ -372,7 +395,8 @@ defmodule Tuist.Tests.Coverage.History do
     lookback = graph_lookback(project, ref, oldest)
 
     %{
-      commits: settle(commits, Commits.by_shas(project.id, Enum.map(commits, & &1.git_commit_sha)), lookback),
+      commits:
+        settle(commits, Commits.by_shas(project.id, Enum.map(commits, & &1.git_commit_sha), listed: true), lookback),
       ordered_by: :graph,
       has_next_page?:
         older_page?(cursor, more?, fn ->
@@ -429,7 +453,7 @@ defmodule Tuist.Tests.Coverage.History do
   defp labelled_cursor_page(project, branch, opts, size, cursor) do
     labelled = fn query -> query |> where([c], c.git_branch == ^branch) |> ran_in(opts) |> labelled_filter(opts) end
     cursor = cursor_time(cursor)
-    read = fn refine -> Commits.all(project.id, &(&1 |> labelled.() |> refine.())) end
+    read = fn refine -> Commits.all(project.id, &(&1 |> labelled.() |> refine.()), listed: true) end
 
     {rows, more?} =
       read_page(cursor, size, fn
@@ -559,13 +583,15 @@ defmodule Tuist.Tests.Coverage.History do
   @doc """
   The branches whose runs never named a pull request, the most recently
   measured first, at most `limit` of them (100 by default): the branches the
-  Code Coverage page picks its analytics from. The default branch leads,
-  whether or not it is among them.
+  Code Coverage page picks its analytics from, those with a commit a list
+  shows (`Commits.listed/1`). The default branch leads, whether or not it is
+  among them.
   """
   def branches(%Project{} = project, opts \\ []) do
     measured =
       CoverageCommit
-      |> where([c], c.project_id == ^project.id and c.git_branch != "" and c.executable_lines > 0)
+      |> where([c], c.project_id == ^project.id and c.git_branch != "")
+      |> Commits.listed()
       |> group_by([c], c.git_branch)
       |> having([c], max(c.pull_request_number) == 0)
       |> order_by([c], desc: max(c.ran_at), asc: c.git_branch)
@@ -577,24 +603,28 @@ defmodule Tuist.Tests.Coverage.History do
   end
 
   @doc """
-  The branch's newest measured commit, complete or not: the commit a branch
-  page describes. Among the newest #{@head_lookback} commits its ref owns or,
-  when it owns none, the commits its runs were labelled with. Nil when
-  nothing on the branch was measured.
+  The branch's newest listed commit (`Commits.listed/1`), complete or not:
+  the commit a branch page describes. Among the newest #{@head_lookback}
+  commits its ref owns or, when it owns none, the commits its runs were
+  labelled with. Nil when nothing on the branch was measured, so the page
+  says so rather than describing nothing.
   """
   def head_commit(%Project{} = project, branch) do
     row =
       case branch_ref(project, branch) do
         nil ->
           project.id
-          |> Commits.all(fn query ->
-            query |> where([c], c.git_branch == ^branch) |> order_by([c], desc: c.ran_at) |> limit(1)
-          end)
+          |> Commits.all(
+            fn query ->
+              query |> where([c], c.git_branch == ^branch) |> order_by([c], desc: c.ran_at) |> limit(1)
+            end,
+            listed: true
+          )
           |> List.first()
 
         ref ->
           shas = ref.id |> GitHistory.ref_commits(limit: @head_lookback) |> Enum.map(&elem(&1, 0))
-          measured = Commits.by_shas(project.id, shas)
+          measured = Commits.by_shas(project.id, shas, listed: true)
           Enum.find_value(shas, &Map.get(measured, &1))
       end
 

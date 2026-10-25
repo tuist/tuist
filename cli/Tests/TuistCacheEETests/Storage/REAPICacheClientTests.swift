@@ -242,12 +242,15 @@ struct REAPICacheClientTests {
                 inputs[REAPI.digest(body)] = file
             }
             await state.failNextBatches()
-            #expect(try await client.uploadAvailableBlobs(inputs).available.count == 300)
+            let upload = try await client.uploadAvailableBlobs(inputs)
+            #expect(upload.available.count == 300)
+            #expect(upload.uploaded == Set(inputs.keys))
             #expect(await state.missingQueries == 1)
             #expect(await state.updateCalls > 1)
             #expect(await state.updateCalls < 20)
             #expect(await state.largestBatch <= 32 * 1024)
-            let corrupt = try #require(inputs.keys.first)
+            // Replacing an all-zero blob with zeros is not corruption.
+            let corrupt = try REAPI.digest(file: directory.appending(component: "small-0").url)
             await state.corrupt(corrupt)
             var destinations = Dictionary(uniqueKeysWithValues: inputs.keys.map {
                 ($0, directory.appending(component: "download-" + $0.hash).url)
@@ -338,6 +341,7 @@ struct REAPICacheClientTests {
                 let before = await state.updateBytes
                 let upload = try await client.uploadAvailableBlobs([digest: source])
                 #expect(upload.available == [digest])
+                #expect(upload.uploaded == nil)
                 #expect(await state.blobs[digest] == data)
                 uploadedBytes.append(await state.updateBytes - before)
             }
@@ -662,7 +666,7 @@ struct REAPICacheClientTests {
         }
     }
 
-    @Test(arguments: [RPCError.Code.unavailable, .permissionDenied])
+    @Test(arguments: [RPCError.Code.unavailable, .internalError, .unknown, .cancelled, .permissionDenied])
     func retriesPreserveTheServerError(code: RPCError.Code) async throws {
         let state = WireCache()
         let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
@@ -683,7 +687,73 @@ struct REAPICacheClientTests {
             let error = await #expect(throws: RPCError.self) { try await client.actionResult(for: digest) }
             #expect(error?.code == code)
             #expect(error?.message == "Injected server failure")
-            #expect(await state.actionQueries[digest] == (code == .unavailable ? 3 : 1))
+            #expect(await state.actionQueries[digest] == (code == .permissionDenied ? 1 : 3))
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [RPCError.Code.internalError, .unknown, .cancelled])
+    func retriesAPresenceCheckThatFailsInTransit(code: RPCError.Code) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        await state.planMissingFailures([RPCError(code: code, message: "Injected stream failure")])
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireCAS(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let data = Data("blob".utf8)
+            let path = directory.appending(component: "blob").url
+            try data.write(to: path)
+
+            let upload = try await client.uploadAvailableBlobs([REAPI.digest(data): path])
+
+            #expect(upload.available == [REAPI.digest(data)])
+            #expect(upload.failures.isEmpty)
+            #expect(await state.missingQueries == 2)
+        }
+    }
+
+    @Test func doesNotRetryALookupTheCallerCancelled() async throws {
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireActions(state: state, delay: .seconds(5))])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let lookup = Task { try await client.actionResult(for: REAPI.digest(Data("action".utf8))) }
+            defer { lookup.cancel() }
+            let deadline = ContinuousClock.now + .seconds(5)
+            while await state.lookupKinds.isEmpty {
+                try #require(ContinuousClock.now < deadline)
+                try await Task.sleep(for: .milliseconds(10))
+            }
+
+            let cancelledAt = ContinuousClock.now
+            lookup.cancel()
+
+            do {
+                _ = try await lookup.value
+                Issue.record("A cancelled lookup must not finish successfully")
+            } catch {
+                // The transport reports a cancelled unary call as UNKNOWN caused by the cancellation.
+                #expect(error is CancellationError || (error as? RPCError)?.cause is CancellationError)
+            }
+            #expect(ContinuousClock.now - cancelledAt < .seconds(2))
+            #expect(await state.lookupKinds.count == 1)
         }
     }
 
@@ -714,6 +784,10 @@ struct REAPICacheClientTests {
             let upload = try await client.uploadAvailableBlobs(blobs)
 
             #expect(upload.available == [REAPI.digest(small)])
+            #expect(upload.uploaded == [REAPI.digest(small)])
+            let repeated = try await client.uploadAvailableBlobs([REAPI.digest(small): smallPath])
+            #expect(repeated.available == [REAPI.digest(small)])
+            #expect(repeated.uploaded == [])
             let reason = try #require(upload.failures[REAPI.digest(large)])
             #expect(reason.hasPrefix("/google.bytestream.ByteStream/Write is not served by the cache endpoint"))
             #expect(reason.hasSuffix("it must route /google.bytestream.ByteStream to the cache's gRPC API"))
@@ -1832,7 +1906,12 @@ private actor WireCache {
 
     func put(_ data: Data, digest: REAPI.Digest) { blobs[digest] = data; writes += 1 }
     func put(_ result: REAPI.ActionResult, digest: REAPI.Digest) { actions[digest] = result }
-    func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data(repeating: 0, count: Int(digest.sizeBytes)) }
+    func corrupt(_ digest: REAPI.Digest) {
+        guard var data = blobs[digest], !data.isEmpty else { return }
+        data[data.startIndex] ^= 0xFF
+        blobs[digest] = data
+    }
+
     func drop(_ digests: [REAPI.Digest]) { for digest in digests {
         blobs[digest] = nil
     } }
@@ -1841,6 +1920,7 @@ private actor WireCache {
 private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceProtocol {
     let state: WireCache
     var failure: RPCError?
+    var delay: Duration = .zero
     func getActionResult(
         request: ServerRequest<Build_Bazel_Remote_Execution_V2_GetActionResultRequest>,
         context _: ServerContext
@@ -1850,6 +1930,7 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
         #expect(request.message.instanceName == "project")
         #expect(request.message.digestFunction == .sha256)
         await state.recordLookup(Array(request.metadata[stringValues: "x-tuist-lookup"]).first)
+        try await Task.sleep(for: delay)
         let result = try await state.lookup(request.message.actionDigest)
         if let failure { throw failure }
         guard let result else { throw RPCError(

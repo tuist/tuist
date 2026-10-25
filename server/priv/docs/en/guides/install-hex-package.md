@@ -17,17 +17,9 @@ Create a project in the Tuist dashboard and choose **Mix (Elixir)** as its build
 
 ## 2. Add the package {#add-the-package}
 
-Add `tuist_ex` to the dependencies in your `mix.exs` and set the project handle:
+Add `tuist_ex` to the dependencies in your `mix.exs`:
 
 ```elixir
-def project do
-  [
-    app: :my_app,
-    deps: deps(),
-    tuist: [project: "account/project"]
-  ]
-end
-
 defp deps do
   [
     {:tuist_ex, "~> 0.3", runtime: false}
@@ -41,7 +33,7 @@ Then fetch it:
 mix deps.get
 ```
 
-The package only adds Mix tasks, so `runtime: false` keeps it out of your running application.
+`runtime: false` keeps Tuist out of your running application. Continue with <.localized_link href="/guides/get-started/elixir-project#set-up-tuist">Get started with Elixir</.localized_link> to configure caching, build insights and test insights together. The sections below cover authentication and configuration details.
 
 ## 3. Authenticate your team and continuous integration {#authenticate}
 
@@ -81,26 +73,16 @@ jobs:
           elixir-version: '1.18'
           otp-version: '27'
       - run: mix deps.get
-      - run: mix tuist.test
+      - run: mix test
 ```
+
+With any other OpenID Connect identity provider, such as Fly.io Machines, configure a workload identity trust policy in the **Workload identities** section of your account's **Settings → Authentication** page, which grants CI access to all current and future projects owned by that account. Set `TUIST_OIDC_ACCOUNT` to the Tuist account that owns the project, and supply a freshly minted identity token with the policy's audience through `TUIST_OIDC_TOKEN`. The integration exchanges it automatically when no account token or valid stored login is available; `mix tuist.login` also accepts it outside CI. Automatic exchanges reuse an unexpired session only for the same server, account, and supplied identity token. Changing that identity triggers a new exchange, and a blank supplied identity fails instead of reusing an earlier session. Tuist sessions last one hour without refresh tokens, so for longer-running workloads, mint a new identity token and run `mix tuist.login` again before the session expires. Follow the <.localized_link href="/guides/server/authentication#workload-identity-trust-policies">workload identity setup</.localized_link> and the <.localized_link href="/guides/server/authentication#flyio-machines">Fly.io example</.localized_link>.
 
 Pull requests from forks don't get an OpenID Connect token, so their runs aren't reported and still pass or fail as usual. On other providers, set the `TUIST_TOKEN` environment variable to an account token. Follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> to create one.
 
 ## 4. Keep using `mix test` and `mix compile` {#aliases}
 
-The package adds `mix tuist.test` and `mix tuist.compile`, which run `mix test` and `mix compile` and report the result. Both take the same command line as the task they wrap, so you can alias them and nobody, person or coding agent, has to learn a different command:
-
-```elixir
-def project do
-  [
-    app: :my_app,
-    aliases: [test: "tuist.test", compile: "tuist.compile"],
-    tuist: [project: "account/project"]
-  ]
-end
-```
-
-`mix test test/my_app_test.exs:12 --trace` then runs and reports exactly as `mix tuist.test` would. Aliasing `compile` covers every compile, including the ones `mix test` or `mix phx.server` trigger. A compile that finds nothing to do is not reported.
+The <.localized_link href="/guides/get-started/elixir-project#set-up-tuist">shared setup</.localized_link> installs the compile and test aliases for you. `mix test test/my_app_test.exs:12 --trace` reports the run with the same output and exit code, and the compile integration covers builds triggered by `mix test` or `mix phx.server`. A compile that finds nothing to do is not reported.
 
 The tasks also work when you call them by their own name. Mix starts a task typed that way in the `dev` environment, so the task has to start over in a second process for the test environment. Add the tasks to the preferred environments to skip that:
 
@@ -118,6 +100,7 @@ The following options are available under `tuist` in the project options of `mix
 | --- | --- | --- | --- |
 | `project` | `String` | none (required) | The project identifier in `account/project` format. |
 | `url` | `String` | `"https://tuist.dev"` | The base URL of the Tuist server. |
+| `cache` | `boolean` or keyword list | disabled | Setup enables dependency caching. See <.localized_link href="/guides/features/cache/elixir">Elixir cache</.localized_link> for exclusions and extra inputs. |
 | `test_retries` | `integer` | `0` | How many times to retry the tests that failed; see <.localized_link href="/guides/features/test-insights/flaky-tests/elixir#test-retries">test retries</.localized_link>. |
 | `tags` | list of `String` | `[]` | Tags to attach to every build; see <.localized_link href="/guides/features/build-insights/elixir#custom-metadata">custom metadata</.localized_link>. |
 | `values` | map | `%{}` | Key-value data to attach to every build. |
@@ -129,6 +112,8 @@ Environment variables take precedence over `mix.exs`:
 | `TUIST_PROJECT` | The project identifier in `account/project` format. |
 | `TUIST_URL` | The base URL of the Tuist server. |
 | `TUIST_TOKEN` | The token to authenticate with, instead of the stored login. |
+| `TUIST_OIDC_TOKEN` | A freshly minted OpenID Connect identity token, exchanged for a Tuist token. Its audience must be `tuist` for GitHub Actions and Bitrise, or match the project's trust policy for other providers. Used by `mix tuist.login` or as a fallback when no account token or valid stored login is available. |
+| `TUIST_OIDC_ACCOUNT` | The Tuist account handle that owns the project. Required when exchanging a token through a project trust policy. It selects among existing trust policies and does not grant access on its own. |
 | `TUIST_TEST_RETRIES` | How many times to retry the tests that failed. |
 | `TUIST_TAGS` | Comma-separated tags to attach to the build. |
 | `TUIST_VALUES` | Comma-separated `key=value` pairs to attach to the build. |
@@ -140,6 +125,7 @@ Reporting never changes the exit code of `mix test` or `mix compile`. If a repor
 
 Once the package is installed and configured, you can use:
 
+- <.localized_link href="/guides/features/cache/elixir">Dependency caching</.localized_link> to reuse compiled dependencies locally and across CI builds.
 - <.localized_link href="/guides/features/build-insights/elixir">Build insights</.localized_link> to track compile times, warnings, and what holds your builds back.
 - <.localized_link href="/guides/features/test-insights/elixir">Test insights</.localized_link> to track test performance down to each test.
 - <.localized_link href="/guides/features/test-insights/flaky-tests/elixir">Flaky tests</.localized_link> to detect and track tests that fail intermittently.

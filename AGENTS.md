@@ -15,6 +15,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `tuist_ex/` - Elixir build and test instrumentation Hex package - see `tuist_ex/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `atlas/` - Atlas internal ops app (Elixir/Phoenix) covering CRM, contracts, GTM, finance, letters, and the MCP tools other services call into. Deployed to `atlas-production` on the CAPI cluster. MPL-2.0. See `atlas/AGENTS.md`.
+- `atlas-native/` - Native Atlas clients (shared Rust core, Rust CLI, Kotlin Android, SwiftUI iOS) built with Once - see `atlas-native/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `gradle/` - Tuist Gradle plugin (Kotlin) - see `gradle/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
@@ -42,6 +43,12 @@ This file provides guidance to AI agents when working with code in this reposito
 
 - `.github/actions/cache-volume/` - Source and release package for the standalone cache volume action; see `.github/actions/cache-volume/AGENTS.md`.
 
+- `.github/actions/xcode-cache/` and `.github/actions/module-cache/` - Source packages for the `tuist/xcode-cache` and `tuist/module-cache` actions, which attach the managed Xcode and module cache volumes on macOS runners; see `.github/actions/xcode-cache/AGENTS.md`.
+
+- `.github/actions/gradle-cache/` - Source package for the `tuist/gradle-cache` action, a managed cache volume for Gradle's user home; see `.github/actions/gradle-cache/AGENTS.md`.
+
+- `ci/runner-caches/` - Buildkite plugins and GitLab snippets for the Xcode, module and Gradle caches; see `ci/runner-caches/AGENTS.md`.
+
 - `ci/cache-volume/` - Buildkite plugin and GitLab cache-volume template; see `ci/cache-volume/AGENTS.md`.
 
 ## Global Guardrails
@@ -62,6 +69,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `atlas` - Changes to the Atlas internal ops app (Elixir/Phoenix)
+- `atlas-native` - Changes to the Atlas native clients and shared Rust core
 - `codebase-search` - Changes to the bounded source-code search service
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `registry` - Changes to the Swift package registry service
@@ -302,7 +310,7 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 
 The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
 
-- Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
+- Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests, runners acceptance and the Kura rollout gate → production (hotfix fast-path available). Runners acceptance dispatches jobs onto canary's runners and requires remote compilation-cache hits; production's runners and the BER1 rack are probed hourly by `.github/workflows/runners-acceptance.yml`.
 - Hosted Kura follows `main` too: canary and production pin the newest `kura@X.Y.0-canary.N` in the deployed commit, which the cascade publishes by calling `kura-release.yml` when `kura/` changed. Fresh staging deploys still build the Kura runtime from the deployed commit. Pass `kura_runtime_image_tag` to `server-deployment.yml` to pin another tag (e.g. a stable one) for a deploy.
 - Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
 - Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).

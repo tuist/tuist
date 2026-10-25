@@ -53,6 +53,6 @@ defmodule Tuist.Tests.CoverageFile do
     field :function_executable_lines, Ch, type: "Array(UInt32)"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
-    belongs_to :test_run, Tuist.Tests.Test, foreign_key: :test_run_id, define_field: false
+    belongs_to :test_run, {"test_run_summaries", Tuist.Tests.Test}, foreign_key: :test_run_id, define_field: false
   end
 end

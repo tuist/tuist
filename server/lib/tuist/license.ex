@@ -37,13 +37,22 @@ defmodule Tuist.License do
 
     KeyValueStore.get_or_update(
       [__MODULE__, "license"],
-      [ttl: ttl],
-      fn -> fetch_license() end
+      [ttl: ttl, cache: :license, cache_errors: false],
+      fn ->
+        # Bound upstream retries during an outage without retaining failures for
+        # the successful license's day-long TTL. Successful validations still
+        # populate the outer cache; the short inner entry also coalesces retries.
+        KeyValueStore.get_or_update(
+          [__MODULE__, "validation"],
+          [ttl: min(ttl, to_timeout(second: 10)), cache: :license],
+          &fetch_license/0
+        )
+      end
     )
   end
 
   def get_cached_license do
-    KeyValueStore.get([__MODULE__, "license"])
+    KeyValueStore.get([__MODULE__, "license"], cache: :license)
   end
 
   defp fetch_license do

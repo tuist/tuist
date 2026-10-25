@@ -35,10 +35,15 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     merged =
       run_options(Keyword.new(opts), Application.get_env(:tuist_ex, :analytics_options, []))
 
+    # ExUnit starts its formatters once the test helper has run and before
+    # any test does, which is when a run of an instrumented build gets ready.
+    if Keyword.get(merged, :coverage_native, false), do: prepare_native(merged)
+
     {:ok,
      %{
        tests: [],
        aborted?: false,
+       failures: nil,
        monotonic_start_ns: System.monotonic_time(),
        ran_at: DateTime.utc_now(),
        opts: merged,
@@ -69,7 +74,12 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     do: {:noreply, state}
 
   def handle_cast({:test_finished, test}, state) do
-    {:noreply, %{state | tests: [record(test) | state.tests]}}
+    {:noreply,
+     %{
+       state
+       | tests: [record(test) | state.tests],
+         failures: merge_failures(state.failures, failure_kind(test.state))
+     }}
   end
 
   # ExUnit stopped early because of `--max-failures`: tests it never reached
@@ -93,6 +103,8 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
             tests
             |> build_payload(duration_ms, state.ran_at, state.opts)
             |> put_coverage_snapshot(state.opts)
+            |> put_coverage_lines(state.opts)
+            |> put_timed_out(state.failures)
 
           send(owner, {@deferred, {payload, state.opts, state.aborted?}})
 
@@ -111,6 +123,15 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
   def handle_cast(_message, state), do: {:noreply, state}
 
+  defp prepare_native(opts) do
+    Coverage.prepare_native()
+  rescue
+    exception ->
+      Keyword.get(opts, :shell, &Report.debug/1).(
+        "tuist analytics: could not ready native coverage: #{Exception.message(exception)}"
+      )
+  end
+
   # Every test has run by now, and `cover` still holds this suite's counters:
   # Mix turns them into its own report, and an umbrella restarts `cover` for
   # its next application, only after the formatters are done. The owner turns
@@ -123,6 +144,41 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       _ -> payload
     end
   end
+
+  # What the summary of a run counting natively reads, taken now for the same
+  # reason: Mimic swaps its copies back after the suite, which resets their
+  # native counters.
+  defp put_coverage_lines(payload, opts) do
+    if Keyword.get(opts, :coverage_summary, false),
+      do: Map.put(payload, :coverage_lines, Coverage.module_lines()),
+      else: payload
+  rescue
+    exception ->
+      Keyword.get(opts, :shell, &Report.debug/1).(
+        "tuist analytics: could not read the coverage summary: #{Exception.message(exception)}"
+      )
+
+      payload
+  end
+
+  # Whether every test that failed did so by running out of time, which the
+  # owner reads before deciding to retry. Not part of the payload it sends.
+  defp put_timed_out(payload, :timeout), do: Map.put(payload, :timed_out, true)
+  defp put_timed_out(payload, _failures), do: payload
+
+  defp failure_kind({:failed, entries}) do
+    if Enum.all?(entries, &match?({_kind, %ExUnit.TimeoutError{}, _stacktrace}, &1)),
+      do: :timeout,
+      else: :other
+  end
+
+  defp failure_kind({:invalid, _module}), do: :other
+  defp failure_kind(_state), do: nil
+
+  defp merge_failures(failures, nil), do: failures
+  defp merge_failures(nil, kind), do: kind
+  defp merge_failures(:timeout, :timeout), do: :timeout
+  defp merge_failures(_failures, _kind), do: :other
 
   @doc """
   Sends a test run. A failure is reported through the shell and never raised.

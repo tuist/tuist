@@ -34,7 +34,7 @@ defmodule Tuist.ShardsTest do
     %{name: name, status: "success", duration: duration, execution_mode: execution_mode, test_cases: []}
   end
 
-  defp sharded_run_fixture(project, shards) do
+  defp sharded_run_fixture(project, shards, build_system \\ "mix") do
     plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: length(shards))
 
     shards
@@ -44,7 +44,7 @@ defmodule Tuist.ShardsTest do
         project_id: project.id,
         is_ci: true,
         git_branch: project.default_branch,
-        build_system: "mix",
+        build_system: build_system,
         shard_plan_id: plan.id,
         shard_index: index,
         duration: duration,
@@ -53,6 +53,54 @@ defmodule Tuist.ShardsTest do
     end)
 
     RunsFixtures.optimize_test_runs()
+  end
+
+  test "unsigned CI inventory and timings cannot change authenticated shard plans" do
+    project = ProjectsFixtures.project_fixture()
+
+    RunsFixtures.test_fixture(
+      project_id: project.id,
+      is_ci: true,
+      git_branch: project.default_branch,
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 100,
+          test_cases: [],
+          test_suites: [%{name: "VerifiedSuite", duration: 100, status: "success"}]
+        }
+      ]
+    )
+
+    RunsFixtures.optimize_test_runs()
+    params = %{reference: "before-network", modules: ["AppTests"], granularity: "suite", shard_max: 2}
+    before = Shards.create_shard_plan(project, params)
+
+    RunsFixtures.test_fixture(
+      project_id: project.id,
+      is_ci: true,
+      git_branch: project.default_branch,
+      submission_auth: "network_trusted",
+      ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), 86_400),
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 999_999,
+          test_cases: [],
+          test_suites: [
+            %{name: "ClaimedSuite", duration: 999_999, status: "success"},
+            %{name: "VerifiedSuite", duration: 999_999, status: "success"}
+          ]
+        }
+      ]
+    )
+
+    RunsFixtures.optimize_test_runs()
+    after_network = Shards.create_shard_plan(project, %{params | reference: "after-network"})
+    assert after_network.shard_assignments == before.shard_assignments
+    assert planned_suite_durations(after_network.plan) == %{"AppTests/VerifiedSuite" => 100}
   end
 
   describe "create_shard_plan/2" do
@@ -1070,6 +1118,35 @@ defmodule Tuist.ShardsTest do
       assert Enum.map(summed.shard_assignments, & &1["estimated_duration_ms"]) == [50_000, 50_000]
     end
 
+    test "Cargo binary plans account for measured overlap without summing their wall times" do
+      project = ProjectsFixtures.project_fixture(build_system: :cargo)
+      binaries = Enum.map(0..3, &"store::test/integration_#{&1}")
+
+      sharded_run_fixture(project, [{20_000, Enum.map(binaries, &module_run(&1, 20_000, "parallel"))}], "cargo")
+
+      result =
+        Shards.create_shard_plan(project, %{
+          reference: "cargo-measured-overlap",
+          modules: binaries,
+          concurrent_modules: binaries,
+          shard_total: 2
+        })
+
+      assert result.shard_count == 2
+      assert Enum.map(result.shard_assignments, & &1["estimated_duration_ms"]) == [20_000, 20_000]
+      assert Enum.map(result.shard_assignments, &length(&1["test_targets"])) == [2, 2]
+      assert planned_targets(result) == MapSet.new(binaries)
+
+      unmeasured =
+        Shards.create_shard_plan(project, %{
+          reference: "cargo-summed-fallback",
+          modules: binaries,
+          shard_total: 2
+        })
+
+      assert Enum.map(unmeasured.shard_assignments, & &1["estimated_duration_ms"]) == [40_000, 40_000]
+    end
+
     test "prices concurrent modules by the concurrency their shard runs achieved" do
       project = ProjectsFixtures.project_fixture()
       parallel = for index <- 1..8, do: "Parallel#{index}"
@@ -1108,6 +1185,15 @@ defmodule Tuist.ShardsTest do
         ])
       end
 
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        build_system: "mix",
+        submission_auth: "network_trusted",
+        test_modules: [module_run("Serial", 999_999, "serial") | Enum.map(parallel, &module_run(&1, 999_999, "parallel"))]
+      )
+
+      RunsFixtures.optimize_test_runs()
       params = %{modules: ["Serial" | parallel], shard_total: 1}
 
       concurrent =
@@ -2307,6 +2393,48 @@ defmodule Tuist.ShardsTest do
       account = project.account
 
       assert {:error, :not_found} = Shards.start_upload(project, account, "nonexistent-ref")
+    end
+
+    test "finds a just-created plan when the routed read replica has not received it yet" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      %{plan: plan} =
+        Shards.create_shard_plan(project, %{reference: "fresh-plan", modules: ["AppTests", "CoreTests"], shard_total: 2})
+
+      stub(ClickHouseRepo, :one, fn _queryable -> nil end)
+      stub(ClickHouseRepo, :preload, fn struct, _preloads -> struct end)
+      stub(Tuist.Storage, :multipart_start, fn _key, _account -> {:ok, "test-upload-id"} end)
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      assert {:ok, "test-upload-id"} = Shards.start_upload(project, account, "fresh-plan")
+      assert {:ok, %{id: plan_id}} = Shards.get_shard_plan(plan.id)
+      assert plan_id == plan.id
+      assert {:ok, shard} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
+      assert shard.modules != []
+    end
+
+    test "fetches a just-created suite shard when the routed read replica has not received it yet" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      %{plan: plan} =
+        Shards.create_shard_plan(project, %{
+          reference: "fresh-suite-plan",
+          modules: ["AppTests"],
+          test_suites: ["AppTests/LoginTests", "AppTests/SignupTests"],
+          granularity: "suite",
+          shard_total: 2
+        })
+
+      stub(ClickHouseRepo, :one, fn _queryable -> nil end)
+      stub(ClickHouseRepo, :preload, fn struct, _preloads -> struct end)
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      assert {:ok, shard} = Shards.get_shard_for_plan_id(project, account, plan.id, 0)
+      assert shard.modules == ["AppTests"]
     end
   end
 

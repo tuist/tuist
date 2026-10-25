@@ -14,15 +14,18 @@ import org.gradle.api.tasks.testing.TestDescriptor
 import org.gradle.api.tasks.testing.TestListener
 import org.gradle.api.tasks.testing.TestResult
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.UUID
 import javax.inject.Inject
 
 // --- Data classes ---
 
 data class TestReport(
+    val id: String,
     val duration: Long,
     val status: String,
     @SerializedName("is_ci") val isCi: Boolean,
@@ -36,6 +39,13 @@ data class TestReport(
     @SerializedName("shard_plan_id") val shardPlanId: String? = null,
     @SerializedName("shard_index") val shardIndex: Int? = null,
     @SerializedName("stress_new_tests") val stressNewTests: StressNewTestsReport? = null,
+    @SerializedName("base_branch") val baseBranch: String? = null,
+    @SerializedName("merge_base_sha") val mergeBaseSha: String? = null,
+    @SerializedName("is_pull_request") val isPullRequest: Boolean? = null,
+    @SerializedName("pull_request_number") val pullRequestNumber: Int? = null,
+    @SerializedName("git_object_format") val gitObjectFormat: String? = null,
+    @SerializedName("history_source") val historySource: String? = null,
+    @SerializedName("history_fallback_reason") val historyFallbackReason: String? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
 
@@ -175,7 +185,9 @@ internal class TestReportCollector {
         gradleBuildId: String?,
         shardPlanId: String? = null,
         shardIndex: Int? = null,
-        stressNewTests: StressNewTestsReport? = null
+        stressNewTests: StressNewTestsReport? = null,
+        gitHistory: TestRunGitHistory? = null,
+        id: String = UUID.randomUUID().toString()
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
             val testCases = buildTestCases(attempts).map { withStressReruns(it, moduleName, stressNewTests) }
@@ -206,6 +218,7 @@ internal class TestReportCollector {
         val overallStatus = if (hasNonQuarantinedFailure) "failure" else "success"
 
         return TestReport(
+            id = id,
             duration = totalDurationMs,
             status = overallStatus,
             isCi = isCi,
@@ -219,6 +232,13 @@ internal class TestReportCollector {
             shardPlanId = shardPlanId,
             shardIndex = shardIndex,
             stressNewTests = stressNewTests,
+            baseBranch = gitHistory?.baseBranch,
+            mergeBaseSha = gitHistory?.mergeBaseSha,
+            isPullRequest = gitHistory?.isPullRequest,
+            pullRequestNumber = gitHistory?.pullRequestNumber,
+            gitObjectFormat = gitHistory?.objectFormat,
+            historySource = gitHistory?.source,
+            historyFallbackReason = gitHistory?.fallbackReason,
             testModules = testModules
         )
     }
@@ -368,6 +388,7 @@ abstract class TuistTestInsightsService :
         val url: Property<String>
         val project: Property<String>
         val useEnvironmentProxy: Property<Boolean>
+        val actorId: Property<String>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
         val gitBranch: Property<String>
@@ -482,32 +503,59 @@ abstract class TuistTestInsightsService :
         }
     }
 
-    private fun sendReport() {
-        val projectValue = parameters.project.orNull
-        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
-        val projectDir = parameters.projectDir.asFile.get()
+    private val httpClients: TuistHttpClients by lazy {
+        TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
+    }
 
-        val configProvider = DefaultConfigurationProvider(
-            project = projectValue,
+    private val configurationProvider: ReportConfigurationProvider by lazy {
+        ReportConfigurationProvider(
+            project = parameters.project.orNull,
             serverUrl = parameters.url.get(),
-            projectDir = projectDir,
+            projectDir = parameters.projectDir.asFile.get(),
             httpClients = httpClients
         )
+    }
 
-        val httpClient = TuistHttpClient(
-            configurationProvider = configProvider,
+    private val httpClient: TuistHttpClient by lazy {
+        TuistHttpClient(
+            configurationProvider = configurationProvider,
             httpClients = httpClients,
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
         )
+    }
 
+    // Collected during execution, never configuration, so the history is not a configuration input.
+    private val gitHistoryPublisher: GitHistoryPublisher by lazy {
+        val gitHistoryService = GitHistoryService(httpClient = httpClient, baseUrl = parameters.url.get())
+        GitHistoryPublisher(
+            collect = { gitHistoryService.collect(reportGitInfoProvider(), parameters.projectDir.asFile.get(), ciDetector.isCi()) },
+            upload = gitHistoryService::upload
+        )
+    }
+
+    /**
+     * Collects the build's Git history and uploads its commits and branch heads, once per build:
+     * the stress gate's plan and the run's report read the commit graph, so it goes up before either.
+     */
+    internal fun publishGitHistory(): CollectedGitHistory? =
+        try {
+            if (configurationProvider.getConfiguration().token.isBlank()) null else gitHistoryPublisher.publish()
+        } catch (e: Exception) {
+            logger.info("Tuist: The run's Git history could not be published: ${e.message}")
+            null
+        }
+
+    private fun sendReport() {
         val totalDurationMs = latestEndTime - earliestStartTime
         val gradleBuildId = buildInsightsService?.buildId
         val reportGitInfoProvider = reportGitInfoProvider()
+        val isCi = ciDetector.isCi()
+        val gitHistory = publishGitHistory()
 
         val report = collector.buildReport(
             totalDurationMs = totalDurationMs,
-            isCi = ciDetector.isCi(),
+            isCi = isCi,
             scheme = parameters.rootProjectName.orNull,
             gitBranch = reportGitInfoProvider.branch(),
             gitCommitSha = reportGitInfoProvider.commitSha(),
@@ -516,39 +564,57 @@ abstract class TuistTestInsightsService :
             gradleBuildId = gradleBuildId,
             shardPlanId = shardPlanId,
             shardIndex = shardIndex,
-            stressNewTests = stressNewTestsReport
+            stressNewTests = stressNewTestsReport,
+            gitHistory = gitHistory?.payload
         )
 
         val response = httpClient.execute { config ->
-            val baseUrl = parameters.url.get().trimEnd('/')
+            val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get()).trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
+            // Every attempt sends the same report id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another run).
+            httpClient.retrying("Test insights request", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                    }
 
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
-                }
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        val outgoingReport = if (config.token.isBlank()) report.copy(
+                            gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                            gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
+                            isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
+                            historySource = null, historyFallbackReason = null
+                        ) else report
+                        Gson().toJson(outgoingReport, writer)
+                    }
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_OK -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, TestResponse::class.java)
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_OK -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, TestResponse::class.java)
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            val message = "Test insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
+                            if (status in TuistRetry.RETRYABLE_STATUSES) {
+                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
+                            }
+                            logger.warn("Tuist: $message")
+                            null
                         }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn("Tuist: Test insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                        null
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
 
@@ -589,6 +655,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
+            config.actorId?.let { parameters.actorId.set(it) }
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             parameters.gitBranch.set(gitInfo.branch())

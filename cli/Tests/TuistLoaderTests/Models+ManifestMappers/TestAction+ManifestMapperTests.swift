@@ -12,6 +12,28 @@ import XcodeGraph
 struct TestActionManifestMapperTests {
     private let fileSystem = FileSystem()
 
+    @Test(.inTemporaryDirectory, arguments: [
+        (Bool?.none, false, true),
+        (false, false, false),
+        (true, true, false),
+    ])
+    func action_inheritsCoverage_whenTheManifestLeavesItUnset(
+        manifestCoverage: Bool?,
+        coverage: Bool,
+        inheritsCoverage: Bool
+    ) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let manifest = ProjectDescription.TestAction.targets(["AppTests"], options: .options(coverage: manifestCoverage))
+
+        let testAction = try await XcodeGraph.TestAction.from(
+            manifest: manifest,
+            generatorPaths: GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
+        )
+
+        #expect(testAction.coverage == coverage)
+        #expect(testAction.inheritsCoverage == inheritsCoverage)
+    }
+
     @Test(.inTemporaryDirectory) func action_with_literal_test_plans() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

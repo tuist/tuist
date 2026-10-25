@@ -114,6 +114,16 @@ func main() {
 		sessionsClient = sessions.NewClient(sessionsURL)
 	}
 
+	// Shared by the autoscaler and the pool reconciler's placement preferences.
+	// Cache just under the poll interval so the fleet-aware pass (which fetches
+	// every sibling shape's signals each reconcile) collapses an N-shape fleet's
+	// N² requests down to ~N per cycle.
+	var signalsClient *scaling.Client
+	if scalingSignalsURL != "" {
+		signalsClient = scaling.NewClient(scalingSignalsURL)
+		signalsClient.CacheTTL = 4 * time.Second
+	}
+
 	if err := (&controllers.RunnerPoolReconciler{
 		Client:              mgr.GetClient(),
 		APIReader:           mgr.GetAPIReader(),
@@ -126,6 +136,7 @@ func main() {
 		ClusterDNSIP:        clusterDNSIP,
 		ClusterDomain:       clusterDomain,
 		Recorder:            mgr.GetEventRecorderFor("runnerpool-controller"),
+		SignalsClient:       signalsClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)
@@ -135,12 +146,7 @@ func main() {
 	// the scaling URL isn't configured (the v1 macOS-only chart
 	// shape) we skip wiring it up — autoscaling pools fail open
 	// (no scaling-driven changes), static pools work as before.
-	if scalingSignalsURL != "" {
-		signalsClient := scaling.NewClient(scalingSignalsURL)
-		// Cache just under the poll interval so the fleet-aware pass
-		// (which fetches every sibling shape's signals each reconcile)
-		// collapses an N-shape fleet's N² requests down to ~N per cycle.
-		signalsClient.CacheTTL = 4 * time.Second
+	if signalsClient != nil {
 		if err := (&controllers.AutoscalerReconciler{
 			Client:        mgr.GetClient(),
 			Scheme:        mgr.GetScheme(),

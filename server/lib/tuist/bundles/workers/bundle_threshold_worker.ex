@@ -58,15 +58,19 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   # `Tuist.ClickHouseRepo`, a separate connection that does not always see the
   # row by the time this job runs. The upload already holds every field the
   # check reads, so it carries them on the job rather than reading them back.
-  # Only those fields are populated here.
-  defp resolve_bundle(%{
-         "bundle_id" => id,
-         "bundle_name" => name,
-         "git_commit_sha" => git_commit_sha,
-         "git_ref" => git_ref,
-         "install_size" => install_size,
-         "download_size" => download_size
-       }) do
+  # Only those fields are populated here. `type` and `supported_platforms` are
+  # absent from jobs enqueued before they were carried, which leaves the
+  # baseline unfiltered by them.
+  defp resolve_bundle(
+         %{
+           "bundle_id" => id,
+           "bundle_name" => name,
+           "git_commit_sha" => git_commit_sha,
+           "git_ref" => git_ref,
+           "install_size" => install_size,
+           "download_size" => download_size
+         } = args
+       ) do
     {:ok,
      %Bundle{
        id: id,
@@ -74,7 +78,9 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
        git_commit_sha: git_commit_sha,
        git_ref: git_ref,
        install_size: install_size,
-       download_size: download_size
+       download_size: download_size,
+       type: args["type"],
+       supported_platforms: args["supported_platforms"]
      }}
   end
 

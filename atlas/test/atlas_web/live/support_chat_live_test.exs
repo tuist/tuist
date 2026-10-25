@@ -6,6 +6,7 @@ defmodule AtlasWeb.SupportChatLiveTest do
   import Phoenix.LiveViewTest
 
   alias Atlas.Support
+  alias Atlas.Support.Message
   alias Atlas.Users.User
   alias AtlasWeb.SupportChatRateLimit
 
@@ -85,6 +86,50 @@ defmodule AtlasWeb.SupportChatLiveTest do
     assert reply.metadata["delivery_channel"] == "chat"
 
     assert has_element?(view, "#support-chat-messages [data-kind='outbound']", "We are investigating this now.")
+  end
+
+  test "reconciliation displays a reply published on another instance's PubSub", %{conn: conn} do
+    remote_pubsub = __MODULE__.RemotePubSub
+    start_supervised!({Phoenix.PubSub, name: remote_pubsub})
+    stub(SupportChatRateLimit, :check, fn _ip, _email -> :ok end)
+    email = "support-reconcile-#{System.unique_integer([:positive])}@example.test"
+    {:ok, view, _html} = live(conn, ~p"/support/chat")
+
+    view
+    |> form("#support-chat-form", %{"chat" => %{"email" => email, "body" => "Initial question"}})
+    |> render_submit()
+
+    [thread] = Support.list_threads(query: email) |> elem(0)
+    agent = support_agent!()
+
+    Atlas.Repo.insert!(%Message{
+      thread_id: thread.id,
+      author_id: agent.id,
+      kind: "outbound",
+      message_id: Ecto.UUID.generate(),
+      sender_email: agent.email,
+      to_emails: [email],
+      body: "Recovered reply",
+      delivery_status: "delivered",
+      occurred_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      metadata: %{"delivery_channel" => "chat"}
+    })
+
+    topic = "support:thread:#{thread.id}"
+    :ok = Phoenix.PubSub.subscribe(remote_pubsub, topic)
+    :ok = Phoenix.PubSub.broadcast(remote_pubsub, topic, {:support_thread_updated, thread.id})
+    assert_receive {:support_thread_updated, thread_id} when thread_id == thread.id
+
+    refute has_element?(view, "#support-chat-messages [data-kind='outbound']", "Recovered reply")
+    form = :sys.get_state(view.pid).socket.assigns.form
+    send(view.pid, :reconcile_thread)
+    assert has_element?(view, "#support-chat-messages [data-kind='outbound']", "Recovered reply")
+    assert :sys.get_state(view.pid).socket.assigns.form == form
+    assert length(Registry.lookup(Atlas.PubSub, topic)) == 1
+
+    send(view.pid, :reconcile_thread)
+    assert has_element?(view, "#support-chat-messages [data-kind='outbound']", "Recovered reply")
+    assert :sys.get_state(view.pid).socket.assigns.form == form
   end
 
   test "shows the retry delay when the chat rate limit rejects a submission", %{conn: conn} do

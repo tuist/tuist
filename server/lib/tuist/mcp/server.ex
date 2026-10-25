@@ -36,6 +36,10 @@ defmodule Tuist.MCP.Server do
     Tools.ListRunnerJobLogs,
     Tools.ListRunnerWorkflows,
     Tools.ListRunnerProfiles,
+    Tools.GetRunnerCatalog,
+    Tools.CreateRunnerProfile,
+    Tools.UpdateRunnerProfile,
+    Tools.DeleteRunnerProfile,
     Tools.ListRunnerVolumes,
     Tools.GetRunnerVolume,
     Tools.ListRunnerVolumeJobs,
@@ -68,6 +72,15 @@ defmodule Tuist.MCP.Server do
     Tools.GetBazelInvocationLog,
     Tools.ListBazelCacheEvents,
     Tools.GetBazelCacheEvent,
+    Tools.ListCargoBuilds,
+    Tools.GetCargoBuild,
+    Tools.ListMixBuilds,
+    Tools.GetMixBuild,
+    Tools.ListOnceRuns,
+    Tools.GetOnceRun,
+    Tools.ListBuildEntities,
+    Tools.GetBuildEntity,
+    Tools.ListBuildEntityHistory,
     Tools.ListTestRuns,
     Tools.ListTestModuleRuns,
     Tools.ListTestSuiteRuns,
@@ -79,6 +92,9 @@ defmodule Tuist.MCP.Server do
     Tools.GetTestRun,
     Tools.GetTestCaseRun,
     Tools.ListTestCaseRunAttachments,
+    Tools.GetCoverage,
+    Tools.ListCoverageFiles,
+    Tools.GetCoverageFile,
     Tools.ListBundles,
     Tools.GetBundle,
     Tools.GetBundleArtifactTree,
@@ -97,6 +113,8 @@ defmodule Tuist.MCP.Server do
     Tools.ListProjectTokens,
     Tools.StartProjectLogoUpload,
     Tools.CompleteProjectLogoUpload,
+    Tools.ConnectProjectRepository,
+    Tools.DisconnectProjectRepository,
     Tools.ListPreviews,
     Tools.GetPreview,
     Tools.GetLatestPreview
@@ -120,18 +138,18 @@ defmodule Tuist.MCP.Server do
     Prompts.AskTuist
   ]
 
-  @source_answer_instructions """
-  Use the relevant Tuist tool when its documentation or source results are needed to answer a Tuist question. `search_tuist` covers public explanations and terminology. When current behavior depends on implementation, `search_tuist_code`, `list_tuist_files`, and `read_tuist_file` provide a fixed source revision; inspect focused tests and call sites, treat truncated results as partial, and cite returned links and the source revision. Keep the answer focused on the user's question rather than describing the codebase.
+  @source_capabilities """
+  `search_tuist` searches public Tuist documentation, API reference, releases, and community content. `search_tuist_code`, `list_tuist_files`, and `read_tuist_file` return public Tuist source from a fixed revision, including the source revision and revision-pinned links. These source tools have bounded results; `truncated` and `truncation_reason` indicate partial results, and truncated file reads include `next_start_line` for continuation.
   """
 
-  @agent_workflow_instructions """
-  This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow. Never invent credentials. Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations. Verify the outcome of requested changes through the relevant Tuist tools before reporting success.
+  @authentication_information """
+  This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow. Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations.
   """
 
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.35.0",
+      version: "1.42.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),
@@ -150,9 +168,9 @@ defmodule Tuist.MCP.Server do
 
   defp instructions do
     if codebase_search_enabled?() do
-      @source_answer_instructions <> "\n" <> @agent_workflow_instructions
+      @source_capabilities <> "\n" <> @authentication_information
     else
-      @agent_workflow_instructions
+      @authentication_information
     end
   end
 

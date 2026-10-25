@@ -42,6 +42,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private let fileSystem: FileSysteming
     private let token: @Sendable () async throws -> String
     private let guards: TransferGuards
+    private let metadataTimeout: Duration
     private let stats: REAPIStats?
     private let backpressureRetryPolicy: REAPIBackpressureRetryPolicy
 
@@ -51,6 +52,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         instanceName: String,
         fileSystem: FileSysteming = FileSystem(),
         guards: TransferGuards = .default,
+        metadataTimeout: Duration = .seconds(120),
         stats: REAPIStats? = nil,
         backpressureRetryPolicy: REAPIBackpressureRetryPolicy? = nil,
         environment: [String: String] = Environment.current.variables,
@@ -92,6 +94,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         self.token = token
         self.fileSystem = fileSystem
         self.guards = guards
+        self.metadataTimeout = metadataTimeout
         self.stats = stats
         self.backpressureRetryPolicy = backpressureRetryPolicy ?? .init()
     }
@@ -118,7 +121,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     private var options: CallOptions {
         var options = CallOptions.defaults
-        options.timeout = .seconds(120)
+        options.timeout = metadataTimeout
         return options
     }
 
@@ -326,12 +329,12 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     public func validateCapabilities() async throws {
-        var options = options
-        options.timeout = .seconds(10)
-        let response = try await withClient { client in
-            try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
-                .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
-            )
+        let response = try await REAPICapabilityNegotiation.run { options in
+            try await withClient { client in
+                try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
+                    .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
+                )
+            }
         }
         guard response.hasCacheCapabilities, response.cacheCapabilities.digestFunctions.contains(.sha256) else {
             throw REAPICacheError.unsupportedEndpoint
@@ -408,10 +411,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     /// A transfer that stalled is tried again like a transient server failure: a write carries the
     /// blob from its first byte, so the attempt it replaces delivered nothing that can be kept.
+    /// `.internalError`, `.unknown` and `.cancelled` are how a stream cut by a proxy, a peer rotating its
+    /// connections, or an ingress answering with a non-gRPC error reaches the client. Every call this wraps is
+    /// idempotent, and `retry` checks for local cancellation before consulting this.
     private static func isRetryable(_ error: any Error) -> Bool {
         if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
         guard let error = error as? RPCError else { return false }
-        return [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code)
+        return [.unavailable, .resourceExhausted, .deadlineExceeded, .internalError, .unknown, .cancelled]
+            .contains(error.code)
     }
 
     private static func batchFailure(codes: [Int32]) -> RPCError? {
@@ -491,7 +498,8 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         let available = existing.union(uploaded).union(spliced).filter { blobs[$0] != nil }
         return REAPIBlobUpload(
             available: available,
-            failures: operation.failures.filter { blobs[$0.key] != nil && !available.contains($0.key) }
+            failures: operation.failures.filter { blobs[$0.key] != nil && !available.contains($0.key) },
+            uploaded: recipes.isEmpty ? uploaded : nil
         )
     }
 

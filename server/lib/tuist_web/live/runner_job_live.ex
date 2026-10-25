@@ -29,6 +29,10 @@ defmodule TuistWeb.RunnerJobLive do
   # arrive at the bottom via Pub/Sub. We never load the whole stream.
   @page_size 200
 
+  # An expanded step renders its last this-many lines and pages
+  # backwards in the same increment via "Load earlier lines".
+  @step_page_size 1_000
+
   # Max matching lines returned by an in-page log search (across the
   # whole job, not just the loaded tail).
   @search_limit 500
@@ -78,13 +82,17 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:job, job)
          |> assign(:buildkite_job, buildkite_job)
          |> assign(:gitlab_job, gitlab_job)
-         |> assign(:volumes, CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id))
+         |> assign(
+           :volumes,
+           CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id)
+         )
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
          |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
+         |> expand_failed_steps()
          |> assign(:search, "")
          |> assign(:search_results, [])
          |> assign(:show_timestamps, false)
@@ -144,8 +152,19 @@ defmodule TuistWeb.RunnerJobLive do
 
   attr :volumes, :list, required: true
   attr :account_name, :string, required: true
+  attr :failed, :boolean, default: false
 
   def job_volumes(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :filled,
+        if(assigns.failed,
+          do: Enum.filter(assigns.volumes, &CacheVolumes.out_of_space?(&1.size_bytes, &1.capacity_bytes)),
+          else: []
+        )
+      )
+
     ~H"""
     <.card
       :if={@volumes != []}
@@ -154,23 +173,51 @@ defmodule TuistWeb.RunnerJobLive do
       data-part="volumes-card"
     >
       <.card_section>
+        <.alert
+          :for={usage <- @filled}
+          id={"runner-job-volume-full-alert-#{usage.volume_id}"}
+          status="warning"
+          type="secondary"
+          size="large"
+          title={
+            dgettext("dashboard_runners", "%{volume} ran out of space",
+              volume: TuistWeb.RunnerVolumesLive.display_name(usage.volume)
+            )
+          }
+          description={
+            dgettext(
+              "dashboard_runners",
+              "This job used %{used} of the volume's %{capacity}. Writes to a full volume fail with errors such as \"No space left on device\", which can fail the job.",
+              used: volume_bytes(usage.size_bytes),
+              capacity: volume_bytes(usage.capacity_bytes)
+            )
+          }
+        />
         <.table
           id="runner-job-volumes"
           rows={@volumes}
           row_navigate={fn usage -> ~p"/#{@account_name}/runners/volumes/#{usage.volume_id}" end}
         >
           <:col :let={usage} label={dgettext("dashboard_runners", "Volume")}>
-            <.text_cell label={usage.volume.key} />
+            <.text_cell label={TuistWeb.RunnerVolumesLive.display_name(usage.volume)} />
           </:col>
           <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
             <.badge_cell
               :if={not is_nil(usage.warm)}
               label={
-                if usage.warm,
-                  do: dgettext("dashboard_runners", "Hit"),
-                  else: dgettext("dashboard_runners", "Miss")
+                cond do
+                  CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                  usage.warm -> dgettext("dashboard_runners", "Hit")
+                  true -> dgettext("dashboard_runners", "Miss")
+                end
               }
-              color={if usage.warm, do: "success", else: "neutral"}
+              color={
+                cond do
+                  CacheVolumes.older_copy?(usage) -> "warning"
+                  usage.warm -> "success"
+                  true -> "neutral"
+                end
+              }
               style="light-fill"
             />
             <.text_cell :if={is_nil(usage.warm)} label="—" />
@@ -313,22 +360,6 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def step_path(_, _, _), do: nil
-
-  def queued_duration_ms(%{enqueued_at: enqueued, claimed_at: claimed}) do
-    cond do
-      is_nil(enqueued) -> 0
-      is_nil(claimed) -> DateFormatter.ms_since(enqueued)
-      true -> DateTime.diff(claimed, enqueued, :millisecond)
-    end
-  end
-
-  def run_duration_ms(%{started_at: started, completed_at: completed}) do
-    cond do
-      is_nil(started) -> 0
-      is_nil(completed) -> DateFormatter.ms_since(started)
-      true -> DateTime.diff(completed, started, :millisecond)
-    end
-  end
 
   @doc """
   Maps a step's GitHub conclusion/status to the same badge kind the
@@ -826,6 +857,24 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
+  def handle_event("load_earlier_step_lines", %{"number" => number}, socket) do
+    with {n, ""} <- Integer.parse(number),
+         %{first: first, from: from, loading_earlier?: false} = page when from > first <-
+           Map.get(socket.assigns.step_logs, n) do
+      workflow_job_id = socket.assigns.job.workflow_job_id
+      new_from = max(first, from - @step_page_size)
+
+      {:noreply,
+       socket
+       |> update(:step_logs, &Map.put(&1, n, %{page | loading_earlier?: true}))
+       |> start_async({:earlier_step_lines, n}, fn ->
+         {new_from, JobLogs.list_step_lines(workflow_job_id, first, from - 1, from: new_from)}
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_event("search_logs", %{"search" => term}, socket) do
     term = String.trim(term)
     results = JobLogs.search(socket.assigns.job.workflow_job_id, term, @search_limit)
@@ -1052,27 +1101,33 @@ defmodule TuistWeb.RunnerJobLive do
   def log_ts(_), do: ""
 
   # Renders a list of grouped log nodes (`{:line, line}` /
-  # `{:group, header, children}`) as the Steps tab body. Groups
-  # become collapsible `<details>` elements that match GitHub's
-  # own log UI; lines render with ANSI SGR codes decoded into
-  # `<span>` classes so the user sees colours instead of literal
-  # `[36;1m` artefacts.
+  # `{:group, header, children}` / `{:action, header, children}`) as
+  # the Steps tab body. Groups and composite-action steps become
+  # collapsible `<details>` elements that match GitHub's own log UI;
+  # lines render with ANSI SGR codes decoded into `<span>` classes so
+  # the user sees colours instead of literal `[36;1m` artefacts.
   attr(:tree, :list, required: true)
+  attr(:id_prefix, :string, default: nil)
 
   def log_tree(assigns) do
     ~H"""
-    <.log_node :for={node <- @tree} node={node} />
+    <.log_node :for={node <- @tree} node={node} id_prefix={@id_prefix} />
     """
   end
 
   attr(:node, :any, required: true)
+  attr(:id_prefix, :string, default: nil)
 
   def log_node(%{node: {:line, _line}} = assigns) do
     {:line, line} = assigns.node
     assigns = assign(assigns, :line, line)
 
     ~H"""
-    <div data-part="log-line">
+    <div
+      id={@id_prefix && @line.line_number && "#{@id_prefix}-#{@line.line_number}"}
+      data-part="log-line"
+      data-annotation={LogFormatter.annotation(@line.message)}
+    >
       <span data-part="log-ln">{@line.line_number}</span>
       <span data-part="log-ts">{log_ts(@line.ts)}</span>
       <span data-part="log-message">{LogFormatter.render_message(@line.message)}</span>
@@ -1096,41 +1151,135 @@ defmodule TuistWeb.RunnerJobLive do
         </span>
       </summary>
       <div data-part="log-group-body">
-        <.log_tree tree={@children} />
+        <.log_tree tree={@children} id_prefix={@id_prefix} />
       </div>
     </details>
     """
   end
 
-  # Per-step ranges are computed once (three small ClickHouse queries,
-  # no log-body scan); the expanded step's lines are fetched on demand
-  # and cached individually. A user who never opens a step pays
-  # nothing beyond mount; a job with hundreds of thousands of lines
-  # never holds them in the socket.
+  # A step of a composite action, rendered like GitHub's nested step
+  # header: status icon, name, and duration. Failed steps start
+  # expanded so the error is visible without a click.
+  def log_node(%{node: {:action, _header, _children}} = assigns) do
+    {:action, header, children} = assigns.node
+
+    assigns =
+      assigns
+      |> assign(:header, header)
+      |> assign(:children, children)
+      |> assign(:status, step_status(%{conclusion: header.conclusion}))
+
+    ~H"""
+    <details data-part="log-group" data-kind="action" open={@header.conclusion == "failure"}>
+      <summary data-part="log-group-summary">
+        <span data-part="log-ln">{@header.line.line_number}</span>
+        <span data-part="log-ts">{log_ts(@header.line.ts)}</span>
+        <span data-part="log-group-label">
+          <span data-part="log-group-chevron" data-empty={to_string(@children == [])}>
+            <.chevron_right />
+          </span>
+          <span data-part="log-action-icon" data-status={@status}>
+            <.circle_check :if={@status == :success} />
+            <.alert_circle :if={@status == :failure} />
+            <.alert_hexagon :if={@status == :warning} />
+            <.circle_dashed :if={@status == :processing} />
+          </span>
+          <span data-part="log-action-name">{@header.name}</span>
+          <span :if={@header.duration_ms} data-part="log-action-duration">
+            {DateFormatter.format_duration_from_milliseconds(@header.duration_ms,
+              fractional_seconds: false
+            )}
+          </span>
+        </span>
+      </summary>
+      <div data-part="log-group-body">
+        <.log_tree tree={@children} id_prefix={@id_prefix} />
+      </div>
+    </details>
+    """
+  end
+
+  # Per-step ranges are computed once (two small ClickHouse queries,
+  # no log-body scan); the expanded step's last page of lines is
+  # fetched on demand, off the LiveView process, and cached
+  # individually. A user who never opens a step pays nothing beyond
+  # mount; a step with hundreds of thousands of lines never holds them
+  # in the socket or the DOM.
   defp load_step_logs(socket, number) do
-    if Map.has_key?(socket.assigns.step_logs, number) do
-      socket
-    else
-      ranges =
-        socket.assigns[:step_line_ranges] ||
-          JobLogs.step_line_ranges(
-            socket.assigns.job.workflow_job_id,
-            socket.assigns.steps
-          )
+    case Map.get(socket.assigns.step_logs, number) do
+      state when state in [nil, :failed] ->
+        workflow_job_id = socket.assigns.job.workflow_job_id
+        steps = socket.assigns.steps
+        ranges = socket.assigns[:step_line_ranges]
 
-      lines =
-        case Map.get(ranges, number) do
-          {first, last} ->
-            JobLogs.list_step_lines(socket.assigns.job.workflow_job_id, first, last)
+        socket
+        |> update(:step_logs, &Map.put(&1, number, :loading))
+        |> start_async({:step_logs, number}, fn ->
+          ranges = ranges || JobLogs.step_line_ranges(workflow_job_id, steps)
+          {ranges, last_step_page(workflow_job_id, Map.get(ranges, number))}
+        end)
 
-          _ ->
-            []
-        end
-
-      socket
-      |> assign(:step_line_ranges, ranges)
-      |> assign(:step_logs, Map.put(socket.assigns.step_logs, number, lines))
+      _ ->
+        socket
     end
+  end
+
+  defp expand_failed_steps(socket) do
+    socket.assigns.steps
+    |> Enum.filter(&(&1.conclusion == "failure"))
+    |> Enum.reduce(socket, fn %{number: number}, socket ->
+      socket
+      |> update(:expanded_steps, &MapSet.put(&1, number))
+      |> load_step_logs(number)
+    end)
+  end
+
+  @doc """
+  Whether an expanded step's log panel opens scrolled to its last
+  line: when the step failed, or when only its tail is loaded.
+  """
+  def step_logs_start_at_end?(%{conclusion: "failure"}, _step_page), do: true
+  def step_logs_start_at_end?(_step, %{first: first, from: from}) when from > first, do: true
+  def step_logs_start_at_end?(_step, _step_page), do: false
+
+  defp last_step_page(workflow_job_id, {first, last}) do
+    from = max(first, last - @step_page_size + 1)
+
+    %{
+      lines: JobLogs.list_step_lines(workflow_job_id, first, last, from: from),
+      first: first,
+      from: from,
+      loading_earlier?: false
+    }
+  end
+
+  defp last_step_page(_workflow_job_id, :unattributed), do: :unattributed
+  defp last_step_page(_workflow_job_id, _range), do: %{lines: [], first: nil, from: nil, loading_earlier?: false}
+
+  @impl true
+  def handle_async({:step_logs, number}, {:ok, {ranges, page}}, socket) do
+    {:noreply,
+     socket
+     |> assign(:step_line_ranges, ranges)
+     |> update(:step_logs, &Map.put(&1, number, page))}
+  end
+
+  def handle_async({:step_logs, number}, {:exit, _reason}, socket) do
+    {:noreply, update(socket, :step_logs, &Map.put(&1, number, :failed))}
+  end
+
+  def handle_async({:earlier_step_lines, number}, {:ok, {from, lines}}, socket) do
+    {:noreply,
+     update(socket, :step_logs, fn step_logs ->
+       Map.update!(step_logs, number, &%{&1 | lines: lines ++ &1.lines, from: from, loading_earlier?: false})
+     end)}
+  end
+
+  def handle_async({:earlier_step_lines, number}, {:exit, _reason}, socket) do
+    {:noreply,
+     update(socket, :step_logs, fn step_logs ->
+       Map.update!(step_logs, number, &%{&1 | loading_earlier?: false})
+     end)}
   end
 
   defp log_stream_item(line) do

@@ -47,7 +47,8 @@ data class TuistGradleConfig(
     val testQuarantineEnabled: Boolean? = null,
     val stressNewTestsMode: String? = null,
     val stressRepetition: StressRepetitionContext? = null,
-    val customMetadata: BuildCustomMetadata = BuildCustomMetadata()
+    val customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
+    val actorId: String? = null
 ) {
     data class Network(val proxy: Boolean)
 
@@ -71,6 +72,7 @@ data class TuistGradleConfig(
                     )
                 ),
                 uploadInBackground = extension.uploadInBackground,
+                actorId = extension.buildInsights.actorId,
                 testQuarantineEnabled = extension.testQuarantine.enabled,
                 stressNewTestsMode = StressNewTestsMode.resolve(
                     environmentValue = System.getenv(STRESS_MODE_ENV),
@@ -331,9 +333,14 @@ open class StressNewTestsExtension {
 }
 
 /**
- * Configuration for build insight tags and key-value metadata.
+ * Configuration for build insight tags, key-value metadata, and the shared build/test actor claim.
  */
 open class BuildInsightsExtension {
+    var actorId: String? = null
+
+    @Deprecated("Credential-free reporting is discovered automatically from the self-hosted server.")
+    var networkTrustedPublishing: Boolean = false
+
     private val configuredTags = mutableListOf<String>()
     private val configuredValues = mutableMapOf<String, String>()
 

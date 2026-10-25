@@ -17,7 +17,7 @@ defmodule Tuist.Kura.ClaimSizing do
   take at least a tenth less claim. A ring that rotates shrinks on retention
   once every day of a month kept its content for three retention floors: it
   lands where the floor plus the growth headroom would be kept, at most halving
-  the claim in one step and never under the plan's starting claim. Both are
+  the claim in one step. Neither goes under the plan's starting claim. Both are
   slower to confirm than any growth, because a shrink that overshoots costs a
   rebuild to undo and one that waits costs only disk.
 
@@ -244,7 +244,8 @@ defmodule Tuist.Kura.ClaimSizing do
 
   # The capped step's evidence already proved the ring short, so a rung
   # confirms on one day of the resized ring, at the one-day bound, until its
-  # own window could have run since the resize. That day pays in volume, as
+  # own window could have run since the resize, unless another day of the
+  # resized ring shed past the rung's threshold. That day pays in volume, as
   # the ladder's own one-day rungs do: a rebuilt ring sheds nothing older than
   # itself, so shed age alone cannot tell a short ring from a young one.
   defp capped_resize_verdict(_by_date, _idle_dates, _floor_seconds, _claim_bytes, %{capped_resize_from: nil}, _policy),
@@ -262,10 +263,24 @@ defmodule Tuist.Kura.ClaimSizing do
       turnover = max(Map.get(rung, :min_ring_turnover, 0), one_day_turnover)
       one_day_rung = Map.merge(rung, %{window_days: 1, min_ring_turnover: turnover})
 
-      case rung_verdict([one_day_rung], days, idle_dates, floor_seconds, claim_bytes, context, policy) do
-        nil -> nil
-        {target_bytes, evidence} -> {target_bytes, Map.put(evidence, "after_capped_resize", true)}
+      with false <- shed_past_threshold?(days, idle_dates, shed_age_threshold(rung.shed_age_under, floor_seconds)),
+           {target_bytes, evidence} <-
+             rung_verdict([one_day_rung], days, idle_dates, floor_seconds, claim_bytes, context, policy) do
+        {target_bytes, Map.put(evidence, "after_capped_resize", true)}
+      else
+        _ -> nil
       end
+    end)
+  end
+
+  # One day stands in for a rung's window only while nothing the resized ring
+  # measured says otherwise. A day it shed content that outlived the rung's
+  # threshold, and was not idle, is the window's own answer, and one day under
+  # it does not outweigh that. A day that shed nothing is not evidence either
+  # way: a rebuilt ring refills before it sheds.
+  defp shed_past_threshold?(days, idle_dates, threshold_seconds) do
+    Enum.any?(days, fn {_date, rollup} ->
+      rollup.eviction_count > 0 and grow_standing(rollup, idle_dates, threshold_seconds) == :breaks
     end)
   end
 
@@ -662,9 +677,8 @@ defmodule Tuist.Kura.ClaimSizing do
   # account's rotating content on a smaller claim and keeps three floors
   # there: that claim is measured rather than projected, so the step may go to
   # it. A ring that never filled measures nothing about rotating content and
-  # does not count. Retention never goes under the claim the plan starts an
-  # account at; a ring that never filled may go to the smallest any instance
-  # is built with.
+  # does not count. No shrink goes under the claim the plan starts an account
+  # at.
   defp finalize_shrink(shrinks, current_bytes, context, policy) do
     {_signal, region, target_bytes, _claim_bytes, evidence} = Enum.max_by(shrinks, &elem(&1, 2))
 
@@ -685,7 +699,7 @@ defmodule Tuist.Kura.ClaimSizing do
     bytes =
       target_bytes
       |> max(step_bytes)
-      |> max(quantity_bytes(shrink_minimum(measured, context.plan)))
+      |> max(quantity_bytes(Regions.storage_profile(context.plan).claim_size))
       |> min(current_bytes)
 
     recommended = to_gibibyte_quantity(bytes)
@@ -708,9 +722,6 @@ defmodule Tuist.Kura.ClaimSizing do
       :none
     end
   end
-
-  defp shrink_minimum([], _plan), do: Regions.minimum_storage_claim()
-  defp shrink_minimum(_measured, plan), do: Regions.storage_profile(plan).claim_size
 
   defp grow_evidence(window, floor_seconds, threshold_seconds) do
     %{
@@ -759,8 +770,8 @@ defmodule Tuist.Kura.ClaimSizing do
     |> Enum.min(fn -> nil end)
   end
 
-  # How far a claim may grow. The plan's starting claim, which bounds a
-  # retention shrink, is the other place a plan changes the outcome.
+  # How far a claim may grow. The plan's starting claim, which bounds every
+  # shrink, is the other place a plan changes the outcome.
   defp ceiling(plan, policy), do: Map.get(policy.ceiling, plan, policy.ceiling.air)
 
   defp quantity_bytes(quantity) do

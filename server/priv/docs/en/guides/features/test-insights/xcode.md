@@ -105,3 +105,12 @@ Additionally, you will either need to:
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
 When `xcodebuild` tests your project without `-resultBundlePath`, the required result bundle files are not generated. The `tuist inspect test` post-action requires these files to analyze your tests.
+
+### Git history {#git-history}
+
+On CI, Tuist also uploads the commit history of the checkout: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. Tuist reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). Outside code coverage, it doesn't fetch history.
+
+| Variable | Effect |
+| --- | --- |
+| `TUIST_GIT_UPLOAD_ENABLED=false` | Doesn't read or upload any Git history. |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | Reads only the checkout, without contacting the remote. |

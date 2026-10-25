@@ -1272,3 +1272,39 @@ struct TreeShakePrunedTargetsGraphMapperPackageTests {
         #expect(Set(gotGraph.workspace.projects) == [featureProjectPath, supportProjectPath])
     }
 }
+
+struct TreeShakePrunedTargetsGraphMapperBuildForTests {
+    private let subject = TreeShakePrunedTargetsGraphMapper()
+
+    @Test
+    func map_removes_build_for_options_for_pruned_build_targets() throws {
+        let path = try AbsolutePath(validating: "/project")
+        let prunedTarget = Target.test(name: "Pruned", metadata: .metadata(tags: ["tuist:prunable"]))
+        let keptTarget = Target.test(name: "Kept")
+        let prunedTargetReference = TargetReference(projectPath: path, name: prunedTarget.name)
+        let keptTargetReference = TargetReference(projectPath: path, name: keptTarget.name)
+        let scheme = Scheme.test(
+            name: "Scheme",
+            buildAction: BuildAction(
+                targets: [prunedTargetReference, keptTargetReference],
+                buildFor: [
+                    prunedTargetReference: [.testing],
+                    keptTargetReference: [.running],
+                ]
+            )
+        )
+        let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: [scheme])
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [:]
+        )
+
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        let gotScheme = try #require(gotGraph.projects[path]?.schemes.first)
+        let gotBuildAction = try #require(gotScheme.buildAction)
+        #expect(gotBuildAction.targets == [keptTargetReference])
+        #expect(gotBuildAction.buildFor == [keptTargetReference: [.running]])
+    }
+}

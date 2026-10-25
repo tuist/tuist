@@ -1,6 +1,8 @@
 @import "../../shared/css/components/account_dropdown.css";
 @import "./components/chart_type_toggle.css";
 @import "./components/empty_state.css";
+@import "./components/json_input.css";
+@import "./components/resource_card.css";
 @import "./components/empty_card_section.css";
 @import "./components/error_card_section.css";
 @import "./components/terminal.css";
@@ -18,3 +20,4 @@
 @import "./components/async_card.css";
 
 @import "./components/build_health.css";
+@import "./components/build_metadata.css";

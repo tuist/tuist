@@ -103,6 +103,7 @@
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
     data-part="analytics-card"
+    chart_frame="cache"
   >
     <div data-part="widgets">
       <.percentile_dropdown_widget
@@ -481,7 +482,7 @@
            !ready?) or
           (@analytics_selected_widget != "cache_hit_rate" and !ready?)
       }
-      data-chart-frame="standard"
+      data-chart-frame="cache"
     >
       <div data-part="analytics-chart">
         <.skeleton_chart />
@@ -494,7 +495,7 @@
           (@hit_rate_analytics.result.avg_hit_rate != 0 or
              @transfer_analytics.result.total != 0)
       }
-      data-chart-frame="standard"
+      data-chart-frame="cache"
     >
       <.chart_type_toggle
         id="cache-hit-rate"
@@ -666,7 +667,7 @@
           (@hit_rate_analytics.result.avg_hit_rate != 0 or
              @transfer_analytics.result.total != 0)
       }
-      data-chart-frame="standard"
+      data-chart-frame="cache"
     >
       <div data-part="analytics-chart">
         <.chart

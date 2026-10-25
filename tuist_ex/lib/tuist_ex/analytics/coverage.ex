@@ -1,10 +1,11 @@
 defmodule TuistEx.Analytics.Coverage do
   @moduledoc false
 
-  # The line coverage of a `mix test --cover` run, read from Erlang's `cover`
-  # and shaped as the server's `coverage` block: one entry per source file of
-  # the repository, with the OTP application it belongs to, whether it is test
-  # code, and how many times each executable line ran.
+  # The line coverage of a `mix tuist.test --cover` run, read from the
+  # runtime's native line counters and Erlang's `cover`, and shaped as the
+  # server's `coverage` block: one entry per source file of the repository,
+  # with the OTP application it belongs to, whether it is test code, and how
+  # many times each executable line ran.
   #
   # The counters are read by the formatter when the suite finishes: every test
   # has run, and Mix's own coverage tool has not yet turned them into its
@@ -23,6 +24,9 @@ defmodule TuistEx.Analytics.Coverage do
   @value_switches ~w(--only --exclude --include --seed --timeout --max-cases --max-failures
                      --max-requires --partitions --formatter --slowest --slowest-modules
                      --name-pattern --export-coverage --exit-status --repeat-until-failure)
+
+  # The native counters of the modules Mimic copied, from before the copy.
+  @before_swap {__MODULE__, :before_swap}
 
   def requested?(test_args), do: "--cover" in test_args
 
@@ -43,16 +47,14 @@ defmodule TuistEx.Analytics.Coverage do
   defp files?([]), do: false
 
   @doc """
-  The counters `cover` holds, one entry per source file with its lines and
-  its functions, or nil when it is not running. Called in the project the
-  suite belongs to, an umbrella's application for its own suite: its test
-  paths say what is test code, and its directory finds sources a build
-  compiled elsewhere.
+  The run's line counters, one entry per source file with its lines and its
+  functions, or nil when nothing counted. Called in the project the suite
+  belongs to, an umbrella's application for its own suite: its test paths say
+  what is test code, and its directory finds sources a build compiled
+  elsewhere.
   """
   def snapshot(project_dir \\ File.cwd!(), config \\ Mix.Project.config()) do
-    if Process.whereis(:cover_server) do
-      {:result, entries, _failures} = :cover.analyse(:calls, :line)
-      calls = function_calls()
+    with {entries, calls} <- line_entries(config) do
       test_dirs = Enum.map(config[:test_paths] || ["test"], &Path.expand(&1, project_dir))
       default_app = config[:app] && to_string(config[:app])
       ignored = get_in(config, [:test_coverage, :ignore_modules]) || []
@@ -102,6 +104,264 @@ defmodule TuistEx.Analytics.Coverage do
     end
   end
 
+  @doc """
+  Whether each executable line of each of the project's modules ran, by
+  module, as Mix's coverage tool summarizes them: Mimic's copies count as
+  their originals, and the modules the configuration ignores are left out.
+  """
+  def module_lines(config \\ Mix.Project.config()) do
+    ignored = get_in(config, [:test_coverage, :ignore_modules]) || []
+
+    case line_entries(config) do
+      nil ->
+        %{}
+
+      {entries, _calls} ->
+        entries
+        |> Enum.reject(fn {{_module, line}, _count} -> line == 0 end)
+        |> Enum.reduce(%{}, fn {{module, line}, count}, acc ->
+          Map.update(acc, original(module), %{line => count > 0}, fn lines ->
+            Map.update(lines, line, count > 0, &(&1 or count > 0))
+          end)
+        end)
+        |> Map.reject(fn {module, _lines} -> ignored?(module, ignored) end)
+    end
+  end
+
+  # The counters `cover` holds and, in a runtime counting natively, those of
+  # the project's modules `cover` did not compile: a build `instrument/1`
+  # prepared counts in its own code. Nil when nothing counts.
+  defp line_entries(config) do
+    cover? = Process.whereis(:cover_server) != nil
+    # Without the JIT the runtime has no coverage mode to ask about: asking raises.
+    native? = :code.coverage_support() and :code.get_coverage_mode() != :none
+
+    if cover? or native? do
+      {cover_entries, compiled, calls} =
+        if cover? do
+          {:result, entries, _failures} = :cover.analyse(:calls, :line)
+          {entries, MapSet.new(:cover.modules(), &original/1), function_calls()}
+        else
+          {[], MapSet.new(), %{}}
+        end
+
+      native_entries = if native?, do: native_lines(config, compiled), else: []
+      {cover_entries ++ native_entries, calls}
+    end
+  end
+
+  # A module the run never loaded still counts its lines, so every module of
+  # the build is loaded first. Mimic's copies count as their originals'.
+  defp native_lines(config, compiled) do
+    project = config |> Mix.Project.compile_path() |> build_modules()
+    Enum.each(project, &Code.ensure_loaded/1)
+    project = MapSet.new(project)
+
+    # Mimic's proxies count lines of Mimic's own source.
+    counted =
+      for {module, _path} <- :code.all_loaded(),
+          source = original(module),
+          MapSet.member?(project, source) and not MapSet.member?(compiled, source),
+          not function_exported?(module, :__mimic_info__, 0),
+          :code.get_coverage_mode(module) != :none,
+          {line, count} <- :code.get_coverage(:line, module),
+          do: {{source, line}, count}
+
+    before_swap =
+      for {{module, _line}, _count} = entry <- :persistent_term.get(@before_swap, []),
+          MapSet.member?(project, module) and not MapSet.member?(compiled, module),
+          do: entry
+
+    # A copied module's lines add up its calls from before and after the swap.
+    (counted ++ before_swap)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Enum.map(fn {key, counts} -> {key, Enum.sum(counts)} end)
+  end
+
+  defp build_modules(ebin) do
+    for beam <- Path.wildcard(Path.join(ebin, "*.beam")),
+        do: beam |> Path.basename(".beam") |> String.to_atom()
+  end
+
+  @doc """
+  Recompiles the modules in the build directories `dirs`, the compile path
+  and the consolidated protocols', from their debug info with the
+  runtime's native line counters, so that a run counting natively
+  (`enable_native/1`) compiles nothing for `cover`, which recompiles every
+  module at the start of each run. A module that already carries the
+  counters is left as it is, so only what a compile wrote since is
+  recompiled. The Elixir compiler leaves the counters out even when asked
+  for them, which is why this starts from the debug info. The module keeps
+  its own debug info, which protocol consolidation reads, and the chunks
+  only Elixir writes, such as the docs doctests read. A module without debug
+  info stays as it was. Returns how many modules were instrumented and the
+  ones that could not be.
+  """
+  def instrument(dirs) do
+    results =
+      dirs
+      |> List.wrap()
+      |> Enum.flat_map(&Path.wildcard(Path.join(&1, "*.beam")))
+      |> Task.async_stream(&{&1, instrument_beam(&1)}, timeout: :infinity, ordered: false)
+      |> Enum.map(fn {:ok, result} -> result end)
+
+    {Enum.count(results, &(elem(&1, 1) == :instrumented)),
+     for({path, :skipped} <- results, do: Path.basename(path))}
+  end
+
+  defp instrument_beam(path) do
+    beam = String.to_charlist(path)
+
+    # Decoding Elixir's debug info is the costly part, so a module that
+    # already carries the counters is told apart by its compile options first.
+    with {:ok, {_module, [compile_info: info]}} <- :beam_lib.chunks(beam, [:compile_info]),
+         false <- :line_coverage in (info[:options] || []),
+         {:ok, {module, [abstract_code: {:raw_abstract_v1, forms}]}} <-
+           :beam_lib.chunks(beam, [:abstract_code]),
+         {:ok, ^module, binary} <- :compile.forms(forms, native_options(info)),
+         {:ok, _module, original} <- :beam_lib.all_chunks(beam),
+         {:ok, _module, chunks} <- :beam_lib.all_chunks(binary),
+         chunks = Enum.reject(chunks, &(elem(&1, 0) == ~c"Dbgi")),
+         ids = MapSet.new(chunks, &elem(&1, 0)),
+         {:ok, binary} <-
+           :beam_lib.build_module(
+             chunks ++ Enum.reject(original, &MapSet.member?(ids, elem(&1, 0)))
+           ) do
+      File.write!(path, binary)
+      :instrumented
+    else
+      true -> :already
+      _ -> :skipped
+    end
+  end
+
+  # The module's own options, less those that tell the Erlang compiler its
+  # input is Elixir's Core Erlang: the counters are added to the abstract code.
+  defp native_options(info) do
+    options = Enum.reject(info[:options] || [], &(&1 in [:from_core, :no_core_prepare, :binary]))
+    [:binary, :line_coverage, :debug_info, {:source, info[:source]} | options]
+  end
+
+  @doc """
+  Switches the runtime to native line counters and loads the modules of the
+  build in `ebin` with them, so a run needs no `+JPcover` flag. The mode set
+  after boot applies only to code loaded explicitly, not to modules loaded on
+  demand, so every module is loaded here, before the application starts; one
+  loaded earlier is loaded again, unless a process still runs its previous
+  version. False where the runtime cannot count natively, which needs the JIT.
+  """
+  def enable_native(ebin) do
+    if :code.coverage_support() and :code.get_coverage_mode() == :none,
+      do: :code.set_coverage_mode(:line_counters)
+
+    if :code.coverage_support() and :code.get_coverage_mode() == :line_counters do
+      ebin |> build_modules() |> Enum.each(&load_native/1)
+      true
+    else
+      false
+    end
+  end
+
+  defp load_native(module) do
+    cond do
+      :code.is_loaded(module) == false -> :code.load_file(module)
+      :code.get_coverage_mode(module) != :none -> :ok
+      :code.soft_purge(module) -> :code.load_file(module)
+      true -> :ok
+    end
+  end
+
+  @doc """
+  Readies a run of an instrumented build once the test helper has run and
+  before any test does: the modules Mimic will copy are swapped for Mimic's
+  copies now, and not at their first stub, so no test runs before a swap.
+  Mimic compiles each module's original under another name with the
+  module's own options, which carry the native counters, so the calls the
+  tests make count without `cover`. The calls made before the swap, while
+  the application started, are in the counters of the code the swap
+  replaces, so they are read first and added to the copy's.
+  """
+  def prepare_native(config \\ Mix.Project.config()) do
+    case mimic_modules(config) do
+      [] ->
+        :ok
+
+      modules ->
+        # Each module's counters are read right before its own swap: the
+        # application's processes keep calling it while the others swap.
+        before =
+          Enum.flat_map(modules, fn module ->
+            counts = called_lines(module)
+            Mimic.calls(module, :module_info, 0)
+            counts
+          end)
+
+        :persistent_term.put(@before_swap, before)
+    end
+  end
+
+  defp called_lines(module) do
+    if :code.is_loaded(module) != false and :code.get_coverage_mode(module) != :none do
+      for {line, count} <- :code.get_coverage(:line, module),
+          count > 0,
+          do: {{module, line}, count}
+    else
+      []
+    end
+  end
+
+  defp mimic_modules(config) do
+    case mimic_coordinator() do
+      nil ->
+        []
+
+      coordinator ->
+        for beam <- config |> Mix.Project.compile_path() |> Path.join("*.beam") |> Path.wildcard(),
+            module = beam |> Path.basename(".beam") |> String.to_atom(),
+            coordinator.marked_to_copy?(module),
+            do: module
+    end
+  end
+
+  # Mimic 2.4 moved what it marks to copy from `Mimic.Server` to
+  # `Mimic.Coordinator`.
+  defp mimic_coordinator do
+    Enum.find([Mimic.Coordinator, Mimic.Server], fn coordinator ->
+      Code.ensure_loaded?(coordinator) and function_exported?(coordinator, :marked_to_copy?, 1) and
+        Process.whereis(coordinator) != nil
+    end)
+  end
+
+  @doc """
+  A shard's arguments for `mix test`, exporting its coverage when it is
+  measured and nothing exports it yet. Mix's coverage tool would otherwise
+  hold a shard, which runs only part of the suite, to the whole project's
+  threshold (90% unless configured) and write its report there. Tuist reads
+  the counters itself, so what Mix exports, under `cover/shard-<index>`, is
+  only for the project's own tools.
+  """
+  def with_shard_export(test_args, index) do
+    exported? =
+      Enum.any?(
+        test_args,
+        &(&1 == "--export-coverage" or String.starts_with?(&1, "--export-coverage="))
+      )
+
+    if requested?(test_args) and not exported?,
+      do: test_args ++ ["--export-coverage", "shard-#{index}"],
+      else: test_args
+  end
+
+  @doc """
+  The arguments for `mix test` without Mix's own coverage tool, which a run
+  counting natively does not need: it would compile every module again.
+  """
+  def without_cover(["--cover" | rest]), do: without_cover(rest)
+  def without_cover(["--export-coverage", _name | rest]), do: without_cover(rest)
+  def without_cover(["--export-coverage=" <> _name | rest]), do: without_cover(rest)
+  def without_cover([arg | rest]), do: [arg | without_cover(rest)]
+  def without_cover([]), do: []
+
   # The modules the project's coverage configuration leaves out, as Mix's
   # coverage tool reads `ignore_modules`: a module, or a pattern its name
   # matches.
@@ -114,8 +374,8 @@ defmodule TuistEx.Analytics.Coverage do
 
   # Mimic, the mocking library most suites use, swaps a copied module for a
   # proxy and keeps the original's code under another name, cover-compiled
-  # from its binary, so the counters a test moves in it are the original
-  # module's lines.
+  # from its binary when `cover` compiled the original, so the counters a
+  # test moves in it are the original module's lines.
   @mimic_original ".Mimic.Original.Module"
 
   defp original(module) do
@@ -168,7 +428,7 @@ defmodule TuistEx.Analytics.Coverage do
 
   defp clause_starts(_abstract_code), do: []
 
-  # Each executable line belongs to the function whose clause body starts
+  # Each executable line belongs to the function whose clause head starts
   # closest above it, including the anonymous functions inside it, whichever
   # of the file's modules it is in. Functions the compiler generates
   # (`__info__/1`, `__struct__/0`, `module_info/0`) are not listed, but still
@@ -180,7 +440,7 @@ defmodule TuistEx.Analytics.Coverage do
     clauses = Enum.uniq(clauses)
 
     starts =
-      clauses |> Enum.map(fn {_head, body, function} -> {body, function} end) |> Enum.sort()
+      clauses |> Enum.map(fn {head, _body, function} -> {head, function} end) |> Enum.sort()
 
     head_lines =
       clauses

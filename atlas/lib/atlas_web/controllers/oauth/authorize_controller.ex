@@ -20,10 +20,12 @@ defmodule AtlasWeb.Oauth.AuthorizeController do
     )
   end
 
-  def authorize(%Plug.Conn{} = conn, _params) do
+  def authorize(%Plug.Conn{} = conn, params) do
+    login_path = if params["provider"] == "google", do: ~p"/auth/google", else: ~p"/login"
+
     conn
-    |> put_session(:user_return_to, current_path(conn))
-    |> redirect(to: ~p"/login")
+    |> put_session(:return_to, current_path(conn))
+    |> redirect(to: login_path)
     |> halt()
   end
 

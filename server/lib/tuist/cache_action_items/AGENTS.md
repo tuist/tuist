@@ -3,7 +3,10 @@
 This context owns cache action item tracking (per-project hashes).
 
 ## Responsibilities
-- Insert cache action items idempotently (conflict on project/hash).
+- Insert cache action items idempotently (conflict on project/hash). Sort bulk
+  rows by `{project_id, hash}` at the insert boundary to keep lock acquisition
+  consistent across concurrent batches; `ON CONFLICT DO NOTHING` still waits
+  on conflicting uncommitted inserts.
 - Fetch and delete action items for a project.
 
 ## Boundaries
