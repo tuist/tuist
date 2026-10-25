@@ -282,8 +282,13 @@ final class AtlasWorkspaceUITests: XCTestCase {
             attach(app, "atlas-social-orbit-\(mode)")
             conversation.tap()
             XCTAssertTrue(app.textFields["thread-composer"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.staticTexts["Start with Northstar: it has the nearest deadline."].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.staticTexts["Start with Northstar: it has the nearest deadline."].isHittable)
+            let lastLine = app.staticTexts["Start with Northstar: it has the nearest deadline."]
+            XCTAssertTrue(lastLine.waitForExistence(timeout: 5))
+            XCTAssertTrue(lastLine.isHittable)
+            XCTAssertLessThanOrEqual(lastLine.frame.maxY, app.textFields["thread-composer"].frame.minY)
+            let question = app.staticTexts["Give me a quick brief for next week’s customer calls."]
+            XCTAssertTrue(question.isHittable)
+            XCTAssertGreaterThanOrEqual(question.frame.minY, app.navigationBars.firstMatch.frame.maxY)
             attach(app, "atlas-social-pip-\(mode)")
             app.navigationBars.buttons.element(boundBy: 0).tap()
             app.tabBars.buttons["Accounts"].tap()

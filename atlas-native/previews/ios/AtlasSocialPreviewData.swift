@@ -6,9 +6,9 @@ enum AtlasSocialPreviewData {
 
     static var threads: [[String: Any]] {
         let conversations: [(String, String, String, String, Int)] = [
-            ("001", "Next week’s customer calls", "Three accounts to prioritise, with a clear next step for each.", "private", 0),
-            ("002", "Northstar renewal", "Jordan has the proposal. Let’s review the final terms on Tuesday.", "shared", 0),
-            ("004", "October cash flow", "€120k available, with eight months of runway at the current burn.", "private", 0),
+            ("001", "Next week’s customer calls", "Three accounts and clear next steps.", "private", 0),
+            ("002", "Northstar renewal", "Final terms ready for Tuesday’s review.", "shared", 0),
+            ("004", "October cash flow", "€120k in cash. Eight months of runway.", "private", 0),
             ("003", "Fern Studio onboarding", "A short checklist for the pilot, owners, and success criteria.", "shared", -1),
             ("005", "Berlin team week", "Workshop ideas, travel plans, and a little room to explore.", "shared", -1),
             ("006", "A calmer Monday morning", "A weekly brief covering customers, cash, and the team.", "private", -3),
@@ -21,7 +21,7 @@ enum AtlasSocialPreviewData {
             return [
                 "id": "01922cc0-0000-7000-8000-000000000\(suffix)", "title": title, "summary": summary,
                 "kind": kind, "status": "active", "origin": "manual", "owner_id": "preview-self",
-                "participants": [["id": "preview-self", "name": "Taylor"], ["id": "online", "name": "Jordan"]],
+                "participants": [["id": "preview-self", "name": "Taylor"]] + (kind == "shared" ? [["id": "online", "name": "Jordan"]] : []),
                 "updated_at": ISO8601DateFormatter().string(from: date)
             ]
         }
@@ -48,13 +48,13 @@ enum AtlasSocialPreviewData {
                 ## Three accounts to prioritise
 
                 **Northstar · Renewal**
-                The €24,500 annual agreement renews next month. Jordan has the proposal; confirm the final terms on Tuesday.
+                The €24,500 agreement renews next month. Confirm terms with Jordan on Tuesday.
 
                 **Fern Studio · Pilot**
-                The team is ready to start. Agree on one owner and a two-week success measure before kickoff.
+                Set a two-week pilot goal and name an owner before kickoff.
 
                 **Harbor Labs · Expansion**
-                They’re adding a second team. Ask about seat count and timing before preparing the quote.
+                A second team is joining. Confirm seats and timing before quoting.
 
                 Start with Northstar: it has the nearest deadline.
                 """
@@ -62,8 +62,9 @@ enum AtlasSocialPreviewData {
         let date = ISO8601DateFormatter().string(from: Calendar.current.startOfDay(for: Date()).addingTimeInterval(9 * 3600 + 30 * 60))
         return [
             ["id": "social-question", "kind": "human", "body": question, "author_id": "preview-self",
-             "author_name": "Taylor", "inserted_at": date],
-            ["id": "social-reply", "kind": "agent", "body": answer, "author_name": "Pip", "inserted_at": date]
+             "author_name": "Taylor", "inserted_at": date, "tool_input": "", "tool_output": ""],
+            ["id": "social-reply", "kind": "agent", "body": answer, "author_name": "Pip", "inserted_at": date,
+             "tool_input": "", "tool_output": ""]
         ]
     }
 

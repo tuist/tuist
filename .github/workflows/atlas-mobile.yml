@@ -118,16 +118,7 @@ jobs:
           if [[ "$1" == test-without-building ]]; then
             exec "$real" "$@" -collect-test-diagnostics never \
               -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testArchiveAndRestoreKeepReadableHistoryInLightAndLargeDarkText \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testFailedArchiveKeepsConversationAndHistoryAvailable \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testLongThreadStaysVisibleWhenScrollingAndOpeningKeyboard \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testSlowConversationEntryShowsLoadingThenPagesAutomaticallyUpward \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testScrollingDuringEarlierPageLoadKeepsTheCurrentVisibleMessage \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testPrivateThreadAndSharedToolEvidence \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testComposeCreatesSeparatePrivateConversationsWithSuggestions \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testBottomFollowsAppendedAndGrowingReplyWithoutMovingHistoryReaders \
-              -only-testing:AtlasOrbitScrollValidation/AtlasOrbitUITests/testPromptIndexLoadsEarlierAndJumpsWithoutLosingDrafts \
-              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testSocialScreenshotsWithFictionalBusinessData \
-              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testReturningToOrbitRetainsLoadedThreadsUntilExplicitRefresh
+              -only-testing:AtlasOrbitScrollValidation/AtlasWorkspaceUITests/testSocialScreenshotsWithFictionalBusinessData
           fi
           exec "$real" "$@"
           SH

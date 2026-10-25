@@ -610,7 +610,13 @@ final class AtlasOrbitUITests: XCTestCase {
             XCTAssertTrue(confirmation.buttons["Archive conversation"].waitForExistence(timeout: 5))
             XCTAssertTrue(confirmation.staticTexts["It will become read-only for everyone. You can restore it from Archived."].exists)
             capture(app, "ios-orbit-shared-archive-confirmation-\(appearance)-preview")
-            confirmation.buttons["Cancel"].tap()
+            if confirmation.buttons["Cancel"].exists {
+                confirmation.buttons["Cancel"].tap()
+            } else {
+                // Compact native popovers cancel by tapping outside rather than showing Cancel.
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
+            }
+            XCTAssertTrue(confirmation.waitForNonExistence(timeout: 5))
             XCTAssertTrue(shared.exists)
             shared.swipeLeft()
             app.buttons["Archive"].tap()
