@@ -330,7 +330,7 @@ defmodule TuistWeb.RunnersControllerTest do
       assert response["cache_endpoint_url"] == "https://acme-ber1-runners.kura.tuist.dev"
     end
 
-    test "puts every macOS job on managed cache volumes", %{conn: conn} do
+    test "sends no cache mode to any job", %{conn: conn} do
       account = account_fixture()
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
@@ -374,13 +374,15 @@ defmodule TuistWeb.RunnersControllerTest do
         |> json_response(200)
       end
 
-      for credential <- [github, buildkite, gitlab] do
-        assert %{"automatic_caches" => false, "managed_cache_volumes" => true} = dispatch.(account, :macos, credential)
-      end
+      responses = [
+        dispatch.(account, :linux, github)
+        | for(credential <- [github, buildkite, gitlab], do: dispatch.(account, :macos, credential))
+      ]
 
-      linux = dispatch.(account, :linux, github)
-      refute Map.has_key?(linux, "automatic_caches")
-      refute Map.has_key?(linux, "managed_cache_volumes")
+      for response <- responses do
+        refute Map.has_key?(response, "automatic_caches")
+        refute Map.has_key?(response, "managed_cache_volumes")
+      end
     end
   end
 end
