@@ -476,6 +476,16 @@ What the BMC does differently from the standard:
   reverts it. `GenerateCSR` also puts the IP addresses in `AlternativeNames`
   as DNS names. A BMC restart (`Manager.Reset` takes `ForceRestart` only)
   takes about two and a half minutes and leaves the host running.
+- A PSU that loses AC keeps `Status.State: Present` in `Chassis/Self/Power`,
+  and its `Status.Health` becomes a raw hex code (`0x2849`) rather than
+  Warning or Critical. The SEL records `Power Supply PSUn AC lost`
+  asserted and deasserted, and the PSU's `PowerInputWatts` and
+  `LineInputVoltage` drop to about zero. `PowerControl` `PowerConsumedWatts`
+  lags and reads low; the PSU inputs are the chassis's draw.
+- The BMC's clock follows NTP (`pool.ntp.org`), but `DateTimeLocalOffset`
+  is a fixed offset, `+02:00` from the factory, which DST does not move, and
+  the SEL is stamped in local time. Set it to `+00:00` (PATCH
+  `Managers/Self`).
 - Serial-over-LAN is IPMI over LAN with the same accounts
   (`ipmitool -I lanplus -H <bmc> -U admin -E sol activate`).
 - Besides `admin` and the factory `Administrator`, the BMC carries a
