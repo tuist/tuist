@@ -552,7 +552,7 @@ defmodule Atlas.Orbit.Runs do
 
   defp finish!(run, thread, {:error, reason}) do
     category = error_category(reason)
-    Logger.warning("thread run failed: #{category}")
+    Logger.error("thread run failed: #{category}")
     finalize!(run, "failed", category, failure_message(category), thread)
   end
 

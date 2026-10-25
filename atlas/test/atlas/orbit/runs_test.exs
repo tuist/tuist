@@ -66,23 +66,34 @@ defmodule Atlas.Orbit.RunsTest do
   end
 
   @tag :personal_inference
-  test "personal transport failures persist timeout and outage categories through Condukt" do
+  test "personal transport failures persist categories and emit sanitized error diagnostics through Condukt" do
     Repo.update_all(ModelBinding, set: [atlas_orbit: false])
     actor = user_fixture()
     {:ok, _} = Connections.connect_claude(actor, "sk-ant-oat01-" <> String.duplicate("actor", 12))
 
     for {response, category} <- [
           {{:error, %Req.TransportError{reason: :timeout}}, "timeout"},
-          {{:ok, %{status: 503, body: "private upstream outage"}}, "provider_unavailable"}
+          {{:ok, %{status: 503, body: "private upstream outage"}}, "provider_unavailable"},
+          {{:ok, %{status: 402, body: "private provider body"}}, "provider_billing"}
         ] do
       {:ok, thread, _} = Orbit.ensure_private(actor)
       run = post_and_get_run(actor, thread, "Hello")
       expect(Req, :post, fn _opts -> response end)
-      assert :ok = Runs.execute(run.id)
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert :ok = Runs.execute(run.id)
+        end)
+
+      assert log =~ "[error]"
+      assert log =~ "thread run failed: #{category}"
+      refute log =~ "private upstream outage"
+      refute log =~ "private provider body"
       assert Repo.get!(Run, run.id).error_category == category
       notice = Repo.get_by!(Message, run_id: run.id, kind: "system")
       refute notice.body =~ "configure"
       refute notice.body =~ "private upstream outage"
+      refute notice.body =~ "private provider body"
       refute_received :unexpected_provider_network_request
     end
   end

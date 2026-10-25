@@ -113,6 +113,7 @@ Do not add README entries for internal operational details such as env var names
 
 - Condukt workflows use native in-process model/tool sessions, not Kubernetes coding sandboxes. The call-site inventory and dependency boundaries are documented in [agents/AGENTS.md](lib/atlas/agents/AGENTS.md).
 - Atlas needs no Kubernetes API token mount or pod/exec permissions for those workflows. Legacy sandbox namespace retention is only upgrade safety; it is not an enabled execution capability. Preserve the separately scoped Tuist connector identity when changing chart credentials.
+- Native error self-monitoring installs through a supervised temporary Task after the ClickHouse repositories and ingest/coalescer children, never before supervisor startup. Demo and ClickHouse-disabled instances omit it; a configured Sentry DSN still excludes native capture. Sanitized provider/run diagnostics use error severity so they reach the private Atlas project. This application pipeline is separate from cluster stdout shipping to Loki; neither proves a live provider request succeeded.
 
 ## Inference relay
 
