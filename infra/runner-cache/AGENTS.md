@@ -52,6 +52,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   30-second client timeout. Propagate cancellation through downloads, expansion,
   commands and shared-master/admission waits. Incomplete restores cannot publish;
   reclaim their journals only after the existing writer fences pass.
+- `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
+  GitHub to report its job, shared by its checkout and every volume; both the
+  Linux and macOS agents use it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
   goes through `DoServer`: up to four attempts on a connection failure or a
   502/503/504, jittered backoff from 250 ms to 2 s, never past the request

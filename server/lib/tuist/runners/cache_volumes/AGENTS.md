@@ -50,12 +50,15 @@ these schemas persist volume identities and per-job uses.
   Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.
 - An open Linux or macOS session awaiting its verified execution binding returns pending
-  (425 to the authenticated agent). The Linux agent waits 25 seconds per Pod,
-  shared by its checkout and volumes, and asks once after that;
+  (425 to the authenticated agent). The Linux and macOS agents wait 25 seconds
+  per Pod, shared by its checkout and volumes, and ask once after that;
   unknown/closed sessions and denied provider identities remain unavailable.
   An unbound session also enqueues `ExecutionLookupWorker`, which reads the
-  runner's `in_progress` job from GitHub's API and records it through
+  job GitHub's API names the runner on and records it through
   `Dispatch.record_execution/3`, because webhook delivery can lag by minutes.
+  The API's job status can still read `queued` for minutes after the job
+  started, so a `queued` job carrying the runner's name binds too; the log line
+  `recorded execution from GitHub API` says which status bound it.
   An agent that is still answered 425 at its deadline reports `execution_pending`
   (macOS reason, Linux 425 to the guest), never `denied`.
 - Logical invalidation and acknowledged physical deletion are distinct states.

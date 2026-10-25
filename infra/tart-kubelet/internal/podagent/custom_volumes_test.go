@@ -577,6 +577,67 @@ func TestCustomVolumeAuthorizationReportsWhyItFailed(t *testing.T) {
 	}
 }
 
+func TestCustomVolumeRequestsOfAPodWaitForTheJobReportOnce(t *testing.T) {
+	root := t.TempDir()
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "host-pod", Namespace: "runners", UID: "host-uid"}}
+	share := filepath.Join(root, "pods", string(pod.UID))
+	if err := os.MkdirAll(share, 0755); err != nil {
+		t.Fatal(err)
+	}
+	ask := func(name, body string, at time.Time) string {
+		request := filepath.Join(share, name+".request")
+		if err := os.WriteFile(request, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(request, at, at); err != nil {
+			t.Fatal(err)
+		}
+		return request + ".response"
+	}
+	answered := func(response, reason string) {
+		t.Helper()
+		data, err := os.ReadFile(response)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(data, &got); err != nil || got["error"] != "unavailable" || got["reason"] != reason {
+			t.Fatalf("%s answered %s, want %s", filepath.Base(response), data, reason)
+		}
+	}
+	calls := map[string]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls[r.URL.Path]++
+		w.WriteHeader(http.StatusTooEarly)
+	}))
+	defer server.Close()
+	c := &CustomVolumes{Root: root, URL: server.URL, HTTP: server.Client(), Node: "host-node", tokenValue: "host-only", tokenUntil: time.Now().Add(time.Hour), Checkouts: preparedCheckouts(t, t.TempDir())}
+
+	// The pod's first volume has waited for GitHub's job report for all but two seconds of its budget.
+	xcode := ask("xcode", `{"key":"tuist-xcode","uid":501}`, time.Now().Add(2*time.Second-customAcquireBudget))
+	if err := c.requests(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+	answered(xcode, "execution_pending")
+
+	clear(calls)
+	module := ask("module", `{"key":"tuist-module","uid":501}`, time.Now())
+	checkout := ask("checkout", `{"checkout":true,"uid":501}`, time.Now())
+	started := time.Now()
+	if err := c.requests(context.Background(), pod); err != nil {
+		t.Fatal(err)
+	}
+
+	if waited := time.Since(started); waited >= customAuthorizeRetry {
+		t.Fatalf("later requests waited %s for a report the pod already waited for", waited)
+	}
+	answered(module, "execution_pending")
+	answered(checkout, "denied")
+	if calls["/authorize"] != 1 || calls["/checkout"] != 1 {
+		t.Fatalf("later requests asked %v; want one attempt each", calls)
+	}
+}
+
 func TestCustomVolumeReportPublishesAnEmptyStartOnlyWhenTheServerAllowsIt(t *testing.T) {
 	id := "11111111-1111-4111-8111-111111111111"
 	scope := strings.Repeat("a", 64)

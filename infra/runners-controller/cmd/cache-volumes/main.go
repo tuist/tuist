@@ -48,7 +48,7 @@ type agent struct {
 	grants                                 checkoutGrants
 	exports                                chan struct{}
 	checkoutRequests                       chan struct{}
-	executionWaits                         executionWaits
+	executionWaits                         cachevolumes.ExecutionWaits
 	// maxVolumeBytes is the largest volume this host accepts.
 	maxVolumeBytes int64
 	// log receives server request retries; nil is slog.Default.

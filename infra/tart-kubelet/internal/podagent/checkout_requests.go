@@ -26,15 +26,16 @@ type checkoutGrant struct {
 
 // checkout answers a guest's request for its job's checkout volume. The server
 // decides the repository from the executed job; the guest only asks. It returns
-// a nil response while the server is still waiting for GitHub's execution binding.
-func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int) map[string]any {
+// a nil response while the server is still waiting for GitHub's execution binding
+// and the Pod's wait for it (`cachevolumes.ExecutionWaits`) has not ended.
+func (c *CustomVolumes) checkout(ctx context.Context, pod *corev1.Pod, uid int, asked time.Time) map[string]any {
 	// Without working git the host builds nothing, so the guest should not export.
 	if !c.Checkouts.Ready() {
 		return map[string]any{"error": "unavailable", "reason": "denied"}
 	}
 	var grant checkoutGrant
 	status, err := c.request(ctx, "checkout", map[string]any{"pod_name": pod.Name, "pod_uid": string(pod.UID), "node_name": c.Node, "architecture": "arm64", "uid": uid}, &grant)
-	if status == http.StatusTooEarly && ctx.Err() == nil {
+	if status == http.StatusTooEarly && ctx.Err() == nil && time.Now().Before(c.executionWaits.Deadline(string(pod.UID), asked)) {
 		return nil
 	}
 	if err != nil {
