@@ -1817,3 +1817,39 @@ Measured on an S5860-24XMG with PicOS 4.7.1M-EC1, 22 to 25 October 2026:
 - The RTC is set eight hours fast from the factory; NTP corrects the clock and,
   after about eleven minutes, the RTC.
 - The controller's `tuist` user can `sudo` without a password.
+
+### Bringing up a new S5860
+
+Unit 2, a replacement, or unit 1 after its bench time. The aim is that the
+hands on site only unbox, rack and cable.
+
+1. **Before it ships to the rack:** put its label MAC (eth0's, the `MAC:` on the
+   bottom label) in its `devices[]` entry as `mac`, render, and merge. Nothing
+   else about the unit needs knowing in advance. Do not power it on to read
+   anything: a box that never booted is the state ZTP is proven from.
+2. **On site:** rack it; PSU 1 to an A strip, PSU 2 to a B strip; its **MGMT**
+   port (not CONSOLE, not a numbered port: they sit together and look alike) to
+   its edge's `lan1`, the middle of the edge's three RJ45 ports; its
+   **CONSOLE** port to its edge with the USB-to-RJ45 console cable; data cables
+   per the cable schedule. No chassis ground at home; to the rack's earth point
+   in the data centre.
+3. **Power on, in any order with its edge.** About 90 s after power-on the
+   switch asks its edge for DHCP and runs the bootstrap; about 4 minutes after
+   power-on the controller can log in. Its RackSwitch goes
+   `Adopted=False/NotProvisioned`, then `Adopted=True` with `status.hostKey`
+   pinned, then `Converged`.
+4. **If it stays `NotProvisioned`:** it booted before its edge served (ZTP
+   runs once per boot). Until the edge reboots it through the console itself,
+   power-cycle the switch once its edge is up, or from the edge, over the console
+   (115200 8N1), log in and reboot it.
+5. **Checks** from anywhere with the controller's key and a tailnet path, as
+   `tuist@<mgmt_address>`: `cli -c "show version"` (model, serial, PicOS
+   release, licence), `cli -c "show system rpsu;show system fan;show system temperature"`,
+   `cli -c "show system ntp-status"`, and `grep ztp_disable /etc/picos/picos_start.conf`
+   (`true`). `cli -c "show log last-rows 100"` shows the bootstrap's `rack-ztp` lines.
+
+To provision a switch again, as after a bench or an RMA: from the controller's
+user, `sudo sh -c '/usr/sbin/save_config factory-default && /pica/bin/reboot.sh'`,
+then clear its RackSwitch's `status.hostKey`, since the reset gives it new host
+keys. A switch on the bench at the edge's address has its NTP pointed elsewhere
+and the bench key installed; the reset removes both.
