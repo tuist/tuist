@@ -137,6 +137,18 @@ jobs:
       # mise.toml's TUIST_COVERAGE_ENABLED selects.
       - name: Cache
         run: tuist cache
+      # A crashed build service prints neither the compilation-cache plugin's
+      # errors (cas.log) nor the CLI's session log.
+      - name: Upload Tuist logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-tuist-logs-${{ github.run_attempt }}
+          path: |
+            ~/.local/state/tuist/cas.log
+            ~/.local/state/tuist/sessions/*/logs.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Selective on pull requests; in full on main, after the warm. A failed warm
   # doesn't stop the full run: it builds what the cache lacks from source.
