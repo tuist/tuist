@@ -622,9 +622,7 @@ clickhouse:
         memory: 96Gi
     persistence:
       # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
-      # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
-      # September and grows about 0.25 TiB a month, so that is over a year of
-      # headroom even at a 70% fill target.
+      # 1.92 TB pair is left out of the array.
       #
       # The local PV is not a quota. The pod can use whatever `/data` has, so
       # this is a statement of intent and the number to watch is the
