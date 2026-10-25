@@ -78,6 +78,11 @@ defmodule Mix.Tasks.Tuist.Test do
   instead, which also leaves out a test of the same name in another module
   and lets an include filter select a skipped test.
 
+  A muted test's failure is left out of the count `mix test` decides the
+  exit status with the same way, so `--warnings-as-errors` still fails a
+  run whose test files warned. Where ExUnit cannot be patched for it, muted
+  tests are not applied with `--warnings-as-errors`.
+
   ## Retrying failed tests
 
   ExUnit runs every test once, so a test that fails intermittently looks the
@@ -104,6 +109,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.ExUnitFormatter
   alias TuistEx.Analytics.GitHistory
   alias TuistEx.Analytics.Isolated
+  alias TuistEx.Analytics.MutedFailures
   alias TuistEx.Analytics.Quarantine
   alias TuistEx.Analytics.Report
   alias TuistEx.Analytics.Shards
@@ -397,40 +403,63 @@ defmodule Mix.Tasks.Tuist.Test do
       )
     end
 
-    # Telling a muted failure apart needs the run to raise when it fails, as
-    # retrying does, and the same runs cannot.
-    mute? =
-      muted > 0 and
-        cond do
-          "--warnings-as-errors" in test_args ->
-            Mix.shell().info(
-              "warning: Tuist does not apply muted tests when `--warnings-as-errors` is given; " <>
-                "their failures fail the run."
-            )
+    mute =
+      cond do
+        muted == 0 ->
+          false
 
-            false
+        Mix.Project.umbrella?() ->
+          Mix.shell().info(
+            "warning: Tuist does not apply muted tests from an umbrella's root yet; " <>
+              "their failures fail the run. Run the tests inside one of its applications."
+          )
 
-          Mix.Project.umbrella?() ->
-            Mix.shell().info(
-              "warning: Tuist does not apply muted tests from an umbrella's root yet; " <>
-                "their failures fail the run. Run the tests inside one of its applications."
-            )
+          false
 
-            false
+        true ->
+          mute(policy, test_args)
+      end
 
-          true ->
-            Mix.shell().info(
-              "Tuist: #{Shards.count(muted, "muted test")} run, and their failures do not fail the run."
-            )
-
-            true
-        end
+    if mute,
+      do:
+        Mix.shell().info(
+          "Tuist: #{Shards.count(muted, "muted test")} run, and their failures do not fail the run."
+        )
 
     Keyword.merge(options,
       quarantine: policy,
-      mute: mute?,
+      mute: mute,
       quarantine_exclusion: exclusion(policy)
     )
+  end
+
+  # Where ExUnit can be patched, `mix test` does not count a muted test's
+  # failure and decides the run's exit status itself, `--warnings-as-errors`
+  # included. Where it cannot, the run takes the `--raise` path retries use,
+  # which raises for a failure before `mix test` looks at warnings, so it is
+  # not taken with `--warnings-as-errors`.
+  defp mute(policy, test_args) do
+    case MutedFailures.install(policy) do
+      :ok ->
+        :uncounted
+
+      {:error, reason} ->
+        Report.debug(
+          "tuist analytics: muted tests take the --raise path, as ExUnit could not be " <>
+            "patched to leave their failures out of its count: #{inspect(reason)}"
+        )
+
+        if "--warnings-as-errors" in test_args do
+          Mix.shell().info(
+            "warning: Tuist does not apply muted tests when `--warnings-as-errors` is given " <>
+              "on this Elixir version; their failures fail the run."
+          )
+
+          false
+        else
+          :raise
+        end
+    end
   end
 
   # By the skipped tests' exact ids where ExUnit can be patched for it, and
@@ -513,7 +542,7 @@ defmodule Mix.Tasks.Tuist.Test do
     configure(Keyword.put(options, :mode, {:defer, self()}))
     network_publishing? = network_publishing?()
     history = collect_history(options, network_publishing?)
-    suite = run_suite(test_args, options)
+    suite = run_suite(test_args, options, retries)
     # One per suite that ran: an umbrella runs one for each application. The
     # first run's coverage is the run's: retries never carry `--cover`.
     {timed_out?, deferred} = pop_timed_out(summarize_coverage(ExUnitFormatter.take_deferred()))
@@ -551,30 +580,41 @@ defmodule Mix.Tasks.Tuist.Test do
     {suite, deferred} = unmute(suite, complete?, deferred, options)
     submit_runs(deferred, options, history, network_publishing?)
 
-    if suite == :failed, do: fail(test_args)
-    :ok
-  end
-
-  # A complete run whose only failures are muted tests passes, and is
-  # reported as passing; each muted test keeps its own failure.
-  defp unmute(:failed, true, deferred, options) do
-    if options[:mute] == true and
-         Enum.all?(deferred, fn {payload, _opts, _aborted?} ->
-           payload.status == "success" or
-             Quarantine.only_muted_failed?(payload, options[:quarantine])
-         end) do
-      Mix.shell().info("Tuist: only muted tests failed, so the run passes.")
-
-      {:passed,
-       Enum.map(deferred, fn {payload, opts, aborted?} ->
-         {%{payload | status: "success"}, opts, aborted?}
-       end)}
-    else
-      {:failed, deferred}
+    case suite do
+      :failed -> fail(test_args)
+      {:exit, status} -> exit({:shutdown, status})
+      :passed -> :ok
     end
   end
 
-  defp unmute(suite, _complete?, deferred, _options), do: {suite, deferred}
+  # A complete run whose only failures are muted tests passes, and is
+  # reported as passing; each muted test keeps its own failure. Muted
+  # failures still count towards `--max-failures`, and a run they stopped
+  # early fails: `mix test` may not have counted any failure.
+  defp unmute(suite, complete?, deferred, options) do
+    cond do
+      !options[:mute] or not only_muted_failed?(deferred, options[:quarantine]) ->
+        {suite, deferred}
+
+      not complete? ->
+        {if(suite == :passed, do: :failed, else: suite), deferred}
+
+      true ->
+        Mix.shell().info("Tuist: only muted tests failed, so they do not fail the run.")
+
+        {if(suite == :failed, do: :passed, else: suite),
+         Enum.map(deferred, fn {payload, opts, aborted?} ->
+           {%{payload | status: "success"}, opts, aborted?}
+         end)}
+    end
+  end
+
+  defp only_muted_failed?(deferred, policy) do
+    Enum.any?(deferred, fn {payload, _opts, _aborted?} -> payload.status != "success" end) and
+      Enum.all?(deferred, fn {payload, _opts, _aborted?} ->
+        payload.status == "success" or Quarantine.only_muted_failed?(payload, policy)
+      end)
+  end
 
   # A run counting natively leaves Mix's coverage tool out, so its summary
   # and threshold are printed and checked here, from the counts the formatter
@@ -695,12 +735,26 @@ defmodule Mix.Tasks.Tuist.Test do
   # With `--raise`, a failing suite raises instead of registering an exit
   # hook that cannot be withdrawn, which is what lets a successful retry turn
   # the run green. Anything else `mix test` raises is not ours to handle.
-  defp run_suite(test_args, options) do
-    run_test(if("--raise" in test_args, do: test_args, else: test_args ++ ["--raise"]), options)
+  # Without retries, a run that does not count muted failures needs none of
+  # it: `mix test` fails the run as it would without Tuist, and only for the
+  # failures and warnings it counts.
+  defp run_suite(test_args, options, retries) do
+    raise? = retries > 0 or options[:mute] != :uncounted
+
+    run_test(
+      if(raise? and "--raise" not in test_args, do: test_args ++ ["--raise"], else: test_args),
+      options
+    )
+
     :passed
   rescue
     error in Mix.Error ->
       if error.message == @suite_failed, do: :failed, else: reraise(error, __STACKTRACE__)
+  catch
+    # Elixir 1.18 exits right away when a test file warned under
+    # `--warnings-as-errors` and no failure was counted: the run is still
+    # sent before it does.
+    :exit, {:shutdown, status} when is_integer(status) -> {:exit, status}
   end
 
   defp retry(test_args, retries, options) do

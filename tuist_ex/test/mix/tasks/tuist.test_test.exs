@@ -322,36 +322,57 @@ defmodule Mix.Tasks.Tuist.TestTest do
             1
           end)
 
-          for {failed, passes?} <- [{["flakes"], true}, {["flakes", "breaks"], false}] do
+          # `mix test` counts no muted failure, so it raises only when another
+          # test fails, and fails a run cut short by `--max-failures` only
+          # when it counted a failure.
+          stub_run = fn failed, aborted? ->
             Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
               send(owner, {:args, args})
               cases = Enum.map(failed, &%{name: &1, status: "failure", duration: 1})
               module = %{name: "CartTest", status: "failure", duration: 2, test_suites: [], test_cases: cases}
               run = %{test_modules: [module], status: "failure"}
-              send(self(), {:deferred_test_run, {run, [], false}})
-              Mix.raise(~s("mix test" failed))
+              send(self(), {:deferred_test_run, {run, [], aborted?}})
+              if "--raise" in args and failed != ["flakes"], do: Mix.raise(~s("mix test" failed))
             end)
+          end
+
+          for {failed, args, passes?} <- [
+                {["flakes"], ["--warnings-as-errors"], true},
+                {["flakes", "breaks"], ["--raise", "--retries", "1"], false}
+              ] do
+            stub_run.(failed, false)
 
             output =
               ExUnit.CaptureIO.capture_io(fn ->
                 if passes? do
-                  assert :ok = Mix.Tasks.Tuist.Test.run(["--raise"])
+                  assert :ok = Mix.Tasks.Tuist.Test.run(args)
                 else
-                  assert_raise Mix.Error, fn ->
-                    Mix.Tasks.Tuist.Test.run(["--raise", "--retries", "1"])
-                  end
+                  assert_raise Mix.Error, fn -> Mix.Tasks.Tuist.Test.run(args) end
                 end
               end)
 
             assert output =~ "CartTest: add/2 hangs"
+            assert output =~ "1 muted test run"
             assert output =~ "only muted tests failed" == passes?
             # Left out by its module and name, not by a name filter.
-            assert_received {:args, args}
-            refute "--exclude" in args
+            assert_received {:args, run_args}
+            refute "--exclude" in run_args
             assert TuistEx.Analytics.ExcludeTestIds.installed?()
+            assert TuistEx.Analytics.MutedFailures.installed?()
+            # Without retries, `mix test` decides the exit status itself,
+            # `--warnings-as-errors` included.
+            assert "--raise" in run_args == not passes?
             assert_received {:submitted, payload}
             assert payload.status == if(passes?, do: "success", else: "failure")
           end
+
+          stub_run.(["flakes"], true)
+
+          ExUnit.CaptureIO.capture_io(fn ->
+            assert_raise Mix.Error, fn -> Mix.Tasks.Tuist.Test.run(["--raise"]) end
+          end)
+
+          assert_received {:submitted, %{status: "failure"}}
 
           # ExUnit keeps a failure on record until the test passes, so
           # `--failed` would rerun a test that failed before it was skipped:
@@ -384,10 +405,33 @@ defmodule Mix.Tasks.Tuist.TestTest do
           assert_received {:args, args, :names}
           assert ["--exclude", "test:test add/2 hangs"] -- args == []
 
+          # Where it cannot be patched to leave muted failures out of its
+          # count, the run raises for any failure and Tuist tells the muted
+          # ones apart, which `--warnings-as-errors` rules out.
+          TuistEx.Analytics.MutedFailures.uninstall()
+          Mimic.stub(TuistEx.Analytics.MutedFailures, :install, fn _policy -> {:error, :unsupported} end)
+
+          Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
+            send(owner, {:args, args})
+            run = %{test_modules: [%{name: "CartTest", status: "failure", duration: 2, test_suites: [], test_cases: [%{name: "flakes", status: "failure", duration: 1}]}], status: "failure"}
+            send(self(), {:deferred_test_run, {run, [], false}})
+            Mix.raise(~s("mix test" failed))
+          end)
+
+          output = ExUnit.CaptureIO.capture_io(fn -> assert :ok = Mix.Tasks.Tuist.Test.run([]) end)
+          assert output =~ "only muted tests failed"
+          assert_received {:args, args}
+          assert "--raise" in args
+          assert_received {:submitted, %{status: "success"}}
+
           Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
             send(owner, {:args, args})
             :ok
           end)
+
+          output = ExUnit.CaptureIO.capture_io(fn -> Mix.Tasks.Tuist.Test.run(["--warnings-as-errors"]) end)
+          assert output =~ "does not apply muted tests when `--warnings-as-errors`"
+          assert_received {:args, ["--warnings-as-errors" | _exclude_args]}
 
           ExUnit.CaptureIO.capture_io(fn -> Mix.Tasks.Tuist.Test.run(["--no-quarantine"]) end)
           assert_received {:args, []}
