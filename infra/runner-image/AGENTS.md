@@ -198,7 +198,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   tart-kubelet's env mount (`/Volumes/My Shared Files/env/tuist.env`)
   into `/etc/tuist.env`.
 - `/opt/tuist/dispatch-poll.sh` — polls
-  `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. While 204 it
+  `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. Each request carries the
+  guest's `sw_vers -productVersion` as `os_version`, which the server
+  puts in a macOS runner's name (`tuist-macos-26.6-xcode-27.0-6vcpu-14gb-<hex>`,
+  see `runner_name_prefix/4` in `server/lib/tuist/runners.ex`). While 204 it
   sleeps; on 200 it runs the agent the response selects: `./run.sh
   --jitconfig $JIT` for a GitHub job, or `buildkite-agent start` with
   `BUILDKITE_AGENT_ACQUIRE_JOB` set for a Buildkite one. The Buildkite

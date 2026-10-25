@@ -13,7 +13,7 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
 
 - `/home/runner/actions-runner/` — GitHub Actions runner binary
   (no registration baked in; we register at runtime via the JIT
-  config minted by `Tuist.Runners.dispatch_for_sa/2`).
+  config minted by `Tuist.Runners.dispatch_for_sa/3`).
 - `/usr/local/bin/dispatch-poll.sh` — the poll loop, run by the
   `poller` container. POSTs to the dispatch endpoint with the
   projected SA token as Bearer; on 204 it sleeps; on a claim it
