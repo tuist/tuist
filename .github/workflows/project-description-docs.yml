@@ -43,16 +43,19 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-project-description-docc-${{ hashFiles('Package.resolved') }}
-          restore-keys: linux-project-description-docc-
+          key: linux-project-description-docc-swift-6.4.1-${{ hashFiles('Package.resolved') }}
+          restore-keys: linux-project-description-docc-swift-6.4.1-
+      # Swift 6.2 and 6.3 FoundationNetworking trap when a registry download is
+      # redirected over HTTP/2 with several downloads in flight (see #12229), so
+      # a cold resolve against registry.tuist.dev crashes. 6.4 removed the trap.
       - uses: ./.github/actions/mise
         with:
-          install_args: "swift@6.2.4 node@20.12.0 npm:wrangler@4.30.0"
+          install_args: "swift@6.4.1 node@20.12.0 npm:wrangler@4.30.0"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Build ProjectDescription documentation
         run: >-
-          MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" mise exec swift@6.2.4 --
+          MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" mise exec swift@6.4.1 --
           bash mise/tasks/docs/project-description.sh
       - name: Save Swift Package Manager cache
         uses: actions/cache/save@v4
