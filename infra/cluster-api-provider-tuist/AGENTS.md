@@ -2252,18 +2252,18 @@ infra/cluster-api-provider-tuist/
 │   ├── redfish/      # a rack x86 server's BMC over Redfish (AMI MegaRAC on the ASUS RS501A): inventory, BIOS baseline, accounts, virtual CD, boot override, power; redfishtest fakes that BMC
 │   ├── rackcard/     # a rack power card's passwords, derived from the root key
 │   ├── scaleway/     # Scaleway SDK wrapper
-│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
-│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
+│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script, install stick, and the preinstall image's deploy and resident seeds
+│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements; with Internet, only sealed seeds and declared hosts' announcements
 │   ├── racknode/     # makes a rack Linux host the node its RackNodeConfig describes
 │   ├── rackseed/     # a rack host's seed, sealed to its pinned TPM; rackseedtest is a TPM in software
 │   ├── tailnet/      # Tailscale API: devices and join keys
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
-├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
+├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes; --internet runs it on the cloud for preinstalled boxes
 ├── cmd/rack-bmc/   # adopts and drives a rack x86 server through its BMC (inventory, check/apply the BIOS baseline, rotate, cd, boot-once, power)
 ├── cmd/rack-node/  # applies a rack node's configuration, reads its TPM, asks for its seed
-├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
+├── cmd/rack-seed/  # renders a seed for rack:write-install-usb, or with -preinstall the preinstall image's
 ├── cmd/rack-card-password/  # derives a rack power card's password for rack:card-password
 ├── config/
 │   └── rbac/       # ClusterRole for the manager

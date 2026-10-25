@@ -317,6 +317,15 @@ spec:
                   required:
                     - tags
                   type: object
+                tpmCheckCode:
+                  description: |-
+                    TPMCheckCode is the check code of the machine's TPM endorsement key from
+                    the vendor's acceptance report, which the preinstall image's unit sheet
+                    shows: the first 64 bits of the key's SHA-256 in hex. Set, the host's TPM
+                    is pinned only to a key that has it, and the internet boot server takes
+                    the machine's announcements.
+                  pattern: ^[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}$
+                  type: string
               required:
                 - hostname
                 - location

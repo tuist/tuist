@@ -1642,9 +1642,17 @@ rackLinuxFleet:
       amt: {activate: true}
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
+  preinstall:
+    products: ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]
   boot:
     enabled: true
     address: 192.168.50.1
+    internet:
+      enabled: true
+      host: rack-boot.tuist.dev
+      tlsSecretName: rack-boot-tls
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-cloudflare
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all

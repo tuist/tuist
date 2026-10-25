@@ -92,7 +92,8 @@ only route out, its provisioning lease.
 
 - A box with an empty disk boots the stick on its own, with the firmware's
   defaults: Secure Boot on and the network stack off.
-- To reinstall a running host, the operator looks for a USB disk whose ISO
+- To reinstall a running host, the operator boots the installer partition of a
+  preinstalled host (below), else looks for a USB disk whose ISO
   carries `nocloud/tuist-install-stick`, gives its EFI partition a boot entry of
   its own (`tuist install stick`, left out of `BootOrder`), sets `BootNext` to
   it and reboots. A host without one netboots instead.
@@ -417,6 +418,80 @@ ssh tuist@<LAN address> sudo tailscale up --hostname=<host> --advertise-tags=<ta
 ```
 
 A tailnet admin opens the login URL it prints.
+
+## The preinstall image
+
+A box a vendor ships straight to a site arrives with its installer on its own
+boot drive, so it needs no stick, the first edge of a site included. The
+vendor boots the preinstall image once on the box:
+
+```
+mise run rack:write-install-usb --preinstall --output tuist_preinstall_<date>.iso [--internet-server https://<host>]
+```
+
+It writes `tuist_preinstall_<date>.iso` and its `.sha256`. The image is
+Ubuntu's live server ISO with Ubuntu's signed boot chain, so it boots with
+Secure Boot on, and carries no credential. Booted once (PXE, HTTP boot,
+virtual media or a stick), its deploy seed:
+
+1. picks the smallest internal disk of at least 100 GB, the M.2 boot drive,
+   never a storage node's data drive, and refuses one that holds anything but
+   an installer partition;
+2. writes partition 1 (4 GiB, ESP type, FAT label `TUISTINST`, GPT name
+   `tuist-installer`) with the ISO's tree, checked against its `md5sum.txt`,
+   and the resident seed in place of its own;
+3. adds a UEFI boot entry `tuist installer`, first in `BootOrder`, with the
+   efibootmgr from the ISO's pool (the live system has its libraries but not
+   the binary), after deleting any entry of that name: the ASUS firmware keeps
+   an entry whose partition is gone, turned into a group of its network
+   entries (`VenHw(99e275e7-…)`). Without the entry the firmware lists no disk
+   option and boots the partition only after every network entry failed;
+4. prints the unit sheet on the screen and the serial console, and to
+   `TUISTINST:/tuist/unit-sheet.txt`: product, serial, SMBIOS UUID, each NIC's
+   MAC, driver and name, the TPM endorsement key's SHA-256, and its check
+   code, the first 16 hex digits in four groups, for the vendor's acceptance
+   report;
+5. powers the box off.
+
+From then on the box boots the resident installer: the `--any-host` stick's
+installer, which casper boots from `TUISTINST` alone
+(`live-media=/dev/disk/by-label/TUISTINST`) with persistence off
+(`nopersistent`: casper otherwise turns the drive's free space into a
+`writable` partition). It asks the env's boot server and then
+`--internet-server` for the install published for one of its NICs. With no
+default route from DHCP, it tries each site's static WAN
+(`management.edge.wan` of `infra/rack-switch-fleet/sites/*.json`) on each
+port with a link, untagged and on the site's VLAN, and keeps the one whose
+address nobody answers for and whose gateway does (`busybox arping`).
+
+**A preinstalled box earns its install with its TPM.** The vendor's acceptance
+report carries the box's SMBIOS UUID and its TPM check code from the unit
+sheet. Declaring the box takes both:
+
+```yaml
+- uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
+  hostname: ber2-edge-b
+  role: edge
+  tpmCheckCode: 1a2b-3c4d-5e6f-7a8b
+```
+
+The operator then pins the host's TPM only from an announcement whose key has
+that code (`TPMCheckCodeMismatch` on `HardwarePinned` otherwise), and the
+internet boot server (`rackLinuxFleet.boot.internet`, `rack-boot --internet`
+on cloud nodes behind the ingress) takes announcements only from hosts
+declared with one. Anyone on the internet reaches that server, so it hands out
+nothing but seeds sealed to a pinned TPM, which only that TPM can open, and
+serves nothing to netboot. With it configured, the operator publishes the
+install of an edge whose TPM is pinned even with no other edge of its site to
+serve it: the first edge of a site asks the internet boot server for it.
+Production runs it at `rack-boot.tuist.dev` and lists the RS501A in
+`rackLinuxFleet.preinstall.products`, so a vendor's image for production is
+written with `--internet-server https://rack-boot.tuist.dev`.
+
+casper takes the first live medium it finds. Booting the image on a drive that
+already holds an installer partition can boot that partition's tree instead,
+whose seed is the resident one; the deploy seed refuses to run from it. Wipe
+the drive to deploy again.
 
 ## The ASUS RS501A and its BMC
 
