@@ -225,3 +225,14 @@ func TestReservedKeysAreRefused(t *testing.T) {
 		}
 	}
 }
+
+func TestRemainingReferencesIgnoreTheInternalReference(t *testing.T) {
+	kept := dockerImage{ID: dockerID("a"), RepoTags: []string{dockerInternalReference(dockerID("a"))}, RepoDigests: []string{dockerInternalRepository + "@sha256:" + strings.Repeat("b", 64)}}
+	if remaining := remainingReferences([]dockerImage{kept}); len(remaining) != 0 {
+		t.Fatalf("remaining %v", remaining)
+	}
+	tagged := dockerImage{ID: dockerID("c"), RepoTags: []string{"alpine:3.20", dockerInternalReference(dockerID("c"))}}
+	if remaining := remainingReferences([]dockerImage{kept, tagged}); len(remaining) != 1 || remaining[0] != "alpine:3.20" {
+		t.Fatalf("remaining %v", remaining)
+	}
+}

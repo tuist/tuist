@@ -370,3 +370,13 @@ func dockerTeardownLinux() string {
 		return client.seen(ctx)
 	})
 }
+
+// remainingReferences are the registry references teardown failed to remove.
+func remainingReferences(images []dockerImage) []string {
+	var remaining []string
+	for _, image := range images {
+		remaining = append(remaining, image.externalReferences()...)
+	}
+	sort.Strings(remaining)
+	return remaining
+}

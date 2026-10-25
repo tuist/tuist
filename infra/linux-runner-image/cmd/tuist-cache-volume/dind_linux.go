@@ -268,10 +268,10 @@ func (d *daemon) clean(ctx context.Context, report *dockerTeardownReport) error 
 			return fmt.Errorf("keep image: %s", strings.TrimSpace(string(out)))
 		}
 	}
+	// Removing an image's last tag also drops its digest references, so one can
+	// be gone by its turn. What counts is that none remains, checked below.
 	for _, reference := range plan.Untag {
-		if out, err := d.run(ctx, "docker", "image", "rm", reference); err != nil {
-			return fmt.Errorf("untag image: %s", strings.TrimSpace(string(out)))
-		}
+		_, _ = d.run(ctx, "docker", "image", "rm", reference)
 	}
 	for _, id := range plan.Remove {
 		_, _ = d.run(ctx, "docker", "image", "rm", "-f", id)
@@ -287,6 +287,9 @@ func (d *daemon) clean(ctx context.Context, report *dockerTeardownReport) error 
 	}
 	if images, err = d.images(ctx); err != nil {
 		return err
+	}
+	if remaining := remainingReferences(images); len(remaining) > 0 {
+		return fmt.Errorf("untag images: %s remain", strings.Join(remaining, ", "))
 	}
 	report.Images = dockerReportImages(images, plan.Keep)
 	report.BuildCacheBytes = final.BuildCacheBytes
