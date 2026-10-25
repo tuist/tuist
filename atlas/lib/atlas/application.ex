@@ -19,6 +19,7 @@ defmodule Atlas.Application do
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
   alias Atlas.Orbit.Checkpoints
+  alias Atlas.Orbit.Progress
   alias Atlas.Presence.Notifier
   alias Atlas.Push.Credentials
   alias Guardian.DB.Sweeper
@@ -28,6 +29,7 @@ defmodule Atlas.Application do
     attach_sentry_logger()
     TelemetryHandler.attach()
     Checkpoints.attach()
+    Progress.attach()
     Atlas.Automations.TelemetryHandler.attach()
     HTTP.configure_req_defaults()
 

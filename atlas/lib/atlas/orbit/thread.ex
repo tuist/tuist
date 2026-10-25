@@ -20,6 +20,7 @@ defmodule Atlas.Orbit.Thread do
     field :origin, :string, default: "manual"
     field :source_type, :string
     field :source_id, :string
+    field :request_id, Ecto.UUID
     field :required_scopes, {:array, :string}, default: []
     field :last_seq, :integer, default: 0
 
@@ -32,7 +33,17 @@ defmodule Atlas.Orbit.Thread do
 
   def create_changeset(attrs) do
     %__MODULE__{}
-    |> cast(attrs, [:kind, :title, :summary, :origin, :source_type, :source_id, :owner_id, :required_scopes])
+    |> cast(attrs, [
+      :kind,
+      :title,
+      :summary,
+      :origin,
+      :source_type,
+      :source_id,
+      :owner_id,
+      :required_scopes,
+      :request_id
+    ])
     |> update_change(:title, &String.trim/1)
     |> validate_required([:kind, :title])
     |> validate_length(:title, max: 200)
@@ -40,7 +51,7 @@ defmodule Atlas.Orbit.Thread do
     |> validate_inclusion(:kind, @kinds)
     |> validate_inclusion(:status, @statuses)
     |> validate_inclusion(:origin, @origins)
-    |> unique_constraint(:owner_id, name: :orbit_threads_single_private_thread_index)
+    |> unique_constraint([:owner_id, :request_id], name: :orbit_threads_private_request_index)
     |> unique_constraint([:source_type, :source_id], name: :orbit_threads_active_signal_source_index)
   end
 end

@@ -576,7 +576,7 @@ A power node may carry `mac`, its management card's MAC in lower case, like a
 switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
 factory card, which asks for DHCP, lands on its address with the edge as its
 router and nobody at it; an unknown MAC still gets the provisioning range. A
-node without one (today `ber1-pdu-a`, whose label shows only its serial) is
+node without one is
 rendered all the same, gets no reservation, and its RackPDU reports
 `AddressReserved=False`.
 
@@ -1193,7 +1193,8 @@ addresses and the gateways.
   moves machines onto the prefix is the egress below. Of what the upstream sends, only
   a default route is kept. `birdc -s /run/bird/bird.ctl show protocols` in
   the pod's `bgp` container shows the sessions. CI parses every site's
-  `bird.conf` with the BIRD the edge image installs.
+  `bird.conf` with the runner's BIRD 2 from the Ubuntu archive, installed
+  with apt rather than pulled as an image.
 - **Egress from the site's own prefix.** `management.edge.wan.egress.prefix`
   is an IPv4 block inside a prefix `bgp` announces (`95.130.119.16/28`), and
   the Mac minis on the machines segment go out to the WAN translated into it

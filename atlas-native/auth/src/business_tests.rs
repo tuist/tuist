@@ -467,7 +467,7 @@ fn profile_forwards_only_optional_push_capabilities_not_provider_configuration()
 }
 
 #[test]
-fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
+fn profile_is_owner_scoped_and_filters_response_fields() {
     let network = MockTransport::new(vec![
         json!({"server_version":"0.7.2","user":{"name":"Taylor","email":"taylor@example.org","token":"private"}}),
     ]);
@@ -484,7 +484,7 @@ fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
     .unwrap();
     assert_eq!(
         output,
-        json!({"server_version":"0.7.2","user":{"name":"Taylor","email":"taylor@example.org"}})
+        json!({"server_version":"0.7.2","user":{"name":"Taylor","email":"taylor@example.org","description":""}})
     );
     assert_eq!(
         network.requests.borrow()[0].0,
@@ -501,4 +501,68 @@ fn profile_is_owner_scoped_read_only_and_filters_response_fields() {
     let output: Value =
         serde_json::from_str(&crate::bridge::execute(&injected.to_string())).unwrap();
     assert_eq!(output["error"]["kind"], "invalid_response");
+}
+
+#[test]
+fn self_profile_update_has_no_selector_or_mass_assignment_and_bounds_unicode() {
+    for description in [
+        "Role\nPersonality".to_string(),
+        "🦀".repeat(4000),
+        String::new(),
+    ] {
+        let response = json!({"server_version":"1.0", "user":{
+            "name":"Taylor", "email":"taylor@example.org", "description":description, "roles":["admin"]
+        }});
+        let network = MockTransport::new(vec![response]);
+        let action: Action = serde_json::from_value(json!({
+            "action":"update_profile", "description":description
+        }))
+        .unwrap();
+        let output = execute_using(&network, saved(), Resource::Profile, action).unwrap();
+        assert_eq!(output["user"]["description"], description);
+        assert!(output["user"].get("roles").is_none());
+        let requests = network.requests.borrow();
+        assert_eq!(requests[0].0, "https://atlas.example/api/native/profile");
+        assert_eq!(requests[0].1["method"], "PATCH");
+        assert_eq!(requests[0].1["payload"], json!({"description":description}));
+    }
+    for value in [
+        "🦀".repeat(4001),
+        "e\u{301}".repeat(2001),
+        "null\0byte".into(),
+    ] {
+        let network = MockTransport::new(vec![]);
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                Resource::Profile,
+                Action::UpdateProfile { description: value }
+            )
+            .is_err()
+        );
+        assert!(network.requests.borrow().is_empty());
+    }
+    for args in [
+        json!({"action":"update_profile","description":"text","user_id":ID}),
+        json!({"action":"update_profile","description":"text","name":"Injected"}),
+        json!({"action":"update_profile","description":null}),
+    ] {
+        assert!(serde_json::from_value::<Action>(args).is_err());
+    }
+    for resource in [Resource::Tasks, Resource::Accounts, Resource::Invoices] {
+        let network = MockTransport::new(vec![]);
+        assert!(
+            execute_using(
+                &network,
+                saved(),
+                resource,
+                Action::UpdateProfile {
+                    description: "text".into()
+                }
+            )
+            .is_err()
+        );
+        assert!(network.requests.borrow().is_empty());
+    }
 }

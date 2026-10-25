@@ -109,10 +109,48 @@ unsafe fn adopt_upstream_string(up: &Upstream, s: *mut c_char) -> *mut c_char {
     copy
 }
 
+#[track_caller]
 unsafe fn set_error(error: *mut *mut c_char, message: &str) {
+    log_client_error(message);
     if !error.is_null() {
         *error = own_string(message);
     }
+}
+
+/// Every error the plugin produces or forwards is logged first, with the call site
+/// that produced it: a client that cannot convert the error aborts, taking the
+/// message with it (see `object_lookup_failure_as_not_found`).
+#[track_caller]
+fn log_client_error(message: &str) {
+    log_line(&format!(
+        "llcas call failed ({}): {message}",
+        std::panic::Location::caller()
+    ));
+}
+
+/// A failed object load or containment check is answered as not found, with the
+/// error already logged.
+///
+/// LLVM's plugin client wraps every returned error as `inconvertibleErrorCode()`,
+/// and its CAS-backed file system converts lookup errors with `errorToErrorCode`,
+/// which aborts the process on that code. Xcode runs dependency scans inside its
+/// build service, so a failed lookup there takes down the build service and every
+/// task in flight. A not-found load reaches the same callers as an
+/// `invalid_argument` "missing object" error, and an absent object is loaded or
+/// stored again, so either fails only the task that needed the object.
+unsafe fn object_lookup_failure_as_not_found(
+    result: llcas_lookup_result_t,
+    error: *mut *mut c_char,
+) -> llcas_lookup_result_t {
+    if result != LLCAS_LOOKUP_RESULT_ERROR {
+        return result;
+    }
+    if !error.is_null() {
+        llcas_string_dispose(*error);
+        *error = std::ptr::null_mut();
+    }
+    log_line("answered the failed object lookup as not found");
+    LLCAS_LOOKUP_RESULT_NOTFOUND
 }
 
 /// Runs `body`, catching any panic so it can never unwind across an
@@ -135,14 +173,17 @@ unsafe fn ffi_guard<R>(
     })
 }
 
+#[track_caller]
 unsafe fn adopt_error(up: &Upstream, error_in: *mut c_char, error_out: *mut *mut c_char) {
+    let adopted = adopt_upstream_string(up, error_in);
+    if !adopted.is_null() {
+        log_client_error(&CStr::from_ptr(adopted).to_string_lossy());
+    }
     if error_out.is_null() {
-        if !error_in.is_null() {
-            (up.llcas_string_dispose)(error_in);
-        }
+        llcas_string_dispose(adopted);
         return;
     }
-    *error_out = adopt_upstream_string(up, error_in);
+    *error_out = adopted;
 }
 
 /// Like `adopt_error`, but for the paths that must INSPECT the failure rather than
@@ -1022,7 +1063,7 @@ pub unsafe extern "C" fn llcas_cas_contains_object(
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = (state.up.llcas_cas_contains_object)(state.cas, id, globally, &mut upstream_error);
     adopt_error(state.up, upstream_error, error);
-    result
+    object_lookup_failure_as_not_found(result, error)
 }
 
 // --- Read-through: object loads -----------------------------------------------
@@ -1111,9 +1152,10 @@ pub unsafe extern "C" fn llcas_cas_load_object(
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
     let state = cas_state(cas);
-    ffi_guard(error, LLCAS_LOOKUP_RESULT_ERROR, "tuist-cas-plugin: panic during load", || {
+    let result = ffi_guard(error, LLCAS_LOOKUP_RESULT_ERROR, "tuist-cas-plugin: panic during load", || {
         load_object_impl(state, id, loaded, error)
-    })
+    });
+    object_lookup_failure_as_not_found(result, error)
 }
 
 #[no_mangle]
@@ -1132,7 +1174,9 @@ pub unsafe extern "C" fn llcas_cas_load_object_async(
     let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut probe_error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         let _ = ours_cancel_token(cancel_tok);
-        let error = adopt_upstream_string(state.up, probe_error);
+        let mut error: *mut c_char = std::ptr::null_mut();
+        adopt_error(state.up, probe_error, &mut error);
+        let result = object_lookup_failure_as_not_found(result, &mut error);
         callback(ctx_cb, result, loaded, error);
         return;
     }
@@ -1154,6 +1198,7 @@ pub unsafe extern "C" fn llcas_cas_load_object_async(
         set_error(&mut error, "tuist-cas-plugin: panic during load");
         LLCAS_LOOKUP_RESULT_ERROR
     });
+    let result = object_lookup_failure_as_not_found(result, &mut error);
     callback(ctx_cb, result, loaded, error);
 }
 
@@ -1646,6 +1691,33 @@ mod tests {
             !local_lookups_stay_local(false, false),
             "a compiler frontend without the option still reads through"
         );
+    }
+
+    // tests/client_errors.rs drives the load paths through Apple's plugin. Its
+    // containment check answers an unknown object as not found rather than
+    // failing, so the error branch shared with `llcas_cas_contains_object` is
+    // pinned here.
+    #[test]
+    fn a_failed_object_lookup_is_answered_as_not_found_without_an_error() {
+        unsafe {
+            let mut error = own_string("unaligned file offset at 0x1");
+            assert_eq!(
+                object_lookup_failure_as_not_found(LLCAS_LOOKUP_RESULT_ERROR, &mut error),
+                LLCAS_LOOKUP_RESULT_NOTFOUND
+            );
+            assert!(error.is_null(), "a not-found answer carries no error");
+
+            assert_eq!(
+                object_lookup_failure_as_not_found(LLCAS_LOOKUP_RESULT_ERROR, std::ptr::null_mut()),
+                LLCAS_LOOKUP_RESULT_NOTFOUND
+            );
+
+            let mut untouched: *mut c_char = std::ptr::null_mut();
+            for result in [LLCAS_LOOKUP_RESULT_SUCCESS, LLCAS_LOOKUP_RESULT_NOTFOUND] {
+                assert_eq!(object_lookup_failure_as_not_found(result, &mut untouched), result);
+                assert!(untouched.is_null());
+            }
+        }
     }
 
     /// On CI only a store the runner's teardown drains may upload in the

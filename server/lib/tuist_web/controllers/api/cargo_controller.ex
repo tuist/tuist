@@ -33,6 +33,17 @@ defmodule TuistWeb.API.CargoController do
                   status: %Schema{type: :string, enum: ["success", "failure"]},
                   is_ci: %Schema{type: :boolean},
                   started_at: %Schema{type: :string, format: :"date-time"},
+                  custom_metadata: %Schema{
+                    type: :object,
+                    properties: %{
+                      tags: %Schema{type: :array, maxItems: 50, items: %Schema{type: :string, maxLength: 50}},
+                      values: %Schema{
+                        type: :object,
+                        maxProperties: 64,
+                        additionalProperties: %Schema{type: :string, maxLength: 500}
+                      }
+                    }
+                  },
                   cache: %Schema{
                     type: :object,
                     additionalProperties: false,

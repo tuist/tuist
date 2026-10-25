@@ -12,6 +12,7 @@ defmodule Atlas.Orbit.Viewers do
 
   alias Atlas.Orbit
   alias Atlas.Orbit.Access
+  alias Atlas.Orbit.Progress
   alias Atlas.Orbit.Thread
   alias Atlas.Orbit.Viewer
   alias Atlas.Repo
@@ -85,8 +86,8 @@ defmodule Atlas.Orbit.Viewers do
 
   defp agent_status(thread) do
     case Orbit.active_run(thread) do
-      nil -> if Orbit.agent_configured?(), do: "idle", else: "unconfigured"
-      run -> run.status
+      nil -> "idle"
+      run -> Progress.status(run)
     end
   end
 

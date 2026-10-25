@@ -2,12 +2,79 @@
 
 `Atlas.Push` separates product intent from platform delivery. Product code calls
 `notify_user(user_id, "activity", {screen, record_id})` with a fixed kind from
-`@kinds` (`activity`, 24-hour lifetime; `self_test`, 10 minutes) and a destination
+`@kinds` (`activity`, 24-hour lifetime; `self_test`, 10 minutes;
+`orbit_completed` and `orbit_mentioned`, one hour) and a destination
 accepted by `AtlasWeb.NativeLinks.for_open/1`. It never supplies text, tokens, or
-devices; every kind renders the same generic alert. Adding a kind means adding it
+devices. Activity and self-test alerts remain generic. Orbit completion is an
+explicit content-preview exception described below. Adding a kind means adding it
 to `@kinds` with a delivery lifetime; there is no HTTP or MCP path that sends
 arbitrary text or targets another user. The only MCP entry point is `send_test_push_notification`, which sends the
 self-test kind to the caller's own registrations under a per-user rate limit.
+
+## Orbit completion
+
+- The successful, authorized branch of `Orbit.Runs.finish!` queues only for the
+  run's `acting_user_id`, with destination `{"orbit", thread.id}` and
+  `message_id: final_agent_message.id`. The existing attempt/cancellation/access
+  fence covers reply, succeeded status and job insertion in one transaction.
+  Rollback retries cannot duplicate jobs; replay after success is stale. Failed,
+  interrupted, empty, cancelled, superseded and unauthorized runs do not notify.
+- Existing native registrations are the opt-in: no registrations, retired/ended
+  sessions or unconfigured providers enqueue no deliveries and never block a reply.
+  There is no new per-kind preference, infrastructure, or externally callable send.
+- Every delivery attempt reloads the active thread, user, exact agent message and
+  its succeeded run. Membership and ratcheted scopes must still authorize the
+  user; message and run must both belong to that thread, and the run's acting
+  user must match the registration owner. Missing/archived/deleted/inaccessible
+  sources cancel as `destination_unavailable`, without retiring the registration
+  or contacting providers. Never substitute the latest reply from another run.
+- The alert title is the conversation title (80 Unicode codepoints), falling
+  back to "Pip" if empty after cleanup. APNs adds a "Pip" subtitle unless that
+  duplicates the title. The body is only the plain-text final-reply preview
+  (160 codepoints), with ellipses and whitespace/control-character cleanup.
+  MDEx parses headings, lists, nested/reference links and tables, retaining link
+  labels, table header/value relationships, inline code/identifiers, comparisons,
+  amounts and negation instead of deleting punctuation globally. Struck text is
+  explicitly marked removed; HTML tags and fenced code are omitted.
+  Codepoint bounds also cap UTF-8 bytes, even for
+  combining-mark-heavy text. Only the authorized final agent body is used, never
+  tool cards, raw tool results, checkpoints or diagnostics. Jobs/audits retain
+  IDs only, not preview text. The preview goes to APNs/FCM and can appear on a
+  lock screen according to the user's OS preview settings.
+- `orbit_completed` accepts only an Orbit UUID destination and requires a UUID
+  `message_id` option; neither HTTP nor MCP accepts arbitrary notification text.
+  Other kinds keep their existing destination/delivery semantics.
+- APNs completion payloads use category `ATLAS_ORBIT_COMPLETED` and `thread-id`
+  equal to the thread UUID (never a title). iOS registers that exact category
+  with only `ATLAS_OPEN_CONVERSATION`, an "Open conversation" foreground action
+  requiring unlock. Default taps and that category-bound action re-enter existing
+  origin-bound navigation; dismissals and unknown actions do nothing. Generic
+  notifications retain their existing payloads. There is no background reply,
+  notification extension, arbitrary-recipient tool, or model-authored payload.
+- Automatic completion is a committed lifecycle event and needs no model tool.
+  Any future arbitrary send tool needs server-bound recipient/audience checks
+  and an explicit approval design; platform support for richer interactions is
+  not authorization to add them.
+
+## Orbit mentions
+
+- A newly committed human message with explicit selected `mention_ids` queues
+  `orbit_mentioned` for each distinct non-author recipient, using the exact human
+  message ID and `{"orbit", thread.id}`. Promotion, membership, handoff, message
+  and jobs share the thread-locked transaction; client UUID replay queues nothing.
+- Opt-in and platform/session rules are unchanged. Jobs include IDs only and
+  expire after one hour. Every attempt requires an active shared thread, current
+  participant membership and all ratcheted scopes, plus that same thread's human
+  source whose `mentioned_user_ids` contains this recipient. Missing, removed,
+  revoked, archived or mismatched sources cancel without provider calls or
+  registration retirement. Never substitute a newer message.
+- Alerts are generic: "Atlas" / "You were mentioned in an Orbit conversation".
+  No title, author name, message excerpt or handoff reaches APNs/FCM. Routing uses
+  the existing origin-bound thread destination with ordinary foreground taps;
+  completion's category/preview exception is not reused. There is no standalone
+  HTTP/MCP notification send or new per-kind preference.
+- Tests cover atomic enqueue/replay/rollback and source/access revocation in
+  `orbit/mentions_test.exs`, `push_test.exs` and `push/workers/deliver_test.exs`.
 
 ## Registrations
 
@@ -63,7 +130,8 @@ and Android registration filtering cover delivery display in that window.
   not enforce it, so fan-out relies on a fresh notification ID per call and one job
   per registration.
 - Payloads (`Message`) use the fixed title "Atlas" and body "You have a new
-  notification", `schema_version` 1, `registration_id`, and `url` from
+  notification" for activity/self-test, or the authorized Orbit context above.
+  Both use `schema_version` 1, `registration_id`, and `url` from
   `NativeLinks.native_url/1` (configured origin, never the request Host). APNs puts
   them at the payload root with a numeric version; FCM sends data-only, high-priority
   messages with string values plus `notification_id`, which the app uses as the
@@ -99,7 +167,10 @@ reason, kind, platform, environment). Metadata never contains tokens or alert te
 
 ## Tests
 
-`test/atlas/push_test.exs` (registry semantics), `test/atlas/push/workers/deliver_test.exs`
+`test/atlas/orbit/runs_test.exs` (transactional completion enqueue, opt-in and
+no-notify fences), `test/atlas/push_test.exs` (registry semantics),
+`test/atlas/push/message_test.exs` (readable Markdown and Unicode preview bounds),
+`test/atlas/push/workers/deliver_test.exs`
 (provider requests, classification, caching, send-time checks against a Req plug),
 `test/atlas/push/config_test.exs`, `test/atlas_web/controllers/push_devices_controller_test.exs`
 and `test/atlas/mcp/tools/send_test_push_notification_test.exs`. Tests stub

@@ -68,6 +68,13 @@ cache_limit_bytes() {
   awk -v capacity="$1" 'BEGIN { room = capacity / 5; if (room < 2e9) room = 2e9; if (room > capacity / 2) room = capacity / 2; printf "%.0f", capacity - room }'
 }
 
+# compilation_cache_limit_bytes halves that space: COMPILATION_CACHE_LIMIT_SIZE
+# bounds one generation of the store, and the store keeps two, the primary and
+# the upstream it rotated away from.
+compilation_cache_limit_bytes() {
+  awk -v space="$(cache_limit_bytes "$1")" 'BEGIN { printf "%.0f", space / 2 }'
+}
+
 # replace_line rewrites the line of a file that starts with a prefix.
 replace_line() {
   local file="$1" prefix="$2" value="$3" temporary
@@ -88,14 +95,17 @@ limit_to_volume() {
   local capacity limit
   capacity=$(volume_capacity_bytes "$1")
   [ -n "${capacity}" ] && [ "${capacity}" -gt 0 ] 2>/dev/null || return 0
-  limit=$(cache_limit_bytes "${capacity}")
   if [ "${cache}" = "module" ]; then
+    limit=$(cache_limit_bytes "${capacity}")
     replace_line "${env_file}" "TUIST_CACHE_MAX_BYTES=" "${limit}" || return 0
+    awk -v label="${label}" -v capacity="${capacity}" -v limit="${limit}" \
+      'BEGIN { printf "The %s volume holds %.1f GB; the cache is limited to %.1f GB.\n", label, capacity / 1e9, limit / 1e9 }' >&2
   else
+    limit=$(compilation_cache_limit_bytes "${capacity}")
     replace_line "$(sed -n 's/^XCODE_XCCONFIG_FILE=//p' "${env_file}")" "COMPILATION_CACHE_LIMIT_SIZE = " "${limit}" || return 0
+    awk -v label="${label}" -v capacity="${capacity}" -v limit="${limit}" \
+      'BEGIN { printf "The %s volume holds %.1f GB; the cache is limited to two generations of %.1f GB.\n", label, capacity / 1e9, limit / 1e9 }' >&2
   fi
-  awk -v label="${label}" -v capacity="${capacity}" -v limit="${limit}" \
-    'BEGIN { printf "The %s volume holds %.1f GB; the cache is limited to %.1f GB.\n", label, capacity / 1e9, limit / 1e9 }' >&2
 }
 
 case "$(cat "${RUNNER_CACHES_DIR}/mode" 2>/dev/null)" in

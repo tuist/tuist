@@ -39,8 +39,9 @@ defmodule Atlas.Orbit.Runs do
   calls with their bounded results. That is a restart with context, not an
   exact continuation.
 
-  Runs use the inference profile bound to the `orbit` role through the
-  in-process relay. There is no fallback to any other profile.
+  Runs prefer the acting person's connected AI accounts, with the explicitly
+  configured `orbit` role as fallback. No other person's account or inference
+  role is substituted.
   """
 
   import Ecto.Query
@@ -56,11 +57,16 @@ defmodule Atlas.Orbit.Runs do
   alias Atlas.Orbit.ModelFence
   alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Run
+  alias Atlas.Orbit.Subagents
   alias Atlas.Orbit.Thread
   alias Atlas.Orbit.Tools
   alias Atlas.Orbit.Workers.RunThread
+  alias Atlas.Push
   alias Atlas.Repo
+  alias Atlas.Users
   alias Atlas.Users.User
+  alias Condukt.Compactor.ToolResultPrune
+  alias ReqLLM.Error.API.Timeout
 
   require Logger
 
@@ -110,7 +116,7 @@ defmodule Atlas.Orbit.Runs do
 
   @doc """
   Executes a queued run. `opts[:client_opts]` replaces the model client options
-  in tests; production always uses the threads profile.
+  in tests; production prefers the acting person's AI accounts.
   """
   def execute(run_id, opts \\ []) do
     case start(run_id) do
@@ -190,6 +196,7 @@ defmodule Atlas.Orbit.Runs do
       run
       |> Ecto.Changeset.change(
         status: "running",
+        activity: nil,
         started_at: run.started_at || DateTime.utc_now(),
         session_id: Condukt.SessionID.generate(),
         model_binding_id: binding_id
@@ -375,25 +382,33 @@ defmodule Atlas.Orbit.Runs do
   defp invoke(run, parent, opts) do
     thread = Repo.get!(Thread, run.thread_id)
     audience = Access.audience(thread)
+    acting_user = run.acting_user_id && Repo.get(User, run.acting_user_id)
+    visibility = if thread.kind == "private", do: :private, else: :shared
+    description = Users.profile_description_for(acting_user, visibility)
 
     client_opts =
       opts
-      |> Keyword.get_lazy(:client_opts, fn -> Runner.profile_client_opts(:orbit, timeout: @max_duration) end)
+      |> Keyword.get_lazy(:client_opts, fn -> Runner.orbit_client_opts(acting_user, timeout: @max_duration) end)
       |> ModelFence.wrap(run, parent)
 
-    {prompt, store_opts} =
+    {prompt, images, store_opts} =
       case Checkpoints.load(run) do
-        {:ok, snapshot} -> {resume_prompt(), [session_store: {Checkpoints.Store, snapshot: snapshot}]}
-        :none -> {Agent.transcript(transcript_messages(thread, run), run.id), []}
+        {:ok, snapshot} ->
+          {resume_prompt(), [], [session_store: {Checkpoints.Store, snapshot: snapshot}]}
+
+        :none ->
+          {prompt, images} = Agent.input(transcript_messages(thread, run), run.id, acting_user)
+          {prompt, images, []}
       end
 
     session_opts =
       client_opts ++
         store_opts ++
         [
-          tools: Tools.build(run),
-          system_prompt: Agent.system_prompt(thread, audience),
+          tools: Tools.build(run) ++ [Subagents.tool(run)],
+          system_prompt: Agent.system_prompt(thread, audience, description),
           load_project_instructions: false,
+          compactor: {ToolResultPrune, keep_recent: 2, max_size: 4_000},
           max_tokens: @max_tokens
         ]
 
@@ -406,7 +421,7 @@ defmodule Atlas.Orbit.Runs do
           # Condukt starts sessions unlinked; the session does not trap exits.
           Process.link(pid)
           send(parent, {:orbit_session, pid})
-          Condukt.run(pid, prompt, max_turns: @max_turns, timeout: @max_duration)
+          Condukt.run(pid, prompt, images: images, max_turns: @max_turns, timeout: @max_duration)
         end)
 
       Process.put({__MODULE__, :result}, result)
@@ -495,14 +510,24 @@ defmodule Atlas.Orbit.Runs do
   end
 
   defp finish!(run, thread, {:ok, text}) when is_binary(text) and text != "" do
-    Orbit.append!(thread, %{
-      kind: "agent",
-      run_id: run.id,
-      body: Rendering.truncate(text, @reply_limit),
-      author_name: Orbit.agent_name()
-    })
+    message =
+      Orbit.append!(thread, %{
+        kind: "agent",
+        run_id: run.id,
+        body: Rendering.truncate(text, @reply_limit),
+        author_name: Orbit.agent_name()
+      })
 
     finalize!(run, "succeeded", nil, nil, thread)
+
+    {:ok, _queued} =
+      Push.notify_user(run.acting_user_id, "orbit_completed", {"orbit", thread.id},
+        message_id: message.id,
+        actor_id: run.acting_user_id,
+        interface: "worker"
+      )
+
+    :ok
   end
 
   defp finish!(run, thread, {:ok, _empty}) do
@@ -519,9 +544,12 @@ defmodule Atlas.Orbit.Runs do
 
   # Terminal statuses drop the cached snapshot; the log is the durable record.
   defp finalize!(run, status, category, notice, thread) do
+    close_running_tools!(run, "The run finished before this tool completed.")
+
     run
     |> Ecto.Changeset.change(
       status: status,
+      activity: nil,
       error_category: category,
       finished_at: DateTime.utc_now(),
       checkpoint: nil,
@@ -609,18 +637,18 @@ defmodule Atlas.Orbit.Runs do
     resume = run.resume_count + 1
 
     run
-    |> Ecto.Changeset.change(status: "queued", resume_count: resume, heartbeat_at: nil, session_id: nil)
+    |> Ecto.Changeset.change(status: "queued", activity: nil, resume_count: resume, heartbeat_at: nil, session_id: nil)
     |> Repo.update!()
 
     {:ok, _job} = %{"run_id" => run.id, "resume" => resume} |> RunThread.new() |> Oban.insert()
     :requeued
   end
 
-  defp close_running_tools!(run) do
+  defp close_running_tools!(run, reason \\ "Interrupted by a restart.") do
     Message
     |> where([message], message.run_id == ^run.id and message.tool_status == "running")
     |> Repo.all()
-    |> Enum.each(&Orbit.touch!(&1, %{tool_status: "cancelled", tool_output: "Interrupted by a restart."}))
+    |> Enum.each(&Orbit.touch!(&1, %{tool_status: "cancelled", tool_output: reason}))
   end
 
   @doc "Checkpoints running runs whose lease expired, for example after a replica was lost."
@@ -673,9 +701,9 @@ defmodule Atlas.Orbit.Runs do
 
       with nil <- Orbit.active_run(thread),
            true <- thread.status == "active",
-           true <- Orbit.agent_configured?(),
            %Message{} = pending <- pending_message(thread),
            %User{} = acting_user <- acting_user_for(thread, pending),
+           true <- Runner.orbit_configured?(acting_user),
            true <- Access.can_read?(thread, acting_user) do
         initiator = if pending.kind == "human", do: acting_user
         Orbit.start_run!(thread, pending.position, initiator, acting_user)
@@ -715,19 +743,31 @@ defmodule Atlas.Orbit.Runs do
   ## Errors
 
   defp error_category(:timeout), do: "timeout"
+  defp error_category(%Timeout{}), do: "timeout"
+  defp error_category(%{reason: :timeout}), do: "timeout"
+  defp error_category({:error, reason}), do: error_category(reason)
   defp error_category(:crashed), do: "crashed"
   defp error_category({:session_exit, _}), do: "session_exit"
   defp error_category(%{status: status}) when status in [401, 403], do: "provider_auth"
   defp error_category(%{status: 402}), do: "provider_billing"
   defp error_category(%{status: 429}), do: "provider_rate_limited"
-  defp error_category(%{status: 503}), do: "not_configured"
+  defp error_category(%{status: status}) when status in [408, 504], do: "timeout"
+  defp error_category(%{response_body: %{"error" => %{"code" => "not_configured"}}}), do: "not_configured"
   defp error_category(%{status: status}) when is_integer(status) and status >= 500, do: "provider_unavailable"
+  defp error_category(%{cause: reason}) when not is_nil(reason), do: error_category(reason)
   defp error_category(_reason), do: "failed"
 
   defp failure_message("not_configured"),
-    do:
-      "The assistant is not configured on this Atlas server. An administrator can assign an inference profile to Orbit."
+    do: "Connect an AI account in Settings, or ask an administrator to assign an inference profile to Orbit."
 
   defp failure_message("timeout"), do: "The assistant took too long and was stopped. Try a narrower question."
+
+  defp failure_message("provider_auth"),
+    do: "The AI provider rejected the credentials. Check your connected AI accounts in Settings."
+
+  defp failure_message("provider_billing"),
+    do: "The AI provider requires billing or subscription access. Check your connected AI accounts."
+
+  defp failure_message("provider_rate_limited"), do: "The AI provider's usage limit was reached. Try again later."
   defp failure_message(_category), do: "The assistant could not reply. Try again in a moment."
 end

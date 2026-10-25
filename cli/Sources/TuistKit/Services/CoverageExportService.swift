@@ -66,9 +66,10 @@ public struct CoverageExportService: CoverageExportServicing {
               (try? await fileSystem.exists(resultBundlePath)) == true
         else { return nil }
         do {
-            guard let targets = try await coverageTargets(
+            guard let targets = try await Self.coverageTargets(
                 resultBundlePath: resultBundlePath,
-                derivedDataDirectory: derivedDataDirectory
+                derivedDataDirectory: derivedDataDirectory,
+                xcResultService: xcResultService
             )
             else { return nil }
             guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory, newerThan: runStartedAt)
@@ -152,9 +153,10 @@ public struct CoverageExportService: CoverageExportServicing {
     /// The run's targets, from the build's graph when the build recorded them (`tuist test`,
     /// including the targets the binary cache replaced, which the bundle's report never lists),
     /// else from the bundle's report.
-    private func coverageTargets(
+    static func coverageTargets(
         resultBundlePath: AbsolutePath,
-        derivedDataDirectory: AbsolutePath?
+        derivedDataDirectory: AbsolutePath?,
+        xcResultService: XCResultServicing
     ) async throws -> [XcodeCoverageTarget]? {
         if let sources = await RunMetadataStorage.current.coverageBuildSources, !sources.targets.isEmpty {
             var roots: [AbsolutePath] = []

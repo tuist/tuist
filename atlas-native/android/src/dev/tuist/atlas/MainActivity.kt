@@ -81,6 +81,7 @@ class MainActivity : Activity() {
         )
         super.onCreate(savedInstanceState)
         title = getString(R.string.app_name)
+        if (retained == null) AtlasOrbitAttachments.clear(applicationContext)
         authentication = retained?.authentication ?: (application as AtlasApplication).authentication
         notifications = retained?.notifications ?: AtlasPushNotifications(applicationContext, authentication)
         accounts = retained?.accounts
@@ -123,6 +124,7 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        AtlasOrbitAttachments.clear(applicationContext)
         authentication.listener = authListener
         appearance.listener = { appearanceChanged() }
         notifications.listener = { settings?.notificationsChanged() }
@@ -250,6 +252,13 @@ class MainActivity : Activity() {
                 appearance.showingSettings = false
                 showHome()
             }
+            "orbit" -> {
+                tab = "orbit"
+                val model = orbit ?: AtlasOrbitModel(authentication::orbitSession).also { orbit = it }
+                destination.recordId?.let(model::select) ?: model.showList()
+                model.setActive(true)
+                showHome()
+            }
             else -> {
                 // Tasks moved into Browse, so its links open there and Back returns to the directory.
                 if (destination.screen == "tasks") {
@@ -270,7 +279,9 @@ class MainActivity : Activity() {
     private fun hasUnsavedWork(): Boolean =
         businesses.values.any { it.draft != null || it.saving } ||
             holidays?.let { it.draft != null || it.saving } == true ||
-            accounts?.let { it.page != "settings" || it.login != null } == true
+            profile?.let { it.draft != null || it.saving } == true ||
+            accounts?.let { it.page != "settings" || it.login != null } == true ||
+            orbit?.hasProtectedWork == true
 
     private fun linkMessage(message: String) {
         linkDialog?.dismiss()
@@ -353,7 +364,8 @@ class MainActivity : Activity() {
                             it.setActive(true)
                             it.open()
                         }
-                    val screen = AtlasOrbitScreen(this, titles.getValue(tab), model, presence, ::updateBack, appearance)
+                    val screen =
+                        AtlasOrbitScreen(this, titles.getValue(tab), model, presence, ::updateBack, appearance, ::pickOrbitAttachment)
                     threadScreen = screen
                     setActionBar(screen.toolbar)
                     screen.view
@@ -515,6 +527,7 @@ class MainActivity : Activity() {
     }
 
     private fun clearModels() {
+        AtlasOrbitAttachments.clear(applicationContext)
         presence?.setActive(false)
         presence?.listener = null
         presence = null
@@ -527,6 +540,48 @@ class MainActivity : Activity() {
         accounts = null
         holidays = null
         recoveredLoginId = null
+    }
+
+    private fun pickOrbitAttachment() {
+        val model = orbit ?: return
+        AlertDialog
+            .Builder(this)
+            .setTitle("Attach to conversation")
+            .setItems(arrayOf("Photo", "File")) { _, option ->
+                val id = model.beginPick() ?: return@setItems
+                val picker =
+                    if (option == 0 && Build.VERSION.SDK_INT >= 33) {
+                        Intent(android.provider.MediaStore.ACTION_PICK_IMAGES).setType("image/*")
+                    } else {
+                        Intent(Intent.ACTION_OPEN_DOCUMENT)
+                            .addCategory(Intent.CATEGORY_OPENABLE)
+                            .setType(if (option == 0) "image/*" else "*/*")
+                    }
+                try {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), 72)
+                } catch (_: ActivityNotFoundException) {
+                    model.finishPick(id, Result.failure(IllegalStateException("No file picker is available on this device.")))
+                }
+            }.show()
+    }
+
+    @Deprecated("Platform picker callback for the API-26 native build")
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?,
+    ) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 72) return
+        val model = orbit ?: return
+        val id = model.pickingFor ?: return
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            model.finishPick(id, null)
+            return
+        }
+        AtlasOrbitAttachments.read(applicationContext, uri) { result -> model.finishPick(id, result) }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
