@@ -26,8 +26,12 @@ the separate native push coordinator supports APNs for other fixed notification 
 recognition, permission errors and generation-fenced callbacks. Never fall back to
 remote transcription, upload audio or auto-send the accepted text. Cancel on scene
 inactivity and thread departure; an unfinished transcript must not replace the
-existing draft. `AtlasThreadComposer` shares the outlined pill between text and voice input,
-with measured audio levels between a stop microphone and a separate discard control.
+existing draft. `AtlasThreadComposer` shares one native Liquid Glass pill on iOS 26+
+between text and voice input, with regular Material on older systems and an opaque
+system surface for Reduce Transparency/increased contrast. Keep its input/gesture
+hierarchy stable when accessibility changes, and let the transcript show through rather
+than adding an opaque full-width plate. Utility controls use neutral circular fills.
+During dictation, show measured audio levels between a stop microphone and a separate discard control.
 Release/tap-stop synchronously adds the current hypothesis as editable text; there is no
 review/Done phase or visible live transcript. Only the idle composer's send action sends a message. The stable
 44pt microphone supports hold-to-record/release-to-edit and tap/accessibility

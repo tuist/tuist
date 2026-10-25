@@ -26,8 +26,6 @@ struct AtlasThreadDetail: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.atlasTheme) private var theme
-    @Environment(\.colorScheme) private var scheme
 
     private var assistantName: String { model.assistant?.name ?? "Pip" }
     private var current: AtlasThread { model.selected ?? thread }
@@ -272,10 +270,6 @@ extension AtlasThreadDetail {
         }
         .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
         .frame(maxWidth: .infinity)
-        .background {
-            (theme.map { Color(atlasHex: $0.palette(scheme).background) } ?? Color(uiColor: .systemBackground))
-                .ignoresSafeArea(edges: .bottom)
-        }
     }
 
     private func send() {

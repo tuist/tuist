@@ -209,21 +209,30 @@ final class AtlasOrbitUITests: XCTestCase {
             app.launchArguments = ["--workspace"] + arguments
             app.launch()
             defer { app.terminate() }
+            XCUIDevice.shared.orientation = .portrait
             XCTAssertTrue(app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].waitForExistence(timeout: 10))
             app.buttons["thread-01922cc0-0000-7000-8000-000000000001"].tap()
             let draft = app.textFields["thread-composer"]
             XCTAssertTrue(draft.waitForExistence(timeout: 5))
-            for text in ["", "Compare these accounts.", "\nAnd their recent activity.\nInclude the latest billing details."] {
+            for (state, text) in [("empty", ""), ("single", "Compare these accounts."),
+                                  ("multiline", "\nAnd their recent activity.\nInclude the latest billing details.")] {
                 if !text.isEmpty { draft.tap(); draft.typeText(text) }
+                let attach = app.buttons["thread-attach"]
                 let microphone = app.buttons["thread-microphone"]
                 let send = app.buttons["thread-send"]
+                XCTAssertEqual(attach.frame.width, 44, accuracy: 1)
+                XCTAssertEqual(attach.frame.height, 44, accuracy: 1)
                 XCTAssertEqual(microphone.frame.height, 44, accuracy: 1)
                 XCTAssertEqual(send.frame.height, 44, accuracy: 1)
                 XCTAssertEqual(send.frame.width, 44, accuracy: 1)
+                XCTAssertEqual(attach.frame.midY, microphone.frame.midY, accuracy: 1)
                 XCTAssertEqual(send.frame.midY, microphone.frame.midY, accuracy: 1)
+                XCTAssertLessThanOrEqual(attach.frame.maxX, draft.frame.minX)
+                XCTAssertLessThanOrEqual(draft.frame.maxX, microphone.frame.minX)
+                XCTAssertLessThanOrEqual(microphone.frame.maxX, send.frame.minX)
                 if app.keyboards.firstMatch.exists { XCTAssertLessThanOrEqual(send.frame.maxY, app.keyboards.firstMatch.frame.minY) }
+                capture(app, "ios-orbit-composer-\(state)-\(arguments.isEmpty ? "light" : "large-dark")-preview")
             }
-            capture(app, "ios-orbit-composer-aligned-preview")
         }
     }
 
