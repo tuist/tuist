@@ -466,10 +466,10 @@ What the BMC does differently from the standard:
   `AMIVirtualMedia.ConfigureCDInstance` before `VirtualMedia/CD1` exists. It
   reads an HTTPS image only from port 443, with a file name of letters, digits
   and underscores, and refuses one without a user name and password for the
-  server. It takes a self-signed certificate, but one that names the server's
-  address (CN or IP SAN) and has an RSA key: with another name, or an ECDSA
-  key, it hangs up after the handshake without a request. It offers `h2` in
-  ALPN but speaks HTTP/1.1, so the server must not negotiate HTTP/2. A failed
+  server. It takes a self-signed certificate, but only one that names the
+  server's address: with another name it hangs up after the handshake without
+  a request. It offers `h2` in ALPN, and a server that negotiated HTTP/2 got
+  no HTTP/2 preface from it; one that offers only HTTP/1.1 works. A failed
   open leaves `CD1` at `Stopped - Unable to Open`, and the BMC makes no
   further attempt until it restarts.
 - `CertificateService.ReplaceCertificate` on
