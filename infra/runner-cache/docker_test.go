@@ -265,7 +265,9 @@ type dockerHeadTransfer struct {
 	head int64
 }
 
-func (t dockerHeadTransfer) Head(Slot) (Identity, error) { return Identity{BaseGeneration: t.head}, nil }
+func (t dockerHeadTransfer) Head(Slot) (Identity, error) {
+	return Identity{BaseGeneration: t.head}, nil
+}
 
 func TestDockerSealSkipsADataRootAnotherJobSuperseded(t *testing.T) {
 	b, remote := newLocal(t)
