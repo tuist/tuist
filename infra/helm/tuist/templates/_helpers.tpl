@@ -1073,6 +1073,160 @@ without its membership (see the checksum in clickhouse-managed.yaml).
 </clickhouse>
 {{- end }}
 
+{{- /*
+The managed server's config.d files other than the cluster definition. The pod
+checksum hashes this rendering, so a change to any of them restarts the
+replicas.
+*/}}
+{{- define "tuist.clickhouseManagedConfigFiles" }}
+{{- $m := .Values.clickhouse.managed }}
+{{- $keeperName := include "tuist.componentName" (dict "root" . "component" "clickhouse-keeper") }}
+  # `{shard}` and `{replica}` are what a `Replicated*` engine expands when it
+  # is created without explicit Keeper path arguments, and what the cloned
+  # Cloud DDL expands when its explicit arguments are ignored (see
+  # `database_replicated_allow_replicated_engine_arguments` below). The
+  # replica macro is the pod's own name so a second replica added later
+  # cannot collide with this one's Keeper path.
+{{- if $m.backup.enabled }}
+  # The backup destination, declared as a disk so that `BACKUP` names the disk
+  # rather than the bucket and its credentials. A statement carrying those
+  # would reach `system.query_log`, the server log, and every error message
+  # that echoes the query back.
+  #
+  # The credentials are not in this file either: `from_env` reads them at
+  # startup from the same Secret the application uses, so there is one copy of
+  # them rather than a second that has to be kept in step.
+  backups.xml: |
+    <clickhouse>
+      <storage_configuration>
+        <disks>
+          <backups>
+            <type>s3_plain</type>
+            <endpoint>{{ printf "%s/%s/%s/%s/" (include "tuist.objectStorageEndpoint" .) (include "tuist.objectStorageBucketDefault" .) $m.backup.prefix .Release.Namespace }}</endpoint>
+            <access_key_id from_env="BACKUP_S3_ACCESS_KEY_ID" />
+            <secret_access_key from_env="BACKUP_S3_SECRET_ACCESS_KEY" />
+            <region>{{ include "tuist.objectStorageRegion" . }}</region>
+            <!--
+              ClickHouse write-tests every S3 disk while it starts, and treats
+              a failure as fatal: it refuses to boot. That is the wrong trade
+              for a disk nothing serves queries from. It makes the database's
+              availability depend on the backup bucket, so an expired key, a
+              tightened policy or an unreachable endpoint takes the whole
+              server down rather than the next backup.
+
+              Skipping it moves that failure to where it belongs, the backup
+              job, which fails visibly and on its own. This is not theoretical:
+              the first deploy of this disk crash-looped the staging server
+              with `Access Denied ... While checking access for disk backups`.
+            -->
+            <skip_access_check>true</skip_access_check>
+          </backups>
+        </disks>
+      </storage_configuration>
+      <backups>
+        <allowed_disk>backups</allowed_disk>
+      </backups>
+    </clickhouse>
+{{- end }}
+  macros.xml: |
+    <clickhouse>
+      <macros>
+        <shard>01</shard>
+        <replica from_env="HOSTNAME"></replica>
+      </macros>
+    </clickhouse>
+  keeper-client.xml: |
+    <clickhouse>
+      <zookeeper>
+        <node>
+          <host>{{ $keeperName }}</host>
+          <port>{{ $m.keeper.clientPort }}</port>
+        </node>
+      </zookeeper>
+    </clickhouse>
+  # What replicas need from each other beyond the tables themselves.
+  #
+  # `interserver_http_host` is the address a replica registers in Keeper for
+  # its peers to fetch parts from. The default is the pod's name under the
+  # StatefulSet's governing Service, which resolves only when that Service is
+  # headless, and this one is not; `serviceName` cannot change on a live
+  # StatefulSet. So each replica gets a Service of its own, and registers that.
+  #
+  # The credentials make a part fetch present the same secret on both ends.
+  # Without them anything in the cluster can read raw table data off 9009.
+  #
+  # Access entities live in Keeper rather than on each replica's disk, so the
+  # ops role and user `Tuist.Release.migrate` creates through the Service exist
+  # on every replica, not only the one the statement reached. The default
+  # `local_directory` storage is dropped rather than kept alongside: an entity
+  # left there satisfies `CREATE ... IF NOT EXISTS` on its own replica and is
+  # never written to Keeper.
+  #
+  # The cost is that the server cannot start while Keeper is unreachable: the
+  # replicated storage connects while access control is set up and the server
+  # exits if it cannot, so a replica restarted during a Keeper outage restarts
+  # until Keeper is back. A replica already running keeps serving the entities
+  # it has through the outage.
+  replication.xml: |
+    <clickhouse>
+      <interserver_http_port>9009</interserver_http_port>
+      <interserver_http_host from_env="INTERSERVER_HTTP_HOST"></interserver_http_host>
+      <interserver_http_credentials>
+        <user>interserver</user>
+        <password from_env="INTERSERVER_HTTP_PASSWORD"></password>
+      </interserver_http_credentials>
+      <user_directories replace="replace">
+        <users_xml>
+          <path>users.xml</path>
+        </users_xml>
+        <replicated>
+          <zookeeper_path>/clickhouse/access/</zookeeper_path>
+        </replicated>
+      </user_directories>
+    </clickhouse>
+  settings.xml: |
+    <clickhouse>
+      <logger>
+        <level>{{ $m.logLevel }}</level>
+      </logger>
+      <text_log>
+        <level>{{ $m.logLevel }}</level>
+      </text_log>
+      {{- range $table := list "text_log" "query_log" "query_thread_log" "query_views_log" "trace_log" "metric_log" "asynchronous_metric_log" "part_log" }}
+      <{{ $table }}>
+        <ttl>event_date + INTERVAL {{ $m.systemLogTtlDays }} DAY DELETE</ttl>
+      </{{ $table }}>
+      {{- end }}
+      <!-- Columns without an explicit codec compress with ZSTD(1) instead of LZ4. -->
+      <compression>
+        <case>
+          <method>zstd</method>
+          <level>1</level>
+        </case>
+      </compression>
+      <!--
+        The Prometheus endpoint ClickHouse serves itself. Alloy scrapes it
+        through the pod annotations below; nothing else exposes replica queue
+        depth, merge backlog or part counts.
+      -->
+      <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>{{ $m.metricsPort }}</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+        <errors>true</errors>
+      </prometheus>
+      <!--
+        On SIGTERM, let the queries already running finish, for up to a
+        minute, instead of the default five seconds. The pod's
+        `terminationGracePeriodSeconds` covers this plus the `preStop` wait.
+      -->
+      <shutdown_wait_unfinished_queries>1</shutdown_wait_unfinished_queries>
+      <shutdown_wait_unfinished>60</shutdown_wait_unfinished>
+    </clickhouse>
+{{- end }}
+
 {{- define "tuist.clickhouseManagedUsersXml" -}}
 <clickhouse>
   <profiles>
