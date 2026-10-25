@@ -107,6 +107,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     assert html =~ "CLI · Unit Tests"
     assert html =~ "Linux"
+    assert html =~ "tuist-runner-x"
     # status_badge_props maps conclusion=success → "Passed"
     assert html =~ "Passed"
   end
