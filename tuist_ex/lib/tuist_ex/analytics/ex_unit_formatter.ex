@@ -471,6 +471,19 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     }
   end
 
+  @doc """
+  The identity a test is reported, and quarantined, with.
+  """
+  def identity(%ExUnit.Test{} = test) do
+    describe = test.tags[:describe]
+
+    Quarantine.identity(%{
+      module: inspect(test.module),
+      describe: describe,
+      name: display_name(test, describe)
+    })
+  end
+
   # ExUnit registers a test as "<type> <describe> <name>", for example
   # "test create_order/2 rejects an empty cart". The type says nothing and the
   # describe block is reported as the suite, so only the test's own name is

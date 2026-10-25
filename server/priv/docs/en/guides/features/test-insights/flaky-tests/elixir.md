@@ -63,7 +63,7 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 Quarantining keeps a flaky test from blocking CI while you fix it. On a test's page in the dashboard, change its state to **Muted** or **Skipped**, or configure an automation under **Settings → Automations** that mutes or skips a test when it becomes flaky and enables it again once it recovers. Before it runs the tests, `mix test` reads every quarantined test of the project and applies them:
 
-- **Muted**: the test runs and its failure is still reported, but a run whose only failures are muted tests passes. Retries still rerun a failing muted test, so a flaky one can pass and be reported as flaky.
+- **Muted**: the test runs and its failure is still reported, and ExUnit's summary still lists it, but a run whose only failures are muted tests passes. Retries still rerun a failing muted test, so a flaky one can pass and be reported as flaky.
 - **Skipped**: the test does not run. `mix test` lists the skipped tests before the run starts.
 
 ```text
@@ -72,13 +72,14 @@ Tuist: skipping 1 quarantined test:
 Tuist: 1 muted test run, and their failures do not fail the run.
 ```
 
-The run fails as usual when any test that isn't muted fails, or when ExUnit stops early because of `--max-failures`.
+The run fails as usual when any test that isn't muted fails, when ExUnit stops early because of `--max-failures`, or, with `--warnings-as-errors`, when a test file warns.
 
 > [!WARNING]
 > **Limitations**
 >
 > - Only recent versions of the Hex package apply quarantine. Earlier versions run muted and skipped tests like any other, so a muted test's failure still fails the run. Update `tuist_ex` before you rely on it.
-> - Muted tests are not applied with `--warnings-as-errors`, or from the root of an umbrella project. Their failures then fail the run. Run the tests inside each application of an umbrella instead.
+> - Muted tests are not applied from the root of an umbrella project. Their failures then fail the run. Run the tests inside each application of an umbrella instead.
+> - On an Elixir version where `mix test` can't leave a muted test's failure out of its count, muted tests are not applied with `--warnings-as-errors` either.
 > - A skipped test that isn't declared with `test`, such as a StreamData `property`, still runs.
 > - On an Elixir version where `mix test` can't skip a test by its module, it skips by describe block and name instead: a test with the same describe block and name in another module is skipped too, and `--only`, `--include`, or `path:line` can select a skipped test. See [how skipping selects tests](#how-skipping-selects-tests).
 > - If `mix test` cannot read the quarantined tests, it runs every test and counts every failure.
