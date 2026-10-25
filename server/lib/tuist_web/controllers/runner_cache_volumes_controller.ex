@@ -46,6 +46,36 @@ defmodule TuistWeb.RunnerCacheVolumesController do
     end
   end
 
+  def docker(conn, params) do
+    with :ok <- authenticate(conn),
+         {:ok, identity} <- CacheVolumes.allocate_docker(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(identity)
+    else
+      {:error, :pending} ->
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> put_resp_header("retry-after", "1")
+        |> put_status(425)
+        |> json(%{error: "job execution pending"})
+
+      # No job of the repository was seen using Docker yet.
+      {:error, :unseen} ->
+        conn |> put_resp_header("cache-control", "no-store") |> put_status(:not_found) |> json(%{error: "unseen"})
+
+      _ ->
+        conn |> put_status(:forbidden) |> json(%{error: "docker cache unavailable"})
+    end
+  end
+
+  def docker_seen(conn, params) do
+    with :ok <- authenticate(conn),
+         :ok <- CacheVolumes.mark_docker_seen(params) do
+      send_resp(conn, :no_content, "")
+    else
+      _ -> send_resp(conn, :forbidden, "")
+    end
+  end
+
   def report(conn, %{"node_name" => node, "id" => id} = params) do
     case authenticate(conn) do
       :ok ->

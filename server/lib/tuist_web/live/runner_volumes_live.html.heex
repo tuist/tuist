@@ -14,6 +14,16 @@
       <div data-part="volume-icon"><.database /></div>
       <h1>{display_name(@selected)}</h1>
     </div>
+    <div :if={@selected.key == "docker"} data-part="actions">
+      <.button
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "Images")}
+        navigate={~p"/#{@selected_account.name}/runners/docker-cache/#{@selected.id}"}
+      >
+        <:icon_left><.brand_docker /></:icon_left>
+      </.button>
+    </div>
     <div :if={@can_manage} data-part="actions">
       <.button
         variant="secondary"

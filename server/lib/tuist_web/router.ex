@@ -1102,6 +1102,8 @@ defmodule TuistWeb.Router do
     post "/runners/dispatch", RunnersController, :dispatch
     post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
     post "/runners/cache-volumes/checkout", RunnerCacheVolumesController, :checkout
+    post "/runners/cache-volumes/docker", RunnerCacheVolumesController, :docker
+    post "/runners/cache-volumes/docker-seen", RunnerCacheVolumesController, :docker_seen
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     get "/runners/cache-masters", RunnerCacheMastersController, :index
@@ -1515,6 +1517,8 @@ defmodule TuistWeb.Router do
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
+      live "/runners/docker-cache", RunnerDockerCacheLive
+      live "/runners/docker-cache/:id", RunnerDockerCacheLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive

@@ -62,4 +62,36 @@ defmodule Tuist.Runners.JobSteps do
       )
     )
   end
+
+  @doc """
+  The median duration, in milliseconds, of the step named `name` across the
+  account's `workflow_job_ids`, or nil when none ran it.
+  """
+  def median_duration_ms(_account_id, [], _name), do: nil
+
+  def median_duration_ms(account_id, workflow_job_ids, name) when is_list(workflow_job_ids) do
+    durations =
+      from(s in JobStep,
+        where: s.account_id == ^account_id and s.workflow_job_id in ^workflow_job_ids,
+        group_by: [s.workflow_job_id, s.number],
+        having: fragment("argMax(?, ?)", s.name, s.inserted_at) == ^name,
+        select: %{
+          duration:
+            fragment(
+              "dateDiff('millisecond', argMax(?, ?), argMax(?, ?))",
+              s.started_at,
+              s.inserted_at,
+              s.completed_at,
+              s.inserted_at
+            )
+        }
+      )
+
+    ClickHouseRepo.one(
+      from(d in subquery(durations),
+        where: not is_nil(d.duration) and d.duration >= 0,
+        select: fragment("if(count() = 0, NULL, toInt64(quantile(0.5)(?)))", d.duration)
+      )
+    )
+  end
 end

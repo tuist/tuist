@@ -1027,3 +1027,45 @@ func TestPreferCacheVolumeNodeLeavesThePodAloneWithoutANode(t *testing.T) {
 		t.Fatalf("affinity = %+v, want none", pod.Spec.Affinity)
 	}
 }
+
+// Without the Docker cache the sidecar's command must stay byte for byte what
+// pools run today: any change replaces every Pod of every pool.
+func TestDockerCacheOffKeepsTheSidecarCommand(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	dind := initContainer(t, build(t, pool), "dind")
+	want := "set -e && ulimit -n 1048576 && apk add --no-cache e2fsprogs >/dev/null && mkdir -p /mnt/dind-disk && truncate -s 100G /mnt/dind-disk/disk.img && mkfs.ext4 -q -F /mnt/dind-disk/disk.img && mkdir -p /var/lib/docker && mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
+		"rm -f " + workPath + "/.tuist-cache-mount.sock && (/home/runner/actions-runner/externals/tuist-cache-volume mount-server " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache &); " +
+		"exec dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576"
+	if got := dind.Args[0]; got != want {
+		t.Fatalf("sidecar command changed:\n got %s\nwant %s", got, want)
+	}
+}
+
+func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	pool.Spec.DockerCache = true
+	dind := initContainer(t, build(t, pool), "dind")
+	command := dind.Args[0]
+	want := "exec /home/runner/actions-runner/externals/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576 --max-concurrent-downloads=8"
+	if !strings.HasSuffix(command, want) {
+		t.Fatalf("sidecar command %s", command)
+	}
+	if strings.Contains(command, "mount-server") {
+		t.Fatal("a second mount broker would race the supervisor's socket")
+	}
+	if !strings.Contains(strings.Join(dind.StartupProbe.Exec.Command, " "), "test -S "+workPath+"/.tuist-cache-mount.sock") {
+		t.Fatal("runner can start before the supervisor's socket")
+	}
+}
+
+func TestDockerCacheNeedsCacheVolumes(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.DockerCache = true
+	if _, err := Build(pool, "pod", "sa", "http://dispatch", "http://dispatch-internal", "docker:dind", "", "10.0.0.10", "cluster.local"); err == nil {
+		t.Fatal("built a Docker cache pool without cache volumes")
+	}
+}

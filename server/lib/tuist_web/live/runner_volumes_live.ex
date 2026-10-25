@@ -412,6 +412,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   def display_name(%{key: "tuist-xcode"}), do: dgettext("dashboard_runners", "Xcode cache")
   def display_name(%{key: "tuist-module"}), do: dgettext("dashboard_runners", "Module cache")
   def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
+  def display_name(%{key: "docker"}), do: dgettext("dashboard_runners", "Docker cache")
   def display_name(%{key: key}), do: key
 
   def volume_name(volume) do

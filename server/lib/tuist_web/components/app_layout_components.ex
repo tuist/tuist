@@ -514,6 +514,15 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={FeatureFlags.runner_docker_cache_enabled?(@selected_account)}
+          label={dgettext("dashboard_runners", "Docker cache")}
+          icon="brand_docker"
+          navigate={~p"/#{@selected_account.name}/runners/docker-cache"}
+          selected={
+            String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners/docker-cache")
+          }
+        />
+        <.sidebar_item
           :if={Authorization.authorize(:runners_update, @current_user, @selected_account) == :ok}
           label={dgettext("dashboard", "Profiles")}
           icon="category"

@@ -199,6 +199,21 @@
               />
             </div>
 
+            <div :if={@form_platform == "linux"} data-part="docker-cache">
+              <.toggle
+                id={"runner-profile-docker-cache-#{@form_docker_cache}"}
+                label={dgettext("dashboard_runners", "Docker cache")}
+                description={
+                  dgettext(
+                    "dashboard_runners",
+                    "Starts each job with the images and build cache its repository's earlier jobs pulled and built, kept on a \"docker\" cache volume."
+                  )
+                }
+                checked={@form_docker_cache}
+                phx-click="toggle_docker_cache"
+              />
+            </div>
+
             <.line_divider />
 
             <section data-part="cache-saving-section">

@@ -1306,6 +1306,15 @@ the remaining operational validation limits explicit in the rollout guide.
 Mount revision changes use the existing bounded idle rollout. No account-wide
 cache root or infrastructure credential crosses into workflow containers.
 
+RunnerPool `dockerCache` (chart `runnersFleetLinux.cacheVolumes.dockerCache`, with
+`pools` limiting it to named pools during a rollout) moves each job's dockerd onto
+its repository's Docker cache volume: the dind sidecar runs dockerd under the
+`tuist-cache-volume dind` supervisor with `--max-concurrent-downloads=8`, and the
+runner gets `TUIST_DOCKER_CACHE=1`. It needs cache volumes. With the field off the
+sidecar's command is byte for byte what it was (`TestDockerCacheOffKeepsTheSidecarCommand`):
+any change to it replaces every Pod of every pool, so enable it pool by pool. The
+agent serves `/docker` and `/docker-seen`; see [Docker cache volumes](cache-volumes.md#docker-cache-volumes).
+
 Managed production enables custom volumes on normal deployment. The agent image
 ships the bounded filesystem provisioning script, invoked by an opt-in privileged
 init container in the host mount namespace. Existing/replacement nodes converge

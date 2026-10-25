@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -55,6 +56,10 @@ func TestMain(m *testing.M) {
 }
 
 func testMountServer(t *testing.T, root string) string {
+	return testDockerMountServer(t, root, nil)
+}
+
+func testDockerMountServer(t *testing.T, root string, docker func(dockerMessage) error) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "mount-test-")
 	if err != nil {
@@ -82,7 +87,7 @@ func testMountServer(t *testing.T, root string) string {
 			if err != nil {
 				return
 			}
-			if err := mountRequest(conn, source, work); err != nil {
+			if err := mountRequest(conn, source, work, docker); err != nil {
 				conn.Write([]byte(err.Error()))
 			} else {
 				conn.Write([]byte("ok"))
@@ -336,5 +341,34 @@ func TestRealCheckoutBindRefusesAWorkspaceThatIsNotEmpty(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(workspace, "keep")); err != nil {
 		t.Fatal("the workspace was replaced")
+	}
+}
+
+func TestMountBrokerHandsDockerRequestsToTheSupervisor(t *testing.T) {
+	root := t.TempDir()
+	var received []dockerMessage
+	socket := testDockerMountServer(t, root, func(message dockerMessage) error {
+		received = append(received, message)
+		if message.Docker == "teardown" {
+			return errors.New("no docker volume mounted")
+		}
+		return nil
+	})
+	source := digest("scope") + "/" + dockerImageName
+	if err := sendDocker(socket, dockerMessage{Docker: "switch", Source: source}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sendDocker(socket, dockerMessage{Docker: "teardown"}); err == nil || err.Error() != "no docker volume mounted" {
+		t.Fatalf("teardown: %v", err)
+	}
+	if len(received) != 2 || received[0] != (dockerMessage{Docker: "switch", Source: source}) {
+		t.Fatalf("supervisor received %v", received)
+	}
+}
+
+func TestMountBrokerWithoutSupervisorRefusesDockerRequests(t *testing.T) {
+	socket := testMountServer(t, t.TempDir())
+	if err := sendDocker(socket, dockerMessage{Docker: "switch", Source: digest("scope") + "/" + dockerImageName}); err == nil {
+		t.Fatal("a broker without a supervisor accepted a docker request")
 	}
 }

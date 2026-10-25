@@ -1,0 +1,259 @@
+<div id="runner-docker-cache">
+  <%= if @selected_id do %>
+    <.button
+      navigate={~p"/#{@selected_account.name}/runners/docker-cache"}
+      variant="secondary"
+      size="medium"
+      label={dgettext("dashboard_runners", "Docker cache")}
+      data-part="back-button"
+    >
+      <:icon_left><.arrow_left /></:icon_left>
+    </.button>
+    <div data-part="header">
+      <div data-part="title">
+        <div data-part="page-icon"><.brand_docker /></div>
+        <div data-part="heading">
+          <h1>{@repository.repository}</h1>
+          <.badge
+            label={status_label(@repository.status)}
+            color={status_color(@repository.status)}
+            style="light-fill"
+            size="large"
+          />
+        </div>
+      </div>
+      <div data-part="actions">
+        <.button
+          variant="secondary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Volume and jobs")}
+          navigate={~p"/#{@selected_account.name}/runners/volumes/#{@repository.id}"}
+        >
+          <:icon_left><.database /></:icon_left>
+        </.button>
+      </div>
+    </div>
+    <.card title={dgettext("dashboard_runners", "Activity")} icon="chart_arcs">
+      <:actions>
+        <.docker_date_picker
+          id="docker-repository-date-range-picker"
+          preset={@analytics_preset}
+          period={@analytics_period}
+        />
+      </:actions>
+      <div data-part="widgets">
+        <.activity_widgets id="docker-repository" activity={@repository.activity} />
+      </div>
+    </.card>
+    <.card title={dgettext("dashboard_runners", "Saved data root")} icon="database">
+      <.card_section>
+        <div data-part="metadata-grid">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Images")}</div>
+            <span data-part="label">{count(@repository.image_count)}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Saved size")}</div>
+            <span data-part="label">{RunnerVolumesLive.bytes(@repository.saved_bytes)}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Build cache")}</div>
+            <span data-part="label">{RunnerVolumesLive.bytes(@repository.build_cache_bytes)}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Last saved")}</div>
+            <span data-part="label" title={RunnerVolumesLive.time(@repository.last_saved_at)}>
+              {RunnerVolumesLive.relative_time(@repository.last_saved_at)}
+            </span>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+    <.card title={dgettext("dashboard_runners", "Images")} icon="brand_docker">
+      <.card_section data-part="table-section">
+        <.table id="docker-images-table" rows={@repository.images}>
+          <:col :let={image} label={dgettext("dashboard_runners", "Image")}>
+            <.text_cell label={image.reference} title={image.id} />
+          </:col>
+          <:col :let={image} label={dgettext("dashboard_runners", "Other references")}>
+            <.text_cell label={
+              if image.other_references == [],
+                do: "—",
+                else: Enum.join(image.other_references, ", ")
+            } />
+          </:col>
+          <:col :let={image} label={dgettext("dashboard_runners", "Size")}>
+            <.text_cell label={RunnerVolumesLive.bytes(image.size_bytes)} />
+          </:col>
+          <:col :let={image} label={dgettext("dashboard_runners", "Last used")}>
+            <.text_cell
+              label={RunnerVolumesLive.relative_time(image.last_used_at)}
+              title={RunnerVolumesLive.time(image.last_used_at)}
+            />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              title={dgettext("dashboard_runners", "No images saved yet")}
+              subtitle={
+                dgettext(
+                  "dashboard_runners",
+                  "Images appear after a job that may save this repository's caches finishes and its data root is saved."
+                )
+              }
+            />
+          </:empty_state>
+        </.table>
+      </.card_section>
+    </.card>
+  <% else %>
+    <div data-part="header">
+      <div data-part="title">
+        <div data-part="page-icon"><.brand_docker /></div>
+        <div data-part="heading">
+          <h1>{dgettext("dashboard_runners", "Docker cache")}</h1>
+          <.badge
+            label={
+              if @enabled,
+                do: dgettext("dashboard_runners", "On"),
+                else: dgettext("dashboard_runners", "Not enabled")
+            }
+            color={if @enabled, do: "success", else: "neutral"}
+            style="light-fill"
+            size="large"
+          />
+        </div>
+      </div>
+      <div :if={@can_manage} data-part="actions">
+        <.button
+          variant="secondary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Profiles")}
+          navigate={~p"/#{@selected_account.name}/runners/profiles"}
+        >
+          <:icon_left><.category /></:icon_left>
+        </.button>
+      </div>
+    </div>
+    <p data-part="description">
+      {dgettext(
+        "dashboard_runners",
+        "Linux jobs start with the images and build cache their repository's earlier jobs pulled and built, so job containers, services and docker pull, run and build find their layers locally. Every image name is still resolved and authorized by its registry in each job. A repository gets a Docker cache after one of its jobs uses Docker; nothing needs to change in your workflows. Turn it off for a runner profile in its settings."
+      )}
+    </p>
+    <.async_result :let={overview} assign={@overview}>
+      <:loading>
+        <.card title={dgettext("dashboard_runners", "Activity")} icon="chart_arcs">
+          <div data-part="widgets">
+            <.widget
+              :for={n <- 1..3}
+              id={"docker-loading-#{n}"}
+              title={dgettext("dashboard_runners", "Loading")}
+              loading={true}
+            />
+          </div>
+        </.card>
+      </:loading>
+      <:failed>
+        <.card title={dgettext("dashboard_runners", "Activity")} icon="chart_arcs">
+          <.card_section>
+            <p role="alert" data-part="note">
+              {dgettext(
+                "dashboard_runners",
+                "Could not load the Docker cache. Retrying automatically."
+              )}
+            </p>
+          </.card_section>
+        </.card>
+      </:failed>
+      <.card title={dgettext("dashboard_runners", "Activity")} icon="chart_arcs">
+        <:actions>
+          <.docker_date_picker
+            id="docker-cache-date-range-picker"
+            preset={@analytics_preset}
+            period={@analytics_period}
+          />
+        </:actions>
+        <div data-part="widgets">
+          <.activity_widgets id="docker-cache" activity={overview.activity} />
+          <.widget
+            id="docker-cache-images"
+            title={dgettext("dashboard_runners", "Saved images")}
+            value={"#{count(overview.images)} · #{RunnerVolumesLive.bytes(overview.saved_bytes)}"}
+            description={
+              dgettext(
+                "dashboard_runners",
+                "Images kept across your repositories' saved data roots and the space they take. Docker cache storage is not billed."
+              )
+            }
+          />
+        </div>
+      </.card>
+      <.card title={dgettext("dashboard_runners", "Repositories")} icon="stack_2">
+        <.card_section data-part="table-section">
+          <.table
+            id="docker-repositories-table"
+            rows={overview.repositories}
+            row_navigate={
+              fn repository ->
+                ~p"/#{@selected_account.name}/runners/docker-cache/#{repository.id}"
+              end
+            }
+          >
+            <:col :let={repository} label={dgettext("dashboard_runners", "Repository")}>
+              <.text_cell label={repository.repository} />
+            </:col>
+            <:col :let={repository} label={dgettext("dashboard_runners", "Status")}>
+              <.badge_cell
+                label={status_label(repository.status)}
+                color={status_color(repository.status)}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={repository} label={dgettext("dashboard_runners", "Images")}>
+              <.text_cell label={count(repository.image_count)} />
+            </:col>
+            <:col :let={repository} label={dgettext("dashboard_runners", "Saved size")}>
+              <.text_cell label={RunnerVolumesLive.bytes(repository.saved_bytes)} />
+            </:col>
+            <:col :let={repository} label={dgettext("dashboard_runners", "Reuse rate")}>
+              <.text_cell
+                label={RunnerVolumesLive.percentage(repository.hit_rate)}
+                title={
+                  dngettext(
+                    "dashboard_runners",
+                    "%{count} job in the selected period",
+                    "%{count} jobs in the selected period",
+                    repository.uses
+                  )
+                }
+              />
+            </:col>
+            <:col :let={repository} label={dgettext("dashboard_runners", "Last saved")}>
+              <.text_cell
+                label={RunnerVolumesLive.relative_time(repository.last_saved_at)}
+                title={RunnerVolumesLive.time(repository.last_saved_at)}
+              />
+            </:col>
+            <:col :let={repository} label={dgettext("dashboard_runners", "Last used")}>
+              <.text_cell
+                label={RunnerVolumesLive.relative_time(repository.last_used_at)}
+                title={RunnerVolumesLive.time(repository.last_used_at)}
+              />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                title={dgettext("dashboard_runners", "No repository uses the Docker cache yet")}
+                subtitle={
+                  dgettext(
+                    "dashboard_runners",
+                    "A repository appears here after one of its Linux jobs uses Docker."
+                  )
+                }
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+    </.async_result>
+  <% end %>
+</div>

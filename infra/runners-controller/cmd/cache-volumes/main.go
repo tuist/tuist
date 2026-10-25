@@ -48,6 +48,7 @@ type agent struct {
 	grants                                 checkoutGrants
 	exports                                chan struct{}
 	checkoutRequests                       chan struct{}
+	dockerRequests                         chan struct{}
 	executionWaits                         cachevolumes.ExecutionWaits
 	// maxVolumeBytes is the largest volume this host accepts.
 	maxVolumeBytes int64
@@ -71,6 +72,12 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	case r.Method == "POST" && r.URL.Path == "/checkout-export":
 		a.serveCheckoutExport(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/docker":
+		a.serveDocker(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/docker-seen":
+		a.serveDockerSeen(w, r)
 		return
 	case r.Method != "POST" || r.URL.Path != "/acquire":
 		http.NotFound(w, r)
@@ -284,7 +291,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -339,7 +346,14 @@ func dedicatedFilesystem(root string, references ...string) error {
 
 func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	state := slot.State
-	body, _ := json.Marshal(map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot)})
+	fields := map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot)}
+	// A finished data root's inventory, for the dashboard; it decides nothing.
+	if slot.Kind == cachevolumes.KindDocker && gone && state == "active" {
+		if inventory := a.dockerInventory(slot); inventory != nil {
+			fields["docker"] = inventory
+		}
+	}
+	body, _ := json.Marshal(fields)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimSuffix(a.authorizeURL, "/authorize")+"/report", bytes.NewReader(body))
