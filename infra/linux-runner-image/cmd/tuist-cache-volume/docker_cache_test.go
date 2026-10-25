@@ -152,15 +152,18 @@ func TestPlanDockerTeardownKeepsContentAndDropsNames(t *testing.T) {
 	old := dockerImage{ID: dockerID("d"), RepoTags: []string{dockerInternalReference(dockerID("d"))}}
 	built := dockerImage{ID: dockerID("e"), RepoTags: []string{"app:latest"}}
 	saved := dockerLedger{
-		pulled.ID: {LastUsedAt: now.Add(-time.Hour), References: []string{"ghcr.io/org/build:jdk-20"}},
-		ran.ID:    {LastUsedAt: now.Add(-3 * 24 * time.Hour), References: []string{"postgres:16"}},
-		recent.ID: {LastUsedAt: now.Add(-13 * 24 * time.Hour)},
-		old.ID:    {LastUsedAt: now.Add(-15 * 24 * time.Hour)},
+		pulled.ID: {LastUsedAt: now.Add(-time.Hour), References: []string{"ghcr.io/org/build:jdk-20"}, Pulled: true},
+		ran.ID:    {LastUsedAt: now.Add(-3 * 24 * time.Hour), References: []string{"postgres:16"}, Pulled: true},
+		recent.ID: {LastUsedAt: now.Add(-13 * 24 * time.Hour), Pulled: true},
+		old.ID:    {LastUsedAt: now.Add(-15 * 24 * time.Hour), Pulled: true},
 	}
 	plan := planDockerTeardown([]dockerImage{pulled, ran, recent, old, built}, map[string]bool{ran.ID: true}, saved, now)
 
-	if len(plan.Remove) != 1 || plan.Remove[0] != old.ID {
+	if strings.Join(plan.Remove, ",") != strings.Join([]string{old.ID, built.ID}, ",") {
 		t.Fatalf("removed %v", plan.Remove)
+	}
+	if _, kept := plan.Keep[built.ID]; kept {
+		t.Fatal("kept an image the job built")
 	}
 	if _, kept := plan.Keep[recent.ID]; !kept {
 		t.Fatal("an image used within the retention was dropped")
@@ -168,7 +171,7 @@ func TestPlanDockerTeardownKeepsContentAndDropsNames(t *testing.T) {
 	if got := plan.Keep[pulled.ID].References; len(got) != 3 || got[0] != "ghcr.io/org/build:jdk-21" || got[2] != "ghcr.io/org/build:jdk-20" {
 		t.Fatalf("references %v", got)
 	}
-	for _, id := range []string{pulled.ID, ran.ID, built.ID} {
+	for _, id := range []string{pulled.ID, ran.ID} {
 		if !plan.Keep[id].LastUsedAt.Equal(now) {
 			t.Fatalf("%s used by the job kept %v", id, plan.Keep[id].LastUsedAt)
 		}
@@ -176,11 +179,11 @@ func TestPlanDockerTeardownKeepsContentAndDropsNames(t *testing.T) {
 	if !plan.Keep[recent.ID].LastUsedAt.Equal(saved[recent.ID].LastUsedAt) {
 		t.Fatal("an unused image's last use moved")
 	}
-	wantUntag := []string{"app:latest", "ghcr.io/org/build:jdk-21", "ghcr.io/org/build@sha256:" + strings.Repeat("f", 64)}
+	wantUntag := []string{"ghcr.io/org/build:jdk-21", "ghcr.io/org/build@sha256:" + strings.Repeat("f", 64)}
 	if strings.Join(plan.Untag, ",") != strings.Join(wantUntag, ",") {
 		t.Fatalf("untag %v", plan.Untag)
 	}
-	if len(plan.Tag) != 1 || plan.Tag[0] != built.ID {
+	if len(plan.Tag) != 0 {
 		t.Fatalf("tag %v", plan.Tag)
 	}
 	if !plan.Stale {
@@ -191,7 +194,7 @@ func TestPlanDockerTeardownKeepsContentAndDropsNames(t *testing.T) {
 func TestPlanDockerTeardownLeavesAFreshLedgerAlone(t *testing.T) {
 	now := time.Now()
 	image := dockerImage{ID: dockerID("a"), RepoTags: []string{"postgres:16", dockerInternalReference(dockerID("a"))}}
-	plan := planDockerTeardown([]dockerImage{image}, nil, dockerLedger{image.ID: {LastUsedAt: now.Add(-time.Hour)}}, now)
+	plan := planDockerTeardown([]dockerImage{image}, nil, dockerLedger{image.ID: {LastUsedAt: now.Add(-time.Hour), Pulled: true}}, now)
 	if plan.Stale || len(plan.Tag) != 0 {
 		t.Fatalf("plan %+v", plan)
 	}
@@ -202,8 +205,11 @@ func TestDockerSnapshotDiffers(t *testing.T) {
 	if base.differs(dockerSnapshot{Images: []string{"b", "a"}, BuildCacheBytes: 10}) {
 		t.Fatal("same images in another order differ")
 	}
-	if !base.differs(dockerSnapshot{Images: []string{"a"}, BuildCacheBytes: 10}) || !base.differs(dockerSnapshot{Images: []string{"a", "b"}, BuildCacheBytes: 11}) {
+	if !base.differs(dockerSnapshot{Images: []string{"a"}, BuildCacheBytes: 10}) || !base.differs(dockerSnapshot{Images: []string{"a", "b"}, BuildCacheBytes: 10 + dockerBuildCacheChange}) {
 		t.Fatal("a changed data root did not differ")
+	}
+	if base.differs(dockerSnapshot{Images: []string{"a", "b"}, BuildCacheBytes: 4096}) {
+		t.Fatal("a build context record republished the data root")
 	}
 }
 
@@ -234,5 +240,18 @@ func TestRemainingReferencesIgnoreTheInternalReference(t *testing.T) {
 	tagged := dockerImage{ID: dockerID("c"), RepoTags: []string{"alpine:3.20", dockerInternalReference(dockerID("c"))}}
 	if remaining := remainingReferences([]dockerImage{kept, tagged}); len(remaining) != 1 || remaining[0] != "alpine:3.20" {
 		t.Fatalf("remaining %v", remaining)
+	}
+}
+
+func TestPlanDockerTeardownKeepsAPulledImageNewToTheLedger(t *testing.T) {
+	now := time.Now()
+	pulled := dockerImage{ID: dockerID("a"), RepoTags: []string{"postgres:16"}, RepoDigests: []string{"postgres@sha256:" + strings.Repeat("b", 64)}}
+	loaded := dockerImage{ID: dockerID("c"), RepoTags: []string{"local:dev"}}
+	plan := planDockerTeardown([]dockerImage{pulled, loaded}, nil, dockerLedger{}, now)
+	if entry, kept := plan.Keep[pulled.ID]; !kept || !entry.Pulled || !entry.LastUsedAt.Equal(now) {
+		t.Fatalf("pulled image %+v", plan.Keep)
+	}
+	if len(plan.Remove) != 1 || plan.Remove[0] != loaded.ID {
+		t.Fatalf("removed %v", plan.Remove)
 	}
 }
