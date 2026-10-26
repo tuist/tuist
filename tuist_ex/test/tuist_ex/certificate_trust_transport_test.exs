@@ -59,22 +59,28 @@ defmodule TuistEx.CertificateTrustTransportTest do
   end
 
   test "REAPI uses protected Mint credentials and denies before h2 application data", context do
-    expect(CertificateTrust, :ssl_options, fn ->
-      CertificateTrust.ssl_options([context.root], [spki(context.intermediate)])
-    end)
+    for additional <- [[], [spki(context.intermediate)]] do
+      expect(CertificateTrust, :ssl_options, fn ->
+        CertificateTrust.ssl_options([context.root], additional)
+      end)
 
-    {url, server, listener} = serve(context.configuration)
+      {url, server, listener} = serve(context.configuration, :h2)
 
-    assert {:error, _} =
-             Reapi.connect(
-               url,
-               "synthetic-token",
-               %{account: "account", project: "project"},
-               "build"
-             )
+      result =
+        Reapi.connect(url, "synthetic-token", %{account: "account", project: "project"}, "build")
 
-    assert {:error, {:tls_alert, {_alert, _private_details}}} = Task.await(server, 10_000)
-    :ssl.close(listener)
+      if match?({:ok, _}, result), do: Reapi.close(elem(result, 1))
+      server_result = Task.await(server, 10_000)
+      :ssl.close(listener)
+
+      if additional == [] do
+        # This is a TLS/h2-preface positive, not a successful capabilities RPC.
+        assert {:h2_preface, "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"} = server_result
+      else
+        assert {:error, _} = result
+        assert {:error, {:tls_alert, {_alert, _private_details}}} = server_result
+      end
+    end
   end
 
   defp perform(:request, url, _directory) do
@@ -98,7 +104,7 @@ defmodule TuistEx.CertificateTrustTransportTest do
     assert File.read!(Path.join(directory, "download")) == ~s({"ok":true})
   end
 
-  defp serve(configuration) do
+  defp serve(configuration, protocol \\ :http1) do
     {:ok, listener} =
       :ssl.listen(
         0,
@@ -111,20 +117,10 @@ defmodule TuistEx.CertificateTrustTransportTest do
 
     server =
       Task.async(fn ->
-        with {:ok, socket} <- :ssl.transport_accept(listener, 5_000),
+        with {:ok, socket} <- :ssl.transport_accept(listener, 30_000),
              {:ok, socket} <- :ssl.handshake(socket, 5_000) do
           try do
-            request = receive_request(socket, "")
-            body = ~s({"ok":true})
-
-            :ok =
-              :ssl.send(socket, [
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\netag: test-etag\r\n",
-                "connection: close\r\ncontent-length: #{byte_size(body)}\r\n\r\n",
-                body
-              ])
-
-            {:application_data, request}
+            respond(socket, protocol)
           after
             :ssl.close(socket)
           end
@@ -132,6 +128,25 @@ defmodule TuistEx.CertificateTrustTransportTest do
       end)
 
     {"https://localhost:#{port}", server, listener}
+  end
+
+  defp respond(socket, :h2) do
+    {:ok, preface} = :ssl.recv(socket, 24, 5_000)
+    {:h2_preface, preface}
+  end
+
+  defp respond(socket, :http1) do
+    request = receive_request(socket, "")
+    body = ~s({"ok":true})
+
+    :ok =
+      :ssl.send(socket, [
+        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\netag: test-etag\r\n",
+        "connection: close\r\ncontent-length: #{byte_size(body)}\r\n\r\n",
+        body
+      ])
+
+    {:application_data, request}
   end
 
   defp receive_request(socket, accumulated) do
