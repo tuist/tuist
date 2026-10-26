@@ -182,12 +182,14 @@ and the Kura rules see the same jobs. The new code paths are the Node read
    any, happens together with turning larch's runners on.
 2. **Cache-site grace.** 60 seconds, to be tuned later with queue-time and
    hit-rate data.
-3. **Guest shapes at a second site.** Not assumed. The chart refuses to turn a
-   second site's runners on while its `rackFleet.sites.<site>.runners` sets
-   `guestShapes`, `shapes`, `stackedImages`, `autoscaling`, `rollout` or
-   `xcodeOverrides` differently from `rackFleet.runners`, names its own
-   `nodeFleet`, or the rack's runners are off. Host sizing (`rackFleet.machine`)
-   is fleet-wide already. ber1's minis are M5 Pro (Z1UD001N2: 18-core CPU,
-   64 GB, 2 TB).
+3. **Guest shapes at a second site.** larch's ten minis are the same
+   configuration as ber1's: M5 Pro Z1UD001N2 (18-core CPU, 64 GB, 2 TB). So
+   both racks run the same guests in one pool spanning sites. The chart still
+   refuses to turn a second site's runners on while its
+   `rackFleet.sites.<site>.runners` sets `guestShapes`, `shapes`,
+   `stackedImages`, `autoscaling`, `rollout` or `xcodeOverrides` differently
+   from `rackFleet.runners`, names its own `nodeFleet`, or the rack's runners
+   are off, because one pool has one pod size. Host sizing
+   (`rackFleet.machine`) is fleet-wide already.
 4. **Unreachable Nodes.** The controller retires idle Pods on a Node NotReady
    for two minutes, long enough to ride out a kubelet restart.
