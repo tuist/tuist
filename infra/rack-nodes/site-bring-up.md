@@ -21,7 +21,12 @@ SITE=larch
 1. **The site's data is in.** Each item goes in through a PR to the site file
    or the production values. What is still missing for larch:
    - `larch-tor-b`'s label MAC, its `adopted: true`, and
-     `larch-edge-b`'s `tor_management` (192.168.61.5/30).
+     `larch-edge-b`'s `tor_management` (192.168.61.5/30). This one gates
+     the other ToR: tor-b is first in the site's apply order, and the
+     controller adopts no switch while one before it is not Ready, which a
+     standalone PicOS switch never is. Without it, `larch-tor-a` stays at
+     `Adopted=False/WaitingForApplyOrder`. The first edge's way out does
+     not depend on it: the bootstrap's WAN path needs no controller.
    - The edges' and storage node's unit sheets from primeLine (serial, UUID,
      NIC MACs and TPM check code) as `rackLinuxFleet.hosts` with
      `site: larch`. Until then they have nothing to enrol against.
