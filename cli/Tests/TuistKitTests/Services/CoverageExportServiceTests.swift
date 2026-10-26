@@ -320,6 +320,37 @@ struct CoverageExportServiceTests {
         #expect(targets.map(\.isTest) == [false, true, false, false, false])
     }
 
+    @Test(.inTemporaryDirectory) func findsTheProductsInsideATestProductsBundle() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let testProducts = directory.appending(component: "Lab.xctestproducts")
+        let products = testProducts.appending(components: "Binaries", "0", "Debug")
+        let testBundle = products.appending(component: "CoreTests.xctest")
+        try FileManager.default.createDirectory(
+            atPath: testBundle.appending(components: "Contents", "MacOS").pathString, withIntermediateDirectories: true
+        )
+        try Data("<plist version=\"1.0\"><dict><key>CFBundleExecutable</key><string>CoreTests</string></dict></plist>".utf8)
+            .write(to: URL(fileURLWithPath: testBundle.appending(components: "Contents", "Info.plist").pathString))
+        try Data([0xCF, 0xFA, 0xED, 0xFE])
+            .write(to: URL(fileURLWithPath: testBundle.appending(components: "Contents", "MacOS", "CoreTests").pathString))
+        let sources = CoverageBuildSources(
+            rootDirectories: ["/repo"],
+            files: [:],
+            targets: [CoverageBuildTarget(name: "CoreTests.xctest", isTest: true, files: ["Tests/CoreTests.swift"])]
+        )
+
+        let targets = CoverageExportService.targets(
+            sources,
+            productRoots: CoverageExportService.productRoots(
+                derivedDataDirectory: directory.appending(component: "DerivedData"),
+                testProductsPath: testProducts
+            )
+        )
+
+        #expect(targets.map(\.buildProductPath) == [
+            testBundle.appending(components: "Contents", "MacOS", "CoreTests").pathString,
+        ])
+    }
+
     @Test(.inTemporaryDirectory) func readsTheDebugDylibAndTheHostedTestBundle() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let products = directory.appending(components: "Build", "Products", "Debug")

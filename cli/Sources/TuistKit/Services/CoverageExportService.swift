@@ -159,9 +159,8 @@ public struct CoverageExportService: CoverageExportServicing {
         xcResultService: XCResultServicing
     ) async throws -> [XcodeCoverageTarget]? {
         if let sources = await RunMetadataStorage.current.coverageBuildSources, !sources.targets.isEmpty {
-            var roots: [AbsolutePath] = []
-            if let derivedDataDirectory { roots.append(derivedDataDirectory.appending(components: "Build", "Products")) }
-            if let testProductsPath = await RunMetadataStorage.current.testProductsPath { roots.append(testProductsPath) }
+            let testProductsPath = await RunMetadataStorage.current.testProductsPath
+            let roots = Self.productRoots(derivedDataDirectory: derivedDataDirectory, testProductsPath: testProductsPath)
             return Self.targets(sources, productRoots: roots)
         }
         return try await xcResultService.coverageTargets(path: resultBundlePath)
@@ -459,6 +458,23 @@ public struct CoverageExportService: CoverageExportServicing {
     static func newest(_ profiles: [AbsolutePath], writtenAfter date: Date) -> AbsolutePath? {
         guard let newest = profiles.max(by: { modificationDate($0) < modificationDate($1) }) else { return nil }
         return modificationDate(newest) < date ? nil : newest
+    }
+}
+
+extension CoverageExportService {
+    /// Where the run's products can be: the derived data's products directory, and an
+    /// `.xctestproducts` bundle the run tests without building, which keeps each configuration's
+    /// products in `Binaries/<n>/<configuration>`.
+    static func productRoots(derivedDataDirectory: AbsolutePath?, testProductsPath: AbsolutePath?) -> [AbsolutePath] {
+        var roots: [AbsolutePath] = []
+        if let derivedDataDirectory { roots.append(derivedDataDirectory.appending(components: "Build", "Products")) }
+        if let testProductsPath {
+            let binaries = testProductsPath.appending(component: "Binaries")
+            let indices = (try? FileManager.default.contentsOfDirectory(atPath: binaries.pathString)) ?? []
+            roots.append(testProductsPath)
+            roots.append(contentsOf: indices.sorted().map { binaries.appending(component: $0) })
+        }
+        return roots
     }
 }
 
