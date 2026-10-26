@@ -59,7 +59,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	response := &csi.CreateVolumeResponse{Volume: &csi.Volume{
 		VolumeId:           v.id,
 		CapacityBytes:      capacity,
-		VolumeContext:      map[string]string{encryptionParameter: mode},
+		VolumeContext:      map[string]string{encryptionParameter: mode, "backing": "file"},
 		AccessibleTopology: []*csi.Topology{d.topology()},
 	}}
 
@@ -68,6 +68,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	if size, ok, err := d.lvSize(ctx, v); err != nil {
 		return nil, err
 	} else if ok {
+		response.Volume.VolumeContext["backing"] = "lvm"
 		if size < capacity {
 			return nil, status.Errorf(codes.AlreadyExists, "volume %s exists with %d bytes, requested %d", v.id, size, capacity)
 		}
@@ -89,6 +90,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		return nil, err
 	}
 	if hasVolumeGroup {
+		response.Volume.VolumeContext["backing"] = "lvm"
 		// The volume group belongs to Kura volumes alone, so no reserve is held
 		// back from it.
 		if free < capacity {

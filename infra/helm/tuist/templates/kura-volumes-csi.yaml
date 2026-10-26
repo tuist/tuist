@@ -32,7 +32,12 @@ of the class is left.
 {{- fail "kuraVolumesCSI.image.tag is required: a privileged storage DaemonSet on :latest silently drifts and surfaces in production after the next push to ghcr." }}
 {{- end }}
 {{- $pools := include "tuist.kuraCachePools" . | fromJsonArray }}
-{{- if not $pools }}
+{{- $rackPools := .Values.kuraVolumesCSI.rackPools | default list }}
+{{- $pools = without $pools "" }}
+{{- range $rackPools }}
+{{- $pools = without $pools . }}
+{{- end }}
+{{- if not (or $pools $rackPools) }}
 {{- fail "kuraVolumesCSI.enabled needs at least one Kura cache pool (kuraFleet, ovhFleet, ovhFleets or vultrFleets) to run the node plugin on" }}
 {{- end }}
 {{- $keyServiceUrl := .Values.kuraVolumesCSI.keyServiceUrl | default .Values.server.appUrl }}
@@ -181,6 +186,7 @@ reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: false
 ---
+{{- if $pools }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -340,4 +346,5 @@ spec:
                   audience: kura-volume-keys.tuist.dev
                   expirationSeconds: 600
                   path: token
+{{- end }}
 {{- end }}

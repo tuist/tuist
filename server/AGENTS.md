@@ -191,3 +191,9 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
 
 - Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.
+
+LVM region enrollment encrypts all Kura claims by default and selects the
+extended disk resource. BER1 stays on its legacy class until explicitly
+enrolled after rack plugin/host preparation; the account flag alone cannot
+move it onto file-backed encryption. Desired and rendered manifest revisions
+must include both encryption and LVM enrollment identically.

@@ -1,0 +1,170 @@
+{{- if and .Values.kuraVolumesCSI.enabled .Values.kuraVolumesCSI.rackPools }}
+{{- $namespace := "kura-volumes" }}
+{{- $driver := "kura-volumes.tuist.dev" }}
+{{- $imageTag := required "kuraVolumesCSI.image.tag is required" .Values.kuraVolumesCSI.image.tag }}
+{{- $pools := .Values.kuraVolumesCSI.rackPools }}
+{{- $keyServiceUrl := .Values.kuraVolumesCSI.keyServiceUrl | default .Values.server.appUrl }}
+{{- $pluginDir := printf "/var/lib/kubelet/plugins/%s" $driver }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-volumes-csi-rack
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "rackNodes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kura-volumes-csi-rack
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  # Restarting the plugin leaves live volumes alone: their dm-crypt mappings and
+  # mounts belong to the host, not to the container.
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kura-volumes-csi-rack
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: kura-volumes-csi
+    spec:
+      serviceAccountName: kura-volumes-csi-node
+      priorityClassName: system-node-critical
+      nodeSelector:
+        kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/pool
+                    operator: In
+                    values:
+                      {{- toYaml $pools | nindent 22 }}
+      tolerations:
+        - key: tuist.dev/rack-storage
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/runner-cache
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/kura-cache
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: driver
+          image: "{{ .Values.kuraVolumesCSI.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.kuraVolumesCSI.image.pullPolicy }}
+          args:
+            - --endpoint=unix:///csi/csi.sock
+            - --node-id=$(NODE_NAME)
+            - --state-dir=/data/kura-volumes
+            - --key-service-url={{ $keyServiceUrl }}
+            - --token-path=/var/run/secrets/kura-volume-keys/token
+            {{- with .Values.kuraVolumesCSI.volumeGroup }}
+            - --volume-group={{ . }}
+            {{- end }}
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            # Loop devices, dm-crypt and mounts that propagate back to kubelet.
+            privileged: true
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            # kubelet sees this path; on fleet boxes it is a bind mount of
+            # /data/kubelet, which the hostPath resolves through.
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: Bidirectional
+            - name: state-dir
+              mountPath: /data/kura-volumes
+            - name: dev
+              mountPath: /dev
+            # Shared with the host so its LVM tools and the driver take the same
+            # metadata locks.
+            - name: lvm-lock
+              mountPath: /run/lock/lvm
+            - name: volume-key-token
+              mountPath: /var/run/secrets/kura-volume-keys
+              readOnly: true
+          resources:
+            {{- toYaml .Values.kuraVolumesCSI.resources.driver | nindent 12 }}
+        - name: node-driver-registrar
+          image: {{ .Values.kuraVolumesCSI.nodeDriverRegistrar.image | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - --csi-address=/csi/csi.sock
+            - --kubelet-registration-path={{ $pluginDir }}/csi.sock
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+          resources:
+            {{- toYaml .Values.kuraVolumesCSI.resources.sidecar | nindent 12 }}
+        - name: csi-provisioner
+          image: {{ .Values.kuraVolumesCSI.provisioner.image | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - --csi-address=/csi/csi.sock
+            - --node-deployment=true
+            # Kura claims are WaitForFirstConsumer; no instance races to own an
+            # immediate-binding claim.
+            - --node-deployment-immediate-binding=false
+            - --strict-topology=true
+            - --immediate-topology=false
+            - --extra-create-metadata=true
+            - --feature-gates=Topology=true
+            - --timeout=60s
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+          resources:
+            {{- toYaml .Values.kuraVolumesCSI.resources.sidecar | nindent 12 }}
+      volumes:
+        - name: lvm-lock
+          hostPath:
+            path: /run/lock/lvm
+            type: DirectoryOrCreate
+        - name: socket-dir
+          hostPath:
+            path: {{ $pluginDir }}
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+        - name: kubelet-dir
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: state-dir
+          hostPath:
+            path: /data/kura-volumes
+            type: DirectoryOrCreate
+        - name: dev
+          hostPath:
+            path: /dev
+            type: Directory
+        - name: volume-key-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: kura-volume-keys.tuist.dev
+                  expirationSeconds: 600
+                  path: token
+{{- end }}

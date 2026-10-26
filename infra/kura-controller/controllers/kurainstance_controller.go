@@ -2262,6 +2262,16 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 			}
 		}
 	}
+	if diskResource(instance) == kuraDiskResource {
+		if evacuating == nil {
+			evacuating = map[string]bool{}
+		}
+		for i := range pods {
+			if pods[i].Annotations[lvmRebuildAnnotation] != "" {
+				evacuating[pods[i].Name] = true
+			}
+		}
+	}
 	demoteEvacuatingPods(pods, health, caughtUp, evacuating)
 	return choosePrimaryPod(current, instance.Name, pods, health), evacuating, nil
 }
@@ -3602,6 +3612,17 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 		return true, nil
 	}
 
+	// A migration must respect an operator's pause before deleting either the
+	// StatefulSet or a claim. The controller's own resize hold is not a pause.
+	if len(replacements) > 0 && rolloutPausedByOperator(sts) {
+		return true, nil
+	}
+	// A single live copy cannot be rebuilt without an outage. Enroll another
+	// replica and let it backfill before migrating an LVM region.
+	if len(replacements) > 0 && diskResource(instance) == kuraDiskResource && replicas(instance) < 2 {
+		return true, nil
+	}
+
 	// Re-template by replacing the StatefulSet, orphaning its pods and PVCs.
 	// Orphan propagation strips owner references instead of collecting the
 	// dependents, so the instance goes on serving the volumes it already has
@@ -3631,11 +3652,37 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 		return false, nil
 	}
 
+	// Hold and update the disk reservation before deleting a claim, including
+	// a same-class file-to-LVM migration. Otherwise RollingUpdate can restart
+	// the donor on its old PV with an unsatisfiable extended resource request.
+	if diskResource(instance) == kuraDiskResource {
+		held, err := r.holdRolloutForResize(ctx, instance)
+		if err != nil || !held {
+			return true, err
+		}
+		request := kuraDiskRequest(sts.Spec.Template.Spec, kuraDiskResource)
+		if request.Cmp(desired) != 0 {
+			return true, r.applyStatefulSet(ctx, instance, true)
+		}
+	}
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return false, err
 	}
+	settled := map[int32]bool{}
+	if diskResource(instance) == kuraDiskResource {
+		fresh := r.sampleRuntimeStatuses(ctx, instance, pods.Items)
+		for i := range pods.Items {
+			pod := &pods.Items[i]
+			status, observed := fresh[pod.Name]
+			ordinal, ok := podOrdinal(pod.Name, instance.Name)
+			if ok && pod.DeletionTimestamp == nil && podReady(pod) && observed && !status.invalidObservation && status.Ready && status.BackfillInitialCycle == backfillCycleComplete && status.BackfillBudgetExhaustedRealPeers == 0 {
+				settled[int32(ordinal)] = true
+			}
+		}
+	}
 	serving := map[int32]bool{}
+
 	for i := range pods.Items {
 		if ordinal, ok := podOrdinal(pods.Items[i].Name, instance.Name); ok && podReady(&pods.Items[i]) {
 			serving[int32(ordinal)] = true
@@ -3647,6 +3694,9 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	}
 	othersSettled := func(ordinal int32, tolerateAwaitingRebuild bool) bool {
 		for other := int32(0); other < replicas(instance); other++ {
+			if diskResource(instance) == kuraDiskResource && other != ordinal && !settled[other] {
+				return false
+			}
 			if other == ordinal || serving[other] || (tolerateAwaitingRebuild && awaitingRebuild[other]) {
 				continue
 			}
@@ -3708,6 +3758,18 @@ func (r *KuraInstanceReconciler) dataVolumesToReplace(ctx context.Context, insta
 			})
 			continue
 		}
+		if diskResource(instance) == kuraDiskResource && pvc.Spec.VolumeName != "" {
+			pv := &corev1.PersistentVolume{}
+			if err := r.Get(ctx, types.NamespacedName{Name: pvc.Spec.VolumeName}, pv); err != nil {
+				return nil, false, err
+			}
+			if pv.Spec.CSI == nil || pv.Spec.CSI.Driver != "kura-volumes.tuist.dev" || pv.Spec.CSI.VolumeAttributes["backing"] != "lvm" {
+				replacements = append(replacements, dataVolumeReplacement{
+					ordinal: ordinal, claim: pvc, reason: "volume has no verified LVM backing",
+				})
+				continue
+			}
+		}
 		if bound, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]; ok && bound.Cmp(desired) < 0 {
 			replacements = append(replacements, dataVolumeReplacement{
 				ordinal: ordinal, claim: pvc,
@@ -3719,6 +3781,12 @@ func (r *KuraInstanceReconciler) dataVolumesToReplace(ctx context.Context, insta
 }
 
 func (r *KuraInstanceReconciler) rebuildDataVolume(ctx context.Context, instance *kurav1alpha1.KuraInstance, volume dataVolumeReplacement, serving bool) error {
+	if diskResource(instance) == kuraDiskResource {
+		ready, err := r.lvmHandoverReady(ctx, instance, volume.ordinal)
+		if err != nil || !ready {
+			return err
+		}
+	}
 	log.FromContext(ctx).Info(
 		"rebuilding one Kura data volume",
 		"pvc", volume.claim.Name, "reason", volume.reason, "serving", serving,
@@ -3960,6 +4028,17 @@ func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, ins
 	desiredStorageClass := ""
 	if fencedServing(instance) {
 		desiredStorageClass = instance.Spec.StorageClassName
+	}
+	if fencedServing(instance) && diskResource(instance) == kuraDiskResource {
+		replacements, _, err := r.dataVolumesToReplace(ctx, instance, storageQuantity(instance))
+		if err != nil {
+			return "", err
+		}
+		for _, volume := range replacements {
+			if volume.reason == "volume has no verified LVM backing" {
+				return fmt.Sprintf("data PVC %s requires explicit LVM replica recovery", volume.claim.Name), nil
+			}
+		}
 	}
 	stsGone, err := r.statefulSetAbsent(ctx, instance)
 	if err != nil {

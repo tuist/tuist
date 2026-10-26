@@ -231,3 +231,11 @@ The controller image also packages the stateless `cmd/cache-activation` gateway,
   Pending-pod shrink recovery and resize holds must compare the selected disk
   resource and preserve operator pauses. `kura-lvm-nvme` is node-local just
   like the encrypted class. See [LVM rollout](../kura-volumes-csi/lvm-rollout.md).
+
+LVM enrollment treats a PVC without CSI `backing: lvm` evidence as a storage
+migration even when its class is unchanged. Hold the template before changing
+its disk request; respect operator pauses and refuse destructive migration of a
+single replica. Before each deletion require fresh Ready/completed-backfill
+reports from its siblings. Mark `kura.tuist.dev/lvm-rebuild` on the outgoing pod,
+demote it from client and peer roles, and wait for observed endpoint handoff.
+Positive-fence backing migrations remain explicit recovery holds.
