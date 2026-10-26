@@ -1702,7 +1702,11 @@ belongs to the box, whose AMT keeps the password.
 (`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
 reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
-the management port's networkd file, `/etc/tuist/kubernetes-api`, the
+the management port's networkd file (on a host with AMT only: one that names
+its AMT, is a model in `--rack-linux-amt-products`, or whose AMT the operator
+has read; it keeps the boot NIC AMT shares up with `ARP=no` and no address, and
+a host with a BMC of its own, whose boot NIC is the host's, gets none),
+`/etc/tuist/kubernetes-api`, the
 translation of the kubernetes Service to the API server in
 `/etc/tuist/kubernetes-service.nft`, an edge's host networking below), the
 directories it needs, the exact kubelet release the control plane runs and the
