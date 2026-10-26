@@ -66,6 +66,17 @@ must agree on cohort membership across reconciliation. A one-off Node relabel
 that CAPI can overwrite is not isolation. Do not delete/reinstall a live
 Machine as a shortcut. Keep enough healthy ordinary capacity for other accounts.
 
+Staging and canary target **one RISE-M each** to limit cost. One physical host
+cannot serve both isolated cohorts concurrently. Qualify the ordinary path,
+drain all jobs and pollers, then move that host's persistent CAPI membership
+and network configuration to the vRack cohort for enrolled-account tests.
+Restore the ordinary cohort after draining the vRack tests. Excluded-account
+jobs must never fall through to the enrolled host; they will queue while
+ordinary capacity is absent. Schedule these as controlled non-production
+maintenance windows. Production keeps separate capacity for simultaneous
+enrolled and excluded-account validation. The account flag alone does not
+switch a host's cohort or routes.
+
 To roll back account exposure, disable the flag for the Tuist actor and verify
 new jobs select ordinary pools. No active job is migrated and no cache is
 deleted; already-queued jobs may still use their recorded vRack pool. Keep the
@@ -113,12 +124,13 @@ transition using the previously deployed server before deploying the refactor:
 5. Before enrollment, separate the existing vRack-enrolled RISE-M from ordinary
    runner scheduling as described above. The ordinary fleet template intentionally
    has no vRack ID, so future ordinary hosts stay unenrolled. Require usable
-   ordinary capacity before enabling the Tuist actor flag. Run fresh regional
-   smoke jobs for both the enrolled account and an excluded account, verifying
-   their actual runner Nodes and network paths. Keep the RISE-S runner
-   cordoned until its unrelated retained fixtures are resolved; this refactor
-   does not retire it. Preserve the prepared RISE-M runner and its existing
-   `pn-2023588` enrollment.
+   ordinary capacity for concurrent tests, or use the sequential single-host
+   procedure above. Run fresh regional smoke jobs for both the enrolled account
+   and an excluded account, verifying their actual runner Nodes and network
+   paths. The legacy RISE-S fixtures were moved to the existing Gravelines
+   cache host on 2026-10-26; staging now targets one RISE-M. Preserve that
+   prepared runner and account for its existing `pn-2023588` enrollment before
+   allowing ordinary jobs onto it.
 
 This revision prepares configuration and code, not an automatic data migration.
 No live instance, Machine, volume, flag or OVH contract is changed by editing
@@ -228,7 +240,40 @@ to initiate and approve production JIT elevation.
 Canary's current SYS-1 cache is in Canada and its Gravelines RISE-S runner lacks
 vRack. Its pool definitions and account gate match staging and production, but
 leave the flag off until compatible, isolated capacity is qualified in canary.
-An enabled flag with no eligible hosts would leave jobs queued. Evaluate spare
-capacity first; no new order is planned. Do not bridge environments to simulate
-the topology. Configuration parity is not live transport validation: each
-environment still needs enrolled/excluded-account runs and path verification.
+An enabled flag with no eligible hosts would leave jobs queued. The replacement
+plan is one user-ordered RISE-M in Gravelines (64 GB RAM, 2 × 512 GB NVMe,
+1 Gbps private bandwidth), then retire the RISE-S after draining its workloads.
+No second runner or dedicated cache-host order is required for that plan.
+Do not bridge environments to simulate the topology. Configuration parity is
+not live transport validation: each environment still needs enrolled/excluded-
+account runs and path verification, sequentially with a single runner host.
+
+## Staging fixture preservation, 2026-10-26
+
+Before retiring `ns340020.ip-37-187-143.eu`, both remaining fixture replicas
+were moved from the RISE-S to the existing Gravelines cache host:
+
+- `kura-spec98/kura-matrix-oct22d`: planned handover verified 316,078 retained
+  records, revoked the old writer, and moved serving authority to ordinal 0.
+  Supported replica recovery rebuilt ordinal 1 on Gravelines and reached
+  `Verified`; both replicas are Ready with initial backfill complete. A fresh
+  synthetic PUT returned 204 and GET returned 200 with the expected value.
+- `kura-spec98/kura-handover-oct9`: its standby exited cleanly, then its 32 MB
+  volume was copied cold within staging. All 22 file checksums matched before
+  restarting ordinal 1 on Gravelines with its existing `0.58.0-canary.13`
+  runtime. Both replicas are Ready. The pre-existing expired epoch-3 `Fencing`
+  grant remains unchanged; this migration does not repair that fixture's
+  unavailable serving authority or reset its durable floor. The instance's
+  template and fenced image pin now match that standby runtime; OnDelete
+  preserves ordinal 0's existing runtime.
+
+The original matrix and handover volumes, plus an older released quarantine
+from `kura-spec98-final-1`, have checksum-verified archives on the Gravelines
+cache host in PVC `kura-spec98/rise-s-migrate-matrix-oct22d` (PV reclaim policy
+`Retain`). `rise-s-retirement-backups` in that namespace records the archive
+names and SHA-256 hashes. Preserve these archives until explicitly cleaned up;
+the quarantined archive retains its unclean-primary marker and is not a volume
+to start as a writer. Temporary copy pods, their NetworkPolicy and the pod
+finalizer used during the cold move were removed. Host release wipes local
+disks, so the retained archives are the preservation copies after retirement.
+Removing the Machine does not cancel the OVH monthly contract.

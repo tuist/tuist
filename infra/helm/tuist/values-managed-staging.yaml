@@ -676,8 +676,8 @@ ovhFleets:
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
-  # Migrate the existing RISE-S to the prepared vRack-capable RISE-M.
-  # OnDelete retains the old Machine while the second host is qualified.
+  # Keep one RISE-M after moving retained fixtures off the legacy RISE-S.
+  # With one host, ordinary/vRack qualification runs sequentially after drain.
   runners-linux:
     enabled: true
     # MUST equal the number of boxes prepped and marked for this env. Too high
@@ -685,7 +685,7 @@ ovhFleets:
     # --atomic rollback; too low leaves an ordered box billing with nothing
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
-    replicas: 2
+    replicas: 1
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single

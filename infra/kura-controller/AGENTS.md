@@ -174,6 +174,12 @@ no account or Machine is enrolled automatically. `spec.vRackID` opts in a whole
 host; ordinary hosts must remain unenrolled. Preserve cohort membership in
 CAPI as well as live Node labels before enabling only the Tuist actor flag.
 Drain all ordinary pollers and claimed jobs before changing cohort membership.
+Staging and canary target one RISE-M each: qualify ordinary and vRack paths
+sequentially across drained cohort/network transitions. With no ordinary host,
+excluded jobs queue; never relax isolation to make them run. Production needs
+concurrent ordinary capacity. The staging RISE-S fixtures have been moved to
+the Gravelines cache host with verified archives retained; the runbook records
+the preserved older fixture's pre-existing fenced state and backup location.
 Do not create a second logical region on the public pool: storage
 reservations are accounted by region. Preserve macOS private-cache behavior.
 
