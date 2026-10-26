@@ -98,6 +98,7 @@ This directory contains database migrations and other private assets.
   `test/tuist/shards/immutable_report_preflight_test.exs`).
 - Add marketing changelog entries only for customer-facing product changes that are ready to announce.
 - Do not add product changelog entries for ops-only, admin-only, internal rollout, infrastructure-only, or otherwise unannounced functionality.
+- Restore the image-cache announcement from #14725 only after the `:runner_docker_cache` rollout reaches general availability. Use the actual announcement date; the Linux profile's default-on `docker_cache` setting does not mean the account feature flag is enabled. The existing screenshot can be reused.
 
 ## Related Context
 
