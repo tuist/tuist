@@ -506,6 +506,15 @@ third-party graph. Mounted cache directories are emptied in place, never
 removed. Keep the registry proxy, the resolve retry and the
 `cli-linux-<arch>-artifacts` names that `publish-cli` merges.
 
+## Android emulator macOS smoke
+
+`workflows/android-emulator-macos.yml` is a manual build/launch/record probe on
+`tuist-macos`, with a standalone Java fixture and bounded emulator driver in
+[`scripts/android-emulator-smoke/`](scripts/android-emulator-smoke/AGENTS.md).
+SwiftShader is the default GPU backend; host GPU is an explicit comparison mode.
+Keep HVF/nested-virtualization failures distinct from GPU failures, and upload
+available diagnostics on failure. This is not part of the production Android CI.
+
 ## Runners acceptance
 
 `workflows/runners-acceptance.yml` runs a job on each Tuist Runners fleet of an

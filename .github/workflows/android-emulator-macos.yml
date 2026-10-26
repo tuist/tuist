@@ -1,0 +1,76 @@
+name: Android Emulator on macOS
+
+on:
+  push:
+    branches: [feat/android-emulator-gpu-ci-pipeline]
+    paths:
+      - .github/workflows/android-emulator-macos.yml
+      - .github/scripts/android-emulator-smoke/**
+  workflow_dispatch:
+    inputs:
+      gpu:
+        description: Renderer (SwiftShader avoids relying on the VM's GPU)
+        type: choice
+        options: [swiftshader, host]
+        default: swiftshader
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Build, launch and record Android
+    runs-on: tuist-macos
+    timeout-minutes: 25
+    env:
+      GPU_MODE: ${{ inputs.gpu || 'swiftshader' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable emulator and artifact directories
+        run: |
+          mkdir -p "$RUNNER_TEMP/android-smoke-avd" "$RUNNER_TEMP/android-smoke-output"
+          echo "ANDROID_AVD_HOME=$RUNNER_TEMP/android-smoke-avd" >> "$GITHUB_ENV"
+          echo "SMOKE_OUTPUT=$RUNNER_TEMP/android-smoke-output" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android build and emulator tools
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" \
+            "emulator" "system-images;android-35;google_apis;arm64-v8a"
+          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+          brew install ffmpeg
+      - name: Build the standalone demo app
+        run: |
+          bash android/gradlew -p .github/scripts/android-emulator-smoke \
+            --no-daemon --console=plain assembleDebug
+          mkdir -p "$SMOKE_OUTPUT"
+          cp .github/scripts/android-emulator-smoke/build/outputs/apk/debug/*-debug.apk \
+            "$SMOKE_OUTPUT/demo.apk"
+      - name: Boot emulator, run app and record video
+        timeout-minutes: 8
+        run: python3 .github/scripts/android-emulator-smoke/run.py
+      - name: Upload video, screenshot, APK and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-macos-${{ inputs.gpu || 'swiftshader' }}
+          path: ${{ env.SMOKE_OUTPUT }}
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Link the recording
+        if: success()
+        run: |
+          {
+            echo '## Android emulator on Tuist macOS'
+            echo "Renderer: \`$GPU_MODE\`. CPU acceleration: Hypervisor.framework."
+            echo "Download the \`android-macos-$GPU_MODE\` artifact below and open \`demo.mp4\`."
+            echo 'The app animates continuously and counts three injected taps.'
+          } >> "$GITHUB_STEP_SUMMARY"
