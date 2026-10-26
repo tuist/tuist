@@ -13,7 +13,6 @@ defmodule Tuist.Tests.FlakinessEvidence do
 
   @minimum_crashes 20
   @minimum_modules 2
-  @reason "correlated_runner_crash"
   @crash_messages [
     "Crash: xctest",
     "Crash: xctest at static xctest.main()",
@@ -45,15 +44,14 @@ defmodule Tuist.Tests.FlakinessEvidence do
       end
 
     # Always overwrite this server-owned decision, including when a caller
-    # supplies a reason or the report contains no correlated crash evidence.
+    # supplies a flag or the report contains no correlated crash evidence.
     Map.put(attrs, :test_modules, Enum.map(modules, &annotate_module(&1, excluded)))
   end
 
   defp annotate_module(module, excluded) do
     Map.update(module, :test_cases, [], fn test_cases ->
       Enum.map(test_cases, fn test_case ->
-        reason = if MapSet.member?(excluded, identity(module, test_case)), do: @reason, else: ""
-        Map.put(test_case, :flakiness_exclusion_reason, reason)
+        Map.put(test_case, :is_flakiness_excluded, MapSet.member?(excluded, identity(module, test_case)))
       end)
     end)
   end

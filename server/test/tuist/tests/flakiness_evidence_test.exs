@@ -11,10 +11,10 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
 
     assert Enum.all?(
              cases(annotated),
-             &(&1.flakiness_exclusion_reason == "correlated_runner_crash")
+             &(&1.is_flakiness_excluded == true)
            )
 
-    assert Enum.map(cases(annotated), &Map.delete(&1, :flakiness_exclusion_reason)) ==
+    assert Enum.map(cases(annotated), &Map.delete(&1, :is_flakiness_excluded)) ==
              cases(report)
   end
 
@@ -22,13 +22,13 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
     for report <- [report(19, 2), report(435, 1)] do
       assert Enum.all?(
                cases(FlakinessEvidence.annotate(report)),
-               &(&1.flakiness_exclusion_reason == "")
+               &(&1.is_flakiness_excluded == false)
              )
     end
 
     assert Enum.all?(
              cases(FlakinessEvidence.annotate(report(20, 2))),
-             &(&1.flakiness_exclusion_reason != "")
+             &(&1.is_flakiness_excluded == true)
            )
 
     duplicate = %{name: "Module", test_cases: List.duplicate(crash(1), 30)}
@@ -36,7 +36,7 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
 
     assert Enum.all?(
              cases(FlakinessEvidence.annotate(report)),
-             &(&1.flakiness_exclusion_reason == "")
+             &(&1.is_flakiness_excluded == false)
            )
   end
 
@@ -64,10 +64,10 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
 
     assert Enum.all?(
              List.last(annotated.test_modules).test_cases,
-             &(&1.flakiness_exclusion_reason == "")
+             &(&1.is_flakiness_excluded == false)
            )
 
-    assert Enum.count(cases(annotated), &(&1.flakiness_exclusion_reason != "")) == 20
+    assert Enum.count(cases(annotated), &(&1.is_flakiness_excluded == true)) == 20
   end
 
   test "a crash followed by a successful in-report retry is excluded only with zero-duration failed attempts" do
@@ -82,14 +82,14 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
 
     assert Enum.all?(
              cases(FlakinessEvidence.annotate(report)),
-             &(&1.flakiness_exclusion_reason != "")
+             &(&1.is_flakiness_excluded == true)
            )
 
     measured = map_cases(report, &Map.put(&1, :repetitions, [%{status: "failure", duration: 1}]))
 
     assert Enum.all?(
              cases(FlakinessEvidence.annotate(measured)),
-             &(&1.flakiness_exclusion_reason == "")
+             &(&1.is_flakiness_excluded == false)
            )
   end
 
@@ -99,25 +99,30 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
         20
         |> report(2)
         |> Map.put(:build_system, build_system)
-        |> map_cases(&Map.put(&1, :flakiness_exclusion_reason, "forged"))
+        |> map_cases(&Map.put(&1, :is_flakiness_excluded, true))
 
       assert Enum.all?(
                cases(FlakinessEvidence.annotate(report)),
-               &(&1.flakiness_exclusion_reason == "")
+               &(&1.is_flakiness_excluded == false)
              )
     end
 
-    report = map_cases(report(1, 1), &Map.put(&1, :flakiness_exclusion_reason, "forged"))
+    report = map_cases(report(1, 1), &Map.put(&1, :is_flakiness_excluded, true))
 
     assert Enum.all?(
              cases(FlakinessEvidence.annotate(report)),
-             &(&1.flakiness_exclusion_reason == "")
+             &(&1.is_flakiness_excluded == false)
            )
   end
 
   test "remote xcresult reports can omit timing that the CLI encodes as zero" do
     report = map_cases(report(20, 2), &Map.delete(&1, :duration))
-    assert Enum.all?(cases(FlakinessEvidence.annotate(report)), &(&1.flakiness_exclusion_reason != ""))
+    assert Enum.all?(cases(FlakinessEvidence.annotate(report)), &(&1.is_flakiness_excluded == true))
+  end
+
+  test "a caller cannot clear a server-derived exclusion" do
+    report = map_cases(report(20, 2), &Map.put(&1, :is_flakiness_excluded, false))
+    assert Enum.all?(cases(FlakinessEvidence.annotate(report)), & &1.is_flakiness_excluded)
   end
 
   test "parameterized retry diagnostics participate and any genuine failure keeps the case eligible" do
@@ -136,7 +141,7 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
 
     assert Enum.all?(
              cases(FlakinessEvidence.annotate(report)),
-             &(&1.flakiness_exclusion_reason != "")
+             &(&1.is_flakiness_excluded == true)
            )
 
     report =
@@ -150,7 +155,7 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
 
     assert Enum.all?(
              cases(FlakinessEvidence.annotate(report)),
-             &(&1.flakiness_exclusion_reason == "")
+             &(&1.is_flakiness_excluded == false)
            )
   end
 
@@ -168,7 +173,7 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
 
     assert Enum.all?(
              Enum.filter(hd(annotated.test_modules).test_cases, &(&1.name == ordinary.name)),
-             &(&1.flakiness_exclusion_reason == "")
+             &(&1.is_flakiness_excluded == false)
            )
   end
 
@@ -184,7 +189,7 @@ defmodule Tuist.Tests.FlakinessEvidenceTest do
         })
       end)
 
-    assert Enum.all?(cases(FlakinessEvidence.annotate(report)), &(&1.flakiness_exclusion_reason == ""))
+    assert Enum.all?(cases(FlakinessEvidence.annotate(report)), &(&1.is_flakiness_excluded == false))
   end
 
   defp report(count, modules) do

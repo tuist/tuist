@@ -42,11 +42,11 @@ defmodule Tuist.Tests.TestCaseRunTest do
     end
 
     test "preserves the server-derived evidence exclusion and defaults old reports to eligible" do
-      attrs = Map.put(@valid_attrs, :flakiness_exclusion_reason, "correlated_runner_crash")
+      attrs = Map.put(@valid_attrs, :is_flakiness_excluded, true)
       changeset = TestCaseRun.create_changeset(%TestCaseRun{}, attrs)
       assert changeset.valid?
-      assert changeset.changes.flakiness_exclusion_reason == "correlated_runner_crash"
-      assert TestCaseRun.create_changeset(%TestCaseRun{}, @valid_attrs).data.flakiness_exclusion_reason == ""
+      assert changeset.changes.is_flakiness_excluded == true
+      assert TestCaseRun.create_changeset(%TestCaseRun{}, @valid_attrs).data.is_flakiness_excluded == false
     end
 
     test "accepts status 'failure'" do

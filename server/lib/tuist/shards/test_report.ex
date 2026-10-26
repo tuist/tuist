@@ -97,7 +97,7 @@ defmodule Tuist.Shards.TestReport do
 
   defp without_local_metadata(%{} = value) do
     value
-    |> Map.drop([:flakiness_exclusion_reason, "flakiness_exclusion_reason"])
+    |> Map.drop([:is_flakiness_excluded, "is_flakiness_excluded"])
     |> Map.new(fn
       {key, %{} = report} when key in [:crash_report, "crash_report"] ->
         {key, Map.drop(report, [:file_path, "file_path"])}

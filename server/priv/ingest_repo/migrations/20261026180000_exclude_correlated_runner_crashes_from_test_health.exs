@@ -7,22 +7,22 @@ defmodule Tuist.IngestRepo.Migrations.ExcludeCorrelatedRunnerCrashesFromTestHeal
   def up do
     execute("""
     ALTER TABLE test_case_runs ADD COLUMN IF NOT EXISTS
-      flakiness_exclusion_reason LowCardinality(String) DEFAULT ''
+      is_flakiness_excluded Bool DEFAULT false
     """)
 
-    update_evidence_queries(" AND flakiness_exclusion_reason = ''")
+    update_evidence_queries(" AND is_flakiness_excluded = false")
     update_reported_runs("shard_report_id")
   end
 
   def down do
     update_evidence_queries("")
-    update_reported_runs("shard_report_id, flakiness_exclusion_reason")
-    execute("ALTER TABLE test_case_runs DROP COLUMN IF EXISTS flakiness_exclusion_reason")
+    update_reported_runs("shard_report_id, is_flakiness_excluded")
+    execute("ALTER TABLE test_case_runs DROP COLUMN IF EXISTS is_flakiness_excluded")
     update_reported_runs("shard_report_id")
   end
 
   # Extend the existing evidence filters in place. No historical rewrite:
-  # old reports retain their empty reason, and rolling deployments keep working.
+  # old reports retain their false exclusion flag, and rolling deployments keep working.
   defp update_evidence_queries(condition) do
     execute("""
     ALTER TABLE test_case_runs_by_commit_mv MODIFY QUERY

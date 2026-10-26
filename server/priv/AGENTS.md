@@ -2,7 +2,7 @@
 
 This directory contains database migrations and other private assets.
 
-- Correlated runner-crash exclusions add a default-empty reason to case executions and filter future commit/automation evidence. Preserve existing provenance filters and historical aggregate states; migrate all ClickHouse deployments before rolling out writers. Roll back application writers before dropping the column.
+- Correlated runner-crash exclusions add a default-false boolean exclusion flag to case executions and filter future commit/automation evidence. Preserve existing provenance filters and historical aggregate states; migrate all ClickHouse deployments before rolling out writers. Roll back application writers before dropping the column.
 
 ## Origin integration
 

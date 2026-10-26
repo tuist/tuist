@@ -787,7 +787,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 1, :second)),
       run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 2, :second)),
       run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 3, :second),
-        flakiness_exclusion_reason: "correlated_runner_crash",
+        is_flakiness_excluded: true,
         status: "failure"
       )
     ])

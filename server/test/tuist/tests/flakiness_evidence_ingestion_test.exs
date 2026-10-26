@@ -20,7 +20,7 @@ defmodule Tuist.Tests.FlakinessEvidenceIngestionTest do
     assert Enum.all?(
              case_runs(failed),
              &(&1.status == "failure" and not &1.is_flaky and
-                 &1.flakiness_exclusion_reason == "correlated_runner_crash")
+                 &1.is_flakiness_excluded == true)
            )
 
     for table <- [
@@ -42,7 +42,7 @@ defmodule Tuist.Tests.FlakinessEvidenceIngestionTest do
 
     assert Enum.all?(
              case_runs(passed),
-             &(not &1.is_flaky and &1.flakiness_exclusion_reason == "")
+             &(not &1.is_flaky and &1.is_flakiness_excluded == false)
            )
 
     assert Enum.all?(case_runs(failed), &(not &1.is_flaky))
@@ -89,7 +89,7 @@ defmodule Tuist.Tests.FlakinessEvidenceIngestionTest do
 
     assert Enum.all?(
              case_runs(run),
-             &(not &1.is_flaky and &1.flakiness_exclusion_reason == "correlated_runner_crash")
+             &(not &1.is_flaky and &1.is_flakiness_excluded == true)
            )
 
     assert %{rows: [[20]]} =
