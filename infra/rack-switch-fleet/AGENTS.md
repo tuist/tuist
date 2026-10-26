@@ -1785,7 +1785,7 @@ edge's first onboard port. The edge node says so:
 
 ```json
 {"name": "larch-edge-a", "role": "edge", "hardware": "rs501a-e12",
- "tor_management": {"switch": "larch-r1-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
+ "tor_management": {"switch": "larch-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
 ```
 
 The ToR's `mgmt_address` is the other host on that /30, and its `mac` is the

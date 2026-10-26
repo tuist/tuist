@@ -38,6 +38,7 @@ defmodule Tuist.OnceEvents.Run do
     field :root_graph_digest, :map, default: %{}
     field :effective_limits, :map, default: %{}
     field :command_display, :string
+    field :test_context, :map, default: %{}
 
     field :finalization, :string, default: "active"
     field :exit_status, :integer

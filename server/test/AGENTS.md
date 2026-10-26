@@ -139,3 +139,5 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Mimic creates original-module copies lazily on the first stub, expect or reject. Before any mock is installed, call the real module directly for sanity checks; use `Mimic.call_original/3` only after mocking is initialized, such as inside a counting expectation. Run these regressions alone as well as in suites to catch order dependencies.
 - Cold activation coverage must continue past regional readiness, synchronize stable intent without a minute tick, reject stale generations, stop for ineligible instances, and retain a bounded polling budget across snoozes and transient API failures.
+
+- Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.

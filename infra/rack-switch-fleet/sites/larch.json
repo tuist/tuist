@@ -1,6 +1,6 @@
 {
   "site": "larch",
-  "location": "NTT Berlin 1, rack r1. NTT calls this campus BER1; our ber1 site is at NTT's BER2 campus",
+  "location": "NTT Berlin 1, rack 2. NTT calls this campus BER1; our ber1 rack is at NTT's BER2 campus",
   "credentials": {
     "username": "tuist"
   },
@@ -127,14 +127,14 @@
   },
   "devices": [
     {
-      "name": "larch-r1-tor-b",
+      "name": "larch-tor-b",
       "role": "tor",
       "model": "s5860-24xmg",
       "mgmt_address": "192.168.61.6",
       "credential_item": "rack-switch-controller picos admin",
       "console_baud": 115200,
       "apply_order": 1,
-      "apply_note": "Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-r1-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.",
+      "apply_note": "Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.",
       "adopted": false,
       "feeds": [
         "feed-a",
@@ -144,15 +144,15 @@
       "ports": {
         "25": {
           "purpose": "isl",
-          "peer": "larch-r1-tor-a",
+          "peer": "larch-tor-a",
           "media": "dac",
-          "description": "isl larch-r1-tor-a"
+          "description": "isl larch-tor-a"
         },
         "26": {
           "purpose": "isl",
-          "peer": "larch-r1-tor-a",
+          "peer": "larch-tor-a",
           "media": "dac",
-          "description": "isl larch-r1-tor-a"
+          "description": "isl larch-tor-a"
         },
         "27": {
           "purpose": "wan",
@@ -166,7 +166,7 @@
       "lags": [
         {
           "id": 1,
-          "name": "isl larch-r1-tor-a",
+          "name": "isl larch-tor-a",
           "ports": [
             25,
             26
@@ -175,7 +175,7 @@
       ]
     },
     {
-      "name": "larch-r1-tor-a",
+      "name": "larch-tor-a",
       "role": "tor",
       "model": "s5860-24xmg",
       "mgmt_address": "192.168.61.2",
@@ -183,7 +183,7 @@
       "credential_item": "rack-switch-controller picos admin",
       "console_baud": 115200,
       "apply_order": 2,
-      "apply_note": "Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to larch-r1-tor-b and the rack is still up.",
+      "apply_note": "Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to larch-tor-b and the rack is still up.",
       "adopted": true,
       "feeds": [
         "feed-a",
@@ -193,15 +193,15 @@
       "ports": {
         "25": {
           "purpose": "isl",
-          "peer": "larch-r1-tor-b",
+          "peer": "larch-tor-b",
           "media": "dac",
-          "description": "isl larch-r1-tor-b"
+          "description": "isl larch-tor-b"
         },
         "26": {
           "purpose": "isl",
-          "peer": "larch-r1-tor-b",
+          "peer": "larch-tor-b",
           "media": "dac",
-          "description": "isl larch-r1-tor-b"
+          "description": "isl larch-tor-b"
         },
         "27": {
           "purpose": "wan",
@@ -214,7 +214,7 @@
       "lags": [
         {
           "id": 1,
-          "name": "isl larch-r1-tor-b",
+          "name": "isl larch-tor-b",
           "ports": [
             25,
             26
@@ -229,28 +229,28 @@
       "role": "edge",
       "hardware": "rs501a-e12",
       "status": "planned",
-      "note": "The first ASUS unit (TAS0CG000177), benched 25 Oct 2026. The preferred edge. Each N225P port is an SFP28 DAC to one ToR; its first onboard port is larch-r1-tor-a's management port, and larch-r1-tor-a's console is on its USB. Its BMC is on larch-r1-tor-b, the opposite ToR.",
+      "note": "The first ASUS unit (TAS0CG000177), benched 25 Oct 2026. The preferred edge. Each N225P port is an SFP28 DAC to one ToR; its first onboard port is larch-tor-a's management port, and larch-tor-a's console is on its USB. Its BMC is on larch-tor-b, the opposite ToR.",
       "feeds": [
         "feed-a",
         "feed-b"
       ],
       "links": [
         {
-          "switch": "larch-r1-tor-a",
+          "switch": "larch-tor-a",
           "port": 29,
           "media": "dac",
           "nic": "n225p-1",
           "purpose": "data"
         },
         {
-          "switch": "larch-r1-tor-b",
+          "switch": "larch-tor-b",
           "port": 29,
           "media": "dac",
           "nic": "n225p-2",
           "purpose": "data"
         },
         {
-          "switch": "larch-r1-tor-b",
+          "switch": "larch-tor-b",
           "port": 28,
           "media": "copper",
           "nic": "bmc",
@@ -258,7 +258,7 @@
         }
       ],
       "tor_management": {
-        "switch": "larch-r1-tor-a",
+        "switch": "larch-tor-a",
         "nic": "lan1",
         "address": "192.168.61.1/30"
       }
@@ -268,28 +268,28 @@
       "role": "edge",
       "hardware": "rs501a-e12",
       "status": "planned",
-      "note": "The second edge, standby to larch-edge-a. Cabled the mirror way: its first onboard port is larch-r1-tor-b's management port, larch-r1-tor-b's console is on its USB, and its BMC is on larch-r1-tor-a.",
+      "note": "The second edge, standby to larch-edge-a. Cabled the mirror way: its first onboard port is larch-tor-b's management port, larch-tor-b's console is on its USB, and its BMC is on larch-tor-a.",
       "feeds": [
         "feed-a",
         "feed-b"
       ],
       "links": [
         {
-          "switch": "larch-r1-tor-a",
+          "switch": "larch-tor-a",
           "port": 30,
           "media": "dac",
           "nic": "n225p-1",
           "purpose": "data"
         },
         {
-          "switch": "larch-r1-tor-b",
+          "switch": "larch-tor-b",
           "port": 30,
           "media": "dac",
           "nic": "n225p-2",
           "purpose": "data"
         },
         {
-          "switch": "larch-r1-tor-a",
+          "switch": "larch-tor-a",
           "port": 28,
           "media": "copper",
           "nic": "bmc",
@@ -302,21 +302,21 @@
       "role": "storage",
       "hardware": "rs501a-e12",
       "status": "planned",
-      "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to larch-r1-tor-a over SFP28. Its BMC is on larch-r1-tor-b copper port 22, so losing larch-r1-tor-a still leaves its out-of-band path: ports 29 to 32 are one speed group on the S5860, and a 1G module there would not commit beside the 25G edge legs.",
+      "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to larch-tor-a over SFP28. Its BMC is on larch-tor-b copper port 22, so losing larch-tor-a still leaves its out-of-band path: ports 29 to 32 are one speed group on the S5860, and a 1G module there would not commit beside the 25G edge legs.",
       "feeds": [
         "feed-a",
         "feed-b"
       ],
       "links": [
         {
-          "switch": "larch-r1-tor-a",
+          "switch": "larch-tor-a",
           "port": 31,
           "media": "dac",
           "nic": "n225p-1",
           "purpose": "data"
         },
         {
-          "switch": "larch-r1-tor-b",
+          "switch": "larch-tor-b",
           "port": 22,
           "media": "copper",
           "nic": "bmc",
@@ -325,16 +325,16 @@
       ]
     },
     {
-      "name": "larch-r1-ats-a",
+      "name": "larch-ats-a",
       "role": "power",
       "hardware": "eats16n",
       "status": "planned",
-      "note": "Chain A: its C19 output feeds larch-r1-pdu-a and nothing else. Prefers feed A. Its card is on larch-r1-tor-b, opposite the minis it powers.",
+      "note": "Chain A: its C19 output feeds larch-pdu-a and nothing else. Prefers feed A. Its card is on larch-tor-b, opposite the minis it powers.",
       "preferred_source": 1,
       "mgmt_address": "192.168.60.14",
       "links": [
         {
-          "switch": "larch-r1-tor-b",
+          "switch": "larch-tor-b",
           "port": 24,
           "media": "copper",
           "nic": "netpack",
@@ -343,16 +343,16 @@
       ]
     },
     {
-      "name": "larch-r1-ats-b",
+      "name": "larch-ats-b",
       "role": "power",
       "hardware": "eats16n",
       "status": "planned",
-      "note": "Chain B: its C19 output feeds larch-r1-pdu-b and nothing else. Prefers feed B. Its card is on larch-r1-tor-a.",
+      "note": "Chain B: its C19 output feeds larch-pdu-b and nothing else. Prefers feed B. Its card is on larch-tor-a.",
       "preferred_source": 2,
       "mgmt_address": "192.168.60.15",
       "links": [
         {
-          "switch": "larch-r1-tor-a",
+          "switch": "larch-tor-a",
           "port": 24,
           "media": "copper",
           "nic": "netpack",
@@ -361,16 +361,16 @@
       ]
     },
     {
-      "name": "larch-r1-pdu-a",
+      "name": "larch-pdu-a",
       "role": "power",
       "hardware": "evmafc20a",
       "status": "planned",
-      "note": "Eaton Rack PDU G4 on chain A: the minis cabled to larch-r1-tor-a. Its card is on larch-r1-tor-b.",
-      "ats": "larch-r1-ats-a",
+      "note": "Eaton Rack PDU G4 on chain A: the minis cabled to larch-tor-a. Its card is on larch-tor-b.",
+      "ats": "larch-ats-a",
       "mgmt_address": "192.168.60.16",
       "links": [
         {
-          "switch": "larch-r1-tor-b",
+          "switch": "larch-tor-b",
           "port": 23,
           "media": "copper",
           "nic": "netpack",
@@ -379,16 +379,16 @@
       ]
     },
     {
-      "name": "larch-r1-pdu-b",
+      "name": "larch-pdu-b",
       "role": "power",
       "hardware": "evmafc20a",
       "status": "planned",
-      "note": "Eaton Rack PDU G4 on chain B: the minis cabled to larch-r1-tor-b. Its card is on larch-r1-tor-a.",
-      "ats": "larch-r1-ats-b",
+      "note": "Eaton Rack PDU G4 on chain B: the minis cabled to larch-tor-b. Its card is on larch-tor-a.",
+      "ats": "larch-ats-b",
       "mgmt_address": "192.168.60.17",
       "links": [
         {
-          "switch": "larch-r1-tor-a",
+          "switch": "larch-tor-a",
           "port": 23,
           "media": "copper",
           "nic": "netpack",
@@ -396,6 +396,5 @@
         }
       ]
     }
-  ],
-  "rack": "r1"
+  ]
 }
