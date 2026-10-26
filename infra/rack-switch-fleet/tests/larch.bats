@@ -206,7 +206,7 @@ larch_ready() {
     site="$(larch_ready)"
     run edge_sh "fleet_picos_wan_paths '$site'"
     [ "$output" = "649d99d9810e 27 29,30" ]
-    jq '(.devices[] | select(.name == "larch-r1-tor-b") | .ports["27"]) |= del(.status)' "$site" > "$site.new" && mv "$site.new" "$site"
+    jq '(.devices[] | select(.name == "larch-tor-b") | .ports["27"]) |= del(.status)' "$site" > "$site.new" && mv "$site.new" "$site"
     run edge_sh "fleet_picos_wan_paths '$site'"
     [ "$output" = $'649d99d981fe 27 29,30\n649d99d9810e 27 29,30' ]
 
