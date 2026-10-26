@@ -29,6 +29,16 @@ func TestRunnerEgressHostApplyRepairAndRemoval(t *testing.T) {
 	write("bin/flock", "#!/usr/bin/env bash\nexit 0\n")
 	write("bin/systemctl", `#!/usr/bin/env bash
 set -euo pipefail
+if [ "$*" = 'daemon-reload' ]; then
+ if [ -f "$EGRESS_TEST_ROOT/etc/systemd/system/kubelet.service.d/35-runner-egress.conf" ]; then
+  touch "$EGRESS_TEST_ROOT/kubelet-requires-egress"
+ else
+  rm -f "$EGRESS_TEST_ROOT/kubelet-requires-egress"
+ fi
+fi
+if [ "$*" = 'stop tuist-runner-egress.service' ] && [ -f "$EGRESS_TEST_ROOT/kubelet-requires-egress" ]; then
+ touch "$EGRESS_TEST_ROOT/kubelet-stopped"
+fi
 if [ "$*" = 'start tuist-runner-egress.service' ]; then
  "$EGRESS_TEST_ROOT/sbin/tuist-runner-egress"
 fi
@@ -90,6 +100,9 @@ esac
 	}
 	write("deny-delete", "")
 	run(render(true), true)
+	if _, err := os.Stat(filepath.Join(root, "kubelet-stopped")); !os.IsNotExist(err) {
+		t.Fatal("egress cleanup stopped kubelet through its loaded Requires dependency")
+	}
 	if _, err := os.Stat(filepath.Join(root, "etc/tuist/runner-egress")); err != nil {
 		t.Fatal("failed cleanup lost ownership", err)
 	}
