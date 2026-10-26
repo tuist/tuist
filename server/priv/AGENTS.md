@@ -2,6 +2,8 @@
 
 This directory contains database migrations and other private assets.
 
+- Correlated runner-crash exclusions add a default-false boolean exclusion flag to case executions and filter future commit/automation evidence. Preserve existing provenance filters and historical aggregate states; migrate all ClickHouse deployments before rolling out writers. Roll back application writers before dropping the column.
+
 ## Origin integration
 
 - Origin and github.com installs can start at the provider and finish in the shared organization chooser, skipped when only one eligible account exists; Tuist-initiated installs retain their selected organization. The self-hosting guide must include GitHub's additional `/integrations/github/authorize` OAuth callback URL. GHES still starts in Tuist's manifest flow. `marketing/changelog/2026.10.18-provider-initiated-installations.md` announces the provider entry points and organization chooser.
