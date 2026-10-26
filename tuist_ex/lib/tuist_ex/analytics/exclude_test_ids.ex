@@ -11,11 +11,12 @@ defmodule TuistEx.Analytics.ExcludeTestIds do
   # module and name merged into its tags. `install/1` swaps `ExUnit.Filters`
   # for a proxy, the way Mimic swaps a module it copies: the original is
   # compiled again from its debug info under another name, and the proxy
-  # delegates every function to it but `eval/4`, which answers
-  # `{:excluded, "due to Tuist quarantine"}` for an id it was given first.
-  # Every filter of the run's own still applies to the other tests, and an
-  # include filter (`--only`, `path:line`) does not bring an excluded id
-  # back.
+  # delegates every function to it but `eval/4`. For an id it was given, a
+  # test the run's own filters would run is skipped instead, as `@tag :skip`
+  # skips one: an include filter (`--only`, `path:line`) does not bring it
+  # back, and `--only` selecting nothing else still counts as having
+  # selected a test. A test the run's own filters leave out keeps their
+  # answer.
   #
   # The swap is refused, and the caller falls back to ExUnit's own filters,
   # unless the runner calls `ExUnit.Filters.eval/4` and it answers as the
@@ -67,16 +68,19 @@ defmodule TuistEx.Analytics.ExcludeTestIds do
   def installed?, do: function_exported?(@filters, :__tuist_ex_original__, 0)
 
   @doc false
-  def eval(include, exclude, tags, collection) when is_map(tags) do
-    ids = :persistent_term.get(@ids, nil)
+  def eval(include, exclude, tags, collection) do
+    case @original.eval(include, exclude, tags, collection) do
+      :ok ->
+        ids = :persistent_term.get(@ids, nil)
 
-    if ids != nil and MapSet.member?(ids, {Map.get(tags, :module), Map.get(tags, :test)}),
-      do: {:excluded, @reason},
-      else: @original.eval(include, exclude, tags, collection)
+        if ids != nil and MapSet.member?(ids, {Map.get(tags, :module), Map.get(tags, :test)}),
+          do: {:skipped, @reason},
+          else: :ok
+
+      answer ->
+        answer
+    end
   end
-
-  def eval(include, exclude, tags, collection),
-    do: @original.eval(include, exclude, tags, collection)
 
   defp swap do
     with :ok <- check_version(),

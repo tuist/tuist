@@ -89,7 +89,7 @@ The run fails as usual when any test that isn't muted fails, or when ExUnit stop
 
 ### How skipping selects tests {#how-skipping-selects-tests}
 
-A skipped test is left out by its module and its full name, such as `MyApp.CheckoutTest` and `test create_order/2 times out`. A test with the same describe block and name in another module still runs. A skipped test stays out even when you select it with `--only`, `--include`, or `path:line`. Pass `--no-quarantine` to run it.
+A skipped test is left out by its module and its full name, such as `MyApp.CheckoutTest` and `test create_order/2 times out`. A test with the same describe block and name in another module still runs. A skipped test stays out even when you select it with `--only`, `--include`, or `path:line`, and ExUnit counts it as skipped. Pass `--no-quarantine` to run it.
 
 ExUnit filters can't match a test's module and name together, so `mix test` adds that to ExUnit for the run, after it checks that your Elixir version works the way it expects. It has been verified on Elixir 1.18 to 1.20. Where it can't, it leaves a skipped test out with an ExUnit filter on its full name instead, such as `--exclude "test:test create_order/2 times out"`. Then:
 

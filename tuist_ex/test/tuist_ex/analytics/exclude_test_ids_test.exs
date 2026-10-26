@@ -42,8 +42,8 @@ defmodule TuistEx.Analytics.ExcludeTestIdsTest do
           use ExUnit.Case
 
           describe "add/2" do
-            # What `--only focus` selects, which does not bring an
-            # excluded id back.
+            # What `--only focus` selects, which does not bring an id back:
+            # it is skipped, as `@tag :skip` would skip it.
             @tag :focus
             test "rejects nil", do: :ok
 
@@ -53,7 +53,7 @@ defmodule TuistEx.Analytics.ExcludeTestIdsTest do
       end
 
       Process.register(self(), :owner)
-      %{total: 4, excluded: 3, failures: 0} = ExUnit.run()
+      %{total: 4, excluded: 2, skipped: 1, failures: 0} = ExUnit.run()
 
       states =
         for _ <- 1..4, into: %{} do
@@ -62,7 +62,7 @@ defmodule TuistEx.Analytics.ExcludeTestIdsTest do
           end
         end
 
-      {:excluded, "due to Tuist quarantine"} = states[{CartTest, :"test add/2 rejects nil"}]
+      {:skipped, "due to Tuist quarantine"} = states[{CartTest, :"test add/2 rejects nil"}]
       nil = states[{OrderTest, :"test add/2 rejects nil"}]
       {:excluded, "due to test filter"} = states[{CartTest, :"test add/2 accepts zero"}]
       {:excluded, "due to test filter"} = states[{OrderTest, :"test add/2 accepts zero"}]

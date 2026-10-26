@@ -32,6 +32,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   alias TuistEx.Analytics.Report
 
   @deferred :deferred_test_run
+  @quarantined ExcludeTestIds.reason()
 
   def init(opts) do
     merged =
@@ -93,7 +94,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     identity = Quarantine.identity(record(test))
 
     cond do
-      reason == ExcludeTestIds.reason() or Quarantine.skipped?(state.quarantine, identity) ->
+      Quarantine.skipped?(state.quarantine, identity) ->
         {:noreply, state}
 
       MapSet.member?(state.excluded_names, Atom.to_string(test.name)) ->
@@ -111,6 +112,10 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
         {:noreply, state}
     end
   end
+
+  # What Tuist skips for quarantine is left out, as a test removed.
+  def handle_cast({:test_finished, %ExUnit.Test{state: {:skipped, @quarantined}}}, state),
+    do: {:noreply, state}
 
   def handle_cast({:test_finished, test}, state) do
     record = record(test)

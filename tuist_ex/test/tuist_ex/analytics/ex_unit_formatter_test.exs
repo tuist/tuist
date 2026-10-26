@@ -463,7 +463,7 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     send_lifecycle(pid, [
       {:suite_started, []},
       {:test_finished,
-       new_test(name: :"test hangs", state: {:excluded, "due to Tuist quarantine"})},
+       new_test(name: :"test hangs", state: {:skipped, "due to Tuist quarantine"})},
       {:test_finished, new_test(name: :"test hangs", module: OtherTest)},
       {:test_finished,
        new_test(name: :"property property", tags: %{test_type: :property, file: "t.exs", line: 1})},
@@ -474,6 +474,11 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
 
     assert_received {:submitted, %{test_modules: modules}}
     assert Enum.map(modules, & &1.name) |> Enum.sort() == ["OtherTest", "SomeModuleTest"]
+
+    cases =
+      Map.new(modules, &{&1.name, Enum.map(&1.test_cases, fn test_case -> test_case.name end)})
+
+    assert cases == %{"OtherTest" => ["hangs"], "SomeModuleTest" => ["property"]}
 
     assert_received {:notified, ran}
     assert ran =~ "they are not of type `test`"
@@ -537,12 +542,12 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     refute Map.has_key?(payload, :skip_test_identifiers)
     refute Map.has_key?(payload, :only_test_identifiers)
 
-    # Left out by its exact id, the skipped test is told apart by the reason
-    # alone, and its namesake in another module ran.
+    # Skipped by its exact id, the test is told apart by the reason alone,
+    # and its namesake in another module ran.
     exact = [
       {:suite_started, []},
       {:test_finished,
-       new_test(name: :"test hangs", state: {:excluded, "due to Tuist quarantine"})},
+       new_test(name: :"test hangs", state: {:skipped, "due to Tuist quarantine"})},
       {:test_finished, new_test(name: :"test hangs", module: OtherTest)},
       {:test_finished, new_test(name: :"test slow", state: excluded)},
       {:suite_finished, %{run: 1_000}}
@@ -557,9 +562,7 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
         quarantine: %TuistEx.Analytics.Quarantine{},
         quarantine_exclusion: :test_ids,
         coverage: true,
-        # A tag named like the reason does not turn the skip into one of the
-        # run's own exclusions.
-        coverage_excluded_tags: ["integration", "Tuist quarantine"]
+        coverage_excluded_tags: ["integration"]
       )
 
     send_lifecycle(pid, exact)
