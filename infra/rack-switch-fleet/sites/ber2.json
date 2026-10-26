@@ -53,6 +53,9 @@
       }
     },
     "picos": {
+      "authorized_keys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB8YWxzgQuusy9tVUiW51asi86OnNXIkOIToZs6xBgT4 rack-switch-controller"
+      ],
       "ntp": [
         "162.159.200.1",
         "162.159.200.123"
@@ -136,7 +139,10 @@
       "apply_order": 1,
       "apply_note": "Its internet port is the second carrier's, which is not live yet, so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.",
       "adopted": true,
-      "feeds": ["feed-a", "feed-b"],
+      "feeds": [
+        "feed-a",
+        "feed-b"
+      ],
       "note": "The second S5860 (FS order FS261015598071). Its MAC, and ber2-edge-b's tor_management link to it, go in once the unit is unpacked. Its management port and console go to ber2-edge-b.",
       "ports": {
         "25": {
@@ -164,7 +170,10 @@
         {
           "id": 1,
           "name": "isl ber2-tor-a",
-          "ports": [25, 26]
+          "ports": [
+            25,
+            26
+          ]
         }
       ]
     },
@@ -179,7 +188,10 @@
       "apply_order": 2,
       "apply_note": "Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to ber2-tor-b and the rack is still up.",
       "adopted": true,
-      "feeds": ["feed-a", "feed-b"],
+      "feeds": [
+        "feed-a",
+        "feed-b"
+      ],
       "note": "The bench unit (S/N G1UC2FP00005A), burnt in at home 20 to 25 Oct 2026. Factory-reset before it is racked. Its management port and console go to ber2-edge-a.",
       "ports": {
         "25": {
@@ -206,7 +218,10 @@
         {
           "id": 1,
           "name": "isl ber2-tor-b",
-          "ports": [25, 26]
+          "ports": [
+            25,
+            26
+          ]
         }
       ]
     }
@@ -218,7 +233,10 @@
       "hardware": "rs501a-e12",
       "status": "planned",
       "note": "The first ASUS unit (TAS0CG000177), benched 25 Oct 2026. The preferred edge. Each N225P port is an SFP28 DAC to one ToR; its first onboard port is ber2-tor-a's management port, and ber2-tor-a's console is on its USB. Its BMC is on ber2-tor-b, the opposite ToR.",
-      "feeds": ["feed-a", "feed-b"],
+      "feeds": [
+        "feed-a",
+        "feed-b"
+      ],
       "links": [
         {
           "switch": "ber2-tor-a",
@@ -241,7 +259,12 @@
           "nic": "bmc",
           "purpose": "management"
         }
-      ]
+      ],
+      "tor_management": {
+        "switch": "ber2-tor-a",
+        "nic": "lan1",
+        "address": "192.168.61.1/30"
+      }
     },
     {
       "name": "ber2-edge-b",
@@ -249,7 +272,10 @@
       "hardware": "rs501a-e12",
       "status": "planned",
       "note": "The second edge, standby to ber2-edge-a. Cabled the mirror way: its first onboard port is ber2-tor-b's management port, ber2-tor-b's console is on its USB, and its BMC is on ber2-tor-a.",
-      "feeds": ["feed-a", "feed-b"],
+      "feeds": [
+        "feed-a",
+        "feed-b"
+      ],
       "links": [
         {
           "switch": "ber2-tor-a",
@@ -280,7 +306,10 @@
       "hardware": "rs501a-e12",
       "status": "planned",
       "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to ber2-tor-a over SFP28; its BMC is on ber2-tor-b, so losing ber2-tor-a still leaves its out-of-band path.",
-      "feeds": ["feed-a", "feed-b"],
+      "feeds": [
+        "feed-a",
+        "feed-b"
+      ],
       "links": [
         {
           "switch": "ber2-tor-a",
