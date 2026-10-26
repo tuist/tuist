@@ -33,6 +33,10 @@ if [ -n "$rules" ] && [ "$rules" != "10430:$(printf '\t')from @ADDRESS@ lookup 2
  exit 1
 fi
 if [ '@MODE@' = remove ]; then
+ # An explicit stop propagates through Requires even for an inactive oneshot.
+ # Detach and reload first so withdrawing egress cannot stop kubelet.
+ rm -f /etc/systemd/system/kubelet.service.d/35-runner-egress.conf
+ systemctl daemon-reload
  # Stop the repair loop before removing its state. Retain intent on any error.
  if [ -f /etc/systemd/system/tuist-runner-egress.timer ]; then
   systemctl disable --now tuist-runner-egress.timer
