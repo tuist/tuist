@@ -614,7 +614,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
 
     assert overview =~ "Avg. Initialize containers"
     assert overview =~ "tab=images"
-    assert overview =~ ~s(href="/org/runners/images")
 
     images =
       render_component(&RunnerVolumesLive.render/1, %{

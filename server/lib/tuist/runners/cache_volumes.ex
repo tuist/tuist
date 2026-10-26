@@ -1758,11 +1758,10 @@ defmodule Tuist.Runners.CacheVolumes do
 
   @doc """
   Mounts in `period` per hour or day, and how many reused saved data: the
-  account's, one volume's, or with `key:` only volumes with that key. A Docker
-  data root its guest formatted empty because it could not mount the saved one
-  counts as a miss.
+  account's or one volume's. A Docker data root its guest formatted empty
+  because it could not mount the saved one counts as a miss.
   """
-  def usage_analytics(account_id, volume_id, {start, finish}, opts \\ []) do
+  def usage_analytics(account_id, volume_id, {start, finish}) do
     {bucket, seconds} = if DateTime.diff(finish, start) <= 2 * 86_400, do: {"hour", 3600}, else: {"day", 86_400}
 
     mounts =
@@ -1779,7 +1778,6 @@ defmodule Tuist.Runners.CacheVolumes do
       )
 
     mounts = if volume_id, do: where(mounts, [u, v], v.id == ^volume_id), else: mounts
-    mounts = if opts[:key], do: where(mounts, [u, v], v.key == ^opts[:key]), else: mounts
 
     rows =
       Repo.all(

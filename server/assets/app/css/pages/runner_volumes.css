@@ -1,5 +1,4 @@
-#runner-volumes,
-#runner-image-cache {
+#runner-volumes {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);

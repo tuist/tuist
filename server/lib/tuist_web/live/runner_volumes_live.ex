@@ -14,7 +14,6 @@ defmodule TuistWeb.RunnerVolumesLive do
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
-  alias TuistWeb.RunnerImageCacheLive
   alias TuistWeb.RunnersLive
 
   @volume_name_max_length 48
@@ -192,7 +191,7 @@ defmodule TuistWeb.RunnerVolumesLive do
                 "jobs" -> CacheVolumes.history(account.id, selected.id, page)
                 _ -> []
               end,
-            images: if(tab == "images", do: docker_images(account.id, selected.id, period), else: []),
+            images: if(tab == "images", do: DockerCache.images(account.id, selected.id), else: []),
             analytics:
               if tab == "overview" do
                 Map.merge(
@@ -349,22 +348,87 @@ defmodule TuistWeb.RunnerVolumesLive do
   def detail_chart_data?(analytics, "hit_rate"), do: not is_nil(analytics.activity.hit_rate)
   def detail_chart_data?(_analytics, "uses"), do: true
 
-  def volume_chart_series(analytics, "initialize", percentile),
-    do: RunnerImageCacheLive.chart_series(analytics, "initialize", percentile)
+  # An image cache volume's Initialize containers chart draws every statistic
+  # over the hours or days that had jobs; the widget's dropdown only picks its
+  # figure.
+  def volume_chart_series(analytics, "initialize", _percentile) do
+    points = Enum.reject(analytics.steps.points, &is_nil(&1.avg))
+
+    for {name, statistic} <- [
+          {dgettext("dashboard_runners", "Average"), "avg"},
+          {"p99", "p99"},
+          {"p90", "p90"},
+          {"p50", "p50"}
+        ] do
+      %{
+        name: name,
+        type: "line",
+        color: "var:noora-chart-" <> RunnersLive.legend_color_for_percentile(statistic),
+        smooth: 0.1,
+        symbol: "circle",
+        symbolSize: 4,
+        data: Enum.map(points, &[DateTime.to_iso8601(&1.at), RunnersLive.percentile_value(&1, statistic)])
+      }
+    end
+  end
 
   def volume_chart_series(analytics, metric, _percentile), do: detail_chart_series(analytics, metric)
 
-  def volume_chart_options("initialize", period, series),
-    do: RunnerImageCacheLive.chart_options("initialize", period, series)
+  def volume_chart_options("initialize", {start, finish}, [%{data: data} | _]) do
+    hourly = DateTime.diff(finish, start) <= 2 * 86_400
+    times = Enum.map(data, &hd/1)
+
+    %{
+      grid: %{left: "0.4%", right: "24px", height: "78%", top: "8%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: if(hourly, do: "fn:toLocaleDateHour", else: "fn:toLocaleDate"),
+          customValues: Enum.uniq([List.first(times), List.last(times)]),
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "fn:formatMilliseconds"}
+      },
+      legend: RunnersLive.duration_chart_options(times, nil).legend,
+      tooltip: %{valueFormat: "fn:formatMilliseconds", dateFormat: if(hourly, do: "hour", else: "day")}
+    }
+  end
 
   def volume_chart_options(metric, period, _series), do: detail_chart_options(metric, period)
 
   def initialize_trend(analytics, percentile) do
-    RunnerImageCacheLive.duration_trend(
-      RunnersLive.percentile_value(analytics.steps.reused, percentile),
-      RunnersLive.percentile_value(analytics.previous_steps.reused, percentile)
-    )
+    current = RunnersLive.percentile_value(analytics.steps.reused, percentile)
+    previous = RunnersLive.percentile_value(analytics.previous_steps.reused, percentile)
+
+    cond do
+      is_nil(current) ->
+        %{value: 0, value_label: dgettext("dashboard_runners", "No data"), label: ""}
+
+      is_nil(previous) or previous == 0 ->
+        %{value: 0, value_label: dgettext("dashboard_runners", "No previous data"), label: ""}
+
+      true ->
+        %{
+          value: Float.round((current - previous) / previous * 100, 1),
+          value_label: nil,
+          label: dgettext("dashboard_runners", "since last period")
+        }
+    end
   end
+
+  def initialize_title("p50"), do: dgettext("dashboard_runners", "p50 Initialize containers")
+  def initialize_title("p90"), do: dgettext("dashboard_runners", "p90 Initialize containers")
+  def initialize_title("p99"), do: dgettext("dashboard_runners", "p99 Initialize containers")
+  def initialize_title(_), do: dgettext("dashboard_runners", "Avg. Initialize containers")
+
+  def step_duration(nil), do: "—"
+  def step_duration(ms), do: DateFormatter.format_duration_from_milliseconds(ms)
 
   def detail_chart_series(analytics, "used_bytes"), do: storage_chart_series(analytics.storage, "used_bytes")
 
@@ -403,7 +467,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   def selected_tab(_tab, _volume), do: "overview"
 
   # An image cache volume's page also shows how long its jobs took to start
-  # their containers and the images it saved.
+  # their containers.
   defp docker_steps(account_id, %{key: "docker", id: id}, period) do
     %{
       steps: DockerCache.steps(account_id, id, period),
@@ -412,13 +476,6 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   defp docker_steps(_account_id, _volume, _period), do: %{}
-
-  defp docker_images(account_id, id, period) do
-    case DockerCache.repository(account_id, id, period) do
-      %{images: images} -> images
-      nil -> []
-    end
-  end
 
   defp page(value) do
     case Integer.parse(value || "1") do

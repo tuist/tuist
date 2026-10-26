@@ -1,18 +1,10 @@
 <div id="runner-volumes">
   <.button
     :if={@selected}
-    navigate={
-      if @selected.key == "docker",
-        do: ~p"/#{@selected_account.name}/runners/images",
-        else: ~p"/#{@selected_account.name}/runners/volumes"
-    }
+    navigate={~p"/#{@selected_account.name}/runners/volumes"}
     variant="secondary"
     size="medium"
-    label={
-      if @selected.key == "docker",
-        do: dgettext("dashboard_runners", "Image cache"),
-        else: dgettext("dashboard_runners", "Volumes")
-    }
+    label={dgettext("dashboard_runners", "Volumes")}
     data-part="back-button"
   >
     <:icon_left><.arrow_left /></:icon_left>
@@ -439,9 +431,9 @@
             :if={Map.has_key?(data.analytics, :steps)}
             id="volume-initialize"
             legend_color={RunnersLive.legend_color_for_percentile(@initialize_percentile)}
-            title={RunnerImageCacheLive.initialize_title(@initialize_percentile)}
+            title={initialize_title(@initialize_percentile)}
             value={
-              RunnerImageCacheLive.duration(
+              step_duration(
                 RunnersLive.percentile_value(data.analytics.steps.reused, @initialize_percentile)
               )
             }
@@ -459,7 +451,7 @@
                 "dashboard_runners",
                 "Initialize containers step of jobs that started from saved images. For jobs that pulled every layer, the same statistic was %{cold}.",
                 cold:
-                  RunnerImageCacheLive.duration(
+                  step_duration(
                     RunnersLive.percentile_value(
                       data.analytics.steps.cold,
                       @initialize_percentile

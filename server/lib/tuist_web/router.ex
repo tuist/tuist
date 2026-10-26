@@ -1525,7 +1525,6 @@ defmodule TuistWeb.Router do
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
-      live "/runners/images", RunnerImageCacheLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
