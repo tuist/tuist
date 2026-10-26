@@ -73,6 +73,9 @@ egressTreeAgent:
 # feature flag places an account's instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
 # the Kura controller's `sha-` build.
 kuraVolumesCSI:
+  # Exercise the independent rack release on prepared Paris hardware and a
+  # temporary offline node. Removed after the rehearsal.
+  rackPools: [kura-scw-fr-par, rack-storage-offline-rehearsal]
   enabled: true
   # First LVM validation: the Paris cache host is reinstalled through CAPI.
   lvmRegions: [scw-fr-par-runners]
