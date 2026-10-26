@@ -26,6 +26,7 @@ import (
 	"github.com/tuist/tuist/infra/rack-switch-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/rack-switch-controller/internal/converge"
 	"github.com/tuist/tuist/infra/rack-switch-controller/internal/omada"
+	"github.com/tuist/tuist/infra/rack-switch-controller/internal/picos"
 )
 
 const (
@@ -52,11 +53,16 @@ const (
 // over it.
 type RackSwitchReconciler struct {
 	client.Client
-	Recorder       record.EventRecorder
-	Engine         *converge.Engine
-	Credentials    func() (converge.Credentials, error)
-	ResyncInterval time.Duration
-	Now            func() time.Time
+	Recorder record.EventRecorder
+	// Engine is the Omada driver, nil where the controller runs without one.
+	Engine *converge.Engine
+	// PicOS is the PicOS driver, nil where the controller runs without a
+	// PicOS key. PicOSAdminPassword reads the password admin gets on adoption.
+	PicOS              *picos.Engine
+	PicOSAdminPassword func() (string, error)
+	Credentials        func() (converge.Credentials, error)
+	ResyncInterval     time.Duration
+	Now                func() time.Time
 
 	mu       sync.Mutex
 	attempts map[types.NamespacedName]*converge.Attempt
@@ -79,6 +85,18 @@ func (r *RackSwitchReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, r.patchStatus(ctx, before, &rs)
 	}
 
+	if rs.Spec.Driver == v1alpha1.DriverPicOS {
+		result, reconcileErr := r.reconcilePicOS(ctx, &rs)
+		if err := r.patchStatus(ctx, before, &rs); err != nil {
+			return ctrl.Result{}, errors.Join(reconcileErr, err)
+		}
+		return result, reconcileErr
+	}
+	if r.Engine == nil {
+		r.failed(&rs, "OmadaNotConfigured", errors.New("the controller runs without an Omada controller, so it cannot reach Omada switches"))
+		return ctrl.Result{}, r.patchStatus(ctx, before, &rs)
+	}
+
 	result, reconcileErr := r.reconcileManaged(ctx, &rs)
 	if err := r.patchStatus(ctx, before, &rs); err != nil {
 		return ctrl.Result{}, errors.Join(reconcileErr, err)
@@ -87,7 +105,6 @@ func (r *RackSwitchReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 func (r *RackSwitchReconciler) reconcileManaged(ctx context.Context, rs *v1alpha1.RackSwitch) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
 	st := &rs.Status
 	key := client.ObjectKeyFromObject(rs)
 	now := r.now()
@@ -183,39 +200,46 @@ func (r *RackSwitchReconciler) reconcileManaged(ctx context.Context, rs *v1alpha
 		}
 		report.Drift = append(siteDrift, report.Drift...)
 	}
+	return r.settle(ctx, rs, apply, needsApply, blocker, report.Drift, now), nil
+}
 
+// settle records what a read or a write found against the spec's revision,
+// for either driver.
+func (r *RackSwitchReconciler) settle(ctx context.Context, rs *v1alpha1.RackSwitch, apply, needsApply bool, blocker *v1alpha1.RackSwitch, drift []string, now time.Time) ctrl.Result {
+	log := logf.FromContext(ctx)
+	st := &rs.Status
 	previousDrift := st.Drift
 	st.LastVerified = &metav1.Time{Time: now}
 	st.Drift = v1alpha1.DriftNone
-	if len(report.Drift) > 0 {
+	if len(drift) > 0 {
 		st.Drift = v1alpha1.DriftDrifted
 	}
 	revision := rs.Spec.ConfigRevision
 	result := ctrl.Result{RequeueAfter: r.ResyncInterval}
 	switch {
-	case apply && len(report.Drift) == 0:
+	case apply && len(drift) == 0:
 		st.ObservedRevision = revision
 		st.ObservedGeneration = rs.Generation
 		r.condition(rs, v1alpha1.ConditionConverged, true, "Converged", "wrote revision "+revision)
 	case apply:
 		r.condition(rs, v1alpha1.ConditionConverged, false, "NotVerified",
-			fmt.Sprintf("wrote revision %s, and the controller still reads: %s", revision, summarize(report.Drift)))
+			fmt.Sprintf("wrote revision %s, and the controller still reads: %s", revision, summarize(drift)))
 	case needsApply:
 		r.condition(rs, v1alpha1.ConditionConverged, false, "WaitingForApplyOrder",
 			fmt.Sprintf("waiting for %s (applyOrder %d) to be Ready before changing this switch", blocker.Name, blocker.Spec.ApplyOrder))
 		result.RequeueAfter = applyOrderPollInterval
-	case len(report.Drift) > 0:
+	case len(drift) > 0:
 		r.condition(rs, v1alpha1.ConditionConverged, false, "Drifted",
-			fmt.Sprintf("differs from revision %s: %s", revision, summarize(report.Drift)))
+			fmt.Sprintf("differs from revision %s: %s", revision, summarize(drift)))
 		if previousDrift != v1alpha1.DriftDrifted {
-			r.Recorder.Eventf(rs, corev1.EventTypeWarning, "Drifted", "%s", truncate(strings.Join(report.Drift, "; ")))
+			r.Recorder.Eventf(rs, corev1.EventTypeWarning, "Drifted", "%s", truncate(strings.Join(drift, "; ")))
 		}
-		log.Info("drift", "differences", report.Drift)
+		log.Info("drift", "differences", drift)
 	default:
 		r.condition(rs, v1alpha1.ConditionConverged, true, "Converged", "matches revision "+revision)
 	}
 	r.ready(rs)
-	return result, nil
+	return result
 }
 
 func (r *RackSwitchReconciler) adopt(ctx context.Context, rs *v1alpha1.RackSwitch, siteID string, dev omada.Device, attempt *converge.Attempt, blocker *v1alpha1.RackSwitch, creds converge.Credentials, now time.Time) (ctrl.Result, error) {

@@ -8,10 +8,15 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -27,6 +32,7 @@ import (
 	"github.com/tuist/tuist/infra/rack-switch-controller/controllers"
 	"github.com/tuist/tuist/infra/rack-switch-controller/internal/converge"
 	"github.com/tuist/tuist/infra/rack-switch-controller/internal/omada"
+	"github.com/tuist/tuist/infra/rack-switch-controller/internal/picos"
 	"github.com/tuist/tuist/infra/rack-switch-controller/internal/telemetry"
 )
 
@@ -48,6 +54,8 @@ type engineFlags struct {
 	controllerAddress string
 	credentialsDir    string
 	gates             converge.Gates
+	picosUser         string
+	picosConfirmAfter time.Duration
 }
 
 func (f *engineFlags) register(fs *flag.FlagSet, siteFlag string) {
@@ -67,6 +75,10 @@ func (f *engineFlags) register(fs *flag.FlagSet, siteFlag string) {
 		"Write the management interface's static address, mask and gateway")
 	fs.BoolVar(&f.gates.SiteServices, "enable-site-services", true,
 		"Write the site's LLDP and SNMP settings")
+	fs.StringVar(&f.picosUser, "picos-user", "tuist",
+		"User the zero-touch bootstrap gives PicOS switches the controller's key for")
+	fs.DurationVar(&f.picosConfirmAfter, "picos-confirm-after", 5*time.Minute,
+		"Rollback timer of every PicOS commit; a change the controller cannot read back in time rolls back")
 }
 
 func (f *engineFlags) engine(siteFlag string) (*converge.Engine, func() (converge.Credentials, error), error) {
@@ -132,9 +144,25 @@ func main() {
 		setupLog.Error(nil, "--resync-interval must be positive")
 		os.Exit(1)
 	}
-	engine, credentials, err := ef.engine("omada-site")
+	var (
+		engine      *converge.Engine
+		credentials func() (converge.Credentials, error)
+	)
+	if ef.site != "" {
+		var err error
+		engine, credentials, err = ef.engine("omada-site")
+		if err != nil {
+			setupLog.Error(err, "configure Omada")
+			os.Exit(1)
+		}
+	}
+	picosEngine, picosPassword, err := ef.picosEngine()
 	if err != nil {
-		setupLog.Error(err, "configure")
+		setupLog.Error(err, "configure PicOS")
+		os.Exit(1)
+	}
+	if engine == nil && picosEngine == nil {
+		setupLog.Error(nil, "neither --omada-site nor a picos-ssh-key in --credentials-dir: nothing to manage")
 		os.Exit(1)
 	}
 
@@ -154,21 +182,25 @@ func main() {
 	}
 
 	if err := (&controllers.RackSwitchReconciler{
-		Client:         mgr.GetClient(),
-		Recorder:       mgr.GetEventRecorderFor("rack-switch-controller"),
-		Engine:         engine,
-		Credentials:    credentials,
-		ResyncInterval: resyncInterval,
+		Client:             mgr.GetClient(),
+		Recorder:           mgr.GetEventRecorderFor("rack-switch-controller"),
+		Engine:             engine,
+		Credentials:        credentials,
+		PicOS:              picosEngine,
+		PicOSAdminPassword: picosPassword,
+		ResyncInterval:     resyncInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackSwitch reconciler")
 		os.Exit(1)
 	}
 
-	poller := telemetry.New(engine.Omada, ef.site, mgr.GetClient(), namespace, ctrl.Log.WithName("telemetry"))
-	metrics.Registry.MustRegister(poller)
-	if err := mgr.Add(poller); err != nil {
-		setupLog.Error(err, "setup switch telemetry")
-		os.Exit(1)
+	if engine != nil {
+		poller := telemetry.New(engine.Omada, ef.site, mgr.GetClient(), namespace, ctrl.Log.WithName("telemetry"))
+		metrics.Registry.MustRegister(poller)
+		if err := mgr.Add(poller); err != nil {
+			setupLog.Error(err, "setup switch telemetry")
+			os.Exit(1)
+		}
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -185,4 +217,43 @@ func main() {
 		setupLog.Error(err, "manager exited")
 		os.Exit(1)
 	}
+}
+
+// picosEngine is the PicOS driver when the credentials directory holds
+// picos-ssh-key, the controller's private key, and picos-admin-password,
+// what admin gets on adoption; nil otherwise.
+func (f *engineFlags) picosEngine() (*picos.Engine, func() (string, error), error) {
+	key, err := os.ReadFile(filepath.Join(f.credentialsDir, "picos-ssh-key"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("picos-ssh-key: %w", err)
+	}
+	if f.picosConfirmAfter < time.Minute {
+		return nil, nil, errors.New("--picos-confirm-after must be at least a minute")
+	}
+	dir := f.credentialsDir
+	password := func() (string, error) {
+		b, err := os.ReadFile(filepath.Join(dir, "picos-admin-password"))
+		if err != nil {
+			return "", err
+		}
+		p := strings.TrimSpace(string(b))
+		if p == "" {
+			return "", errors.New("picos-admin-password is empty")
+		}
+		return p, nil
+	}
+	if _, err := password(); err != nil {
+		return nil, nil, err
+	}
+	return &picos.Engine{
+		Dialer:       picos.Dialer{User: f.picosUser, Signer: signer, Timeout: 30 * time.Second},
+		ConfirmAfter: f.picosConfirmAfter,
+	}, password, nil
 }
