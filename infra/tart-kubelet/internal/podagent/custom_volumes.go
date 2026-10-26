@@ -193,6 +193,7 @@ func (c *CustomVolumes) run(ctx context.Context) error {
 	}
 	defer store.Close()
 	store.MaxVolumeBytes = c.maxVolumeBytes()
+	store.Observe = observeCustomCache
 	c.Store = store
 	c.images = backend
 	// Pressure eviction takes the masters of lineages a job holds or is cloning last.

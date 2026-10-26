@@ -1517,13 +1517,13 @@ rackFleet:
   # On the rack those shapes run bigger guests (`guestShapes`): 8 vCPU / 24 GB
   # for the 6 vCPU shape and 16 vCPU / 48 GB for the 12 vCPU shape. Jobs are
   # still recorded, billed and counted against concurrency limits at the shape
-  # the profile names, and one that spills over to the rented fleet runs at
-  # that shape.
+  # the profile names. Production rents no macOS hosts, so a job waits for a
+  # rack slot rather than spilling over.
   #
   # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
-  # and the `ber1` smoke pool share through the fleet allocator, apart from
-  # the rented fleet's 14. A 12 vCPU profile's guest takes a whole host, so
-  # that shape's ceiling is the host count.
+  # and the `ber1` smoke pool share through the fleet allocator. A 12 vCPU
+  # profile's guest takes a whole host, so that shape's ceiling is the host
+  # count.
   #
   # Warm floors follow demand. Only a warm runner claims a job in under 10 s:
   # a cold one is the scale-up and the boot, 10 to 75 s even with the image on
@@ -1825,7 +1825,12 @@ runnersFleet:
   # no nodeDrainTimeout, so an evicted Pod is not waited on: retire while
   # the target hosts hold no owned (job-running) runner Pod, or a
   # customer job dies with the node.
-  hostCount: 10
+  #
+  # At 0 since 2026-10-26: production's macOS jobs run only on the BER1 rack,
+  # which reaches the internet from the Tuist IP range customers allowlist.
+  # With no rented hosts the chart renders no rented macOS pools and the server
+  # keeps every macOS job at the rack (`tuist.runnersFleetRentsMacOS`).
+  hostCount: 0
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
   # bringing this block live (Mac mini lead times can stretch
@@ -1882,7 +1887,7 @@ runnersFleet:
   # these. Growing raw concurrency alone is still cheaper on M2-L.
   machineGroups:
     - name: m4
-      hostCount: 3
+      hostCount: 0
       machine:
         type: M4-XL
         zone: fr-par-1
@@ -2173,23 +2178,6 @@ runnersFleet:
       pod:
         cpuMilli: 8000
         memoryMB: 24576
-    # The rented fleet's probe pool for the Runners Acceptance workflow
-    # (`runs-on: tuist-runners-acceptance`). An account on the `runner_site`
-    # flag has its profiles routed to the rack first, so no profile label lands
-    # on this fleet deterministically. No `site`, so its jobs take the
-    # scw-fr-par-runners cache like the fleet's other jobs. The `macos-` name
-    # prefix is what makes the server treat it as a macOS pool on the cluster
-    # network (`Catalog.fleet_platform/1`). Autoscaled from zero so it shares
-    # the fleet's guest slots through the allocator; one probe job at a time.
-    - name: macos-acceptance
-      platform: macos
-      xcodeVersion: "26.6"
-      dispatchLabel: tuist-runners-acceptance
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-        holdRecentPeak: false
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env
