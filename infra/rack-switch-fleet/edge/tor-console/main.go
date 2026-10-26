@@ -36,7 +36,8 @@ func main() {
 		cooldown = flag.Duration("cooldown", 20*time.Minute, "the least time between two console attempts")
 		user     = flag.String("user", "admin", "the factory login's user")
 		password = flag.String("password", "pica8", "the factory login's password, PicOS's published default")
-		reboot   = flag.String("reboot", "sudo -n /sbin/reboot", "the command a logged-in factory switch reboots with")
+		shell    = flag.String("shell", "start shell sh", "the CLI command admin's login opens a Linux shell with")
+		reboot   = flag.String("reboot", "sudo -n /pica/bin/reboot.sh", "the command that shell reboots the switch with")
 	)
 	flag.Parse()
 	if *address == "" {
@@ -44,6 +45,9 @@ func main() {
 	}
 
 	var closedSince, lastAttempt time.Time
+	// The password the last attempt answered the forced change with: one that
+	// failed after the change leaves the switch on it, unprovisioned.
+	var set string
 	for ; ; time.Sleep(*interval) {
 		if reachable(*address, 830) {
 			if !closedSince.IsZero() {
@@ -62,7 +66,12 @@ func main() {
 			continue
 		}
 		lastAttempt = now
-		outcome, err := attempt(*device, *baud, *user, *password, *reboot)
+		passwords := []string{*password}
+		if set != "" {
+			passwords = append(passwords, set)
+		}
+		set = randomPassword()
+		outcome, err := attempt(*device, *baud, *user, passwords, set, *shell, *reboot)
 		if err != nil {
 			log.Printf("console of %s: %v", *address, err)
 			continue
@@ -83,7 +92,7 @@ func reachable(address string, port int) bool {
 	return true
 }
 
-func attempt(pattern string, baud int, user, password, reboot string) (Outcome, error) {
+func attempt(pattern string, baud int, user string, passwords []string, newPass, shell, reboot string) (Outcome, error) {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return 0, err
@@ -101,11 +110,11 @@ func attempt(pattern string, baud int, user, password, reboot string) (Outcome, 
 		return 0, err
 	}
 	defer f.Close()
-	return Retrigger(f, user, password, randomPassword(), reboot, 20*time.Second)
+	return Retrigger(f, user, passwords, newPass, shell, reboot, 20*time.Second)
 }
 
 // randomPassword is what the factory password's forced change is answered
-// with. Nothing keeps it: the next ZTP run replaces it with its own.
+// with. Only the watcher keeps it, until the next ZTP run replaces it.
 func randomPassword() string {
 	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 	b := make([]byte, 24)
