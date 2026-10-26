@@ -64,6 +64,16 @@ let tuist = Tuist(
 )
 ```
 
+### Separate build and test jobs {#separate-build-and-test-jobs}
+
+When your test jobs run tests built in another job, through <.localized_link href="/guides/features/selective-testing/generated-xcode-project#separate-build-and-test-jobs">`tuist test --without-building`</.localized_link> or <.localized_link href="/guides/features/test-sharding/generated-xcode-project">test sharding</.localized_link>, pass `--derived-data-path` to each test job:
+
+```sh
+tuist test --without-building --shard-index 0 --derived-data-path .build/DerivedData
+```
+
+That's where Tuist finds the coverage the run collected. Without it, Tuist falls back to Xcode's coverage report, which leaves out the code that came from the binary cache and records no test-level coverage.
+
 ### Complete each commit on CI {#complete-each-commit}
 
 A commit's coverage often comes from several jobs: one per scheme, per shard, or per platform. Tuist can't tell when the last of them has reported, so tell it. Once every test job for a commit has finished, run this in a job that depends on all of them:
@@ -76,16 +86,17 @@ The command reads the commit from the checkout or from your CI provider; pass `-
 
 ## Test-level coverage {#test-level-coverage}
 
-Without more setup, Tuist knows what each run covered, but not which tests covered what. That's enough as long as every run executes every test. When selective testing or a skip leaves tests out, Tuist needs to know what those tests executed in an earlier run to carry their coverage forward, and without that the commit's coverage is **Incomplete**.
+A run's coverage says what the run executed, but not which tests executed what. When selective testing or a skip leaves tests out, Tuist needs to know what those tests executed in an earlier run to carry their coverage forward. Otherwise the commit's coverage is **Incomplete**.
 
-Test-level coverage records, for each test target and, where it can, each test, which files and lines it executed. It's optional, but you need it to get complete coverage with selective testing.
+Tuist records what each test target executed on every run, with nothing to set up: it reads the coverage Xcode writes for each test process. That's enough to carry forward a whole target that selective testing skips.
 
-> [!NOTE] EARLY ACCESS
-> Test-level coverage also needs `TUIST_COVERAGE_EVIDENCE=1` wherever your tests run.
+### Per-test coverage {#per-test-coverage}
 
-### Link the package {#link-the-package}
+To carry forward tests you skip one by one, with `--skip-test-targets` or `-skip-testing`, Tuist needs to know what each test executed. It also lets Tuist carry a selective-testing target test by test when it can't carry it whole. This part is optional, and it needs the [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) package in your test targets.
 
-Add the [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) package to `Tuist/Package.swift` and link it as a dynamic framework, so the linker keeps it in test targets that don't reference it:
+#### Link the package {#link-the-package}
+
+Add the package to `Tuist/Package.swift` and link it as a dynamic framework, so the linker keeps it in test targets that don't reference it:
 
 ```swift
 // swift-tools-version: 6.0
@@ -128,7 +139,7 @@ Then add it to your unit test targets. Never link it to an app target:
 
 XCTest tests need nothing else.
 
-### Attribute Swift Testing suites {#swift-testing}
+#### Attribute Swift Testing suites {#swift-testing}
 
 Swift Testing has no observation hook a library can join, so add the `.coverageAttribution` trait to your suites. It applies to every test and nested suite of the suite it's on:
 
@@ -146,9 +157,9 @@ Suites without the trait still count toward what their test target executed.
 
 ### Limitations {#test-level-limitations}
 
-- **Swift Testing tests that run in parallel can't be attributed one by one.** Attribution needs the tests of a process to run one at a time, and Swift Testing runs them in parallel by default. A test that runs alongside another counts only toward its suite and target. That's still enough to carry a whole target that selective testing skips. To attribute every test, turn parallel testing off for the run (`tuist test -- -parallel-testing-enabled NO`), which makes it longer.
-- **Recording works on macOS and the iOS simulator**, not on devices.
-- **UI tests record nothing about the app**, because the app's code runs in a process that doesn't link the package.
+- **Swift Testing tests that run in parallel can't be attributed one by one.** Per-test coverage needs the tests of a process to run one at a time, and Swift Testing runs them in parallel by default. A test that runs alongside another counts only toward its suite and target. To attribute every test, turn parallel testing off for the run (`tuist test -- -parallel-testing-enabled NO`), which makes it longer.
+- **Test-level coverage is recorded on macOS and the iOS simulator**, not on devices.
+- **UI tests record nothing about the app they drive**, because the app's code runs in a process of its own.
 
 ## How it works {#how-it-works}
 
@@ -183,7 +194,7 @@ When selective testing skips a test target, or a test is skipped with `--skip-te
 
 Tests that quarantine skips aren't part of the coverage at all: Tuist neither carries them nor marks the commit **Incomplete** for them.
 
-Both need [test-level coverage](#test-level-coverage). Run the whole suite on your default branch regularly, without selective testing, so there's always a recent run to carry from:
+Both need [test-level coverage](#test-level-coverage): a skipped target needs what Tuist records for every target, and a skipped test needs [per-test coverage](#per-test-coverage). Run the whole suite on your default branch regularly, without selective testing, so there's always a recent run to carry from:
 
 ```sh
 tuist test --no-selective-testing
@@ -204,7 +215,7 @@ Each commit on the dashboard has a status:
 
 A branch's trend only includes complete commits. A commit is incomplete when, for example:
 
-- Tests were skipped that couldn't be carried forward: there's no test-level coverage or no earlier run for them, the files they executed changed since, or the commit changed files that affect every target, such as `Package.resolved`, `Project.swift` or an `.xcconfig`.
+- Tests were skipped that couldn't be carried forward: there's no earlier run for them, tests skipped one by one have no per-test coverage, the files they executed changed since, or the commit changed files that affect every target, such as `Package.resolved`, `Project.swift` or an `.xcconfig`.
 - A run took your targets from the binary cache as plain binaries.
 - Every run of a scheme was narrowed with `-only-testing`.
 - A scheme's coverage only came from CI runs on a checkout with uncommitted changes.
@@ -217,7 +228,7 @@ We measured coverage on Tuist's own repository: a `tuist test` run of 49 test bu
 - **No measurable change in build or test execution time.**
 - **DerivedData grows by about 13%**, and the Debug binary-cache artifacts of the repository's targets by about 6%.
 - **Release archives and Release binary-cache artifacts don't change.**
-- **Test-level coverage** adds about 18 more seconds after the tests with XCTest only, and about 31 seconds with every Swift Testing suite attributed.
+- **Test-level coverage**: what Tuist records for every test target took about 2 seconds. Per-test coverage with TestCoverageAttribution took about 18 more seconds with XCTest only, and about 31 seconds with every Swift Testing suite attributed.
 
 ## Limitations {#limitations}
 
