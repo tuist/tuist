@@ -604,17 +604,31 @@ STUB
   neighbor 2001:978:2:b::4:10 as 174;
   direct;"* ]]
     # each prefix is originated as a blackhole in BIRD's own table and is the
-    # only thing announced
+    # only thing announced; the site's own block goes beside the aggregate,
+    # tagged NO_EXPORT so only the upstream acts on it
     [[ "$output" == *"protocol static originate4 {
   ipv4;
   route 95.130.119.0/24 blackhole;
+  route 95.130.119.16/28 blackhole;
 }"* ]]
     [[ "$output" == *"protocol static originate6 {
   ipv6;
   route 2a11:83c0::/29 blackhole;
 }"* ]]
-    [[ "$output" == *'export where proto = "originate4";'* ]]
+    [[ "$output" == *'    export filter {
+      if proto != "originate4" then reject;
+      if net ~ [ 95.130.119.16/28 ] then bgp_community.add((65535, 65281));
+      accept;
+    };'* ]]
     [[ "$output" == *'export where proto = "originate6";'* ]]
+    # without site prefixes the aggregate goes out untagged
+    jq '.management.edge.wan.bgp |= del(.site_prefixes) | .management.edge.wan |= del(.egress)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nosite.json"
+    run fleet_edge_bgp "$BATS_TEST_TMPDIR/nosite.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'export where proto = "originate4";'* ]]
+    [[ "$output" != *"65281"* ]]
+    [[ "$output" != *"95.130.119.16/28"* ]]
+    run fleet_edge_bgp "$SITE_FILE"
     [[ "$output" == *"if net.len = 0 then accept;"* ]]
     # nothing goes into the node's routes: the default is keepalived's
     [[ "$output" != *"protocol kernel"* ]]
@@ -700,10 +714,15 @@ STUB
 @test "an egress outside the site's announced prefixes, or naming something that is not a Mac mini, is refused at render" {
     source "$FLEET_ROOT/lib/edge.sh"
     site="$BATS_TEST_TMPDIR/badegress.json"
-    jq '.management.edge.wan.egress.prefix = "95.130.118.16/28"' "$SITE_FILE" > "$site"
+    jq '.management.edge.wan.egress.prefix = "95.130.118.16/28" | .management.edge.wan.bgp |= del(.site_prefixes)' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"'95.130.118.16/28' is not inside an IPv4 prefix management.edge.wan.bgp announces"* ]]
+    # with site prefixes, the egress has to be one of the site's own blocks
+    jq '.management.edge.wan.egress.prefix = "95.130.119.32/28"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"'95.130.119.32/28' is not inside one of management.edge.wan.bgp.site_prefixes"* ]]
     jq '.management.edge.wan.egress.prefix = "95.130.119.17/28"' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
@@ -720,6 +739,89 @@ STUB
     [[ "$output" == *"'ber1-store-a' is not a Mac mini on the machines segment"* ]]
     run fleet_edge_check "$SITE_FILE"
     [ "$status" -eq 0 ]
+}
+
+@test "a site prefix outside the announced aggregate, or an IPv6 one, is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    site="$BATS_TEST_TMPDIR/badsite.json"
+    jq '.management.edge.wan.bgp.site_prefixes = ["95.130.118.16/28"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"site_prefixes '95.130.118.16/28' is not inside an IPv4 prefix management.edge.wan.bgp announces"* ]]
+    jq '.management.edge.wan.bgp.site_prefixes = ["95.130.119.17/28"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"site_prefixes '95.130.119.17/28' is not an IPv4 network with its prefix length"* ]]
+    jq '.management.edge.wan.bgp.site_prefixes = ["2a11:83c0::/48"]' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"site_prefixes '2a11:83c0::/48' is IPv6"* ]]
+}
+
+# Two sites beside each other, as sites/ holds them: ber1 and a copy of it
+# moved onto addresses of its own.
+two_sites() {
+    mkdir -p "$BATS_TEST_TMPDIR/sites"
+    cp "$SITE_FILE" "$BATS_TEST_TMPDIR/sites/ber1.json"
+    jq '.site = "oak"
+        | .management.prefix = "192.168.90.0/24"
+        | .management.edge.provisioning = "192.168.91.1/24"
+        | .management.edge.machines.gateway = "10.90.0.1/24"
+        | .management.edge.wan.bgp.site_prefixes = ["95.130.119.32/28"]
+        | .management.edge.wan.egress.prefix = "95.130.119.32/28"' "$SITE_FILE" > "$BATS_TEST_TMPDIR/sites/oak.json"
+}
+
+@test "two sites announcing the same aggregate each keep their own block, and none shares a network the tailnet reaches" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    two_sites
+    run fleet_edge_check_sites "$BATS_TEST_TMPDIR/sites/ber1.json"
+    [ "$status" -eq 0 ]
+    run fleet_edge_check_sites "$BATS_TEST_TMPDIR/sites/oak.json"
+    [ "$status" -eq 0 ]
+    # a copy of a site under another file name is not a site, whether it is
+    # the one checked or one beside it
+    cp "$BATS_TEST_TMPDIR/sites/ber1.json" "$BATS_TEST_TMPDIR/sites/ber1-edit.json"
+    run fleet_edge_check_sites "$BATS_TEST_TMPDIR/sites/ber1.json"
+    [ "$status" -eq 0 ]
+    run fleet_edge_check_sites "$BATS_TEST_TMPDIR/sites/ber1-edit.json"
+    [ "$status" -eq 0 ]
+
+    jq '.management.edge.machines.gateway = "10.10.0.1/24"' "$BATS_TEST_TMPDIR/sites/oak.json" > "$BATS_TEST_TMPDIR/oak.json" && mv "$BATS_TEST_TMPDIR/oak.json" "$BATS_TEST_TMPDIR/sites/oak.json"
+    run fleet_edge_check_sites "$BATS_TEST_TMPDIR/sites/ber1.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1's machines network 10.10.0.0/24 overlaps oak's machines network 10.10.0.0/24"* ]]
+
+    two_sites
+    jq '.management.edge.wan.egress.prefix = "95.130.119.16/28" | .management.edge.wan.bgp.site_prefixes = ["95.130.119.0/27"]' "$BATS_TEST_TMPDIR/sites/oak.json" > "$BATS_TEST_TMPDIR/oak.json" && mv "$BATS_TEST_TMPDIR/oak.json" "$BATS_TEST_TMPDIR/sites/oak.json"
+    run fleet_edge_check_sites "$BATS_TEST_TMPDIR/sites/oak.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"oak's site-prefix 95.130.119.0/27 overlaps ber1's egress 95.130.119.16/28"* ]]
+
+    # without site prefixes, the upstream could hand ber1's replies to oak
+    two_sites
+    jq '.management.edge.wan.bgp |= del(.site_prefixes)' "$BATS_TEST_TMPDIR/sites/ber1.json" > "$BATS_TEST_TMPDIR/ber1.json" && mv "$BATS_TEST_TMPDIR/ber1.json" "$BATS_TEST_TMPDIR/sites/ber1.json"
+    run fleet_edge_check_sites "$BATS_TEST_TMPDIR/sites/ber1.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1 and oak both announce 95.130.119.0/24, so ber1 needs management.edge.wan.bgp.site_prefixes covering its egress"* ]]
+}
+
+@test "the committed sites collide with none of the others" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    for site in "$FLEET_ROOT"/sites/*.json; do
+        [ "$(jq -r .site "$site")" = "$(basename "$site" .json)" ] || continue
+        run fleet_edge_check_sites "$site"
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "IPv4 networks overlap when they share an address" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    fleet_prefixes_overlap 10.10.0.0/24 10.10.0.128/25
+    fleet_prefixes_overlap 95.130.119.0/24 95.130.119.16/28
+    ! fleet_prefixes_overlap 10.10.0.0/24 10.20.0.0/24
+    ! fleet_prefixes_overlap 95.130.119.16/28 95.130.119.32/28
+    fleet_prefix_inside_any 95.130.119.32/28 2a11:83c0::/29 95.130.119.0/24
+    ! fleet_prefix_inside_any 95.130.119.0/24 95.130.119.16/28
 }
 
 @test "a prefix's range runs from its network address to its last address" {

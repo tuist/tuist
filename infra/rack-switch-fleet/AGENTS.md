@@ -1210,6 +1210,58 @@ addresses and the gateways.
   forwarded to them by the edges, and their egress has to match. `render`
   refuses a block outside the announced prefixes and a node that is not a
   Mac mini on the segment (`fleet_edge_check_egress`).
+- **Several sites, one range.** Every site with a WAN announces the same
+  aggregates (`95.130.119.0/24`, `2a11:83c0::/29`), so the range stays on the
+  internet while any one site is up, and the addresses customers allowlist
+  (the whole range, in the public network guide) never change when a site
+  goes down. A /24 is the longest IPv4 prefix the internet carries, so the
+  aggregate alone cannot say which site an address belongs to. Each site
+  therefore also announces its own blocks, `management.edge.wan.bgp.site_prefixes`
+  (its egress /28), tagged NO_EXPORT (65535:65281). The upstream routes them
+  to that site and passes only the aggregate on. A reply to a mini
+  then reaches the site that sent the request, whichever site the internet
+  handed the packet to. Without that, the upstream could deliver it to the other site,
+  whose `tuist_rack_wan` drops it. That only works while both sites hang off
+  the same upstream AS: a more-specific tagged NO_EXPORT goes no further
+  than the AS that receives it. The upstream also has to accept prefixes
+  longer than /24 from us, and RPKI has to allow them: each site prefix
+  needs its own route object and ROA for AS218377, since the /24's ROA is
+  for the /24 alone. `render` refuses an egress outside the site's
+  prefixes once it has any, a site prefix outside the aggregates, and two
+  sites that both announce an aggregate without site prefixes of their own
+  (`fleet_edge_check_sites`). The order matters at a new site: the existing
+  sites' site prefixes are live upstream before the new site's session
+  first comes up, or the new site starts receiving their replies and
+  dropping them.
+- **Between the sites, before a link of their own.** Two sites meet over
+  the internet, each from its WAN address, in two ways and nothing else. The
+  tailnet carries everything people and controllers do (every edge is a
+  subnet router for its own site). The cluster network carries everything
+  pods do: a storage node on the cluster network is a Cilium node at its
+  site's WAN address ("A storage node on the cluster network" in
+  `infra/rack-nodes/AGENTS.md`), so store-a and larch's storage node
+  replicate pod to pod over VXLAN between the two WAN addresses, the same
+  path store-a already uses to Hetzner. Nothing routes one site's machines
+  segment to the other's.
+
+### Addresses across sites
+
+Every site keeps its own internal networks, because the tailnet routes them
+or reaches them through the edges, so `render` refuses a site whose machines,
+management, provisioning or ToR management networks overlap another site's,
+and own blocks of the range that overlap (`fleet_edge_check_sites`). The VRRP
+link is site-local and the same everywhere. A copy of a site under another
+file name (as the tests make) is not a site.
+
+| Network | ber1 | larch |
+|---|---|---|
+| Machines (VLAN 10) | 10.10.0.0/24 | 10.20.0.0/24 |
+| Management | 192.168.0.0/24 (VLAN 1, mgmt switch) | 192.168.60.0/24 (VLAN 20, on the ToRs) |
+| Provisioning | 192.168.50.0/24 | 192.168.70.0/24 |
+| ToR management links | none | 192.168.61.0/30 (edge-a to tor-a), 192.168.61.4/30 (edge-b to tor-b) |
+| Edge VRRP (VLAN 4000) | 10.255.255.0/29 | 10.255.255.0/29 |
+| WAN (VLAN 4001) | 149.6.170.31/31, 2001:978:2:b::4:11/127 (Cogent) | Cogent's, once the port is ordered |
+| Egress and site prefix | 95.130.119.16/28 | 95.130.119.32/28 |
 
 ### Cold boot
 
