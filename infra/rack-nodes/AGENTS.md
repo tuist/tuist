@@ -1163,6 +1163,41 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+### Several sites
+
+A job is bound to its Xcode and shape, not to a site. The rack's pools are
+rendered once, named after `rackFleet.site` (`…-ber1-<xcode>`), and select the
+rack fleet. A second site (`rackFleet.sites.<site>`, e.g. `larch`) joins that
+fleet when its `runners.enabled` is true: its minis' Nodes then carry the rack
+fleet's `tuist.dev/fleet` instead of their own `<rack fleet>-<site>`, so every
+rack pool spans both sites and the runners-controller apportions all their
+guest slots together. Until then the site's minis get no runners.
+
+- **Where a job runs.** Whichever site's runner claims it first. The claim
+  reads the claiming Node's `node.cluster.x-k8s.io/rack-site` label and hands
+  out that site's Kura runner cache (`server/lib/tuist/runners/AGENTS.md`). A
+  runner passes over a job whose account's runner cache is warm at the other
+  site for the job's first 60 seconds, so the warm site gets it first while it
+  has an idle runner.
+- **A dark site.** Its minis go NotReady, drop out of the autoscaler's budget,
+  and the runners-controller retires their idle runners after two minutes
+  (`infra/runners-controller/AGENTS.md`), so the pools' queued jobs run at the
+  sites still up. Nothing moves jobs between sites. Jobs already running there
+  are lost with the site.
+- **One guest per pool.** A RunnerPool has one guest size, so a site whose
+  runners are on runs `rackFleet.runners` as is. The render fails when
+  `rackFleet.sites.<site>.runners` sets `guestShapes`, `shapes`,
+  `stackedImages`, `autoscaling`, `rollout` or `xcodeOverrides` differently,
+  when `rackFleet.runners` is off, or when the site names its own `nodeFleet`.
+  Different hardware at a site needs a different design, not a per-site
+  override.
+- **Pinned pools.** An explicit `runnersFleet.pools` entry with a `site` runs
+  only on that site's minis (`spec.site`), which is how the `ber1` smoke pool
+  keeps testing ber1.
+- **Pool names.** They keep ber1 in them. Renaming them is part of turning a
+  second site's runners on, with the queued jobs on the old names moved in the
+  same deploy.
+
 Staging and canary rent no macOS runner hosts: their only macOS runners are
 the rack hosts production lends them (b01 and b02, "Lending a host to
 another env" below), and `runner_site` is on for every account there

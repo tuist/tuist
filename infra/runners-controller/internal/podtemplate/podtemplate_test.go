@@ -1027,3 +1027,26 @@ func TestPreferCacheVolumeNodeLeavesThePodAloneWithoutANode(t *testing.T) {
 		t.Fatalf("affinity = %+v, want none", pod.Spec.Affinity)
 	}
 }
+
+// A rack fleet spans every site whose runners are on. A pool with no site
+// places its Pods anywhere in it, exactly as before sites were selectable; a
+// pool that names one pins them to that site's Nodes.
+func TestBuild_MacOSSitePin(t *testing.T) {
+	unpinned := build(t, basePool(""))
+	if _, ok := unpinned.Spec.NodeSelector[RackSiteNodeLabel]; ok {
+		t.Errorf("a pool without a site selects %s: %v", RackSiteNodeLabel, unpinned.Spec.NodeSelector)
+	}
+	if got, want := len(unpinned.Spec.NodeSelector), 3; got != want {
+		t.Errorf("nodeSelector has %d entries, want %d: %v", got, want, unpinned.Spec.NodeSelector)
+	}
+
+	pool := basePool("")
+	pool.Spec.Site = "ber1"
+	pinned := build(t, pool)
+	if got, want := pinned.Spec.NodeSelector[RackSiteNodeLabel], "ber1"; got != want {
+		t.Errorf("nodeSelector %s = %q, want %q", RackSiteNodeLabel, got, want)
+	}
+	if got, want := pinned.Spec.NodeSelector["tuist.dev/fleet"], "fleet-x"; got != want {
+		t.Errorf("nodeSelector fleet = %q, want %q", got, want)
+	}
+}

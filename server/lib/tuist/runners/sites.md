@@ -1,6 +1,7 @@
 # Rack sites: bind jobs to Xcode and shape, pick the site at claim
 
-Status: design, for review before implementation.
+Status: agreed with Marek on 2026-10-26 and implemented. The rules that code
+must keep are in [`AGENTS.md`](AGENTS.md).
 
 ## Problem
 
@@ -75,8 +76,8 @@ budget. No job moves.
 
 The constraint this adds: every site racking a pool runs the same guest for
 it (`rackFleet.runners.guestShapes`, `stackedImages`, the racked shapes),
-because a RunnerPool has one pod size. `rackFleet.sites.<site>.runners` keeps
-only `enabled`.
+because a RunnerPool has one pod size. `rackFleet.sites.<site>.runners` may set
+only `enabled`, or repeat the rack's own values.
 
 ### 2. The claim identifies its site from the Node
 
@@ -173,14 +174,20 @@ and the Kura rules see the same jobs. The new code paths are the Node read
   release, and it is input from the VM. The Node label is authoritative and
   already one read away.
 
-## Open questions
+## Decisions
 
-1. Pool names. Keeping `<prefix>-ber1-<xcode>` means zero churn now, but the
-   name is wrong once larch joins. Renaming to a site-free rack name (say
-   `<prefix>-rack-<xcode>`) drains every rack pool and strands queued rows on
-   the old names unless they are moved in the same deploy. Proposal: keep the
-   names in this change and rename, if at all, when larch's runners turn on.
-2. The 60 second cache-site grace. Shorter favours queue time, longer favours
-   warm caches.
-3. Whether larch will run the same guest shapes as ber1 (the one-pool
-   constraint above).
+1. **Pool names.** The rack pools keep `<prefix>-ber1-<xcode>` in this change.
+   Renaming them to a site-free name drains every rack pool and strands queued
+   rows on the old names unless they move in the same deploy, so the rename, if
+   any, happens together with turning larch's runners on.
+2. **Cache-site grace.** 60 seconds, to be tuned later with queue-time and
+   hit-rate data.
+3. **Guest shapes at a second site.** Not assumed. The chart refuses to turn a
+   second site's runners on while its `rackFleet.sites.<site>.runners` sets
+   `guestShapes`, `shapes`, `stackedImages`, `autoscaling`, `rollout` or
+   `xcodeOverrides` differently from `rackFleet.runners`, names its own
+   `nodeFleet`, or the rack's runners are off. Host sizing (`rackFleet.machine`)
+   is fleet-wide already. ber1's minis are M5 Pro (Z1UD001N2: 18-core CPU,
+   64 GB, 2 TB).
+4. **Unreachable Nodes.** The controller retires idle Pods on a Node NotReady
+   for two minutes, long enough to ride out a kubelet restart.

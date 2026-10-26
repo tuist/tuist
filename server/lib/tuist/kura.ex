@@ -1307,9 +1307,10 @@ defmodule Tuist.Kura do
 
   @doc """
   In-cluster Kura URL a runner-as-a-service build on a fleet of the
-  given platform should use, or `nil` when nothing serves it. A fleet
-  racked at a site (`Catalog.fleet_site/1`) takes only that site's private
-  regions; any other fleet takes only private regions with no site.
+  given platform should use, or `nil` when nothing serves it. A runner
+  claiming at a rack site (`Tuist.Runners.Sites.claim_site/2`) takes only that
+  site's private regions; any other runner takes only private regions with no
+  site.
 
   Two tiers, best first: the account's active private (runner-cache)
   node in a region serving the platform, else the in-cluster Service
@@ -1337,6 +1338,34 @@ defmodule Tuist.Kura do
   end
 
   def runner_cache_endpoint_url(%Account{}, _platform, _site), do: nil
+
+  @doc """
+  The accounts among `account_ids` whose runner cache is warm at another rack
+  site than `site`: an active node in an available private region at another
+  site, and none at `site`. A runner at `site` lets such an account's jobs wait
+  briefly for a runner beside the cache (`Tuist.Runners.Sites`). Reads nothing
+  while no available private region is at another site.
+  """
+  def runner_cache_elsewhere(account_ids, site) when is_list(account_ids) and is_binary(site) do
+    site_by_region =
+      for region <- Regions.available(),
+          Regions.private?(region),
+          region_site when is_binary(region_site) <- [Regions.site(region)],
+          into: %{},
+          do: {region.id, region_site}
+
+    if account_ids == [] or not Enum.any?(Map.values(site_by_region), &(&1 != site)) do
+      MapSet.new()
+    else
+      Server
+      |> where([s], s.account_id in ^account_ids and s.status == :active and s.region in ^Map.keys(site_by_region))
+      |> select([s], {s.account_id, s.region})
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &Map.fetch!(site_by_region, elem(&1, 1)))
+      |> Enum.reject(fn {_account_id, sites} -> site in sites end)
+      |> MapSet.new(&elem(&1, 0))
+    end
+  end
 
   defp private_runner_cache_url(%Account{id: account_id}, platform, site) do
     # `available/0`, not `all/0`: if a private region is dropped from

@@ -88,6 +88,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
       account_id: account.id,
       fleet_name: fleet_name,
       status: Keyword.get(opts, :status, "completed"),
+      site: Keyword.get(opts, :site),
       platform: Keyword.get(opts, :platform, "macos"),
       enqueued_at: claimed_at,
       claimed_at: claimed_at,
@@ -99,7 +100,12 @@ defmodule Tuist.Kura.RunnerCacheTest do
   # served `remote_hits` cacheable tasks from the remote cache.
   defp build_in_job(account, fleet_name, opts \\ []) do
     workflow_run_id = System.unique_integer([:positive])
-    claimed_job(account, fleet_name, workflow_run_id: workflow_run_id, days_ago: Keyword.get(opts, :days_ago, 0))
+
+    claimed_job(account, fleet_name,
+      workflow_run_id: workflow_run_id,
+      days_ago: Keyword.get(opts, :days_ago, 0),
+      site: Keyword.get(opts, :site)
+    )
 
     RunsFixtures.build_fixture(
       project_id: ProjectsFixtures.project_fixture(account_id: account.id).id,
@@ -204,6 +210,25 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert server_regions(on_site) == ["ber1-runners"]
     assert server_regions(off_site) == []
+  end
+
+  test "a site's region counts the jobs of its pool claimed at the site, not those claimed at another" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
+    at_site = account_with_profiles([:macos])
+    build_in_job(at_site, @site_macos_pool, site: "ber1")
+    elsewhere = account_with_profiles([:macos])
+    build_in_job(elsewhere, @site_macos_pool, site: "larch")
+    before_sites = account_with_profiles([:macos])
+    build_in_job(before_sites, @site_macos_pool)
+    set_runner_availability([at_site.id, elsewhere.id, before_sites.id])
+    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(at_site) == ["ber1-runners"]
+    assert server_regions(elsewhere) == []
+    assert server_regions(before_sites) == ["ber1-runners"]
   end
 
   test "a site's region holds nodes only for flagged accounts whose site jobs hit the remote cache" do
@@ -390,6 +415,31 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert Repo.get!(Server, server.id).status == :drain_pending
 
     Repo.update!(Ecto.Changeset.change(in_flight, status: "completed"))
+    assert :ok = RunnerCache.reconcile()
+
+    assert Repo.get!(Server, server.id).status == :destroying
+  end
+
+  test "a drained site node waits only for the jobs claimed at its site" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
+    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+    account = account_with_profiles([:macos])
+    build_in_job(account, @site_macos_pool, site: "ber1")
+    set_runner_availability([account.id])
+    assert :ok = RunnerCache.reconcile()
+    server = activate(account, "ber1-runners")
+    an_hour_ago = DateTime.add(DateTime.utc_now(), -3600, :second)
+    at_site = claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "ber1")
+    claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "larch")
+    set_runner_availability([])
+    assert :ok = RunnerCache.reconcile()
+    drained_for(server, 20 * 60)
+
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.get!(Server, server.id).status == :drain_pending
+
+    Repo.update!(Ecto.Changeset.change(at_site, status: "completed"))
     assert :ok = RunnerCache.reconcile()
 
     assert Repo.get!(Server, server.id).status == :destroying
@@ -761,9 +811,9 @@ defmodule Tuist.Kura.RunnerCacheTest do
              Repo.get_by!(Deployment, kura_server_id: server.id, status: :pending)
   end
 
-  defp activate(account) do
+  defp activate(account, region \\ "scw-fr-par-runners") do
     Server
-    |> Repo.get_by!(account_id: account.id, region: "scw-fr-par-runners")
+    |> Repo.get_by!(account_id: account.id, region: region)
     |> Server.observation_changeset(%{
       status: :active,
       url: "https://#{account.id}.runners.example.com",

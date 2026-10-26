@@ -28,6 +28,19 @@ independent workqueues:
   idle Pods are retired like a cordoned Node's
   (`reapIdlePodsOnCordonedNodes`), so only the jobs already running there
   keep drawing.
+  A Node NotReady for two minutes (`nodeUnreachableRetireAfter`), such as
+  every mini of a rack site that went dark, has its idle Pods retired the
+  same way. It is already no capacity (`not_ready`), but its warm Pods would
+  otherwise count toward `spec.replicas` until taint-based eviction about
+  five minutes in, and the autoscaler would create no replacements at the
+  sites still up. Pods that claimed a job are left alone.
+
+  `spec.site` pins a pool to one rack site within its fleet (nodeSelector
+  `node.cluster.x-k8s.io/rack-site`, also applied to the Node set the
+  reservation, preemption and shape caps reason about, `fleetNodeSelector`).
+  A rack fleet spans every site whose runners are on
+  (`infra/rack-nodes/AGENTS.md`, "Several sites"); empty `site` places the
+  pool anywhere in it, exactly as before the field existed.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
@@ -88,9 +101,10 @@ independent workqueues:
     dispatchable `queued` jobs its own idle bound Pods cannot absorb:
     `min(rejected, queued - idleBound)`. `withheld` work (accounts at
     their concurrency limit) never preempts. Entitlement is not checked
-    here: a job is only queued on a site pool when dispatch routed it
+    here: a job is only queued on a rack pool when dispatch routed it
     there (`runner_site` accounts, or the pool's own dispatch label), and
-    the site spillover worker moves queued jobs off a site that is down.
+    a rack pool spans every site whose runners are on, so its queue is
+    served by whichever site has room.
   - Demand is counted in the allocator's per-Pod cost, minus seats
     already on their way back, so consecutive ticks do not over-preempt
     while a Tart VM tears down. A pool returns the seats it holds above

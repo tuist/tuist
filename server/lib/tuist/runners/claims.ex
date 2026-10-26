@@ -110,14 +110,18 @@ defmodule Tuist.Runners.Claims do
       memory limit.
     * `{:error, :pod_in_use}` — `pod_name` already owns a live
       claim. Closes the SA-token-reuse path.
+
+  `site` is the rack site of the Node the claiming Pod runs on, nil off the
+  rack. The claim and the job's lifecycle row record it, and so does the row of
+  any other job GitHub places on the Pod's runner.
   """
-  def attempt(workflow_job_id, account_id, fleet_name, pod_name, resources) do
+  def attempt(workflow_job_id, account_id, fleet_name, pod_name, resources, site \\ nil) do
     with :ok <- validate_claim_inputs(workflow_job_id, account_id, fleet_name, pod_name, resources),
          :ok <- validate_resources(resources) do
       Repo.transaction(fn ->
         result =
           with {:ok, account} <- fetch_account(account_id),
-               {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources),
+               {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources, site),
                {:ok, limit} <- try_lock_concurrency_limit(account.id, resources.platform),
                :ok <- check_reserved_capacity(account.id, limit, resources) do
             # Same transaction as the claim insert, so the claim and the
@@ -128,7 +132,7 @@ defmodule Tuist.Runners.Claims do
             # disagrees with the claim that just landed, so it is logged
             # rather than swallowed.
             log_unmoved_lifecycle_row(
-              WorkflowJobs.transition_claimed(claim.workflow_job_id, claim.pod_name, claim.claimed_at),
+              WorkflowJobs.transition_claimed(claim.workflow_job_id, claim.pod_name, claim.claimed_at, claim.site),
               claim
             )
 
@@ -259,7 +263,7 @@ defmodule Tuist.Runners.Claims do
 
   defp resources_for_claim(%{fleet_name: fleet_name}), do: Catalog.resources_for_fleet(fleet_name)
 
-  defp insert_claim(workflow_job_id, account_id, fleet_name, pod_name, resources) do
+  defp insert_claim(workflow_job_id, account_id, fleet_name, pod_name, resources, site) do
     now = DateTime.utc_now()
 
     {count, rows} =
@@ -271,6 +275,7 @@ defmodule Tuist.Runners.Claims do
             account_id: account_id,
             fleet_name: fleet_name,
             pod_name: pod_name,
+            site: site,
             claimed_at: now,
             platform: resources.platform,
             vcpus: resources.vcpus,
@@ -285,6 +290,7 @@ defmodule Tuist.Runners.Claims do
           :account_id,
           :fleet_name,
           :pod_name,
+          :site,
           :claimed_at,
           :platform,
           :vcpus,
@@ -1086,16 +1092,18 @@ defmodule Tuist.Runners.Claims do
   #
   # When a stale claim holds the row, the row moves off its handle, so
   # that claim's later detach cannot re-queue a job that is running.
-  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name}, executed_workflow_job_id, nil) do
-    WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name)
+  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name, site: site}, executed_workflow_job_id, nil) do
+    WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site)
   end
 
-  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name}, executed_workflow_job_id, %Claim{
-         claimed_at: stale_claimed_at
-       }) do
-    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at) do
+  defp adopt_executed_job(
+         %Claim{pod_name: pod_name, runner_name: runner_name, site: site},
+         executed_workflow_job_id,
+         %Claim{claimed_at: stale_claimed_at}
+       ) do
+    case WorkflowJobs.take_over_executing(executed_workflow_job_id, runner_name, pod_name, stale_claimed_at, site) do
       :ok -> :ok
-      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name)
+      :noop -> WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name, site)
     end
   end
 
