@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthControllerTest do
   alias Tuist.OAuth2.SSOClient
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth.Info
 
   describe "GET /auth/cli/:device_code" do
@@ -1295,6 +1296,69 @@ defmodule TuistWeb.AuthControllerTest do
       assert_error_sent 401, fn ->
         sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(outsider)})
       end
+    end
+  end
+
+  describe "instance-trusted SSO callbacks" do
+    setup do
+      organization = custom_provider_organization(sso_login_domain: "example.com")
+
+      other =
+        custom_provider_organization(sso_login_domain: "example.com", sso_organization_id: "https://other.example.com")
+
+      admin = AccountsFixtures.user_fixture()
+
+      stub(Tuist.Environment, :sso_login_domain_policy, fn ->
+        %{trust_unverified_domains: true, admin_user_ids: [admin.id]}
+      end)
+
+      %{organization: organization, other: other, admin: admin}
+    end
+
+    test "links an existing account through an instance-trusted provider", %{conn: conn, organization: organization} do
+      user = AccountsFixtures.user_fixture(email: "person@example.com")
+      stub_sso_userinfo("operator-sub", user.email)
+      conn = sso_callback(conn, organization)
+      assert get_session(conn, :user_token)
+
+      assert {:ok, identity} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "operator-sub", organization.sso_organization_id)
+
+      assert identity.user_id == user.id
+    end
+
+    test "permits new-user signup when automatic enrollment is enabled", %{
+      conn: conn,
+      organization: organization,
+      admin: admin
+    } do
+      {:ok, organization} =
+        Tuist.Accounts.update_sso_configuration(organization.id, :oauth2, %{sso_automatic_enrollment: true}, actor: admin)
+
+      stub_sso_userinfo("new-operator-sub", "new-person@example.com")
+      conn = sso_callback(conn, organization)
+      assert redirected_to(conn) == "/users/choose-username"
+      assert get_session(conn, :pending_oauth_signup)
+    end
+
+    test "instance trust also authorizes another operator-configured organization for its saved domain", %{
+      conn: conn,
+      other: other
+    } do
+      user = AccountsFixtures.user_fixture(email: "person@example.com")
+      stub_sso_userinfo("other-sub", user.email)
+      assert get_session(sso_callback(conn, other), :user_token)
+      assert {:ok, identity} = Tuist.Accounts.get_oauth2_identity(:oauth2, "other-sub", other.sso_organization_id)
+      assert identity.user_id == user.id
+    end
+
+    test "does not link email addresses outside the saved domain", %{conn: conn, organization: organization} do
+      user = AccountsFixtures.user_fixture(email: "victim@outside.example")
+      stub_sso_userinfo("outside-sub", user.email)
+      assert_raise UnauthorizedError, fn -> sso_callback(conn, organization) end
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "outside-sub", organization.sso_organization_id)
     end
   end
 

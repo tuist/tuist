@@ -18,6 +18,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.SSOLoginDomainRecheck
+  alias Tuist.Accounts.SSOLoginDomainTrust
   alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserNotifier
@@ -53,6 +54,7 @@ defmodule Tuist.Accounts do
     :sso_provider,
     :sso_organization_id,
     :sso_enforced,
+    :sso_default_role,
     :sso_login_domain,
     :sso_login_domain_verification_token,
     :sso_login_domain_verified_at,
@@ -330,6 +332,8 @@ defmodule Tuist.Accounts do
   # matching `organization_user?/2` and `organization_viewer?/2` answering false
   # for those identities.
   defp sso_enrolled_members_without_role(%Organization{id: organization_id} = organization) do
+    enrollment_allowed? = sso_enrollment_predicate(organization)
+
     stored_role_for_organization =
       from(ur in UserRole,
         join: r in Role,
@@ -354,7 +358,7 @@ defmodule Tuist.Accounts do
       select: u
     )
     |> Repo.all()
-    |> Enum.filter(&sso_automatic_enrollment_allowed?(organization, &1.email))
+    |> Enum.filter(&enrollment_allowed?.(&1.email))
   end
 
   @doc """
@@ -422,7 +426,7 @@ defmodule Tuist.Accounts do
     Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: to_string(id_in_provider))
   end
 
-  def update_sso_configuration(organization_id, sso_provider, attrs) do
+  def update_sso_configuration(organization_id, sso_provider, attrs, opts \\ []) do
     case get_organization_by_id(organization_id) do
       {:ok, organization} ->
         sso_attrs =
@@ -438,7 +442,7 @@ defmodule Tuist.Accounts do
           )
 
         organization
-        |> Organization.sso_configuration_changeset(sso_attrs)
+        |> sso_configuration_changeset(sso_attrs, Keyword.get(opts, :actor))
         |> Repo.update()
 
       {:error, :not_found} = error ->
@@ -450,11 +454,9 @@ defmodule Tuist.Accounts do
         %Organization{sso_login_domain: domain, sso_login_domain_verification_token: token} = organization
       )
       when is_binary(domain) and is_binary(token) do
-    if SSOLoginDomainVerification.verified?(domain, token) do
-      persist_verified_sso_login_domain(organization.id, domain, token)
-    else
-      {:error, :verification_record_not_found}
-    end
+    if SSOLoginDomainVerification.verified?(domain, token),
+      do: persist_verified_sso_login_domain(organization.id, domain, token),
+      else: {:error, :verification_record_not_found}
   end
 
   def verify_sso_login_domain(%Organization{}), do: {:error, :login_domain_not_configured}
@@ -470,6 +472,10 @@ defmodule Tuist.Accounts do
   end
 
   def sso_login_domain_record_value(%Organization{}), do: nil
+
+  defdelegate sso_login_domain_trust(organization), to: SSOLoginDomainTrust, as: :trust
+  defdelegate sso_configuration_allowed?(actor), to: SSOLoginDomainTrust, as: :configuration_allowed?
+  defdelegate sso_login_domain_shared?(organization), to: SSOLoginDomainTrust, as: :shared_domain?
 
   defdelegate sso_login_domain_expiring?(organization), to: SSOLoginDomainRecheck, as: :expiring?
 
@@ -586,7 +592,25 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_organization(%Organization{} = organization, attrs) do
+  defp sso_configuration_changeset(organization, attrs, actor) do
+    changeset = Organization.sso_configuration_changeset(organization, attrs, validate_security_policy: false)
+    trust = changeset |> Changeset.apply_changes() |> SSOLoginDomainTrust.trust()
+
+    changeset
+    |> Organization.validate_sso_security_policy(trust)
+    |> authorize_sso_changes(actor)
+  end
+
+  defp authorize_sso_changes(changeset, actor) do
+    if Enum.any?(Map.keys(changeset.changes), &(&1 in @sso_configuration_attr_keys)) and
+         not sso_configuration_allowed?(actor) do
+      Changeset.add_error(changeset, :sso_provider, "only instance SSO administrators can configure SSO")
+    else
+      changeset
+    end
+  end
+
+  def update_organization(%Organization{} = organization, attrs, opts \\ []) do
     attrs =
       attrs
       |> normalize_sso_configuration_attr_keys()
@@ -595,7 +619,7 @@ defmodule Tuist.Accounts do
       |> prepare_sso_login_domain_attrs(organization)
 
     Multi.new()
-    |> Multi.update(:organization, Organization.sso_configuration_changeset(organization, attrs))
+    |> Multi.update(:organization, sso_configuration_changeset(organization, attrs, Keyword.get(opts, :actor)))
     |> Multi.run(:assign_sso_users, fn _repo, %{organization: updated_organization} ->
       if sso_newly_enabled?(
            organization.sso_provider,
@@ -652,7 +676,7 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email}}, opts) do
+  defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email} = creator}, opts) do
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     sso_login_domain = Keyword.get(opts, :sso_login_domain)
@@ -671,7 +695,8 @@ defmodule Tuist.Accounts do
     Multi.new()
     |> Multi.insert(
       :organization,
-      Organization.create_changeset(%Organization{}, %{
+      %Organization{}
+      |> Organization.create_changeset(%{
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
         sso_login_domain: sso_login_domain,
@@ -687,6 +712,7 @@ defmodule Tuist.Accounts do
         oauth2_user_info_url: oauth2_user_info_url,
         created_at: created_at
       })
+      |> authorize_sso_changes(creator)
     )
     |> Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
@@ -1268,10 +1294,12 @@ defmodule Tuist.Accounts do
   """
   def assign_existing_sso_users_to_organization(organization, provider, provider_organization_id)
       when not is_nil(provider) and not is_nil(provider_organization_id) do
+    enrollment_allowed? = sso_enrollment_predicate(organization)
+
     users =
       organization
       |> find_unassigned_sso_users(provider, provider_organization_id)
-      |> Enum.filter(&sso_automatic_enrollment_allowed?(organization, &1.email))
+      |> Enum.filter(&enrollment_allowed?.(&1.email))
 
     role = sso_enrollment_role(organization)
 
@@ -1795,18 +1823,22 @@ defmodule Tuist.Accounts do
         false
 
       domain ->
-        legacy_organization_ids = legacy_sso_organization_ids_for_domain(domain)
-
-        Repo.exists?(
-          from(o in Organization,
-            where: o.sso_enforced == true and o.sso_provider in [:okta, :oauth2],
-            where:
-              (o.sso_login_domain == ^domain and not is_nil(o.sso_login_domain_verified_at)) or
-                (o.sso_legacy_email_domain_fallback == true and
-                   o.sso_organization_id in ^legacy_organization_ids)
-          )
-        )
+        email_domain_has_enforced_provider?(domain)
     end
+  end
+
+  defp email_domain_has_enforced_provider?(domain) do
+    legacy_organization_ids = legacy_sso_organization_ids_for_domain(domain)
+    instance_trust? = Environment.sso_login_domain_policy().trust_unverified_domains
+
+    Repo.exists?(
+      from(o in Organization,
+        where: o.sso_enforced == true and o.sso_provider in [:okta, :oauth2],
+        where:
+          (o.sso_login_domain == ^domain and (^instance_trust? or not is_nil(o.sso_login_domain_verified_at))) or
+            (o.sso_legacy_email_domain_fallback == true and o.sso_organization_id in ^legacy_organization_ids)
+      )
+    )
   end
 
   def organization_admin?(%User{} = user, %Organization{} = organization) do
@@ -1841,10 +1873,10 @@ defmodule Tuist.Accounts do
   # anything has been written for them. A stored role always wins, so promoting
   # or demoting a member is not undone by their next login.
   defp holds_sso_enrollment_role?(%User{} = user, %Organization{} = organization, name) do
-    sso_default_role(organization) == name and
-      sso_automatic_enrollment_allowed?(organization, user.email) and
+    organization.sso_automatic_enrollment and sso_default_role(organization) == name and
+      not holds_any_stored_organization_role?(user, organization) and
       belongs_to_sso_organization?(user, organization) and
-      not holds_any_stored_organization_role?(user, organization)
+      sso_automatic_enrollment_allowed?(organization, user.email)
   end
 
   defp holds_any_stored_organization_role?(%User{organization_roles: roles}, %Organization{id: organization_id})
@@ -2603,6 +2635,13 @@ defmodule Tuist.Accounts do
   end
 
   defp sso_organization_for_email_domain(email) do
+    case SSOLoginDomainTrust.discover(email_domain(email)) do
+      :unbound -> unbound_sso_organization_for_email_domain(email)
+      result -> result
+    end
+  end
+
+  defp unbound_sso_organization_for_email_domain(email) do
     case email_domain(email) do
       nil ->
         {:error, :not_found}
@@ -2642,27 +2681,31 @@ defmodule Tuist.Accounts do
 
   def sso_automatic_enrollment_allowed?(%Organization{sso_automatic_enrollment: false}, _email), do: false
 
-  def sso_automatic_enrollment_allowed?(
-        %Organization{sso_automatic_enrollment: true, sso_legacy_email_domain_fallback: true},
-        _email
-      ), do: true
+  def sso_automatic_enrollment_allowed?(%Organization{sso_provider: :google}, _email), do: true
 
-  def sso_automatic_enrollment_allowed?(%Organization{sso_provider: :google, sso_automatic_enrollment: true}, _email),
-    do: true
+  def sso_automatic_enrollment_allowed?(%Organization{} = organization, email) do
+    domain = email_domain(email)
 
-  def sso_automatic_enrollment_allowed?(
-        %Organization{
-          sso_login_domain: domain,
-          sso_login_domain_verified_at: verified_at,
-          sso_automatic_enrollment: true
-        },
-        email
-      )
-      when is_binary(domain) do
-    not is_nil(verified_at) and email_domain(email) == domain
+    cond do
+      organization.sso_legacy_email_domain_fallback -> true
+      domain != organization.sso_login_domain -> false
+      true -> SSOLoginDomainTrust.trusted?(organization)
+    end
   end
 
-  def sso_automatic_enrollment_allowed?(%Organization{}, _email), do: false
+  defp sso_enrollment_predicate(%Organization{sso_automatic_enrollment: false}), do: fn _email -> false end
+  defp sso_enrollment_predicate(%Organization{sso_provider: :google}), do: fn _email -> true end
+
+  # Resolve shared trust once for member-list filtering, not once per member.
+  # This closure is request-local and never caches an authorization decision.
+  defp sso_enrollment_predicate(organization) do
+    trusted? = SSOLoginDomainTrust.trusted?(organization)
+    domain = organization.sso_login_domain
+
+    fn email ->
+      organization.sso_legacy_email_domain_fallback or (trusted? and email_domain(email) == domain)
+    end
+  end
 
   def sso_new_user_enrollment_allowed?(%Organization{} = organization, email, invitation?) when is_boolean(invitation?) do
     trusted_email_domain? = sso_identity_linking_allowed?(organization, email)
@@ -2674,17 +2717,11 @@ defmodule Tuist.Accounts do
 
   def sso_new_user_enrollment_allowed?(_organization, _email, _invitation?), do: false
 
-  # Domain Name System control is the account-linking trust boundary here:
+  # DNS control or explicit self-hosted instance policy establishes domain trust:
   # https://workos.com/docs/authkit/identity-linking#domain-verification
-  def sso_identity_linking_allowed?(
-        %Organization{sso_login_domain: domain, sso_login_domain_verified_at: verified_at},
-        email
-      )
-      when is_binary(domain) do
-    not is_nil(verified_at) and email_domain(email) == domain
+  def sso_identity_linking_allowed?(%Organization{} = organization, email) do
+    SSOLoginDomainTrust.trusted_for_email?(organization, email)
   end
-
-  def sso_identity_linking_allowed?(%Organization{}, _email), do: false
 
   defp legacy_sso_organization_ids_for_domain(domain) do
     [

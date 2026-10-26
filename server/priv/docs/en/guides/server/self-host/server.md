@@ -425,6 +425,59 @@ You will need to set the following environment variables once you obtain the cli
 
 The number `1` needs to be replaced with your organization ID. This will typically be 1, but check in your database.
 
+#### Instance-wide trust for login domains {#operator-trusted-login-domains}
+
+A private instance can trust every Okta, custom OAuth2, and Microsoft Entra configuration's saved **Login email domain** without requiring a DNS TXT record:
+
+```sh
+TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS=true
+TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS=123,456
+```
+
+| Environment variable | Description | Required | Default |
+| --- | --- | --- | --- |
+| `TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS` | Trust saved custom-provider login domains instance-wide without DNS verification; accepts exactly `true` or `false` | No | `false` |
+| `TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS` | Comma-separated immutable user IDs allowed to configure SSO, in addition to normal organization permissions | Required when trust is enabled | Unset |
+
+Select existing users by their database `users.id`, not organization IDs or email domains. For example, an operator can query `SELECT id, email FROM users WHERE email IN ('admin@example.com');` against the instance's PostgreSQL database. Protect these user accounts as instance SSO administrators. The allowlist cannot be edited in the dashboard or API. Ordinary organization administrators can still manage other settings, SCIM, and workload identities, but cannot change SSO providers, endpoints, credentials, domains, enforcement, enrollment, or default roles. A listed user must also have ordinary organization-administrator permission for the organization being configured. Account and project tokens do not gain this authority.
+
+For Helm, use `server.extraEnv`:
+
+```yaml
+server:
+  extraEnv:
+    - name: TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS
+      value: "true"
+    - name: TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS
+      value: "123,456"
+```
+
+Enabling trust without an administrator list, malformed or duplicate IDs, empty strings, invalid boolean values, and configuring either capability on Tuist-hosted deployments fail startup. Both variables are optional when instance trust is disabled. Keeping the administrator list configured continues restricting SSO edits even with trust disabled.
+
+> [!WARNING]
+> Instance trust authorizes every configured custom identity provider to assert addresses in its saved login domain, including linking existing Tuist accounts. Linked identities can sign in to the entire user account, not just one organization. The selected SSO administrators can change domains and endpoints without further operator approval. There are no per-domain, organization, or issuer approvals. Anyone can normally create an organization, so organization administration alone is deliberately insufficient to configure SSO under this policy.
+
+**Enable in stages:** first upgrade every replica and configure only the administrator list with trust still `false`. Drain all old replicas. Audit every existing SSO configuration, removing or repairing providers, endpoints, and login domains you do not trust. Existing configurations also receive instance trust when it is enabled; the policy does not record who originally configured them. Only then enable trust and restart every replica. Freeze SSO configuration writes during changes to the administrator list so a replica using the old list cannot overwrite a reviewed configuration.
+
+Operators can list the custom-provider configurations to audit with this read-only PostgreSQL query (`1` is Okta and `3` is custom OAuth2, including Entra):
+
+```sql
+SELECT id, sso_provider, sso_organization_id, sso_login_domain,
+       sso_enforced, sso_automatic_enrollment,
+       oauth2_authorize_url, oauth2_token_url, oauth2_user_info_url
+FROM organizations
+WHERE sso_provider IN (1, 3)
+ORDER BY id;
+```
+
+The settings page shows **Trusted by instance configuration**, not **Verified**. No DNS verification timestamp is created, DNS rechecks cannot revoke instance trust, and Google Workspace retains its independent authenticated Workspace-domain proof. Emails must still match the saved login domain for custom-provider enrollment and email-based identity linking. The administrator must authenticate through the configured provider before enabling enforcement.
+
+Multiple organizations may save the same domain. Existing membership-based routing and organization-specific SSO links continue working. Domain-based discovery prefers the DNS-verified custom-provider organization, otherwise uses the sole matching custom provider. Multiple unverified claimants produce an ambiguity error rather than selecting one arbitrarily; use the organization's SSO link or verify the domain with DNS to resolve it. Google organizations' stale login-domain fields do not participate. DNS verification only breaks discovery ties: it does not revoke another operator-configured provider's instance trust for enrollment or linking. Unknown-email enforcement checks require SSO if any matching custom-provider organization enforces it.
+
+Changes require restarting **every** replica. Updating a Secret through `extraEnvFrom` does not restart pods automatically. Mixed replicas temporarily apply different policies; drain old replicas before considering a change complete.
+
+**Disable in stages:** set trust to `false` but retain the administrator list until every replica has restarted and old replicas have drained. Only then remove the list if ordinary organization administrators should regain SSO configuration access. Without independent DNS proof, new automatic enrollment, email-based identity linking, and domain-based discovery stop. Members relying only on dynamic enrollment can lose access on their next authorization check. Linked identities, sessions, and stored memberships remain; disabling trust does not undo previous account links. Existing enforcement remains and listed administrators can rotate secrets or turn policies off. Turning policies on or changing provider, issuer, or domain requires trust again.
+
 ### Storage environment configuration {#storage-environment-configuration}
 
  Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.

@@ -479,20 +479,29 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action."})
 
+      not Accounts.sso_configuration_allowed?(user) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "Only instance SSO administrators can configure SSO."})
+
       sso_provider == "none" ->
         {:ok, organization} =
-          Accounts.update_organization(organization, %{
-            sso_provider: nil,
-            sso_organization_id: nil,
-            sso_enforced: false,
-            sso_login_domain: nil,
-            sso_automatic_enrollment: false,
-            oauth2_client_id: nil,
-            oauth2_encrypted_client_secret: nil,
-            oauth2_authorize_url: nil,
-            oauth2_token_url: nil,
-            oauth2_user_info_url: nil
-          })
+          Accounts.update_organization(
+            organization,
+            %{
+              sso_provider: nil,
+              sso_organization_id: nil,
+              sso_enforced: false,
+              sso_login_domain: nil,
+              sso_automatic_enrollment: false,
+              oauth2_client_id: nil,
+              oauth2_encrypted_client_secret: nil,
+              oauth2_authorize_url: nil,
+              oauth2_token_url: nil,
+              oauth2_user_info_url: nil
+            },
+            actor: user
+          )
 
         json(conn, %{
           id: organization.id,
@@ -556,12 +565,16 @@ defmodule TuistWeb.API.OrganizationsController do
          sso_automatic_enrollment: sso_automatic_enrollment,
          conn: %Plug.Conn{} = conn
        }) do
-    case Accounts.update_organization(organization, %{
-           sso_provider: sso_provider,
-           sso_organization_id: sso_organization_id,
-           sso_enforced: sso_enforced || false,
-           sso_automatic_enrollment: sso_automatic_enrollment
-         }) do
+    case Accounts.update_organization(
+           organization,
+           %{
+             sso_provider: sso_provider,
+             sso_organization_id: sso_organization_id,
+             sso_enforced: sso_enforced || false,
+             sso_automatic_enrollment: sso_automatic_enrollment
+           },
+           actor: Authentication.current_user(conn)
+         ) do
       {:ok, organization} ->
         json(conn, %{
           id: organization.id,
