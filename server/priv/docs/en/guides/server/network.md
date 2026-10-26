@@ -17,7 +17,7 @@ Allowlist the Tuist IP range and the server addresses below. If your workflows r
 
 ### Tuist IP range {#tuist-ip-range}
 
-Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. macOS jobs on Tuist Runners already reach the internet from this range, and the rest of Tuist's traffic is moving to it. Add it to your allowlist so the move requires no changes on your side.
+Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. macOS jobs on Tuist Runners reach the internet from this range.
 
 | IP version | CIDR notation |
 |---|---|
@@ -67,7 +67,7 @@ macOS jobs reach the internet from the [Tuist IP range](#tuist-ip-range). There 
 | 217.182.193.152 | `217.182.193.152/32` |
 
 > [!NOTE]
-> This list changes when we add machines to the fleet. Linux runners are moving to the [Tuist IP range](#tuist-ip-range), after which these per-machine addresses are no longer needed.
+> This list changes when we add machines to the fleet.
 
 <!--
 MAINTAINERS: the server table is the customer-facing contract for the reserved
