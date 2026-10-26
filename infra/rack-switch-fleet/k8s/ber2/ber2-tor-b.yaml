@@ -1,0 +1,260 @@
+apiVersion: tuist.dev/v1alpha1
+kind: RackSwitch
+metadata:
+  name: ber2-tor-b
+  labels:
+    tuist.dev/site: ber2
+    tuist.dev/role: tor
+spec:
+  site: ber2
+  role: tor
+  model: s5860-24xmg
+  mac: ""
+  managedBy: controller
+  managementAddress: 192.168.61.6
+  applyOrder: 1
+  applyNote: Its internet port is the second carrier's, which is not live yet, so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.
+  credentialItem: rack-switch-controller picos admin
+  configRevision: f79779de84483a8d
+  config:
+    hostname: ber2-tor-b
+    managementVlan: 20
+    managementPrefixLength: 24
+    gateway: 192.168.60.10
+    spanningTree: rstp
+    lldp: true
+    snmp: false
+    vlans:
+      - id: 10
+        name: machines
+      - id: 20
+        name: management
+      - id: 4000
+        name: edge-vrrp
+      - id: 4001
+        name: wan
+    lags:
+      - id: 1
+        name: isl ber2-tor-a
+        ports:
+          - 25
+          - 26
+    ports:
+      - port: 1
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 2
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 3
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 4
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 5
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 6
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 7
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 8
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 9
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 10
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 11
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 12
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 13
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 14
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 15
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 16
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 17
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 18
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 19
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 20
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 21
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 22
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 23
+        description: ""
+        spanningTree: true
+        nativeVlan: 20
+        taggedVlans: []
+      - port: 24
+        description: ""
+        spanningTree: true
+        nativeVlan: 20
+        taggedVlans: []
+      - port: 25
+        description: isl ber2-tor-a
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans:
+          - 10
+          - 20
+          - 4000
+          - 4001
+      - port: 26
+        description: isl ber2-tor-a
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans:
+          - 10
+          - 20
+          - 4000
+          - 4001
+      - port: 27
+        description: wan 2
+        spanningTree: false
+        nativeVlan: 4001
+        taggedVlans: []
+      - port: 28
+        description: ""
+        spanningTree: true
+        nativeVlan: 20
+        taggedVlans: []
+      - port: 29
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans:
+          - 10
+          - 20
+          - 4000
+          - 4001
+      - port: 30
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans:
+          - 10
+          - 20
+          - 4000
+          - 4001
+      - port: 31
+        description: ""
+        spanningTree: true
+        nativeVlan: 20
+        taggedVlans: []
+      - port: 32
+        description: ""
+        spanningTree: true
+        nativeVlan: 20
+        taggedVlans: []
+  ports:
+    - port: 23
+      purpose: management
+      peer: ber2-pdu-a
+      detail: power/netpack
+    - port: 24
+      purpose: management
+      peer: ber2-ats-a
+      detail: power/netpack
+    - port: 25
+      purpose: isl
+      peer: ber2-tor-a
+      detail: dac
+    - port: 26
+      purpose: isl
+      peer: ber2-tor-a
+      detail: dac
+    - port: 27
+      purpose: wan
+      peer: second carrier
+      detail: fibre
+    - port: 28
+      purpose: management
+      peer: ber2-edge-a
+      detail: edge/bmc
+    - port: 29
+      purpose: data
+      peer: ber2-edge-a
+      detail: edge/n225p-2
+    - port: 30
+      purpose: data
+      peer: ber2-edge-b
+      detail: edge/n225p-2
+    - port: 31
+      purpose: management
+      peer: ber2-store-a
+      detail: storage/bmc
+    - port: 32
+      purpose: management
+      peer: ber2-kvm-a
+      detail: console/mgmt
+  driver: picos

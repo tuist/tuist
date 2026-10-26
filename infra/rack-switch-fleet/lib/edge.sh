@@ -59,12 +59,24 @@ fleet_edge_check() {
     echo "error: management.edge.netboot serves the provisioning range, and the site has none" >&2
     return 1
   fi
+  if fleet_edge_management_on_uplinks "$site_file" && [ "$interface" != mgmt0 ]; then
+    echo "error: the management VLAN rides the edges' uplinks, so management.edge.interface is mgmt0, the bond the edge builds for it, not '$interface'" >&2
+    return 1
+  fi
   fleet_edge_check_vrrp "$site_file" || return 1
   fleet_edge_check_machines "$site_file" || return 1
   fleet_edge_check_rack_caches "$site_file" || return 1
   fleet_edge_check_wan "$site_file" || return 1
   fleet_edge_check_tor_management "$site_file" || return 1
   fleet_edge_check_power "$site_file"
+}
+
+# Whether the management VLAN rides the edges' uplinks rather than a port of
+# their own on a management switch: a site with no management switch, whose
+# management ports are on its ToRs, carries it to the edges with their other
+# VLANs, and they reach it as mgmt0, a bond like machines0.
+fleet_edge_management_on_uplinks() {
+  jq -e '.management.vlan as $v | any(.vlans[]?; .id == $v and .carried_by == "edges")' "$1" >/dev/null
 }
 
 # The site's own way to the internet, when it has one: an address with its
@@ -270,7 +282,8 @@ fleet_edge_power() {
 fleet_edge_power_devices() {
   local site_file="$1"
   jq -r '
-    [.devices[]? | select(.behind_edge) | .name] as $behind |
+    (.management.vlan as $v | any(.vlans[]?; .id == $v and .carried_by == "edges")) as $on_uplinks |
+    [.devices[]? | select(.behind_edge or $on_uplinks) | .name] as $behind |
     .nodes[]? | select(.role == "power" and .status == "installed" and (.mgmt_address // "") != "") |
     select(any(.links[]?; .purpose == "management" and (.switch as $s | $behind | index($s)))) |
     [.name, (.mac // ""), .mgmt_address] | join("|")
@@ -399,6 +412,9 @@ fleet_edge_check_rack_caches() {
   local site_file="$1" values="${2:-}" storage linux bad="" node address cidr
   [ -n "$values" ] || values="$(fleet_rack_values "$site_file")" || return 1
   [ -f "$values" ] || return 0
+  # The caches are rackFleet's, which serves one site: another site's are not
+  # this one's to check.
+  [ "$(yq -r '.rackFleet.site // ""' "$values" 2>/dev/null)" = "$(jq -r '.site' "$site_file")" ] || return 0
   storage="$(jq -c '[.nodes[]? | select(.role == "storage" and .status != "planned") | .name]' "$site_file")"
   linux="$(yq -o=json '[.rackLinuxFleet.hosts[]? | {"key": .hostname, "value": (.address // "")}] | from_entries' "$values" 2>/dev/null)" || linux=''
   [ -n "$linux" ] || linux='{}'
@@ -525,8 +541,12 @@ if [ "\$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
   echo "net.ipv4.ip_forward is off; the node's converge turns it on" >&2
   exit 1
 fi
-ip link set $interface up
 SCRIPT
+  # On a site with no management switch the management VLAN rides the
+  # uplinks, and mgmt0 is built below with the other edge VLANs.
+  local on_uplinks=""
+  fleet_edge_management_on_uplinks "$site_file" && on_uplinks=1
+  [ -n "$on_uplinks" ] || echo "ip link set $interface up"
   # This node's own end of VRRP. Each edge VLAN rides an active-backup bond
   # over one VLAN interface per uplink, so it survives losing either ToR, and
   # the edges never both believe the other is gone while both are up.
@@ -574,6 +594,7 @@ edge_vlan_bond() {
 }
 SCRIPT
   echo "edge_vlan_bond vrrp0 $vrrp_vlan"
+  [ -n "$on_uplinks" ] && echo "edge_vlan_bond $interface $(jq -r '.management.vlan' "$site_file")"
   cat <<'SCRIPT'
 ip addr replace "$vrrp_address" dev vrrp0
 SCRIPT
@@ -604,7 +625,8 @@ SCRIPT
     echo 'ip route replace default via "$peer_address" dev vrrp0 metric 200 proto static'
     # shellcheck disable=SC2016  # expanded by the rendered script, per edge
     echo 'nexthops=""; for uplink in $uplinks; do nexthops="$nexthops nexthop dev $uplink"; done'
-    jq -r '.devices[] | select(.behind_edge | not) | "ip route replace \(.mgmt_address)/32 $nexthops"' "$site_file"
+    # Not a PicOS ToR: its management port is out of band, cabled to an edge.
+    jq -r --slurpfile models "$FLEET_MODELS" '.devices[] | select((.behind_edge | not) and ($models[0][.model].os // "omada") != "picos") | "ip route replace \(.mgmt_address)/32 $nexthops"' "$site_file"
   fi
   # The floating addresses, and the routes that use them as their source, are
   # keepalived's, on whichever edge holds them. On the switch port they are

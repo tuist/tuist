@@ -253,7 +253,8 @@ NETCONF behaviour, which the controller's tests run against.
 namespace (`omada`) by `.github/workflows/omada-deployment.yml`, in the cluster
 the rack belongs to, watching the rack's namespace. Both, and the Omada site,
 the controller address and the 1Password items below, come from the site
-definition (`kubernetes.namespace` and `management.controller`, rendered by
+definitions of every rack in the env (`kubernetes.namespace`,
+`management.controller` and `management.picos`, merged by
 `mise run rack:fleet helm-values rack-switch-controller`), not from per-env
 chart values. The pod has a required node
 affinity away from rack nodes (`rackNodeLabels`: `kubernetes.io/os=darwin`,

@@ -18,8 +18,8 @@ only the first edge of a site is installed from a stick of its own.
   its hostname (the node, OS and tailnet name), role, site, and optionally its
   `bootMAC`, the MAC of the NIC it netboots from (the MS-01's i226-LM, on the
   management switch), which otherwise comes from the machine's announcement.
-  Its role's `rackLinuxFleet.roles.<role>` gives its tailnet tags, labels and
-  taints. The operator keeps a CAPI Machine for each host, which makes it a
+  Its role's `rackLinuxFleet.sites.<site>.roles.<role>`, else
+  `rackLinuxFleet.roles.<role>`, gives its tailnet tags, labels and taints. The operator keeps a CAPI Machine for each host, which makes it a
   node.
 - **The operator** (`infra/cluster-api-provider-tuist`, `controllers/linux`)
   publishes each host's install, finds the host on the tailnet and joins it.

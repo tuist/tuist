@@ -425,11 +425,11 @@ load helpers
     jq '(.nodes[] | select(.name == "ber1-edge-b")) |= del(.pdu)' "$SITE_FILE" > "$site"
     run fleet_check_power "$site"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ber1-edge-b: one of the edge pair, but names no ats or pdu"* ]]
+    [[ "$output" == *"ber1-edge-b: one of the edge pair, but names no ats, pdu or feeds"* ]]
     jq '(.nodes[] | select(.name == "ber1-store-b")) |= del(.pdu)' "$SITE_FILE" > "$site"
     run fleet_check_power "$site"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ber1-store-b: one of the storage pair, but names no ats or pdu"* ]]
+    [[ "$output" == *"ber1-store-b: one of the storage pair, but names no ats, pdu or feeds"* ]]
 }
 
 @test "a cord goes into one power device, and a PDU hangs off a transfer switch" {
@@ -816,6 +816,9 @@ mini_referencing() {
 }
 
 @test "the rack switch controller and the edge take the rack from the site definition" {
+    # The env's other sites are ber2 alone: not the copies of ber1 other tests
+    # run against, each with an Omada controller of its own.
+    rm -f "$FLEET_ROOT/sites/ber1-standalone.json"
     run "$FLEET_ROOT/fleet.sh" --site ber1 helm-values rack-switch-controller
     [ "$status" -eq 0 ]
     [ "$(jq -r '.watchNamespace' <<<"$output")" = "$(jq -r '.kubernetes.namespace' "$SITE_FILE")" ]
