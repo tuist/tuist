@@ -84,10 +84,7 @@ public struct CoverageExportService: CoverageExportServicing {
                 return nil
             }
             let output = resultBundlePath.appending(component: CoverageExport.fileName)
-            let prefixMaps = CompilationPrefixMaps(
-                derivedDataDirectory: derivedDataDirectory,
-                buildSources: await RunMetadataStorage.current.coverageBuildSources
-            )
+            let prefixMaps = await CompilationPrefixMaps.ofRun(derivedDataDirectory: derivedDataDirectory)
             let targetNames = products.map { CompilationPrefixMaps.targetName(ofProduct: $0.path) }
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-coverage-export") { directory in
                 async let reports = export(
@@ -833,6 +830,14 @@ struct CompilationPrefixMaps {
         var maps = Self.maps(derivedDataDirectory: derivedDataDirectory)
         maps.merge(buildSources?.prefixMaps ?? [:]) { derived, _ in derived }
         self.init(mapsByTarget: maps)
+    }
+
+    /// The maps of the run in progress, with those of the `.xctestproducts` bundle it restored.
+    static func ofRun(derivedDataDirectory: AbsolutePath?) async -> CompilationPrefixMaps {
+        CompilationPrefixMaps(
+            derivedDataDirectory: derivedDataDirectory,
+            buildSources: await RunMetadataStorage.current.coverageBuildSources
+        )
     }
 
     /// Each target's `compilation-prefix-map.json` under the derived data's intermediates.
