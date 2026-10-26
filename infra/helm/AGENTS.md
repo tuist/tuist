@@ -18,8 +18,9 @@ runs the mixed-version latency expression through promtool.
 
 - `capi.ovhRunnerEgress` keeps its disabled ConfigMap and cleanup RBAC present
   while the provider withdraws runner policies and host addresses. Reservations
-  belong to the controller, never Helm. All managed blocks remain unset until
-  delivery and qualification. Preserve `node_network_info` for the MAC-based
+  belong to the controller, never Helm. Managed blocks are delivered and attached;
+  egress remains disabled pending staging network resolution and qualification.
+  Preserve `node_network_info` for the MAC-based
   bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed

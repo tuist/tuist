@@ -36,7 +36,7 @@ capi:
   ovhRunnerEgress:
     enabled: false
     vrackID: pn-2025489
-    cidr: "" # Fill after the /29 is delivered and attached to this vRack.
+    cidr: "5.39.98.144/29"
   ovhPrivateNetwork:
     enabled: true
     vrackID: pn-2023588

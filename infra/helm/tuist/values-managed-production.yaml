@@ -416,7 +416,7 @@ capi:
   ovhRunnerEgress:
     enabled: false
     vrackID: pn-2025483
-    cidr: "" # Fill after the /27 is delivered and attached to this vRack.
+    cidr: "5.135.7.160/27"
   vultrPrivateNetwork:
     enabled: true
     regions:
