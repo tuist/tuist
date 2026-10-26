@@ -1,8 +1,9 @@
 defmodule Tuist.Tests.TestCaseRunByTestRun do
   @moduledoc """
-  Slim read-only schema backed by the `test_case_runs_by_test_run` materialized
-  view. Ordered by `(test_run_id, ran_at, id)`, making queries that filter by
-  `test_run_id` efficient.
+  Slim read-only schema backed by `test_case_runs_by_test_run_v2`, which a
+  materialized view fills from `test_case_runs`. Ordered by
+  `(test_run_id, name, id)`, making queries that filter by `test_run_id`
+  efficient. Rows expire 90 days after they were inserted.
 
   Used for:
   - Aggregation queries (`get_test_run_metrics`, `get_test_run_failures_count`)
@@ -18,7 +19,7 @@ defmodule Tuist.Tests.TestCaseRunByTestRun do
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
-  schema "test_case_runs_by_test_run" do
+  schema "test_case_runs_by_test_run_v2" do
     field :test_run_id, Ecto.UUID
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :is_flaky, :boolean, default: false

@@ -536,7 +536,7 @@ defmodule Tuist.Automations do
 
     test_case_ids =
       ClickHouseRepo.all(
-        from(r in {"test_case_runs_by_inserted_at", TestCaseRun},
+        from(r in {"test_case_runs_by_inserted_at_v2", TestCaseRun},
           where: r.project_id == ^project_id,
           where: not is_nil(r.test_case_id),
           where: r.inserted_at >= ^DateTime.to_naive(query_start),

@@ -1904,7 +1904,7 @@ defmodule Tuist.Tests do
   end
 
   defp list_test_case_runs_via_shard_mv(attrs, preloads) do
-    base_query = from(mv in TestCaseRunByShardId)
+    base_query = from(mv in TestCaseRunByShardId, hints: ["FINAL"])
 
     {slim_results, meta} =
       Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByShardId)
@@ -4667,7 +4667,7 @@ defmodule Tuist.Tests do
   @doc """
   Batched form of `get_flaky_runs_for_test_run/2`. Returns a map keyed by
   `test_run_id`. The CommentWorker fan-out path resolves N test runs per PR
-  comment; using this avoids N round-trips against `test_case_runs_by_test_run`
+  comment; using this avoids N round-trips against `test_case_runs_by_test_run_v2`
   during the post-CI burst.
 
   ## Options
