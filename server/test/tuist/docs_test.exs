@@ -17,15 +17,23 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
-    test "self-hosted SSO documents one switch and the organization-administrator trust boundary" do
-      for slug <- ["/en/guides/integrations/authentication/sso", "/en/guides/server/self-host/server"] do
-        guide = Docs.get_page(slug).markdown
-        assert guide =~ "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS=true"
-        assert guide =~ "Any signed-in user can create an organization"
-        assert guide =~ "other organizations"
-        assert guide =~ "every replica"
-        refute guide =~ "TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS"
-      end
+    test "self-hosted SSO policy stays in the self-hosting guide with a note in the general SSO guide" do
+      guide = Docs.get_page("/en/guides/server/self-host/server").markdown
+      assert guide =~ "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS=true"
+      assert guide =~ "Any signed-in user can create an organization"
+      assert guide =~ "other organizations"
+      assert guide =~ "every replica"
+      assert guide =~ "skipping DNS verification"
+      assert guide =~ "does not revoke existing account links or sessions"
+      refute guide =~ "TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS"
+      refute guide =~ "/guides/integrations/authentication/sso#operator-trusted-login-domains"
+
+      sso = Docs.get_page("/en/guides/integrations/authentication/sso").markdown
+      assert sso =~ "Self-hosted instances can optionally trust login domains without DNS verification"
+      assert sso =~ "/guides/server/self-host/server#operator-trusted-login-domains"
+      refute sso =~ "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS"
+      refute sso =~ "{#operator-trusted-login-domains}"
+      refute sso =~ "instance configuration"
     end
 
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do

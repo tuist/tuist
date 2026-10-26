@@ -438,7 +438,9 @@ The default is `false`. Emails must still match the saved **Login email domain**
 > [!WARNING]
 > Enable this only if you trust everyone who can create or administer an organization. Any signed-in user can create an organization, and its provider can link whole existing Tuist accounts, including access to other organizations. Review existing providers before enabling it.
 
-Restart every replica when enabling or disabling this setting. See the <.localized_link href="/guides/integrations/authentication/sso#operator-trusted-login-domains">SSO guide</.localized_link> for setup and behavior details.
+Follow the <.localized_link href="/guides/integrations/authentication/sso">SSO guide</.localized_link> to configure the provider, saving the **Login email domain** but skipping DNS verification.
+
+Restart every replica when enabling or disabling this setting. Disabling it does not revoke existing account links or sessions.
 
 ### Storage environment configuration {#storage-environment-configuration}
 
