@@ -352,11 +352,13 @@ jobs:
           kubectl apply --server-side --field-manager=mgmt-cluster-apply \
             --force-conflicts -f infra/k8s/mgmt/controller-replicas.yaml
 
-          # These regional clusters were retired, but kubectl apply does not
-          # remove resources that disappear from a manifest.
+          # Retired autoscalers: the regional clusters are gone and staging has
+          # no autoscaled node group. kubectl apply does not remove resources
+          # that disappear from a manifest.
           kubectl -n org-tuist delete deployment \
             cluster-autoscaler-tuist-kura-us-east \
             cluster-autoscaler-tuist-kura-us-west \
+            cluster-autoscaler-tuist-staging \
             --ignore-not-found
       - name: Install External Secrets
         run: |
@@ -464,9 +466,10 @@ jobs:
 
           for deployment in \
             cluster-autoscaler-tuist-kura-us-east \
-            cluster-autoscaler-tuist-kura-us-west; do
+            cluster-autoscaler-tuist-kura-us-west \
+            cluster-autoscaler-tuist-staging; do
             if kubectl -n org-tuist get deployment "$deployment" >/dev/null 2>&1; then
-              echo "::error::Retired regional cluster autoscaler $deployment still exists"
+              echo "::error::Retired cluster autoscaler $deployment still exists"
               exit 1
             fi
           done
