@@ -228,6 +228,13 @@ disabled local caching and checksum verification. Keep the raw CSV/log artifact;
 `summarize-gradle-pn-benchmark.mjs` validates and summarizes it. Record the actual
 underlay path separately: a remote region on vRack still crosses the WAN.
 
+`measure_request_latency` runs `kura-request-latency.mjs` independently of the
+Gradle timing fixture. It measures health, authenticated HEAD hit/miss and 1 KiB
+reads over persistent and fresh HTTP/1.1 connections. Ten warm-ups precede 100
+alternating samples per endpoint/case; status, metadata, body and connection
+reuse checks are mandatory. Credentials stay in memory and outside artifacts.
+Use `summarize-kura-request-latency.mjs` for the raw CSV's median/p95 table.
+
 ## How it ends up serving traffic
 
 1. `runnersFleetLinux.pools[].runnerImage` (helm value) is

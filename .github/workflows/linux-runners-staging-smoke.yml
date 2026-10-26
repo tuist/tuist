@@ -33,6 +33,10 @@ on:
         description: With gradle_cache, measure colocated PN versus the remote staging cache
         type: boolean
         default: false
+      measure_request_latency:
+        description: With gradle_cache, measure PN/WAN HTTP health, metadata, and tiny-read latency
+        type: boolean
+        default: false
       wan_cache_endpoint:
         description: Explicit public-region Service for the controlled comparison
         type: string
@@ -259,8 +263,17 @@ jobs:
         if: ${{ !inputs.stable_cache_dns }}
         run: tuist auth login
       - name: Verify a remote upload followed by a remote hit
-        if: ${{ !inputs.stable_cache_dns && !inputs.compare_private_cache }}
+        if: ${{ !inputs.stable_cache_dns && !inputs.compare_private_cache && !inputs.measure_request_latency }}
         run: bash infra/linux-runner-image/gradle-cache-smoke.sh
+      - name: Measure private and remote request latency
+        id: latency
+        if: ${{ inputs.measure_request_latency }}
+        run: |
+          test "$TUIST_URL" = https://staging.tuist.dev
+          test '${{ inputs.stable_cache_dns }}' = false
+          node_bin=/__e/node24/bin/node
+          test -x "$node_bin" || node_bin=/__e/node20/bin/node
+          "$node_bin" infra/linux-runner-image/kura-request-latency.mjs
       - name: Compare private and remote Gradle caches
         id: benchmark
         if: ${{ inputs.compare_private_cache }}
@@ -286,4 +299,10 @@ jobs:
             ${{ steps.benchmark.outputs.logs }}/*.log
             ${{ steps.benchmark.outputs.logs }}/*.csv
             ${{ steps.benchmark.outputs.logs }}/environment.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.measure_request_latency && steps.latency.outputs.logs != '' }}
+        with:
+          name: kura-request-latency
+          path: ${{ steps.latency.outputs.logs }}
           if-no-files-found: error
