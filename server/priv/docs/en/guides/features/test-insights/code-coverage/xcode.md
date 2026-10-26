@@ -56,15 +56,14 @@ Until a commit is complete, its coverage shows as **In progress** and stays out 
 
 ## Skipped tests {#skipped-tests}
 
-When a run skips tests with `-skip-testing`, it measures less than the commit's tests cover, and the commit's coverage is **Incomplete**. Tuist can fill in those tests with the coverage they had in an earlier run, in which they executed the same files, when you record test-level coverage:
+When a run skips tests with `-skip-testing`, it measures less than the commit's tests cover, and the commit's coverage is **Incomplete**. Tuist can fill in those tests with the coverage they had in an earlier run, in which they executed the same files, when you record per-test coverage:
 
 - Add the [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) package to your project and add its `TestCoverageAttribution` library to your unit test targets' **Link Binary With Libraries** phase. Never link it to an app target.
 - Add the `.coverageAttribution` trait to your Swift Testing suites. XCTest tests need nothing else.
-- Set `TUIST_COVERAGE_EVIDENCE=1` wherever your tests run, while test-level coverage is in early access.
 
 Tests that quarantine skips aren't part of the coverage at all, so they never make a commit **Incomplete**.
 
-Swift Testing tests that run in parallel can't be attributed one by one. See <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project#test-level-coverage">test-level coverage</.localized_link> for the trait and its limitations.
+Swift Testing tests that run in parallel can't be attributed one by one. See <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project#per-test-coverage">per-test coverage</.localized_link> for the trait and its limitations.
 
 ## Performance impact {#performance-impact}
 

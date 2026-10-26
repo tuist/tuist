@@ -81,7 +81,7 @@ Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, 
 > [!NOTE]
 > **Test Coverage**
 >
-> Coverage tools that read a single run's report, Xcode's included, assume the whole test suite ran, so a selective run's report leaves out the tests it skipped. Tuist's <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project">code coverage</.localized_link> can carry the coverage of skipped test targets forward from an earlier run instead, when you record <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project#test-level-coverage">test-level coverage</.localized_link>.
+> Coverage tools that read a single run's report, Xcode's included, assume the whole test suite ran, so a selective run's report leaves out the tests it skipped. Tuist's <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project">code coverage</.localized_link> carries the coverage of skipped test targets forward from an earlier run instead, using the <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project#test-level-coverage">test-level coverage</.localized_link> it records on every run.
 
 
 ## Pull/merge request comments {#pullmerge-request-comments}
