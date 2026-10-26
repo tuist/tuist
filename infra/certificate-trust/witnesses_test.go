@@ -63,6 +63,41 @@ func TestTLSWitnessPaths(t *testing.T) {
 	}
 }
 
+func TestUnwitnessedIntermediatesAreRestrictedToCodeSigning(t *testing.T) {
+	_, manifest, err := witnesses(tlsLeavesPEM, tlsLeavesJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	covered := make(map[string]bool)
+	for _, witness := range manifest {
+		covered[witness.IssuerSPKI] = true
+	}
+	intermediates, err := certificates(intermediatePEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unwitnessed := 0
+	for _, intermediate := range intermediates {
+		if covered[spki(intermediate)] {
+			continue
+		}
+		unwitnessed++
+		codeSigning := false
+		for _, usage := range intermediate.ExtKeyUsage {
+			if usage == x509.ExtKeyUsageServerAuth || usage == x509.ExtKeyUsageAny {
+				t.Fatal("TLS-capable intermediate is missing a non-leaf witness")
+			}
+			codeSigning = codeSigning || usage == x509.ExtKeyUsageCodeSigning
+		}
+		if !codeSigning {
+			t.Fatal("unwitnessed intermediate lacks a code-signing usage restriction")
+		}
+	}
+	if unwitnessed != 2 {
+		t.Fatal("expected exactly two unwitnessed code-signing intermediates")
+	}
+}
+
 func TestTLSWitnessManifestRejectsTampering(t *testing.T) {
 	_, original, err := witnesses(tlsLeavesPEM, tlsLeavesJSON)
 	if err != nil {

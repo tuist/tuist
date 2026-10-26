@@ -91,7 +91,10 @@ file is needed to reproduce it.
   roots, not root-key denial, default OS stores, Darwin's platform-delegated
   verifier or every TLS factory. The two code-signing intermediate keys lack
   non-leaf public witnesses here, so their code-signing path behavior is not
-  qualified by this probe.
+  qualified by this probe. A test requires those two CA certificates to permit
+  code signing but neither server authentication nor any usage; their exclusion
+  does not rely merely on inventory labels. The TLS witnesses cover position 1
+  only, not deeper intermediate or cross-signed paths.
 - The direct controls' issuer signatures use the emSign TLS and CS roots. The
   AAA and ECC roots are public DER/policy evidence, not issuer-used or root-key
   rejection controls in this fixture set. Trust-anchor self-signature algorithms

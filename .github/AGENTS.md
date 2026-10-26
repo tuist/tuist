@@ -50,8 +50,9 @@ Server CI's Format job runs `scripts/server-clickhouse.test.sh` against the real
 `workflows/certificate-trust.yml` validates the isolated twelve-key public
 policy/evidence, eight direct Go intermediate controls and six non-leaf TLS
 controls. It has contents-read permissions only, persists no checkout
-credentials, and its probe is offline by construction. Keep it independent of application/deployment work,
-with no Python, registry login, publishing or trust-store mutation. SDK version
+credentials, and its probe is offline by construction. Keep it independent of
+application/deployment work, with no Python, registry login, publishing or
+trust-store mutation. SDK version
 ordering is not qualification. See `infra/certificate-trust/AGENTS.md`.
 
 ## Server production deployment
