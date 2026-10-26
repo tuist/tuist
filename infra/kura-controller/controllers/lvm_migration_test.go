@@ -95,3 +95,44 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 		})
 	}
 }
+
+func TestLVMHandoverMovesClientAndPeerRoles(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = kurav1.AddToScheme(scheme)
+	f := newResizeHoldFixture(100)
+	f.instance.Spec.DiskResource = string(kuraDiskResource)
+	old, next := f.servingPod(0, "100m"), f.servingPod(1, "100m")
+	old.Annotations = map[string]string{lvmRebuildAnnotation: "true"}
+	primary := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: f.instance.Name, Namespace: f.instance.Namespace}, Spec: corev1.ServiceSpec{Selector: map[string]string{podNameLabel: old.Name}}}
+	peer := primary.DeepCopy()
+	peer.Name = instancePublicPeerServiceName(f.instance)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(primary, peer).Build()
+	r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+	pods := []corev1.Pod{*old, *next}
+	samples := map[string]runtimeStatus{}
+	for _, pod := range pods {
+		samples[pod.Name] = runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: backfillCycleComplete}
+	}
+	selected, leaving, err := r.selectPrimaryPod(context.Background(), f.instance, pods, samples)
+	if err != nil || selected != next.Name {
+		t.Fatalf("primary=%q err=%v", selected, err)
+	}
+	gateway, err := r.selectGatewayPod(context.Background(), f.instance, pods, samples, selected, leaving)
+	if err != nil || gateway != next.Name {
+		t.Fatalf("gateway=%q err=%v", gateway, err)
+	}
+	// A role decision alone cannot authorize deleting the former holder.
+	ready, err := r.lvmHandoverReady(context.Background(), f.instance, 0)
+	// Missing pods are already gone; use the real pod below to exercise endpoints.
+	if err != nil || !ready {
+		t.Fatal(err)
+	}
+	if err := c.Create(context.Background(), old); err != nil {
+		t.Fatal(err)
+	}
+	ready, err = r.lvmHandoverReady(context.Background(), f.instance, 0)
+	if err != nil || ready {
+		t.Fatalf("handover without observed endpoints: ready=%v err=%v", ready, err)
+	}
+}
