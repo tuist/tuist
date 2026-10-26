@@ -174,3 +174,47 @@ A failed bootstrap leaves `/var/lib/tuist/kura-lvm-device` as conversion intent.
 Investigate a refusal before changing this journal or formatting anything.
 Deleting a Machine cleans claims pinned by either hostname or the CSI topology
 key. Retained volumes still consume capacity until the CSI driver deletes them.
+
+## Staged encrypted migration (updated implementation)
+
+Regional LVM enrollment now encrypts every account, without requiring its
+feature flag. The plain class remains available for diagnostics. Unenrolled
+regions retain their current behavior, including BER1's explicit legacy hold.
+The CSI driver now records the actual backing in each PV's volume context.
+A same-class encrypted file claim, or an older claim lacking this evidence,
+is rebuilt once when the instance starts requesting `tuist.dev/kura-disk`.
+This replaces the manual same-class migration requirement described above.
+
+1. Deploy the additive driver/controller/server support with region enrollment
+   unchanged. Check the pinned driver everywhere a destination may be placed.
+2. Prepare spare LVM capacity. Preserve the old host and its serving volumes;
+   do not reinstall or delete it to make room. Verify advertised capacity,
+   quotas, CSI registration and key-service access on the destination.
+3. For racks, first install the plugin through `rack-nodes` using
+   `kuraVolumesCSI.rackPools: [rack-storage-ber1]`. The main Helm release excludes
+   these pools and the rack release is never waited on. Fresh rack storage
+   installations create the VG with curtin; old installations require a
+   separately approved migration/reinstall. No live conversion is attempted.
+4. Start with a small cohort. Each migrating instance needs at least two
+   replicas and enough room for the old and new claims during overlap. Keep
+   operator OnDelete/partition pauses until the chosen cohort is ready. A
+   single-replica instance holds without deleting its claim; add a standby
+   and finish backfill before proceeding. Positive-fence migrations retain
+   their explicit recovery/handover requirements.
+5. Change the cohort's desired storage and resource together, with a destination
+   selector that can place replacements on prepared hosts. The controller holds
+   the StatefulSet, preserves old pods, marks one outgoing pod, moves the client
+   and peer pins, and waits for observed endpoint handoff before deleting it.
+   It waits for fresh completed-backfill reports before moving the next copy.
+6. Continuously PUT/GET through the stable client Service and verify objects
+   written before migration on both replacement replicas. Check each PV's
+   `backing: lvm`, the LUKS mapping, keys and resource reservations. An HTTP
+   failure, checksum mismatch or loss of all ready endpoints stops expansion.
+7. Enroll the remaining region only after the cohort passes. Reclaim an old
+   host only when every claim/workload has left it. Region enrollment changes
+   all manifests in that region; it is not itself a per-account cohort control.
+
+Do not promise continuous availability for a rack with one physical storage
+host undergoing reinstall. It needs replacement capacity. Staging has no rack
+Linux storage host: a rehearsal using the rack release on a rented staging
+host validates the release/CSI contract, not the physical rack installer.

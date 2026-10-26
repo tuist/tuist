@@ -239,6 +239,7 @@ autoinstall:
     - ca-certificates
     - jq
     - ethtool
+    - lvm2
   updates: security
   shutdown: reboot
   early-commands:
@@ -401,10 +402,10 @@ done
 }
 
 // storageLayout is the autoinstall storage section for role. A storage node
-// serves cache volumes, which are local-path directories with an XFS project
-// quota each, so its largest disk gets a separate XFS /data mounted with
-// prjquota beside a capped ext4 /. The quota option can only be set when the
-// filesystem is mounted, and the layout cannot change without a reinstall.
+// serves per-claim CSI LVs from kura-volumes. Its data partition becomes the
+// PV; a 128 GiB XFS data LV holds kubelet, images and local-path auxiliary
+// volumes, with prjquota. The remaining extents belong to Kura claims. The
+// layout only applies during installation, never to an already joined host.
 // Every other role takes Ubuntu's direct layout.
 //
 // A box with a resident installer keeps partition 1 of its boot drive, the
@@ -429,7 +430,9 @@ func storageLayout(role string, resident bool) string {
 		if role == "storage" {
 			layout += `      - {type: disk, id: disk1, match: {size: largest}, ptable: gpt, wipe: superblock-recursive, preserve: false}
       - {type: partition, id: data, device: disk1, number: 1, size: -1}
-      - {type: format, id: data-fs, volume: data, fstype: xfs}
+      - {type: lvm_volgroup, id: kura-vg, name: kura-volumes, devices: [data]}
+      - {type: lvm_partition, id: data-lv, name: data, volgroup: kura-vg, size: 128G}
+      - {type: format, id: data-fs, volume: data-lv, fstype: xfs}
       - {type: mount, id: data-mount, device: data-fs, path: /data, options: "defaults,prjquota"}
 `
 		}
@@ -448,7 +451,9 @@ func storageLayout(role string, resident bool) string {
       - {type: partition, id: root, device: disk0, number: 3, size: 64G}
       - {type: format, id: root-fs, volume: root, fstype: ext4}
       - {type: partition, id: data, device: disk0, number: 4, size: -1}
-      - {type: format, id: data-fs, volume: data, fstype: xfs}
+      - {type: lvm_volgroup, id: kura-vg, name: kura-volumes, devices: [data]}
+      - {type: lvm_partition, id: data-lv, name: data, volgroup: kura-vg, size: 128G}
+      - {type: format, id: data-fs, volume: data-lv, fstype: xfs}
       - {type: mount, id: root-mount, device: root-fs, path: /}
       - {type: mount, id: boot-mount, device: boot-fs, path: /boot}
       - {type: mount, id: esp-mount, device: esp-fs, path: /boot/efi}

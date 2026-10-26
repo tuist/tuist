@@ -603,9 +603,11 @@ its largest disk for cache volumes, the shape the rented cache fleets take
 | 1 | 1 GiB | FAT32 | `/boot/efi` |
 | 2 | 2 GiB | ext4 | `/boot` |
 | 3 | 64 GiB | ext4 | `/` |
-| 4 | the rest | XFS, `prjquota` | `/data` |
+| 4 | the rest | LVM PV, VG `kura-volumes` | — |
+| data LV | 128 GiB | XFS, `prjquota` | `/data` |
 
-A cache volume is a local-path directory with an XFS project quota, and XFS
+Kura claims use individual encrypted LVs after regional LVM enrollment. Auxiliary
+local-path volumes still use directories on the bounded data LV. XFS
 takes `prjquota` only when it mounts, so `/data` carries it in fstab from the
 install. The install also bind-mounts `/data/kubelet` onto `/var/lib/kubelet`,
 `/data/containerd` onto `/var/lib/containerd` and `/data/local-path-provisioner`
@@ -1346,3 +1348,24 @@ seed, the iPXE script and the install lifecycle are Go tests in the operator
 `controllers/linux/racklinuxhost_install_test.go`). `mise -C infra run
 helm:rack-independence` checks that deploys do not wait on rack nodes (see
 "Deploys and the rack's health"); it runs in the Helm workflow.
+
+### Kura volume encryption
+
+The independently deployed `rack-nodes` release owns `kura-volumes-csi-rack`,
+selected by `kuraVolumesCSI.rackPools`. The main waited release owns the CSI
+identity, RBAC and StorageClasses, and excludes those pools from its own plugin.
+Both plugins use the same projected identity and mount/key contract; their
+DaemonSets never overlap. An offline rack cannot hold the main Helm upgrade.
+Set the pinned CSI image on both releases. Keep them installed while claims exist.
+
+Fresh storage installs create `kura-volumes` directly through curtin, including
+resident-installer layouts. Existing hosts require an explicit spare-host
+migration and reinstall; neither a deploy nor Machine reconciliation converts
+populated disks. Verify the VG and plugin before enrolling `ber1-runners` in
+`kuraVolumesCSI.lvmRegions`. Enrollment makes encryption the default. Account
+flags cannot move an unenrolled rack onto loop files. The current one-replica
+rack region needs a temporary second replica and complete backfill for a staged
+volume migration; an in-place reinstall of its only storage host is an outage.
+Reserve the 128 GiB data LV for images/system/auxiliary volumes (including any
+image cache); grow it before enabling auxiliary claims that exceed that budget.
+See [the migration runbook](../kura-volumes-csi/lvm-rollout.md).

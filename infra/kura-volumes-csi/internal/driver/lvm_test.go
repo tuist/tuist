@@ -109,8 +109,11 @@ func TestCreateVolumeOnVolumeGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newLVMEnv(t)
 			tt.setup(e)
-			_, err := e.d.CreateVolume(context.Background(), createRequest(tt.required))
+			response, err := e.d.CreateVolume(context.Background(), createRequest(tt.required))
 			requireCode(t, err, tt.wantCode)
+			if err == nil && response.Volume.VolumeContext["backing"] != "lvm" {
+				t.Fatal("incorrect backing for logical volume")
+			}
 			if got := e.exists(e.v.marker); got != tt.wantMarker {
 				t.Errorf("marker exists = %v, want %v", got, tt.wantMarker)
 			}
@@ -128,8 +131,11 @@ func TestCreateVolumeKeepsBackingFilesWithoutTheVolumeGroup(t *testing.T) {
 		vgsCall(-1),
 		call{cmd: "fallocate -l 1048576 " + e.v.temp, effect: func() { _ = os.Truncate(e.v.temp, mib) }},
 	)
-	_, err := e.d.CreateVolume(context.Background(), createRequest(mib))
+	response, err := e.d.CreateVolume(context.Background(), createRequest(mib))
 	requireCode(t, err, codes.OK)
+	if response.Volume.VolumeContext["backing"] != "file" {
+		t.Fatal("incorrect backing for loop volume")
+	}
 	if !e.exists(e.v.image) {
 		t.Fatal("backing file was not created")
 	}

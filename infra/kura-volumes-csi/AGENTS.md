@@ -125,3 +125,18 @@ free extents: kube-scheduler subtracts pod reservations. The server additionally
 accounts for retained volumes. The driver removes capacity on nodes without the
 VG and does not silently use files for plain volumes. First-boot conversion,
 regional opt-in and rollback sequencing are in [LVM rollout](lvm-rollout.md).
+
+## Staged encrypted migration and racks
+
+CreateVolume returns `backing: lvm` or `backing: file` for both fresh allocations
+and idempotent retries. The controller uses this immutable PV context to migrate
+old file claims even when their encrypted StorageClass is unchanged. Old PVs
+without this evidence are conservatively rebuilt once after LVM enrollment.
+Deploy the new driver before enrolling any region.
+
+The rack plugin lives in `infra/helm/rack-nodes`, outside the waited main release,
+with explicitly configured `kuraVolumesCSI.rackPools`. Its regression render
+checks the shared host/key contract and disjoint pool ownership against the
+rented plugin. `go test ./...` requires Helm for this check. LVM-enrolled regions
+now encrypt by default; plain CSI remains available for diagnostics. Rack fresh
+installation uses curtin LVM; old hosts need a planned migration/reinstall.

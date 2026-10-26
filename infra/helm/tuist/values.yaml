@@ -375,6 +375,9 @@ egressTreeAgent:
       memory: 128Mi
 
 kuraVolumesCSI:
+  # Pools served by the independent rack-nodes release; excluded from the
+  # waited main release. Enroll only after preparing and checking the hosts.
+  rackPools: []
   # Opt in only after the region's nodes advertise tuist.dev/kura-disk.
   lvmRegions: []
   # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme

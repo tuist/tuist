@@ -1846,6 +1846,11 @@ jobs:
           # nodes that are up, and on the others when they return. After the
           # upgrade above, so they move only with an operator that rolled out.
           rack_node_sets=()
+          if [ -n "$KURA_VOLUMES_CSI_IMAGE_TAG" ]; then
+            rack_node_sets+=(--set "kuraVolumesCSI.image.tag=$KURA_VOLUMES_CSI_IMAGE_TAG")
+          else
+            rack_node_sets+=(--set "kuraVolumesCSI.enabled=false")
+          fi
           if [ -n "$capi_image_tag" ]; then
             rack_node_sets+=(--set "macosFleet.image.tag=$capi_image_tag")
           fi

@@ -2140,7 +2140,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute revision(region) =~ "+encrypted-volumes-v1"
     end
 
-    test "LVM regions use the disk resource for plain and encrypted accounts with matching revisions" do
+    test "LVM regions encrypt every account with matching revisions" do
       legacy = region_with_storage_class("scw-local-nvme")
 
       region = %{
@@ -2152,15 +2152,32 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       for encrypted <- [false, true] do
         stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _ -> encrypted end)
         manifest = render(region)
-        assert manifest["spec"]["storageClassName"] == if(encrypted, do: "kura-encrypted-nvme", else: "kura-lvm-nvme")
+        assert manifest["spec"]["storageClassName"] == "kura-encrypted-nvme"
         assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
-        assert revision(region) == revision(legacy) <> "+lvm-volumes-v1"
+
+        assert revision(region) ==
+                 String.replace_suffix(revision(legacy), "+encrypted-volumes-v1", "") <>
+                   "+encrypted-volumes-v1+lvm-volumes-v1"
+
         assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
       end
     end
 
-    test "keeps the BER1 rack on the node-local NVMe class" do
+    test "keeps BER1 unchanged until its LVM region is enrolled" do
       assert %Regions{provisioner_config: %{encrypted_volumes: false}} = Regions.get("ber1-runners")
+    end
+
+    test "enrolled BER1 uses encrypted LVM without the account flag" do
+      stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["ber1-runners"] end)
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _ -> false end)
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      manifest = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})
+      assert manifest["spec"]["storageClassName"] == "kura-encrypted-nvme"
+      assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+
+      assert KubernetesController.manifest_revision(%Server{account: account}, region) ==
+               manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
     end
 
     defp region_with_storage_class(storage_class) do

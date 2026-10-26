@@ -560,8 +560,8 @@ defmodule Tuist.Kura.Regions do
       # The node's XFS /data, through the same local-path class as the other
       # bare-metal pools.
       storage_class: "scw-local-nvme",
-      # No kura-volumes node plugin runs on the rack: no release a deploy waits
-      # on may run a pod on a rack node.
+      # The rack plugin is in the separately deployed rack-nodes release.
+      # Enable encryption only when this region is explicitly enrolled in LVM.
       encrypted_volumes: false,
       # Sized by the account's claim like scw-fr-par-runners. With one replica
       # a raised claim rebuilds the volume, which refills from the account's
@@ -1012,10 +1012,15 @@ defmodule Tuist.Kura.Regions do
 
   defp configure_lvm(%__MODULE__{provisioner_config: config} = region) do
     if region.id in Tuist.Environment.kura_lvm_region_ids() and
-         config[:storage_class] == "scw-local-nvme" and config[:encrypted_volumes] != false do
+         config[:storage_class] == "scw-local-nvme" do
       %{
         region
-        | provisioner_config: Map.merge(config, %{storage_class: "kura-lvm-nvme", disk_resource: "tuist.dev/kura-disk"})
+        | provisioner_config:
+            Map.merge(config, %{
+              storage_class: "kura-lvm-nvme",
+              disk_resource: "tuist.dev/kura-disk",
+              encrypted_volumes: true
+            })
       }
     else
       region
