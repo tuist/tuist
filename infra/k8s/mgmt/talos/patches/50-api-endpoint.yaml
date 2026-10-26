@@ -1,0 +1,9 @@
+# The Kubernetes API endpoint every control-plane node uses for its
+# kubeconfigs and for joining: the tuist-mgmt-api load balancer
+# (infra/k8s/mgmt/talos/hetzner.yaml), already in the API server's certSANs
+# (30-api-endpoint-sans.yaml). Applies without a reboot but restarts
+# kube-apiserver once. The kubelet and the in-cluster components reach the API
+# through KubePrism on 127.0.0.1:7445, so they do not use this address.
+cluster:
+  controlPlane:
+    endpoint: https://49.12.66.91:6443
