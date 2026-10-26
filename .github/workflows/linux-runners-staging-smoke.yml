@@ -29,6 +29,10 @@ on:
         description: Run only the Gradle container cache check
         type: boolean
         default: false
+      expected_public_ip:
+        description: Optional exact public IPv4 address required for runner egress qualification
+        type: string
+        default: ""
       stable_cache_dns:
         description: With gradle_cache, validate the spec95 public stable endpoint using the temporary staging fixture token
         type: boolean
@@ -214,6 +218,7 @@ jobs:
       run:
         shell: bash
     env:
+      EXPECTED_PUBLIC_IP: ${{ inputs.expected_public_ip }}
       TUIST_URL: ${{ inputs.server_url }}
       SMOKE_PROJECT: ${{ inputs.project }}
       MISE_GITHUB_TOKEN: ${{ github.token }}
@@ -221,6 +226,13 @@ jobs:
       MISE_LOCKED: 1
       TUIST_TOKEN: ${{ inputs.stable_cache_dns && secrets.SPEC95_STAGING_CACHE_TOKEN || '' }}
     steps:
+      - name: Verify public egress from the job container
+        if: ${{ inputs.expected_public_ip != '' }}
+        run: |
+          set -euo pipefail
+          actual=$(curl -4fsS --retry 2 --connect-timeout 5 --max-time 20 https://api.ipify.org)
+          printf 'Job container public IP: %s\n' "$actual"
+          test "$actual" = "$EXPECTED_PUBLIC_IP"
       - name: Validate stable DNS fixture scope
         if: ${{ inputs.stable_cache_dns }}
         run: |
