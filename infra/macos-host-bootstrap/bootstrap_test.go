@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -363,44 +365,25 @@ func TestRenderLaunchdPlist_OmitsRunnerCacheWhenDisabled(t *testing.T) {
 }
 
 func TestRenderLaunchdPlist_RendersRunnerCacheRoot(t *testing.T) {
-	out := renderLaunchdPlist(Config{
-		NodeName:                "n1",
-		SSHUser:                 "m1",
-		RunnerCacheVolumeGiB:    400,
-		CacheVolumeMasterCapGiB: 25,
-		CacheVolumeCASGiB:       8,
-	})
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
 	if !strings.Contains(out, "<string>--runner-cache-root="+runnerCacheMountPoint+"</string>") {
 		t.Fatalf("expected --runner-cache-root in plist\n%s", out)
 	}
-	if !strings.Contains(out, "<string>--cache-volume-cap-gib=25</string>") {
-		t.Fatalf("expected --cache-volume-cap-gib in plist\n%s", out)
+	if !strings.Contains(out, "<string>--runner-cache-budget-gib=400</string>") {
+		t.Fatalf("expected --runner-cache-budget-gib in plist\n%s", out)
 	}
-	if !strings.Contains(out, "<string>--cache-volume-cas-gib=8</string>") {
-		t.Fatalf("expected --cache-volume-cas-gib in plist\n%s", out)
-	}
-}
-
-func TestRenderLaunchdPlist_OmitsCapGiBWhenDefault(t *testing.T) {
-	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
-	if !strings.Contains(out, "--runner-cache-root=") {
-		t.Fatalf("expected --runner-cache-root when volume enabled\n%s", out)
-	}
-	if strings.Contains(out, "--cache-volume-cap-gib") {
-		t.Fatalf("expected --cache-volume-cap-gib omitted when cap is 0 (tart-kubelet default)\n%s", out)
-	}
-	if strings.Contains(out, "--cache-volume-cas-gib") {
-		t.Fatalf("expected --cache-volume-cas-gib omitted when CAS budget is 0 (compilation cache VM-local)\n%s", out)
+	if strings.Contains(out, "--cache-volume-cap-gib") || strings.Contains(out, "--cache-volume-cas-gib") {
+		t.Fatalf("expected no built-in cache image flags in plist\n%s", out)
 	}
 }
 
-func TestRenderRunnerCacheVolumeScript_CarriesQuotaAndVolume(t *testing.T) {
+func TestRenderRunnerCacheVolumeScript_CarriesBudgetAndVolume(t *testing.T) {
 	out := renderRunnerCacheVolumeScript(Config{RunnerCacheVolumeGiB: 400})
 	if !strings.Contains(out, "VOL="+runnerCacheVolumeName) {
 		t.Fatalf("expected volume name in script\n%s", out)
 	}
-	if !strings.Contains(out, "QUOTA_GIB=400") {
-		t.Fatalf("expected quota GiB in script\n%s", out)
+	if !strings.Contains(out, "BUDGET_GIB=400") {
+		t.Fatalf("expected budget GiB in script\n%s", out)
 	}
 	if !strings.Contains(out, `-quota "${QUOTA_GIB}GiB"`) {
 		t.Fatalf("expected -quota flag in script\n%s", out)
@@ -413,19 +396,6 @@ func TestHostConfigHash_ChangesWithRunnerCacheVolume(t *testing.T) {
 	changed.RunnerCacheVolumeGiB = 400
 	if HostConfigHash(base) == HostConfigHash(changed) {
 		t.Fatalf("HostConfigHash must change when the runner-cache volume is enabled")
-	}
-}
-
-// The CAS budget must be part of the fleet fingerprint: if it were omitted, a
-// roll that enables the compilation cache would leave the canonical hash
-// unchanged, so hosts would look already-applied and never re-push the launchd
-// config that turns the CAS on.
-func TestHostConfigHash_ChangesWithCASGiB(t *testing.T) {
-	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin"), RunnerCacheVolumeGiB: 400}
-	changed := base
-	changed.CacheVolumeCASGiB = 8
-	if HostConfigHash(base) == HostConfigHash(changed) {
-		t.Fatalf("HostConfigHash must change when the CAS budget is set")
 	}
 }
 
@@ -1354,8 +1324,7 @@ func TestRenderTailnetResolverScript_FlushesTheNegativeCache(t *testing.T) {
 // that installs the script driving it.
 //
 // Bootstrap-only work must not appear in the hash at all rather than
-// appear here unmapped: TartTarball is the standing example, omitted
-// because the hypervisor cannot be swapped under running VMs.
+// appear here unmapped.
 var hashPartInstaller = map[string]string{
 	"firewall":                "installVMEgressFirewall",
 	"vmnat":                   "installVMEgressFirewall",
@@ -1368,14 +1337,18 @@ var hashPartInstaller = map[string]string{
 	"tailnet-resolver":        "installTailnetResolver",
 	"local-network-allowlist": "installLocalNetworkAllowlist",
 	"software-update-policy":  "installSoftwareUpdatePolicy",
+	"command-line-tools":      "installCommandLineTools",
 	"setup-assistant":         "installSetupAssistantSuppression",
 	"log-shipper":             "installLogShipper",
 	"host-sensors":            "installHostSensors",
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
 	"ssh-ingress-guard":       "installSSHIngressGuard",
+	"tart-install":            "installTart",
+	"tart-prune":              "installTart",
 
 	"tart-kubelet":         "installTartKubelet",
+	"tart-tarball":         "installTart",
 	"tailscale-binaries":   "installTailscale",
 	"node-exporter-binary": "installNodeExporter",
 	"log-shipper-binary":   "installLogShipper",
@@ -1736,6 +1709,44 @@ func TestRenderVMEgressFirewallScript_GuardsGuestsInboundBeforeNAT(t *testing.T)
 	}
 }
 
+// A rack guest leaves through the same public address the storage node uses
+// as its cluster InternalIP, so every Cilium node would take its packets for
+// the storage node's. The guard drops the cluster's node ports to every
+// destination.
+func TestRenderVMEgressFirewallScript_GuardDropsClusterNodePorts(t *testing.T) {
+	script, err := renderVMEgressFirewallScript(Config{VMCacheGatewayCIDRs: []string{"10.10.0.11/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	anchor := vmGuardAnchor(t, script)
+	for _, drop := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port { 4240, 10250 }",
+	} {
+		at := strings.Index(anchor, drop)
+		if at < 0 {
+			t.Fatalf("guard does not drop %q\n%s", drop, anchor)
+		}
+		if carveOut := strings.Index(anchor, "pass in quick proto tcp from <vm_sources> to 10.10.0.11/32"); carveOut >= 0 && at > carveOut {
+			t.Errorf("%q renders after a carve-out pass (first quick match wins)\n%s", drop, anchor)
+		}
+	}
+
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	for _, rule := range []string{
+		"block drop in quick proto udp from <vm_sources> to any port = 8472",
+		"block drop in quick proto tcp from <vm_sources> to any port = 4240",
+		"block drop in quick proto tcp from <vm_sources> to any port = 10250",
+	} {
+		if !strings.Contains(parsed, rule) {
+			t.Errorf("pfctl did not load %q\n%s", rule, parsed)
+		}
+	}
+}
+
 // The host dials its guests itself: tart-kubelet's metrics forwarder and VNC
 // relays connect from the bridge address. A guest's reply arrives inbound to a
 // host address, so without a state from the host's side it hits the drop.
@@ -1871,5 +1882,136 @@ func TestRenderVMEgressFirewallScript_GuardDropsHostBeforeCarveOuts(t *testing.T
 	}
 	if gatewayDNS < 0 || gatewayDNS > selfBlock {
 		t.Errorf("DNS and DHCP to the vmnet gateway must pass before the drop to the host\n%s", anchor)
+	}
+}
+
+// A rack host pulls its golden bases through the rack's image caches, in the
+// order the fleet lists them. A host with none renders the plist it rendered
+// before mirrors existed, so the rented fleets do not drift.
+func TestRenderLaunchdPlist_RendersImageMirrorsInOrder(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:     "n1",
+		SSHUser:      "m1",
+		ImageMirrors: []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=http://10.10.0.12:5000"},
+	})
+	first := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.11:5000</string>")
+	second := strings.Index(out, "<string>--image-mirror=ghcr.io=http://10.10.0.12:5000</string>")
+	if first < 0 || second < 0 || second < first {
+		t.Fatalf("expected both mirrors in order\n%s", out)
+	}
+	if bare := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"}); strings.Contains(bare, "--image-mirror") {
+		t.Fatalf("expected no --image-mirror without mirrors\n%s", bare)
+	}
+}
+
+// The mirrors reach a running host through the drift loop only if they move
+// the fleet fingerprint.
+func TestHostConfigHash_ChangesWithImageMirrors(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
+	changed := base
+	changed.ImageMirrors = []string{"ghcr.io=http://10.10.0.11:5000"}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatal("HostConfigHash must change when ImageMirrors does")
+	}
+}
+
+func TestValidateImageMirror(t *testing.T) {
+	for _, ok := range []string{"ghcr.io=http://10.10.0.11:5000", "ghcr.io=https://images.example.com/"} {
+		if err := ValidateImageMirror(ok); err != nil {
+			t.Errorf("ValidateImageMirror(%q) = %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "ghcr.io", "=http://x", "ghcr.io=", "ghcr.io=10.10.0.11:5000", "ghcr.io=http://x/v2", "ghcr.io/x=http://x"} {
+		if err := ValidateImageMirror(bad); err == nil {
+			t.Errorf("ValidateImageMirror(%q) accepted a mirror tart-kubelet would refuse", bad)
+		}
+	}
+}
+
+func TestRenderCommandLineToolsScript_NeverFailsAndOnlyInstallsWithoutGit(t *testing.T) {
+	script := renderCommandLineToolsScript()
+	if strings.Contains(script, "set -e") || !strings.HasSuffix(strings.TrimSpace(script), "exit 0") {
+		t.Fatal("the step must never fail the bootstrap")
+	}
+	if !strings.Contains(script, "\nif xcode-select -p >/dev/null 2>&1 && /usr/bin/git --version") {
+		t.Fatal("a host with a working git must skip the install")
+	}
+	for _, forbidden := range []string{"xcrun", "python3"} {
+		if strings.Contains(script, forbidden) {
+			t.Errorf("runs %q, which a host without the tools does not have", forbidden)
+		}
+	}
+	if !strings.Contains(script, ".com.apple.dt.CommandLineTools.installondemand.in-progress") {
+		t.Fatal("softwareupdate only offers the tools while the on-demand marker exists")
+	}
+}
+
+func TestRenderCommandLineToolsScript_FindsTheLabelOnEveryMacOS(t *testing.T) {
+	match := regexp.MustCompile(`sed -n '([^']+)'`).FindStringSubmatch(renderCommandLineToolsScript())
+	if match == nil {
+		t.Fatal("no label filter in the script")
+	}
+	for listing, want := range map[string]string{
+		"* Label: Command Line Tools for Xcode-16.0\n\tTitle: Command Line Tools for Xcode, Version: 16.0\n":           "Command Line Tools for Xcode-16.0",
+		"* Label: Command Line Tools for Xcode 27.0-27.0\n\tTitle: Command Line Tools for Xcode 27.0, Version: 27.0\n": "Command Line Tools for Xcode 27.0-27.0",
+		"* Label: macOS 27.0.1-26A434\n": "",
+	} {
+		cmd := exec.Command("sed", "-n", match[1])
+		cmd.Stdin = strings.NewReader(listing)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.TrimSpace(string(out)); got != want {
+			t.Errorf("label %q from %q, want %q", got, listing, want)
+		}
+	}
+}
+
+func TestRenderCommandLineToolsScript_ProbesWithoutPromptingForTheTools(t *testing.T) {
+	script := renderCommandLineToolsScript()
+	probe := strings.Index(script, "xcode-select -p")
+	if probe < 0 || probe > strings.Index(script, "/usr/bin/git --version") {
+		t.Fatal("the git stub asks a GUI to install the tools unless xcode-select finds them first")
+	}
+}
+
+// APFS fixes a volume's quota when it is created, so on a disk of 1 TiB or
+// more the script sizes it from the disk rather than the budget: a later budget
+// within it needs no new volume. A smaller disk keeps the quota at the budget,
+// because its other half does not hold the goldens and job VMs. Runs the quota
+// lines of the rendered script against a fake df.
+func TestRenderRunnerCacheVolumeScript_QuotaFollowsTheDisk(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		diskKiB   uint64
+		budgetGiB int
+		want      string
+	}{
+		{"half of a 1858 GiB disk", 1858 * 1024 * 1024, 512, "929"},
+		{"budget above half a 1858 GiB disk", 1858 * 1024 * 1024, 1000, "1000"},
+		{"half of a 1 TiB disk", 1024 * 1024 * 1024, 80, "512"},
+		{"budget on a disk just under 1 TiB", 1023 * 1024 * 1024, 80, "80"},
+		{"budget on a 460 GiB disk", 460 * 1024 * 1024, 80, "80"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := renderRunnerCacheVolumeScript(Config{RunnerCacheVolumeGiB: tc.budgetGiB, SSHUser: "m1"})
+			start := strings.Index(script, "BUDGET_GIB=")
+			quota := strings.Index(script, "  DISK_GIB=")
+			if start < 0 || quota < 0 {
+				t.Fatalf("quota lines not found in script\n%s", script)
+			}
+			end := quota + strings.Index(script[quota:], "\n  fi\n") + len("\n  fi\n")
+			budget := script[start : start+strings.Index(script[start:], "\n")]
+			snippet := budget + "\n" + strings.ReplaceAll(script[quota:end], "/bin/df", "fake_df") + "echo \"$QUOTA_GIB\"\n"
+			fakeDF := fmt.Sprintf("fake_df() { printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\\n/dev/disk3s5 %d 1 1 1 /System/Volumes/Data\\n'; }\n", tc.diskKiB)
+			out, err := exec.Command("/bin/sh", "-c", "set -eu\n"+fakeDF+snippet).CombinedOutput()
+			if err != nil {
+				t.Fatalf("run quota lines: %v\n%s", err, out)
+			}
+			if got := strings.TrimSpace(string(out)); got != tc.want {
+				t.Fatalf("quota = %s GiB, want %s", got, tc.want)
+			}
+		})
 	}
 }

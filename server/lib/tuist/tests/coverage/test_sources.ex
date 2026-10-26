@@ -29,6 +29,7 @@ defmodule Tuist.Tests.Coverage.TestSources do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Evidence
+  alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.TargetSources
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
@@ -56,9 +57,13 @@ defmodule Tuist.Tests.Coverage.TestSources do
   @doc "Records the test versions of the commit's runs (`Tuist.Tests.Coverage.Commits.runs/2`)."
   def record(project_id, runs) do
     now = NaiveDateTime.utc_now()
+    runs = Enum.filter(runs, &(Map.get(&1, :git_repository_id) not in [nil, 0]))
+    # A run that took code from the cache without counters has no version
+    # worth keeping: the files its tests executed there went uncounted.
+    uninstrumented = Instrumentation.uninstrumented_runs(project_id, runs)
 
     # A run at a time: a full run holds a row per test.
-    for run <- runs, Map.get(run, :git_repository_id) not in [nil, 0] do
+    for run <- runs, not MapSet.member?(uninstrumented, run.test_run_id) do
       rows = rows(project_id, run, now)
       recorded = recorded(project_id, run, Enum.map(rows, & &1.test_case_id))
 

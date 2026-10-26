@@ -2,10 +2,15 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.LLMs.ChatGPT
+alias Atlas.Push.Config
+alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
+
+config :atlas, :automation_trace_url_template, System.get_env("ATLAS_AUTOMATION_TRACE_URL_TEMPLATE")
 
 # dev_instance.exs is only shipped in non-prod (it isn't copied into the
 # release tarball), so guard the require to keep prod boots clean.
@@ -145,6 +150,20 @@ support_chat_parent_origins =
 config :atlas, AtlasWeb.Endpoint, endpoint_config
 config :atlas, :demo_mode, demo_mode
 
+if native_themes = System.get_env("ATLAS_NATIVE_THEME_CATALOG") do
+  catalog =
+    case Jason.decode(native_themes) do
+      {:ok, catalog} -> catalog
+      {:error, _} -> nil
+    end
+
+  config :atlas, :native_theme_catalog, catalog
+end
+
+# Server-only push provider credentials. Unset providers make their platform
+# unavailable; partial or malformed credentials fail the boot.
+config :atlas, Atlas.Push, Config.parse!(System.get_env())
+
 config :atlas, :gtm_email,
   from_name: System.get_env("ATLAS_GTM_EMAIL_FROM_NAME", "Tuist"),
   from_email: System.get_env("ATLAS_GTM_EMAIL_FROM_EMAIL", "contact@tuist.dev"),
@@ -154,6 +173,10 @@ config :atlas, :gtm_email,
 # Bank-transfer footer printed at the bottom of every Stripe invoice. Kept
 # out of source so real IBAN/BIC/beneficiary details are never checked in.
 config :atlas, :invoice_footer, System.get_env("ATLAS_INVOICE_FOOTER", "")
+
+# Verified native app identities for universal and app links. Unset means the
+# association files are not served.
+config :atlas, :native_links, NativeLinksConfig.parse!(System.get_env())
 
 config :atlas, :support,
   from_name: System.get_env("ATLAS_SUPPORT_FROM_NAME", "Tuist Support"),
@@ -587,11 +610,13 @@ end
 # `#errors` in the Tuist company workspace.
 default_alert_slack_channel = System.get_env("ATLAS_DEFAULT_ALERT_SLACK_CHANNEL", "C061VCZC2V8")
 
-config :atlas, :default_alert_slack_channel, default_alert_slack_channel
-
+# Display name of the thread assistant served to clients. Generic by
 # Slack app credentials. Atlas keeps one company Slack app. The signing
+# default so self-hosted deployments carry no organization-specific naming.
 # secret is app-wide; the bot token can be captured through the install
 # flow and persisted in `slack_installations`.
+config :atlas, :default_alert_slack_channel, default_alert_slack_channel
+
 config :atlas, :slack,
   client_id: System.get_env("ATLAS_SLACK_CLIENT_ID"),
   client_secret: System.get_env("ATLAS_SLACK_CLIENT_SECRET"),
@@ -634,6 +659,10 @@ end
 #     LLM_MODE=local
 llm_mode = present_env.(["LLM_MODE"])
 llm_config = Application.get_env(:atlas, :llm, [])
+
+# Personal ChatGPT connections use an explicitly configured device OAuth client.
+# Client provisioning and temporary managed overrides belong to deployment configuration.
+config :atlas, ChatGPT, client_id: present_env.(["ATLAS_CHATGPT_CLIENT_ID"])
 
 cond do
   llm_mode == "local" ->

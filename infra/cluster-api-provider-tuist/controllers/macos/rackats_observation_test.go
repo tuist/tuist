@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -108,5 +109,45 @@ func TestRackATSMessagesNameTheCard(t *testing.T) {
 	message := conditions.GetMessage(h.ats(), clusterv1.ReadyCondition)
 	if strings.Contains(message, "outlet") || !strings.Contains(message, "card at "+h.card.URL()) {
 		t.Fatalf("Ready message %q, want it to name the card", message)
+	}
+}
+
+// The outputs are read with the rest of the observation, into status and
+// gauges; a card that serves none is still observed, saying why.
+func TestRackATSReportsItsOutputs(t *testing.T) {
+	h := newATSHarness(t, rackATS())
+	h.reconcile()
+	ats := h.ats()
+	if !conditions.IsTrue(ats, clusterv1.ReadyCondition) || len(ats.Status.Outputs) != 0 || !strings.Contains(ats.Status.OutputsMessage, "404") {
+		t.Fatalf("without outputs: Ready %+v, outputs %+v, message %q", conditions.Get(ats, clusterv1.ReadyCondition), ats.Status.Outputs, ats.Status.OutputsMessage)
+	}
+	if n := testutil.CollectAndCount(rackATSOutputCurrent); n != 0 {
+		t.Fatalf("%d output current series for a card that serves no outputs", n)
+	}
+	if got := h.gauge("input_current_amps", "1"); got != 0.5 {
+		t.Fatalf("capt_rackats_input_current_amps{source=1} = %v", got)
+	}
+
+	h.card.Mu.Lock()
+	h.card.ATS.Outputs = []map[string]any{{"current": 2.5, "voltage": 230.4, "apparentPower": 576.0}}
+	h.card.Mu.Unlock()
+	h.reconcile()
+	ats = h.ats()
+	want := infrav1.RackATSOutput{Output: 1, Current: "2.5", Voltage: "230.4", ApparentPower: "576", Detail: "apparentPower=576 current=2.5 voltage=230.4"}
+	if len(ats.Status.Outputs) != 1 || ats.Status.Outputs[0] != want || ats.Status.OutputsMessage != "" {
+		t.Fatalf("outputs %+v, message %q", ats.Status.Outputs, ats.Status.OutputsMessage)
+	}
+	for name, value := range map[string]float64{"output_current_amps": 2.5, "output_voltage_volts": 230.4, "output_apparent_power_va": 576} {
+		if got := h.gauge(name, "1"); got != value {
+			t.Fatalf("capt_rackats_%s{output=1} = %v, want %v", name, got, value)
+		}
+	}
+	if n := testutil.CollectAndCount(rackATSOutputActivePower); n != 0 {
+		t.Fatalf("%d active power series for an output that reports none", n)
+	}
+
+	forgetRackATSMetrics(testATS)
+	if n := testutil.CollectAndCount(rackATSOutputCurrent); n != 0 {
+		t.Fatalf("%d output series left for a forgotten RackATS", n)
 	}
 }

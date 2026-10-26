@@ -158,6 +158,35 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     refute File.exists?(coverage_path)
   end
 
+  for version <- [0, 1] do
+    @reporting_version version
+    test "version #{version} parsing preserves legacy coverage and skips immutable coverage", %{
+      account: account,
+      project: project
+    } do
+      id = Ecto.UUID.generate()
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _ -> true end)
+
+      expect(XCResultProcessor, :process_local, fn _path, opts ->
+        assert opts[:read_coverage] == (@reporting_version == 0)
+        {:ok, parsed_data()}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        refute attrs.coverage_enabled
+        {:ok, %{id: id}}
+      end)
+
+      args =
+        job_args(id, account.id, project.id,
+          extra: %{"coverage_enabled" => false, "reporting_version" => @reporting_version}
+        )
+
+      assert :ok = ProcessXcresultWorker.perform(oban_job(args))
+    end
+  end
+
   defp expect_local_parse(parsed) do
     expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
     expect(XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed} end)
@@ -219,6 +248,39 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   end
 
   describe "perform/1 with a stress bundle" do
+    test "forwards the full attachment scope and distinguishes main from stress", %{account: account, project: project} do
+      id = Ecto.UUID.generate()
+      source = Ecto.UUID.generate()
+      parent = self()
+      expect(Tuist.Storage, :download_to_file, 2, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, 2, fn _path, opts ->
+        assert opts[:source_test_run_id] == source
+        assert opts[:shard_index] == 1
+        assert opts[:shard_attempt] == 2
+        assert opts[:shard_report_revision] == 3
+        send(parent, {:artifact, opts[:artifact]})
+        {:ok, parsed_data()}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: id}} end)
+
+      args =
+        job_args(id, account.id, project.id,
+          extra: %{
+            "source_test_run_id" => source,
+            "shard_index" => 1,
+            "shard_attempt" => 2,
+            "shard_report_revision" => 3,
+            "stress_storage_key" => "stress.zip"
+          }
+        )
+
+      assert :ok = ProcessXcresultWorker.perform(oban_job(args))
+      assert_received {:artifact, :main}
+      assert_received {:artifact, :stress}
+    end
+
     test "attaches the gate's reruns to the test case that shares its suite, not its namesake", %{
       account: account,
       project: project
@@ -348,6 +410,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       test_run_id = Ecto.UUID.generate()
       expect_local_parse(parsed_data())
 
+      stub(OpenTelemetry.Tracer, :set_attribute, fn _key, _value -> :ok end)
       expect(OpenTelemetry.Tracer, :set_attribute, fn "test_run_id", ^test_run_id -> :ok end)
       expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
 
@@ -944,15 +1007,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       keys = paths |> :ets.tab2list() |> Enum.map(&elem(&1, 0))
 
-      assert Path.basename(Enum.at(keys, 0)) in [
-               "xcresult_#{test_run_id}_s0.zip",
-               "xcresult_#{test_run_id}_s1.zip"
-             ]
-
+      assert Enum.all?(keys, &(Path.basename(&1) =~ "xcresult_#{test_run_id}_"))
       assert length(Enum.uniq(keys)) == 2
     end
 
-    test "keeps the original temp path for non-sharded runs", %{account: account, project: project} do
+    test "uses invocation-local paths even for non-sharded runs", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
 
       parent = self()
@@ -969,11 +1028,85 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       assert :ok == ProcessXcresultWorker.perform(oban_job(args))
 
       assert_received {:download_path, path}
-      assert Path.basename(path) == "xcresult_#{test_run_id}.zip"
+      assert Path.basename(path) =~ "xcresult_#{test_run_id}_"
+    end
+
+    test "overlapping attempts and revisions cannot overwrite or remove each other's archives", %{
+      account: account,
+      project: project
+    } do
+      id = Ecto.UUID.generate()
+      parent = self()
+
+      stub(Tuist.Storage, :download_to_file, fn key, path, _account ->
+        File.write!(path, key)
+        {:ok, :done}
+      end)
+
+      stub(XCResultProcessor, :process_local, fn path, opts ->
+        expected = "#{opts[:shard_attempt]}:#{opts[:shard_report_revision]}"
+        send(parent, {:parsing, self(), path})
+        receive do: (:continue -> :ok)
+        assert File.read!(path) == expected
+        {:ok, parsed_data()}
+      end)
+
+      stub(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: id}} end)
+
+      tasks =
+        for {attempt, revision} <- [{1, 0}, {2, 0}, {2, 1}] do
+          args =
+            job_args(id, account.id, project.id,
+              extra: %{
+                "shard_index" => 0,
+                "shard_attempt" => attempt,
+                "shard_report_revision" => revision,
+                "storage_key" => "#{attempt}:#{revision}"
+              }
+            )
+
+          Task.async(fn -> ProcessXcresultWorker.perform(oban_job(args)) end)
+        end
+
+      parsing =
+        for _ <- tasks do
+          assert_receive {:parsing, pid, path}, 5_000
+          {pid, path}
+        end
+
+      assert length(Enum.uniq_by(parsing, &elem(&1, 1))) == 3
+      Enum.each(parsing, fn {pid, _} -> send(pid, :continue) end)
+      Enum.each(tasks, fn task -> assert :ok = Task.await(task, 15_000) end)
+      Enum.each(parsing, fn {_, path} -> refute File.exists?(path) end)
     end
   end
 
   describe "uniqueness across shards" do
+    test "new attempts and corrections enqueue while exact retries deduplicate", %{account: account, project: project} do
+      id = Ecto.UUID.generate()
+
+      jobs =
+        for {attempt, revision} <- [{1, 0}, {2, 0}, {2, 1}] do
+          args =
+            job_args(id, account.id, project.id,
+              extra: %{"shard_index" => 0, "shard_attempt" => attempt, "shard_report_revision" => revision}
+            )
+
+          args |> ProcessXcresultWorker.new() |> Oban.insert!()
+        end
+
+      assert length(Enum.uniq_by(jobs, & &1.id)) == 3
+
+      retry_args =
+        job_args(id, account.id, project.id,
+          extra: %{"shard_index" => 0, "shard_attempt" => 2, "shard_report_revision" => 0}
+        )
+
+      duplicate = retry_args |> ProcessXcresultWorker.new() |> Oban.insert!()
+      assert duplicate.conflict?
+      assert duplicate.id == Enum.at(jobs, 1).id
+    end
+
     test "different shard_index values are treated as distinct jobs" do
       test_run_id = Ecto.UUID.generate()
 
@@ -993,8 +1126,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
           "shard_index" => 1
         })
 
-      assert shard_0.changes.unique.keys == [:test_run_id, :shard_index]
-      assert shard_1.changes.unique.keys == [:test_run_id, :shard_index]
+      assert shard_0.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
+      assert shard_1.changes.unique.keys == [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision]
     end
   end
 end

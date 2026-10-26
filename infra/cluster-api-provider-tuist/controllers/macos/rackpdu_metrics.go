@@ -35,7 +35,15 @@ func init() {
 	metrics.Registry.MustRegister(rackPDUAdoptedGauge, rackPDUReadyGauge, rackPDUDriftedGauge, rackPDUCertificateChangedGauge)
 }
 
+// recordRackPDUMetrics exports a managed PDU's state. A standalone PDU, which
+// the controller never contacts, exports none, as a standalone RackATS: a
+// Ready of 0 would read as a PDU that cannot be observed, as a planned PDU at a
+// site that is not racked yet is not.
 func recordRackPDUMetrics(pdu *infrav1.RackPDU) {
+	if pdu.Spec.ManagedBy != infrav1.RackCardManagedByController {
+		forgetRackPDUMetrics(pdu.Name)
+		return
+	}
 	labels := []string{pdu.Name, pdu.Spec.Site}
 	for _, g := range []*prometheus.GaugeVec{rackPDUAdoptedGauge, rackPDUReadyGauge, rackPDUDriftedGauge, rackPDUCertificateChangedGauge} {
 		g.DeletePartialMatch(prometheus.Labels{"pdu": pdu.Name})
@@ -44,10 +52,11 @@ func recordRackPDUMetrics(pdu *infrav1.RackPDU) {
 	rackPDUReadyGauge.WithLabelValues(labels...).Set(boolGauge(conditions.IsTrue(pdu, clusterv1.ReadyCondition)))
 	rackPDUDriftedGauge.WithLabelValues(labels...).Set(boolGauge(pdu.Status.Drift == infrav1.RackCardDriftDrifted))
 	rackPDUCertificateChangedGauge.WithLabelValues(labels...).Set(boolGauge(conditions.IsTrue(pdu, RackPDUCertificateChangedCondition)))
+	recordRackPDUOutletMetrics(pdu)
 }
 
 func forgetRackPDUMetrics(name string) {
-	for _, g := range []*prometheus.GaugeVec{rackPDUAdoptedGauge, rackPDUReadyGauge, rackPDUDriftedGauge, rackPDUCertificateChangedGauge} {
+	for _, g := range append([]*prometheus.GaugeVec{rackPDUAdoptedGauge, rackPDUReadyGauge, rackPDUDriftedGauge, rackPDUCertificateChangedGauge}, rackPDUOutletGauges...) {
 		g.DeletePartialMatch(prometheus.Labels{"pdu": name})
 	}
 }

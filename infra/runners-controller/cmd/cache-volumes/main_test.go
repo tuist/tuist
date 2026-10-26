@@ -35,41 +35,28 @@ func TestAcquireBindsSourceIPNodeUIDAndAuthorization(t *testing.T) {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "runner", Namespace: "runners", UID: types.UID("uid"), Labels: map[string]string{"tuist.dev/runner": "true"}}, Spec: corev1.PodSpec{NodeName: "node"}, Status: corev1.PodStatus{PodIP: "10.0.0.5", Phase: corev1.PodRunning}}
 	authorized := false
 	allow := true
-	commit := ""
-	acknowledge := false
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authorized = true
-		wantPath := "/authorize"
-		if cachevolumes.CommitMode(commit) != "auto" {
-			wantPath = "/authorize-commit"
-		}
-		if r.URL.Path != wantPath {
-			t.Errorf("authorization path %q, want %q", r.URL.Path, wantPath)
-		}
 		if r.Header.Get("Authorization") != "Bearer agent-token" {
 			t.Error("lost authorization")
 		}
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
-		if body["pod_name"] != "runner" || body["key"] != "gradle" || body["commit"] != cachevolumes.CommitMode(commit) {
+		if body["pod_name"] != "runner" || body["key"] != "gradle" {
 			t.Error("lost execution identity")
 		}
 		if !allow {
 			http.Error(w, "denied", 403)
 			return
 		}
-		response := map[string]any{"id": "00000000-0000-0000-0000-000000000001", "account_id": 1, "scope": strings.Repeat("a", 64)}
-		if acknowledge {
-			response["commit"] = commit
-		}
-		json.NewEncoder(w).Encode(response)
+		json.NewEncoder(w).Encode(map[string]any{"id": "00000000-0000-0000-0000-000000000001", "account_id": 1, "scope": strings.Repeat("a", 64)})
 	}))
 	defer upstream.Close()
 	tokenPath := filepath.Join(root, "token")
 	os.WriteFile(tokenPath, []byte("agent-token"), 0600)
-	a := &agent{tokenPath: tokenPath, store: s, kube: fake.NewSimpleClientset(pod), namespace: "runners", node: "node", authorizeURL: upstream.URL + "/authorize", http: upstream.Client()}
+	a := &agent{tokenPath: tokenPath, store: s, kube: fake.NewSimpleClientset(pod), namespace: "runners", node: "node", authorizeURL: upstream.URL, http: upstream.Client()}
 	call := func(uid, ip string) int {
-		body, _ := json.Marshal(request{PodName: "runner", PodUID: uid, Key: "gradle", Commit: commit})
+		body, _ := json.Marshal(request{PodName: "runner", PodUID: uid, Key: "gradle"})
 		req := httptest.NewRequest("POST", "/acquire", bytes.NewReader(body))
 		req.RemoteAddr = ip + ":1234"
 		req.Header.Set("Authorization", "Bearer attacker-input")
@@ -96,14 +83,6 @@ func TestAcquireBindsSourceIPNodeUIDAndAuthorization(t *testing.T) {
 		t.Fatal("exposed data before authorization")
 	}
 	allow = true
-	commit = "false"
-	if got := call("uid", "10.0.0.5"); got != http.StatusNotImplemented {
-		t.Fatal("legacy server ignored read-only intent", got)
-	}
-	if _, err := os.Stat(filepath.Join(root, "pods/uid")); !os.IsNotExist(err) {
-		t.Fatal("exposed data without commit acknowledgement")
-	}
-	acknowledge = true
 	if got := call("uid", "10.0.0.5"); got != 200 {
 		t.Fatal("valid request rejected", got)
 	}
@@ -135,5 +114,40 @@ func TestRefusesRootFilesystem(t *testing.T) {
 	root := t.TempDir()
 	if err := dedicatedFilesystem(root, root); err == nil {
 		t.Fatal("accepted kubelet filesystem")
+	}
+}
+
+func TestReportPublishesAnEmptyStartOnlyWhenTheServerAllowsIt(t *testing.T) {
+	for _, tc := range []struct {
+		response, want string
+	}{
+		{response: `{"action":"seal"}`, want: "seal"},
+		{response: `{"action":"seal","cold_publish":false}`, want: "seal"},
+		{response: `{"action":"seal","cold_publish":true}`, want: "publish"},
+		{response: `{"action":"delete","cold_publish":true}`, want: "delete"},
+	} {
+		t.Run(tc.response, func(t *testing.T) {
+			var reported map[string]any
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/report" {
+					t.Errorf("unexpected request %s", r.URL.Path)
+				}
+				json.NewDecoder(r.Body).Decode(&reported)
+				w.Write([]byte(tc.response))
+			}))
+			defer upstream.Close()
+			tokenPath := filepath.Join(t.TempDir(), "token")
+			os.WriteFile(tokenPath, []byte("agent-token"), 0600)
+			a := &agent{tokenPath: tokenPath, node: "node", authorizeURL: upstream.URL + "/authorize", http: upstream.Client()}
+			slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "00000000-0000-0000-0000-000000000001", BaseGeneration: 3}, State: "active", MountedGeneration: 2}
+
+			action, err := a.report(slot, true)
+			if err != nil || action != tc.want {
+				t.Fatalf("action = %q, %v, want %q", action, err, tc.want)
+			}
+			if reported["mounted_generation"] != float64(2) {
+				t.Fatal("did not report the older generation the job mounted", reported)
+			}
+		})
 	}
 }

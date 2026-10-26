@@ -34,5 +34,10 @@ Tuist uses historical test timing data to intelligently balance the load across 
     details="Shard the tests of your Elixir project across parallel CI runners."
     link="/guides/features/test-sharding/elixir"
 />
+  <.home_card
+    title="Rust"
+    details="Understand test-sharding availability for plain Cargo test runs."
+    link="/guides/features/test-sharding/rust"
+/>
 </.home_cards>
 

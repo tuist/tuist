@@ -49,8 +49,11 @@ rules:
       - vultrmachinetemplates
       - rackapplesiliconmachines
       - rackhosts
+      # Lending: the borrowing side reconciles the leases other envs write here.
+      - rackhostleases
       - rackpdus
       - rackatses
+      - racksites
       - racklinuxhosts
       - racklinuxmachines
       - racklinuxcandidates
@@ -71,12 +74,16 @@ rules:
       - rackapplesiliconmachines/finalizers
       # The machine reconciler quarantines a host it gave up bootstrapping.
       - rackhosts/status
+      - rackhostleases/status
+      # The borrowing side holds a lease until it released the host.
+      - rackhostleases/finalizers
       # The RackPDU and RackATS controllers hold a deleted PDU or transfer
       # switch with a finalizer until its egress Service is gone.
       - rackpdus/status
       - rackpdus/finalizers
       - rackatses/status
       - rackatses/finalizers
+      - racksites/status
       - racklinuxhosts/status
       # The RackLinuxHost controller holds a deleted host with a finalizer
       # until it retired the host's Machine, tailnet devices and console key,
@@ -144,6 +151,11 @@ rules:
     # off a box whose demux is rolling.
     resources: [pods]
     verbs: [get, list, watch]
+  - apiGroups: [""]
+    # A rack host's borrower lets go of the warm runner Pods its previous Node
+    # stranded, once the takeover's tart-kubelet has reaped their VMs.
+    resources: [pods]
+    verbs: [patch, delete]
   - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
@@ -438,6 +450,12 @@ spec:
             - --rack-linux-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
             {{- if .Values.rackLinuxFleet.boot.enabled }}
             - --rack-linux-install-server-url=http://{{ .Values.rackLinuxFleet.boot.address }}:{{ .Values.rackLinuxFleet.boot.httpPort }}
+            {{- if .Values.rackLinuxFleet.boot.internet.enabled }}
+            - --rack-linux-internet-boot-server-url=https://{{ required "rackLinuxFleet.boot.internet.host is the internet boot server's name" .Values.rackLinuxFleet.boot.internet.host }}
+            {{- end }}
+            {{- range .Values.rackLinuxFleet.preinstall.products }}
+            - {{ printf "--rack-linux-preinstalled-product=%s" . | quote }}
+            {{- end }}
             {{- range .Values.rackLinuxFleet.authorizedKeys }}
             - {{ printf "--rack-linux-authorized-key=%s" . | quote }}
             {{- end }}
@@ -462,9 +480,30 @@ spec:
             {{- with .Values.rackFleet.vmCacheGatewayCIDRs }}
             - --rackhost-vm-cache-gateway-cidrs={{ join "," . }}
             {{- end }}
+            {{- with include "tuist.rackImageMirrors" . }}
+            - --rackhost-image-mirrors={{ . }}
+            - --rackhost-image-mirror-hosts={{ include "tuist.rackImageMirrorHosts" $ }}
+            {{- end }}
             {{- if .Values.rackFleet.cardRootKey.enabled }}
             - --rack-card-root-secret={{ .Values.rackFleet.cardRootKey.secretName | default "rack-card-root" }}
             {{- end }}
+            {{- end }}
+            {{- /* Rack hosts this env lends (rackFleet.hosts[].lendTo) and borrows
+            (rackFleet.borrow): see "A host lent to another env" in
+            infra/cluster-api-provider-tuist/AGENTS.md. */}}
+            {{- with .Values.rackFleet.env }}
+            - --rack-env={{ . }}
+            {{- end }}
+            {{- if .Values.rackFleet.enabled }}
+            {{- range $env, $borrower := .Values.rackFleet.borrowers }}
+            {{- if $borrower.kubeconfigItem }}
+            - --rack-lease-borrower={{ $env }}={{ include "tuist.rackBorrowerSecret" (dict "root" $ "env" $env) }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.rackFleet.borrow.enabled }}
+            - --rack-lease-fleet-name={{ include "tuist.rackFleetName" . }}
+            - --rack-lease-hosts={{ join "," .Values.rackFleet.borrow.hosts }}
             {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}
@@ -484,22 +523,13 @@ spec:
             - --tartkubelet-guest-capacity={{ .Values.macosFleet.tartKubelet.guestCapacity | default 1 }}
             {{- with .Values.macosFleet.runnerCacheVolume }}
             {{- if .gib }}
-            # Per-account cache volumes: bootstrap provisions a
+            # Runner cache volumes: bootstrap provisions a
             # quota-bounded APFS volume of this many GiB on each Mac mini
             # (the aggregate ceiling that keeps cache volumes from ever
             # starving the VM image path) and turns the feature on in
             # tart-kubelet. Operator-wide, like the other fleet flags;
-            # 0/unset leaves the feature off and every VM boots cold.
+            # 0/unset leaves the feature off.
             - --runner-cache-volume-gib={{ .gib }}
-            {{- with .masterCapGib }}
-            - --cache-volume-master-cap-gib={{ . }}
-            {{- end }}
-            {{- with .casGib }}
-            # Folded Xcode compilation-cache (CAS) budget within each
-            # per-account cache image. 0/unset keeps the compilation cache
-            # VM-local; the binary cache is unaffected.
-            - --cache-volume-cas-gib={{ . }}
-            {{- end }}
             {{- end }}
             {{- end }}
             {{- if .Values.runnersFleet.customCacheVolumes.enabled }}
@@ -655,6 +685,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
                   key: project-id
+            {{- with (dig "tart" "version" "" .Values.macosFleet) }}
+            # An env var rather than a flag: an operator image older than this
+            # value ignores it instead of refusing to start.
+            - name: CAPI_TART_VERSION
+              value: {{ . | quote }}
+            {{- end }}
             {{- if $ovhAny }}
             # OVH dedicated-server reconciler creds. The OVH SDK reads these from
             # the env; OVH_ENDPOINT (ovh-eu/ovh-ca/...) is non-secret config, the

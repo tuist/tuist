@@ -44,6 +44,20 @@ type RackPDUSpec struct {
 	OutletStateOnStartup string `json:"outletStateOnStartup,omitempty"`
 }
 
+// RackPDUOutlet is one outlet as the controller last read it.
+type RackPDUOutlet struct {
+	// Number is the outlet's 1-based number on the PDU, as printed on it.
+	Number int `json:"number"`
+
+	// State is whether the outlet is switched On or Off, or Unknown when the
+	// card did not say.
+	// +optional
+	State string `json:"state,omitempty"`
+
+	// OutletDraw is the outlet's meter reading, unset when it could not be read.
+	OutletDraw `json:",inline"`
+}
+
 // RackPDUStatus is what the controller observed.
 type RackPDUStatus struct {
 	RackCardStatus `json:",inline"`
@@ -51,6 +65,18 @@ type RackPDUStatus struct {
 	// OutletCount is how many outlets the card reports.
 	// +optional
 	OutletCount int `json:"outletCount,omitempty"`
+
+	// Outlets is every outlet's switch state and meter reading, whatever is
+	// plugged into it, as the controller's account last read them. Empty when
+	// the last read of the card failed.
+	// +optional
+	// +listType=map
+	// +listMapKey=number
+	Outlets []RackPDUOutlet `json:"outlets,omitempty"`
+
+	// OutletsReadAt is when Outlets was read.
+	// +optional
+	OutletsReadAt *metav1.Time `json:"outletsReadAt,omitempty"`
 
 	// Conditions: Adopted, Converged, Ready, CertificateChanged,
 	// AddressReserved.

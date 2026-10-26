@@ -11,7 +11,7 @@ on:
       - "cli/Tests/**"
       - "cli/Templates/**"
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
-      # inside the CLI, so its changes must run CLI build/test/acceptance.
+      # inside the CLI, so its changes must run the CLI builds.
       - "cas-plugin/**"
       # SwifterPMCore is compiled into the command-line binary through
       # TuistSupport, so its changes must run the command-line test suite.
@@ -24,6 +24,7 @@ on:
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
       - "mise/tasks/cli/ee.sh"
+      - "mise/utilities/install_static_linux_sdk.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -41,7 +42,7 @@ on:
       - "cli/Tests/**"
       - "cli/Templates/**"
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
-      # inside the CLI, so its changes must run CLI build/test/acceptance.
+      # inside the CLI, so its changes must run the CLI builds.
       - "cas-plugin/**"
       # SwifterPMCore is compiled into the command-line binary through
       # TuistSupport, so its changes must run the command-line test suite.
@@ -54,6 +55,7 @@ on:
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
       - "mise/tasks/cli/ee.sh"
+      - "mise/utilities/install_static_linux_sdk.sh"
       - "mise.toml"
       - "mise.lock"
       - "examples/xcode/**"
@@ -74,21 +76,27 @@ env:
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
+  TUIST_DEV_INSTANCE: "1"
 
 concurrency:
   group: cli-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-# .build cache keys: restore-keys hashes Package.swift (not Package.resolved) so the
+# Builds, lint and the Linux suite. The macOS test runs (`tuist test`), the
+# binary-cache warm and the coverage signal live in tuist-project-tests.yml.
+#
+# Linux archive caches: restore-keys hashes Package.swift (not Package.resolved) so the
 # fallback never crosses structural changes. See #10510 / e8fa267 for the incidents
 # (stale workspace state pointing at moved local SPM paths; Linux linker failures
 # from partial-artifact reuse) that motivate the narrower scope.
 jobs:
+  # Lint and SwiftPM Build run on pull requests only: a push to main carries
+  # sources its pull request already checked.
   cli-lint:
     name: Lint
     runs-on: tuist-macos-27-0
     timeout-minutes: 30
-    if: github.repository == 'tuist/tuist'
+    if: github.repository == 'tuist/tuist' && github.event_name == 'pull_request'
     permissions:
       contents: read
       id-token: write
@@ -96,16 +104,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist swiftlint swiftformat"
@@ -118,13 +121,32 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Lint
         run: |
           "$(mise which swiftformat)" cli/ app/ --lint
           "$(mise which swiftlint)" lint --quiet --config .swiftlint.yml cli/Sources
           "$(mise which swiftlint)" lint --quiet --config .swiftlint.yml --only-rule no_fatal_error_in_tests cli/Tests
           tuist inspect dependencies --only implicit
+
+  # The originHash is the SHA-256 of the root Package.swift. Runs on pushes too because
+  # a squash merge can produce a Package.swift that no branch resolved.
+  cli-package-resolved:
+    name: Package.resolved
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check originHash
+        run: |
+          expected="$(sha256sum Package.swift | cut -d' ' -f1)"
+          actual="$(sed -n 's/^ *"originHash" : "\([0-9a-f]*\)",$/\1/p' Package.resolved)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error file=Package.resolved,line=2::originHash is ${actual:-missing}, but Package.swift hashes to $expected. Run 'tuist install' and commit Package.resolved."
+            exit 1
+          fi
 
   cli-spm-build:
     name: SwiftPM Build
@@ -133,16 +155,11 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    if: github.repository == 'tuist/tuist' && github.event_name == 'pull_request' && github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
@@ -155,281 +172,13 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-${{ github.job }}
       - name: Resolve registry replacements
-        run: swift package resolve --replace-scm-with-registry
+        run: swift package --cache-path "$PWD/.build/dependency-cache" resolve --replace-scm-with-registry
       - name: Build
-        run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
-
-  cli-cache:
-    name: Cache
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 60
-    permissions:
-      contents: read
-      id-token: write
-    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-      - name: Initialize TuistCacheEE submodule
-        if: github.event.pull_request.head.repo.fork != true
-        run: bash mise/tasks/cli/ee.sh
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "tuist"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - name: Setup Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup
-      - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      - name: Cache
-        run: tuist cache
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
-
-  cli-unit-tests:
-    name: Unit Tests
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 90
-    permissions:
-      contents: read
-      id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-      - name: Initialize TuistCacheEE submodule
-        if: github.event.pull_request.head.repo.fork != true
-        run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "tuist"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - name: Setup Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup
-      - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      - name: Verify scheme process integration
-        run: |
-          tuist generate TuistProcessSchemeIntegration --no-open
-          bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
-      - name: Run tests
-        run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
-        env:
-          # Xcode code coverage is in early access behind this client flag.
-          TUIST_FEATURE_FLAG_COVERAGE: "1"
-
-  cli-acceptance-tests-build:
-    name: Build Acceptance Tests
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 90
-    permissions:
-      contents: read
-      id-token: write
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
-    outputs:
-      matrix: ${{ steps.shard.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-      - name: Initialize TuistCacheEE submodule
-        if: github.event.pull_request.head.repo.fork != true
-        run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "tuist"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - name: Setup Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup
-      - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Build tests
-        id: shard
-        run: tuist test --build-only --shard-total 2 --shard-granularity suite --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests
-        env:
-          TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
-
-  cli-acceptance-tests:
-    name: Acceptance Tests
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 60
-    needs: cli-acceptance-tests-build
-    permissions:
-      contents: read
-      id-token: write
-    if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.cli-acceptance-tests-build.outputs.matrix) }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
-      - name: Initialize TuistCacheEE submodule
-        if: github.event.pull_request.head.repo.fork != true
-        run: bash mise/tasks/cli/ee.sh
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "tuist"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - name: Setup Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup
-      - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
-      # inside xcodebuild's compilers and routes it to the proxy over a unix
-      # socket. Build both from source and hand their paths to the test via the
-      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
-      # honours. Forks skip this: they do not check out the EE submodule, so the
-      # suite that needs the plugin is not in the scheme there.
-      - uses: ./.github/actions/mise
-        if: github.event.pull_request.head.repo.fork != true
-        env:
-          # The rust pin lives in cas-plugin/mise.toml and has no lockfile entry,
-          # so this workflow's MISE_LOCKED=1 refuses to install it. Every other
-          # workflow that builds the plugin installs this toolchain unlocked.
-          MISE_LOCKED: 0
-        with:
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-          install_args: rust
-          working_directory: cas-plugin
-          cache: "false"
-      - uses: Swatinem/rust-cache@v2
-        if: github.event.pull_request.head.repo.fork != true
-        with:
-          shared-key: cas-plugin-rust-${{ runner.os }}
-          workspaces: |
-            cas-plugin -> target
-      - name: Build the cas-plugin
-        if: github.event.pull_request.head.repo.fork != true
-        working-directory: cas-plugin
-        env:
-          MISE_LOCKED: 0
-        # No GITHUB_ENV export: `xcodebuild test-without-building` runs the test
-        # bundle with the environment captured into the xctestrun at build time,
-        # so a variable exported here never reaches the test process. The suite
-        # resolves both binaries from this path in the source tree instead.
-        run: mise run build
-      - name: Set up new keychain
-        run: |
-          TMP_DIRECTORY=$(mktemp -d)
-          KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
-          KEYCHAIN_PASSWORD=$(uuidgen)
-          security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security default-keychain -s $KEYCHAIN_PATH
-          security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      # -maximum-parallel-testing-workers caps how many test runner processes xcodebuild spawns.
-      # Acceptance tests each shell out to their own nested xcodebuild, so every extra runner
-      # multiplies into a fresh set of compiler processes. Uncapped on a 6-core runner that reached
-      # 78 concurrent swift-frontend processes, which is what starved tests into their time limits.
-      # See https://github.com/tuist/tuist/issues/12512 for the measurements behind this number.
-      - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -maximum-parallel-testing-workers 2
-        env:
-          TUIST_SHARD_INDEX: ${{ matrix.shard }}
-          TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
-
-  cli-acceptance-tests-fork:
-    name: Acceptance Tests (Fork)
-    runs-on: tuist-macos-27-0
-    timeout-minutes: 60
-    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache/restore@v4
-        id: cache
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "tuist"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Set up new keychain
-        run: |
-          TMP_DIRECTORY=$(mktemp -d)
-          KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
-          KEYCHAIN_PASSWORD=$(uuidgen)
-          security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security default-keychain -s $KEYCHAIN_PATH
-          security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      - name: Run tests
-        run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions
 
   cli-linux-build:
     name: Linux Build
@@ -445,9 +194,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-musl-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-${{ hashFiles('Package.swift') }}-
+            linux-cli-musl-${{ hashFiles('Package.swift') }}-
       - name: Install caddy
         run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
       # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
@@ -474,8 +223,14 @@ jobs:
         run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
+      # Releases ship a static musl binary, and the musl SDK exposes `Musl`
+      # rather than `Glibc`, so build against the same SDK the release uses.
+      - name: Install Swift Static Linux SDK
+        run: |
+          target=$(./mise/utilities/install_static_linux_sdk.sh)
+          echo "SWIFT_SDK_TARGET=$target" >> "$GITHUB_ENV"
       - name: Build tuist CLI
-        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
+        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions --swift-sdk "$SWIFT_SDK_TARGET"
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save

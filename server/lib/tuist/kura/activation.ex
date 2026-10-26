@@ -48,8 +48,10 @@ defmodule Tuist.Kura.Activation do
     host = StableEndpoint.host(account)
     endpoints = Enum.filter(servers, &eligible?(&1, desired, host))
     kick? = servers == [] and Demand.instance_expected?(account) and Demand.claim_provision_kick(account.id)
-    Demand.record(account.id, origin, persist_origin: kick?)
-    if kick?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
+    # A request the gateway admitted is a client about to move bytes, so it
+    # counts as traffic and returns even an instance held as `:idle`.
+    Demand.record(account.id, origin, persist_origin: kick?, traffic: true)
+    if kick?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account, traffic: true)
 
     case endpoints do
       [%{url: url} | _] when is_binary(url) -> {:ok, url}

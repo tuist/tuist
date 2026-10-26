@@ -3,14 +3,17 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
   # Mix compiler diagnostics, posts what it reports to the real /mix/builds
   # controller (no Tuist.Mix mock), and asserts that ClickHouse ends up
   # with the build row and one diagnostic per captured issue.
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
 
   import Ecto.Query
   import Phoenix.ConnTest
 
+  alias Tuist.BuildEntities
+  alias Tuist.BuildEntities.Identity
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
   alias Tuist.Mix.Build
+  alias Tuist.Mix.Cache
   alias Tuist.Mix.Diagnostic
   alias Tuist.Mix.Step
   alias Tuist.Mix.Timeline
@@ -54,6 +57,73 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     post(conn, "/api/projects/#{user.account.name}/#{project.name}/mix/builds", payload)
   end
 
+  test "ingests a cache-only compile report and derives caching analytics", %{conn: conn, user: user, project: project} do
+    reporter = reporter([])
+
+    observation = %{
+      dependency: "jason",
+      outcome: "local_hit",
+      key: String.duplicate("a", 64),
+      reason: "",
+      duration_ms: 5,
+      saved_duration_ms: 123,
+      read_bytes: 1_000,
+      read_duration_us: 5_000
+    }
+
+    CompileReporter.record_cache(reporter, observation)
+    :ok = CompileReporter.finish(reporter)
+    assert conn |> post_report(user, project) |> json_response(:created)
+
+    assert %{hits: 1, misses: 0, hit_rate: 100.0, saved_duration_ms: 123} =
+             Cache.summary(project.id,
+               start_datetime: DateTime.add(DateTime.utc_now(), -60),
+               end_datetime: DateTime.add(DateTime.utc_now(), 60)
+             )
+
+    io =
+      Cache.io_analytics(project.id,
+        start_datetime: DateTime.add(DateTime.utc_now(), -60),
+        end_datetime: DateTime.add(DateTime.utc_now(), 60)
+      )
+
+    assert io.transfer.metrics["downloads"] == 1_000
+    assert io.latency.metrics["read"] == 5.0
+    assert io.throughput.metrics["downloads"] == 200_000.0
+    assert io.transfer.metrics["uploads"] == nil
+  end
+
+  test "ingests up-to-date local hits without project compilation or invented transport measurements", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    reporter = reporter([])
+
+    CompileReporter.record_cache(reporter, %{
+      dependency: "jason",
+      outcome: "local_hit",
+      key: "",
+      reason: "up_to_date",
+      duration_ms: 2,
+      saved_duration_ms: nil
+    })
+
+    :ok = CompileReporter.finish(reporter)
+    assert conn |> post_report(user, project) |> json_response(:created)
+
+    opts = [
+      start_datetime: DateTime.add(DateTime.utc_now(), -60),
+      end_datetime: DateTime.add(DateTime.utc_now(), 60)
+    ]
+
+    assert %{hits: 1, misses: 0, hit_rate: 100.0, saved_duration_ms: nil} = Cache.summary(project.id, opts)
+    io = Cache.io_analytics(project.id, opts)
+    assert io.transfer.metrics["combined"] == nil
+    assert io.latency.metrics["combined"] == nil
+    assert io.throughput.metrics["combined"] == nil
+  end
+
   test "tells the page waiting for the project that the user reached it", %{conn: conn, user: user} do
     project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :mix)
     Tuist.PubSub.subscribe("projects.#{project.id}")
@@ -73,6 +143,7 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     user: user,
     project: project
   } do
+    FunWithFlags.enable(:build_entities, for_actor: project)
     reporter = reporter([])
 
     CompileReporter.record(
@@ -165,6 +236,23 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     assert %{total: 2, rows: [greeter_file, macros_file]} = Tuist.Mix.compiled_files_page(build, sort_by: "name")
     assert greeter_file.compile_dependencies_count == 1
     assert macros_file.compile_dependents_count == 1
+
+    for {kind, field, names} <- [
+          {"file", "path", ["lib/greeter.ex", "lib/macros.ex"]},
+          {"module", "module", ["Greeter", "Macros"]}
+        ] do
+      {entries, _meta} = BuildEntities.list(project.id, :mix, kind)
+      assert Enum.sort(Enum.map(entries, & &1.name)) == names
+
+      for name <- names do
+        entity_id = Identity.id(project.id, :mix, kind, %{field => name})
+
+        assert {[%{parent_id: parent_id, status: "unknown", cache_status: "none"}], _meta} =
+                 BuildEntities.history(project.id, :mix, kind, entity_id)
+
+        assert parent_id == build.id
+      end
+    end
 
     assert [%{category: "type_check", title: "Type checking Greeter", path: "lib/greeter.ex", duration_ms: 9}] =
              ClickHouseRepo.all(from(s in Step, where: s.build_id == ^build.id))

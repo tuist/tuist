@@ -18,9 +18,21 @@ rackLinuxFleet:
   site: ""
   boot:
     enabled: false
+    internet:
+      enabled: false
 
 macosFleet:
   image:
     repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
     tag: ""
     pullPolicy: IfNotPresent
+
+rackFleet:
+  enabled: false
+  imageCache:
+    enabled: false
+
+runnersFleet:
+  xcodeVersions: []
+  xcodeOverrides: {}
+  runnerImageSemver: ""

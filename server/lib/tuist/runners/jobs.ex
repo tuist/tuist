@@ -183,7 +183,7 @@ defmodule Tuist.Runners.Jobs do
     project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
-    TestRun
+    TestRun.query()
     |> where([test], test.project_id in ^project_ids)
     |> where([test], test.status != "in_progress")
     |> ci_scope(buildkite_job)
@@ -512,9 +512,12 @@ defmodule Tuist.Runners.Jobs do
   The outbox makes divergence transient by construction, so this reads
   zero in steady state and any non-zero value means a replica row that
   will not converge on its own: a terminal job emits no further events,
-  so nothing lands to correct it. `settled_before` excludes rows young
-  enough to be mid-flush, which is also what keeps genuinely in-flight
-  jobs out of the count — those are non-terminal in both stores.
+  so nothing lands to correct it. `settled_before` bounds both stores: the
+  replica row must not have changed since, and the Postgres completion
+  must predate it. The second keeps a long-running job out of the count
+  in the minute between its completion and the flush that carries it,
+  when its replica row is old but the completion is still in the outbox.
+  Jobs still in flight are non-terminal in both stores and never count.
 
   Scans at most `limit` candidates so a systemic divergence can't hand
   Postgres an unbounded id list; a truncated scan is logged rather than
@@ -527,14 +530,19 @@ defmodule Tuist.Runners.Jobs do
       Logger.warning("runners: replica divergence scan hit its cap of #{limit}; gauge undercounts")
     end
 
-    terminal =
-      candidates
-      |> Enum.map(& &1.workflow_job_id)
-      |> WorkflowJobs.terminal_completions()
+    settled = settled_terminal_ids(candidates, settled_before)
 
     candidates
-    |> Enum.filter(&Map.has_key?(terminal, &1.workflow_job_id))
+    |> Enum.filter(&MapSet.member?(settled, &1.workflow_job_id))
     |> Enum.frequencies_by(&(&1.fleet_name || ""))
+  end
+
+  defp settled_terminal_ids(candidates, settled_before) do
+    candidates
+    |> Enum.map(& &1.workflow_job_id)
+    |> WorkflowJobs.terminal_completions()
+    |> Enum.filter(fn {_workflow_job_id, completed_at} -> DateTime.before?(completed_at, settled_before) end)
+    |> MapSet.new(fn {workflow_job_id, _completed_at} -> workflow_job_id end)
   end
 
   # Collapses per workflow_job via `argMax` rather than `FINAL`, matching

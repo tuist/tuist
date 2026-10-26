@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
@@ -92,6 +93,21 @@ type RackHostSpec struct {
 	// +optional
 	Parked bool `json:"parked,omitempty"`
 
+	// LendTo lends the host's runner runtime to another environment, by the
+	// name the operator knows its cluster under (`--rack-lease-borrower`). The
+	// host stays this operator's: its Machine, power, OS updates and bootstrap
+	// from a reinstall. The other env's operator owns everything a runner
+	// needs: tart-kubelet and its config, the VM egress firewall, cache
+	// volumes, Tailscale and the Node, and rolls them out with that env's
+	// deploys. The two operators hand the host over through a RackHostLease in
+	// the borrowing cluster; see "A host lent to another env" in this
+	// provider's AGENTS.md. Clearing it returns the host once the borrower has
+	// drained it.
+	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	LendTo string `json:"lendTo,omitempty"`
+
 	// NodeFleet is the `tuist.dev/fleet` label on the host's Node when it is not
 	// the operator's fleet: a host lent to the runner pools of another fleet,
 	// such as one another environment's server drives. Runner pools select Nodes
@@ -111,6 +127,9 @@ type RackHostSpec struct {
 	// server drive its guests. This cluster then has no Node for the host, so
 	// the Machine is kept off remediation and the host is not re-bootstrapped
 	// for a missing Node. Drain the host's Node before setting it.
+	//
+	// This is the manual lend, where this operator pushes the runtime with the
+	// other cluster's kubeconfig. LendTo replaces it; the two are exclusive.
 	// +optional
 	NodeCluster *RackHostNodeCluster `json:"nodeCluster,omitempty"`
 }
@@ -156,6 +175,11 @@ type RackHostMachine struct {
 	// +optional
 	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
 }
+
+// RackSiteNodeLabel carries a rack host's site on its Machine. Cluster API
+// syncs labels in the node.cluster.x-k8s.io domain from a Machine to its Node,
+// where kube-state-metrics exposes it.
+const RackSiteNodeLabel = "node.cluster.x-k8s.io/rack-site"
 
 // RackHostLocation is the physical position of a host.
 type RackHostLocation struct {
@@ -219,6 +243,23 @@ type PowerOutletRef struct {
 	CredentialsSecretRef *corev1.LocalObjectReference `json:"credentialsSecretRef,omitempty"`
 }
 
+// OutletDraw is an outlet's meter reading. A field the device does not report
+// is unset.
+type OutletDraw struct {
+	// ActivePowerWatts is the real power drawn, in watts.
+	// +optional
+	ActivePowerWatts *resource.Quantity `json:"activePowerWatts,omitempty"`
+
+	// ApparentPowerVA is the apparent power, in volt-amperes. A cord plugged in
+	// to a machine that is off still reads a few VA, an empty outlet none.
+	// +optional
+	ApparentPowerVA *resource.Quantity `json:"apparentPowerVA,omitempty"`
+
+	// CurrentAmps is the RMS current, in amperes.
+	// +optional
+	CurrentAmps *resource.Quantity `json:"currentAmps,omitempty"`
+}
+
 // RackHostStatus is the observed state of one physical host.
 type RackHostStatus struct {
 	// Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
@@ -230,6 +271,13 @@ type RackHostStatus struct {
 	// host has no outlet configured or the driver could not reach it.
 	// +optional
 	Power string `json:"power,omitempty"`
+
+	// OutletDraw is what the outlet's meter last read: the outlet's entry in its
+	// RackPDU's status, or the endpoint's own meter for an outlet of its own.
+	// Unset when there is no recent reading. The HostDrawing condition says
+	// what it means for the host.
+	// +optional
+	OutletDraw *OutletDraw `json:"outletDraw,omitempty"`
 
 	// LastPowerAction / LastPowerActionTime record the last action the
 	// operator took on the outlet (`on`, `off`, `cycle`), so a host that
@@ -258,7 +306,14 @@ type RackHostStatus struct {
 	// +optional
 	QuarantinedAt *metav1.Time `json:"quarantinedAt,omitempty"`
 
-	// Conditions are CAPI-style condition entries (PowerReachable).
+	// Lease is how far the host has been handed to another env, as this
+	// operator recorded it. It outlives the host's Machine, so a Machine
+	// made again while the host is lent picks the lease up rather than pushing
+	// this env's runtime over the borrower's.
+	// +optional
+	Lease *RackHostLending `json:"lease,omitempty"`
+
+	// Conditions are CAPI-style condition entries (PowerReachable, HostDrawing).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
@@ -269,8 +324,11 @@ type RackHostStatus struct {
 // +kubebuilder:printcolumn:name="Address",type=string,JSONPath=".spec.address"
 // +kubebuilder:printcolumn:name="Machine",type=string,JSONPath=".status.machine"
 // +kubebuilder:printcolumn:name="Power",type=string,JSONPath=".status.power"
+// +kubebuilder:printcolumn:name="Watts",type=string,priority=1,JSONPath=".status.outletDraw.activePowerWatts"
 // +kubebuilder:printcolumn:name="Quarantined",type=boolean,JSONPath=".status.quarantined"
 // +kubebuilder:printcolumn:name="Parked",type=boolean,JSONPath=".spec.parked"
+// +kubebuilder:printcolumn:name="LentTo",type=string,JSONPath=".status.lease.borrower"
+// +kubebuilder:printcolumn:name="Lease",type=string,JSONPath=".status.lease.state"
 // +kubebuilder:printcolumn:name="Serial",type=string,priority=1,JSONPath=".spec.serial"
 // +kubebuilder:printcolumn:name="Site",type=string,priority=1,JSONPath=".spec.location.site"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -304,4 +362,51 @@ func (h *RackHost) GetConditions() clusterv1.Conditions {
 
 func (h *RackHost) SetConditions(c clusterv1.Conditions) {
 	h.Status.Conditions = c
+}
+
+// The states of a host this operator lends, in the order a lend passes
+// through them. Returning a host goes Returning, Reclaimed, then no lease.
+const (
+	// LendingOffered: the RackHostLease exists in the borrowing cluster and the
+	// host still runs this env's runtime, waiting for the borrower to accept.
+	LendingOffered = "Offered"
+	// LendingDraining: the borrower accepted; this env's Node is cordoned and
+	// its running jobs finish before the runtime changes hands.
+	LendingDraining = "Draining"
+	// LendingLent: the runtime is the borrower's. This operator pushes
+	// nothing to the host but the lease key.
+	LendingLent = "Lent"
+	// LendingReturning: the borrower was asked to drain the host and release it.
+	LendingReturning = "Returning"
+	// LendingReclaimed: the runtime is this env's again and bootstrap is
+	// pushing it.
+	LendingReclaimed = "Reclaimed"
+)
+
+// RackHostLending records a lend in progress or in force.
+type RackHostLending struct {
+	// Borrower is the env the host is lent to.
+	Borrower string `json:"borrower"`
+
+	// State is one of Offered, Draining, Lent, Returning or Reclaimed.
+	State string `json:"state"`
+
+	// KeyFingerprint is the SHA-256 fingerprint of the lease key authorized on
+	// the host, empty until one is.
+	// +optional
+	KeyFingerprint string `json:"keyFingerprint,omitempty"`
+
+	// BorrowerNode is the Node the borrower runs the host as, which is also
+	// the host's tailnet device name while it is lent. Taking the host back
+	// clears that device.
+	// +optional
+	BorrowerNode string `json:"borrowerNode,omitempty"`
+
+	// Since is when State last changed.
+	// +optional
+	Since *metav1.Time `json:"since,omitempty"`
+
+	// Message says what the lend is waiting for.
+	// +optional
+	Message string `json:"message,omitempty"`
 }

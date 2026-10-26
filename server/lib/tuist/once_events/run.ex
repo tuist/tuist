@@ -38,6 +38,7 @@ defmodule Tuist.OnceEvents.Run do
     field :root_graph_digest, :map, default: %{}
     field :effective_limits, :map, default: %{}
     field :command_display, :string
+    field :test_context, :map, default: %{}
 
     field :finalization, :string, default: "active"
     field :exit_status, :integer
@@ -77,6 +78,7 @@ defmodule Tuist.OnceEvents.Run do
     field :started_at, :utc_datetime_usec
     field :finalized_at, :utc_datetime_usec
     field :test_report_published_at, :utc_datetime_usec
+    field :build_entities_published_at, :utc_datetime_usec
     field :heartbeat_at, :utc_datetime_usec
 
     has_many :actions, Action, foreign_key: :once_run_id

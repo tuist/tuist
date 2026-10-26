@@ -20,6 +20,7 @@ defmodule Tuist.Tests.Coverage.TargetSources do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Coverage.Instrumentation
   alias Tuist.Tests.Coverage.Xcode
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageTargetSource
@@ -38,9 +39,13 @@ defmodule Tuist.Tests.Coverage.TargetSources do
     by_id = Map.new(runs, &{&1.test_run_id, &1})
     run_ids = Map.keys(by_id)
 
+    # A run that took code from the cache without counters executed its tests
+    # over counters that weren't there, so it says nothing about any target.
+    uninstrumented = Instrumentation.uninstrumented_runs(project_id, runs)
+
     hashes =
       project_id
-      |> Xcode.selective_testing_hashes(run_ids)
+      |> Xcode.selective_testing_hashes(Enum.reject(run_ids, &MapSet.member?(uninstrumented, &1)))
       |> Enum.reject(&(&1.name in narrowed_targets(by_id[&1.test_run_id])))
 
     evidenced = evidenced_targets(project_id, run_ids, hashes)
@@ -109,8 +114,8 @@ defmodule Tuist.Tests.Coverage.TargetSources do
   end
 
   # The targets the caller's identifiers name, whose tests the run may not
-  # all have executed: quarantine skips a few tests on every run, and the
-  # run's other targets still ran whole.
+  # all have executed: a skip names a few tests, and the run's other targets
+  # still ran whole.
   defp narrowed_targets(run) do
     Enum.map(
       Map.get(run, :only_test_identifiers, []) ++ Map.get(run, :skip_test_identifiers, []),

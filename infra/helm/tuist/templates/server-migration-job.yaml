@@ -191,6 +191,7 @@ spec:
                   key: object-storage-secret-key
             {{- end }}
             {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
+            {{- include "tuist.grafanaClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- include "tuist.clickhouseManagedEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}

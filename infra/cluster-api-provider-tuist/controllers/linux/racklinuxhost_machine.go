@@ -44,6 +44,9 @@ func (r *RackLinuxHostReconciler) reconcileMachine(ctx context.Context, host *in
 		RackLinuxHostLabel:         host.Name,
 		RackLinuxRoleLabel:         host.Spec.Role,
 	}
+	if site := host.Spec.Location.Site; site != "" {
+		labels[infrav1.RackSiteNodeLabel] = site
+	}
 
 	rlm := &infrav1.RackLinuxMachine{ObjectMeta: metav1.ObjectMeta{Name: host.Name, Namespace: host.Namespace}}
 	if _, err := controllerutil.CreateOrPatch(ctx, r.Client, rlm, func() error {
@@ -119,6 +122,10 @@ func (r *RackLinuxHostReconciler) observeHardware(ctx context.Context, host *inf
 			conditions.MarkFalse(host, HardwarePinnedCondition, "CandidateConflict", clusterv1.ConditionSeverityWarning,
 				"an announcement from %s at %s conflicts with what the machine first announced (%s); check what is on the management segment, then delete RackLinuxCandidate %s and boot the machine's install stick",
 				c.Address, c.At.UTC().Format(time.RFC3339), c.Reason, candidate.Name)
+		case !checkCodeMatches(host, candidate.Status.EK):
+			conditions.MarkFalse(host, HardwarePinnedCondition, "TPMCheckCodeMismatch", clusterv1.ConditionSeverityWarning,
+				"the machine that announced itself as %s has TPM %s, whose check code is not spec.tpmCheckCode %s from the vendor's acceptance report; check which box this is, then delete RackLinuxCandidate %s",
+				host.Name, ekShown(candidate.Status.EK), host.Spec.TPMCheckCode, candidate.Name)
 		default:
 			pinned := metav1.NewTime(r.now())
 			host.Status.Hardware = &infrav1.RackLinuxHostHardware{

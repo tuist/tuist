@@ -17,6 +17,7 @@ The pods that run on these nodes, the rack node agent and the boot server, are
 the rack-nodes chart's (infra/helm/rack-nodes), a release this one's deploy
 does not wait on.
 */ -}}
+{{- $publicAddresses := dict }}
 {{- range $host := .Values.rackLinuxFleet.hosts }}
 {{- $uuid := lower (required "each rackLinuxFleet.hosts entry needs the machine's uuid" $host.uuid) }}
 {{- if not (regexMatch "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" $uuid) }}
@@ -40,6 +41,18 @@ does not wait on.
 {{- $nodeLabels := deepCopy ($roleConfig.nodeLabels | default dict) }}
 {{- with $host.address }}
 {{- $_ := set $nodeLabels "tuist.dev/pn-ipv4" . }}
+{{- end }}
+{{- with $host.publicAddress }}
+{{- if eq $role "edge" }}
+{{- fail (printf "rackLinuxFleet.hosts[%s].publicAddress: an edge holds the site's public address and cannot be forwarded to" $hostname) }}
+{{- end }}
+{{- if not $host.address }}
+{{- fail (printf "rackLinuxFleet.hosts[%s].publicAddress needs the host's address on the machines segment, which the edges forward to" $hostname) }}
+{{- end }}
+{{- if hasKey $publicAddresses . }}
+{{- fail (printf "rackLinuxFleet.hosts[%s].publicAddress %s is already %s's: the edges forward one address to one host" $hostname . (get $publicAddresses .)) }}
+{{- end }}
+{{- $_ := set $publicAddresses . $hostname }}
 {{- end }}
 {{- if empty $tags }}
 {{- fail (printf "rackLinuxFleet.hosts[%s].tailnetTags (or its role's, or rackLinuxFleet.tailnetTags) is required: a device is only this host when it carries them" $hostname) }}
@@ -73,6 +86,9 @@ spec:
   {{- with $host.bootMAC }}
   bootMAC: {{ lower . | quote }}
   {{- end }}
+  {{- with $host.tpmCheckCode }}
+  tpmCheckCode: {{ . | quote }}
+  {{- end }}
   {{- if or $nodeLabels $roleConfig.nodeTaints }}
   node:
     {{- with $nodeLabels }}
@@ -104,6 +120,32 @@ spec:
   edge:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- with $host.publicAddress }}
+  clusterNetwork:
+    publicAddress: {{ . | quote }}
+    address: {{ $host.address | quote }}
+  {{- end }}
+{{- end }}
+{{- if $publicAddresses }}
+---
+# A rack host on the cluster network holds the site's public address on a dummy
+# interface (`tuist-cluster`), and Cilium would attach to it as a device of its
+# own. Its uplinks are the X710's `en*` ports; the management port has no
+# address, so Cilium passes it by.
+apiVersion: cilium.io/v2
+kind: CiliumNodeConfig
+metadata:
+  name: {{ $fleetName }}
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+spec:
+  nodeSelector:
+    matchLabels:
+      node.cluster.x-k8s.io/instance-type: rack
+  defaults:
+    devices: "en+"
 {{- end }}
 {{- if .Values.rackLinuxFleet.sshExternalSecret.enabled }}
 ---

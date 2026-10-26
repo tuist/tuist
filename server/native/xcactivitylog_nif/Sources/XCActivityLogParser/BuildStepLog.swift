@@ -23,20 +23,21 @@ struct BuildStepLog {
         }
     }
 
-    func extract(step: BuildStep) -> (text: String, truncated: Bool) {
-        let key = Key(signature: step.signature, start: step.startTimestamp, end: step.endTimestamp)
-        let matches = sections[key] ?? []
+    /// `steps` is the emitted step followed by any sub-steps folded into it.
+    func extract(steps: [BuildStep]) -> (text: String, truncated: Bool) {
         // Synthetic or ambiguous parser steps still have a signature, but must
         // never inherit another operation's command or output.
-        let section = matches.count == 1 ? matches[0] : nil
-        let result = Self.render(
-            signature: step.signature,
-            command: section?.commandDetailDesc ?? "",
-            output: section?.text ?? "",
-            messages: section?.messages.map(\.title) ?? [],
+        let sections = steps.compactMap { step -> IDEActivityLogSection? in
+            let matches = self.sections[Key(signature: step.signature, start: step.startTimestamp, end: step.endTimestamp)] ?? []
+            return matches.count == 1 ? matches[0] : nil
+        }
+        return Self.render(
+            signature: steps.first?.signature ?? "",
+            command: sections.map(\.commandDetailDesc).filter { !$0.isEmpty }.joined(separator: "\n"),
+            output: sections.map(\.text).filter { !$0.isEmpty }.joined(separator: "\n"),
+            messages: sections.flatMap { $0.messages.map(\.title) },
             limit: 64 * 1024
         )
-        return result
     }
 
     static func render(signature: String, command: String, output: String, messages: [String], limit: Int) -> (text: String, truncated: Bool) {
@@ -55,7 +56,7 @@ struct BuildStepLog {
             // Bound normalization too: the recorded output can be much larger
             // than the log we retain.
             let part = normalizedPrefix(recorded, limit: max(0, limit))
-            if !part.truncated, result.contains(part.text) { continue }
+            if !part.truncated, containsBytes(result, part.text) { continue }
             if !result.isEmpty, part.text.hasPrefix(result) { result = "" }
             let separator = result.isEmpty ? "" : "\n"
             let available = max(0, limit - result.utf8.count)
@@ -68,6 +69,23 @@ struct BuildStepLog {
             if part.truncated { return (result, true) }
         }
         return (result, false)
+    }
+
+    // Foundation's Unicode-aware `contains` dominated parsing for Swift jobs
+    // with hundreds of messages. Both sides are normalized, so bytes suffice.
+    private static func containsBytes(_ haystack: String, _ needle: String) -> Bool {
+        var haystack = haystack
+        var needle = needle
+        return haystack.withUTF8 { h in
+            needle.withUTF8 { n in
+                guard let first = n.first, let hBase = h.baseAddress, let nBase = n.baseAddress else { return n.isEmpty }
+                guard n.count <= h.count else { return false }
+                for i in 0 ... (h.count - n.count) where h[i] == first {
+                    if memcmp(hBase + i, nBase, n.count) == 0 { return true }
+                }
+                return false
+            }
+        }
     }
 
     private static func normalizedPrefix(_ text: String, limit: Int) -> (text: String, truncated: Bool) {

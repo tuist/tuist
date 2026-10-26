@@ -69,6 +69,11 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+	// teardownTerminationGraceSeconds stops the pods of a deleted instance.
+	// Every path that deletes a KuraInstance has already moved its traffic
+	// away and deletes its data with it, so there is nothing to drain, and an
+	// instance recreated under the same name waits for the old claims.
+	teardownTerminationGraceSeconds int64 = 5
 	// A liveness failure means the serving process is already unable to make
 	// progress. It must not inherit the rollout drain budget: Kubernetes runs
 	// preStop for liveness restarts too, so this gives the hook time to remove
@@ -234,6 +239,7 @@ func (tlsPeerPathProber) Probe(ctx context.Context, address string, serverName s
 }
 
 type runtimeStatus struct {
+	invalidObservation         bool
 	ServingAuthority           servingReport `json:"serving_authority"`
 	Ready                      bool          `json:"ready"`
 	State                      string        `json:"state"`
@@ -427,7 +433,9 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete;patch
+// +kubebuilder:rbac:groups="",resources=pods/resize,verbs=patch
+// +kubebuilder:rbac:groups=apps,resources=controllerrevisions,verbs=get
 // +kubebuilder:rbac:groups="",resources=pods/portforward,verbs=create
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
@@ -473,6 +481,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// instead of stranding it. Must run before the finalizer is removed, while
 		// the PVCs still exist to resolve their PVs.
 		if err := r.reclaimDataVolumes(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+		if err := r.releaseWorkload(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
 		r.forgetPodSamples(instance)
@@ -585,6 +596,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 	}
+	if err := r.requestExitRecovery(ctx, instance, pods); err != nil {
+		return ctrl.Result{}, err
+	}
 	if inProgress, err := r.reconcileReplicaRecovery(ctx, instance, pods, samples, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	} else if inProgress {
@@ -641,6 +655,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileCPUResizeHold(ctx, instance, time.Now()); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.releaseResizeRolloutHold(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -672,6 +689,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	instance.Status.ImageHold = rollout.imageHold
+	if image, held := heldRuntimeImage(instance); held {
+		instance.Status.Phase = "Pending"
+		instance.Status.ImageHold = imageHoldFencedPin
+		instance.Status.Message = fmt.Sprintf("Requested runtime image %s is held at qualified image %s; qualify the new image before updating the fenced runtime pin", instance.Spec.Image, image)
+	}
 	if fencedServing(instance) && primaryPod == "fenced-unavailable" {
 		instance.Status.Phase = "Pending"
 		instance.Status.Message = "No acknowledged serving authority; inspect the durable serving grant"
@@ -2405,9 +2428,12 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 		status, err := statusClient.Status(ctx, pods[i])
 		if err != nil {
 			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+		}
+		observation, observed := observedRuntimeStatus(status, err)
+		if !observed {
 			continue
 		}
-		fresh[pods[i].Name] = status
+		fresh[pods[i].Name] = observation
 		uids[pods[i].Name] = pods[i].UID
 	}
 
@@ -2425,6 +2451,9 @@ func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
 		r.podSamples[key] = samples
 	}
 	for name, status := range fresh {
+		if status.invalidObservation {
+			continue
+		}
 		sample := samples[name]
 		if sample == nil {
 			sample = &podRuntimeSample{}
@@ -2526,7 +2555,7 @@ func primaryPodHealthFromSamples(
 			fallbackReady[pods[i].Name] = true
 		}
 		status, ok := samples[pods[i].Name]
-		if !ok {
+		if !ok || status.invalidObservation {
 			continue
 		}
 		runtimeStatuses++
@@ -2743,19 +2772,6 @@ func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (r
 		return runtimeStatus{}, err
 	}
 	return decodeRuntimeStatus(response)
-}
-
-func decodeRuntimeStatus(response *http.Response) (runtimeStatus, error) {
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return runtimeStatus{}, fmt.Errorf("unexpected status %d", response.StatusCode)
-	}
-	var status runtimeStatus
-	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
-		return runtimeStatus{}, err
-	}
-	return status, nil
 }
 
 func runtimeStatusServing(status runtimeStatus) bool {
@@ -3373,8 +3389,9 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 // applyStatefulSet creates or updates the instance's StatefulSet. With
 // createHeld, a StatefulSet it creates starts on the resize's rollout hold.
 func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance *kurav1alpha1.KuraInstance, createHeld bool) error {
-	if floor := instance.Annotations["kura.tuist.dev/fenced-runtime-image"]; fencedServing(instance) && floor != "" && floor != instance.Spec.Image {
-		return fmt.Errorf("fenced runtime image is pinned to %s; qualify a new image before changing the rollback floor", floor)
+	if image, held := heldRuntimeImage(instance); held {
+		instance = instance.DeepCopy()
+		instance.Spec.Image = image
 	}
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	sharedSecretsResourceVersion, err := r.sharedSecretsResourceVersion(ctx, instance.Namespace)
@@ -3423,7 +3440,9 @@ func (r *KuraInstanceReconciler) applyStatefulSet(ctx context.Context, instance 
 		if fencedServing(instance) || instance.Spec.ReplicaRecovery != nil || instance.Status.ReplicaRecovery != nil {
 			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
 			sts.Spec.PersistentVolumeClaimRetentionPolicy.WhenDeleted = appsv1.RetainPersistentVolumeClaimRetentionPolicyType
+			delete(sts.Annotations, cpuResizeHoldAnnotation)
 		}
+		holdCPURequestChange(sts, previousTemplate, time.Now())
 		return nil
 	})
 	return err
@@ -3545,7 +3564,7 @@ func podKuraImage(pod *corev1.Pod) string {
 // explicit replica recovery, and a class change holds in the stale-storage path.
 func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
 	if fencedServing(instance) {
-		return false, nil
+		return r.reconcileFencedDataStorageResize(ctx, instance)
 	}
 	desired := storageQuantity(instance)
 	if desired.IsZero() {
@@ -3814,6 +3833,26 @@ func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instanc
 	return nil
 }
 
+// releaseWorkload stops a deleted instance's pods on the teardown grace rather
+// than the rollout drain budget garbage collection would give them. The
+// StatefulSet goes first so it cannot replace them.
+func (r *KuraInstanceReconciler) releaseWorkload(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+	for i := range pods.Items {
+		if err := r.Delete(ctx, &pods.Items[i], client.GracePeriodSeconds(teardownTerminationGraceSeconds)); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 // Activated instances require explicit fenced recovery. Legacy instances retain
 // their automatic stale-storage recreation until they opt into serving authority.
 func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
@@ -4020,6 +4059,7 @@ type rolloutState struct {
 	observedImage string
 	readyReplicas int32
 	message       string
+	imageHold     string
 }
 
 func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance) (rolloutState, error) {
@@ -4075,6 +4115,7 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 		phase:         "Pending",
 		observedImage: observedImage,
 		readyReplicas: readyReplicas,
+		imageHold:     operatorImageHold(instance, sts, replicas),
 		message: fmt.Sprintf(
 			"%d/%d replicas ready, %d/%d updated, observedGeneration=%t, revisionsMatch=%t",
 			readyReplicas,
@@ -4179,15 +4220,31 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			corev1.EnvVar{Name: "POD_NODE_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}}},
 		)
 	}
-	applyNodeLocalDNS(instance, &template.Spec)
+	applyPodDNS(instance, &template.Spec)
 	return template
 }
 
-// applyNodeLocalDNS points the pods of a node-local instance at resolvers
-// their node can reach, since cluster DNS is not one of them. With no search
-// domains, ndots:1 sends every name straight to the nameservers as given.
-func applyNodeLocalDNS(instance *kurav1alpha1.KuraInstance, spec *corev1.PodSpec) {
+// clusterDNSOptions keep cluster DNS lookups short for pods outside the provider
+// that hosts CoreDNS, where every query crosses the internet. The peer discovery
+// name has four dots, so under the default ndots:5 it walks three search domains
+// first: eight queries per lookup instead of two. glibc fails the whole lookup
+// when one query exhausts its attempts; three two-second attempts survive more
+// loss than the default two five-second ones.
+var clusterDNSOptions = []corev1.PodDNSConfigOption{
+	{Name: "ndots", Value: ptr("2")},
+	{Name: "timeout", Value: ptr("2")},
+	{Name: "attempts", Value: ptr("3")},
+}
+
+// applyPodDNS points the pods of a node-local instance at resolvers their node
+// can reach, since cluster DNS is not one of them. With no search domains,
+// ndots:1 sends every name straight to the nameservers as given. Every other
+// instance keeps cluster DNS with clusterDNSOptions.
+func applyPodDNS(instance *kurav1alpha1.KuraInstance, spec *corev1.PodSpec) {
 	if instance.Spec.NodeLocalNetwork == nil {
+		spec.DNSConfig = &corev1.PodDNSConfig{
+			Options: append([]corev1.PodDNSConfigOption(nil), clusterDNSOptions...),
+		}
 		return
 	}
 	spec.DNSPolicy = corev1.DNSNone

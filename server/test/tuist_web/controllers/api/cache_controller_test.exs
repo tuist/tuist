@@ -5,7 +5,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.API.Pipeline
-  alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.CacheActionItems
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
@@ -706,11 +706,11 @@ defmodule TuistWeb.API.CacheControllerTest do
   describe "POST /api/cache/token free tier" do
     test "returns payment required when the scoped account is over the free tier", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -726,11 +726,11 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "says a payment failed when an unpaid subscription left the account over the free tier", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -748,11 +748,11 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "still mints a token while the pro subscription's renewal payment is being retried", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold * 10,
+          current_month_cache_requests: threshold * 10,
           preload: [:account]
         )
 
@@ -772,11 +772,11 @@ defmodule TuistWeb.API.CacheControllerTest do
     # over the free tier.
     test "does not reveal the billing status of an account the subject cannot reach", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       blocked =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -794,11 +794,11 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "still mints a token while the account is under the free tier", %{conn: conn} do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold - 1,
+          current_month_cache_requests: threshold - 1,
           preload: [:account]
         )
 
@@ -926,7 +926,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1127,6 +1127,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, :ok)
 
       assert Plug.Conn.get_resp_header(conn, "x-tuist-signature") == ["signature"]
+      refute conn.assigns[:cache_outcome]
 
       assert response == %{
                "hash" => "hash"
@@ -1153,6 +1154,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, :not_found)
 
       assert response == %{"message" => "The item doesn't exist in the cache."}
+      assert conn.assigns.cache_outcome == :miss
     end
 
     test "returns a payment required status code if the account has no subscription and their usage is above the threshold",
@@ -1164,7 +1166,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1291,7 +1293,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1399,7 +1401,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1475,7 +1477,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 
@@ -1684,7 +1686,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       Repo.update!(
         Ecto.Changeset.change(account,
-          current_month_remote_cache_hits_count: Billing.get_payment_thresholds()[:remote_cache_hits] * 2
+          current_month_cache_requests: UsagePricing.included_requests() * 2
         )
       )
 

@@ -61,7 +61,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
     expect(XCActivityLogParser, :parse, fn path, _, _, false, consume ->
       assert File.read!(path) == "original activity log"
       send(self(), {:extracted_path, path})
-      consume.(%{"status" => "success", "duration" => 1200})
+
+      consume.(%{
+        "status" => "success",
+        "duration" => 1200,
+        "time_started_recording" => 0.125,
+        "time_stopped_recording" => 1.325
+      })
     end)
 
     expect(Builds, :get_build, fn @build_id, [project_id: 123] -> {:error, :not_found} end)
@@ -69,6 +75,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
     expect(Builds, :create_build, fn attrs ->
       assert attrs.status == "success"
       assert attrs.duration == 1200
+      assert attrs.started_at == ~N[2001-01-01 00:00:00.125000]
       {:ok, attrs}
     end)
 

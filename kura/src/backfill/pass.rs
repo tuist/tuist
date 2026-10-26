@@ -144,6 +144,9 @@ pub enum PassSource {
     /// Walk the peer's index newest-first within the window (a backward
     /// pass).
     PeerIndex,
+    /// Repair the named source's retained index without the recency cutoff.
+    /// Store capacity and the subsequent full-corpus barrier still apply.
+    RetainedIndex,
     /// Apply exactly these entries — one forward page of the arrival feed
     /// or of the ascending region read (design §3.1, §4.1; implementation
     /// decision D-9).
@@ -244,11 +247,17 @@ pub async fn run_backfill_pass_with_tuning(
     // never blocks sending while the fetcher is blocked handing off a batch
     // (a bounded bounce channel could deadlock that cycle).
     let (bounce_tx, bounce_rx) = mpsc::unbounded_channel();
-    let result = tokio::try_join!(
-        list_entries(&context, queue_tx),
-        fetch_bodies(&context, queue_rx, apply_tx, bounce_rx),
-        apply_batches(&context, apply_rx, bounce_tx),
-    );
+    let result = async {
+        if matches!(tuning.source, PassSource::RetainedIndex) {
+            prepare_retained_space(&context).await?;
+        }
+        tokio::try_join!(
+            list_entries(&context, queue_tx),
+            fetch_bodies(&context, queue_rx, apply_tx, bounce_rx),
+            apply_batches(&context, apply_rx, bounce_tx),
+        )
+    }
+    .await;
 
     let capacity_completed = context.capacity_fired.load(Ordering::Relaxed);
     let stats = context.snapshot_stats();
@@ -306,11 +315,22 @@ struct PassContext<'a> {
 }
 
 impl PassContext<'_> {
-    fn arrival_ordered(&self) -> bool {
-        matches!(&self.tuning.source, PassSource::Entries(_))
+    fn capacity_is_per_entry(&self) -> bool {
+        matches!(
+            &self.tuning.source,
+            PassSource::Entries(_) | PassSource::RetainedIndex
+        )
     }
 
     fn capacity_declines(&self, version_ms: u64) -> bool {
+        // Recency is a cache-selection policy, not a storage admission limit.
+        // A named handover must attempt older missing records too: they may
+        // fit in the active segment, or replace data the source already evicted.
+        // Normal ring rotation/disk admission still bound every apply, and the
+        // frozen full-corpus verification rejects any holes caused by rotation.
+        if matches!(self.tuning.source, PassSource::RetainedIndex) {
+            return false;
+        }
         let inputs = self.state.store.backfill_capacity_inputs();
         capacity_complete(
             inputs.segment_count,
@@ -385,6 +405,65 @@ struct QueuedFetch {
 
 // ---- Listing walk ----------------------------------------------------------
 
+async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbort> {
+    let mut candidates = cancellable(context, context.state.store.handover_reclaim_candidates())
+        .await?
+        .map_err(PassAbort::Hard)?;
+    if candidates.is_empty() {
+        return Ok(());
+    }
+    // Keep only segment identities, not the source's complete manifest set.
+    // A sealed, unpinned segment cannot gain a newly committed artifact while
+    // this walk proves that none of its current records belong to the source.
+    let mut missing = false;
+    let mut after = None;
+    loop {
+        let page = fetch_listing_page(context, after.as_deref()).await?;
+        context.state.metrics.record_backfill_listing_page();
+        context.update_stats(|stats| stats.pages_listed += 1);
+        for entry in page.entries {
+            let kind = BackfillRecordKind::from_wire_name(&entry.record_kind)
+                .ok_or_else(|| PassAbort::Hard("unknown retained record kind".into()))?;
+            if let Some(manifest) = context
+                .state
+                .store
+                .manifest(&entry.record_id)
+                .map_err(PassAbort::Hard)?
+                && let Some(segment) = manifest.segment_id
+            {
+                candidates.remove(&segment);
+            }
+            if candidates.is_empty() {
+                return Ok(());
+            }
+            if kind == BackfillRecordKind::SegmentArtifact
+                && !context
+                    .state
+                    .store
+                    .backfill_locally_covered(kind, &entry.record_id, entry.version_ms)
+                    .map_err(PassAbort::Hard)?
+            {
+                missing = true;
+            }
+        }
+        match page.next_after {
+            Some(next) => after = Some(next),
+            None => break,
+        }
+    }
+    if missing {
+        for segment in candidates {
+            cancellable(
+                context,
+                context.state.store.reclaim_handover_segment(&segment),
+            )
+            .await?
+            .map_err(PassAbort::Hard)?;
+        }
+    }
+    Ok(())
+}
+
 async fn list_entries(
     context: &PassContext<'_>,
     queue: mpsc::Sender<QueuedFetch>,
@@ -450,11 +529,14 @@ async fn list_entry(
     // Evaluate the marginal trade as the cursor descends. Inputs are re-read
     // per segmented tuple: applies rotate segments underneath the pass.
     if kind == BackfillRecordKind::SegmentArtifact {
-        if context.arrival_ordered() && context.capacity_declines(entry.version_ms) {
+        if context.capacity_is_per_entry() && context.capacity_declines(entry.version_ms) {
             context.note_capacity_skipped();
             return Ok(());
         }
-        if !context.capacity_fired() && context.capacity_declines(entry.version_ms) {
+        if !context.capacity_is_per_entry()
+            && !context.capacity_fired()
+            && context.capacity_declines(entry.version_ms)
+        {
             // Synchronously strips held segmented claims that are not in an
             // in-flight batch; the fetcher drops the same tuples from its
             // composed batch before dispatching.
@@ -721,12 +803,15 @@ async fn admit(
         // #12047 eviction churn the trade exists to stop, with overshoot
         // bounded only by dataset size. With it, overshoot is bounded by the
         // one in-flight batch per pass, as designed.
-        if context.arrival_ordered() && context.capacity_declines(item.key.version_ms) {
+        if context.capacity_is_per_entry() && context.capacity_declines(item.key.version_ms) {
             context.guard.resolve_capacity_declined(&item.key);
             context.note_capacity_skipped();
             return Ok(());
         }
-        if !context.capacity_fired() && context.capacity_declines(item.key.version_ms) {
+        if !context.capacity_is_per_entry()
+            && !context.capacity_fired()
+            && context.capacity_declines(item.key.version_ms)
+        {
             context.guard.mark_capacity_complete();
             context.capacity_fired.store(true, Ordering::Relaxed);
             tracing::info!(
@@ -2436,6 +2521,90 @@ mod tests {
                 .is_none()
         );
         // Non-ring kinds continued past capacity completion to the bound.
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
+                .await
+                .is_some()
+        );
+        assert!(
+            local
+                .state
+                .store
+                .backfill_locally_covered(BackfillRecordKind::NamespaceTombstone, "dead-ns", 250)
+                .expect("tombstone check should succeed")
+        );
+    }
+
+    #[tokio::test]
+    async fn retained_index_repairs_both_sides_of_the_recency_cutoff() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "newer", b"newer-body", 1_000).await;
+        seed_segmented(&peer, "older", b"older-body", 400).await;
+        seed_inline(&peer, "inl", b"inline-body", 300).await;
+        seed_tombstone(&peer, "dead-ns", 250).await;
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        // A tiny configured capacity resolves to the legacy 1:2:2 floor of 5
+        // segments; fabricate a full ring whose next evictee holds data newer
+        // than the older peer entry, so the marginal trade fires mid-pass.
+        let local = test_context(|config| {
+            config.cas_capacity_bytes = Some(1);
+        })
+        .await;
+        let mut ring = SegmentState::default();
+        for (band, id, created_at_ms, stat) in [
+            ("old", "evictee", 1, 500_u64),
+            ("current", "c1", 2, 600),
+            ("current", "c2", 3, 650),
+            ("new", "n1", 4, 700),
+            ("new", "n2", 5, 750),
+        ] {
+            let mut reference = SegmentReference::new(id.into(), created_at_ms);
+            reference.max_version_ms = Some(stat);
+            match band {
+                "old" => ring.old.push(reference),
+                "current" => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        local
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .expect("ring state should install");
+
+        let mut paced = tuning();
+        paced.source = PassSource::RetainedIndex;
+        paced.flush_interval = Duration::from_secs(10);
+        let (outcome, claim_set) = run_pass(&local, &peer_url, paced).await;
+
+        let BackfillPassOutcome::Completed {
+            end,
+            capacity_completed,
+            stats,
+        } = outcome
+        else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(end, BackfillPassEnd::PeerExhausted);
+        assert!(!capacity_completed);
+        assert_eq!(stats.tuples_capacity_skipped, 0);
+        assert!(claim_set.is_empty());
+
+        // Both the older and newer missing bodies are required by handover.
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
+                .await
+                .is_some()
+        );
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "older")
+                .await
+                .is_some()
+        );
+        // Non-ring kinds still use the same complete retained-index walk.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
                 .await

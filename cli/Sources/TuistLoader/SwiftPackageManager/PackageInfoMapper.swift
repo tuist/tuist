@@ -470,7 +470,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
         let targetToProducts = mutableTargetToProducts
-        let prebuiltEligibleTargets = prebuiltEligibleTargets(packageInfo: packageInfo, packageType: packageType)
+        let prebuiltEligibleTargets = prebuiltEligibleTargets(
+            packageInfo: packageInfo,
+            packageType: packageType,
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
+        )
 
         let targets: [ProjectDescription.Target] = try await packageInfo.targets
             .concurrentCompactMap { target -> ProjectDescription.Target? in
@@ -685,11 +689,16 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     private func prebuiltEligibleTargets(
         packageInfo: PackageInfo,
-        packageType: PackageType
+        packageType: PackageType,
+        includeLocalPackageTestTargets: Bool
     ) -> Set<String> {
         guard !packageType.packagePrebuilts.isEmpty else { return [] }
 
-        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
+        let includesTestTargets = packageType.includesTestTargets(
+            includeLocalPackageTestTargets: includeLocalPackageTestTargets
+        )
+        let mappedTargets = packageInfo.targets.filter { includesTestTargets || $0.type != .test }
+        let targetsByName = Dictionary(uniqueKeysWithValues: mappedTargets.map { ($0.name, $0) })
         let allTargetNames = Set(targetsByName.keys)
 
         func isHostOnlyTarget(_ targetName: String) -> Bool {
@@ -739,7 +748,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return visited
         }
 
-        let macroTargets = Set(packageInfo.targets.compactMap { target in
+        func dependsOnPrebuiltProduct(_ targetName: String) -> Bool {
+            targetsByName[targetName]?.dependencies.contains { dependency in
+                guard case let .product(name, package, _, _) = dependency else { return false }
+                return packageType.prebuilt(targetPackage: package, product: name) != nil
+            } ?? false
+        }
+
+        let macroTargets = Set(mappedTargets.compactMap { target in
             switch target.type {
             case .macro:
                 target.name
@@ -749,7 +765,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         })
 
         let macroClosure = dependencyClosure(from: macroTargets, includeHostOnlyTargets: true)
-        let macroTestTargets = Set<String>(packageInfo.targets.compactMap { target in
+        let macroTestTargets = Set<String>(mappedTargets.compactMap { target in
             guard target.type == .test else { return nil }
             return dependencyClosure(from: [target.name], includeHostOnlyTargets: true)
                 .isDisjoint(with: macroClosure) ? nil : target.name
@@ -762,11 +778,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
             includeHostOnlyTargets: false
         )
 
-        guard hostReachableTargets.isDisjoint(with: nonHostReachableTargets) else {
+        // Targets reached from both sides are built for non-host platforms too, so they can only stay on
+        // source dependencies. That conflicts with the prebuilt only when they depend on a prebuilt product.
+        let sharedTargets = hostReachableTargets.intersection(nonHostReachableTargets)
+        guard !sharedTargets.contains(where: dependsOnPrebuiltProduct) else {
             return []
         }
 
-        return hostReachableTargets
+        return hostReachableTargets.subtracting(sharedTargets)
     }
 
     // swiftlint:disable:next function_body_length

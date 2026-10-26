@@ -921,5 +921,35 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             let cacheReplacementIndex = try #require(got.firstIndex(where: { $0 is TargetsToCacheBinariesGraphMapper }))
             #expect(schemesMapperIndex > cacheReplacementIndex)
         }
+
+        @Test func binaryCacheWarming_marksTheRepositoryBinariesAfterCacheReplacement_whenWarmingWithCoverage() throws {
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            let got = subject.binaryCacheWarming(
+                config: Tuist.test().resolvingCoverage(.on),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: MockCacheStoring()
+            )
+
+            let markerIndex = try #require(got.firstIndex(where: { $0 is InstrumentedBinaryCacheWarmGraphMapper }))
+            let cacheReplacementIndex = try #require(got.firstIndex(where: { $0 is TargetsToCacheBinariesGraphMapper }))
+            #expect(markerIndex > cacheReplacementIndex)
+        }
+
+        @Test func binaryCacheWarming_marksNothing_whenWarmingWithoutCoverage() {
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: MockCacheStoring()
+            )
+
+            #expect(!got.contains { $0 is InstrumentedBinaryCacheWarmGraphMapper })
+        }
     }
 #endif

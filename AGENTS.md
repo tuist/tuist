@@ -33,7 +33,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `infra/egress-tree-agent/` - Go DaemonSet enforcing kura per-tenant egress floors/ceilings and the node box cap via a shared per-node HTB tree (tcx BPF veth trampoline that keeps Cilium's datapath applied to shaped traffic). Consumes the `tuist.dev/egress-class` pod annotation rendered by the kura-controller. See `infra/egress-tree-agent/AGENTS.md`.
 - `infra/kura-volumes-csi/` - Go CSI driver `kura-volumes.tuist.dev` that backs each Kura data volume with a per-volume LUKS2 container on a preallocated file under /data/kura-volumes; keys are fetched per stage from the server; see `infra/kura-volumes-csi/AGENTS.md`.
 - `infra/rack-nodes/` - Install sticks for the BER1 rack's x86 Linux machines: unattended Ubuntu that joins the tailnet on first boot, after which the CAPI provider's `RackLinuxMachine` joins it to the cluster. See `infra/rack-nodes/AGENTS.md`.
-- `infra/rack-switch-controller/` - Go controller that adopts `RackSwitch` objects marked `managedBy: controller` into the Omada SDN controller and writes their configuration through its Open API, one switch at a time in the site's apply order. Owns the generated RackSwitch CRD. See `infra/rack-switch-controller/AGENTS.md`.
+- `infra/rack-switch-controller/` - Go controller that converges `RackSwitch` objects marked `managedBy: controller`, one switch at a time in the site's apply order, through the Omada SDN controller's Open API (`driver: omada`, TP-Link) or over SSH and NETCONF with commit confirmed (`driver: picos`, FS S5860). Owns the generated RackSwitch CRD. See `infra/rack-switch-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
 - `grafana-datasource/` - Grafana data source plugin (Go backend + React) exposing Tuist build/test duration metrics. Thin client over the server's `/builds/metrics/duration` + `/tests/metrics/duration` API - see `grafana-datasource/AGENTS.md`
@@ -43,6 +43,12 @@ This file provides guidance to AI agents when working with code in this reposito
 - `kube-impersonator/` - Tiny Go sidecar deployed alongside Pomerium in each env's `pomerium` namespace. Reads `X-Pomerium-Claim-Email` per kubectl request, calls `tuist-ops/api/v1/policy` over the tailnet to resolve the right `Impersonate-User` + `Impersonate-Group(s)`, attaches the pod SA bearer, reverse-proxies to the apiserver. Fails closed if the policy call fails. See `kube-impersonator/AGENTS.md`.
 
 - `.github/actions/cache-volume/` - Source and release package for the standalone cache volume action; see `.github/actions/cache-volume/AGENTS.md`.
+
+- `.github/actions/xcode-cache/` and `.github/actions/module-cache/` - Source packages for the `tuist/xcode-cache` and `tuist/module-cache` actions, which attach the managed Xcode and module cache volumes on macOS runners; see `.github/actions/xcode-cache/AGENTS.md`.
+
+- `.github/actions/gradle-cache/` - Source package for the `tuist/gradle-cache` action, a managed cache volume for Gradle's user home; see `.github/actions/gradle-cache/AGENTS.md`.
+
+- `ci/runner-caches/` - Buildkite plugins and GitLab snippets for the Xcode, module and Gradle caches; see `ci/runner-caches/AGENTS.md`.
 
 - `ci/cache-volume/` - Buildkite plugin and GitLab cache-volume template; see `ci/cache-volume/AGENTS.md`.
 
@@ -305,7 +311,7 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 
 The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
 
-- Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
+- Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests, runners acceptance and the Kura rollout gate → production (hotfix fast-path available). Runners acceptance dispatches jobs onto canary's runners and requires remote compilation-cache hits; production's runners and the BER1 rack are probed hourly by `.github/workflows/runners-acceptance.yml`.
 - Hosted Kura follows `main` too: canary and production pin the newest `kura@X.Y.0-canary.N` in the deployed commit, which the cascade publishes by calling `kura-release.yml` when `kura/` changed. Fresh staging deploys still build the Kura runtime from the deployed commit. Pass `kura_runtime_image_tag` to `server-deployment.yml` to pin another tag (e.g. a stable one) for a deploy.
 - Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
 - Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).

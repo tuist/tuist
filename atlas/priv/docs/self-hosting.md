@@ -126,6 +126,8 @@ You don't need to configure every integration to get Atlas running. Start with t
 
 With [Compose](https://docs.docker.com/compose/), put optional provider settings in `.env`, which is read by both the application and migration service. The default `MCP_PROXY_SERVERS=[]` leaves upstream tool servers unconfigured; you can [connect them later](/docs/mcps). Keep the development demo seeds out of an installation containing real data.
 
+People can [connect their own Claude or ChatGPT accounts](/docs/ai-accounts) from account settings. Claude connections need no installation-wide setting; ChatGPT requires the administrator setup below.
+
 With [Helm](https://helm.sh/docs/), inspect the available settings for the version you're running:
 
 ```sh
@@ -133,6 +135,24 @@ helm show values oci://ghcr.io/tuist/charts/atlas --version VERSION
 ```
 
 You can configure external services through the application Secret and environment values. If you'd prefer the chart to manage [PostgreSQL](https://www.postgresql.org/docs/18/index.html), its bundled database configuration requires [CloudNativePG](https://cloudnative-pg.io/documentation/). Managed secret synchronization requires [External Secrets Operator](https://external-secrets.io/), as do the chart's bundled vector storage and backup secret synchronization. These are choices you can make later; they're not prerequisites for the base installation.
+
+## Enable Orbit
+
+Orbit is the native apps' space for working with Pip, Atlas's assistant and mascot, in private or shared threads. Pip's name is fixed, not a deployment setting. Model turns prefer the message author's connected ChatGPT account, then Claude. You can configure a workspace-wide fallback for people without a connection or when their provider is unavailable. No other participant's account is borrowed. Without either option, threads retain messages and explain how to connect inference.
+
+1. In **Admin → Inference**, add a provider and a profile for the model you want to use.
+2. Open the profile, choose **Edit profile**, then **Use for Orbit**. Only one profile can hold this role, and Atlas never falls back to another profile.
+
+The assistant can only read Atlas data that everyone in a thread is allowed to see, and it can't change data, send messages, or browse the web.
+
+## Enable ChatGPT sign-in
+
+To let people connect their [ChatGPT](https://chatgpt.com/) subscriptions, supply `ATLAS_CHATGPT_CLIENT_ID` in Atlas's application environment. This must be an [OAuth](https://oauth.net/2/) client authorized for Atlas with OpenAI's required device authorization flow enabled. Do not reuse Codex's or another application's client ID, and do not substitute an OpenAI API key. If you do not have an appropriately authorized client, leave ChatGPT sign-in disabled.
+
+- With [Compose](https://docs.docker.com/compose/), add the client ID to the deployment's private `.env` file.
+- With [Helm](https://helm.sh/docs/), include it in the Secret referenced by `appSecretName`.
+
+Restart Atlas after changing the setting. A configured client enables the sign-in form, but real-account authorization still depends on OpenAI's eligibility and authorization policies. Users then follow [Connect Claude or ChatGPT](/docs/ai-accounts); they cannot change this installation-wide setting from their account or the account-management tools.
 
 ## Backups and upgrades
 

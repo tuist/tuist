@@ -4,9 +4,8 @@ defmodule Atlas.FeatureUsage.Collector do
   read-only proxies.
 
   Attribution to an account is resolved through the **Postgres** proxy (Tuist
-  account id + the account's project ids), exactly like
-  `Tuist.CommandEvents.account_month_usage/2` does server-side, and then usage is
-  aggregated through the **ClickHouse** proxy. The proxy calls are injectable
+  account id + the account's project ids), and then usage is aggregated through
+  the **ClickHouse** proxy. The proxy calls are injectable
   seams (`:pg_query` / `:ch_query`) so tests can stub them without global state.
 
   `:configuration` features (see `Atlas.FeatureUsage.Catalog`) are the exception:

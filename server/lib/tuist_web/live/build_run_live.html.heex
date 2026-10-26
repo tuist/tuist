@@ -227,7 +227,7 @@
         <.card_section data-part="build-details-section">
           <div data-part="metadata-grid">
             <div :if={not is_nil(@command_event)} data-part="metadata-row">
-              <div data-part="metadata">
+              <div data-part="metadata" data-field="command">
                 <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
                 <span data-part="command-label">
                   {"tuist " <> @command_event.command_arguments}
@@ -235,13 +235,6 @@
               </div>
             </div>
             <div data-part="metadata-row">
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "Mac device")}</div>
-                <span data-part="label">
-                  <.device_laptop />
-                  {Tuist.Apple.devices()[@run.model_identifier]}
-                </span>
-              </div>
               <div data-part="metadata">
                 <div data-part="title">{dgettext("dashboard_builds", "Configuration")}</div>
                 <span data-part="label">
@@ -326,50 +319,21 @@
                   )}
                 </span>
               </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "Xcode version")}</div>
-                <span data-part="label">
-                  {@run.xcode_version}
-                </span>
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "macOS version")}</div>
-                <span data-part="label">
-                  <.device_laptop />
-                  {@run.macos_version}
-                </span>
-              </div>
             </div>
           </div>
           <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
-          <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
-            <span data-part="custom-metadata-label">
-              {dgettext("dashboard_builds", "Custom metadata")}
-            </span>
-            <.table
-              id="custom-metadata-table"
-              rows={Map.to_list(@run.custom_values)}
-              row_key={fn {key, _value} -> key end}
-            >
-              <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
-                <.text_cell label={key} />
-              </:col>
-              <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
-                <a
-                  :if={url?(value)}
-                  href={value}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-part="custom-metadata-link"
-                >
-                  {value}
-                </a>
-                <.text_cell :if={not url?(value)} label={value} />
-              </:col>
-            </.table>
-          </div>
+          <TuistWeb.Components.BuildMetadata.build_metadata values={@run.custom_values || %{}} />
         </.card_section>
       </.card>
+      <TuistWeb.Components.BuildMetadata.environment_metadata
+        values={@run.custom_values || %{}}
+        fields={[
+          {dgettext("dashboard_builds", "Xcode version"), @run.xcode_version},
+          {dgettext("dashboard_builds", "macOS version"), @run.macos_version},
+          {dgettext("dashboard_builds", "Mac device"),
+           Tuist.Apple.devices()[@run.model_identifier] || @run.model_identifier}
+        ]}
+      />
       <.ci_context_card
         :if={@ci_context}
         context={@ci_context}
@@ -956,124 +920,29 @@
         >
           <.card_section data-part="xcode-cache-card-section">
             <%= if @selected_cache_tab == "cacheable-tasks" do %>
-              <.card_section
-                :if={@run.cacheable_tasks_count > 0}
-                data-part="cacheable-tasks-card-section"
-              >
-                <div data-part="title">
-                  <span data-part="label">
-                    {dgettext("dashboard_builds", "Cacheable tasks:")}
-                  </span>
-                  <span data-part="value">
-                    {format_number(@run.cacheable_tasks_count)}
-                  </span>
-                </div>
-                <.chart
-                  id="cacheable-tasks-breakdown-chart"
-                  type="bar"
-                  extra_options={
-                    %{
-                      tooltip: %{
-                        trigger: "axis",
-                        axisPointer: %{
-                          type: "none"
-                        }
-                      },
-                      legend: %{
-                        left: "-0.3%",
-                        top: "bottom",
-                        orient: "horizontal",
-                        textStyle: %{
-                          color: "var:noora-surface-label-primary",
-                          fontFamily: "monospace",
-                          fontWeight: 400,
-                          fontSize: 10,
-                          lineHeight: 12
-                        },
-                        icon:
-                          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-                        itemWidth: 8,
-                        itemHeight: 4
-                      },
-                      grid: %{
-                        width: "99%",
-                        left: "0%",
-                        height: "60%",
-                        top: "0%"
-                      },
-                      xAxis: %{
-                        type: "value",
-                        axisLabel: %{
-                          show: false
-                        },
-                        splitLine: %{show: false}
-                      },
-                      yAxis: %{
-                        type: "category",
-                        data: [dgettext("dashboard_builds", "Cacheable tasks")],
-                        axisLabel: %{
-                          show: false
-                        }
-                      }
-                    }
-                  }
-                  series={
-                    local_hits = @run.cacheable_task_local_hits_count
-                    remote_hits = @run.cacheable_task_remote_hits_count
-
-                    misses =
+              <.cache_breakdown
+                id="cacheable-tasks-breakdown-chart"
+                label={dgettext("dashboard_builds", "Cacheable tasks:")}
+                segments={[
+                  %{
+                    name: dgettext("dashboard_builds", "Local"),
+                    count: @run.cacheable_task_local_hits_count,
+                    color: "var:hits-chart-legend-local"
+                  },
+                  %{
+                    name: dgettext("dashboard_builds", "Remote"),
+                    count: @run.cacheable_task_remote_hits_count,
+                    color: "var:hits-chart-legend-remote"
+                  },
+                  %{
+                    name: dgettext("dashboard_builds", "Missed"),
+                    count:
                       @run.cacheable_tasks_count - @run.cacheable_task_remote_hits_count -
-                        @run.cacheable_task_local_hits_count
-
-                    [
-                      %{
-                        name: dgettext("dashboard_builds", "Local"),
-                        type: "bar",
-                        stack: "total",
-                        emphasis: %{
-                          focus: "series"
-                        },
-                        data: [local_hits],
-                        color: "var:hits-chart-legend-local",
-                        itemStyle: %{
-                          borderRadius:
-                            cache_chart_border_radius(local_hits, remote_hits, misses, :local)
-                        }
-                      },
-                      %{
-                        name: dgettext("dashboard_builds", "Remote"),
-                        type: "bar",
-                        stack: "total",
-                        emphasis: %{
-                          focus: "series"
-                        },
-                        data: [remote_hits],
-                        color: "var:hits-chart-legend-remote",
-                        itemStyle: %{
-                          borderRadius:
-                            cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
-                        }
-                      },
-                      %{
-                        name: dgettext("dashboard_builds", "Missed"),
-                        type: "bar",
-                        stack: "total",
-                        emphasis: %{
-                          focus: "series"
-                        },
-                        data: [misses],
-                        color: "var:hits-chart-legend-missed",
-                        itemStyle: %{
-                          borderRadius:
-                            cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
-                        }
-                      }
-                    ]
+                        @run.cacheable_task_local_hits_count,
+                    color: "var:hits-chart-legend-missed"
                   }
-                  x_axis_min={0}
-                  x_axis_max={@run.cacheable_tasks_count}
-                />
-              </.card_section>
+                ]}
+              />
               <div data-part="latency-widgets">
                 <.percentile_dropdown_widget
                   id="widget-avg-read-latency"
@@ -1292,49 +1161,24 @@
                         </div>
                       </:loading>
                       <:failed><.error_state data-part="task-cas-error" /></:failed>
-                      <div data-part="cas-outputs-list">
-                        <.table_empty_state
-                          :if={page.outputs == []}
-                          title={dgettext("dashboard_builds", "No CAS outputs found")}
-                        />
-                        <div
-                          :for={cas_output <- page.outputs}
-                          data-part="cas-output-item"
-                        >
-                          <span data-part="cas-output-text">
-                            <span data-part="cas-output-label">
-                              {dgettext("dashboard_builds", "CAS output")} {cas_output.type}:
-                            </span>
-                            <.popover
-                              id={"#{cacheable_task_row_id(task.key <> ":" <> cas_output.node_id)}-popover"}
-                              tabindex="-1"
-                              placement="top"
-                            >
-                              <:trigger :let={attrs}>
-                                <span {attrs} data-part="cas-output-hash">
-                                  {String.slice(cas_output.node_id, 0, 40)}
-                                </span>
-                              </:trigger>
-                              <div data-part="hash-tooltip-content">
-                                <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
-                                <.button
-                                  id={"#{cacheable_task_row_id(task.key <> ":" <> cas_output.node_id)}-copy"}
-                                  variant="secondary"
-                                  size="small"
-                                  label={dgettext("dashboard_builds", "Copy")}
-                                  phx-hook="Clipboard"
-                                  tabindex="-1"
-                                  data-clipboard-value={cas_output.node_id}
-                                  phx-click={JS.dispatch("pointerdown", to: "body")}
-                                >
-                                  <:icon_right><.copy /></:icon_right>
-                                </.button>
-                              </div>
-                            </.popover>
-                            <span data-part="cas-output-label">...</span>
-                          </span>
-                        </div>
-                      </div>
+                      <.cache_output_list
+                        id={cacheable_task_row_id(task.key)}
+                        outputs={
+                          Enum.map(page.outputs, fn output ->
+                            %{
+                              key: output.node_id,
+                              label:
+                                "#{dgettext("dashboard_builds", "CAS output")} #{output.type}:"
+                            }
+                          end)
+                        }
+                      >
+                        <:empty_state>
+                          <.table_empty_state title={
+                            dgettext("dashboard_builds", "No CAS outputs found")
+                          } />
+                        </:empty_state>
+                      </.cache_output_list>
                       <.error_state :if={state.result.failed} data-part="task-cas-error" />
                       <div :if={page.has_next?} data-part="task-cas-actions">
                         <.button

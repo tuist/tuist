@@ -85,8 +85,9 @@ available and total bytes on the actual XFS fixture.
 ## Limits and rollout
 
 The prefetch change keeps the existing 25-second host / 30-second client budget.
-A timed-out warm request can start one two-minute immutable-master restore per
-node, with no queue and the existing disk reserve. It cannot mount a late image
+An attach never downloads. A warm request that mounted an older version, started
+empty or timed out can start one two-minute immutable-master restore per node,
+with no queue and the existing disk reserve. It cannot mount a late image
 into the cold job or publish that job's fallback directory. It can repeat download
 work and contend with later requests for the same master; the new metrics should
 show whether later local hits justify that bandwidth. Scheduler affinity and

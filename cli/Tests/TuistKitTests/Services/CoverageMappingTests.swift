@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Testing
 @testable import TuistKit
@@ -42,6 +44,162 @@ struct CoverageMappingTests {
                 + little(CoverageMapping.reference(of: Data(filenames))) + mapping
         )
         return (Data(covmap), Data(covfun))
+    }
+
+    /// A 64-bit Mach-O image with one `__DATA` segment holding the named section and `payload`.
+    private func image(section: String, payload: [UInt8], symbols: [String] = []) -> Data {
+        func name(_ value: String) -> [UInt8] { Array(value.utf8) + Array(repeating: 0, count: 16 - value.utf8.count) }
+        let headerSize = 32, segmentSize = 72 + 80, symtabSize = symbols.isEmpty ? 0 : 24
+        let offset = headerSize + segmentSize + symtabSize
+        var bytes: [UInt8] = []
+        bytes += little(UInt32(0xFEED_FACF)) + little(UInt32(0x0100_000C)) + little(UInt32(0)) + little(UInt32(6))
+        bytes += little(UInt32(symbols.isEmpty ? 1 : 2)) + little(UInt32(segmentSize + symtabSize)) + little(UInt32(0)) +
+            little(UInt32(0))
+        bytes += little(UInt32(0x19)) + little(UInt32(segmentSize)) + name("__DATA")
+        bytes += little(UInt64(0)) + little(UInt64(payload.count)) + little(UInt64(offset)) + little(UInt64(payload.count))
+        bytes += little(UInt32(3)) + little(UInt32(3)) + little(UInt32(1)) + little(UInt32(0))
+        bytes += name(section) + name("__DATA") + little(UInt64(0)) + little(UInt64(payload.count))
+        bytes += little(UInt32(offset)) + little(UInt32(0)) + little(UInt32(0)) + little(UInt32(0)) + little(UInt32(0))
+        bytes += little(UInt32(0)) + little(UInt32(0)) + little(UInt32(0))
+        // `LC_SYMTAB` after the payload: one `nlist_64` per symbol, then the string table, which
+        // starts with an empty name as the linker's does.
+        var symbolTable: [UInt8] = []
+        if !symbols.isEmpty {
+            var strings: [UInt8] = [0]
+            for symbol in symbols {
+                symbolTable += little(UInt32(strings.count)) + [0x01, 0] + little(UInt16(0)) + little(UInt64(0))
+                strings += Array(symbol.utf8) + [0]
+            }
+            let symbolsOffset = offset + payload.count
+            bytes += little(UInt32(0x2)) + little(UInt32(24)) + little(UInt32(symbolsOffset)) + little(UInt32(symbols.count))
+            bytes += little(UInt32(symbolsOffset + symbolTable.count)) + little(UInt32(strings.count))
+            symbolTable += strings
+        }
+        precondition(bytes.count == offset)
+        return Data(bytes + payload + symbolTable)
+    }
+
+    /// A BSD `ar` archive of `members`, each header a fixed 60 bytes and each member padded to an even size.
+    private func archive(members: [Data]) -> Data {
+        func field(_ value: String, _ width: Int) -> [UInt8] {
+            Array(value.utf8) + Array(repeating: UInt8(ascii: " "), count: width - value.utf8.count)
+        }
+        var bytes = Array("!<arch>\n".utf8)
+        for member in members {
+            bytes += field("member.o/", 16) + field("0", 12) + field("0", 6) + field("0", 6) + field("644", 8)
+            bytes += field(String(member.count), 10) + [UInt8(ascii: "`"), UInt8(ascii: "\n")]
+            bytes += Array(member)
+            if member.count % 2 == 1 { bytes.append(UInt8(ascii: "\n")) }
+        }
+        return Data(bytes)
+    }
+
+    /// A universal (fat) file of `slices`, each tagged with its CPU type, laid out on 8-byte boundaries.
+    private func universal(slices: [(cpu: UInt32, data: Data)]) -> Data {
+        func big(_ value: UInt32) -> [UInt8] { withUnsafeBytes(of: value.bigEndian) { Array($0) } }
+        var header = big(0xCAFE_BABE) + big(UInt32(slices.count))
+        var body: [UInt8] = []
+        var offset = 8 + slices.count * 20
+        for slice in slices {
+            header += big(slice.cpu) + big(0) + big(UInt32(offset)) + big(UInt32(slice.data.count)) + big(3)
+            body += Array(slice.data) + Array(repeating: 0, count: (8 - slice.data.count % 8) % 8)
+            offset += slice.data.count + (8 - slice.data.count % 8) % 8
+        }
+        return Data(header + body)
+    }
+
+    /// A universal file in the 64-bit layout with one arm64 slice whose header claims `size` at `offset`.
+    private func universal64(offset: UInt64, size: UInt64, slice: Data) -> Data {
+        func big(_ value: UInt32) -> [UInt8] { withUnsafeBytes(of: value.bigEndian) { Array($0) } }
+        func big64(_ value: UInt64) -> [UInt8] { withUnsafeBytes(of: value.bigEndian) { Array($0) } }
+        let header = big(0xCAFE_BABF) + big(1)
+            + big(0x0100_000C) + big(0) + big64(offset) + big64(size) + big(3) + big(0)
+        return Data(header + Array(slice))
+    }
+
+    @Test(.inTemporaryDirectory) func refusesAUniversalFileWhoseSliceDoesNotFit() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let instrumented = archive(members: [image(section: "__llvm_covmap", payload: [1, 2])])
+        let headerSize: UInt64 = 40
+        // The size the header claims does not fit an `Int`, runs past the file, or is empty: none of
+        // them may trap, and none carries a mapping.
+        let oversized = directory.appending(component: "oversized")
+        let truncated = directory.appending(component: "truncated")
+        let empty = directory.appending(component: "empty")
+        let sound = directory.appending(component: "sound")
+        try universal64(offset: headerSize, size: .max, slice: instrumented).write(to: URL(fileURLWithPath: oversized.pathString))
+        try universal64(offset: headerSize, size: UInt64(instrumented.count) + 1, slice: instrumented)
+            .write(to: URL(fileURLWithPath: truncated.pathString))
+        try universal64(offset: headerSize, size: 0, slice: instrumented).write(to: URL(fileURLWithPath: empty.pathString))
+        try universal64(offset: headerSize, size: UInt64(instrumented.count), slice: instrumented)
+            .write(to: URL(fileURLWithPath: sound.pathString))
+
+        #expect(!CoverageMapping.isInstrumented(path: oversized.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: truncated.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: empty.pathString))
+        #expect(CoverageMapping.isInstrumented(path: sound.pathString))
+    }
+
+    @Test(.inTemporaryDirectory) func tellsWhetherAProductCarriesACoverageMapping() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let instrumented = directory.appending(component: "Instrumented")
+        let plain = directory.appending(component: "Plain")
+        let instrumentedArchive = directory.appending(component: "libInstrumented.a")
+        let plainArchive = directory.appending(component: "libPlain.a")
+        let text = directory.appending(component: "text")
+        try image(section: "__llvm_covmap", payload: [1, 2, 3, 4]).write(to: URL(fileURLWithPath: instrumented.pathString))
+        try image(section: "__const", payload: [1, 2, 3, 4]).write(to: URL(fileURLWithPath: plain.pathString))
+        try archive(members: [image(section: "__const", payload: [1]), image(section: "__llvm_covmap", payload: [1, 2])])
+            .write(to: URL(fileURLWithPath: instrumentedArchive.pathString))
+        try archive(members: [image(section: "__const", payload: [1])]).write(to: URL(fileURLWithPath: plainArchive.pathString))
+        try Data("not a binary at all, just some text".utf8).write(to: URL(fileURLWithPath: text.pathString))
+        // A static framework built for two architectures: a universal file whose slices are archives.
+        let instrumentedUniversalArchive = directory.appending(component: "InstrumentedStatic")
+        let plainUniversalArchive = directory.appending(component: "PlainStatic")
+        try universal(slices: [
+            (cpu: 0x0100_0007, data: archive(members: [image(section: "__const", payload: [1])])),
+            (cpu: 0x0100_000C, data: archive(members: [image(section: "__llvm_covmap", payload: [1, 2])])),
+        ]).write(to: URL(fileURLWithPath: instrumentedUniversalArchive.pathString))
+        try universal(slices: [
+            (cpu: 0x0100_0007, data: archive(members: [image(section: "__const", payload: [1])])),
+            (cpu: 0x0100_000C, data: archive(members: [image(section: "__const", payload: [1])])),
+        ]).write(to: URL(fileURLWithPath: plainUniversalArchive.pathString))
+
+        #expect(CoverageMapping.isInstrumented(path: instrumented.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: plain.pathString))
+        #expect(CoverageMapping.isInstrumented(path: instrumentedArchive.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: plainArchive.pathString))
+        #expect(CoverageMapping.isInstrumented(path: instrumentedUniversalArchive.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: plainUniversalArchive.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: text.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: directory.appending(component: "missing").pathString))
+    }
+
+    /// A module with no function bodies, such as one of constants, has no coverage mapping even
+    /// built with coverage, but its objects still reference the profile runtime.
+    @Test(.inTemporaryDirectory) func tellsAProductBuiltWithCoverageWithNoCodeToMap() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let constants = directory.appending(component: "Constants")
+        let constantsArchive = directory.appending(component: "libConstants.a")
+        let plain = directory.appending(component: "Plain")
+        let lookalike = directory.appending(component: "Lookalike")
+        try image(
+            section: "__const",
+            payload: [1],
+            symbols: ["_value", "___llvm_profile_runtime_user", "___llvm_profile_runtime"]
+        )
+        .write(to: URL(fileURLWithPath: constants.pathString))
+        try archive(members: [image(section: "__const", payload: [1], symbols: ["___llvm_profile_runtime"])])
+            .write(to: URL(fileURLWithPath: constantsArchive.pathString))
+        try image(section: "__const", payload: [1], symbols: ["_value"]).write(to: URL(fileURLWithPath: plain.pathString))
+        // Only the exact name counts, not one it begins or ends.
+        try image(section: "__const", payload: [1], symbols: ["___llvm_profile_runtime_user", "_x___llvm_profile_runtime"])
+            .write(to: URL(fileURLWithPath: lookalike.pathString))
+
+        #expect(CoverageMapping.isInstrumented(path: constants.pathString))
+        #expect(CoverageMapping.isInstrumented(path: constantsArchive.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: plain.pathString))
+        #expect(!CoverageMapping.isInstrumented(path: lookalike.pathString))
     }
 
     @Test func decodesFilesFunctionsAndRegions() throws {

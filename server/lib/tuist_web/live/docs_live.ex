@@ -53,7 +53,9 @@ defmodule TuistWeb.DocsLive do
     videos = fetch_latest_videos()
     locale = socket.assigns.locale
     root_path = Paths.root_path(locale)
-    description = "Build, test, and run Xcode and Gradle projects faster with Tuist's shared build infrastructure."
+
+    description =
+      "Build, test, and run Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist's shared build infrastructure."
 
     {:noreply,
      socket
@@ -84,6 +86,10 @@ defmodule TuistWeb.DocsLive do
       nil ->
         redirect_or_not_found(socket, path, url)
 
+      %{slug: slug} when slug != path ->
+        target = %URI{path: Paths.public_path_from_slug(slug), query: URI.parse(url).query}
+        {:noreply, redirect(socket, to: URI.to_string(target))}
+
       page ->
         head_title =
           case page.title_template do
@@ -103,11 +109,6 @@ defmodule TuistWeb.DocsLive do
             Tuist.Environment.app_url(path: og_image_path)
           end
 
-        # Every URL below is derived from the requested slug, never from
-        # `page.slug`. `Docs.get_page/1` falls back to the English page when a
-        # locale has no translation, so `page.slug` would point the markup at
-        # `/en/...` while the canonical link still says `/es/...`, leaving the
-        # page claiming two identities.
         public_path = Paths.public_path_from_slug(path)
         locale = socket.assigns.locale
 
@@ -190,7 +191,7 @@ defmodule TuistWeb.DocsLive do
           <p>
             {dgettext(
               "docs",
-              "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, and Bazel projects, providing the infrastructure that lets software integration and delivery keep pace."
+              "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
             )}
           </p>
         </section>
@@ -321,10 +322,10 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Reuse build artifacts across Xcode, Gradle, and Bazel so work completed in one environment speeds up every other environment."
+                    "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
               </div>
             </.link>
             <.link
@@ -342,7 +343,7 @@ defmodule TuistWeb.DocsLive do
                     "Understand build performance across local and continuous integration environments before slowdowns affect your team."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
               </div>
             </.link>
           </div>
@@ -391,7 +392,7 @@ defmodule TuistWeb.DocsLive do
                     "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
               </div>
             </.link>
             <.link
@@ -409,7 +410,7 @@ defmodule TuistWeb.DocsLive do
                     "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
               </div>
             </.link>
           </div>
@@ -468,7 +469,7 @@ defmodule TuistWeb.DocsLive do
                     "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
               </div>
             </.link>
           </div>
@@ -711,7 +712,7 @@ defmodule TuistWeb.DocsLive do
         "",
         dgettext(
           "docs",
-          "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, and Bazel projects, providing the infrastructure that lets software integration and delivery keep pace."
+          "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
         ),
         "",
         markdown_link(dgettext("docs", "Install Tuist"), install_path),
@@ -734,7 +735,7 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Cache"), cache_path)}: " <>
           dgettext(
             "docs",
-            "Reuse build artifacts across Xcode, Gradle, and Bazel so work completed in one environment speeds up every other environment."
+            "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
           ),
         "- #{markdown_link(dgettext("docs", "Insights"), build_insights_path)}: " <>
           dgettext(

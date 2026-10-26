@@ -35,6 +35,8 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  plug TuistWeb.Plugs.DrainingPlug
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # You should set gzip to true if you are running phx.digest
@@ -143,6 +145,8 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature",
     body_length: 512_000
+
+  plug TuistWeb.Plugs.OriginWebhookPlug
 
   plug TuistWeb.Plugs.BrowserTelemetryPlug, session_options: @session_options
 

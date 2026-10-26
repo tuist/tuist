@@ -19,7 +19,13 @@
   <%!-- ============================================================ --%>
   <%!-- Single Sign-On                                                --%>
   <%!-- ============================================================ --%>
-  <.form for={@form} id="sso-form" phx-submit="save_sso" phx-change="validate_sso">
+  <.form
+    :if={@organization}
+    for={@form}
+    id="sso-form"
+    phx-submit="save_sso"
+    phx-change="validate_sso"
+  >
     <.card_section data-part="sso-card">
       <div data-part="header">
         <span data-part="title">
@@ -716,7 +722,7 @@
   <%!-- ============================================================ --%>
   <%!-- SCIM provisioning                                             --%>
   <%!-- ============================================================ --%>
-  <.card_section data-part="scim-card">
+  <.card_section :if={@organization} data-part="scim-card">
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_account", "SCIM provisioning")}
@@ -912,4 +918,6 @@
       </div>
     </div>
   </.card_section>
+
+  <WorkloadIdentities.workload_identities {assigns} />
 </div>

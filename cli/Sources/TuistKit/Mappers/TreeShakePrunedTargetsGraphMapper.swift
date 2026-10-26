@@ -266,6 +266,14 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
 
             if var buildAction = scheme.buildAction {
                 buildAction.targets = buildAction.targets.filter(sourceTargets.contains)
+                let survivingBuildTargets = Set(buildAction.targets)
+                let buildFor = buildAction.buildFor.reduce(
+                    into: [TargetReference: Set<BuildAction.BuildFor>]()
+                ) { result, entry in
+                    guard survivingBuildTargets.contains(entry.key) else { return }
+                    result[entry.key] = entry.value
+                }
+                buildAction.buildFor = buildFor
                 let buildFallback = buildAction.targets.first(where: isReferenceableFromScheme)
                 buildAction.preActions = buildAction.preActions.map {
                     rewriteExecutionActionTarget($0, prunedTargets: prunedTargets, fallback: buildFallback)
@@ -299,6 +307,20 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                     rewriteExecutionActionTarget($0, prunedTargets: prunedTargets, fallback: testFallback)
                 }
                 scheme.testAction = testAction
+            }
+
+            // Schemes can survive pruning with dangling run/profile executable references.
+            // Clear only pruned targets to avoid missing-target warnings while keeping manifest errors visible.
+            if let executable = scheme.runAction?.executable,
+               prunedTargets.contains(executable)
+            {
+                scheme.runAction?.executable = nil
+            }
+
+            if let executable = scheme.profileAction?.executable,
+               prunedTargets.contains(executable)
+            {
+                scheme.profileAction?.executable = nil
             }
 
             // Clear variable-expansion references when their target has been pruned, rather than

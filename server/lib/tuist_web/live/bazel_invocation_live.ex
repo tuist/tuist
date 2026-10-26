@@ -234,7 +234,7 @@ defmodule TuistWeb.BazelInvocationLive do
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
-                  <.run_ran_by_badge_cell run={@invocation} ran_by_name={@invocation.account_handle} />
+                  <.run_ran_by_badge_cell run={@invocation} />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">
@@ -267,14 +267,6 @@ defmodule TuistWeb.BazelInvocationLive do
                   <div data-part="title">{dgettext("dashboard_projects", "Targets")}</div>
                   <code data-part="command">{target_patterns_label(@invocation.target_patterns)}</code>
                 </div>
-                <div
-                  :if={@invocation.bazel_version != ""}
-                  data-part="metadata"
-                  data-field="bazel-version"
-                >
-                  <div data-part="title">{dgettext("dashboard_projects", "Bazel version")}</div>
-                  <code data-part="command">{@invocation.bazel_version}</code>
-                </div>
               </div>
               <div data-part="metadata-row">
                 <div :if={connected_to_repository?(@selected_project)} data-part="metadata">
@@ -304,37 +296,15 @@ defmodule TuistWeb.BazelInvocationLive do
               </div>
             </div>
             <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
-            <div
-              :if={map_size(@invocation.custom_values || %{}) > 0}
-              data-part="custom-metadata-section"
-            >
-              <span data-part="custom-metadata-label">
-                {dgettext("dashboard_builds", "Custom metadata")}
-              </span>
-              <.table
-                id="custom-metadata-table"
-                rows={Map.to_list(@invocation.custom_values)}
-                row_key={fn {key, _value} -> key end}
-              >
-                <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
-                  <.text_cell label={key} />
-                </:col>
-                <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
-                  <a
-                    :if={url?(value)}
-                    href={value}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-part="custom-metadata-link"
-                  >
-                    {value}
-                  </a>
-                  <.text_cell :if={not url?(value)} label={value} />
-                </:col>
-              </.table>
-            </div>
+            <TuistWeb.Components.BuildMetadata.build_metadata values={
+              @invocation.custom_values || %{}
+            } />
           </.card_section>
         </.card>
+        <TuistWeb.Components.BuildMetadata.environment_metadata
+          values={@invocation.custom_values || %{}}
+          fields={[{dgettext("dashboard_projects", "Bazel version"), @invocation.bazel_version}]}
+        />
       </div>
       <div :if={@selected_tab == "cache"} data-part="tab-panel">
         <.cache_tab
@@ -1047,13 +1017,4 @@ defmodule TuistWeb.BazelInvocationLive do
       "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/#{assigns.bazel_detail_path}/#{assigns.invocation.invocation_id}"
 
   defp cache_path(socket, params), do: "#{detail_path(socket.assigns)}?#{URI.encode_query(params)}"
-
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and not is_nil(host) -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
 end

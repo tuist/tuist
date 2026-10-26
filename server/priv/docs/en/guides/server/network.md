@@ -13,7 +13,25 @@ This page covers network-related configuration that may be needed when integrati
 
 If your infrastructure restricts inbound traffic by IP address, you may need to allowlist the IP ranges used by Tuist. This is common when Tuist needs to communicate with services behind a firewall or VPN, such as self-hosted Git providers or artifact storage, or when your GitHub organization uses [IP allow lists](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization).
 
-Outbound network traffic from Tuist services, such as the server and its integrations, originates from a fixed, reserved set of stable IP addresses. Allowlist every address in the set: Tuist will only ever egress from within it, and the set is sized so we can grow capacity or fail over between addresses without you having to change your allowlist.
+Allowlist the Tuist IP range and the server addresses below. If your workflows run on <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, also allowlist the runner addresses.
+
+### Tuist IP range {#tuist-ip-range}
+
+Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. macOS jobs on Tuist Runners hosted in Tuist's own racks already reach the internet from this range, and the rest of Tuist's traffic is moving to it. Add it to your allowlist so the move requires no changes on your side.
+
+| IP version | CIDR notation |
+|---|---|
+| IPv4 | `95.130.119.0/24` |
+| IPv6 | `2a11:83c0::/29` |
+
+> [!NOTE]
+> Add the IPv6 range if your allowlist supports IPv6 entries.
+
+The ranges are located in Berlin, Germany. Their location is published as an [RFC 8805](https://www.rfc-editor.org/rfc/rfc8805) geofeed at [tuist.dev/geofeed.csv](https://tuist.dev/geofeed.csv) and referenced from their RIPE Database objects, so geolocation services and location-based routing place them correctly.
+
+### Server IP addresses {#server-ip-addresses}
+
+Outbound network traffic from Tuist services, such as the server and its integrations, currently originates from a fixed, reserved set of stable IP addresses. Allowlist every address in the set: it is sized so we can grow capacity or fail over between addresses without you having to change your allowlist.
 
 | IP address | CIDR notation |
 |---|---|
@@ -30,6 +48,8 @@ Tuist only connects to your infrastructure over HTTPS, so you only need to allow
 Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> reach the internet directly from the machine they run on, not through the addresses above. If a job needs to reach infrastructure that restricts traffic by IP address, for example to check out a repository from a GitHub organization with an IP allow list, also allowlist the addresses for every platform your workflows run on.
 
 #### macOS {#tuist-runners-macos}
+
+macOS jobs on Tuist's own racks reach the internet from the [Tuist IP range](#tuist-ip-range). Jobs on other macOS hosts use the following addresses.
 
 | IP address | CIDR notation |
 |---|---|
@@ -62,14 +82,24 @@ Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners<
 | 217.182.193.152 | `217.182.193.152/32` |
 
 > [!NOTE]
-> These lists change when we add machines to the fleets. We are moving the runners to a dedicated IP range so the list stays stable.
+> These lists change when we add machines to the fleets. Runners are moving to the [Tuist IP range](#tuist-ip-range), after which these per-machine addresses are no longer needed.
 
 <!--
-MAINTAINERS: the first table is the customer-facing contract for the reserved egress
-set. It must stay in lockstep with `ciliumEgressGateway.server.failoverController.egressIpAllowlist`
+MAINTAINERS: the server table is the customer-facing contract for the reserved
+egress set. It must stay in lockstep with `ciliumEgressGateway.server.failoverController.egressIpAllowlist`
 in infra/helm/platform/values-tuist.yaml (the controller fails closed if the
 active Floating IP is outside that allowlist). When reserving additional
 Floating IPs in the tuist-workloads project, add their /32s to BOTH places
 *before* they are ever used as egress.
--->
 
+The rack's Mac minis leave from `management.edge.wan.egress.prefix` in
+infra/rack-switch-fleet/sites/ber1.json, inside the Tuist IP range, so the
+macOS table lists only the rented hosts. A new rack site has to egress from
+the range too, or its address has to be added to the table.
+
+The Tuist IP range is registered to ORG-TG278-RIPE (LIR de.tuist) and announced
+from AS218377. Only list a prefix here once it is registered to Tuist GmbH in
+the RIPE Database with a route/route6 object and a ROA for AS218377.
+Add it to server/priv/static/geofeed.csv too, with the location of the site
+that announces it.
+-->

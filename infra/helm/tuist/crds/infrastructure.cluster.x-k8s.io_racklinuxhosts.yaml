@@ -135,6 +135,32 @@ spec:
                     machine announced as its management port (status.bootMAC).
                   pattern: ^([0-9a-f]{2}:){5}[0-9a-f]{2}$
                   type: string
+                clusterNetwork:
+                  description: |-
+                    ClusterNetwork joins the host to the cluster's pod network (Cilium)
+                    instead of the rack-local bridge, so its pods reach Services and other
+                    nodes' pods and are reached from them. Unset, the host runs the
+                    rack-local bridge and nothing in the cluster reaches its pods.
+                  properties:
+                    address:
+                      description: |-
+                        Address is the host's own address on the site's machines segment, the
+                        one the edges forward to.
+                      pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
+                      type: string
+                    publicAddress:
+                      description: |-
+                        PublicAddress is the site's WAN address. It becomes the Node's
+                        InternalIP, and the host holds it on a dummy interface so the kubelet
+                        and Cilium can bind it. The site's edges forward the cluster's tunnel
+                        (8472/udp), Cilium health (4240/tcp) and kubelet (10250/tcp) ports on
+                        it to Address, from the cluster's nodes only. One host per address.
+                      pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
+                      type: string
+                  required:
+                    - address
+                    - publicAddress
+                  type: object
                 edge:
                   description: |-
                     Edge is how an edge reaches the internet on its first boot, before its
@@ -291,6 +317,15 @@ spec:
                   required:
                     - tags
                   type: object
+                tpmCheckCode:
+                  description: |-
+                    TPMCheckCode is the check code of the machine's TPM endorsement key from
+                    the vendor's acceptance report, which the preinstall image's unit sheet
+                    shows: the first 64 bits of the key's SHA-256 in hex. Set, the host's TPM
+                    is pinned only to a key that has it, and the internet boot server takes
+                    the machine's announcements.
+                  pattern: ^[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}$
+                  type: string
               required:
                 - hostname
                 - location

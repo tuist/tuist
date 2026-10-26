@@ -43,6 +43,32 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     %{conn: conn, organization: organization, project: project}
   end
 
+  @tag :build_environment
+  test "Bazel version belongs to the environment without attributing Kura host observations", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    attributes =
+      invocation_attributes(
+        project,
+        "environment-build",
+        "build",
+        NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      )
+
+    Bazel.create_invocations([Map.put(attributes, :custom_values, %{"team" => "mobile"})])
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/environment-build"
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "#build-environment-content[hidden]", "Bazel version")
+    assert has_element?(view, "#build-environment-content", "8.1.0")
+    refute has_element?(view, "[data-part=build-details]", "Bazel version")
+    assert has_element?(view, "[data-part=build-details]", "Targets")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+  end
+
   test "build and invocation pages only load the trend-aware summary", %{
     conn: conn,
     project: project,

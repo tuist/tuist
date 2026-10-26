@@ -1,5 +1,9 @@
 package dev.tuist.gradle
 
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
+
 import com.google.gson.Gson
 import dev.tuist.gradle.api.model.AuthenticationTokens
 import dev.tuist.gradle.services.RefreshAuthTokenService
@@ -10,7 +14,11 @@ import java.io.InterruptedIOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.URI
+import java.nio.file.AccessDeniedException
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.Base64
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -61,6 +69,158 @@ class TokenProviderTest {
             envProvider = { envVars[it] },
             tokenCacheFactory = { CachedValueStore() }
         )
+    }
+
+    @Test
+    fun `optional publishing only omits absent credentials and never drops existing tokens`() {
+        assertNull(createProvider().getOptionalToken())
+        assertEquals("revoked-token", createProvider(envVars = mapOf("TUIST_TOKEN" to "revoked-token")).getOptionalToken())
+        assertFailsWith<TokenProvider.NotAuthenticatedException> {
+            createProvider(envVars = mapOf("TUIST_TOKEN" to "")).getOptionalToken()
+        }
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt())
+        assertFailsWith<TokenProvider.NotAuthenticatedException> { createProvider(credentialStore = store).getOptionalToken() }
+    }
+
+    @Test
+    fun `an existing uninspectable credentials directory never becomes absence`() {
+        File(tempDir, "credentials").writeText("not a directory")
+        assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() }
+    }
+
+    @Test
+    fun `inaccessible credential ancestors fail closed including legacy host aliases`() {
+        assumeTrue(tempDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
+        val ancestor = File(tempDir, "protected").apply { mkdirs() }
+        val directory = File(ancestor, "tuist/credentials").apply { mkdirs() }
+        val credentials = File(directory, "Tuist.Example..json").apply {
+            writeText("{\"accessToken\":\"existing-token\"}")
+        }
+        val originalPermissions = Files.getPosixFilePermissions(ancestor.toPath())
+        try {
+            Files.setPosixFilePermissions(ancestor.toPath(), emptySet())
+            assumeTrue(!Files.isExecutable(ancestor.toPath()), "Permission denial must be exercised by a non-root test process")
+            assertFailsWith<AccessDeniedException> {
+                Files.readAttributes(directory.toPath(), BasicFileAttributes::class.java)
+            }
+            for (url in listOf("https://tuist.example", "https://TUIST.EXAMPLE.")) {
+                val provider = TokenProvider(
+                    URI(url), credentialStore = CredentialStore(directory), envProvider = { null },
+                    tokenCacheFactory = { CachedValueStore() }
+                )
+                repeat(2) { assertFailsWith<IllegalStateException> { provider.getOptionalToken() } }
+                val config = ReportConfigurationProvider(
+                    "company/mobile", url, tempDir, TuistHttpClients(useEnvironmentProxy = false),
+                    tokenProviderFactory = { provider },
+                    serverUrlResolver = { resolved, _ -> resolved }
+                )
+                assertFailsWith<IllegalStateException> { config.getConfiguration() }
+            }
+        } finally {
+            Files.setPosixFilePermissions(ancestor.toPath(), originalPermissions)
+        }
+        assertEquals("{\"accessToken\":\"existing-token\"}", credentials.readText())
+    }
+
+    @Test
+    fun `valid directory links and future credential metadata remain readable`() {
+        assumeTrue(tempDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
+        val target = File(tempDir, "real-credentials").apply { mkdirs() }
+        Files.createSymbolicLink(File(tempDir, "credentials").toPath(), target.toPath())
+        File(target, "Tuist.Dev..json").writeText(
+            "{\"accessToken\":\"${validJwt()}\",\"future_metadata\":{\"ignored\":true}}"
+        )
+        assertNotNull(createProvider().getOptionalToken())
+        assertNull(CredentialStore(File(tempDir, "fresh/nested/credentials")).readValidated(serverURL))
+    }
+
+    @Test
+    fun `broken credential directory links and credential file links are errors not absence`() {
+        assumeTrue(tempDir.toPath().fileSystem.supportedFileAttributeViews().contains("posix"))
+        val target = File(tempDir, "missing-target").toPath()
+        val directory = File(tempDir, "credentials")
+        Files.createSymbolicLink(directory.toPath(), target)
+        assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() }
+        Files.delete(directory.toPath())
+        directory.mkdirs()
+        Files.createSymbolicLink(File(directory, "tuist.dev.json").toPath(), target)
+        repeat(2) { assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() } }
+    }
+
+    @Test
+    fun `network publishing cannot send credential-free reports to the implicit hosted destination`() {
+        for (host in listOf("tuist.dev", "www.tuist.dev", "canary.tuist.dev", "staging.tuist.dev", "cloud.tuist.io", "TUIST.DEV", "tuist.dev.", "other.tuist.dev")) {
+            val provider = ReportConfigurationProvider(
+                "company/mobile", "https://$host", tempDir,
+                TuistHttpClients(useEnvironmentProxy = false),
+                tokenProviderFactory = { createProvider() }, serverUrlResolver = { url, _ -> url }
+            )
+            val error = assertFailsWith<TokenProvider.NotAuthenticatedException> { provider.getConfiguration() }
+            assertTrue(error.message.orEmpty().contains("tuist auth login"))
+        }
+        val authenticated = ReportConfigurationProvider(
+            "company/mobile", ServerUrlResolver.DEFAULT_URL, tempDir,
+            TuistHttpClients(useEnvironmentProxy = false),
+            tokenProviderFactory = { createProvider(envVars = mapOf("TUIST_TOKEN" to "existing-token")) },
+            serverUrlResolver = { url, _ -> url }
+        )
+        val config = authenticated.getConfiguration()
+        assertEquals("existing-token", config.token)
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setResponseCode(200))
+            val connection = TuistHttpClient(authenticated).openConnection(URI(server.url("/report").toString()), config)
+            assertEquals(200, connection.responseCode)
+            assertEquals("Bearer existing-token", server.takeRequest().getHeader("Authorization"))
+            connection.disconnect()
+        }
+    }
+
+    @Test
+    fun `host case cannot hide existing credentials including legacy filenames`() {
+        val store = createCredentialStore()
+        store.write(URI("https://tuist.dev"), Credentials("existing-token"))
+        assertEquals("existing-token", store.readValidated(URI("https://tuist.dev"))?.accessToken)
+        val canonical = File(tempDir, "credentials/tuist.dev.json")
+        assertTrue(canonical.renameTo(File(tempDir, "credentials/Tuist.Dev.json")))
+        assertEquals("existing-token", store.readValidated(URI("https://TUIST.DEV"))?.accessToken)
+        assertEquals("existing-token", store.readValidated(URI("https://tuist.dev"))?.accessToken)
+        store.write(URI("https://tuist.dev"), Credentials("refreshed-token"))
+        val files = File(tempDir, "credentials").listFiles()!!.toList()
+        assertEquals(1, files.size)
+        assertEquals("Tuist.Dev.json", files.single().name)
+        assertEquals("refreshed-token", Gson().fromJson(files.single().readText(), Credentials::class.java).accessToken)
+    }
+
+    @Test
+    fun `hostname aliases cannot hide rejected or corrupt credentials`() {
+        val directory = File(tempDir, "credentials").apply { mkdirs() }
+        val store = createCredentialStore()
+        for (filename in listOf("tuist.example.json", "Tuist.Example..json")) {
+            val file = File(directory, filename)
+            for (contents in listOf("not-json", "{\"accessToken\":\"rejected\",\"rejected\":true}")) {
+                file.writeText(contents)
+                for (url in listOf("https://tuist.example", "https://TUIST.EXAMPLE.")) {
+                    repeat(2) { assertFailsWith<IllegalStateException> { store.readValidated(URI(url)) } }
+                    assertEquals(contents, file.readText())
+                }
+            }
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `corrupt or empty stored credentials cannot become anonymous publishing`() {
+        val file = File(tempDir, "credentials/tuist.dev.json")
+        file.parentFile.mkdirs()
+        for (contents in listOf("not-json", "null", "{}", "{\"accessToken\":\"\"}", "{\"accessToken\":\"expired\",\"rejected\":true}")) {
+            file.writeText(contents)
+            assertFailsWith<IllegalStateException> { createProvider().getOptionalToken() }
+            assertEquals(contents, file.readText(), "Refusing invalid credentials must not delete them and downgrade on the next build")
+        }
+        assertFailsWith<IllegalStateException> { createProvider().getToken() }
+        assertTrue(file.exists())
     }
 
     @Test
@@ -231,6 +391,104 @@ class TokenProviderTest {
 
         assertFailsWith<ConnectException> {
             provider.getToken()
+        }
+    }
+
+    private fun refreshingProvider(server: MockWebServer): Pair<TokenProvider, CredentialStore> {
+        val url = server.url("/").toUri()
+        val store = CredentialStore(File(tempDir, "refresh-credentials"))
+        store.write(url, Credentials(expiredJwt(), "refresh-token"))
+        val httpClients = TuistHttpClients(
+            useEnvironmentProxy = false,
+            environmentVariables = emptyMap(),
+            retryPolicy = RetryPolicy(sleeper = {})
+        )
+        val provider = TokenProvider(
+            serverURL = url,
+            refreshAuthTokenService = RefreshAuthTokenService(httpClients),
+            credentialStore = store,
+            envProvider = { null },
+            tokenCacheFactory = { CachedValueStore() }
+        )
+        return provider to store
+    }
+
+    @Test
+    fun `refresh retries a 503 and stores the refreshed token`() {
+        MockWebServer().use { server ->
+            val newToken = validJwt()
+            server.enqueue(MockResponse().setResponseCode(503))
+            server.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setBody(Gson().toJson(mapOf("access_token" to newToken, "refresh_token" to "new-refresh")))
+            )
+            val (provider, store) = refreshingProvider(server)
+
+            assertEquals(newToken, provider.getToken())
+            assertEquals("new-refresh", store.read(server.url("/").toUri())?.refreshToken)
+            assertEquals(2, server.requestCount)
+        }
+    }
+
+    @Test
+    fun `refresh against a server that stays unavailable is not reported as not authenticated`() {
+        MockWebServer().use { server ->
+            repeat(4) { server.enqueue(MockResponse().setResponseCode(503)) }
+            val (provider, store) = refreshingProvider(server)
+
+            val error = assertFailsWith<Exception> { provider.getToken() }
+
+            assertTrue(error !is TokenProvider.NotAuthenticatedException, "Got $error")
+            assertTrue(error is java.io.IOException, "Got $error")
+            assertEquals(4, server.requestCount)
+            assertEquals("refresh-token", store.read(server.url("/").toUri())?.refreshToken)
+        }
+    }
+
+    @Test
+    fun `refresh resends the same refresh token after a 502`() {
+        MockWebServer().use { server ->
+            val newToken = validJwt()
+            server.enqueue(MockResponse().setResponseCode(502))
+            server.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setBody(Gson().toJson(mapOf("access_token" to newToken, "refresh_token" to "new-refresh")))
+            )
+            val (provider, store) = refreshingProvider(server)
+
+            assertEquals(newToken, provider.getToken())
+            assertEquals("new-refresh", store.read(server.url("/").toUri())?.refreshToken)
+            assertEquals(2, server.requestCount)
+            repeat(2) { assertTrue(server.takeRequest().body.readUtf8().contains("\"refresh-token\"")) }
+        }
+    }
+
+    @Test
+    fun `refresh resends the same refresh token after a dropped connection`() {
+        MockWebServer().use { server ->
+            val newToken = validJwt()
+            repeat(2) { server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+            server.enqueue(
+                MockResponse().setResponseCode(200)
+                    .setBody(Gson().toJson(mapOf("access_token" to newToken, "refresh_token" to "new-refresh")))
+            )
+            val (provider, store) = refreshingProvider(server)
+
+            assertEquals(newToken, provider.getToken())
+            assertEquals("new-refresh", store.read(server.url("/").toUri())?.refreshToken)
+            assertEquals(3, server.requestCount)
+            repeat(3) { assertTrue(server.takeRequest().body.readUtf8().contains("\"refresh-token\"")) }
+        }
+    }
+
+    @Test
+    fun `refresh rejected by the server means not authenticated`() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(401).setBody("""{"message":"The refresh token is expired or invalid"}"""))
+            val (provider, _) = refreshingProvider(server)
+
+            assertFailsWith<TokenProvider.NotAuthenticatedException> { provider.getToken() }
+            assertEquals(1, server.requestCount)
         }
     }
 }

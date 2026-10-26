@@ -29,6 +29,7 @@ on:
       # like cli/** does.
       - server/native/xcresult_nif/Sources/XCResultParser/**
       - mise/tasks/cli/**
+      - mise/utilities/install_static_linux_sdk.sh
       - .github/workflows/cli-release.yml
       - .github/workflows/cli-build-publish.yml
       - .github/workflows/cli-rc.yml
@@ -83,10 +84,10 @@ jobs:
       - id: resolve
         run: |
           set -euo pipefail
-          # Skip if HEAD is already published as a canary (e.g. a re-run): the
+          # Skip if HEAD is already published as a CLI canary (e.g. a re-run): the
           # build is expensive and would only mint a duplicate at the same SHA.
-          if git tag --points-at HEAD | grep -qE -- '-canary\.[0-9]+$'; then
-            echo "HEAD already has a canary tag; skipping."
+          if git tag --points-at HEAD | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$'; then
+            echo "HEAD already has a CLI canary tag; skipping."
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

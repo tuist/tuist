@@ -30,6 +30,8 @@ alias Atlas.Assets.Asset
 alias Atlas.Assets.DataCenter
 alias Atlas.Audit
 alias Atlas.Authorization.Roles
+alias Atlas.Automations
+alias Atlas.Automations.Workflow, as: AutomationWorkflow
 alias Atlas.Briefs.Brief
 alias Atlas.Briefs.BriefItem
 alias Atlas.Briefs.Subscription, as: BriefSubscription
@@ -89,6 +91,10 @@ alias Atlas.Slack.Message, as: SlackMessage
 alias Atlas.Slack.User, as: SlackUser
 alias Atlas.Support.Message, as: SupportMessage
 alias Atlas.Support.Thread, as: SupportThread
+alias Atlas.TimeOff
+alias Atlas.TimeOff.Booking, as: TimeOffBooking
+alias Atlas.TimeOff.Holiday
+alias Atlas.TimeOff.Location, as: TimeOffLocation
 alias Atlas.Users.User
 
 seed_users = [
@@ -140,6 +146,145 @@ for attrs <- seed_users do
 end
 
 seed_user = Repo.get_by!(User, email: "test@atlas.dev")
+
+if !Repo.get_by(AutomationWorkflow, name: "Request tax certificate") do
+  plan = %{
+    "steps" => [
+      %{
+        "id" => "review",
+        "type" => "approval",
+        "reviewer_id" => seed_user.id,
+        "inputs" => %{
+          "title" => "Request tax certificate",
+          "description" =>
+            "Prepare the tax-certificate request form, verify the company details, and obtain the required signature. Review delivery details separately before sending. This automation creates a task; it does not generate or mail a letter."
+        }
+      },
+      %{"id" => "task", "behavior" => "tasks.create", "inputs" => %{"$ref" => "steps.review"}}
+    ]
+  }
+
+  {:ok, _workflow} =
+    Automations.save_workflow_version(
+      seed_user,
+      nil,
+      %{
+        "name" => "Request tax certificate",
+        "description" =>
+          "Approve a tax-certificate request, then create a preparation task assigned to the execution user. This example does not generate forms or send postal mail. No automatic triggers.",
+        "source" => JSON.encode!(plan)
+      },
+      interface: "system"
+    )
+end
+
+if !Repo.get_by(AutomationWorkflow, name: "Review a purchase request") do
+  schema = %{
+    "type" => "object",
+    "additionalProperties" => false,
+    "required" => ["item", "amount", "currency", "justification"],
+    "properties" => %{
+      "item" => %{"type" => "string", "title" => "Purchase", "minLength" => 1, "maxLength" => 120},
+      "amount" => %{"type" => "number", "title" => "Amount", "minimum" => 0.01},
+      "currency" => %{"type" => "string", "title" => "Currency", "enum" => ["EUR", "USD", "GBP"]},
+      "needed_by" => %{"type" => "string", "title" => "Needed by", "format" => "date"},
+      "justification" => %{"type" => "string", "title" => "Justification", "minLength" => 1, "maxLength" => 2000},
+      "recurring" => %{"type" => "boolean", "title" => "Recurring purchase", "default" => false}
+    }
+  }
+
+  plan = %{
+    "steps" => [
+      %{"id" => "review", "type" => "approval", "reviewer_id" => seed_user.id, "inputs" => %{"$ref" => "input"}},
+      %{"id" => "record", "behavior" => "core.value", "inputs" => %{"$ref" => "steps.review"}}
+    ]
+  }
+
+  {:ok, _workflow} =
+    Automations.save_workflow_version(
+      seed_user,
+      nil,
+      %{
+        "name" => "Review a purchase request",
+        "description" =>
+          "Review structured purchase details and retain the approved request in the execution result. This example does not place an order, make a payment, or add automatic triggers.",
+        "input_schema" => schema,
+        "source" => JSON.encode!(plan)
+      },
+      interface: "system"
+    )
+end
+
+# Local-only people and leave examples share Berlin's calendar. Oban syncs public
+# holidays independently, so seeding never depends on an external provider.
+for {name, country, region, emails} <- [
+      {"Berlin", "DE", "DE-BE", ["test@atlas.dev", "alex@atlas.dev", "morgan@atlas.dev", "sam@atlas.dev"]}
+    ] do
+  location =
+    case Repo.get_by(TimeOffLocation, name: name) do
+      nil ->
+        {:ok, location} =
+          TimeOff.create_location(%{name: name, country_code: country, subdivision_code: region}, seed_user,
+            interface: "system"
+          )
+
+        location
+
+      location ->
+        location
+    end
+
+  for email <- emails do
+    user = Repo.get_by!(User, email: email)
+
+    if user.time_off_location_id != location.id,
+      do: TimeOff.assign_location(user.id, location.id, seed_user, interface: "system")
+
+    {changed, _} =
+      Repo.update_all(
+        from(booking in TimeOffBooking, where: booking.user_id == ^user.id and booking.location_id != ^location.id),
+        set: [location_id: location.id]
+      )
+
+    if changed > 0 do
+      Audit.record("time_off.seed_calendar_normalized", %{
+        actor_id: seed_user.id,
+        interface: "system",
+        target_type: "time_off",
+        target_id: user.id,
+        metadata: %{path: "/people/time-off", location_id: location.id, bookings: changed}
+      })
+    end
+  end
+
+  # Retire only the two old fictional manual fixtures, now supplied by the sync.
+  Repo.delete_all(
+    from(holiday in Holiday,
+      where:
+        holiday.location_id == ^location.id and holiday.source == "manual" and
+          holiday.name in ["New Year's Day", "Christmas Day"]
+    )
+  )
+end
+
+for {email, days_ahead, duration} <- [
+      {"alex@atlas.dev", 4, 4},
+      {"morgan@atlas.dev", 7, 2},
+      {"test@atlas.dev", 14, 4}
+    ] do
+  user = Repo.get_by!(User, email: email)
+  first = Date.add(Date.utc_today(), days_ahead)
+  last = Date.add(first, duration)
+
+  if !Repo.exists?(
+       from(booking in TimeOffBooking,
+         where: booking.user_id == ^user.id and booking.starts_on <= ^last and booking.ends_on >= ^first
+       )
+     ) do
+    {:ok, booking} = TimeOff.report_holiday(%{starts_on: first, ends_on: last}, user, interface: "system")
+    if email == "alex@atlas.dev", do: TimeOff.review_holiday(booking.id, "approved", seed_user, interface: "system")
+  end
+end
 
 # Email audiences mirror the groups Atlas actively communicates with. Users
 # represent the welcome-email audience populated by the product analytics

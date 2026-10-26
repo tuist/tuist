@@ -4,6 +4,7 @@ This context owns PromEx helpers and buckets configuration.
 
 ## Responsibilities
 - Provide custom bucket configuration for PromEx/Peep distributions.
+- Export shared rate-limiter failures through `Tuist.PromEx.RateLimit`, tagged only by algorithm, selected outage policy and admission outcome. Never label limiter metrics with keys, addresses, subjects, URLs or exception strings.
 - Provide the PromEx storage adapter (`Tuist.PromEx.StripedPeep`, wired in `server/config/config.exs`).
 
 ## Boundaries

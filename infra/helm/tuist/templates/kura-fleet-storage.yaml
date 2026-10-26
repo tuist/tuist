@@ -519,7 +519,7 @@ spec:
                   - key: node.cluster.x-k8s.io/pool
                     operator: In
                     values:
-{{- range $pools }}
+{{- range uniq $pools }}
                       - {{ . | quote }}
 {{- end }}
       containers:

@@ -124,7 +124,7 @@ func TestRunningContainerStatusesReportsReady(t *testing.T) {
 	}
 	startedAt := metav1.Now()
 
-	statuses := runningContainerStatuses(pod, "vm-abc", startedAt)
+	statuses := runningContainerStatuses(pod, "vm-abc", startedAt, true)
 
 	if len(statuses) != 1 {
 		t.Fatalf("expected 1 container status (Pod ↔ VM is 1:1), got %d", len(statuses))
@@ -465,7 +465,7 @@ func TestRunnerTerminationPrefersGuestReport(t *testing.T) {
 
 	// tart run exited zero because the guest's EXIT trap halts the VM on
 	// every path. Only the guest knows the runner itself failed.
-	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+	code, reason := r.runnerTermination(&Entry{StatusDir: dir}, nil)
 
 	if code != 2 || reason != runnerExitReasonError {
 		t.Fatalf("expected the guest-reported failure, got %d/%q", code, reason)
@@ -479,7 +479,7 @@ func TestRunnerTerminationReportsCleanGuestExit(t *testing.T) {
 	}
 	r := &Reconciler{}
 
-	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+	code, reason := r.runnerTermination(&Entry{StatusDir: dir}, nil)
 
 	if code != 0 || reason != runnerExitReasonCompleted {
 		t.Fatalf("expected a clean guest exit, got %d/%q", code, reason)
@@ -493,7 +493,7 @@ func TestRunnerTerminationDistinguishesUnreportedFromClean(t *testing.T) {
 	// exit code is only tart's view.
 	r := &Reconciler{}
 
-	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: ""}, nil)
+	code, reason := r.runnerTermination(&Entry{StatusDir: ""}, nil)
 
 	if code != 0 || reason != runnerExitReasonUnreported {
 		t.Fatalf("expected an unreported exit, got %d/%q", code, reason)
@@ -509,7 +509,7 @@ func TestRunnerTerminationFallsBackToTartExitCode(t *testing.T) {
 		t.Fatalf("expected the probe command to fail")
 	}
 
-	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: t.TempDir()}, runErr)
+	code, reason := r.runnerTermination(&Entry{StatusDir: t.TempDir()}, runErr)
 
 	if code != 3 || reason != runnerExitReasonTartFailed {
 		t.Fatalf("expected tart's exit code under the tart-failed reason, got %d/%q", code, reason)
@@ -523,7 +523,7 @@ func TestRunnerTerminationIgnoresUnparseableGuestReport(t *testing.T) {
 	}
 	r := &Reconciler{}
 
-	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+	code, reason := r.runnerTermination(&Entry{StatusDir: dir}, nil)
 
 	if code != 0 || reason != runnerExitReasonUnreported {
 		t.Fatalf("expected a torn report to read as unreported, got %d/%q", code, reason)
@@ -563,9 +563,9 @@ func TestPodStatusOnStoppedVMPublishesTerminatedContainer(t *testing.T) {
 
 	store := NewStore()
 	store.Put("tuist-runners", "runner-e2e", &Entry{
-		VMName:          "vm-e2e",
-		StartTS:         metav1.NewTime(time.Now().Add(-90 * time.Second)),
-		VolumeStatusDir: statusDir,
+		VMName:    "vm-e2e",
+		StartTS:   metav1.NewTime(time.Now().Add(-90 * time.Second)),
+		StatusDir: statusDir,
 	})
 
 	r := &Reconciler{Tart: &tart.Client{Binary: bin}, Store: store, NodeName: "mini-1"}
@@ -605,7 +605,7 @@ func TestRunnerTerminationRejectsOutOfRangeGuestReport(t *testing.T) {
 			}
 			r := &Reconciler{}
 
-			code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+			code, reason := r.runnerTermination(&Entry{StatusDir: dir}, nil)
 
 			if reason != runnerExitReasonUnreported {
 				t.Fatalf("expected %q for an out-of-range report, got %d/%q", runnerExitReasonUnreported, code, reason)
@@ -623,7 +623,7 @@ func TestRunnerTerminationAcceptsSignalledExitCode(t *testing.T) {
 	}
 	r := &Reconciler{}
 
-	code, reason := r.runnerTermination(&Entry{VolumeStatusDir: dir}, nil)
+	code, reason := r.runnerTermination(&Entry{StatusDir: dir}, nil)
 
 	if code != 143 || reason != runnerExitReasonError {
 		t.Fatalf("expected 143/%q, got %d/%q", runnerExitReasonError, code, reason)
@@ -667,9 +667,9 @@ func TestPodStatusDatesFinishFromTheGuestReportNotTheReconcile(t *testing.T) {
 	}
 	store := NewStore()
 	store.Put("tuist-runners", "runner-finish", &Entry{
-		VMName:          "vm-finish",
-		StartTS:         metav1.NewTime(time.Now().Add(-30 * time.Minute)),
-		VolumeStatusDir: statusDir,
+		VMName:    "vm-finish",
+		StartTS:   metav1.NewTime(time.Now().Add(-30 * time.Minute)),
+		StatusDir: statusDir,
 	})
 	r := &Reconciler{Tart: &tart.Client{Binary: bin, UserDataDir: userData}, Store: store, NodeName: "mini-1"}
 

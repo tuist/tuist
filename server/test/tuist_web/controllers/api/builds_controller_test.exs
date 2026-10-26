@@ -57,7 +57,8 @@ defmodule TuistWeb.API.BuildsControllerTest do
           status: "success",
           duration: 5000,
           scheme: "MyApp",
-          configuration: "Debug"
+          configuration: "Debug",
+          inserted_at: ~N[2026-10-14 09:30:15.123456]
         )
 
       stub(Builds, :list_build_runs, fn _attrs, _opts ->
@@ -86,6 +87,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert first_build["cacheable_tasks_count"] == build.cacheable_tasks_count
       assert first_build["cacheable_task_local_hits_count"] == build.cacheable_task_local_hits_count
       assert first_build["cacheable_task_remote_hits_count"] == build.cacheable_task_remote_hits_count
+      assert first_build["inserted_at"] == "2026-10-14T09:30:15Z"
     end
 
     test "filters builds by status", %{conn: conn, user: user, project: project} do
@@ -329,7 +331,8 @@ defmodule TuistWeb.API.BuildsControllerTest do
           macos_version: "14.0",
           cacheable_tasks_count: 10,
           cacheable_task_local_hits_count: 3,
-          cacheable_task_remote_hits_count: 5
+          cacheable_task_remote_hits_count: 5,
+          inserted_at: ~N[2026-10-14 09:30:15.123456]
         )
 
       stub(Builds, :get_build, fn _id, _opts ->
@@ -351,6 +354,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert response["cacheable_tasks_count"] == 10
       assert response["cacheable_task_local_hits_count"] == 3
       assert response["cacheable_task_remote_hits_count"] == 5
+      assert response["inserted_at"] == "2026-10-14T09:30:15Z"
     end
 
     test "returns the CAS transfer totals for the build", %{conn: conn, user: user, project: project} do

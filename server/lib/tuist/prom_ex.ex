@@ -67,7 +67,6 @@ defmodule Tuist.PromEx do
         # polled pool gauges). The default plugin only adds duplicate pool gauges with
         # no extra signal.
         PromEx.Plugins.Beam,
-        Tuist.ClickHouse.PromExPlugin,
         Tuist.Storage.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,
         Tuist.AppBuilds.PromExPlugin,
@@ -75,6 +74,7 @@ defmodule Tuist.PromEx do
         Tuist.Repo.PromExPlugin,
         Tuist.ClickHouseRepo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
+        Tuist.PromEx.RateLimit,
         Tuist.Authentication.PromExPlugin,
         Tuist.HTTP.PromExPlugin,
         Tuist.License.PromExPlugin,

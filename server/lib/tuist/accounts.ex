@@ -14,6 +14,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.OIDCTrustPolicies
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.SSOLoginDomainRecheck
@@ -64,6 +65,12 @@ defmodule Tuist.Accounts do
     :oauth2_token_url,
     :oauth2_user_info_url
   ]
+
+  defdelegate list_oidc_trust_policies(account), to: OIDCTrustPolicies, as: :list
+  defdelegate create_oidc_trust_policy(account, attrs), to: OIDCTrustPolicies, as: :create
+  defdelegate delete_oidc_trust_policy(account, policy_id), to: OIDCTrustPolicies, as: :delete
+  defdelegate oidc_trust_candidates(issuer, account_handle, claims), to: OIDCTrustPolicies, as: :candidates
+  defdelegate oidc_account_by_grants(identity), to: OIDCTrustPolicies, as: :account_for_identity
 
   # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
   # These delegators keep `Tuist.Accounts` as the single context facade.
@@ -661,9 +668,6 @@ defmodule Tuist.Accounts do
     oauth2_user_info_url = Keyword.get(opts, :oauth2_user_info_url)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
-    current_month_remote_cache_hits_count =
-      Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
-
     Multi.new()
     |> Multi.insert(
       :organization,
@@ -689,7 +693,6 @@ defmodule Tuist.Accounts do
         Account.create_changeset(%Account{}, %{
           organization_id: organization_id,
           name: name,
-          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count,
           billing_email: user_email,
           customer_id:
             Keyword.get(
@@ -991,7 +994,6 @@ defmodule Tuist.Accounts do
           Account.create_changeset(%Account{}, %{
             user_id: user_id,
             name: handle,
-            current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
             current_month_remote_cache_hits_count_updated_at:
               Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
             customer_id: customer_id,
@@ -1103,14 +1105,9 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_account_current_month_usage(
-        account_id,
-        %{remote_cache_hits_count: remote_cache_hits_count} = usage,
-        opts \\ []
-      ) do
+  def update_account_current_month_usage(account_id, usage, opts \\ []) do
     %Account{id: account_id}
     |> Account.billing_changeset(%{
-      current_month_remote_cache_hits_count: remote_cache_hits_count,
       current_month_cache_egress_megabytes: Map.get(usage, :cache_egress_megabytes, 0),
       current_month_cache_requests: Map.get(usage, :cache_requests, 0),
       current_month_remote_cache_hits_count_updated_at: Keyword.get(opts, :updated_at, NaiveDateTime.utc_now())
@@ -1119,17 +1116,14 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  The account's usage since its free tier last started counting: remote cache
-  hits, which gate an Air account on the old pricing, and metered cache egress
-  and requests, which gate one on usage-based pricing.
+  The account's metered cache egress and requests since its free tier last
+  started counting, which gate an Air account.
   """
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
     counted_from = Account |> Repo.get!(account_id) |> CommandEvents.usage_counted_from(date)
     cache = UsagePricing.metered_cache_usage(account_id, counted_from, date)
 
-    account_id
-    |> CommandEvents.account_month_usage(date)
-    |> Map.merge(%{cache_egress_megabytes: cache.egress_megabytes, cache_requests: cache.requests})
+    %{cache_egress_megabytes: cache.egress_megabytes, cache_requests: cache.requests}
   end
 
   def list_accounts_with_usage_not_updated_today(attrs \\ %{}) do
@@ -2890,7 +2884,7 @@ defmodule Tuist.Accounts do
         # asking — would pay a write-through and a unique job insert per
         # request forever, to schedule work that is deduplicated anyway.
         urls = kura_cache_endpoint_urls(account, Origins.value(origin))
-        provisioning? = urls == [] and Demand.instance_expected?(account)
+        provisioning? = urls == [] and kura_instance_coming?(account)
         kick? = provisioning? and Demand.claim_provision_kick(account.id)
         Demand.record(account.id, origin, persist_origin: kick?)
         if kick?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
@@ -2927,6 +2921,13 @@ defmodule Tuist.Accounts do
   # archived account gets cold misses there rather than its own artifacts.
   # `:kura` clients never get that lane: they build locally while they wait for
   # the instance.
+  # An instance held as `:idle` is not brought back by a resolution, so the
+  # client is not told one is coming: it would re-resolve on the provisioning
+  # answer's short max age for the whole hold.
+  defp kura_instance_coming?(%Account{} = account) do
+    Demand.instance_expected?(account) and not Demand.idle_hold?(account)
+  end
+
   defp absent_kura_endpoint_urls(%Account{} = account, technology) do
     case {Demand.lifecycle_managed?(account), technology} do
       {true, :kura} -> []

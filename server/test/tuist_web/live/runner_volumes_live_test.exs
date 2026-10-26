@@ -93,34 +93,18 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert html =~ "request_delete"
   end
 
-  test "built-in volumes use the same presentation and measured sizes without a type label" do
+  test "the managed Gradle cache is named after its tool, and other keys stay as they are" do
     assigns = assigns(true)
+    gradle = %{assigns.selected | key: "tuist-gradle"}
+    custom = %{assigns.selected | id: Ecto.UUID.generate(), key: "gradle"}
+    data = %{assigns.data.result | volumes: [gradle, custom]}
 
-    volume = %{
-      assigns.selected
-      | builtin_name: "tuist-cache",
-        key: "tuist-cache",
-        platform: "macos",
-        architecture: "arm64"
-    }
+    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil, data: AsyncResult.ok(data)})
+    names = inventory |> Floki.parse_document!() |> Floki.find("#volumes-table td:first-child") |> Enum.map(&Floki.text/1)
+    assert Enum.map(names, &String.trim/1) == ["Gradle cache", "gradle"]
 
-    data = assigns.data.result
-    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :retained_capacity_bytes, 20_000_000_000))
-    data = %{data | volumes: [volume], stats: stats}
-    assigns = %{assigns | selected: volume, data: AsyncResult.ok(data)}
-    detail = render_component(&RunnerVolumesLive.render/1, assigns)
-    assert detail =~ "tuist-cache"
-    assert detail =~ "macOS"
-    assert detail =~ "20.0 GB"
-    refute detail =~ "Automatic"
-    badges = detail |> Floki.parse_document!() |> Floki.find(".noora-badge") |> Floki.text()
-    assert badges =~ "macOS"
-    refute badges =~ "Custom"
-    refute detail =~ "phx-click=\"request_delete\""
-    inventory = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: nil})
-    assert inventory =~ "tuist-cache"
-    assert inventory =~ "20.0 GB"
-    assert inventory =~ "/runners/volumes/#{volume.id}"
+    detail = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: gradle})
+    assert detail |> Floki.parse_document!() |> Floki.find("h1") |> Floki.text() == "Gradle cache"
   end
 
   test "inventory truncates long volume names and keeps the full name in the title" do
@@ -413,6 +397,15 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.workflow_label(%{usage | workflow_name: ""}) == "Unknown"
     assert jobs =~ "Hit"
     refute jobs =~ "Cache status"
+    refute jobs =~ "Older copy"
+
+    older = %{usage | base_generation: 3, mounted_generation: 2}
+    data = %{assigns.data.result | history: [older]}
+
+    older_jobs =
+      render_component(&RunnerVolumesLive.render/1, %{assigns | selected_tab: "jobs", data: AsyncResult.ok(data)})
+
+    assert older_jobs =~ "Older copy"
     refute jobs =~ ~s(id="volume-use-status-#{usage.id}")
     assert RunnerVolumesLive.job_label(%{usage | job_name: nil}) == "# 1024"
     assert RunnerVolumesLive.job_label(%{usage | job_name: ""}) == "# 1024"
@@ -480,18 +473,79 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert %{value: 0, value_label: nil} = RunnerVolumesLive.uses_trend(3, nil)
   end
 
-  test "detail warns when the saved snapshot is too full to reuse" do
+  test "detail warns when the saved snapshot is too full for the capacity the next job gets" do
     assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate()}
     data = assigns.data.result
-    full = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1700, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: full})})
+    saved = %{saved_bytes: 17_000_000_000, saved_capacity_bytes: 20_000_000_000, head_volume_bytes: 20_000_000_000}
+    full = Map.update!(data.stats, volume.id, &Map.merge(&1, saved))
+    full_data = %{data | stats: full, volumes: [volume]}
+    html = render_component(&RunnerVolumesLive.render/1, %{assigns | selected: volume, data: AsyncResult.ok(full_data)})
 
     assert html =~ ~s(id="volume-full-alert")
     assert html =~ "This volume is almost full"
+    assert html =~ "17.0 GB of 20.0 GB"
 
-    roomy = Map.update!(data.stats, assigns.selected.id, &Map.merge(&1, %{saved_bytes: 1024, saved_capacity_bytes: 2048}))
-    html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | stats: roomy})})
+    grown = %{volume | requested_volume_bytes: 50_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: grown,
+          data: AsyncResult.ok(%{full_data | volumes: [grown]})
+      })
+
     refute html =~ ~s(id="volume-full-alert")
+
+    roomy = Map.update!(data.stats, volume.id, &Map.merge(&1, %{saved | saved_bytes: 10_000_000_000}))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: roomy, volumes: [volume]})
+      })
+
+    refute html =~ ~s(id="volume-full-alert")
+  end
+
+  test "detail shows the volume's capacity and a smaller size pending until the next clear" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | head_id: Ecto.UUID.generate(), requested_volume_bytes: 5_000_000_000}
+    data = assigns.data.result
+    stats = Map.update!(data.stats, volume.id, &Map.put(&1, :head_volume_bytes, 50_000_000_000))
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    capacity = html |> Floki.parse_document!() |> Floki.find("#volume-capacity") |> Floki.text()
+    assert capacity =~ "50.0 GB"
+    assert html =~ ~s(id="volume-pending-size-alert")
+    assert html =~ "Saved at 50.0 GB. New contents will use 5.0 GB after the next clear."
+
+    larger = %{volume | requested_volume_bytes: 100_000_000_000}
+
+    html =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: larger,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [larger]})
+      })
+
+    refute html =~ ~s(id="volume-pending-size-alert")
+
+    inventory =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: nil,
+          data: AsyncResult.ok(%{data | stats: stats, volumes: [volume]})
+      })
+
+    assert inventory =~ "50.0 GB"
   end
 
   test "reader sees metrics but no mutation controls" do
@@ -508,7 +562,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   end
 
   test "confirmation rechecks authorization rather than trusting a stale admin assign" do
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> {:error, :unauthorized} end)
+    expect(Authorization, :authorize, fn :runners_update, :user, %{id: 1} -> {:error, :unauthorized} end)
 
     socket = %Socket{
       assigns: %{
@@ -530,67 +584,10 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("request_delete", %{"id" => id}, socket)
   end
 
-  test "only managers can edit GitHub custom-volume writer branches" do
-    assert render_component(&RunnerVolumesLive.render/1, assigns(true)) =~ "volume-writer-policy"
-    refute render_component(&RunnerVolumesLive.render/1, assigns(false)) =~ "volume-writer-policy"
-
-    for changes <- [%{builtin_name: "tuist-cache"}, %{provider: "gitlab"}] do
-      values = assigns(true)
-      volume = struct!(values.selected, changes)
-      refute render_component(&RunnerVolumesLive.render/1, %{values | selected: volume}) =~ "volume-writer-policy"
-    end
-  end
-
-  test "writer policy errors distinguish invalid names from missing access" do
-    values = assigns(true)
-    socket = %Socket{assigns: Map.merge(values, %{__changed__: %{}, current_user: :user, flash: %{}})}
-    stub(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> :ok end)
-
-    for {reason, message} <- [
-          {:invalid_parameters, "Use up to 20 exact branch names."},
-          {:not_found, "You do not have access to update this volume."}
-        ] do
-      expect(CacheVolumes, :update_writer_branches, fn 1, _, _ -> {:error, reason} end)
-
-      assert {:noreply, result} =
-               RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "feature"}, socket)
-
-      assert result.assigns.flash["error"] =~ message
-    end
-
-    reject(CacheVolumes, :update_writer_branches, 3)
-
-    assert {:noreply, result} =
-             RunnerVolumesLive.handle_event(
-               "save_writer_branches",
-               %{"writer_branches" => "feature"},
-               put_in(socket.assigns.selected, nil)
-             )
-
-    assert result.assigns.flash["error"] == "You do not have access to update this volume."
-  end
-
-  test "writer policy save reauthorizes and scopes the selected volume" do
-    values = assigns(true)
-    id = values.selected.id
-    socket = %Socket{assigns: Map.merge(values, %{__changed__: %{}, current_user: :user, flash: %{}})}
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> :ok end)
-
-    expect(CacheVolumes, :update_writer_branches, fn 1, ^id, ["codex/test"] ->
-      {:ok, %{values.selected | writer_branches: ["codex/test"]}}
-    end)
-
-    assert {:noreply, updated} =
-             RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "  codex/test\n\n"}, socket)
-
-    assert updated.assigns.selected.writer_branches == ["codex/test"]
-    expect(Authorization, :authorize, fn :account_update, :user, %{id: 1} -> {:error, :unauthorized} end)
-    reject(CacheVolumes, :update_writer_branches, 3)
-
-    assert {:noreply, rejected} =
-             RunnerVolumesLive.handle_event("save_writer_branches", %{"writer_branches" => "other"}, updated)
-
-    assert rejected.assigns.selected.writer_branches == ["codex/test"]
-    assert rejected.assigns.flash["error"] == "You do not have access to update this volume."
+  test "names the managed cache volumes" do
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-xcode"}) == "Xcode cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-module"}) == "Module cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "tuist-gradle"}) == "Gradle cache"
+    assert RunnerVolumesLive.display_name(%Volume{key: "npm"}) == "npm"
   end
 end

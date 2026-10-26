@@ -10,7 +10,7 @@
 The Tuist Hex package includes built-in support for sharding the tests of an Elixir project. It uses the Tuist server to create balanced shard plans based on historical timing data, and it compiles your project once so every runner can go straight to running tests.
 
 > [!IMPORTANT] REQUIREMENTS
-> - <.localized_link href="/guides/features/test-insights/elixir">Test insights</.localized_link> must be configured
+> - Complete the <.localized_link href="/guides/get-started/elixir-project">shared Elixir setup</.localized_link> before configuring your CI shard jobs
 
 ## How it works {#how-it-works}
 
@@ -26,8 +26,14 @@ Tests are distributed by file: every test in a file runs on the same shard. Test
 Prepare test shards using the `tuist.test.build` task:
 
 ```sh
-mix tuist.test.build --shard-max 5
+MIX_ENV=test mix compile --warnings-as-errors
+MIX_ENV=test mix tuist.test.build --shard-max 5
 ```
+
+Compile through the alias installed by the shared setup before invoking the
+sharding task. On a cold checkout, Mix can compile dependencies while discovering
+`tuist.test.build`, before Tuist's dependency cache has a chance to restore them.
+The explicit compile runs in the same test environment as the sharding task.
 
 This task:
 1. Compiles the project in the test environment
@@ -52,11 +58,13 @@ The shard reference is automatically derived from CI environment variables (`GIT
 
 ## Test phase {#test-phase}
 
-Each shard runner executes its assigned tests using `mix tuist.test`, or `mix test` if you <.localized_link href="/guides/install-hex-package#aliases">aliased it</.localized_link>. When `TUIST_SHARD_INDEX` is set, the package fetches the shard assignment from the server, downloads the build, and runs only the assigned test files without compiling.
+When `TUIST_SHARD_INDEX` is set, the package fetches the shard assignment from the server, downloads the build, and runs only the assigned test files without compiling. On a cold runner, bootstrap the SDK and load its paths before invoking the task:
 
 ```sh
-TUIST_SHARD_INDEX=0 mix test
+MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.test
 ```
+
+Compiling the SDK in Mix's worker processes does not load it in the parent process. The explicit `deps.loadpaths` step prevents task discovery from compiling the remaining dependencies before downloading the build. This single-command form preserves your project's test preparation alias. If its setup commands trigger compilation, use the separate setup sequence below.
 
 Any test files or directories you pass narrow the shard further: only the files that are both in the shard and in your selection run. A shard that ends up with no tests exits successfully.
 
@@ -65,16 +73,24 @@ The results of all the shards arrive on the dashboard as a single test run, and 
 If setup must run before the tests, download the build first without starting the application:
 
 ```sh
-MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.compile tuist_ex + tuist.test --prepare-only
+MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.test --prepare-only
 ```
 
-Run your setup in a separate process, then execute the shard without downloading the build again:
+Run your setup in a separate process with compilation disabled. For example, an Ecto project can create and migrate its databases using:
 
 ```sh
-TUIST_SHARD_INDEX=0 mix tuist.test --no-download
+MIX_ENV=test mix run --no-start --no-compile --no-deps-check -e 'Mix.Tasks.Ecto.Create.run([]); Mix.Tasks.Ecto.Migrate.run([])'
 ```
 
-Both commands need the same shard reference. `--prepare-only` requires an uploaded build, and `--no-download` fails if the prepared application artifact is missing. Keeping database migrations in a separate process also avoids module-redefinition warnings when migration regression tests load those modules themselves.
+Keep any other project-specific preparation in this phase. Your compile alias must also honor `--no-compile` before doing bootstrap work: Mix only forwards flags to the last task of a list alias, so an earlier unconditional `deps.compile` still runs. See the guarded alias in <.localized_link href="/guides/features/cache/elixir-advanced#manual-compile-integration">manual compile integration</.localized_link>.
+
+Then load the restored SDK without compilation before executing the shard. This also prevents task discovery from compiling a path dependency when its sources are newer than the downloaded build:
+
+```sh
+MIX_ENV=test TUIST_SHARD_INDEX=0 mix do deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download
+```
+
+Both commands need the same shard reference. `--prepare-only` requires an uploaded build, and `--no-download` fails if the prepared application artifact is missing. `--no-download` explicitly skips your project's test preparation alias, including on retries, and prints a notice when it skips setup steps. Ordinary runs keep their aliases, even when you forward `--no-compile --no-deps-check`. Keeping database migrations in a separate process also avoids module-redefinition warnings when migration regression tests load those modules themselves.
 
 When testing different environments, pass a stable `--scheme` label, such as `--scheme clickhouse-current` or `--scheme clickhouse-floor`. Results with different labels are not treated as flaky reruns of the same configuration.
 
@@ -114,6 +130,7 @@ jobs:
           elixir-version: '1.18'
           otp-version: '27'
       - run: mix deps.get
+      - run: mix compile --warnings-as-errors
       - id: build
         run: mix tuist.test.build --shard-max 5
 
@@ -134,7 +151,11 @@ jobs:
           elixir-version: '1.18'
           otp-version: '27'
       - run: mix deps.get
-      - run: mix tuist.test
+      - run: mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.test --prepare-only
+      # Ecto example: keep all project-specific test preparation here.
+      # The project's compile alias must honor --no-compile (see above).
+      - run: mix run --no-start --no-compile --no-deps-check -e 'Mix.Tasks.Ecto.Create.run([]); Mix.Tasks.Ecto.Migrate.run([])'
+      - run: mix do deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download
 ```
 
 ### Other providers {#other-providers}

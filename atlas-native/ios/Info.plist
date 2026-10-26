@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSSupportsLiveActivities</key>
+    <true/>
+    <key>AtlasPushEnvironment</key>
+    <string>$(ATLAS_PUSH_ENVIRONMENT)</string>
     <key>CFBundleIdentifier</key>
     <string>dev.tuist.atlas</string>
     <key>CFBundleExecutable</key>
@@ -15,9 +19,9 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleSupportedPlatforms</key>
-    <array><string>iPhoneSimulator</string></array>
+    <array><string>$(ATLAS_SUPPORTED_PLATFORM)</string></array>
     <key>DTPlatformName</key>
-    <string>iphonesimulator</string>
+    <string>$(ATLAS_PLATFORM_NAME)</string>
     <key>MinimumOSVersion</key>
     <string>17.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -30,6 +34,43 @@
     <string>0.1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>CFBundleIcons</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconName</key>
+            <string>AppIcon</string>
+            <key>CFBundleIconFiles</key>
+            <array><string>AppIcon60x60</string></array>
+        </dict>
+    </dict>
+    <key>CFBundleIcons~ipad</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconName</key>
+            <string>AppIcon</string>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon60x60</string>
+                <string>AppIcon76x76</string>
+                <string>AppIcon83.5x83.5</string>
+            </array>
+        </dict>
+    </dict>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>dev.tuist.atlas.oauth</string>
+            <key>CFBundleURLSchemes</key>
+            <array><string>dev.tuist.atlas</string></array>
+        </dict>
+    </array>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Use the microphone to transcribe a voice message on this device. Audio is not sent to Atlas.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Transcribe voice messages on this device so you can review and edit the text before sending.</string>
     <key>UILaunchScreen</key>
     <dict/>
     <key>UISupportedInterfaceOrientations</key>

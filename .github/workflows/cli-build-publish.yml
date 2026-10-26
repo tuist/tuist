@@ -57,17 +57,16 @@ jobs:
       packages: write
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-    outputs:
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
-          fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked tuist git-cliff 1password-cli jq"
+          install_args: "--locked tuist 1password-cli jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       # Install the Rust toolchain the cas-plugin bundle needs, resolving its
@@ -91,6 +90,253 @@ jobs:
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
         run: mise run --no-deps --skip-tools cli:ee
+      - name: Stamp the release version
+        run: |
+          sed -i '' -e "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
+          grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
+
+      - name: Bundle CLI
+        run: mise run --no-deps --skip-tools cli:bundle
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Upload CLI artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-artifacts
+          path: |
+            cli/Sources/tuist/ReleaseVersion.swift
+            mise.toml
+            build/ProjectDescription.xcframework.zip
+            build/tuist.zip
+            build/tuist.spec.json
+            build/SHASUMS256.txt
+            build/SHASUMS512.txt
+          retention-days: 1
+
+  # Both architectures build on Tuist's amd64 Linux fleet; aarch64 is
+  # cross-compiled with the Swift static Linux SDK, which ships sysroots for
+  # both. The matrix keeps each architecture on its own runner: TuistServer
+  # alone is about 7 minutes of single-threaded compilation per architecture,
+  # so one job building both would roughly double the wall-clock time while
+  # sharing only the host macros and package resolution.
+  release-cli-linux:
+    name: Release CLI (Linux ${{ matrix.arch }})
+    runs-on: tuist-linux-large
+    container:
+      image: swift:6.2
+    timeout-minutes: 40
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      # The bundler comes from this workflow's revision rather than inputs.ref:
+      # the matrix cross-compiles aarch64 on amd64 hosts, which release lines
+      # cut before the bundler took TUIST_LINUX_ARCH cannot do. Their bundler
+      # builds for the host and the aarch64 leg would package an x86_64 binary.
+      - name: Check out the Linux bundler
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .linux-bundler
+          sparse-checkout: |
+            mise/tasks/cli/bundle-linux.sh
+            mise/utilities/install_static_linux_sdk.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Stamp the release version
+        run: |
+          sed -i "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
+          grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
+
+      # .build is only valid for the compiler that produced it, and the
+      # swift:6.2 tag moves across patch releases.
+      - name: Read the Swift version
+        id: swift
+        run: |
+          version="$(swift --version 2>&1 | sed -n 's/.*Swift version \([0-9.]*\).*/\1/p' | head -1)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      # The checkout gives every source file a new mtime, so SwiftPM still
+      # compiles every first-party module from the release commit. The volume
+      # keeps the pinned third-party graph (BoringSSL, NIO, gRPC, swift-syntax)
+      # and the registry downloads.
+      - uses: tuist/cache-volume@v1
+        with:
+          key: cli-linux-release-build-${{ matrix.arch }}-swift-${{ steps.swift.outputs.version }}
+          path: .build
+      - uses: tuist/cache-volume@v1
+        with:
+          key: cli-linux-release-swiftpm
+          path: ~/.cache/org.swift.swiftpm
+
+      - name: Install caddy
+        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
+      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
+      # (see #12229), and the registry answers 303 to storage over h2. Terminating
+      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
+      # target negotiates http/1.1 on its own, so only this hop needs forcing.
+      - name: Front the registry with an HTTP/1.1 proxy
+        shell: bash
+        run: |
+          nohup caddy reverse-proxy \
+            --from :8080 --to https://tuist.dev --change-host-header \
+            > /tmp/registry-proxy.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              exec 3>&-
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::registry proxy did not start listening on :8080"
+          cat /tmp/registry-proxy.log || true
+          exit 1
+      - name: Point SwiftPM at the proxy
+        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
+      - name: Resolve dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if swift package resolve --replace-scm-with-registry; then
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Linux CLI dependency resolution failed after ${attempt} attempts."
+              exit 1
+            fi
+
+            echo "::warning::Linux CLI dependency resolution attempt ${attempt} failed; clearing SwiftPM state before retrying."
+            ACCOUNT_HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
+            # .build and the SwiftPM cache are volume mount points, so they
+            # are emptied in place rather than removed.
+            for dir in \
+              "${BUILD_PATH:-.build}" \
+              "$HOME/.cache/org.swift.swiftpm" \
+              "$HOME/.swiftpm" \
+              "$ACCOUNT_HOME/.cache/org.swift.swiftpm" \
+              "$ACCOUNT_HOME/.swiftpm"; do
+              if [ -d "$dir" ]; then
+                find "$dir" -mindepth 1 -delete
+              fi
+            done
+            sleep $((attempt * 10))
+          done
+        env:
+          # Swift 6.2.4's registry client otherwise downloads up to one package
+          # per CPU concurrently, which can trigger FoundationNetworking's
+          # redirect handling crash before the CLI starts compiling.
+          SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
+      - name: Bundle CLI
+        run: MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" ./.linux-bundler/mise/tasks/cli/bundle-linux.sh
+        env:
+          TUIST_LINUX_ARCH: ${{ matrix.arch }}
+
+      - name: Upload CLI Linux artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-linux-${{ matrix.arch }}-artifacts
+          path: |
+            build/tuist-linux-${{ matrix.arch }}.tar.gz
+            build/SHASUMS256.txt
+            build/SHASUMS512.txt
+          retention-days: 1
+
+  sign-cli:
+    name: Sign CLI release manifest
+    needs: [release-cli, release-cli-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    # Do not expose the workflow-level release token to the signing action.
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-artifacts
+          path: artifacts
+      - name: Download CLI Linux x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-x86_64-artifacts
+          path: artifacts/linux-x86_64
+      - name: Download CLI Linux aarch64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-aarch64-artifacts
+          path: artifacts/linux-aarch64
+      - name: Describe CLI release platforms
+        run: |
+          cat > release.toml <<'EOF'
+          [[artifact]]
+          path = "artifacts/build/tuist.zip"
+          os = "darwin"
+
+          [[artifact]]
+          path = "artifacts/linux-x86_64/tuist-linux-x86_64.tar.gz"
+          os = "linux"
+          arch = "x86_64"
+
+          [[artifact]]
+          path = "artifacts/linux-aarch64/tuist-linux-aarch64.tar.gz"
+          os = "linux"
+          arch = "aarch64"
+          EOF
+      - name: Create and verify signed CLI manifest
+        id: packslip
+        uses: jdx/packslip@0e9bde4ea49070555a79cac1f040f1dafe60acd6 # v1.8.0
+        with:
+          artifacts: |
+            artifacts/build/tuist.zip
+            artifacts/linux-x86_64/tuist-linux-x86_64.tar.gz
+            artifacts/linux-aarch64/tuist-linux-aarch64.tar.gz
+          manifest: release.toml
+          bin: tuist
+          project: github.com/tuist/tuist
+          version: ${{ inputs.version }}
+          tag: ${{ inputs.version }}
+          commit: ${{ inputs.ref }}
+          # Builds do not publish provenance; do not attest the caller's SHA
+          # as the build source when promoting or backporting a different ref.
+          attest: false
+          upload: false
+      - name: Upload signed CLI manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-packslip
+          path: ${{ steps.packslip.outputs.bundle }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-cli:
+    name: Publish CLI release
+    needs: [release-cli, release-cli-linux, sign-cli]
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Get release notes
         id: release-notes
         working-directory: cli
@@ -117,160 +363,6 @@ jobs:
           git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Stamp the release version
-        run: |
-          sed -i '' -e "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
-          grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
-
-      - name: Update CHANGELOG.md
-        working-directory: cli
-        # Use the authoritative version from the caller via --tag instead of
-        # --bump. Full-history --bump can't anchor on CLI tags that landed on
-        # non-cli commits (it filters them out), so it froze the top heading at
-        # an old version while real releases advanced.
-        run: |
-          INCLUDE_PATHS=(
-            --include-path "cli/**/*"
-            --include-path "cas-plugin/**/*"
-            --include-path "mise/tasks/cli/**/*"
-            --include-path ".github/workflows/cli-release.yml"
-            --include-path ".github/workflows/cli-build-publish.yml"
-            --include-path ".github/workflows/cli-rc.yml"
-            --include-path ".github/workflows/cli-promote.yml"
-            --include-path ".xcode-version-releases"
-            --include-path "Package.swift"
-            --include-path "Package.resolved"
-          )
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" --tag "${{ inputs.version }}" -o CHANGELOG.md 2>/dev/null
-
-      - name: Bundle CLI
-        run: mise run --no-deps --skip-tools cli:bundle
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-
-      - name: Upload CLI artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-artifacts
-          path: |
-            cli/CHANGELOG.md
-            cli/Sources/tuist/ReleaseVersion.swift
-            mise.toml
-            build/ProjectDescription.xcframework.zip
-            build/tuist.zip
-            build/tuist.spec.json
-            build/SHASUMS256.txt
-            build/SHASUMS512.txt
-          retention-days: 1
-
-  release-cli-linux:
-    name: Release CLI (Linux ${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
-    container:
-      image: swift:6.2
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-latest
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref }}
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-
-      - name: Stamp the release version
-        run: |
-          sed -i "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
-          grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
-
-      - name: Install caddy
-        run: apt-get update -qq && apt-get install -y --no-install-recommends caddy
-      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
-      # (see #12229), and the registry answers 303 to storage over h2. Terminating
-      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
-      # target negotiates http/1.1 on its own, so only this hop needs forcing.
-      - name: Front the registry with an HTTP/1.1 proxy
-        shell: bash
-        run: |
-          nohup caddy reverse-proxy \
-            --from :8080 --to https://tuist.dev --change-host-header \
-            > /tmp/registry-proxy.log 2>&1 &
-          for _ in $(seq 1 30); do
-            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
-              exec 3>&-
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "::error::registry proxy did not start listening on :8080"
-          cat /tmp/registry-proxy.log || true
-          exit 1
-      - name: Point SwiftPM at the proxy
-        run: swift package-registry set --allow-insecure-http http://localhost:8080/api/registry/swift
-      - name: Bundle CLI
-        run: |
-          for attempt in 1 2 3; do
-            if ./mise/tasks/cli/bundle-linux.sh; then
-              exit 0
-            fi
-
-            if [ "$attempt" -eq 3 ]; then
-              echo "::error::Linux CLI bundle failed after ${attempt} attempts."
-              exit 1
-            fi
-
-            echo "::warning::Linux CLI bundle attempt ${attempt} failed; clearing SwiftPM state before retrying."
-            ACCOUNT_HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
-            rm -rf \
-              "${BUILD_PATH:-.build}" \
-              build \
-              "$HOME/.cache/org.swift.swiftpm" \
-              "$HOME/.swiftpm" \
-              "$ACCOUNT_HOME/.cache/org.swift.swiftpm" \
-              "$ACCOUNT_HOME/.swiftpm"
-            sleep $((attempt * 10))
-          done
-        env:
-          # Swift 6.2.4's registry client otherwise downloads up to one package
-          # per CPU concurrently, which can trigger FoundationNetworking's
-          # redirect handling crash before the CLI starts compiling.
-          SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
-
-      - name: Upload CLI Linux artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-linux-${{ matrix.arch }}-artifacts
-          path: |
-            build/tuist-linux-${{ matrix.arch }}.tar.gz
-            build/SHASUMS256.txt
-            build/SHASUMS512.txt
-          retention-days: 1
-
-  publish-cli:
-    name: Publish CLI release
-    needs: [release-cli, release-cli-linux]
-    if: needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
-    runs-on: tuist-linux
-    timeout-minutes: 15
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref }}
-          fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "--locked git-cliff"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Download CLI artifacts
         uses: actions/download-artifact@v4
         with:
@@ -285,6 +377,11 @@ jobs:
         with:
           name: cli-linux-aarch64-artifacts
           path: build-linux-aarch64
+      - name: Download signed CLI manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-packslip
+          path: build
       - name: Merge Linux artifacts into build directory
         run: |
           # Append Linux checksums to main checksum files
@@ -321,7 +418,7 @@ jobs:
           prerelease: ${{ inputs.prerelease }}
           name: CLI ${{ inputs.version }}
           tag_name: ${{ inputs.version }}
-          body: ${{ needs.release-cli.outputs.release-notes }}
+          body: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
           files: |
             build/tuist.zip
             build/tuist-linux-x86_64.tar.gz
@@ -330,6 +427,7 @@ jobs:
             build/SHASUMS512.txt
             build/ProjectDescription.xcframework.zip
             build/tuist.spec.json
+            build/packslip.sigstore.json
       - name: Trigger Homebrew Formula Update
         # Skipped only for canary/RC prereleases (update_homebrew=false). Stable
         # releases and backports both publish the per-version formula; the

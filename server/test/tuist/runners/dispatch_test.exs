@@ -988,6 +988,18 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
       assert pool_name == "#{prefix}-26-6"
     end
+
+    test "an account on the site flag waits at a site that is down when the env rents no macOS fleet", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      stub(Tuist.Environment, :runners_rented_macos_fleet?, fn -> false end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-ber1-26-6"
+    end
   end
 
   describe "match_pool/1" do
@@ -1093,6 +1105,23 @@ defmodule Tuist.Runners.DispatchTest do
       end)
 
       assert {:ok, %{runner_labels: []}} = Dispatch.pool_summary_by_name("macos-pool")
+    end
+
+    test "returns the catalog Xcode version the pool is labelled with, or nil without one" do
+      stub(Client, :get_runner_pool, fn
+        _ns, "catalog-pool" ->
+          {:ok,
+           %{
+             "metadata" => %{"name" => "catalog-pool", "labels" => %{"tuist.dev/xcode-version" => "27.2-beta"}},
+             "spec" => %{"dispatchLabel" => "shape-macos-27-2-beta"}
+           }}
+
+        _ns, "explicit-pool" ->
+          {:ok, %{"metadata" => %{"name" => "explicit-pool"}, "spec" => %{"dispatchLabel" => "tuist-ber1-smoke"}}}
+      end)
+
+      assert {:ok, %{xcode_version: "27.2-beta"}} = Dispatch.pool_summary_by_name("catalog-pool")
+      assert {:ok, %{xcode_version: nil}} = Dispatch.pool_summary_by_name("explicit-pool")
     end
 
     test "returns [] when runnerLabels is empty" do

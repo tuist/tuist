@@ -139,10 +139,17 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             extraArguments: arguments + ["resolve"]
         )
 
-        let environment = manifestEnvironment ?? environmentVariables()
-        printOutput ?
-            try await commandRunner().runAndPrint(arguments: command, environment: environment) :
-            try await commandRunner().runAndWait(arguments: command, environment: environment)
+        let environment = resolutionEnvironment ?? environmentVariables()
+        let directories = try await nativeWorkspaceDirectories(packagePath: path, arguments: arguments)
+        try await SwifterPM().withNativeWorkspace(
+            packageDirectory: directories.package, scratchDirectory: directories.scratch
+        ) {
+            if printOutput {
+                try await commandRunner().runAndPrint(arguments: command, environment: environment)
+            } else {
+                try await commandRunner().runAndWait(arguments: command, environment: environment)
+            }
+        }
     }
 
     public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
@@ -162,10 +169,17 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             extraArguments: arguments + ["update"]
         )
 
-        let environment = manifestEnvironment ?? environmentVariables()
-        printOutput ?
-            try await commandRunner().runAndPrint(arguments: command, environment: environment) :
-            try await commandRunner().runAndWait(arguments: command, environment: environment)
+        let environment = resolutionEnvironment ?? environmentVariables()
+        let directories = try await nativeWorkspaceDirectories(packagePath: path, arguments: arguments)
+        try await SwifterPM().withNativeWorkspace(
+            packageDirectory: directories.package, scratchDirectory: directories.scratch
+        ) {
+            if printOutput {
+                try await commandRunner().runAndPrint(arguments: command, environment: environment)
+            } else {
+                try await commandRunner().runAndWait(arguments: command, environment: environment)
+            }
+        }
     }
 
     public func setToolsVersion(at path: AbsolutePath, to version: Version) async throws {
@@ -275,6 +289,33 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         buildSwiftPackageCommand(packagePath: packagePath, extraArguments: extraArguments)
     }
 
+    private func nativeWorkspaceDirectories(
+        packagePath: AbsolutePath, arguments: [String]
+    ) async throws -> (package: Foundation.URL, scratch: Foundation.URL?) {
+        let cwd = Foundation.URL(fileURLWithPath: try await fileSystem.currentWorkingDirectory().pathString, isDirectory: true)
+        var package = Foundation.URL(fileURLWithPath: packagePath.pathString, isDirectory: true)
+        var scratch: Foundation.URL?
+        var index = 0
+        while index < arguments.count {
+            let parts = arguments[index].split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            if ["--package-path", "--scratch-path", "--build-path"].contains(parts[0]) {
+                let value: String
+                if parts.count == 2 {
+                    value = parts[1]
+                } else if index + 1 < arguments.count {
+                    index += 1
+                    value = arguments[index]
+                } else {
+                    break
+                }
+                let url = Foundation.URL(fileURLWithPath: value, relativeTo: cwd).standardizedFileURL
+                if parts[0] == "--package-path" { package = url } else { scratch = url }
+            }
+            index += 1
+        }
+        return (package, scratch)
+    }
+
     private var swifterPMIsEnabled: Bool {
         !Environment(variables: environmentVariables()).isVariableFalsy(Constants.EnvironmentVariables.useSwifterPM)
     }
@@ -303,11 +344,16 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
 
         request.quiet = request.quiet || !printOutput
         request.manifestEnvironment = manifestEnvironment
+        request.resolutionEnvironment = resolutionEnvironment
         return request
     }
 
     private var manifestEnvironment: [String: String]? {
         PackageManifestEnvironment.filtered(environmentVariables())
+    }
+
+    private var resolutionEnvironment: [String: String]? {
+        PackageManifestEnvironment.filtered(environmentVariables(), forDependencyResolution: true)
     }
 
     private func swifterPMArguments(command: String, packagePath: AbsolutePath, arguments: [String]) -> [String] {

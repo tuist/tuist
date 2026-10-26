@@ -86,12 +86,12 @@ struct XcodeCacheSettingsProjectMapperTests {
             baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] ==
                 .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         )
-        #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
         #expect(
             baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] ==
                 .string("$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))")
         )
-        #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController)
@@ -112,32 +112,12 @@ struct XcodeCacheSettingsProjectMapperTests {
             "COMPILATION_CACHE_ENABLE_CACHING": "YES",
             "SWIFT_ENABLE_PREFIX_MAPPING": "$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))",
             "CLANG_ENABLE_PREFIX_MAPPING": "$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))",
-            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
-            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
+            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
             "TUIST_PREFIX_MAPPING_FOR_COVERAGE_": "YES",
             "TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO": "YES",
             "TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES": "NO",
         ])
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedXcodeController)
-    func map_whenProjectOptsOut_preservesItsSharedSourceNamespace() async throws {
-        try stubXcodeVersion(Version(27, 0, 0))
-        let tuist = Tuist(
-            project: .generated(.test(generationOptions: .test(enableCaching: true))),
-            fullHandle: nil,
-            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            url: Constants.URLs.production
-        )
-        let project = Project.test(settings: .test(base: [
-            "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
-            "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "NO",
-        ]))
-
-        let (mappedProject, _) = try await XcodeCacheSettingsProjectMapper(tuist: tuist).map(project: project)
-
-        #expect(mappedProject.settings.base["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
-        #expect(mappedProject.settings.base["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("NO"))
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController, arguments: [false, true])
@@ -146,7 +126,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         let tuist = Tuist(
             project: .generated(.test(generationOptions: .test(
                 enableCaching: enableCaching,
-                enableCoveragePrefixMapping: true
+                coverage: .init(prefixMapping: true)
             ))),
             fullHandle: nil,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
@@ -221,7 +201,7 @@ struct XcodeCacheSettingsProjectMapperTests {
     /// Earlier Xcodes don't define these settings and their build systems lack the
     /// mappings, so setting them would be inert noise in the generated project.
     @Test(.inTemporaryDirectory, .withMockedXcodeController, arguments: [false, true])
-    func map_whenXcodeOlderThan27_doesNotEnablePrefixMapping(enableCoveragePrefixMapping: Bool) async throws {
+    func map_whenXcodeOlderThan27_doesNotEnablePrefixMapping(coveragePrefixMapping: Bool) async throws {
         // Given
         try stubXcodeVersion(Version(26, 5, 0))
         let tuist = Tuist(
@@ -229,7 +209,7 @@ struct XcodeCacheSettingsProjectMapperTests {
                 .test(
                     generationOptions: .test(
                         enableCaching: true,
-                        enableCoveragePrefixMapping: enableCoveragePrefixMapping
+                        coverage: .init(prefixMapping: coveragePrefixMapping)
                     )
                 )
             ),

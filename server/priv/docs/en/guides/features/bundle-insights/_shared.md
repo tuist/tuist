@@ -99,7 +99,7 @@ Choose **Install size** or **Download size**, then select a **Threshold type**:
 
 ![Absolute bundle size growth threshold configuration](/images/guides/features/bundle-size/absolute-size-threshold.png)
 
-Both types compare against the latest matching bundle on the configured **Baseline branch**. The optional **Bundle name** restricts a rule to that bundle. A check fails only when growth is **more than** the limit; equal growth, unchanged sizes, and decreases pass. Without a matching baseline or a recorded size for the chosen metric, the rule is skipped. A zero-size baseline is supported for absolute limits; percentage limits keep skipping it because percentage growth is undefined.
+Both types compare against the latest bundle on the configured **Baseline branch** with the same name, the same bundle type (for example `.app` or `.ipa`), and at least one platform in common, so a simulator `.app` is only compared with simulator `.app` uploads. The optional **Bundle name** restricts a rule to that bundle. A check fails only when growth is **more than** the limit; equal growth, unchanged sizes, and decreases pass. Without a matching baseline or a recorded size for the chosen metric, the rule is skipped. A zero-size baseline is supported for absolute limits; percentage limits keep skipping it because percentage growth is undefined.
 
 ### Restricting who can accept {#size-thresholds-approvals}
 

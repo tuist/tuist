@@ -17,6 +17,9 @@ directly in that same workflow. Keep permission decisions in the workflow:
 - Generate an ephemeral Android debug keystore and export
   `ANDROID_DEBUG_KEYSTORE`; Once does not create a key automatically on clean
   runners. The standard public debug password is `android`, not a secret.
+- Materialize locked Cargo sources with `mise run prepare:rust` before validating
+  the Once graph. Core tests include the independent Rust authentication suite;
+  upload its normalized reports alongside the navigation reports.
 - Install only the tools used by the selected platform. Linux needs Once's ALSA
   runtime library. Only Android/iOS need Rust cross-compilation standard
   libraries; CLI and core tests use the host toolchain.
@@ -25,6 +28,24 @@ directly in that same workflow. Keep permission decisions in the workflow:
 - Upload only platform artifacts and test reports, never the whole Once state
   directory, credential directories, or debug keystore. Archive the CLI with tar
   so GitHub artifact extraction does not remove its executable permission.
+- Android distribution also signs a stable private identity. The workflow disables
+  shared-cache authentication for Android builds, including on main, for the same
+  untrusted-output boundary as iOS device distribution; debug compilation does
+  not receive the key. Protected publication signs a separate copy and verifies
+  its SHA-256 certificate against server App Links trust.
+- `ios-device` builds `AtlasIOSDevice` with `aarch64-apple-ios` dependencies and
+  uploads a device ZIP without distribution credentials. The workflow disables
+  shared-cache authentication for this platform, including on main, so signing
+  cannot consume shared outputs written by PRs. The protected main-branch
+  publication job owns signing, not this shared PR/fork action.
+- Both iOS builds run `atlas-native/modules/check-sdk.sh` before packaging: the
+  Mach-O SDK must match the selected Xcode SDK while minimum OS stays iOS 17.
+  Check both the host binary and the embedded Live Activity executable, so a
+  missing extension or mismatched SDK cannot produce a published app archive.
+  `modules/check-widget.sh` also checks each embedded extension's real Mach-O
+  startup: system `_NSExtensionMain` entry with retained Swift main/entry metadata.
+  The isolated UI preview has the same gate before simulator tests. A successful
+  compile alone does not verify modern system appearance.
 - The CLI is a command-line artifact, not an Android/iOS preview. Keep its artifact
   name labeled with the build host OS and architecture.
 - Validate changes with `actionlint .github/workflows/atlas-mobile.yml` and the

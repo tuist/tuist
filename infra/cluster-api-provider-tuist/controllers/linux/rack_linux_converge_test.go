@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 func edgeConvergeOptions() rackConvergeOptions {
@@ -114,6 +116,12 @@ func TestRackNodeConfigHash(t *testing.T) {
 		"node taints":      func(o *rackConvergeOptions) { o.NodeTaints = nil },
 		"provider ID":      func(o *rackConvergeOptions) { o.ProviderID = "rack-linux://ber1/other" },
 		"role":             func(o *rackConvergeOptions) { o.Role = "storage" },
+		"cluster network": func(o *rackConvergeOptions) {
+			o.ClusterNetwork = &infrav1.RackLinuxHostClusterNetwork{PublicAddress: "149.6.170.31", Address: "10.10.0.11"}
+		},
+		"forwards": func(o *rackConvergeOptions) {
+			o.Forwards = []infrav1.RackLinuxHostClusterNetwork{{PublicAddress: "149.6.170.31", Address: "10.10.0.11"}}
+		},
 	} {
 		changed := base
 		mutate(&changed)
@@ -139,6 +147,26 @@ func TestRackNodeConfigKeepsTheBluetoothDriverOut(t *testing.T) {
 	f := configFile(t, rackNodeConfig(edgeConvergeOptions()), "/etc/modprobe.d/tuist-rack.conf")
 	if f.Content != "blacklist btusb\n" || f.Group != "modules" {
 		t.Fatalf("modprobe file %+v", f)
+	}
+}
+
+// A rack host installed before its install took sshd out of systemd's start
+// limit gets the drop-ins from its converge. They are unit drop-ins, which a
+// daemon-reload loads, so nothing restarts sshd under the session the
+// converge runs over.
+func TestRackNodeConfigKeepsSSHDOutOfTheStartLimit(t *testing.T) {
+	for _, role := range []string{"edge", "services", "storage"} {
+		o := edgeConvergeOptions()
+		o.Role = role
+		cfg := rackNodeConfig(o)
+		for path, content := range map[string]string{
+			sshd.ServiceDropInPath: sshd.ServiceDropInContent,
+			sshd.SocketDropInPath:  sshd.SocketDropInContent,
+		} {
+			if f := configFile(t, cfg, path); f.Content != content || f.Group != "units" {
+				t.Errorf("a %s's %s is %+v", role, path, f)
+			}
+		}
 	}
 }
 
@@ -333,7 +361,7 @@ func TestRackNodeConfigRoutesTheKubernetesServiceToTheAPIServer(t *testing.T) {
 			t.Errorf("the rules lack %q:\n%s", want, rules)
 		}
 	}
-	if len(cfg.Nftables) != 1 || cfg.Nftables[0] != rackKubernetesServicePath {
+	if !slices.Contains(cfg.Nftables, rackKubernetesServicePath) {
 		t.Fatalf("nftables %v, want the rules loaded", cfg.Nftables)
 	}
 }
@@ -348,7 +376,7 @@ func TestRackNodeConfigLeavesTheKubernetesServiceAloneWithoutAnAddressToTranslat
 		"an API server hostname": func() rackConvergeOptions { o := edgeConvergeOptions(); o.KubernetesServiceIP = "10.128.0.1"; return o }(),
 	} {
 		cfg := rackNodeConfig(o)
-		if len(cfg.Nftables) != 0 {
+		if slices.Contains(cfg.Nftables, rackKubernetesServicePath) {
 			t.Errorf("%s: loads %v", name, cfg.Nftables)
 		}
 		removed := false

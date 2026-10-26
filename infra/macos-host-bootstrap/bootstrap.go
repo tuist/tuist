@@ -12,18 +12,21 @@
 //   - Hostname = CR name (so tart-kubelet's default --node-name
 //     lines up with the inventory resource).
 //   - Tart install (the caller-supplied tart.app tarball pinned in
-//     the operator image is extracted to /usr/local/lib/tart.app
-//     with a /usr/local/bin/tart wrapper).
+//     the operator image is extracted to /usr/local/lib/tart/<version>
+//     with a /usr/local/bin/tart wrapper; see tart.go).
 //   - Kubeconfig drop + tart-kubelet binary upload + launchd plist.
 //
 // Steps, in order, idempotent on retry:
 //  1. Wait for SSH (host has just booted from the provider's image).
 //  2. Grant the SSH user passwordless sudo using UserPassword.
 //  3. Configure GUI auto-login via /etc/kcpassword + autoLoginUser
-//     so Virtualization.framework has a live console session.
+//     so Virtualization.framework has a live console session. A host
+//     still without an Aqua session for the user is restarted once and
+//     fails bootstrap if the session does not come up (see
+//     ensureGUISession).
 //  4. Set the macOS hostname to NodeName.
 //  5. Install Tart by extracting the operator-pinned tart.app tarball
-//     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
+//     to /usr/local/lib/tart/<version> + wrapper at /usr/local/bin/tart.
 //  6. Install Tailscale's open-source tailscaled (extracted from the
 //     operator-baked binaries tarball), register it as a system
 //     daemon via `tailscaled install-system-daemon`, and `tailscale
@@ -56,6 +59,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -107,10 +111,15 @@ type Config struct {
 	// read at startup. We ship the whole `.app` rather than the bare
 	// executable inside it because Tart's signature + Virtualization.
 	// framework entitlements live on the bundle, not the binary alone.
-	// Pinning the version in the operator image makes the Tart version
-	// reproducible across reboots and re-provisions; bumping it is a
-	// deliberate Dockerfile change.
+	// The operator image carries every Tart version the fleet may run;
+	// which one a host gets is TartVersion.
 	TartTarball []byte
+
+	// TartVersion is the version TartTarball holds, as `tart --version`
+	// prints it. Both the first bootstrap and the drift update install it
+	// when the host's `tart --version` differs, so changing it upgrades or
+	// rolls back Tart in place (see installTart).
+	TartVersion string
 
 	// TailscaleBinaries is the gzipped tar of the `tailscale` and
 	// `tailscaled` darwin/arm64 binaries cross-compiled from the
@@ -184,6 +193,17 @@ type Config struct {
 	// canonical config, so it doesn't affect HostConfigHash.
 	SkipTailscaleInstall bool
 
+	// TakeOver marks the push that takes a rack host's runtime over from
+	// another env. Tailscale logs in afresh (`--force-reauth`), so the device
+	// joins with this config's credential and tags rather than keeping the
+	// ones it has. Per host, set only on that one push.
+	TakeOver bool
+
+	// RuntimeOwner is the env whose operator pushes this config, checked
+	// against the host's RuntimeOwnerPath before anything changes (see
+	// claimRuntime). Empty on rented hosts, which have one owner for life.
+	RuntimeOwner string
+
 	// VMKuraEgressCIDR, when non-empty, carves a Kura allowance out
 	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
 	// may reach this CIDR — the cluster's Service CIDR, where the
@@ -232,6 +252,13 @@ type Config struct {
 	// leg translates it. Only the rack fleet sets it. Each entry must parse
 	// as an IPv4 CIDR; bootstrap fails closed otherwise.
 	VMCacheGatewayCIDRs []string
+
+	// ImageMirrors are the rack's VM image caches, each `<upstream>=<endpoint>`
+	// (`ghcr.io=http://10.10.0.11:5000`), which tart-kubelet tries in order
+	// before the upstream when it pulls a golden base (`--image-mirror`). The
+	// host itself pulls, from the segment it is on, so this opens nothing in
+	// the VM egress firewall. Only the rack fleet sets it.
+	ImageMirrors []string
 
 	// SSHIngressAllowCIDRs are the source ranges, beyond the tailnet
 	// and loopback, that may reach the host's :22. Everything else is
@@ -406,37 +433,22 @@ type Config struct {
 
 	// RunnerCacheVolumeGiB, when > 0, provisions a dedicated quota-bounded
 	// APFS volume (mounted at /Volumes/tuist-runner-cache) that holds the
-	// per-account cache-volume images, and passes
-	// `--runner-cache-root` to tart-kubelet so the feature turns on. The
-	// quota is the aggregate ceiling for ALL cache volumes on the host: it
-	// is the filesystem-enforced bound that statically encodes the priority
-	// that cache volumes always lose to the VM image path — even a buggy
-	// reconciler can only ENOSPC the cache volume itself, never the disk the
-	// golden clones need. Sized at provisioning as what the disk leaves
-	// after golden images, the max concurrent pod clones, and OS headroom.
-	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
+	// runner cache volumes, and passes `--runner-cache-root` and
+	// `--runner-cache-budget-gib` to tart-kubelet so the feature turns on.
+	// It is the budget: the space ALL cache volumes on the host may take
+	// together, which admission and eviction enforce. The volume's quota is
+	// fixed when the volume is created: half the disk, or the budget when that
+	// is larger, on a disk of 1 TiB or more, and the budget on a smaller one.
+	// It is the filesystem-enforced bound that keeps even a buggy reconciler
+	// from taking the disk the golden clones need. The gap between the quota
+	// and the budget is what absorbs custom cache volume jobs that write more
+	// than admission reserved for them. A budget within an
+	// existing volume's quota applies with the next host-config push.
+	// 0 (default) leaves cache volumes off.
 	RunnerCacheVolumeGiB      int
 	CustomCacheURL            string
 	CustomCacheNamespace      string
 	CustomCacheServiceAccount string
-
-	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
-	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
-	// image is sparse so this is a ceiling, not an allocation; the
-	// RunnerCacheVolumeGiB quota above is the real aggregate bound. 0
-	// defaults to tart-kubelet's own default (20 GiB). Only meaningful when
-	// RunnerCacheVolumeGiB > 0.
-	CacheVolumeMasterCapGiB int
-
-	// CacheVolumeCASGiB is the Xcode compilation cache's FOOTPRINT allowance
-	// WITHIN each per-account cache image (folded in as a subdir), passed to
-	// tart-kubelet's --cache-volume-cas-gib. It is the CAS's share of
-	// CacheVolumeMasterCapGiB; the binary cache gets the rest minus a reserve.
-	// The compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE, which
-	// bounds one generation of a store that keeps two — so this is what the
-	// store should OCCUPY. 0 (default) leaves the compilation cache VM-local.
-	// Only meaningful when RunnerCacheVolumeGiB > 0.
-	CacheVolumeCASGiB int
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -463,16 +475,21 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer client.Close()
+	// A closure: ensureGUISession may restart the host and hand back a new client.
+	defer func() { client.Close() }()
 
 	// No fingerprint on this path: the key belongs to whichever box answered,
 	// and pinning it would refuse the right one when it takes the address.
 	if err := verifyHostSerial(ctx, client, cfg.ExpectedSerial); err != nil {
 		return "", err
 	}
-
 	if err := EnablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("passwordless sudo: %w", err)
+	}
+	// After passwordless sudo, which the claim needs; before anything of the
+	// runtime.
+	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
+		return hk.Observed(), err
 	}
 	if err := EnableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.Observed(), fmt.Errorf("auto-login: %w", err)
@@ -486,6 +503,15 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installSetupAssistantSuppression(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("suppress setup assistant: %w", err)
 	}
+	// After auto-login and Setup Assistant suppression, which the session a
+	// restart brings up depends on, and before anything that would make the
+	// host look like a working Node without one.
+	guiHost := newSSHGUISessionHost(client, cfg.IP, cfg.SSHUser, signer, hk)
+	guiErr := ensureGUISession(ctx, guiHost, cfg.SSHUser, defaultGUISessionWait)
+	client = guiHost.client
+	if guiErr != nil {
+		return hk.Observed(), fmt.Errorf("gui session: %w", guiErr)
+	}
 	if err := installSSHReachability(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("install ssh reachability: %w", err)
 	}
@@ -494,7 +520,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 			return hk.Observed(), fmt.Errorf("set hostname: %w", err)
 		}
 	}
-	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
+	if err := installTart(ctx, client, cfg.TartVersion, cfg.TartTarball); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := installRunnerCacheVolume(ctx, client, cfg); err != nil {
@@ -558,6 +584,11 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installHostSensors(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
 	}
+	// Last and best-effort: the tools only enable cached checkouts, so a slow
+	// or failed install must never cost the host anything else.
+	if err := installCommandLineTools(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install command line tools: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -577,10 +608,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // bumps via the same operator-image-bump → drift-reconcile path),
 // and reloads the launchd job.
 //
-// Skips one-shot host prep (sudo, auto-login, hostname, Tart) —
-// those don't change between updates and re-running them would
-// either be wasted SSH work or risk disrupting the running VMs
-// (Tart). The pf VM-egress firewall IS re-run: its ruleset is now
+// Skips one-shot host prep (sudo, auto-login, hostname): those
+// don't change between updates and re-running them would be wasted
+// SSH work. Tart IS re-run: installTart installs the desired version
+// beside the one running VMs were started from and leaves those VMs
+// alone, so a version change reaches an existing host here instead of
+// waiting for Machine replacement. The pf VM-egress firewall IS re-run: its ruleset is now
 // config-shaped (the Kura/DNS carve-out CIDRs), the install is
 // idempotent, and `pfctl -f` swaps rulesets atomically without
 // dropping established states — so a values change reaches existing
@@ -594,7 +627,21 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // On the update path KnownHostFingerprint is normally already set (the
 // bootstrap reconcile populated it), so this is a verification rather
 // than a capture.
-func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
+//
+// The whole update is bounded by hostConfigUpdateTimeout. The caller's
+// reconcile context has no deadline, and a host can complete the handshake
+// and then never answer, which would hold that Machine's reconcile until
+// the operator restarts. Session setup and uploads do not watch the context,
+// so the deadline closes the client to unblock them.
+func UpdateTartKubelet(ctx context.Context, cfg Config) (fingerprint string, err error) {
+	ctx, cancel := context.WithTimeout(ctx, hostConfigUpdateTimeout)
+	defer cancel()
+	defer func() {
+		if err != nil && ctx.Err() != nil {
+			err = fmt.Errorf("host config update gave up after %s: %w", hostConfigUpdateTimeout, err)
+		}
+	}()
+
 	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
 	if err != nil {
 		return "", fmt.Errorf("parse ssh key: %w", err)
@@ -605,12 +652,22 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 		return "", err
 	}
 	defer client.Close()
+	stop := context.AfterFunc(ctx, func() { _ = client.Close() })
+	defer stop()
 
+	if err := claimRuntime(ctx, client, cfg.RuntimeOwner); err != nil {
+		return hk.Observed(), err
+	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
 	}
 	if err := installSSHReachability(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh ssh reachability: %w", err)
+	}
+	// Before the kubelet reload, so the restarted kubelet reports the Tart it
+	// will drive. A no-op when the host already runs cfg.TartVersion.
+	if err := installTart(ctx, client, cfg.TartVersion, cfg.TartTarball); err != nil {
+		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
@@ -679,6 +736,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installHostSensors(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install host sensors: %w", err)
 	}
+	if err := installCommandLineTools(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install command line tools: %w", err)
+	}
 	return hk.Observed(), nil
 }
 
@@ -723,6 +783,10 @@ type PerHost struct {
 	// SkipTailscaleInstall is transport-only: it gates whether
 	// installTailscale runs and changes no rendered output.
 	SkipTailscaleInstall bool
+	// TakeOver and RuntimeOwner belong to a handover and an owner, never to
+	// the fleet.
+	TakeOver     bool
+	RuntimeOwner string
 }
 
 // WithPerHost returns a copy of c with the per-host fields replaced by p.
@@ -746,6 +810,8 @@ func (c Config) WithPerHost(p PerHost) Config {
 	c.GHActionsRunner = p.GHActionsRunner
 	c.DisableVMGC = p.DisableVMGC
 	c.SkipTailscaleInstall = p.SkipTailscaleInstall
+	c.TakeOver = p.TakeOver
+	c.RuntimeOwner = p.RuntimeOwner
 	return c
 }
 
@@ -813,10 +879,13 @@ func hostConfigMaterial(cfg Config) string {
 		{"tailnet-resolver", renderTailnetResolverScript()},
 		{"local-network-allowlist", renderLocalNetworkAllowlistScript()},
 		{"software-update-policy", renderSoftwareUpdatePolicyScript()},
+		{"command-line-tools", renderCommandLineToolsScript()},
 		{"setup-assistant", renderSetupAssistantScript(cfg)},
 		{"log-shipper", renderLogShipperScript(cfg)},
 		{"host-sensors", renderHostSensorsScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+		{"tart-install", renderTartInstallScript(hostTartLayout, cfg.TartVersion)},
+		{"tart-prune", renderTartPruneScript(hostTartLayout)},
 		{"ssh-reachability", renderSSHReachabilityScript()},
 		{"ssh-ingress-guard", sshGuard},
 	} {
@@ -829,17 +898,12 @@ func hostConfigMaterial(cfg Config) string {
 	// (b) SHA of each embedded binary the drift loop actually re-pushes.
 	// The bytes themselves ride SSH stdin (not the scripts), so their
 	// drift is only visible to the hash through their content SHA.
-	//
-	// TartTarball is intentionally omitted: Tart is bootstrap-only (the
-	// hypervisor can't be swapped under running VMs, so UpdateTartKubelet
-	// never re-installs it). Hashing it would force a pointless re-push on
-	// a Tart bump that couldn't actually update Tart anyway — that bump
-	// rolls via Machine replacement, not config drift.
 	for _, bin := range []struct {
 		name  string
 		bytes []byte
 	}{
 		{"tart-kubelet", cfg.TartKubeletBinary},
+		{"tart-tarball", cfg.TartTarball},
 		{"tailscale-binaries", cfg.TailscaleBinaries},
 		{"node-exporter-binary", cfg.NodeExporterBinary},
 		{"log-shipper-binary", cfg.LogShipperBinary},
@@ -1135,23 +1199,19 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.MinGoldensKept > defaultMinGoldensKept {
 		minGoldensKeptArg = fmt.Sprintf("\n    <string>--min-goldens-kept=%d</string>", cfg.MinGoldensKept)
 	}
-	// Turn on per-account cache volumes when the fleet provisioned
-	// a runner-cache volume. --runner-cache-root points at the auto-mounted
-	// quota volume; --cache-volume-cap-gib carries the per-master cap and
-	// --cache-volume-cas-gib the folded compilation-cache budget when the
-	// fleet overrides tart-kubelet's defaults.
+	// Turn on cache volumes when the fleet provisioned a runner-cache volume.
+	// --runner-cache-root points at the auto-mounted quota volume.
 	runnerCacheArg := ""
 	if cfg.RunnerCacheVolumeGiB > 0 {
 		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
+		runnerCacheArg += fmt.Sprintf("\n    <string>--runner-cache-budget-gib=%d</string>", cfg.RunnerCacheVolumeGiB)
 		if cfg.CustomCacheURL != "" {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--custom-cache-url=%s</string>\n    <string>--custom-cache-namespace=%s</string>\n    <string>--custom-cache-service-account=%s</string>", xmlEscape(cfg.CustomCacheURL), xmlEscape(cfg.CustomCacheNamespace), xmlEscape(cfg.CustomCacheServiceAccount))
 		}
-		if cfg.CacheVolumeMasterCapGiB > 0 {
-			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
-		}
-		if cfg.CacheVolumeCASGiB > 0 {
-			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cas-gib=%d</string>", cfg.CacheVolumeCASGiB)
-		}
+	}
+	imageMirrorArgs := ""
+	for _, mirror := range cfg.ImageMirrors {
+		imageMirrorArgs += fmt.Sprintf("\n    <string>--image-mirror=%s</string>", xmlEscape(mirror))
 	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
@@ -1175,7 +1235,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s%[14]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -1189,7 +1249,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg, imageMirrorArgs)
 }
 
 func shellQuote(s string) string {
@@ -1256,6 +1316,18 @@ func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 	}
 }
 
+// sshPort is the port every dial targets.
+var sshPort = "22"
+
+// sshHandshakeTimeout bounds the SSH version exchange, key exchange and auth
+// after the TCP connect.
+var sshHandshakeTimeout = 30 * time.Second
+
+// hostConfigUpdateTimeout bounds one UpdateTartKubelet. A full update uploads
+// a few binaries and waits at most a couple of minutes on the host, so this
+// only ever cuts off a host that has stopped answering.
+var hostConfigUpdateTimeout = 15 * time.Minute
+
 func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, error) {
 	return DialAuth(ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
 }
@@ -1265,6 +1337,10 @@ func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, er
 // signer, e.g. SSH agent auth where the keys live in 1Password and
 // the agent socket signs on demand. Same host-key TOFU semantics as
 // Dial.
+//
+// ClientConfig.Timeout covers only the TCP connect. launchd owns a Mac mini's
+// :22 and accepts the connection before sshd runs, so a wedged host completes
+// TCP and never sends a banner; the handshake gets its own deadline.
 func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Client, error) {
 	cfg := &ssh.ClientConfig{
 		User:            user,
@@ -1272,7 +1348,25 @@ func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Cl
 		HostKeyCallback: hk.Callback(),
 		Timeout:         15 * time.Second,
 	}
-	return ssh.Dial("tcp", ip+":22", cfg)
+	addr := net.JoinHostPort(ip, sshPort)
+	conn, err := net.DialTimeout("tcp", addr, cfg.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.SetDeadline(time.Now().Add(sshHandshakeTimeout)); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, addr, cfg)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
+	return ssh.NewClient(c, chans, reqs), nil
 }
 
 func WaitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *HostKeyState) error {
@@ -1403,7 +1497,7 @@ if [ "$(sudo od -An -v -tx1 -N 8 /etc/kcpassword 2>/dev/null | tr -d ' \n')" = "
 fi
 
 if [ "$session_up" = "0" ]; then
-  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap continues — VM-start preflight will retry"
+  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap restarts the host to apply auto-login"
 fi
 `, user, encoded)
 }
@@ -1489,6 +1583,35 @@ sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -i
 sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0
 `
 	return RunCommand(ctx, client, script)
+}
+
+func installCommandLineTools(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderCommandLineToolsScript())
+}
+
+// renderCommandLineToolsScript installs Apple's Command Line Tools when the host
+// has no working git. A rack host has none: /usr/bin/git is only a shim there.
+// tart-kubelet builds cached checkouts with it and keeps them off without it.
+// softwareupdate offers the tools only while the install-on-demand marker
+// exists. The step never fails the bootstrap; a host without the tools runs
+// jobs exactly as before.
+func renderCommandLineToolsScript() string {
+	return `set -uo pipefail
+# Without the tools, /usr/bin/git is a stub that asks a GUI to install them.
+if xcode-select -p >/dev/null 2>&1 && /usr/bin/git --version >/dev/null 2>&1; then
+  exit 0
+fi
+marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+sudo touch "$marker"
+label="$(softwareupdate --list 2>/dev/null | sed -n 's/^\* Label: \(Command Line Tools.*\)$/\1/p' | tail -n 1)"
+if [ -n "$label" ]; then
+  sudo softwareupdate --install "$label" --agree-to-license >/dev/null 2>&1 || echo "command line tools install failed" >&2
+else
+  echo "command line tools not offered by softwareupdate" >&2
+fi
+sudo rm -f "$marker"
+exit 0
+`
 }
 
 func installSoftwareUpdatePolicy(ctx context.Context, client *ssh.Client) error {
@@ -1611,36 +1734,6 @@ func encodeKCPassword(password string) string {
 	}
 	// base64 for transport via SSH stdin.
 	return b64(src)
-}
-
-// installTart unpacks the operator-baked `tart.app` tarball into
-// /usr/local/lib/tart.app and writes a /usr/local/bin/tart wrapper
-// that execs the binary inside the bundle. Idempotent — overwrites on
-// every call, which is fine because the operator image pins the
-// version and a re-run on an already-bootstrapped host is rare.
-//
-// Why a wrapper script instead of a symlink: Tart's
-// Virtualization.framework entitlements are scoped to the .app
-// bundle's signature, so the executable has to be invoked through its
-// bundle path. The wrapper hides that path detail from callers
-// (tart-kubelet, operators SSHing in to debug) which all want a
-// stable `tart` on PATH.
-func installTart(ctx context.Context, client *ssh.Client, tarball []byte) error {
-	if len(tarball) == 0 {
-		return fmt.Errorf("tart tarball is empty")
-	}
-	script := `set -euo pipefail
-sudo mkdir -p /usr/local/lib /usr/local/bin
-sudo rm -rf /usr/local/lib/tart.app
-sudo tar -xzf - -C /usr/local/lib
-sudo tee /usr/local/bin/tart >/dev/null <<'EOF'
-#!/bin/sh
-exec /usr/local/lib/tart.app/Contents/MacOS/tart "$@"
-EOF
-sudo chmod 0755 /usr/local/bin/tart
-/usr/local/bin/tart --version
-`
-	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(tarball))
 }
 
 // installVMEgressFirewall configures pfctl rules that drop egress
@@ -1934,9 +2027,12 @@ const vmPrivateDestinations = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64
 // The guests' DHCP and DNS are the host's, on the vmnet gateway, so those two
 // pass first. Every host address (static `self`, re-expanded by the re-arm) is
 // dropped next, ahead of the carve-outs, because a carve-out range can hold
-// one of them (the host's PN address is in the PN CIDR). Then the carve-outs,
-// the `tuist.runners` ones turned inbound, and a drop for everything else
-// private. Public destinations pass.
+// one of them (the host's PN address is in the PN CIDR). The cluster's node
+// ports (Cilium VXLAN, cilium-health, kubelet) are dropped to every
+// destination: a rack guest leaves through the address the storage node uses
+// as its cluster InternalIP, so Cilium would take it for that node. Then the
+// carve-outs, the `tuist.runners` ones turned inbound, and a drop for
+// everything else private. Public destinations pass.
 //
 // vmnet also gives every guest a link-local and a ULA IPv6 address, outside
 // the IPv4 guest range, and the host's listeners bind both families. pf
@@ -1967,6 +2063,8 @@ pass out quick from <vm_sources> to <vm_sources> flags any keep state
 pass in quick proto udp from <vm_sources> to <vm_sources> port { 53, 67 } keep state
 pass in quick proto tcp from <vm_sources> to <vm_sources> port 53 keep state
 block drop in quick from <vm_sources> to self
+block drop in quick proto udp from <vm_sources> to any port 8472
+block drop in quick proto tcp from <vm_sources> to any port { 4240, 10250 }
 %s
 block drop in quick from <vm_sources> to <vm_private_dst>
 pass in quick on $vm_bridges inet6 proto { tcp, udp } to self port 53 keep state
@@ -2206,7 +2304,7 @@ const runnerCacheVolumeName = "tuist-runner-cache"
 const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
 
 // installRunnerCacheVolume provisions the quota-bounded APFS volume that holds
-// per-account cache-volume images. No-op when the fleet hasn't
+// the runner cache volumes. No-op when the fleet hasn't
 // opted in (RunnerCacheVolumeGiB == 0). Idempotent: it skips when the volume
 // is already mounted, so re-provisioning never grows/shrinks a live volume.
 //
@@ -2214,8 +2312,8 @@ const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
 // paths so a fleet that opts into cache volumes after its minis are already
 // bootstrapped gets the volume on the next drift roll rather than only via
 // host replacement. The mounted-check keeps it a one-time host-shaping step:
-// an existing volume is never resized under live jobs (a cap change ships
-// via host replacement).
+// APFS cannot change a volume's quota, so a budget above an existing
+// volume's quota ships via host replacement or reinstall.
 func installRunnerCacheVolume(ctx context.Context, client *ssh.Client, cfg Config) error {
 	if cfg.RunnerCacheVolumeGiB <= 0 {
 		return nil
@@ -2232,12 +2330,20 @@ func renderRunnerCacheVolumeScript(cfg Config) string {
 	return fmt.Sprintf(`set -euo pipefail
 VOL=%[1]s
 MOUNT=%[2]s
-QUOTA_GIB=%[3]d
+BUDGET_GIB=%[3]d
 OWNER=%[4]s
-# Provision the volume only if it isn't already mounted. Idempotent: a
-# provisioned volume is never resized under live jobs (a cap change ships via
-# host replacement).
+# Provision the volume only if it isn't already mounted. APFS fixes a volume's
+# quota when it is created, so on a disk of 1 TiB or more the quota is half the
+# disk, or the budget when that is larger, and tart-kubelet's
+# --runner-cache-budget-gib bounds the caches below it: a budget change within
+# the quota needs no new volume. On a smaller disk the other half does not hold
+# the goldens and job VMs, so the quota is the budget.
 if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
+  DISK_GIB=$(/bin/df -P -k /System/Volumes/Data | /usr/bin/awk 'NR==2 {print int($2 / 1048576)}')
+  QUOTA_GIB=$BUDGET_GIB
+  if [ "$DISK_GIB" -ge 1024 ] && [ $((DISK_GIB / 2)) -gt "$BUDGET_GIB" ]; then
+    QUOTA_GIB=$((DISK_GIB / 2))
+  fi
   # Resolve the APFS container backing the boot volume; the cache volume shares
   # that container's free space but is capped by its own quota. On modern macOS
   # "/" is a sealed snapshot whose diskutil info labels the container "APFS
@@ -2259,7 +2365,7 @@ if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
   echo "provisioned runner-cache volume $VOL (${QUOTA_GIB} GiB quota) at $MOUNT"
 fi
 # The volume is created and auto-mounted by root, but tart-kubelet runs as
-# $OWNER and must create per-account and per-branch directories under the root.
+# $OWNER and must create the cache volume directories under the root.
 # Without a runner-owned root, the very first branch allocation fails and every
 # job silently falls back to a cold cache. Enforce ownership on EVERY run — not
 # only at first provision — so a volume left root-owned by an earlier bootstrap
@@ -2443,6 +2549,10 @@ func renderTailscaleScript(cfg Config) string {
 	if cfg.TailscalePersistentDevice {
 		ephemeral = "false"
 	}
+	reauthArg := ""
+	if cfg.TakeOver {
+		reauthArg = " --force-reauth"
+	}
 
 	// Stage 2: extract binaries, register daemon, bring up.
 	//
@@ -2585,7 +2695,7 @@ trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
 if ! sudo /usr/local/bin/tailscale up \
     --authkey="$TS_AUTH_KEY" \
     --reset \
-    --ssh=false%[1]s%[2]s%[3]s >"$TS_UP_LOG" 2>&1; then
+    --ssh=false%[1]s%[2]s%[3]s%[5]s >"$TS_UP_LOG" 2>&1; then
   echo "tailscale up failed (output below):" >&2
   sudo cat "$TS_UP_LOG" >&2
   exit 1
@@ -2604,7 +2714,7 @@ done
 echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
-`, hostnameArg, tagsArg, acceptRoutesArg, ephemeral)
+`, hostnameArg, tagsArg, acceptRoutesArg, ephemeral, reauthArg)
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,
@@ -3328,4 +3438,20 @@ func b64(b []byte) string {
 func sha256Hex(b []byte) string {
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+// ValidateImageMirror checks one ImageMirrors entry against the form
+// tart-kubelet's `--image-mirror` accepts, `<upstream>=http(s)://host[:port]`.
+// tart-kubelet refuses to start on a malformed flag, so the operator checks
+// before it pushes one to every rack host.
+func ValidateImageMirror(mirror string) error {
+	upstream, endpoint, ok := strings.Cut(mirror, "=")
+	if !ok || upstream == "" || strings.ContainsAny(upstream, "/=") {
+		return fmt.Errorf("image mirror %q is not <upstream>=<endpoint>", mirror)
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || strings.Trim(u.Path, "/") != "" || u.RawQuery != "" {
+		return fmt.Errorf("image mirror %q: the endpoint must be http(s)://host[:port]", mirror)
+	}
+	return nil
 }

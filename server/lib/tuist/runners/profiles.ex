@@ -25,10 +25,13 @@ defmodule Tuist.Runners.Profiles do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Profile
 
   @max_per_account 10
+
+  @resource_fields ~w(vcpus memory_gb xcode_version)
 
   @doc """
   Cap on profiles per account. Surfaced so the LiveView can disable
@@ -165,8 +168,13 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  Update a profile's resources. `name` and `platform` cannot change
-  post-create (see module docs). Passing either is silently ignored.
+  Update a profile's resources and cache writer policy. Omitted fields keep
+  their value. `name` and `platform` cannot change post-create (see module
+  docs). Passing either is silently ignored. The shape and Xcode version are
+  validated against the catalog only when `attrs` set `vcpus`, `memory_gb`, or
+  `xcode_version`, so a profile whose shape left the catalog can still change
+  which branches save its cache volumes. Narrowing the cache writer policy
+  revokes pending saves it no longer allows.
   """
   def update(%Profile{platform: platform} = profile, attrs) do
     attrs =
@@ -174,9 +182,30 @@ defmodule Tuist.Runners.Profiles do
       |> stringify_keys()
       |> Map.drop(["name", "account_id", "platform"])
 
-    profile
-    |> Profile.changeset(attrs, catalog_opts_for(platform))
-    |> Repo.update()
+    changeset =
+      if Enum.any?(@resource_fields, &Map.has_key?(attrs, &1)),
+        do: Profile.changeset(profile, attrs, catalog_opts_for(platform)),
+        else: Profile.cache_settings_changeset(profile, attrs)
+
+    update_revoking_writers(changeset)
+  end
+
+  defp update_revoking_writers(changeset) do
+    if Enum.any?(
+         [:cache_writer_all_branches, :cache_writer_default_branch, :cache_writer_branches],
+         &Map.has_key?(changeset.changes, &1)
+       ) do
+      Repo.transaction(fn ->
+        with {:ok, profile} <- Repo.update(changeset),
+             :ok <- CacheVolumes.revoke_profile_writers(profile) do
+          profile
+        else
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      end)
+    else
+      Repo.update(changeset)
+    end
   end
 
   @doc """
@@ -190,7 +219,98 @@ defmodule Tuist.Runners.Profiles do
   `<prefix>linux` label always resolves.
   """
   def delete(%Profile{protected: true}), do: {:error, :protected}
-  def delete(%Profile{} = profile), do: Repo.delete(profile)
+
+  def delete(%Profile{} = profile) do
+    Repo.transaction(fn ->
+      with {:ok, deleted} <- Repo.delete(profile),
+           :ok <- CacheVolumes.revoke_profile_writers({:deleted, deleted}) do
+        deleted
+      else
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  @doc """
+  The runner catalog: the shapes and Xcode versions a profile can use, for API and agent clients.
+  """
+  def catalog do
+    %{
+      shapes:
+        for platform <- Profile.platforms(), shape <- Catalog.shapes(platform) do
+          %{platform: to_string(platform), vcpus: shape.vcpus, memory_gb: shape.memory_gb, default: shape.default?}
+        end,
+      xcode_versions: Enum.map(Catalog.xcode_versions(), &%{xcode_version: &1.xcode_version, default: &1.default?})
+    }
+  end
+
+  @doc """
+  Describes a failed profile mutation in one message for API and agent
+  clients. An unavailable shape or Xcode version lists the catalog's options.
+  """
+  def error_message(:max_profiles_reached),
+    do:
+      "The account already has the maximum of #{@max_per_account} runner profiles. Delete a profile before creating another."
+
+  def error_message(:protected), do: "This profile is a default and can't be deleted."
+
+  def error_message(%Ecto.Changeset{errors: errors} = changeset) do
+    platform = Ecto.Changeset.get_field(changeset, :platform)
+
+    errors
+    |> Enum.map(&describe_error(&1, platform))
+    |> Enum.uniq()
+    |> Enum.join(" ")
+  end
+
+  defp describe_error({field, {message, opts}}, platform) do
+    cond do
+      opts[:validation] == :shape ->
+        shapes = Enum.map_join(Catalog.shapes(platform), ", ", &"#{&1.vcpus} vCPU / #{&1.memory_gb} GB")
+        "vcpus and memory_gb must match an available #{platform} shape: #{shapes}."
+
+      opts[:validation] == :xcode_version ->
+        "xcode_version must be one of: #{Enum.map_join(Catalog.xcode_versions(), ", ", & &1.xcode_version)}."
+
+      opts[:constraint] == :unique ->
+        "#{String.capitalize(message)}."
+
+      true ->
+        message =
+          Regex.replace(~r/%{(\w+)}/, message, fn _, key ->
+            opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+          end)
+
+        "#{field} #{message}."
+    end
+  end
+
+  @doc """
+  Locks the profile a job was dispatched to, for reading its cache writer
+  policy inside a transaction. Returns `nil` for labels that resolved to a
+  legacy pool or a profile that no longer exists.
+  """
+  def lock_for_dispatch_label(account_id, label) do
+    with %Ecto.Query{} = query <- dispatch_label_query(account_id, label), do: Repo.one(lock(query, "FOR SHARE"))
+  end
+
+  @doc """
+  The profile a job was dispatched to, or `nil` like `lock_for_dispatch_label/2`.
+  """
+  def get_for_dispatch_label(account_id, label) do
+    with %Ecto.Query{} = query <- dispatch_label_query(account_id, label), do: Repo.one(query)
+  end
+
+  defp dispatch_label_query(account_id, label) when is_binary(label) do
+    prefix = Profile.prefix()
+
+    case label do
+      ^prefix <> name -> from(p in Profile, where: p.account_id == ^account_id and p.name == ^name)
+      _ -> nil
+    end
+  end
+
+  defp dispatch_label_query(_account_id, _label), do: nil
 
   @doc """
   Resolve `(account, requested_labels)` → profile, mirroring the

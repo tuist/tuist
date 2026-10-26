@@ -12,8 +12,9 @@ set -euo pipefail
 #
 # Each env's charts are rendered and their pod specs scheduled, by nodeSelector,
 # required node affinity and tolerations, against the nodes a rack has: one per
-# role in rackLinuxFleet.roles, a rack Linux node with no role taint, and a
-# rack's Mac mini. The unwaited releases must land on them, which keeps the
+# role in rackLinuxFleet.roles, one more without the Cilium exclusion for a role
+# whose hosts are on the cluster network (`publicAddress`), a rack Linux node
+# with no role taint, and a rack's Mac mini. The unwaited releases must land on them, which keeps the
 # model honest. Every rendered Service name has to fit the 63 characters the
 # API server allows, since most charts build names from the release name.
 
@@ -32,7 +33,7 @@ for chart in k8s-monitoring platform rack-cache-gateways; do
   helm dependency update "$HELM/$chart" >/dev/null
 done
 
-for env in staging production; do
+for env in staging canary production; do
   case "$env" in
     production) platform_overlay="values-tuist.yaml" ;;
     *) platform_overlay="values-tuist-$env.yaml" ;;
@@ -45,7 +46,7 @@ for env in staging production; do
   render "waited-platform-$env" platform "$HELM/platform" --namespace platform "${platform_values[@]}"
   render "unwaited-rack-nodes-$env" tuist-rack-nodes "$HELM/rack-nodes" --namespace tuist -f "$HELM/tuist/values.yaml" "${tuist_values[@]}"
   render "unwaited-rack-cache-gateways-$env" rack-cache-gateways "$HELM/rack-cache-gateways" --namespace platform -f "$HELM/platform/values.yaml" "${platform_values[@]}"
-  yq -o json -I0 '{"roles": (.rackLinuxFleet.roles // {}), "fleet": (.rackFleet.name // "tuist-tuist-rack-fleet")}' "$HELM/tuist/values-managed-$env.yaml" > "$WORK/rack-$env.json"
+  yq -o json -I0 '{"roles": (.rackLinuxFleet.roles // {}), "clusterNetworkRoles": ([.rackLinuxFleet.hosts[]? | select(.publicAddress) | .role] | unique), "fleet": (.rackFleet.name // "tuist-tuist-rack-fleet")}' "$HELM/tuist/values-managed-$env.yaml" > "$WORK/rack-$env.json"
 done
 
 for file in "$WORK"/waited-*.json "$WORK"/unwaited-*.json; do
@@ -61,6 +62,8 @@ jq -n -r \
     [{name: "rack Linux node without a role", labels: base, taints: []}]
     + [$racks[] | .roles | to_entries[]
         | {name: "rack \(.key) node", labels: (base + (.value.nodeLabels // {})), taints: (.value.nodeTaints // [])}]
+    + [$racks[] | .roles as $roles | .clusterNetworkRoles[]
+        | {name: "rack \(.) node on the cluster network", labels: ((base | del(."cilium.io/no-schedule")) + ($roles[.].nodeLabels // {})), taints: ($roles[.].nodeTaints // [])}]
     + [$racks[] | {name: "rack Mac mini",
         labels: {"kubernetes.io/os": "darwin", "tuist.dev/runtime": "tart", "tuist.dev/fleet": .fleet},
         taints: [{key: "tuist.dev/macos", value: "true", effect: "NoSchedule"}]}]

@@ -9,6 +9,8 @@ defmodule TuistEx.Analytics.CompileReporter do
 
   use GenServer
 
+  alias TuistEx.Analytics.BuildMetadata
+  alias TuistEx.Analytics.Config
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
@@ -42,6 +44,14 @@ defmodule TuistEx.Analytics.CompileReporter do
   @doc "Records what a Mix compiler returned."
   def record(reporter, compiler, {status, diagnostics}) do
     GenServer.cast(reporter, {:record, compiler, status, diagnostics})
+  end
+
+  def record_cache(reporter, observation), do: GenServer.cast(reporter, {:cache, observation})
+
+  def build_id(reporter) do
+    GenServer.call(reporter, :build_id)
+  catch
+    :exit, _ -> nil
   end
 
   @doc "Marks the build as finished, submits it, and stops the reporter."
@@ -89,6 +99,8 @@ defmodule TuistEx.Analytics.CompileReporter do
        machine_metrics: [],
        files: [],
        steps: [],
+       dependency_cache: [],
+       build_id: Report.id(),
        started_at: DateTime.utc_now(),
        monotonic_start_ns: System.monotonic_time(),
        sampler_pid: sampler_pid,
@@ -113,7 +125,13 @@ defmodule TuistEx.Analytics.CompileReporter do
      }}
   end
 
+  def handle_cast({:cache, observation}, state) do
+    {:noreply, %{state | dependency_cache: [observation | state.dependency_cache]}}
+  end
+
   @impl true
+  def handle_call(:build_id, _from, state), do: {:reply, state.build_id, state}
+
   def handle_call({:finish, files, steps}, _from, state) do
     if state.sampler_pid, do: MachineMetrics.stop(state.sampler_pid)
 
@@ -199,7 +217,7 @@ defmodule TuistEx.Analytics.CompileReporter do
   # those statuses, tells us whether an aliased compile did real work.
   # Failures still need reporting even when compilation produced no files.
   defp nothing_compiled?(state, files) do
-    files == [] and :error not in state.statuses and
+    files == [] and state.dependency_cache == [] and :error not in state.statuses and
       not Enum.any?(state.diagnostics, &(&1.severity == "error"))
   end
 
@@ -278,7 +296,7 @@ defmodule TuistEx.Analytics.CompileReporter do
       end
 
     %{
-      id: Report.id(),
+      id: state.build_id,
       contract_version: Contract.version(),
       duration_ms: duration_ms,
       status: status,
@@ -300,15 +318,24 @@ defmodule TuistEx.Analytics.CompileReporter do
       diagnostics:
         state.diagnostics |> Enum.take(@max_diagnostics) |> Enum.map(&fit_diagnostic/1),
       files: fit_files(state.files),
-      steps: fit_steps(state.steps)
+      steps: fit_steps(state.steps),
+      dependency_cache: state.dependency_cache |> Enum.reverse() |> Enum.take(5_000)
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)
+    |> enrich_metadata(state.opts)
     |> fit_payload(Keyword.get(state.opts, :max_payload_bytes, @max_payload_bytes))
   end
 
-  @trimmable [:files, :steps, :machine_metrics, :diagnostics]
+  @trimmable [:files, :steps, :machine_metrics, :diagnostics, :dependency_cache]
 
   # Halves the longest list until the report fits, keeping the slowest files.
+  defp enrich_metadata(payload, opts) do
+    case Config.resolve(opts) do
+      {:ok, config} -> BuildMetadata.enrich(payload, config.url, opts)
+      _ -> payload
+    end
+  end
+
   defp fit_payload(payload, max_bytes) do
     largest = Enum.max_by(@trimmable, &length(Map.get(payload, &1, [])))
     entries = Map.get(payload, largest, [])

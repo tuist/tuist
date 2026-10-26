@@ -39,7 +39,9 @@ struct XcodeBuildBuildCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(
+            buildMetadataObservations: BuildMetadata.observations().filter { $0.key != "tuist.os.version" }
+        ),
         coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
     ) {
         self.coverageBuildSourcesService = coverageBuildSourcesService
@@ -113,6 +115,11 @@ struct XcodeBuildBuildCommandService {
             startedAt: buildStartedAt,
             passthroughXcodebuildArguments: passthroughXcodebuildArguments
         )
+        let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
+        var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
+        if derivedDataPath == nil, let projectPath = try await projectPath(xcodeBuildArguments: xcodeBuildArguments) {
+            derivedDataPath = try await derivedDataLocator.locate(for: projectPath)
+        }
         // Written before any shard plan uploads the bundle.
         if let testProductsPathString = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) {
             let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -120,20 +127,17 @@ struct XcodeBuildBuildCommandService {
             if let config = try? await configLoader.loadConfig(
                 path: path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
             ) {
-                await coverageBuildSourcesService.write(to: testProductsPath, config: config)
+                await coverageBuildSourcesService.write(
+                    to: testProductsPath,
+                    derivedDataDirectory: derivedDataPath,
+                    config: config
+                )
             }
         }
-        let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
-        var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
-        if derivedDataPath == nil {
-            guard let projectPath = try await projectPath(xcodeBuildArguments: xcodeBuildArguments) else { return }
-            derivedDataPath = try await derivedDataLocator.locate(for: projectPath)
-        }
-        if let derivedDataPath,
-           let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
-               projectDerivedDataDirectory: derivedDataPath
-           )
-        {
+        guard let derivedDataPath else { return }
+        if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
+            projectDerivedDataDirectory: derivedDataPath
+        ) {
             await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogFile.path.basenameWithoutExt)
 
             let buildPath = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)

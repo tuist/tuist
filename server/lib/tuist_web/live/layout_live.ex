@@ -9,12 +9,35 @@ defmodule TuistWeb.LayoutLive do
   import TuistWeb.AppLayoutComponents
 
   alias Tuist.Accounts
+  alias Tuist.AppBuilds
   alias Tuist.Authorization
   alias Tuist.CommandEvents
   alias Tuist.GitHub.Releases
+  alias Tuist.Observability
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+
+  def on_mount(:observability, _params, _session, socket) do
+    Observability.clear()
+    socket = put_observability_context(socket)
+
+    socket =
+      socket
+      |> attach_hook(:observability, :handle_event, &observability_callback/3)
+      |> attach_hook(:observability, :handle_async, &observability_callback/3)
+      |> attach_hook(:observability, :handle_info, &observability_callback/2)
+
+    socket =
+      if socket.router do
+        attach_hook(socket, :observability, :handle_params, &observability_callback/3)
+      else
+        socket
+      end
+
+    {:cont, socket}
+  end
 
   def on_mount(
         :optional_project,
@@ -66,6 +89,7 @@ defmodule TuistWeb.LayoutLive do
       end
 
     %{account: selected_account} = selected_project
+    Observability.set_context(current_user, %{selected_account: selected_account, selected_project: selected_project})
 
     # Dropdown contents only matter once the user can click them, so defer
     # the queries until the LiveView is connected.
@@ -138,6 +162,10 @@ defmodule TuistWeb.LayoutLive do
      |> assign_latest_app_release()
      |> assign(:selected_account, selected_account)
      |> assign(:selected_project, selected_project)
+     |> assign(
+       :previews_available,
+       Project.supports_previews?(selected_project) or AppBuilds.has_previews?(selected_project)
+     )
      |> assign(:current_user, current_user)
      |> assign(
        OpenGraph.project_image_assigns(selected_project,
@@ -174,6 +202,8 @@ defmodule TuistWeb.LayoutLive do
       raise NotFoundError,
             dgettext("dashboard", "The account you are looking for doesn't exist or has been moved.")
     end
+
+    Observability.set_context(current_user, %{selected_account: selected_account})
 
     {:cont,
      socket
@@ -221,6 +251,15 @@ defmodule TuistWeb.LayoutLive do
      |> assign_current_path()
      |> assign_latest_app_release()
      |> assign(:current_user, current_user)}
+  end
+
+  def observability_callback(_arg, _arg2, socket), do: {:cont, put_observability_context(socket)}
+  def observability_callback(_arg, socket), do: {:cont, put_observability_context(socket)}
+
+  defp put_observability_context(socket) do
+    subject = socket.assigns[:current_user] || socket.assigns[:current_project] || socket.assigns[:current_subject]
+    Observability.set_context(subject, socket.assigns)
+    socket
   end
 
   defp get_user_organization_accounts(user) do

@@ -144,6 +144,7 @@ private struct BazelSetupConfiguration {
     let accountHandle: String
     let projectHandle: String
     let fullHandle: String
+    var networkTrustedReporting = false
 }
 
 public struct BazelSetupCommandService {
@@ -190,7 +191,13 @@ public struct BazelSetupCommandService {
         let bazelrcDirectoryPath = bazelWorkspacePath ?? canonicalDirectoryPath
         let bazelrcPath = bazelrcDirectoryPath.appending(component: BazelrcFile.name)
         let bazelrcContent: String
-        if let endpoint = setupConfiguration.endpoint {
+        if let endpoint = setupConfiguration.endpoint, setupConfiguration.networkTrustedReporting {
+            bazelrcContent = buildInsights ? BazelrcFile.renderNetworkTrustedReports(
+                endpoint: endpoint, accountHandle: setupConfiguration.accountHandle,
+                projectHandle: setupConfiguration.projectHandle,
+                actorOverride: Environment.current.variables["TUIST_ACTOR_ID"]
+            ) : BazelrcFile.renderWithoutRemoteCache()
+        } else if let endpoint = setupConfiguration.endpoint {
             let credentialHelperPath = try await createCredentialHelperScriptIfNeeded(
                 directoryPath: canonicalDirectoryPath,
                 bazelrcDirectoryPath: bazelrcDirectoryPath,
@@ -202,7 +209,8 @@ public struct BazelSetupCommandService {
                 projectHandle: setupConfiguration.projectHandle,
                 credentialHelperPath: credentialHelperPath,
                 buildInsights: buildInsights,
-                remoteDownloader: remoteDownloader
+                remoteDownloader: remoteDownloader,
+                actorOverride: Environment.current.variables["TUIST_ACTOR_ID"]
             )
         } else {
             bazelrcContent = BazelrcFile.renderWithoutRemoteCache()
@@ -222,7 +230,8 @@ public struct BazelSetupCommandService {
             bazelrcPath: bazelrcPath,
             bazelrcImportResult: bazelrcImportResult,
             buildInsights: buildInsights,
-            remoteCacheConfigured: setupConfiguration.endpoint != nil
+            remoteCacheConfigured: setupConfiguration.endpoint != nil && !setupConfiguration.networkTrustedReporting,
+            networkTrustedReporting: setupConfiguration.networkTrustedReporting
         )
     }
 
@@ -233,6 +242,30 @@ public struct BazelSetupCommandService {
             throw BazelSetupCommandServiceError.missingFullHandle
         }
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
+        if try await ServerReportPublishingMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        ) {
+            guard let configured = Environment.current.variables["TUIST_BAZEL_BES_BACKEND"] else {
+                throw BazelSetupCommandServiceError.notAuthenticated
+            }
+            guard let url = URL(string: configured),
+                  ["grpc", "grpcs"].contains(url.scheme ?? ""), let host = url.host,
+                  url.query == nil, url.fragment == nil, url.user == nil, url.password == nil,
+                  url.path.isEmpty || url.path == "/"
+            else {
+                throw BazelSetupCommandServiceError
+                    .invalidCacheEndpoint("Set TUIST_BAZEL_BES_BACKEND to a private grpc:// or grpcs:// endpoint.")
+            }
+            var httpURL = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            httpURL?.scheme = url.scheme == "grpc" ? "http" : "https"
+            guard let destination = httpURL?.url else { throw BazelSetupCommandServiceError.invalidCacheEndpoint(configured) }
+            try ServerReportPublishingMode.validateDestination(destination)
+            return BazelSetupConfiguration(
+                endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"),
+                accountHandle: accountHandle, projectHandle: projectHandle, fullHandle: fullHandle,
+                networkTrustedReporting: true
+            )
+        }
         guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
             throw BazelSetupCommandServiceError.notAuthenticated
         }
@@ -282,26 +315,35 @@ public struct BazelSetupCommandService {
         bazelrcPath: AbsolutePath,
         bazelrcImportResult: BazelrcImportResult,
         buildInsights: Bool,
-        remoteCacheConfigured: Bool
+        remoteCacheConfigured: Bool,
+        networkTrustedReporting: Bool
     ) {
         var takeaways = [
             bazelrcImportTakeaway(
                 result: bazelrcImportResult,
-                buildInsights: buildInsights
+                buildInsights: buildInsights,
+                networkTrustedReporting: networkTrustedReporting
             ),
         ]
         if remoteCacheConfigured {
             takeaways
                 .append("Run Bazel normally to use the Tuist remote cache\(buildInsights ? " and record build insights" : "")")
         }
+        if networkTrustedReporting {
+            takeaways
+                .append("Reporting only: no remote cache is configured. Sign in and rerun tuist bazel setup to enable caching.")
+        }
         AlertController.current.success(.alert("Generated \(bazelrcPath.pathString)", takeaways: takeaways))
     }
 
     private func bazelrcImportTakeaway(
         result: BazelrcImportResult,
-        buildInsights: Bool
+        buildInsights: Bool,
+        networkTrustedReporting: Bool
     ) -> TerminalText {
-        let capabilities = buildInsights ? "remote cache and build insights" : "remote cache"
+        let capabilities = networkTrustedReporting
+            ? "credential-free build insights"
+            : (buildInsights ? "remote cache and build insights" : "remote cache")
 
         switch result {
         case .added:

@@ -31,5 +31,19 @@ defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
       assert html =~
                ~s(href="https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/")
     end
+
+    test "falls back to the first page when the page param is not an integer", %{conn: conn} do
+      for query <- ["page=1'%20ORDER%20BY%201--%20-", "page[]=1"] do
+        {:ok, _lv, html} = live(conn, "/customers?#{query}")
+
+        assert html =~ "Hyperconnect optimized its multi-service pipeline with Tuist"
+      end
+    end
+
+    test "ignores a search param that is not a string", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, "/customers?search[]=x")
+
+      assert html =~ "Hyperconnect optimized its multi-service pipeline with Tuist"
+    end
   end
 end

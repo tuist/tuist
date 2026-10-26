@@ -6,6 +6,8 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
   alias Tuist.FeatureFlags
+  alias Tuist.Origin
+  alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Projects
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
@@ -46,6 +48,14 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_account: selected_account)
       |> assign(github_app_installation: github_installation)
       |> assign(vcs_connections: vcs_connections)
+      |> assign(origin_configured?: OriginClient.configured?())
+      |> assign(origin_installations: Origin.list_installations(selected_account.id))
+      |> assign(origin_error: nil)
+      |> assign(selected_origin_installation_id: nil)
+      |> assign(selected_origin_project_id: nil)
+      |> assign(selected_origin_repository_full_handle: nil)
+      |> select_default_origin_installation()
+      |> assign_origin_details()
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
       |> assign(github_client_url: if(default_to_enterprise?, do: "", else: VCS.default_client_url()))
@@ -81,11 +91,96 @@ defmodule TuistWeb.IntegrationsLive do
   end
 
   @impl true
+  def handle_event("select-origin-installation", %{"installation_id" => id}, socket) do
+    if Enum.any?(socket.assigns.origin_installations, &(&1.id == id)) do
+      {:noreply,
+       assign(socket,
+         selected_origin_installation_id: id,
+         selected_origin_repository_full_handle: nil,
+         origin_error: nil
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("select-origin-project", %{"project_id" => id}, socket) do
+    project = Enum.find(get_available_projects(socket.assigns), &(to_string(&1.id) == id))
+    {:noreply, assign(socket, selected_origin_project_id: project && project.id, origin_error: nil)}
+  end
+
+  @impl true
+  def handle_event("select-origin-repository", %{"repository" => handle}, socket) do
+    repository = Enum.find(get_available_origin_repositories(socket.assigns), &(&1.full_name == handle))
+
+    {:noreply,
+     assign(socket,
+       selected_origin_repository_full_handle: repository && repository.full_name,
+       origin_error: nil
+     )}
+  end
+
+  @impl true
+  def handle_event("close-add-origin-connection-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> reset_origin_selection()
+     |> push_event("close-modal", %{id: "add-origin-connection-modal"})}
+  end
+
+  @impl true
+  def handle_event("retry-origin-details", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(selected_origin_repository_full_handle: nil)
+     |> assign_origin_details()}
+  end
+
+  @impl true
+  def handle_event(
+        "connect-origin-project",
+        _params,
+        %{assigns: %{selected_account: account, current_user: user} = assigns} = socket
+      ) do
+    with %{} = project <- get_selected_origin_project(assigns),
+         %{} = repository <-
+           Enum.find(
+             get_available_origin_repositories(assigns),
+             &(&1.full_name == assigns.selected_origin_repository_full_handle)
+           ),
+         {:ok, _} <-
+           Origin.connect_project(
+             account,
+             user,
+             assigns.selected_origin_installation_id,
+             project.id,
+             repository.full_name
+           ) do
+      {:noreply,
+       socket
+       |> assign(vcs_connections: vcs_connections(account, force: true))
+       |> reset_origin_selection()
+       |> push_event("close-modal", %{id: "add-origin-connection-modal"})}
+    else
+      _ ->
+        {:noreply,
+         assign(socket,
+           origin_error:
+             dgettext(
+               "dashboard_integrations",
+               "Could not connect this Origin repository. Check the installation's access and choose an unconnected project."
+             )
+         )}
+    end
+  end
+
+  @impl true
   def handle_event("save-gitlab", params, %{assigns: %{selected_account: account}} = socket) do
     if FeatureFlags.runners_enabled?(account) do
       attrs =
         params
-        |> Map.take(["_id", "url", "runner_token"])
+        |> Map.take(["_id", "url", "runner_token", "api_token"])
         |> Map.new(fn
           {"_id", value} -> {:id, String.trim(value)}
           {key, value} -> {String.to_existing_atom(key), String.trim(value)}
@@ -433,6 +528,145 @@ defmodule TuistWeb.IntegrationsLive do
     selected_account.projects
     |> Enum.reject(fn project -> MapSet.member?(connected_project_ids, project.id) end)
     |> Enum.sort_by(& &1.name, :asc)
+  end
+
+  attr(:connection, :map, required: true)
+  attr(:actions_id, :string, required: true)
+  slot(:repository_icon, required: true)
+
+  defp project_connection(assigns) do
+    ~H"""
+    <.card_section data-part="connection-card-section" data-value={@connection.id}>
+      <div data-part="header">
+        <div data-part="item">
+          <div data-part="icon"><.brand_tuist /></div>
+          <span data-part="label">{@connection.project.name}</span>
+        </div>
+        <div data-part="icon"><.arrows_exchange /></div>
+        <div data-part="item">
+          <div data-part="icon">{render_slot(@repository_icon)}</div>
+          <span data-part="label">{@connection.repository_full_handle}</span>
+        </div>
+      </div>
+      <div data-part="footer">
+        <span data-part="subtitle">{get_connection_info(@connection)}</span>
+        <.inline_dropdown
+          id={@actions_id}
+          label={dgettext("dashboard_integrations", "Manage")}
+        >
+          <.dropdown_item
+            label={dgettext("dashboard_integrations", "Remove connection")}
+            value="remove"
+            phx-click="delete-connection"
+            phx-value-connection_id={@connection.id}
+          >
+            <:left_icon><.trash /></:left_icon>
+          </.dropdown_item>
+        </.inline_dropdown>
+      </div>
+    </.card_section>
+    """
+  end
+
+  attr(:result, Phoenix.LiveView.AsyncResult, required: true)
+
+  defp origin_repository_status(assigns) do
+    ~H"""
+    <.alert
+      :if={@result.loading}
+      status="information"
+      type="secondary"
+      size="small"
+      title={dgettext("dashboard_integrations", "Loading repositories...")}
+    />
+    <.alert
+      :if={@result.failed}
+      status="error"
+      type="secondary"
+      size="large"
+      title={dgettext("dashboard_integrations", "Could not load Origin repositories")}
+      description={
+        dgettext(
+          "dashboard_integrations",
+          "Try again or manage the integration to check its repository access."
+        )
+      }
+    >
+      <:action>
+        <.button
+          label={dgettext("dashboard_integrations", "Retry")}
+          variant="secondary"
+          phx-click="retry-origin-details"
+        />
+      </:action>
+    </.alert>
+    """
+  end
+
+  defp assign_origin_details(socket) do
+    %{selected_account: account, current_user: user, origin_installations: installations} = socket.assigns
+
+    assign_async(
+      socket,
+      :origin_details,
+      fn ->
+        installations
+        |> Enum.reduce_while({:ok, %{}}, fn installation, {:ok, details} ->
+          case Origin.installation_details(account, user, installation.id) do
+            {:ok, detail} -> {:cont, {:ok, Map.put(details, installation.id, detail)}}
+            {:error, _} -> {:halt, {:error, :origin_unavailable}}
+          end
+        end)
+        |> case do
+          {:ok, details} -> {:ok, %{origin_details: details}}
+          {:error, _} = error -> error
+        end
+      end,
+      reset: true
+    )
+  end
+
+  defp select_default_origin_installation(socket) do
+    installation = List.first(socket.assigns.origin_installations)
+    assign(socket, selected_origin_installation_id: installation && installation.id)
+  end
+
+  defp reset_origin_selection(socket) do
+    assign(socket,
+      selected_origin_project_id: nil,
+      selected_origin_repository_full_handle: nil,
+      origin_error: nil
+    )
+  end
+
+  defp origin_installation_detail(assigns, id) do
+    case assigns.origin_details do
+      %{ok?: true, loading: nil, result: details} -> Map.get(details, id)
+      _ -> nil
+    end
+  end
+
+  defp origin_namespace_label(assigns, id) do
+    case origin_installation_detail(assigns, id) do
+      %{namespace: namespace} when is_binary(namespace) and namespace != "" -> namespace
+      _ -> dgettext("dashboard_integrations", "Origin account")
+    end
+  end
+
+  defp get_available_origin_repositories(assigns) do
+    case origin_installation_detail(assigns, assigns.selected_origin_installation_id) do
+      %{repositories: repositories} -> repositories
+      _ -> []
+    end
+  end
+
+  defp get_selected_origin_project(assigns) do
+    projects = get_available_projects(assigns)
+
+    case {assigns.selected_origin_project_id, projects} do
+      {nil, [project]} -> project
+      {id, _} -> Enum.find(projects, &(&1.id == id))
+    end
   end
 
   defp get_available_repositories(%{github_repositories: github_repositories_async}) do

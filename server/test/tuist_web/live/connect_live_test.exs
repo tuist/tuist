@@ -40,6 +40,16 @@ defmodule TuistWeb.ConnectLiveTest do
     refute html =~ "Install Tuist CLI"
   end
 
+  test "walks a Cargo project through the CLI decorator", %{conn: conn, account: account} do
+    {project, _view, html} = open_connect(conn, account, :cargo)
+    assert html =~ "using Cargo"
+    assert html =~ "tuist.toml"
+    assert html =~ "#{account.name}/#{project.name}"
+    assert html =~ "tuist cargo nextest run"
+    assert html =~ "https://tuist.dev/en/docs/guides/get-started/rust-project"
+    refute html =~ "mix tuist.login"
+  end
+
   test "walks every other project through the CLI", %{conn: conn, account: account} do
     {_project, _view, html} = open_connect(conn, account, :xcode)
 

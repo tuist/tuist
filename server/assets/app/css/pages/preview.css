@@ -9,6 +9,13 @@
     margin: var(--noora-spacing-7);
   }
 
+  & [data-part="release-notes"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   & > [data-part="action-buttons"] {
     display: flex;
     justify-content: space-between;

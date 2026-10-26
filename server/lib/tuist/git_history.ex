@@ -368,6 +368,48 @@ defmodule Tuist.GitHistory do
     )
   end
 
+  @doc "Whether any of the account's repositories has `default_branch` placed on its graph."
+  def default_branch_known?(_account_id, default_branch) when default_branch in [nil, ""], do: false
+
+  def default_branch_known?(account_id, default_branch) do
+    Repo.exists?(
+      from(r in Ref,
+        join: g in Repository,
+        on: g.id == r.repository_id,
+        where: g.account_id == ^account_id and r.name == ^default_branch and not is_nil(r.head_sha)
+      )
+    )
+  end
+
+  @doc """
+  Of `shas`, the ones on `default_branch`'s first-parent history in any of the
+  account's repositories. A commit is there once a run sees the branch at it
+  or at a descendant, which is also how a merge queue's commit lands: the
+  queue moves the branch to the commit it tested.
+  """
+  def default_branch_shas(_account_id, _default_branch, []), do: []
+
+  def default_branch_shas(_account_id, default_branch, _shas) when default_branch in [nil, ""], do: []
+
+  def default_branch_shas(account_id, default_branch, shas) do
+    shas
+    |> Enum.uniq()
+    |> Enum.chunk_every(@insert_chunk_size)
+    |> Enum.flat_map(fn chunk ->
+      Repo.all(
+        from(c in Commit,
+          join: r in Ref,
+          on: r.id == c.ref_id,
+          join: g in Repository,
+          on: g.id == r.repository_id and g.id == c.repository_id,
+          where: g.account_id == ^account_id and r.name == ^default_branch and c.sha in ^chunk,
+          distinct: true,
+          select: c.sha
+        )
+      )
+    end)
+  end
+
   @doc """
   The first-parent chain of a commit down to the first commit a ref owns, as
   `%{sha, depth, ref_id, position}` nearest first: the commits no ref placed
@@ -385,7 +427,11 @@ defmodule Tuist.GitHistory do
   the default branch's first-parent history, or what another ref added above
   its fork. `:limit` caps them (200 by default); `:at_or_below`, `:below` and
   `:above` bound the positions and `:since`/`:until` when the commits were
-  made (`DateTime`); `order: :asc` reads them oldest first.
+  made (`DateTime`); `order: :asc` reads them oldest first. `:refine`
+  narrows the query further, and such a read is planned for its own values
+  each time (`prepare: :unnamed`): how many of the ref's commits a
+  refinement keeps varies by project, and a cached generic plan, which
+  can't know it, reads every commit in the period to sort them.
   """
   def ref_commits(ref_id, opts \\ []) do
     ref_id
@@ -393,11 +439,13 @@ defmodule Tuist.GitHistory do
     |> order_by([c], [{^Keyword.get(opts, :order, :desc), c.position}])
     |> limit(^Keyword.get(opts, :limit, 200))
     |> select([c], {c.sha, c.position, c.committed_at})
-    |> Repo.all()
+    |> Repo.all(ref_commits_repo_opts(opts))
   end
 
   @doc "Whether the ref owns a commit within the bounds `ref_commits/2` takes."
-  def ref_commits?(ref_id, opts), do: ref_id |> ref_commits_query(opts) |> Repo.exists?()
+  def ref_commits?(ref_id, opts), do: ref_id |> ref_commits_query(opts) |> Repo.exists?(ref_commits_repo_opts(opts))
+
+  defp ref_commits_repo_opts(opts), do: if(is_function(Keyword.get(opts, :refine), 1), do: [prepare: :unnamed], else: [])
 
   defp ref_commits_query(ref_id, opts) do
     Enum.reduce(opts, from(c in Commit, where: c.ref_id == ^ref_id), fn

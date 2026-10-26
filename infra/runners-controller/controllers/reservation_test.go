@@ -396,6 +396,53 @@ func TestReservation_PrefersTheHostThatConvergesSoonest(t *testing.T) {
 	}
 }
 
+// Between hosts that converge equally soon, the one already holding the
+// pool's golden image wins, so the starved job clones instead of pulling.
+func TestReservation_PrefersAHostHoldingThePoolsImage(t *testing.T) {
+	pool := largePool()
+	pool.Spec.Image = "ghcr.io/tuist/tuist-runner:macos-26-1-1"
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	warm := m4Node("m4-b")
+	warm.Labels[podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)] = "true"
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-a"), warm, starved,
+		placedPod("idle-a", "macos-26-6", "m4-a", ""),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host that already holds the pool's image")
+	}
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Error("should not reserve the host that would have to pull the image")
+	}
+}
+
+// Holding the image never outranks convergence: waiting on a customer job
+// can take longer than a pull.
+func TestReservation_PrefersConvergenceOverTheImage(t *testing.T) {
+	pool := largePool()
+	pool.Spec.Image = "ghcr.io/tuist/tuist-runner:macos-26-1-1"
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	warm := m4Node("m4-a")
+	warm.Labels[podtemplate.GoldenNodeAffinityKey(pool.Spec.Image)] = "true"
+
+	r := reservationReconciler(pool, smallPool(), warm, m4Node("m4-b"), starved,
+		placedPod("job-a", "macos-26-6", "m4-a", "acme"),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host with no customer job to wait out")
+	}
+}
+
 // Linux fleets opt out: those hosts are far larger than any shape, so a
 // shape never needs one drained to fit.
 // The Linux equivalent of the scenario above. A 64 GiB shape costs a
@@ -561,6 +608,122 @@ func TestReservation_DoesNotRetireAFreshlySeatedPod(t *testing.T) {
 	}
 	if names["small-stale"] {
 		t.Error("a Pod idle since well before the grace period should still be retired")
+	}
+}
+
+func macOSPod(pod *corev1.Pod) *corev1.Pod {
+	pod.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "darwin"}
+	return pod
+}
+
+// provisioningMacOSPod is bound to a host whose tart-kubelet is still
+// pulling the image or creating the VM: Pending, with only the scheduler's
+// PodScheduled condition on it.
+func provisioningMacOSPod(name, pool, node string, boundAt time.Time) *corev1.Pod {
+	pod := macOSPod(seatedPod(name, pool, node, boundAt))
+	pod.Status.Phase = corev1.PodPending
+	return pod
+}
+
+// bootedMacOSPod's VM is up. tart-kubelet has replaced its conditions and
+// stamped the VM start as the Pod's start time.
+func bootedMacOSPod(name, pool, node string, vmStartedAt time.Time) *corev1.Pod {
+	pod := macOSPod(placedPod(name, pool, node, ""))
+	startedAt := metav1.NewTime(vmStartedAt)
+	pod.Status.StartTime = &startedAt
+	return pod
+}
+
+func reservedM4Node(name string, pool *tuistv1.RunnerPool) *corev1.Node {
+	node := m4Node(name)
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+	return node
+}
+
+func remainingPodNames(t *testing.T, r *RunnerPoolReconciler) map[string]bool {
+	t.Helper()
+	remaining := &corev1.PodList{}
+	if err := r.List(context.Background(), remaining, client.InNamespace("runners")); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	names := map[string]bool{}
+	for i := range remaining.Items {
+		names[remaining.Items[i].Name] = true
+	}
+	return names
+}
+
+// A cold image pull keeps a macOS Pod Pending for many minutes after it
+// binds. Retiring it then throws the pull away while the job it was created
+// for waits for a replacement to pull again.
+func TestReservation_DoesNotRetireAMacOSPodStillCreatingItsVM(t *testing.T) {
+	pool := largePool()
+	node := reservedM4Node("m4-0", pool)
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	pulling := provisioningMacOSPod("small-pulling", "macos-26-6", "m4-0", reservationNow.Add(-14*time.Minute))
+	wedged := provisioningMacOSPod("small-wedged", "macos-26-6", "m4-0", reservationNow.Add(-macOSProvisioningGrace-time.Minute))
+
+	r := reservationReconciler(pool, smallPool(), node, starved, pulling, wedged)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	names := remainingPodNames(t, r)
+	if !names["small-pulling"] {
+		t.Error("a macOS Pod still creating its VM must not be retired")
+	}
+	if names["small-wedged"] {
+		t.Error("a macOS Pod that has not come up within the provisioning grace should be retired")
+	}
+}
+
+// The VM is up, but the guest has not had time to claim the job queued for
+// it. Retiring it now loses the job's seat just as it is about to be used.
+func TestReservation_DoesNotRetireAMacOSPodThatJustBooted(t *testing.T) {
+	pool := largePool()
+	node := reservedM4Node("m4-0", pool)
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	booted := bootedMacOSPod("small-booted", "macos-26-6", "m4-0", reservationNow.Add(-time.Minute))
+	warm := bootedMacOSPod("small-warm", "macos-26-6", "m4-0", reservationNow.Add(-time.Hour))
+
+	r := reservationReconciler(pool, smallPool(), node, starved, booted, warm)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	names := remainingPodNames(t, r)
+	if !names["small-booted"] {
+		t.Error("a macOS Pod whose VM just started must get its first dispatch poll")
+	}
+	if names["small-warm"] {
+		t.Error("a macOS Pod idle long after booting should still be retired")
+	}
+}
+
+// A host whose idle Pod is still creating its VM cannot be cleared straight
+// away, so it must not rank as the host that converges soonest.
+func TestReservation_PrefersAHostWithoutAProvisioningPod(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		provisioningMacOSPod("small-pulling", "macos-26-6", "m4-0", reservationNow.Add(-5*time.Minute)),
+		bootedMacOSPod("small-warm", "macos-26-6", "m4-1", reservationNow.Add(-time.Hour)),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the host with a Pod still creating its VM should not be reserved")
+	}
+	if !isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("the host whose idle Pod can be retired now should be reserved")
 	}
 }
 
@@ -1038,5 +1201,228 @@ func TestReservation_DoesNotYieldToAnUnseatableShape(t *testing.T) {
 
 	if !isReserved(nodeByName(t, r, "ax-0")) && !isReserved(nodeByName(t, r, "ax-1")) {
 		t.Fatal("blocked forever behind a shape no drain could ever serve")
+	}
+}
+
+// Every image keeps a warm runner, so on a quiet fleet each host can hold an
+// idle one. A host holding only idle runners clears at once, so the starved
+// shape takes it after idleHostReservationGrace rather than reservationGrace.
+func TestReservation_TakesAnIdleHostEarly(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 45*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		bootedMacOSPod("small-warm-0", "macos-26-6", "m4-0", reservationNow.Add(-time.Hour)),
+		bootedMacOSPod("small-warm-1", "macos-26-6", "m4-1", reservationNow.Add(-time.Hour)),
+		placedPod("small-owned", "macos-26-6", "m4-1", "acme"),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-0")) {
+		t.Error("the host holding only an idle runner should be reserved before reservationGrace")
+	}
+	if isReserved(nodeByName(t, r, "m4-1")) {
+		t.Error("the host running a job should not be reserved")
+	}
+}
+
+// A host that would have to wait out a job is only worth draining once the
+// Pod has waited the full reservationGrace.
+func TestReservation_WaitsTheFullGraceForABusyHost(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 45*time.Second)
+
+	r := reservationReconciler(pool, smallPool(), m4Node("m4-0"), m4Node("m4-1"), starved,
+		placedPod("small-owned-0", "macos-26-6", "m4-0", "acme"),
+		placedPod("small-owned-1", "macos-26-6", "m4-1", "acme"),
+		bootedMacOSPod("small-booted", "macos-26-6", "m4-1", reservationNow.Add(-time.Minute)),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"m4-0", "m4-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Errorf("%s was reserved before reservationGrace although it runs a job", name)
+		}
+	}
+}
+
+func linuxMidPool() *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "runner-pool-linux-16vcpu-32gb", Namespace: "runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "linux",
+			FleetSelector: linuxReservationFleet,
+			PodCPUMilli:   16000,
+			PodMemoryMB:   32768,
+		},
+	}
+}
+
+// riseLNode carries an OVH RISE-L's allocatable: 16 cores / 32 threads and
+// 128 GB, less the kubelet reservation.
+func riseLNode(name string) *corev1.Node {
+	node := ax162Node(name)
+	node.Status.Allocatable = corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewQuantity(31, resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(125773035215, resource.BinarySI),
+	}
+	return node
+}
+
+// kataPod gives a runner Pod its shape's request and the kata RuntimeClass
+// overhead, as admission does.
+func kataPod(pod *corev1.Pod, cpuMilli, memoryMB int64) *corev1.Pod {
+	pod.Spec.Containers = []corev1.Container{{
+		Name: "runner",
+		Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(cpuMilli, resource.DecimalSI),
+			corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
+		}},
+	}}
+	pod.Spec.Overhead = corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("250m"),
+		corev1.ResourceMemory: resource.MustParse("2560Mi"),
+	}
+	return pod
+}
+
+func cacheVolumeAgentPod(name, node string, seatedAt time.Time) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              name,
+			Namespace:         "runners",
+			Labels:            map[string]string{"app.kubernetes.io/component": "runner-cache-volumes"},
+			CreationTimestamp: metav1.NewTime(seatedAt),
+		},
+		Spec: corev1.PodSpec{NodeName: node},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			Conditions: []corev1.PodCondition{{
+				Type:               corev1.PodScheduled,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(seatedAt),
+			}},
+		},
+	}
+}
+
+// Every Linux host runs some job during working hours, so a host with no job
+// at all rarely exists. A host whose idle Pods are all that stand between the
+// starved shape and a seat clears as fast as one holding only idle Pods.
+func TestReservation_TakesALinuxHostEarlyWhenItsIdlePodsMakeRoom(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("mid-0", pool.Name, 45*time.Second), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("rl-0"), riseLNode("rl-1"), starved,
+		kataPod(placedPod("rl-0-job", "runner-pool-linux-8vcpu-16gb", "rl-0", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-0-warm", "runner-pool-linux-16vcpu-64gb", "rl-0", ""), 16000, 65536),
+		kataPod(placedPod("rl-1-job-0", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-job-1", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-job-2", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-warm", linuxSmallPoolName, "rl-1", ""), 2000, 8192),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "rl-0")) {
+		t.Error("the host that seats the shape once its idle Pod is retired should be reserved before reservationGrace")
+	}
+	if isReserved(nodeByName(t, r, "rl-1")) {
+		t.Error("the host whose jobs leave no room for the shape should not be reserved")
+	}
+}
+
+func TestReservation_WaitsTheFullGraceWhenNoLinuxHostClearsAtOnce(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("mid-0", pool.Name, 45*time.Second), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("rl-0"), riseLNode("rl-1"), starved,
+		kataPod(placedPod("rl-0-job-0", "runner-pool-linux-8vcpu-16gb", "rl-0", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-0-job-1", "runner-pool-linux-8vcpu-16gb", "rl-0", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-0-warm", linuxSmallPoolName, "rl-0", ""), 2000, 8192),
+		kataPod(placedPod("rl-1-job-0", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-job-1", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-warm", linuxSmallPoolName, "rl-1", ""), 2000, 8192),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"rl-0", "rl-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Errorf("%s was reserved before reservationGrace although its jobs leave no room", name)
+		}
+	}
+}
+
+// A shape that already fits beside a host's jobs, with nothing to retire, is
+// held back by something the runners namespace does not show.
+func TestReservation_LinuxEarlyPathNeedsAnIdlePodToRetire(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("mid-0", pool.Name, 45*time.Second), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("rl-0"), riseLNode("rl-1"), starved,
+		kataPod(placedPod("rl-0-job", "runner-pool-linux-8vcpu-16gb", "rl-0", "acme"), 8000, 16384),
+		kataPod(placedPod("rl-1-job", "runner-pool-linux-8vcpu-16gb", "rl-1", "acme"), 8000, 16384),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	for _, name := range []string{"rl-0", "rl-1"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Errorf("%s was reserved early with no idle Pod to retire", name)
+		}
+	}
+}
+
+func TestReservation_NeverRetiresTheCacheVolumeAgent(t *testing.T) {
+	pool := linuxMidPool()
+	node := riseLNode("rl-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+
+	starved := pendingPod("mid-0", pool.Name, 5*time.Minute)
+	r := reservationReconciler(pool, linuxSmallPool(), node, riseLNode("rl-1"), starved,
+		cacheVolumeAgentPod("cache-volumes-0", "rl-0", reservationNow.Add(-time.Hour)),
+		placedPod("small-idle", linuxSmallPoolName, "rl-0", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	remaining := remainingPodNames(t, r)
+	if !remaining["cache-volumes-0"] {
+		t.Error("the cache-volume agent is not a runner and must survive the drain")
+	}
+	if remaining["small-idle"] {
+		t.Error("an idle runner of another pool should still be retired")
+	}
+}
+
+func TestReservation_AFreshCacheVolumeAgentDoesNotHoldBackTheEarlyPath(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("mid-0", pool.Name, 45*time.Second), 16000, 32768)
+
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("rl-0"), riseLNode("rl-1"), starved,
+		cacheVolumeAgentPod("cache-volumes-0", "rl-0", reservationNow.Add(-30*time.Second)),
+		kataPod(placedPod("rl-0-warm", "runner-pool-linux-16vcpu-64gb", "rl-0", ""), 16000, 65536),
+		kataPod(placedPod("rl-1-job", "runner-pool-linux-16vcpu-64gb", "rl-1", "acme"), 16000, 65536),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "rl-0")) {
+		t.Error("a host holding only an idle runner and the cache-volume agent should be reserved before reservationGrace")
 	}
 }

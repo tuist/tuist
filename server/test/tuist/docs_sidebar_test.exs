@@ -30,11 +30,33 @@ defmodule Tuist.Docs.SidebarTest do
              {"Generated Xcode project", "/en/guides/get-started/generated-xcode-project"},
              {"Gradle project", "/en/guides/get-started/gradle-project"},
              {"Elixir project", "/en/guides/get-started/elixir-project"},
+             {"Rust project", "/en/guides/get-started/rust-project"},
              {"Bazel project", "/en/guides/get-started/bazel-project"}
            ]
 
+    assert Enum.find(chooser.items, &(&1.label == "Rust project")).icon == "brand_rust"
+
     refute Enum.any?(rest, &(&1.label == "Guides"))
     refute Enum.any?(rest, &(&1.label == "Tutorials"))
+  end
+
+  test "links every Rust journey with the Rust brand logo" do
+    rust_slugs =
+      for group <- Sidebar.guides_tree(),
+          item <- group.items,
+          child <- item.items,
+          child.icon == "brand_rust",
+          do: child.slug
+
+    assert MapSet.new(rust_slugs) ==
+             MapSet.new([
+               "/en/guides/get-started/rust-project",
+               "/en/guides/features/cache/rust",
+               "/en/guides/features/build-insights/rust",
+               "/en/guides/features/test-insights/rust",
+               "/en/guides/features/test-insights/flaky-tests/rust",
+               "/en/guides/features/test-sharding/rust"
+             ])
   end
 
   test "links the library documentation from the references sidebar" do

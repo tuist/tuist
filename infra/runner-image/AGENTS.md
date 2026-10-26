@@ -50,36 +50,111 @@ each one with a check that asserts the behaviour rather than the
 ingredient — every gap so far was found by a release failing, not
 by the image build.
 
-TCC is one of those gaps. Scripted Finder automation (`create-dmg`,
-anything driving Finder through `osascript`) needs a standing
-`kTCCServiceAppleEvents` approval, or the first send waits on a
-consent prompt nobody can answer and fails as `AppleEvent timed out
-(-1712)`. `dispatch-poll.sh` (`approve_finder_automation`) writes it
-at boot. Three details decide whether a row matches, and earlier
-attempts got each one wrong:
+TCC is one of those gaps. Two standing approvals live in `runner`'s own
+`~/Library/Application Support/com.apple.TCC/TCC.db`, the same rows
+GitHub-hosted images ship:
 
-- **Database.** Only the session user's
-  `~/Library/Application Support/com.apple.TCC/TCC.db` is consulted.
-  A row in the system database is ignored. The user database only
-  exists once `runner` has logged in, which is why this runs at boot
-  and not in the Packer template.
-- **Client.** TCC charges the event to the responsible process, not
-  to `osascript`. For GitHub jobs that is
-  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite
-  and GitLab agents are started directly by `dispatch-poll.sh`, so
-  theirs is expected to be its `/bin/bash`. `log stream --predicate
-  'subsystem == "com.apple.TCC"'` names it (`Prompting for access to
-  indirect object Finder by …`).
-- **Target.** `indirect_object_code_identity` must hold Finder's
-  code requirement. A row with it NULL is ignored.
+- **Scripting Finder.** `create-dmg`, or anything driving Finder through
+  `osascript`, needs `kTCCServiceAppleEvents` approved, or the first send
+  waits on a consent prompt nobody can answer and fails as `AppleEvent
+  timed out (-1712)`.
+- **The iOS Simulator's microphone.** A simulator app that records audio
+  (`AVAudioSession` in `.playAndRecord`, `AVAudioEngine`'s input node, a
+  video-call SDK) reaches the host microphone through coreaudiod, and TCC
+  charges it to `com.apple.CoreSimulator.SimulatorTrampoline`. Without a
+  row the app's audio call never returns, its main thread stalls, and
+  XCUITest fails with `Failed to get matching snapshots: Timed out while
+  evaluating UI query` or `Unable to monitor event loop`. The iOS-level
+  permission inside the simulator (`simctl privacy`, the in-app alert) is
+  separate and stays the job's responsibility. Simulators have no camera,
+  so `AVCaptureDevice.default(for: .video)` is nil there on any host.
 
-The write itself races tccd, which is still writing the database
-right after login. Without a busy timeout, `sqlite3` failed with
-`database is locked` on some boots and the job then hit
-`-1712` (prompt shown) or `-1743` (immediate deny). The guest logs
-`Finder automation approved` or `WARNING could not approve …`; for VMs
-whose log tail reaches Loki, search the `tuist-macos-tart-kubelet`
-`runner log` lines for it.
+`tcc-approvals.sh` writes them at image build. The Packer template reboots
+the build VM so `runner` auto-logs in, waits for the TCC.db that login
+makes runner's tccd create, seeds the rows into it as `runner`, then
+reboots once more and fails the build unless every row is still there.
+At boot, `dispatch-poll.sh` (`check_tcc_approvals`) only reads them and
+logs `tcc-approvals: all approvals present` or `WARNING tcc-approvals:
+missing …`; for VMs whose log tail reaches Loki, search the
+`tuist-macos-tart-kubelet` `runner log` lines for it.
+
+What decides whether a row matches:
+
+- **Database.** Only the session user's database is consulted, for both
+  services. A row in the system database is ignored: coreaudiod asks the
+  system tccd, which forwards to the user tccd, and the user tccd decides.
+  PPPC configuration profiles cannot grant Microphone or Camera (deny
+  only), so MDM is not a route.
+- **Client.** TCC charges an AppleEvent to the responsible process, not to
+  `osascript`. For GitHub jobs that is
+  `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite and
+  GitLab agents are started directly by `dispatch-poll.sh`, so theirs is
+  expected to be its `/bin/bash`. The microphone row is a bundle-ID client
+  (`client_type` 0). `log stream --predicate 'subsystem == "com.apple.TCC"'`
+  names the charged process (`Prompting for access to indirect object
+  Finder by …`, `AttributionChain: responsible=…`).
+- **Target.** The Finder rows' `indirect_object_code_identity` must hold
+  Finder's code requirement. A row with it NULL is ignored.
+
+Why the rows are written at build and not at boot: the database only
+exists once `runner` has logged in, and before the template rebooted into
+`runner`'s session nothing in the build did, so the image shipped with no
+user TCC.db at all. tccd then created one about 8 s after every VM boot,
+which looked like tccd recreating a database seeded at build. It was not:
+a database tccd created in the build session keeps its inode and birth
+time through `tart push`, the clone, and boot on a cluster node, and tccd
+honours its rows. Writing at boot instead raced tccd, which is still
+writing the database right after login (`database is locked` without a
+busy timeout, then `-1712` or `-1743`), and a microphone row written after
+a prompt is already pending does not unblock coreaudiod.
+
+An earlier attempt (the build-account rename in
+[#13597](https://github.com/tuist/tuist/pull/13597)) wrote rows into `admin`'s database during
+the build and then moved `admin`'s home to `/Users/runner`. That file was
+gone at boot. The system tccd keeps a registry of user databases in
+`/Library/Application Support/com.apple.TCC/REG.db` (table `registry`:
+`abs_path`, `first_seen`, `last_seen`, `trusted`), and the user tccd calls
+`TCCCheckIfDatabaseIsRegistered` when it starts. That database had only
+ever been registered at `/Users/admin`. This is the likely reason, not a
+confirmed one. Seed the database tccd created for `runner` at
+`/Users/runner`, and do not move or copy a TCC.db into place.
+
+macOS 27 moves the user database to
+`/private/var/containers/Data/ProtectedSystem/<id>/Data/Library/Application Support/com.apple.TCC/TCC.db`.
+`tcc-approvals.sh` only knows the Tahoe path, and its `wait` step fails the
+image build when the database does not appear there, so a macOS 27 base
+breaks the build instead of shipping without approvals. The build-time
+approach should carry over, because the container lives on the image's
+disk, but resolve the path from runner's tccd (`lsof -p <pid>`) and verify
+it on a macOS 27 guest first.
+
+Some jobs on images that wrote the Finder approval at boot failed with an
+immediate `-1743` although boot logged approval. `dispatch-poll.sh`
+streams TCC at Info level as newline-delimited JSON, so multiline request
+bodies retain their service and target fields. At exit it appends
+`dispatch-poll: tcc:` lines after the job output: Finder grant rows,
+database inode/birth time, tccd start times, and AppleEvents request summaries.
+Requests are keyed by daemon PID and message ID; no-ID attribution/decision
+events use the most recent request on the same daemon thread. This is
+best-effort adjacency, not a proven cause or perfect correlation after dropped
+events. Other explicit services are excluded. Parse only the latest MiB;
+retain the last observed `authValue=0` denial and nine recent requests, capped
+below the host's 200-line/64-KiB tail. An `authValue=1` undetermined state is a
+fallback only when no explicit denial is captured. Older requests can fall
+outside this window.
+
+Stream shutdown has a one-second kill grace; report work has a five-second
+deadline and one-second grace, so diagnostics do not indefinitely delay normal
+VM teardown. Only still-running shell-owned stream jobs are signalled, and the
+saved PID is cleared. Capture failure must not change the job's exit code.
+The raw stream is temporary inside the guest and grows for the job lifetime;
+only the bounded report is exported. No grants, probes, or daemon reloads are
+introduced. Remove the capture when the failure is understood.
+
+Run `bash infra/runner-image/tcc-report_test.sh` from the checkout. It also
+covers `tcc-approvals.sh`. Tests use synthetic JSON and temporary
+SQLite/processes, never host privacy APIs. The existing release workflow
+runs them on PRs and before releases with a separate read-only test job; PR events never plan, build, publish, or deploy images.
 
 The sanity checks at the end of the Packer template run as `sudo
 -u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
@@ -112,7 +187,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   deletes when the job ends — hence a `pre-exit` hook rather than
   anything later. `pre-exit` also writes the job's outcome as it sees it
   (`succeeded`, `failed` or `canceled`) to `job-result` in its state
-  directory, ahead of the credential check, for the cache-volume promote gate
+  directory, ahead of the credential check, for the cache-volume save gate
   below. Only the macOS teardown reads it, and only together with the agent's
   exit status (see below). `canceled` comes from `BUILDKITE_JOB_CANCELLED`,
   which the executor sets for the hooks that run after a cancel.
@@ -123,7 +198,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   tart-kubelet's env mount (`/Volumes/My Shared Files/env/tuist.env`)
   into `/etc/tuist.env`.
 - `/opt/tuist/dispatch-poll.sh` — polls
-  `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. While 204 it
+  `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. Each request carries the
+  guest's `sw_vers -productVersion` as `os_version`, which the server
+  puts in a macOS runner's name (`tuist-macos-26.6-xcode-27.0-6vcpu-14gb-<hex>`,
+  see `runner_name_prefix/4` in `server/lib/tuist/runners.ex`). While 204 it
   sleeps; on 200 it runs the agent the response selects: `./run.sh
   --jitconfig $JIT` for a GitHub job, or `buildkite-agent start` with
   `BUILDKITE_AGENT_ACQUIRE_JOB` set for a Buildkite one. The Buildkite
@@ -140,51 +218,52 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
-  `dispatch-poll.sh` also drives the **cache-volume** flow, one volume per
-  repository (per account for a job with no repository), materialized after
-  dispatch. The guest never learns which volume it got: the server stamps it on
-  the Pod and resolves it from there on every promote. tart-kubelet attaches
-  an *empty* per-VM branch directory as a writable virtio-fs share at
-  `/Volumes/My Shared Files/cache`. The cache itself is a **sparse APFS disk
-  image** (`cache.sparseimage`) inside that share, not files on it: virtio-fs
-  cannot set xattrs on symlinks, and macOS frameworks are versioned bundles
-  whose symlinks carry the CLI's signature xattrs, so caching any macOS slice
-  onto the share fails (ELOOP). Inside an image the filesystem is real APFS and
-  only one regular file crosses virtio-fs.
-  The share is empty until dispatch: once the server stamps the pod's account
-  and cache-volume labels, the host clonefiles that volume's master image (or,
-  for a repository with no master on the host yet, the account's `tuist-cache`
-  master at base generation 0) into the branch and
-  writes a `cache-ready` marker. After receiving the JIT and before `./run.sh`,
-  the guest calls `wait_for_cache_ready` — a bounded (~60s) wait on that marker
-  — then `attach_cache_image` (`hdiutil attach … -owners off`, which maps the
-  contents to the guest user and so retires any host/guest uid reconciliation),
-  points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
-  (`/Users/runner/.tuist-cache-volume`), divides the budget the host stages for
-  both caches between them by use (`set_cache_limits`, described with the
-  compilation cache below) and exports the binary cache's limit as
-  `TUIST_CACHE_MAX_BYTES` for the CLI's LRU prune and download admission, reads
-  the host-staged base generation
-  (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
-  used as the fast-forward base at promote — and snapshots the pre-job inventory.
-  The host also stages its Kubernetes `node-name` there at VM create, which the
-  guest relays with its promote so the HEAD row records WHICH host published a
-  generation — the Node name rather than `TUIST_RUNNER_POD_NAME`, because the Pod
-  is gone minutes later while the Node name is what the
-  `tuist.dev/cache-master-<account_id>[.<volume>]` advertisements and the volume affinities
-  are keyed on. Attribution only: nothing in the fast-forward reads it, and an
-  unstaged name reports empty rather than falling back to the Pod name, since a
-  column holding two kinds of name identifies neither. Every value the guest takes
-  off the share is sanitised to its own alphabet and length before it reaches a
-  request body.
-  Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
-  still gets an *empty* image — the guest can only attach what is there, and no
-  image would kill the job rather than cost it warmth.
-  Only a job that **succeeded** promotes. The gate is `JOB_PASSED` (zero exit AND
-  a job result of `succeeded`), not the runner's exit status. `run.sh` folds
-  every Listener code except a restart into 0, and the GitLab executor exits 0
-  for job outcomes by design. Gating on the exit status promoted failed and
-  cancelled jobs, about one in ten of one account's HEAD publishes in a week.
+  **Caches.** The Xcode compilation cache and the Tuist module cache each live
+  on a managed custom volume, `tuist-xcode` at `MANAGED_XCODE_CACHE` and
+  `tuist-module` at `MANAGED_MODULE_CACHE`; the runner image has no other cache
+  path. After dispatch and before the runner starts, `stage_runner_caches`
+  writes `mode` (`opt-in`) and, through `stage_managed_cache_volumes`, each
+  cache's `<cache>.volume` (key and path), its environment in
+  `/Users/runner/.tuist-runner-caches/{module,xcode}.env`
+  (`TUIST_XDG_CACHE_HOME` and `TUIST_CACHE_MAX_BYTES`; `XCODE_XCCONFIG_FILE`,
+  `TUIST_COMPILATION_CACHE_CAS_PATH` and `TUIST_CAS_DRAINED_STORE`), and the
+  compilation cache's own xcconfig bounding its store to
+  `MANAGED_XCODE_CACHE_LIMIT_BYTES`. Nothing reaches the runner's environment
+  until a job asks: the `tuist/module-cache` and `tuist/xcode-cache` actions,
+  Buildkite plugins and GitLab snippets (`ci/runner-caches/`) run
+  `/usr/local/bin/tuist-runner-cache activate <cache> [--size NGB]`, which
+  attaches the volume with `tuist-cache-volume`, passing the size, once per job
+  (`<cache>.attached`), prints the
+  environment for the integration to export, chains a workflow-set
+  `XCODE_XCCONFIG_FILE` last (a relative one resolved against the step's
+  working directory), and leaves `<cache>.used`. It exits 3 without exporting
+  anything when the attach fails or the cache was not staged. An absent `mode`
+  means a runner that never staged caches, including one whose directory could
+  not be created; the helper then exits 0 and the job runs without them. Keep
+  the helper's env contract in step with these files, and run
+  `runner-caches_test.sh`. After the attach the helper reads the volume's
+  capacity (`df` on the path, which links into the mounted image) and rewrites
+  `TUIST_CACHE_MAX_BYTES` in `module.env` or `COMPILATION_CACHE_LIMIT_SIZE` in
+  the xcconfig. The module cache's limit is the capacity less max(2 GB, 20%), at
+  most half of it: 16 GB at the default 20 GB. The compilation cache's is half
+  that space, 12 GB at the default 30 GB, because `COMPILATION_CACHE_LIMIT_SIZE`
+  bounds one generation and the store keeps two (the primary and its upstream).
+  A path left as a local directory (the
+  volume was unavailable) keeps the staged limits of a default-sized volume. The
+  teardown prune bounds the store at the limit the xcconfig gave the compiler
+  (`managed_xcode_cache_limit`), so both follow the capacity the job set with
+  `size` (the server's defaults: 30 GB `tuist-xcode`, 20 GB `tuist-module`).
+  Keep the limits under the 99% fill at which a volume is no longer saved. The
+  runner image reads nothing from the host's `cache` share and calls none of
+  the server's volume HEAD routes, so it works with hosts that still offer that
+  share and with hosts that do not.
+  Only a job that **succeeded** saves its cache volumes. The gate is
+  `JOB_PASSED` (zero exit AND a job result of `succeeded`), not the runner's
+  exit status. `run.sh` folds every Listener code except a restart into 0, and
+  the GitLab executor exits 0 for job outcomes by design. A job whose result is
+  `failed` still detaches its volumes (`cache_volumes_detached`): the server
+  discards a failed job's volumes, and the detach reports how full each one
+  got, so a copy that ran out of space clears its saved snapshot.
   GitHub's verdict is the Listener's `_diag/Runner_*.log` line `finish job
   request for job <id> with result: <Result>`, matched only at a `JobDispatcher`
   trace header, because a later line echoes the job's display name. The Listener
@@ -198,9 +277,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   upload, or a repository or plugin `pre-exit` hook. The status alone misses a
   cancel. The script still exits 0 for any job the hook saw, because the
   runners-controller reads a non-zero runner exit as a runner death. A
-  failed, cancelled or missing verdict withholds every promote-only step:
-  teardown prune, compaction, dirty marker and HEAD publish. The drain still runs
-  for every job. Three sources that look usable are not:
+  failed, cancelled or missing verdict withholds the teardown prune and
+  `tuist-cache-volume --detach-all`. The drain still runs for every job that
+  used the compilation cache. Three sources that look usable are not:
   - the Worker's `Job result after all job steps finish` line is never written
     when a job fails to initialize or its Worker crashes;
   - `ACTIONS_RUNNER_RETURN_JOB_RESULT_FOR_HOSTED` returns 100 + the result, but
@@ -208,231 +287,97 @@ added to catch that failed on `admin`'s unwritable cache instead.
     its dispatch throws;
   - `ACTIONS_RUNNER_HOOK_JOB_COMPLETED` runs as a job step before the result is
     settled, and no status variable reaches it.
-  Teardown order is load-bearing: **wait for the compilation cache's
-  publications to reach the remote** (`drain_cas_publications`, below), sample
-  the signals that need a live mount (fill
-  %), then **detach**, then measure the SETTLED image for the digest this job
-  publishes (`capture_settled_inventory` re-attaches the detached file READ-ONLY —
-  the same view the verifying host uses), then write `cache-dirty` (only after both
-  a clean detach and a successful measurement — its absence is what tells the host
-  to discard, the safe default for any teardown that reaches neither). The digest
-  must NOT be read through the job's own read-write mount, which is what this
-  replaced: it is both the HEAD's `tree_digest` and the immutable object key, so it
-  is a claim about the bytes the upload sends, and anything writing to the image
-  between the measurement and the detach breaks that claim permanently. The window
-  is why `detach_cache_image` polls and then forces at all — processes outlive the
-  runner (a lingering build service, the compilation cache's own asynchronous store
-  flush/prune, busiest for the largest caches) and every `~cas/` line carries a file
-  SIZE, so one late append is enough. A HEAD published from a pre-detach snapshot
-  names bytes no host can reproduce: convergence verifies the downloaded object and
-  declines, so no promote can build on that HEAD — base 0 is rejected while a HEAD
-  exists, and a host left at an older generation is rejected for a stale base — and
-  the account is stuck fleet-wide (seen in production: one account cold on all nine
-  hosts for days). When a host does hit that, it stages the disproved digest as
-  `volume-head-unverifiable` in the `status` share and the guest relays it as
-  `unverifiable_digest` with BOTH promote requests, which is what lets the server
-  retire a HEAD nothing can adopt, from either base — it rides the mint request too,
-  or the pre-flight would 409 the only promote that can unwedge the account.
-  Between the inventory and the content hash, a successful job whose image changed
-  runs `compact_cache_image`: a prune frees blocks inside the image's filesystem
-  and none in the image file, so without `hdiutil compact` a master costs the host
-  the most it ever held. It leaves the capacity alone. Shrinking the capacity
-  instead was measured and dropped: it moves every live block past the new end
-  (92 s for 3.6 GiB of live data) and frees nothing compaction does not. It
-  rewrites the file, which is why it sits before the content hash and after the
-  inventory, which it does not change.
-  Alongside the inventory digest, `capture_content_digest` hashes the settled
-  image FILE (SHA-256, after the read-only measuring attach detaches and after the
-  compaction) into `content_digest`: the inventory digest fingerprints entry names and sizes, so a
-  bit flipped INSIDE a cached file sails through it, and the content digest is the
-  end-to-end byte claim. It rides both promote requests; the mint response echoes
-  the base64 the server signed into the presigned PUT as `checksum_sha256`, the
-  guest sends it as `x-amz-checksum-sha256` (only when echoed — the URL's
-  signature covers it), the object store verifies the payload at ingest, and the
-  converging host verifies the download against the HEAD row's digest before
-  adopting (a mismatch stages `volume-head-unverifiable` exactly like an inventory
-  mismatch). All of it is optional per hop, so images and servers roll
-  independently: no digest, no echoed checksum, or a HEAD row without one just
-  degrades to the pre-hash behaviour. Promotion is a **fast-forward
-  compare-and-swap**, not a direct host clone: the guest uploads the detached
-  image to a content-addressed key and reports the HEAD with `base_generation`,
-  and the server advances the HEAD only if it is still at that base (200,
-  returning the accepted generation) or rejects a stale base (409). The guest
-  captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
-  and a transport error into one failure) and relays the outcome into the
-  `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
-  or `error`. Most promotes lose that race, and the upload blocks the VM halt and
-  the host's slot, so the guest sends `base_generation` when MINTING the upload
-  URL too and the server 409s there — pre-empting the transfer for a promote that
-  cannot win. That pre-check may only ever skip doomed work: it is racy by
-  construction (another host can win during the upload), so the bump's
-  compare-and-swap stays the authority, an absent `base_generation` disables it
-  for older runner images, and any other failure falls back to
-  upload-then-arbitrate. The host's `Finalize` installs the branch as the
-  account's local master (a whole-image replace) ONLY on `accepted` — so the local
-  master and the HEAD advance together. A `conflict` (a stale base another host
-  advanced past) or an `error` (upload/network/control-plane failure — kept
-  distinct so an outage is not mistaken for cross-host contention) discards the
-  branch and lets convergence re-warm it. A rejected promote that got as far as
-  uploading leaves an object no HEAD points at, so the server records it as an
-  orphan and reclaims it after the URL-TTL grace; a pre-empted one never wrote
-  anything to reclaim. The
-  host clones the promoted image and cannot tell a torn snapshot from a good one,
-  so a mount torn down by the VM halting would poison the account's master; if the
-  detach fails even with `-force`, the guest withdraws the image from both
-  promotion and publication.
-  The server also delivers a `cache_signing_grant` in
-  the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
-  artifacts with the account scope instead of the machine MAC — which is what
-  lets a clonefiled master validate across the account's VMs. The Xcode
-  compilation cache (CAS) is **folded INTO the cache image**: a
-  `CompilationCache.noindex` store dir beside `tuist/` inside the one mounted
-  image, so it rides the binary cache's whole lifecycle — clone, promote,
-  fast-forward HEAD, convergence — with no separate image, mount, or promote
-  gate. (It works because the store is on the block-device image, not the
-  virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
-  the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
-  `setup_cas_store`, called after the attach-time prune (which can be what makes a full image's store writable), creates
-  the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
-  exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
-  gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
-  guard) covers it. A compile-only job still persists its CAS because the
-  inventory digest includes one `~cas/<relpath>\t<size>` line per store file (a
-  content identity, computed identically host- and guest-side), so CAS growth
-  flips the digest → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)
-  out of the multi-GB store. Absent marker ⇒ the compilation cache runs VM-local
-  (cold), unchanged. The CAS shares the volume cap with the binary cache, so size
-  `--cache-volume-cap-gib` for both and keep HEAD uploads fast
-  (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
-  blocks slot reclaim).
-  **The two caches share one budget.** The host stages `cache-budget-bytes`:
-  the image less a reserve of max(2 GiB, 20% of the cap), 24 GiB at a 30 GiB
-  cap, and the reserve is the room a job grows into before anything prunes.
-  `set_cache_limits` divides it between `tuist/` and `CompilationCache.noindex/`
-  by their allocated `du` sizes, with the rule the stores are divided by
-  (`split_by_use`, below) and a 2 GiB floor per cache
-  (`CACHE_SPLIT_FLOOR_BYTES`). The floor matters for the binary cache, which the
-  CLI holds to its limit for the whole job (a download that does not fit is
-  rebuilt from source), so a cache that holds nothing yet next to a busy one
-  still gets 2 GiB and doubles from there; two caches that each hold under a
-  quarter of the budget split it evenly. It runs twice: at attach, before the
-  attach prune, and at teardown, before the teardown prune, because the binary
-  cache may have grown to its attach-time share during the job and nothing
-  prunes it at teardown. Neither cache is handed room the other still holds
-  (`within_room`): the compilation cache's limit is capped at the budget less
-  what `tuist/` holds, and `limit_binary_cache` exports the binary cache's
-  after the attach prune, capped at the budget less what the store holds once
-  pruned, since a prune keeps a store's newest generations even past a limit
-  that just shrank. The two
-  limits therefore never add up to more than the budget. A cache that stops
-  being used gives its space back only as fast as its own pruner collects it:
-  the CLI's LRU and 7-day age prune for `tuist/`, a rotation for the store. A
-  host whose tart-kubelet predates `cache-budget-bytes` stages only the fixed
-  split (`cache-max-bytes`, and the `cas-enabled` figure), and
-  `set_cache_limits` applies that as is, so the two components roll out in
-  either order.
-  Each division is staged back for the host in `cache-limits`
-  (`stage_cache_limits`), one `<when>\t<cache>\t<held>\t<limit>` line per cache
-  at attach and at teardown, which the host exports as
-  `tart_kubelet_cache_volume_cache_bytes` and
-  `tart_kubelet_cache_volume_cache_limit_bytes`. Those sizes are the only
-  per-cache measurement the fleet has, and they are what the rule and its floors
-  are retuned from: this log carries the same numbers, but the host re-emits only
-  a bounded tail of it, so a verbose job's attach lines never reach the log
-  store. Staged at attach AFTER `limit_binary_cache`, so what is recorded is the
-  limit that was applied.
-  The store is bounded by `prune_cas_stores`, which runs at BOTH ends of a
-  job, and by nothing else. `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory:
-  llcas rotates (new primary, old one demoted) when the chain is over the limit
-  and its last handle closes, and only `llcas_cas_prune_ondisk_data` deletes what
-  falls off — which no part of a build ever calls, so the store grew without
-  bound until the volume filled and the account wedged (`tuist` at 17-18 GB of
-  CAS against a 2.2 GB binary cache inside a 20 GiB image, refilling every ~2
-  days). The prune runs through `tuist-cas-proxy --prune`, not this shell,
-  because the per-machine proxy holds a handle per path for its lifetime and
-  only the holder can rotate a store. A store no proxy holds is pruned on its
-  generation dirs under the store's `lock` without opening it, so it works on a
-  full volume and on stores the compilers or another Xcode wrote. Every lane is
-  swept (`plugin`, and `builtin`/`generic` from builds without our plugin),
-  discovered by their `v1.N` generation dirs, and the compilation cache's limit
-  is SPLIT between them: it budgets the CAS as a whole while llcas only takes a
-  per-generation bound per store, so handing each the full figure would let a
-  multi-lane job occupy a multiple of the CAS the image was sized for. The split
-  is by use (`cas_store_budgets` over `split_by_use`): a store whose need, twice
-  its allocated size and at least 256 MiB, is under an even share gets that
-  need, and the stores that need more split the rest. An even split gave the few-KB `generic` store,
-  present on every volume, half the budget and capped `plugin` at half of what
-  the host staged. Teardown is the only place that can count the
-  lanes — `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
-  The teardown pass (second, after the drain) bounds what the FLEET inherits: the
-  image is measured and promoted right after it. The attach pass bounds what THIS
-  job inherits, and covers the case teardown cannot reach — a master that is
-  already over budget can fill the volume mid-build and fail the job, and a
-  failed job never promotes, so teardown is skipped and no replacement is ever
-  published. That is the wedge that ends in a manual reset; pruning at attach
-  gives the job the headroom to succeed so its own teardown publishes the fix.
-  The attach pass runs AFTER `CACHE_INVENTORY_BEFORE` is snapshotted, and that
-  order is load-bearing: pruning first folds the collection into the baseline, so
-  a pure-cache-hit job reads as clean and the host DISCARDS the cleaned image
-  (verified both ways — same digest when reversed). Taking the baseline first
-  makes the collection itself the change that earns the promote, the same
-  reasoning that puts `reclaim_cas_if_disabled` at teardown. The compiler is
-  given the compilation cache's whole limit, not half: llcas and the prune
-  rotate a store once its primary passes half the limit, so the limit already
-  covers the primary and the demoted upstream, which is the warm cache.
-  `setup_cas_store` also exports
-  `TUIST_COMPILATION_CACHE_CAS_PATH`, because `tuist cache` passes
-  `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND LINE and a command-line
-  build setting BEATS `XCODE_XCCONFIG_FILE`: without it that job's store landed
-  on the VM's boot volume and died with it. It exports
-  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every cache
-  put wait for its upload, because off a runner the store goes away with the job,
-  and `drain_cas_publications` does that wait at teardown for spools under this
-  directory, after the job has reported its result. The plugin uploads in the
-  background only when its own store is inside that path, so a job whose xcconfig
-  or command line moves `COMPILATION_CACHE_CAS_PATH` elsewhere keeps waiting, and
-  so does every job whose store is VM-local.
-  The one gate the CAS DOES need of its own is `drain_cas_publications`, first in
-  teardown (the prune is second, and in that order deliberately: a prune deletes
-  objects, and deleting one the spool still owed would strand the association
-  naming it). The store's objects are uploaded to the remote cache
+  Teardown order is load-bearing. For a job that left `xcode.used`, teardown
+  points `CAS_STORE_ROOT` at the compilation cache and first **waits for its
+  publications to reach the remote** (`drain_cas_publications`), then prunes it
+  (`prune_cas_stores teardown`, successful jobs only). Then
+  `stop_tuist_launch_agents` boots out every `tuist.*` launch agent the CLI
+  installed during the job (the image's own agents are `dev.tuist.*`) and waits
+  up to 10 s for each process to exit, since `launchctl bootout` returns first.
+  These agents outlive the runner's process cleanup and restart on an
+  unsuccessful exit, so they are booted out, not killed. The proxy holds the
+  compilation-cache store open, and a Tuist installed onto a custom volume (for
+  example mise's install directory) runs from it; either keeps a volume busy,
+  so its clean detach fails with EBUSY. Only then do the checkout export and
+  `tuist-cache-volume --detach-all` run.
+  The server also delivers a `cache_signing_grant` in the dispatch 200, exported
+  as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs artifacts with the account
+  scope instead of the machine MAC, which is what lets a saved volume's binaries
+  validate across the account's VMs.
+  `cas_proxy_client` resolves an explicit proxy override, the installed agent's
+  configured override or CLI bundle, PATH, then the image fallback. For stable
+  `/bin/sh` agents it reads the JSON launch target from ProgramArguments[2];
+  for explicit custom/source-built agents it reads the CLI from
+  ProgramArguments[4]. Legacy agents still name the CLI in Program. Run
+  `bash infra/runner-image/tests/cas-proxy-client-test.sh` on macOS to cover
+  all discovery modes without starting the dispatch loop.
+  The store is bounded by `prune_cas_stores` and by nothing else.
+  `COMPILATION_CACHE_LIMIT_SIZE` bounds a GENERATION, not the directory: llcas
+  rotates (new primary, old one demoted) when the chain is over the limit and
+  its last handle closes, and only `llcas_cas_prune_ondisk_data` deletes what
+  falls off, which no part of a build ever calls. The prune runs through
+  `tuist-cas-proxy --prune`, not this shell, because the per-machine proxy holds
+  a handle per path for its lifetime and only the holder can rotate a store. A
+  store no proxy holds is pruned on its generation dirs under the store's
+  `lock` without opening it, so it works on a full volume and on stores the
+  compilers or another Xcode wrote. Every lane is swept (`plugin`, and
+  `builtin`/`generic` from builds without our plugin), discovered by their
+  `v1.N` generation dirs, and the compilation cache's limit is SPLIT between
+  them: it budgets the CAS as a whole while llcas only takes a per-generation
+  bound per store, so handing each the full figure would let a multi-lane job
+  occupy a multiple of the volume. The split is by use (`cas_store_budgets` over
+  `split_by_use`): a store whose need, twice its allocated size and at least
+  256 MiB, is under an even share gets that need, and the stores that need more
+  split the rest. Teardown is the only place that can count the lanes, since
+  `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
+  Xcode ranks `XCODE_XCCONFIG_FILE` above `-xcconfig` and both above
+  command-line build settings (`xcodebuild -showBuildSettings` and the
+  compiler's `-cas-path` on Xcode 26.0.1 and 27.0; read the target's section,
+  not the "Build settings from command line" header that echoes the
+  arguments). So while the runner's xcconfig is in effect, a
+  `COMPILATION_CACHE_CAS_PATH=...` argument does NOT move the store, including
+  the one `tuist cache` passes. The staged environment still exports
+  `TUIST_COMPILATION_CACHE_CAS_PATH`: it is what `tuist cache` names, which
+  only takes effect for a step that replaces `XCODE_XCCONFIG_FILE` with a file
+  that does not set the path, and it is where scripts read the store's
+  location. It exports `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin
+  otherwise makes every cache put wait for its upload, because off a runner the
+  store goes away with the job, and `drain_cas_publications` does that wait at
+  teardown for spools under this directory, after the job has reported its
+  result. The plugin compares the store the compiler actually opened, so it
+  uploads in the background only when that store is inside this path; a job
+  whose own xcconfig moves `COMPILATION_CACHE_CAS_PATH` elsewhere, or that
+  drops `XCODE_XCCONFIG_FILE` and names another path, keeps waiting.
+  The drain exists because the store's objects are uploaded to the remote cache
   asynchronously, through the CAS plugin's spool, while the associations naming
-  them are written into the store immediately — so a promote that outruns those
-  uploads publishes a master whose keys name objects nothing can produce, for
-  every host that later clones it, permanently (the compiler's CAS ABI has no
-  delete, and re-putting a key with a different value is refused, so such a key
-  fails until the store generation rolls). The gate asks the running proxy
-  (`tuist-cas-proxy --drain`, exit 0 drained / 3 owed / anything else "could not
-  ask") and falls back to watching `<cas dir>/tuist-spool` itself when no client
-  can be found — a record is deleted only by a publication that SUCCEEDED, so an
-  empty spool is the proof either way. It runs BEFORE `capture_settled_inventory`
-  because that computes the digest this image is promoted under, and before the
-  detach because the spool is inside the image; it runs on a failed job too,
-  whose uploads the next job still needs even though its verdict gates nothing
-  (a failed job never promotes), and is a no-op for a job that never published,
-  which includes every plain `xcodebuild` using Xcode's builtin lane. Not
-  draining within `CAS_DRAIN_TIMEOUT` (120s) withholds a passing job's promote via
-  `mark_cache_not_promotable`: the account keeps its previous master and loses
-  this job's warm set, which is the same trade every other teardown that cannot
-  reach a safe state already makes. It cannot be complete — a host that panics or
-  a job cancelled mid-upload promotes without reaching it — so it complements,
-  and does not replace, the plugin's read-side check on a local hit.
+  them are written into the store immediately. Saving the volume ahead of those
+  uploads hands every later job keys naming objects nothing can produce,
+  permanently (the compiler's CAS ABI has no delete, and re-putting a key with
+  a different value is refused, so such a key fails until the store generation
+  rolls). The gate asks the running proxy (`tuist-cas-proxy --drain`, exit 0
+  drained / 3 owed / anything else "could not ask") and falls back to watching
+  `<cas dir>/tuist-spool` itself when no client can be found; a record is
+  deleted only by a publication that SUCCEEDED, so an empty spool is the proof
+  either way. It runs on a failed job too, whose uploads the next job still
+  needs, and is a no-op for a job that never published, which includes every
+  plain `xcodebuild` using Xcode's builtin lane. Not draining within
+  `CAS_DRAIN_TIMEOUT` (120 s) withholds the job's volumes. It cannot be
+  complete, so it complements, and does not replace, the plugin's read-side
+  check on a local hit.
   `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
-  `xcodebuild build` against a project Tuist never generated and never wraps —
+  `xcodebuild build` against a project Tuist never generated and never wraps,
   which the generate-time project mapper and the `tuist xcodebuild` wrapper both
-  miss. It is the one layer every xcodebuild invocation honors. (Measured on
-  staging: `COMPILATION_CACHE_*` exported as plain env vars does nothing —
-  xcodebuild does not read build settings from the environment.) Consequences to
-  know: the xcconfig deliberately does **not** set
-  `COMPILATION_CACHE_ENABLE_CACHING` (enabling the cache stays the project's
-  opt-in; this only says *where* an already-caching build keeps its store); it
-  chains a pre-existing `XCODE_XCCONFIG_FILE` via `#include` rather than
-  clobbering it, but a workflow exporting that variable *after* us wins and the
-  CAS falls back to VM-local; and `XCODE_XCCONFIG_FILE` is an OVERRIDES layer
-  (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
-  project/target-defined settings — a stray target-level `COMPILATION_CACHE_CAS_PATH`
-  does NOT win. The escape hatch is a workflow's own xcconfig, which we `#include`
-  LAST, so anything it sets explicitly (the CAS path included) still wins.
+  miss. It is the one layer every xcodebuild invocation honors
+  (`COMPILATION_CACHE_*` exported as plain env vars does nothing). The xcconfig
+  deliberately does **not** set `COMPILATION_CACHE_ENABLE_CACHING`: enabling the
+  cache stays the project's opt-in, and this only says *where* an
+  already-caching build keeps its store. `XCODE_XCCONFIG_FILE` is an OVERRIDES
+  layer (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
+  project and target settings, `-xcconfig` and the command line alike. The
+  escape hatches are a workflow's own xcconfig, which `tuist-runner-cache`
+  `#include`s LAST, so anything it sets explicitly (the CAS path included)
+  still wins, and running xcodebuild without `XCODE_XCCONFIG_FILE`, as
+  `.github/scripts/runners-acceptance/xcode-cache.sh` does.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
@@ -539,8 +484,20 @@ CI:
      `runner-image@<semver>` tag and GitHub Release with
      `build-manifest.json` attached. The chart's
      `runnersFleet.runnerImageSemver` resolves to that tag at deploy
-     time.
-  5. `deploy` dispatches `server-production-deployment.yml`, which
+     time, and `server-deployment.yml` resolves each profile that
+     release lists in `profiles.json` to the digest its tag serves
+     (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
+     carried profile's pools, warm Pods and host goldens stay as they
+     were. A profile tag that cannot be resolved fails the deploy.
+  5. `announce` writes each profile's standalone and stacked digest into
+     the `tuist-upcoming-runner-images` ConfigMap of canary and
+     production, so their macOS hosts pull the images their pools move
+     to, and waits until they hold them (see "stages" in
+     `infra/tart-kubelet/AGENTS.md`). Every deploy holds a pool on its
+     current image until then, for up to an hour; dispatch the release
+     with `skip_staging` to move the pools at once. A failure in
+     `announce` does not hold the deploy.
+  6. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
   `macos-xcode-image.yml` dispatches the workflow after publishing a
@@ -574,6 +531,49 @@ agent + dispatch loop + runner user / launchd wiring on top. A
 Layer 2 rebuild on every runner-image commit costs ~2 min instead
 of the ~30 min an all-in-one rebuild used to cost.
 
+### Stacked images
+
+Every release also publishes each profile as a Tart stacked image,
+`:macos-<dashes>-<semver>-stacked` (and the rolling
+`:macos-<dashes>-stacked`): Layer 1's disk stays a read-only base, and
+the runner layer is an ASIF overlay. Clone and run need macOS 27 and
+Tart 2.36 or newer, so only rack hosts run it. Older hosts can pull one
+but not boot it.
+
+- **Release.** The plan builds a profile's stacked image whenever it
+  rebuilds the standalone one, and when the previous release published
+  none for it (its `build-manifest.json` entry lacks `stacked: true`).
+  Otherwise `carry` re-tags it like the standalone tag. The
+  `build-stacked` job runs on the macOS 27 builder (`macos-27` label),
+  and the release gate requires both tags of every profile.
+- **Where it runs.** `server-deployment.yml` resolves each published
+  stacked tag's digest into `runnersFleet.runnerImageStackedDigests`.
+  Rack pools run it when `rackFleet.runners.stackedImages` is on, which
+  requires every host of that rack, including borrowed ones, to run
+  macOS 27 and Tart 2.36 or newer. Rented pools, explicit pools and any
+  Xcode pinned by `imageTag` keep the standalone image.
+- **One-off builds.** `runner-image.yml` with `stacked: true` builds the
+  same image from a branch and pushes `:macos-<dashes>-<git-sha>-stacked`.
+
+- **What it saves.** The base's chunks are the same blobs Layer 1
+  publishes, and Tart keeps immutable disk files in a content store
+  keyed by their digest. A host that holds the base pulls only the
+  overlay: 1.6 GB for 26.6, against 23 GB of changed chunks for the
+  standalone image.
+- **Build mechanics.** The Packer plugin has no `--stacked`, so the
+  job puts `stacked-tart/` first on `PATH`, which rewrites the plugin's
+  `tart clone` to `tart clone --stacked`. A stacked VM has no
+  `disk.img`, so `stacked = true` also keeps the recovery partition
+  instead of deleting it. `clone --stacked` of a standalone base
+  hashes the whole base disk (about a minute for 140 GB) on every
+  build.
+- **First push per base.** Tart checks the target repository for the
+  base's blobs and does not mount them from `macos-tahoe-xcode`, so
+  the first stacked push on a new Layer 1 uploads the base once.
+- **Lineage.** Always stack on Layer 1, never on a previous runner
+  image: every extra overlay is one more file to validate and open at
+  boot, and DiskImageKit cannot merge layers.
+
 ## Active profiles + the default
 
 Active profiles are the single source of truth in
@@ -581,7 +581,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["27.2-beta", "27.1-rc", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
+["27.2-beta", "27.1", "27.0", "26.6", "26.5", "26.4.1", "26.3", "26.1.1", "26.0.1"]   // newest first
 ```
 
 Beta entries follow the `<major>.<minor>-beta` shape (matching the
@@ -593,6 +593,15 @@ resolves to a runner pool sized by
 channel a later `Release Candidate 2` moves. The longer
 `release-candidate` would push the 12 vCPU shape pool's
 `tuist.dev/runner-pool` label past Kubernetes' 63-character limit.
+
+Xcode 27.1 RC retirement removes RC builds and pools and the temporary
+stable bootstrap pin only after the additive chart is deployed and a
+versioned release includes stable. Keep the bootstrap image for rollback.
+The default stays 26.6. Follow the [retirement runbook](xcode-27.1-retirement.md)
+for merge prerequisites and required post-rollout reconciliation, including
+profiles saved by old replicas and jobs requeued after their claims release.
+Use the documented release `eval` with `Ecto.Migrator.with_repo/2` for this
+reconciliation; `rpc` is unavailable when release distribution is disabled.
 
 The file lives under `infra/runner-image/**`, so editing it triggers
 a runner-image release. Adding a profile builds only that profile;
@@ -616,7 +625,7 @@ removing one drops it from the next release.
   That dispatch path doesn't move the chart pin.
 
 Active rebuilds always produce both an immutable tag
-(`:macos-<dashes>-<semver>`, the one the chart pins) and a rolling
+(`:macos-<dashes>-<semver>`, the one deploys resolve to a digest) and a rolling
 tag (`:macos-<dashes>`, convenient for humans pulling "latest in
 this profile").
 
@@ -677,27 +686,19 @@ in that profile) plus `:macos-26-4-1-<semver>` (immutable, for
 rollbacks and traceability). The tag form is the Xcode version
 with dots → dashes, matching Layer 1's tag scheme: a 26.4.1 Layer
 1 produces a `:macos-26-4-1` runner image, a 26.5 Layer 1
-produces `:macos-26-5`. The chart pins the immutable per-release
-tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
+produces `:macos-26-5`. Pools run the digest of the immutable
+per-release tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
 coexist in GHCR — the runner-fleet config currently selects one as
 the default but the structure is ready for the future
 customer-facing profile selection.
 
 ## How it ends up serving traffic
 
-1. Each `runnersFleet.pools[].runnerImage` (helm value) is pinned to
-   a profile's immutable per-release tag
-   (`ghcr.io/tuist/tuist-runner:macos-<profile>-<semver>`). The
-   chart's `required` directive only enforces non-empty; the
-   release flow writes the immutable tag (not a digest) because
-   the semver is monotonic, so the ref is reproducible without a
-   registry lookup.
-
-   > **Transitional:** today there's a single pool (`name: default`)
-   > and the release pins it to the first matrix profile (the
-   > "default profile"). The chart is built for one pool per profile
-   > — once #10970 lands the pool-per-profile values, each pool pins
-   > its own profile tag and the "default" goes away.
+1. Each catalog RunnerPool's `spec.image` (`tuist.macosRunnerImage`)
+   is `ghcr.io/tuist/tuist-runner@<digest>`, the digest the deploy
+   resolved for the profile's immutable per-release tag
+   (`:macos-<profile>-<semver>`) from GHCR the way hosts pull it. An
+   `xcodeOverrides[].imageTag` pin renders as that tag instead.
 2. `Tuist.Runners.Reconciler` creates a Pod with this image as
    `spec.containers[0].image`; tart-kubelet on the target Mac
    mini calls `tart pull`/`tart clone`/`tart run`.
@@ -779,13 +780,28 @@ semantics; this doc is just about the VM image.
 
 - GitLab parsing uses `/opt/homebrew/bin/jq`, checked before acquisition independently of launchd PATH. Stage assignments in a private `mktemp` file and atomically rename only after successful parsing; failures remove temporary credentials and terminate the claimed runner.
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
-- `stage_volume_usage` records actual mounted APFS used/capacity bytes, initial
-  size, mount time/duration and host-staged warm/cold source. Stage once at attach
-  and again before detach; never estimate sparse-image filesystem usage from the
-  image file's host size. The host adds scope/outcome and authenticates reporting.
+- The job-started hook runs `tuist-cache-volume --checkout "$GITHUB_WORKSPACE"`
+  before the first step. It mounts the job's cached checkout only when the host
+  serves one, the workspace is empty and its parent holds nothing else, and
+  otherwise leaves it untouched, so actions/checkout clones as before. It never
+  fails the job. The image mounts at the workspace's parent and the guest moves
+  the tree into the workspace: the workspace must not be a volume root, because
+  Foundation stages safe saves in `<volume root>/.TemporaryItems` and Xcode's
+  task sandbox refuses writes there inside the project (CoreML compilation into
+  a DerivedData under the workspace fails with "compile failed to write partial
+  plist"). `tuist-cache-volume --key` leaves out a path in the mounted
+  checkout's `.git` that already holds data (such as `.git/lfs`) with a notice,
+  instead of refusing it as non-empty.
+  When the host granted a checkout (mounted, or `cold`, `capacity`, `timeout`)
+  it records the workspace and the mounted master's commit and LFS objects in
+  `/Users/runner/.tuist-checkout.json`. The teardown then runs
+  `tuist-cache-volume --checkout-export`, which packs what the job's checkout added
+  (the job commit and the objects of its tree the master's tip tree lacks; see
+  `infra/linux-runner-image/AGENTS.md`) and copies its new LFS objects into the share's `checkout-export/` (45 s budget)
+  for the host to verify and build from. Neither step fails the job.
+
 - Failed custom-volume detach must emit a warning that publication is skipped;
   preserve the job's exit status and never force-detach a publishable image.
