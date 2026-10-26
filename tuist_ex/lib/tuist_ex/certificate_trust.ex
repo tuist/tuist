@@ -19,37 +19,53 @@ defmodule TuistEx.CertificateTrust do
     0a6c2b2ca5b364207954171987ac9d2178561569d8205457e77ca90c32ede282
   ))
 
-  def ssl_options(certificates \\ :public_key.cacerts_get()) do
+  def blocked_spki_hashes, do: @blocked
+
+  # Extra hashes can only restrict verification, never replace the shipped set.
+  # This internal seam permits accepted-key transport tests without incident keys.
+  def ssl_options(certificates \\ :public_key.cacerts_get(), additional_hashes \\ []) do
+    blocked = MapSet.union(@blocked, MapSet.new(additional_hashes))
+
     [
       verify: :verify_peer,
-      cacerts: Enum.reject(certificates, &blocked?/1),
-      verify_fun: {&verify_certificate/3, nil},
+      cacerts: Enum.reject(certificates, &blocked?(&1, blocked)),
+      verify_fun:
+        {fn certificate, event, state ->
+           verify_certificate(certificate, event, state, blocked)
+         end, nil},
       customize_hostname_check: [match_fun: :public_key.pkix_verify_hostname_match_fun(:https)]
     ]
   end
 
+  def verify_certificate(certificate, event, state),
+    do: verify_certificate(certificate, event, state, @blocked)
+
   # OTP uses the complete failure tuple to try alternate/cross-signed paths.
-  def verify_certificate(_certificate, {:bad_cert, _reason} = failure, _state),
+  defp verify_certificate(_certificate, {:bad_cert, _reason} = failure, _state, _blocked),
     do: {:fail, failure}
 
-  def verify_certificate(_certificate, {:extension, _extension}, state), do: {:unknown, state}
+  defp verify_certificate(_certificate, {:extension, _extension}, state, _blocked),
+    do: {:unknown, state}
 
-  def verify_certificate(certificate, event, state) when event in [:valid, :valid_peer] do
-    if blocked?(certificate), do: {:fail, :distrusted_certificate_key}, else: {:valid, state}
+  defp verify_certificate(certificate, event, state, blocked)
+       when event in [:valid, :valid_peer] do
+    if blocked?(certificate, blocked),
+      do: {:fail, :distrusted_certificate_key},
+      else: {:valid, state}
   rescue
     _ -> {:fail, :invalid_certificate}
   end
 
-  defp blocked?({:cert, der, _decoded}), do: blocked?(der)
+  defp blocked?({:cert, der, _decoded}, blocked), do: blocked?(der, blocked)
 
-  defp blocked?({:OTPCertificate, _, _, _} = certificate) do
-    :OTPCertificate |> :public_key.pkix_encode(certificate, :otp) |> blocked?()
+  defp blocked?({:OTPCertificate, _, _, _} = certificate, blocked) do
+    :OTPCertificate |> :public_key.pkix_encode(certificate, :otp) |> blocked?(blocked)
   end
 
-  defp blocked?(der) when is_binary(der) do
+  defp blocked?(der, blocked) when is_binary(der) do
     {:Certificate, tbs, _algorithm, _signature} = :public_key.pkix_decode_cert(der, :plain)
     spki = :public_key.der_encode(:SubjectPublicKeyInfo, elem(tbs, 7))
     hash = :sha256 |> :crypto.hash(spki) |> Base.encode16(case: :lower)
-    MapSet.member?(@blocked, hash)
+    MapSet.member?(blocked, hash)
   end
 end

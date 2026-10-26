@@ -2,6 +2,7 @@ ExUnit.start()
 
 Mimic.copy(TuistEx.Auth)
 Mimic.copy(TuistEx.HTTP)
+Mimic.copy(TuistEx.CertificateTrust)
 Mimic.copy(TuistEx.Cache.Reapi)
 Mimic.copy(TuistEx.Cache.Compiler)
 Mimic.copy(Mix.Rebar)
