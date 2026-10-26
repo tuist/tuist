@@ -30,3 +30,5 @@ This context owns ops reporting workers and the internal feature-flag control AP
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+- `kura_linux_runner_cache` is default off in every environment and controls OVH Linux private-cache admission and dispatch. Account disable preserves in-flight caches through draining; global disable alone does not override actor/percentage enrollments.

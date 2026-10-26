@@ -24,6 +24,7 @@ defmodule Tuist.Ops.FeatureFlags do
     {:immutable_shard_reports, "account", "Opt-in immutable shard plans; coverage-enabled accounts remain excluded."},
     {:kura_positive_fence, "account",
      "Opt-in managed positive-fence serving authority. Activation is sticky; disabling cannot restore legacy serving."},
+    {:kura_linux_runner_cache, "account", "Default-off OVH Linux private cache provisioning and dispatch."},
     {:kura_placement_served_signal, "account", "Opt-in placement using served-region signals."},
     {:kura_stable_hostname, "account", "Stable cache hostname opt-in; canary enables automatically."},
     {:runners, "account", "Managed runners opt-in on canary/production; enabled elsewhere."},
@@ -49,6 +50,7 @@ defmodule Tuist.Ops.FeatureFlags do
   @evaluators %{
     immutable_shard_reports: {FeatureFlags, :immutable_shard_reports_enabled?},
     kura_positive_fence: {FeatureFlags, :kura_positive_fence_enabled?},
+    kura_linux_runner_cache: {FeatureFlags, :kura_linux_runner_cache_enabled?},
     kura_placement_served_signal: {FeatureFlags, :kura_placement_served_signal_enabled?},
     kura_stable_hostname: {FeatureFlags, :kura_stable_hostname_enabled?},
     runners: {FeatureFlags, :runners_enabled?},

@@ -139,3 +139,5 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Mimic creates original-module copies lazily on the first stub, expect or reject. Before any mock is installed, call the real module directly for sanity checks; use `Mimic.call_original/3` only after mocking is initialized, such as inside a counting expectation. Run these regressions alone as well as in suites to catch order dependencies.
 - Cold activation coverage must continue past regional readiness, synchronize stable intent without a minute tick, reject stale generations, stop for ineligible instances, and retain a bounded polling budget across snoozes and transient API failures.
+
+- Linux private-cache rollout regressions cover default-off behavior in every environment, actor isolation and global opt-outs, dispatch fallback with an existing active PN cache, admission requiring recent Linux jobs, and flag withdrawal/re-enrollment while jobs retain a draining endpoint.

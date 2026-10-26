@@ -1575,7 +1575,7 @@ defmodule Tuist.KuraTest do
       assert Kura.runner_cache_endpoint_url(account, :macos) == active_private.url
     end
 
-    test "Linux private cache wins only while its region is enabled", %{account: account} do
+    test "Linux private cache requires account opt-in and an available region", %{account: account} do
       activate_public_server!(account, "eu-west")
       stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "ovh-gra-runners"] end)
 
@@ -1587,7 +1587,16 @@ defmodule Tuist.KuraTest do
       end)
 
       {:ok, active} = Kura.activate_server(private, "0.5.2")
+      assert Kura.runner_cache_endpoint_url(account, :linux) =~ "-eu-west-1.kura.svc.cluster.local"
+
+      FunWithFlags.enable(:kura_linux_runner_cache, for_actor: account)
       assert Kura.runner_cache_endpoint_url(account, :linux) == active.url
+
+      FunWithFlags.disable(:kura_linux_runner_cache, for_actor: account)
+      assert Kura.runner_cache_endpoint_url(account, :linux) =~ "-eu-west-1.kura.svc.cluster.local"
+      assert Repo.get!(Server, active.id).status == :active
+
+      FunWithFlags.enable(:kura_linux_runner_cache, for_actor: account)
       refute Kura.runner_cache_endpoint_url(account, :macos) == active.url
 
       stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west"] end)

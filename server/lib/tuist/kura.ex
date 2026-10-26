@@ -1338,7 +1338,7 @@ defmodule Tuist.Kura do
 
   def runner_cache_endpoint_url(%Account{}, _platform, _site), do: nil
 
-  defp private_runner_cache_url(%Account{id: account_id}, platform, site) do
+  defp private_runner_cache_url(%Account{id: account_id} = account, platform, site) do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
     # it, and gating here too means dispatch stops handing out the now
@@ -1349,6 +1349,7 @@ defmodule Tuist.Kura do
       |> Enum.filter(
         &(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform) and Regions.site(&1) == site)
       )
+      |> Enum.filter(&Tuist.Kura.RunnerCache.rollout_enabled?(&1, account))
       |> Enum.map(& &1.id)
 
     if private_region_ids == [] do

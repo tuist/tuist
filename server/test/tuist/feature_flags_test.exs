@@ -8,6 +8,36 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "kura_linux_runner_cache_enabled?/1" do
+    test "every environment requires explicit opt-in" do
+      account = %Account{id: 42}
+
+      for env <- [:prod, :can, :stag, :dev, :test] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :kura_linux_runner_cache, [for: ^account] -> false end)
+        refute FeatureFlags.kura_linux_runner_cache_enabled?(account)
+        expect(FunWithFlags, :enabled?, fn :kura_linux_runner_cache, [for: ^account] -> true end)
+        assert FeatureFlags.kura_linux_runner_cache_enabled?(account)
+      end
+    end
+
+    test "snapshot evaluation preserves account exclusions during a global rollout" do
+      account = %Account{id: 42}
+
+      flag = %FunWithFlags.Flag{
+        name: :kura_linux_runner_cache,
+        gates: [
+          %FunWithFlags.Gate{type: :boolean, enabled: true},
+          %FunWithFlags.Gate{type: :actor, for: "account:42", enabled: false}
+        ]
+      }
+
+      reject(FunWithFlags, :enabled?, 2)
+      refute FeatureFlags.kura_linux_runner_cache_enabled?(account, %{kura_linux_runner_cache: flag})
+      assert FeatureFlags.kura_linux_runner_cache_enabled?(%Account{id: 43}, %{kura_linux_runner_cache: flag})
+    end
+  end
+
   describe "immutable_shard_reports_enabled?/1" do
     test "coverage-enabled accounts cannot create immutable plans" do
       account = %Account{id: 42, name: "tuist"}

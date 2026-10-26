@@ -7,7 +7,8 @@ staging cache host, so staging does not demonstrate host redundancy.
 
 Runner dispatch prefers the active private instance's cluster Service and falls
 back to the account's public-region Service while unavailable or disabled.
-Availability is gated by `TUIST_KURA_AVAILABLE_REGIONS`. Enable it only after
+Availability requires both `TUIST_KURA_AVAILABLE_REGIONS` and the default-off
+account flag `kura_linux_runner_cache` in every environment. Enable it only after
 both runner and cache hosts have converged and their physical path is verified.
 
 OVH Kata hosts opt into the existing environment private-network reconciler
@@ -44,11 +45,77 @@ attestations use the existing managed private-network machinery.
    retain raw logs. Record the actual network path and endpoints; a cluster
    Service URL alone does not establish a physical private path.
 
-Rollback removes `ovh-gra-runners` from available regions so new jobs use the
-existing public-region fallback. Preserve in-flight jobs and their instances.
+Normal rollback disables `kura_linux_runner_cache` for enrolled accounts so new
+jobs use the existing public-region fallback and the reconciler drains PN
+instances. Keep the region available while it drains. Removing the region from
+available regions also stops hand-out, but stops its reconciliation too and
+therefore is not the normal cleanup path. Preserve in-flight jobs and instances.
 Do not clear the runner's vRack enrollment or recycle reservations while the
 host still owns private routes. Production activation requires its own capacity
 and path qualification; this change does not enable the region there.
+
+## Account rollout and remaining staging gates
+
+The flag is included in the audited Ops catalog and defaults off on staging,
+canary and production, independently of the existing runners flag. It gates
+both admission/provisioning and endpoint selection; an already-active private
+cache cannot bypass an account opt-out. Recent Linux jobs, eligible profiles,
+capacity and environment availability remain required. Existing macOS caches
+retain their current admission and dispatch rules.
+
+Disabling an account removes PN selection for subsequent dispatches once flag
+invalidation reaches the serving replica. The reconciler moves active PN caches
+to drain-pending. Running jobs keep their injected endpoint; the instance stays
+for at least 15 minutes and while pre-drain jobs remain claimed/running, subject
+to the existing six-hour bound. Re-enabling before teardown cancels the drain on
+the same instance. This is not mid-job failover: a failed endpoint already
+injected into a job is not dynamically replaced by the flag.
+
+Use explicit account cohorts initially. For a complete rollback through the
+Ops interface, clear all gates for this default-off flag, or explicitly disable
+each enrolled actor. A global boolean disable alone preserves actor and
+percentage enables. PubSub invalidation is best effort; cached evaluations can
+last 600 seconds and storage failures can retain stale values. Verify actual
+endpoint selection on every serving replica rather than treating a successful
+flag write as proof of exposure.
+
+Before production enrollment:
+
+1. Deploy the flag-bearing server revision to staging and enable only the Tuist
+   test account. Keep another account excluded and verify it gets WAN without
+   provisioning a PN instance.
+2. Run a real PN Gradle job, disable its account flag while it is in flight,
+   and verify a new job receives WAN while the old one can still restore from
+   PN. Confirm drain retention, then re-enable and verify the same instance is
+   reused. Exercise completed-job cleanup with a disposable account.
+3. Exercise a single cache-pod restart and verify remote hits and Service
+   readiness. Separately qualify a complete endpoint outage and the time until
+   new dispatch stops selecting it; do not assume transparent mid-job failover.
+4. Run simultaneous Gradle jobs plus a representative real Gradle project.
+   Observe cache errors, hit rate, request p95, queueing, CPU, disk and link
+   usage. The synthetic single-job results below do not establish concurrency
+   capacity. Investigate the measured 57 ms hostname-lookup cost separately.
+5. Prepare production vRack-capable runner/cache hosts, release/pin the tested
+   provider, and qualify private routing and actual negotiated/contracted link
+   speeds. Two replicas on the same staging cache host do not prove host
+   redundancy; production placement and host-loss behavior need qualification.
+
+Production sequence: deploy code with the flag absent, provision and qualify
+capacity, make the region available, then enroll Tuist's account. Start with
+one internal account, then a few explicit customer accounts, then broaden.
+A proposed minimum observation window per expansion is 24 hours and 50 finished
+jobs, whichever takes longer, against a recorded WAN baseline. Require correct
+endpoint/account selection, zero payload/authentication regressions, no cache
+error-rate regression, better request p95 and sufficient disk/link/CPU headroom.
+Preserve a WAN control cohort. Deterministic percentage-of-actors rollout can
+follow explicit cohorts; percentage-of-time is unsuitable for provisioning.
+Only enable globally after those gates pass; retain the flag for rollback.
+
+Validation status: the flag change passes 230 focused local tests covering
+feature helpers, Ops evaluation, regions, admission/draining and endpoint
+selection. The live measurements below predate the flag change. The flag-bearing
+server deployment and the live drills above are still pending; neither the
+local tests nor the benchmarks are evidence that those drills passed.
 
 ## Staging qualification — 2026-10-26
 

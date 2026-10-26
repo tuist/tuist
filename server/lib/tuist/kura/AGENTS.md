@@ -2,7 +2,10 @@
 
 - `ovh-gra-runners` serves Linux jobs on explicitly vRack-enrolled OVH hosts.
   It uses cluster DNS and the existing recent-job admission/dispatch fallback.
-  Enable it per environment only after physical path qualification; staging
+  The default-off per-account `kura_linux_runner_cache` flag gates both
+  provisioning and dispatch in every environment; disabling uses the existing
+  in-flight-aware drain. Register the flag in the audited Ops catalog.
+  Enable the region per environment only after physical path qualification; staging
   evidence and rollback are in
   [the Linux runner runbook](../../../../../infra/kura-controller/linux-runner-private-cache.md).
 

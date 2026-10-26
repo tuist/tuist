@@ -24,7 +24,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   # Drive Regions.available/0 to the real private-region catalog:
   # `scw-fr-par-runners` serves [:macos] and is the only private region
-  # (Linux runners have none). It provisions through KubernetesController
+  # in this setup. It provisions through KubernetesController
   # whose `provision/3` is pure (builds the instance name), and
   # `destroy_server/1` only flips DB state — so reconcile runs for real
   # against the sandbox.
@@ -143,18 +143,58 @@ defmodule Tuist.Kura.RunnerCacheTest do
     )
   end
 
-  test "OVH provisions only accounts with recent Linux jobs" do
+  test "OVH provisions only opted-in accounts with recent Linux jobs" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ovh-gra-runners"] end)
     linux = account_with_profiles([:linux])
     idle = account_with_profiles([:linux])
     macos = account_with_profiles([:macos])
     claimed_job(linux, "tuist-tuist-runner-pool-linux-4vcpu-16gb", platform: "linux")
-    set_runner_availability([linux.id, idle.id, macos.id])
+    excluded = account_with_profiles([:linux])
+    claimed_job(excluded, "tuist-tuist-runner-pool-linux-2vcpu-8gb", platform: "linux")
+    for account <- [linux, idle, macos], do: FunWithFlags.enable(:kura_linux_runner_cache, for_actor: account)
+    set_runner_availability([linux.id, idle.id, macos.id, excluded.id])
 
     assert :ok = RunnerCache.reconcile()
     assert server_regions(linux) == ["ovh-gra-runners"]
     assert server_regions(idle) == []
     assert server_regions(macos) == []
+    assert server_regions(excluded) == []
+  end
+
+  test "OVH flag withdrawal drains in-flight jobs and re-enrollment reuses the same node" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ovh-gra-runners"] end)
+    account = account_with_profiles([:linux])
+
+    in_flight =
+      claimed_job(account, "tuist-tuist-runner-pool-linux-2vcpu-8gb",
+        platform: "linux",
+        status: "running",
+        claimed_at: DateTime.add(DateTime.utc_now(), -3600, :second)
+      )
+
+    set_runner_availability([account.id])
+    FunWithFlags.enable(:kura_linux_runner_cache, for_actor: account)
+    assert :ok = RunnerCache.reconcile()
+    server = activate(account, "ovh-gra-runners")
+
+    FunWithFlags.disable(:kura_linux_runner_cache, for_actor: account)
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.get!(Server, server.id).status == :drain_pending
+    drained_for(server, 20 * 60)
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.get!(Server, server.id).status == :drain_pending
+
+    FunWithFlags.enable(:kura_linux_runner_cache, for_actor: account)
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.get!(Server, server.id).status == :active
+    assert server_regions(account) == ["ovh-gra-runners"]
+
+    FunWithFlags.disable(:kura_linux_runner_cache, for_actor: account)
+    assert :ok = RunnerCache.reconcile()
+    drained_for(server, 20 * 60)
+    Repo.update!(Ecto.Changeset.change(in_flight, status: "completed"))
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.get!(Server, server.id).status == :destroying
   end
 
   test "provisions per region by served platform" do
@@ -775,9 +815,9 @@ defmodule Tuist.Kura.RunnerCacheTest do
              Repo.get_by!(Deployment, kura_server_id: server.id, status: :pending)
   end
 
-  defp activate(account) do
+  defp activate(account, region \\ "scw-fr-par-runners") do
     Server
-    |> Repo.get_by!(account_id: account.id, region: "scw-fr-par-runners")
+    |> Repo.get_by!(account_id: account.id, region: region)
     |> Server.observation_changeset(%{
       status: :active,
       url: "https://#{account.id}.runners.example.com",
