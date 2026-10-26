@@ -49,7 +49,7 @@ services:
     restart: unless-stopped
 
   proxy:
-    image: caddy:2.11.2
+    image: caddy:2.11.7
     environment:
       ATLAS_HOST: ${ATLAS_HOST:-localhost}
     ports:
