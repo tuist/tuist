@@ -1607,6 +1607,24 @@ rackLinuxFleet:
         node.cluster.x-k8s.io/pool: rack-storage-ber1
       nodeTaints:
         - {key: tuist.dev/rack-storage, value: ber1, effect: NoSchedule}
+  # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its hosts set `site:
+  # larch`; none is declared until primeLine's unit sheets give their UUIDs and
+  # TPM check codes.
+  sites:
+    larch:
+      roles:
+        edge:
+          tailnetTags: [tag:tuist-rack-edge]
+          nodeLabels:
+            tuist.dev/rack-edge: larch
+          nodeTaints:
+            - {key: tuist.dev/rack-edge, value: larch, effect: NoSchedule}
+        storage:
+          tailnetTags: [tag:tuist-rack-node]
+          nodeLabels:
+            tuist.dev/rack-storage: larch
+          nodeTaints:
+            - {key: tuist.dev/rack-storage, value: larch, effect: NoSchedule}
   hosts:
     # The two edges, each netbooting from the other. ber1-edge-a is preferred.
     # It was netbooted rather than announced by its stick, so its boot MAC (its

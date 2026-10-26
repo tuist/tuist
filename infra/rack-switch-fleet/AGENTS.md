@@ -1774,8 +1774,8 @@ rack 2 has no management switch, so each ToR's eth0 is cabled straight to an
 edge's first onboard port. The edge node says so:
 
 ```json
-{"name": "ber2-edge-a", "role": "edge", "hardware": "rs501a-e12",
- "tor_management": {"switch": "ber2-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
+{"name": "larch-edge-a", "role": "edge", "hardware": "rs501a-e12",
+ "tor_management": {"switch": "larch-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
 ```
 
 The ToR's `mgmt_address` is the other host on that /30, and its `mac` is the
@@ -1898,3 +1898,37 @@ user, `sudo sh -c '/usr/sbin/save_config factory-default && /pica/bin/reboot.sh'
 then clear its RackSwitch's `status.hostKey`, since the reset gives it new host
 keys. A switch on the bench at the edge's address has its NTP pointed elsewhere
 and the bench key installed; the reset removes both.
+
+## A site with no management switch
+
+Rack 2 (`sites/larch.json`) has none. Its management ports (BMCs and the PDU and
+transfer-switch cards) are cabled into the ToRs on a management VLAN
+of its own, and each ToR's own management port goes to an edge
+(`tor_management`). The render follows from the site data:
+
+- **The management VLAN is one the edges carry** (`carried_by: "edges"`), and
+  the edges reach it over their uplinks as `mgmt0`, a bond like `machines0`;
+  `management.edge.interface` has to be `mgmt0`. Its address, DHCP and the
+  power devices' routes sit on `mgmt0` the way BER1's sit on the edge's port
+  into its management switch.
+- **Only a port with a management link is untagged on that VLAN.** Every other
+  port is untagged on VLAN 1, which reaches nothing, so a mini racked before
+  it is recorded lands on no segment rather than on the management one. Ports
+  facing an edge and the ISL carry it tagged with the other edge VLANs.
+- **A management link lands on the opposite ToR**, so a dead ToR's side stays
+  reachable through the other one: not the ToR a node's data link is on, the
+  one an edge provisions, or, for power gear, the one its chain's minis are on
+  (a PDU through the minis on its outlets, a transfer switch through its PDUs).
+  `fleet_check_management_links` refuses
+  the rest, so nobody tidies the cross-cabling onto one ToR.
+- **Dual-PSU gear names `feeds`** (`["feed-a", "feed-b"]`) instead of an `ats`
+  or `pdu`: one cord per PSU straight into the facility's rails, which the cable
+  schedule lists.
+- **A PicOS ToR's management address is not routed over the uplinks**: it is
+  the far end of its own link to an edge.
+
+The env's one rack switch controller reconciles every site's switches, so
+`helm-values rack-switch-controller` merges the env's sites: BER1's Omada
+settings and the PicOS sites' 1Password items, which all name the same items.
+Each site with edges gets its own rack-edge release (`rack-edge-<site>`; BER1's
+is `rack-edge`, from before there was a second).

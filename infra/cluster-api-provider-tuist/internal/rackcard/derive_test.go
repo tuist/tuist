@@ -50,7 +50,7 @@ func TestIdentityIsTheLowerCaseMACOrTheName(t *testing.T) {
 func TestEveryInputMovesThePassword(t *testing.T) {
 	base := Password(testRootKey, "ber1", "00:20:85:b8:0e:3e", RoleAdmin)
 	for name, other := range map[string]string{
-		"site":     Password(testRootKey, "ber2", "00:20:85:b8:0e:3e", RoleAdmin),
+		"site":     Password(testRootKey, "larch", "00:20:85:b8:0e:3e", RoleAdmin),
 		"identity": Password(testRootKey, "ber1", "00:20:85:b8:0e:3f", RoleAdmin),
 		"role":     Password(testRootKey, "ber1", "00:20:85:b8:0e:3e", RoleController),
 		"key":      Password([]byte("tuist-rack-card-test-root-key-0002"), "ber1", "00:20:85:b8:0e:3e", RoleAdmin),

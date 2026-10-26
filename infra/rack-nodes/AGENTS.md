@@ -18,8 +18,8 @@ only the first edge of a site is installed from a stick of its own.
   its hostname (the node, OS and tailnet name), role, site, and optionally its
   `bootMAC`, the MAC of the NIC it netboots from (the MS-01's i226-LM, on the
   management switch), which otherwise comes from the machine's announcement.
-  Its role's `rackLinuxFleet.roles.<role>` gives its tailnet tags, labels and
-  taints. The operator keeps a CAPI Machine for each host, which makes it a
+  Its role's `rackLinuxFleet.sites.<site>.roles.<role>`, else
+  `rackLinuxFleet.roles.<role>`, gives its tailnet tags, labels and taints. The operator keeps a CAPI Machine for each host, which makes it a
   node.
 - **The operator** (`infra/cluster-api-provider-tuist`, `controllers/linux`)
   publishes each host's install, finds the host on the tailnet and joins it.
@@ -470,7 +470,7 @@ sheet. Declaring the box takes both:
 
 ```yaml
 - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
-  hostname: ber2-edge-b
+  hostname: larch-edge-b
   role: edge
   tpmCheckCode: 1a2b-3c4d-5e6f-7a8b
 ```

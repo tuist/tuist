@@ -1999,6 +1999,19 @@ rackLinuxFleet:
   #       - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
   roles: {}
 
+  # A role's configuration for the hosts of one site, in place of `roles`
+  # for that role, when the env's cluster holds more than one rack: their
+  # labels and taints name the site.
+  #   larch:
+  #     roles:
+  #       edge:
+  #         tailnetTags: [tag:tuist-rack-edge]
+  #         nodeLabels:
+  #           tuist.dev/rack-edge: larch
+  #         nodeTaints:
+  #           - {key: tuist.dev/rack-edge, value: larch, effect: NoSchedule}
+  sites: {}
+
   # One entry per box, by the SMBIOS UUID its install stick announced
   # (`kubectl get rlc`). The rest is optional:
   #   - uuid: 44312e80-1dc6-11f1-853e-8f903547d200
