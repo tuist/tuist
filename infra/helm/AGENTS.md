@@ -33,6 +33,11 @@ runs the mixed-version latency expression through promtool.
   (a rollback, or a staging deploy of an older branch) leaves the driver
   running: only it can unmount, close and delete existing volumes. Remove it
   by hand once no `kura-encrypted-nvme` PV is left.
+- `capi.ovhRunnerEgress` keeps its disabled ConfigMap and cleanup RBAC present
+  while the provider withdraws runner policies and host addresses. Reservations
+  belong to the controller, never Helm. All managed blocks remain unset until
+  delivery and qualification. Preserve `node_network_info` for the MAC-based
+  bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the

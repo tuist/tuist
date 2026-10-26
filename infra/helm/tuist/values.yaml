@@ -1558,6 +1558,12 @@ capi:
     enabled: false
     vrackID: ""
     cidr: ""
+  # Disable first and wait for RunnerEgressReady to disappear before changing
+  # the block, removing this config, or rolling back to an older provider image.
+  ovhRunnerEgress:
+    enabled: false
+    vrackID: ""
+    cidr: ""
   # Workload kubeconfig CAPI core's cluster cache uses to reach this
   # cluster and bind Mac-mini Machines to Nodes. Synced from 1Password
   # by ESO into <release>-capi-kubeconfig (the Secret CAPI looks up).

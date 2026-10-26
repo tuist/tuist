@@ -75,6 +75,7 @@ func main() {
 		enableLeaderElection      bool
 		secretsNamespace          string
 		ovhPrivateNetworkConfig   string
+		ovhRunnerEgressConfig     string
 		vultrPrivateNetworkConfig string
 		rackCardRootSecret        string
 
@@ -135,6 +136,8 @@ func main() {
 		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
 	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
 		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
+	flag.StringVar(&ovhRunnerEgressConfig, "ovh-runner-egress-config", "",
+		"ConfigMap in the secrets namespace declaring OVH runner vRack egress")
 	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
 		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
 
@@ -1032,6 +1035,8 @@ func main() {
 			DefaultOS:                "ubuntu_24.04",
 			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
 			PrivateNetworkNamespace:  secretsNamespace,
+			RunnerEgressConfigName:   ovhRunnerEgressConfig,
+			RunnerEgressNamespace:    secretsNamespace,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)

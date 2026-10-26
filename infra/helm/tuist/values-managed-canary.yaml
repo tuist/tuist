@@ -384,6 +384,10 @@ pdcAgent:
     - tuist-tuist-clickhouse.tuist-canary.svc.cluster.local:8123
 
 capi:
+  ovhRunnerEgress:
+    enabled: false
+    vrackID: pn-2025491
+    cidr: "" # Fill after the /29 is delivered and attached to this vRack.
   ovhPrivateNetwork:
     enabled: true
     vrackID: pn-2024092
