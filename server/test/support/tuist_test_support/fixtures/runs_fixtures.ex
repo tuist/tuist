@@ -196,6 +196,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       checksum: Keyword.get(attrs, :checksum, "abc123"),
       size: Keyword.get(attrs, :size, 1000),
       duration: Keyword.get(attrs, :duration, 100),
+      shard_id: Keyword.get(attrs, :shard_id),
+      shard_index: Keyword.get(attrs, :shard_index),
       compressed_size: Keyword.get(attrs, :compressed_size, 800),
       operation: Keyword.get(attrs, :operation, :download),
       type: Keyword.get(attrs, :type, :swift)
@@ -286,6 +288,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       is_new: Keyword.get(attrs, :is_new, false),
       is_quarantined: Keyword.get(attrs, :is_quarantined, false),
       duration: Keyword.get(attrs, :duration, 100),
+      shard_id: Keyword.get(attrs, :shard_id),
+      shard_index: Keyword.get(attrs, :shard_index),
       ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }

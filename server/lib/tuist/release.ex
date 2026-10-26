@@ -8,6 +8,7 @@ defmodule Tuist.Release do
   alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.TestCaseRunCopies
 
   require Logger
 
@@ -119,6 +120,26 @@ defmodule Tuist.Release do
         for {table, days} <- Coverage.apply_retention() do
           Logger.info("#{table}: rows expire after #{days} days")
         end
+      end)
+
+    :ok
+  end
+
+  @doc """
+  Copies the `test_case_runs` rows reported before the partitioned copies'
+  materialized views existed into those copies, one table and source month at
+  a time (`Tuist.Tests.TestCaseRunCopies.backfill/2`). Running it again is
+  safe: the copies collapse repeated rows on merge.
+
+      bin/tuist eval "Tuist.Release.backfill_test_case_run_copies()"
+      bin/tuist eval 'Tuist.Release.backfill_test_case_run_copies(["test_case_runs_by_commit_v2"])'
+  """
+  def backfill_test_case_run_copies(tables \\ TestCaseRunCopies.tables()) do
+    load_app()
+
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(IngestRepo, fn _repo ->
+        Enum.each(tables, &TestCaseRunCopies.backfill/1)
       end)
 
     :ok
