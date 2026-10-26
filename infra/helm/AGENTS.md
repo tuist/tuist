@@ -29,6 +29,10 @@ runs the mixed-version latency expression through promtool.
   root keys `server.config.kuraVolumeRootKeys.enabled` syncs from the env's
   `KURA_VOLUME_ROOT_KEYS` 1Password item (`value`); canary and production
   issue no keys without it.
+  Its objects are `helm.sh/resource-policy: keep`, so a release without them
+  (a rollback, or a staging deploy of an older branch) leaves the driver
+  running: only it can unmount, close and delete existing volumes. Remove it
+  by hand once no `kura-encrypted-nvme` PV is left.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the

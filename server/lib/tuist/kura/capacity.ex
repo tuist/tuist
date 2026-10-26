@@ -76,6 +76,7 @@ defmodule Tuist.Kura.Capacity do
   # An operator is waiting on these reads, so they are bounded rather than left
   # on Req's defaults.
   @read_timeout to_timeout(second: 5)
+  @node_local_topology_keys ["kubernetes.io/hostname", "topology.kura-volumes.tuist.dev/node"]
   @managed_by_selector "app.kubernetes.io/managed-by=kura-controller"
 
   # What the controller requests for a cache pod it has never observed: the
@@ -566,15 +567,16 @@ defmodule Tuist.Kura.Capacity do
   defp bound?(%{"status" => %{"phase" => "Bound"}}), do: true
   defp bound?(_volume), do: false
 
-  # The local-path provisioner pins each volume to the node its directory is
-  # on with a required `kubernetes.io/hostname` affinity. A volume without one
-  # is not on a node's disk.
+  # Node-local provisioners pin each volume to the node its data is on with a
+  # required affinity: local-path on `kubernetes.io/hostname`, the kura-volumes
+  # driver on its own topology key. A volume without one is not on a node's
+  # disk.
   defp local_volume_node(%{"spec" => %{"nodeAffinity" => %{"required" => %{"nodeSelectorTerms" => terms}}}})
        when is_list(terms) do
     Enum.find_value(terms, fn
       %{"matchExpressions" => expressions} when is_list(expressions) ->
         Enum.find_value(expressions, fn
-          %{"key" => "kubernetes.io/hostname", "operator" => "In", "values" => [node]} -> node
+          %{"key" => key, "operator" => "In", "values" => [node]} when key in @node_local_topology_keys -> node
           _expression -> nil
         end)
 

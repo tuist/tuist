@@ -140,6 +140,14 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.reserved_gib(@region) == 114
     end
 
+    test "counts a retained encrypted volume, which the kura-volumes driver pins by its own topology key" do
+      stub_region_pods([reserved_pod(50)])
+      stub_region_node_names(["box-1"])
+      stub_volumes([local_volume("pvc-encrypted", "box-1", "64Gi", "Released", "topology.kura-volumes.tuist.dev/node")])
+
+      assert Capacity.reserved_gib(@region) == 114
+    end
+
     test "is unknown when the cluster cannot be read" do
       stub(Client, :list_pods, fn _namespace, _selector -> {:error, :unavailable} end)
       stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
@@ -336,9 +344,9 @@ defmodule Tuist.Kura.CapacityTest do
 
   defp stub_volumes(volumes), do: stub(Client, :list_persistent_volumes, fn _opts -> {:ok, volumes} end)
 
-  # A volume as the local-path provisioner creates it: a directory on one node,
-  # pinned there by a required hostname affinity.
-  defp local_volume(name, node, size, phase) do
+  # A volume as a node-local provisioner creates it: on one node, pinned there
+  # by a required affinity on the provisioner's node key.
+  defp local_volume(name, node, size, phase, key \\ "kubernetes.io/hostname") do
     %{
       "metadata" => %{"name" => name},
       "spec" => %{
@@ -346,7 +354,7 @@ defmodule Tuist.Kura.CapacityTest do
         "nodeAffinity" => %{
           "required" => %{
             "nodeSelectorTerms" => [
-              %{"matchExpressions" => [%{"key" => "kubernetes.io/hostname", "operator" => "In", "values" => [node]}]}
+              %{"matchExpressions" => [%{"key" => key, "operator" => "In", "values" => [node]}]}
             ]
           }
         }

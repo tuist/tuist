@@ -15,6 +15,13 @@ creates it.
 Nothing provisions on this class until the server places an account's Kura
 instances on it (the :kura_encrypted_volumes feature flag), so the driver can
 be deployed first.
+
+Every object here is helm.sh/resource-policy: keep. A release whose chart
+lacks them (a rollback, or a branch cut before them) would otherwise remove
+the driver while volumes exist, and only the driver can unmount, close and
+delete those: their mounts and dm-crypt mappings would stay open on the node
+and their PVs stay Released. Retiring the driver is a manual step once no PV
+of the class is left.
 */ -}}
 {{- $namespace := "kura-volumes" }}
 {{- $name := "kura-volumes-csi-node" }}
@@ -33,6 +40,8 @@ be deployed first.
 apiVersion: v1
 kind: Namespace
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ $namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
@@ -45,6 +54,8 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ $name }}
   namespace: {{ $namespace }}
   labels:
@@ -58,6 +69,8 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ $name }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
@@ -91,6 +104,8 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ $name }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
@@ -107,6 +122,8 @@ subjects:
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ $driver }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
@@ -128,6 +145,8 @@ spec:
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: kura-encrypted-nvme
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
@@ -140,6 +159,8 @@ allowVolumeExpansion: false
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   name: {{ $name }}
   namespace: {{ $namespace }}
   labels:
