@@ -12,7 +12,7 @@ credentials and must never write to the production telemetry destinations.
 The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
 check all managed environment cookie references and Secret ownership without
 reading 1Password or logging rendered cookie values. The same job runs
-`test-rate-limit-envelope.py` to validate fixed/HPA/percentage-surge outage
+`test-rate-limit-envelope.sh` with Bash to validate fixed/HPA/percentage-surge outage
 allowances and reject overrides below the rollout envelope.
 
 The existing runner-image release workflow runs the portable TCC report tests
