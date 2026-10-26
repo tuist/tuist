@@ -12,6 +12,7 @@ This module defines the CLI entry point for the `tuist` binary.
 ## Invariants
 - Entrypoint should remain thin: delegate command-specific parsing and execution to the feature module.
 - Cargo delegates to `TuistCargoCommand` before generic flag stripping, configuration loading, command analytics, or authentication. Runtime initialization must interpret only Tuist flags before `cargo`, never Cargo or test-harness flags. Compiler hooks must not publish command events.
+- Dispatch `cargo __compiler` before runtime initialization, including logging sessions, maintenance, manifest loading and terminal status reporting. Cargo invokes it once per compiler process; its only session state belongs to the outer Cargo command.
 - Logging and error presentation remain centralized in `TuistKit` for ordinary commands. Cargo forwards subprocess output and preserves its exit status through ArgumentParser without the generic completion output.
 
 ## Related Context

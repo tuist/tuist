@@ -9,6 +9,7 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
 
 Fetch the pinned dependency with ordinary Cargo first if it is not already available. The script builds offline in a temporary checkout, removes Cargo's outputs between runs, and checks:
 
+- Compiler hooks work even when the generic CLI state directory is unavailable; they must not initialize logging sessions.
 - Cold: one cache miss and two observed compiler executions.
 - Warm: one cache hit, with only the application compiler execution observed.
 - Corrupt artifact: safe fallback to compilation and repair, not an invalid restore.

@@ -197,6 +197,7 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.prepare(environment: environment)?.key == original)
         try Data("changed compiler".utf8).write(to: fixture.invocation.toolchain.appendingPathComponent("lib/compiler"))
         #expect(try fixture.invocation.fingerprint() != original)
+        #expect(try await fixture.prepare()?.key != original)
     }
 
     @Test(.inTemporaryDirectory) func credentialsAndCIRunMetadataDoNotInvalidateTheKey() async throws {

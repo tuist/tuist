@@ -19,6 +19,34 @@ struct CargoInputHasherTests {
         #expect(try CargoInputHasher().digest(file) == digest)
     }
 
+    @Test(.inTemporaryDirectory) func sharesOnlyUnchangedToolchainInputsWithinTheSession() throws {
+        let file = try input()
+        let session = file.deletingLastPathComponent().appendingPathComponent("session")
+        var reads = 0
+        let hash: (URL) throws -> REAPI.Digest = { file in
+            reads += 1
+            return try REAPI.digest(file: file)
+        }
+        let original = try CargoInputHasher(sessionDirectory: session, hashFile: hash).digest(file, shared: true)
+        #expect(try CargoInputHasher(sessionDirectory: session, hashFile: hash).digest(file, shared: true) == original)
+        #expect(reads == 1)
+        #expect(try CargoInputHasher(sessionDirectory: session, hashFile: hash).digest(file) == original)
+        #expect(reads == 2)
+        let other = session.appendingPathComponent("another-session")
+        #expect(try CargoInputHasher(sessionDirectory: other, hashFile: hash).digest(file, shared: true) == original)
+        #expect(reads == 3)
+        let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        let modified = try #require(attributes[.modificationDate])
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.write(contentsOf: Data("next".utf8))
+        try handle.close()
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: file.path)
+        let changed = try CargoInputHasher(sessionDirectory: session, hashFile: hash).digest(file, shared: true)
+        #expect(changed == REAPI.digest(Data("next".utf8)))
+        #expect(changed != original)
+        #expect(reads == 4)
+    }
+
     @Test(.inTemporaryDirectory) func invalidatesChangedContentWithRestoredModificationTime() throws {
         let file = try input()
         let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
@@ -36,12 +64,15 @@ struct CargoInputHasherTests {
     @Test(.inTemporaryDirectory) func rehashesInputsWithCoarseTimestamps() throws {
         let file = try input()
         var reads = 0
-        let hasher = CargoInputHasher(identify: { _ in .init(fields: [], precise: false) }) { file in
+        let hasher = CargoInputHasher(
+            sessionDirectory: file.deletingLastPathComponent(),
+            identify: { _ in .init(fields: [], precise: false) }
+        ) { file in
             reads += 1
             return try REAPI.digest(file: file)
         }
-        _ = try hasher.digest(file)
-        _ = try hasher.digest(file)
+        _ = try hasher.digest(file, shared: true)
+        _ = try hasher.digest(file, shared: true)
         #expect(reads == 2)
     }
 

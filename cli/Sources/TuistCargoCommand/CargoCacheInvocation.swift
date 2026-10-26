@@ -90,7 +90,8 @@ struct CargoCacheInvocation {
             arguments: arguments, environment: environment, directory: directory, package: package,
             compiler: compiler, launcher: launcher, toolchain: toolchain,
             output: URL(fileURLWithPath: out).standardizedFileURL,
-            name: name, files: files, key: REAPI.emptyBlob, inputHasher: CargoInputHasher()
+            name: name, files: files, key: REAPI.emptyBlob,
+            inputHasher: CargoInputHasher(sessionDirectory: environment["TUIST_CARGO_SESSION"].map { URL(fileURLWithPath: $0) })
         )
         return CargoCacheInvocation(
             arguments: arguments, environment: environment, directory: directory, package: package,
@@ -107,7 +108,7 @@ struct CargoCacheInvocation {
         inputs += try snapshot(package, budget: &budget, inspectSources: true)
         inputs += try snapshot(toolchain.appendingPathComponent("lib"), budget: &budget)
         for executable in Set([compiler.resolvingSymlinksInPath(), launcher]).sorted(by: { $0.path < $1.path }) {
-            let digest = try inputHasher.digest(executable)
+            let digest = try inputHasher.digest(executable, shared: true)
             inputs += [executable.path, digest.hash, String(digest.sizeBytes)]
         }
         return REAPI.digest(try JSONEncoder().encode(inputs))
@@ -216,7 +217,7 @@ struct CargoCacheInvocation {
                 else {
                     throw CacheError.unsupported
                 }
-                files.append((target, try inputHasher.digest(target)))
+                files.append((target, try inputHasher.digest(target, shared: true)))
             }
             if properties.isDirectory == true { continue }
             let content = file.resolvingSymlinksInPath()
@@ -234,7 +235,7 @@ struct CargoCacheInvocation {
                     ) == nil else { throw CacheError.unsupported }
                 }
             } else {
-                digest = try inputHasher.digest(content)
+                digest = try inputHasher.digest(content, shared: !inspectSources)
             }
             files.append((file, digest))
         }
