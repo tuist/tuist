@@ -20,13 +20,13 @@ SITE=larch
 
 1. **The site's data is in.** Each item goes in through a PR to the site file
    or the production values. What is still missing for larch:
-   - `larch-r1-tor-b`'s label MAC, its `adopted: true`, and
+   - `larch-tor-b`'s label MAC, its `adopted: true`, and
      `larch-edge-b`'s `tor_management` (192.168.61.5/30).
    - The edges' and storage node's unit sheets from primeLine (serial, UUID,
      NIC MACs and TPM check code) as `rackLinuxFleet.hosts` with
      `site: larch`. Until then they have nothing to enrol against.
    - The ten minis: serial and en0 MAC from each box label, chain (A on
-     `larch-r1-tor-a` and `larch-r1-pdu-a`, B on the B side, five each), PDU
+     `larch-tor-a` and `larch-pdu-a`, B on the B side, five each), PDU
      outlet and tray, as site-file nodes now. Declare them as `rackFleet` hosts
      only once the site's WAN is lit: the rack fleet's MachineHealthCheck
      spans every site and tolerates one unhealthy Machine, so ten dark larch
@@ -65,7 +65,7 @@ SITE=larch
    PR. Production's deploy and `omada-deployment.yml` then run a
    `rack-edge-larch` release with no node yet.
 4. **The ToRs are factory-reset and sealed.** Reset the bench unit
-   (`larch-r1-tor-a`) and pack the second one (`larch-r1-tor-b`). Each
+   (`larch-tor-a`) and pack the second one (`larch-tor-b`). Each
    provisions itself through zero-touch provisioning from its edge.
 5. **Goods-in tickets** are open in NTT's portal for every shipment, and
    every box is labelled with rack, U position and device name.
@@ -79,12 +79,12 @@ SITE=larch
    ends:
    - The ISL: two DACs, ports 25 and 26.
    - Each edge's two 25G SFP28 legs, ports 29 and 30 on both ToRs.
-   - The storage node's leg on `larch-r1-tor-a` port 31.
-   - Each ToR's management port and console to its own edge: `larch-r1-tor-a`
-     to `larch-edge-a` lan1 and USB, `larch-r1-tor-b` to `larch-edge-b`.
+   - The storage node's leg on `larch-tor-a` port 31.
+   - Each ToR's management port and console to its own edge: `larch-tor-a`
+     to `larch-edge-a` lan1 and USB, `larch-tor-b` to `larch-edge-b`.
    - Every BMC and power card to the opposite ToR. The render refuses
      anything else, so don't tidy them onto one ToR.
-   - Cogent's cross-connect into `larch-r1-tor-a` port 27, if NTT has
+   - Cogent's cross-connect into `larch-tor-a` port 27, if NTT has
      patched it.
 9. **Power the dual-PSU gear** straight from NTT's rails, PSU 1 to A and
    PSU 2 to B: the ToRs, then the edges, then the storage node.
@@ -106,7 +106,7 @@ SITE=larch
     kubectl $P -n tuist get rackswitch -l tuist.dev/site=$SITE
     ```
 
-    The controller converges `larch-r1-tor-b` first, then `larch-r1-tor-a`.
+    The controller converges `larch-tor-b` first, then `larch-tor-a`.
     `larch-edge-b` and the storage node install next, through the first
     edge.
 11. **Power last.** Connect each ATS's two inputs to its pair: chain A's and
@@ -157,7 +157,7 @@ before the site's pools are scaled up or any account's jobs route there.
     - The rack's draw is under it.
 15. **Failover, with no jobs running.**
     - Pull feed A, then feed B: no device resets, and each ATS transfers.
-    - Reboot `larch-r1-tor-b`: chain A's minis and the WAN stay up.
+    - Reboot `larch-tor-b`: chain A's minis and the WAN stay up.
     - Fail over the edges (stop keepalived on the master): the BGP sessions
       move and egress keeps its address.
 16. **Cache and runners.**
