@@ -1366,10 +1366,10 @@ defmodule Tuist.Kura do
     # instead of routing jobs to an endpoint that no longer exists.
     private_region_ids =
       Regions.available()
-      |> Enum.filter(
-        &(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform) and Regions.site(&1) == site)
-      )
-      |> Enum.filter(&Tuist.Kura.RunnerCache.rollout_enabled?(&1, account))
+      |> Enum.filter(fn region ->
+        Regions.private?(region) and Regions.serves_runner_platform?(region, platform) and
+          Regions.site(region) == site and Tuist.Kura.RunnerCache.rollout_enabled?(region, account)
+      end)
       |> Enum.map(& &1.id)
 
     if private_region_ids == [] do
