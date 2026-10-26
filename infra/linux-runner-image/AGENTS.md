@@ -384,7 +384,14 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   built for 14 days (`tuist/ledger.json` in the data root), trims the build cache
   to 10 GB, stops dockerd, unmounts and writes `docker.json` beside the image
   (`clean`, `changed`, `reset`, the inventory; a reset data root is always
-  `changed`). Without a volume, a job the agent answered
+  `changed`). Before that, when the agent's `/docker-merge` offers the saved head
+  another job published since the mount, a changed data root is merged with it:
+  a second dockerd runs on the head's clone (`/var/lib/docker-merge`, its own
+  socket, no networking), the images only one side keeps are copied into the
+  other with `docker save | docker load` (`planDockerMerge`: whichever moves
+  fewer bytes), the ledgers are merged, and the report names `merged_generation`
+  and `merged_into` (`branch` or `head`) and describes the merged root. Any
+  failure leaves the data root as the job left it. Without a volume, a job the agent answered
   `unseen` reports `/docker-seen` when the daemon holds any image, so the
   repository's next jobs get one. Neither ever affects the exit code.
 - `planDockerTeardown` decides what survives: a job used an image when one of its

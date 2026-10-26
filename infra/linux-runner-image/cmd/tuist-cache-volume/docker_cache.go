@@ -26,7 +26,10 @@ import (
 const (
 	dockerStatePath = "/home/runner/.tuist-docker.json"
 	dockerImageName = "docker.img"
-	dockerReport    = "docker.json"
+	// dockerMergeImageName is the clone of the saved head the host offers after
+	// the job, beside the data root's image.
+	dockerMergeImageName = "head.img"
+	dockerReport         = "docker.json"
 	// dockerInternalRepository names the internal reference that keeps an image's
 	// content once its registry tags are removed.
 	dockerInternalRepository = "tuist-docker-cache"
@@ -58,6 +61,10 @@ var dockerReferencePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0
 type dockerMessage struct {
 	Docker string `json:"docker"`
 	Source string `json:"source,omitempty"`
+	// Merge names the clone of the saved head, beside the data root, a teardown
+	// merges the job's images with, and Generation the head it is.
+	Merge      string `json:"merge,omitempty"`
+	Generation int64  `json:"generation,omitempty"`
 }
 
 // dockerHookState is what the job-start hook leaves for the teardown.
@@ -106,7 +113,7 @@ func dockerJob(ctx context.Context, root, statePath string, request func(context
 // dockerTeardown runs after the job. A mounted data root is cleaned and
 // unmounted by the supervisor; a job that had none reports whether it used
 // Docker, so the repository's next jobs get one.
-func dockerTeardown(statePath string, send func(dockerMessage) (string, error), images func() ([]string, error), seen func() error) string {
+func dockerTeardown(statePath string, send func(dockerMessage) (string, error), offer func() dockerMergeOffer, images func() ([]string, error), seen func() error) string {
 	data, err := os.ReadFile(statePath)
 	if err != nil {
 		return "skipped"
@@ -116,7 +123,11 @@ func dockerTeardown(statePath string, send func(dockerMessage) (string, error), 
 		return "skipped"
 	}
 	if state.Mounted {
-		if _, err := send(dockerMessage{Docker: "teardown"}); err != nil {
+		message := dockerMessage{Docker: "teardown"}
+		if merge := offer(); merge.valid() {
+			message.Merge, message.Generation = merge.Source, merge.Generation
+		}
+		if _, err := send(message); err != nil {
 			return "failed (" + err.Error() + ")"
 		}
 		return "saved for the host to verify"
@@ -191,6 +202,80 @@ func (c *dockerHTTPClient) seen(ctx context.Context) error {
 		return fmt.Errorf("host returned %d", response.StatusCode)
 	}
 	return nil
+}
+
+// dockerMergeOffer is the host's answer after the job: the clone of a saved
+// head another job published since this data root was mounted, if any.
+type dockerMergeOffer struct {
+	Merge      bool   `json:"merge"`
+	Source     string `json:"source"`
+	Generation int64  `json:"generation"`
+}
+
+func (o dockerMergeOffer) valid() bool {
+	parts := strings.Split(o.Source, "/")
+	return o.Merge && o.Generation > 0 && len(parts) == 2 && directoryPattern.MatchString(parts[0]) && parts[1] == dockerMergeImageName
+}
+
+func (c *dockerHTTPClient) merge(ctx context.Context) (dockerMergeOffer, error) {
+	var offer dockerMergeOffer
+	req, err := c.newRequest(ctx, "/docker-merge")
+	if err != nil {
+		return offer, err
+	}
+	err = requestJSON(c.http, req, &offer)
+	return offer, err
+}
+
+// dockerMergePlan is how a finished job's data root and the saved head another
+// job published become one: the images only one of them keeps are loaded into
+// the other, whichever moves fewer bytes. Into is "branch" or "head", or empty
+// when the job kept no image the head lacks.
+type dockerMergePlan struct {
+	Into string
+	Move []string
+}
+
+func planDockerMerge(branch, head []dockerImage) dockerMergePlan {
+	only := func(images, other []dockerImage) ([]string, int64) {
+		present := map[string]bool{}
+		for _, image := range other {
+			present[image.ID] = true
+		}
+		var ids []string
+		var bytes int64
+		for _, image := range images {
+			if !present[image.ID] && !slices.Contains(ids, image.ID) {
+				ids, bytes = append(ids, image.ID), bytes+image.Size
+			}
+		}
+		return ids, bytes
+	}
+	fromBranch, branchBytes := only(branch, head)
+	fromHead, headBytes := only(head, branch)
+	switch {
+	case len(fromBranch) == 0:
+		return dockerMergePlan{}
+	case branchBytes <= headBytes:
+		return dockerMergePlan{Into: "head", Move: fromBranch}
+	default:
+		return dockerMergePlan{Into: "branch", Move: fromHead}
+	}
+}
+
+// mergeDockerLedgers adds the moved images' entries to the ledger of the data
+// root they were loaded into.
+func mergeDockerLedgers(into, from dockerLedger, moved []string) dockerLedger {
+	merged := dockerLedger{}
+	for id, entry := range into {
+		merged[id] = entry
+	}
+	for _, id := range moved {
+		if entry, ok := from[id]; ok {
+			merged[id] = entry
+		}
+	}
+	return merged
 }
 
 // dockerImageIDs lists the images of the daemon the job used.
@@ -311,11 +396,13 @@ func mergeReferences(recent, older []string) []string {
 
 // dockerTeardownReport is the report the host reads beside the image.
 type dockerTeardownReport struct {
-	Clean           bool                  `json:"clean"`
-	Changed         bool                  `json:"changed"`
-	Reset           bool                  `json:"reset,omitempty"`
-	Images          []dockerReportedImage `json:"images"`
-	BuildCacheBytes int64                 `json:"build_cache_bytes"`
+	Clean            bool                  `json:"clean"`
+	Changed          bool                  `json:"changed"`
+	Reset            bool                  `json:"reset,omitempty"`
+	MergedGeneration int64                 `json:"merged_generation,omitempty"`
+	MergedInto       string                `json:"merged_into,omitempty"`
+	Images           []dockerReportedImage `json:"images"`
+	BuildCacheBytes  int64                 `json:"build_cache_bytes"`
 }
 
 type dockerReportedImage struct {
@@ -393,6 +480,15 @@ func dockerTeardownLinux() string {
 	client := newDockerHTTPClient(15 * time.Second)
 	return dockerTeardown(dockerStatePath, func(message dockerMessage) (string, error) {
 		return sendDocker(dockerSocket(), message)
+	}, func() dockerMergeOffer {
+		// The host may download the saved head first; this runs after the job.
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+		defer cancel()
+		offer, err := newDockerHTTPClient(6 * time.Minute).merge(ctx)
+		if err != nil {
+			return dockerMergeOffer{}
+		}
+		return offer
 	}, dockerImageIDs, func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()

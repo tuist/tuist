@@ -1,6 +1,7 @@
 package cachevolumes
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,9 @@ const (
 	DockerImageName = "docker.img"
 	// DockerReportName is the guest's teardown report beside the image.
 	DockerReportName = "docker.json"
+	// DockerMergeImageName is the clone of the lineage's saved head a
+	// finished job merges its images with, beside the branch image.
+	DockerMergeImageName = "head.img"
 )
 
 const dockerReportLimit = 512 << 10
@@ -51,9 +55,14 @@ type DockerReport struct {
 	Changed bool `json:"changed"`
 	// Reset reports a data root the guest formatted empty because the saved
 	// one could not be mounted.
-	Reset           bool          `json:"reset"`
-	Images          []DockerImage `json:"images"`
-	BuildCacheBytes int64         `json:"build_cache_bytes"`
+	Reset bool `json:"reset"`
+	// MergedGeneration is the saved head the guest merged the job's images
+	// with, or 0; MergedInto names the image holding the merge, "branch" or
+	// "head". The generation must be the one the host offered.
+	MergedGeneration int64         `json:"merged_generation"`
+	MergedInto       string        `json:"merged_into"`
+	Images           []DockerImage `json:"images"`
+	BuildCacheBytes  int64         `json:"build_cache_bytes"`
 }
 
 // DockerImage is one image the data root keeps, with the references the jobs
@@ -103,6 +112,9 @@ func ReadDockerReport(path string) (DockerReport, error) {
 
 func validDockerReport(report DockerReport) bool {
 	if len(report.Images) > dockerImageLimit || report.BuildCacheBytes < 0 {
+		return false
+	}
+	if report.MergedGeneration < 0 || (report.MergedGeneration > 0) != (report.MergedInto == "branch" || report.MergedInto == "head") {
 		return false
 	}
 	for _, image := range report.Images {
@@ -173,6 +185,9 @@ func (b *LocalImages) sealDocker(slot Slot, path string) error {
 	if err != nil || !report.Clean {
 		return errNoDockerReport
 	}
+	if report.MergedGeneration > 0 {
+		return b.sealDockerMerge(slot, path, report)
+	}
 	if err := b.verifyDocker(slot, path); err != nil {
 		return err
 	}
@@ -191,6 +206,129 @@ func (b *LocalImages) sealDocker(slot Slot, path string) error {
 	return b.publish(slot)
 }
 
+// dockerMerge is the saved head a finished job was offered to merge its images
+// with. Its clone sits beside the branch image until the seal adopts or
+// deletes it.
+type dockerMerge struct {
+	Generation    int64  `json:"generation"`
+	ImageDigest   string `json:"image_digest"`
+	ContentDigest string `json:"content_digest"`
+}
+
+var errNoDockerMerge = fmt.Errorf("%w: merged with a head this host did not offer", ErrWithheld)
+
+// Rebaser moves a use's base to its lineage's current head once its data root
+// holds that head's content, so its publication fast-forwards that head.
+type Rebaser interface {
+	Rebase(Slot) error
+}
+
+// ExposeDockerHead clones the lineage's saved head into the pod's directory as
+// head.img, so the job's guest can merge its images with the ones jobs saved
+// since its data root was mounted. It downloads the head when this host does
+// not hold it. Offering the same head again finds the same clone.
+func (b *LocalImages) ExposeDockerHead(ctx context.Context, slot Slot, path string, head Identity) error {
+	merge := dockerMerge{Generation: head.BaseGeneration, ImageDigest: head.ImageDigest, ContentDigest: head.ContentDigest}
+	saved := slot
+	saved.BaseGeneration, saved.ImageDigest, saved.ContentDigest = merge.Generation, merge.ImageDigest, merge.ContentDigest
+	if slot.Kind != KindDocker || merge.Generation <= 0 || !validHead(saved.Identity) || !scopePattern.MatchString(slot.Scope) {
+		return errors.New("invalid docker merge head")
+	}
+	clone := b.image(slot) + ".merge"
+	link := filepath.Join(path, DockerMergeImageName)
+	if offered, err := b.dockerMerge(slot); err == nil && offered == merge && sameFile(clone, link) {
+		return nil
+	}
+	if !b.HasMaster(saved.Identity) {
+		if err := b.reserve(ctx); err != nil {
+			return err
+		}
+		if err := b.fetchMaster(ctx, saved, func(string, string) error { return nil }); err != nil {
+			return err
+		}
+	}
+	for _, stale := range []string{link, clone, b.image(slot) + ".merge.json"} {
+		if err := os.Remove(stale); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	unlock, err := b.lockContext(ctx, slot.Scope)
+	if err != nil {
+		return err
+	}
+	err = b.cloneContext(ctx, b.master(saved), clone)
+	unlock()
+	if err != nil {
+		return err
+	}
+	data, _ := json.Marshal(merge)
+	if err := os.WriteFile(b.image(slot)+".merge.json", data, 0600); err != nil {
+		return err
+	}
+	if err := syncFile(b.image(slot) + ".merge.json"); err != nil {
+		return err
+	}
+	return os.Link(clone, link)
+}
+
+func (b *LocalImages) dockerMerge(slot Slot) (dockerMerge, error) {
+	var merge dockerMerge
+	data, err := os.ReadFile(b.image(slot) + ".merge.json")
+	if err != nil {
+		return merge, err
+	}
+	return merge, json.Unmarshal(data, &merge)
+}
+
+// sealDockerMerge publishes a data root the guest merged with the saved head
+// this host offered, rebased onto that head. A merge into the head's clone
+// replaces the branch with it; the rest of the checks are a branch's.
+func (b *LocalImages) sealDockerMerge(slot Slot, path string, report DockerReport) error {
+	merge, err := b.dockerMerge(slot)
+	if err != nil || merge.Generation != report.MergedGeneration {
+		return errNoDockerMerge
+	}
+	image := b.image(slot)
+	switch report.MergedInto {
+	case "head":
+		link := filepath.Join(path, DockerMergeImageName)
+		clone := image + ".merge"
+		if _, err := os.Stat(clone); err == nil {
+			if !sameFile(clone, link) {
+				return fmt.Errorf("%w: docker head image replaced", ErrPoisoned)
+			}
+			if err := durableRename(clone, image); err != nil {
+				return err
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		// The merged clone is the branch now, so a retried seal finds it there.
+		if !sameFile(image, link) {
+			return fmt.Errorf("%w: docker head image replaced", ErrPoisoned)
+		}
+		if err := ext4Clean(image); err != nil {
+			return errors.Join(ErrPoisoned, err)
+		}
+	case "branch":
+		if err := b.verifyDocker(slot, path); err != nil {
+			return err
+		}
+	}
+	if allocatedBytes(image) > DockerPublishBytes {
+		return ErrFull
+	}
+	slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = merge.Generation, merge.ImageDigest, merge.ContentDigest
+	if rebaser, ok := b.Transfer.(Rebaser); ok {
+		if err := rebaser.Rebase(slot); errors.Is(err, ErrConflict) {
+			return ErrSuperseded
+		} else if err != nil {
+			return err
+		}
+	}
+	return b.publish(slot)
+}
+
 // releaseDocker removes the pod's directory, which holds only guest-written
 // files and the image's link, and the branch image.
 func (b *LocalImages) releaseDocker(slot Slot, path string, suffixes []string) error {
@@ -198,7 +336,7 @@ func (b *LocalImages) releaseDocker(slot Slot, path string, suffixes []string) e
 		return err
 	}
 	_ = os.Remove(filepath.Dir(path))
-	for _, suffix := range suffixes {
+	for _, suffix := range append(suffixes, ".merge", ".merge.json") {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}

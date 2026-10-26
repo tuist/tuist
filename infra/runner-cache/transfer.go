@@ -360,3 +360,11 @@ func (t *HTTPTransfer) maxBytes(slot Slot) int64 {
 	}
 	return t.MaxBytes
 }
+
+// Rebase moves the slot's use to the lineage's head named by the slot's base,
+// once its data root holds that head's content. The server refuses (ErrConflict)
+// when the head moved again or the use may no longer publish.
+func (t *HTTPTransfer) Rebase(slot Slot) error {
+	_, err := t.requestWith(context.Background(), slot, "rebase", slot.ImageDigest, slot.ContentDigest, map[string]any{"generation": slot.BaseGeneration})
+	return err
+}

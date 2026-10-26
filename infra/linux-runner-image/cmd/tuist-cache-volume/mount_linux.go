@@ -164,7 +164,7 @@ func mountRequest(conn *net.UnixConn, root, work *os.Root, docker func(dockerMes
 			return errors.New("docker cache unavailable in this sidecar")
 		}
 		// A teardown cleans and unmounts a whole data root.
-		_ = conn.SetDeadline(time.Now().Add(6 * time.Minute))
+		_ = conn.SetDeadline(time.Now().Add(12 * time.Minute))
 		return docker(message)
 	}
 	if flags&(unix.MSG_TRUNC|unix.MSG_CTRUNC) != 0 || len(fds) != 2 {
@@ -336,7 +336,8 @@ func parseDockerMessage(data []byte) (dockerMessage, bool) {
 	var message dockerMessage
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&message); err != nil || (message.Docker != "switch" && message.Docker != "teardown") {
+	if err := decoder.Decode(&message); err != nil || (message.Docker != "switch" && message.Docker != "teardown") ||
+		((message.Merge != "" || message.Generation != 0) && (message.Docker != "teardown" || message.Merge == "" || message.Generation <= 0)) {
 		return dockerMessage{}, false
 	}
 	return message, true

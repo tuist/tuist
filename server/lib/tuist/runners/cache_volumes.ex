@@ -1175,6 +1175,38 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # A finished Docker job's guest merged its data root with the head another job
+  # saved since it was mounted, so the use takes that head as its base and its
+  # publication fast-forwards it. Only a successful job's use that may still
+  # publish moves, and only onto the lineage's current head.
+  defp image_action(%Volume{key: @docker_key} = volume, usage, %{
+         "operation" => "rebase",
+         "generation" => generation,
+         "image_digest" => digest,
+         "content_digest" => content
+       })
+       when is_integer(generation) and generation > 0 do
+    if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
+
+    if not rebase_viable?(volume, usage, generation), do: Repo.rollback(:conflict)
+
+    case VolumeHeads.get_head(volume.account_id, storage_name(volume)) do
+      %{generation: ^generation, content_digest: ^content} ->
+        Repo.update!(Ecto.Changeset.change(usage, base_generation: generation, parent_id: volume.head_id))
+        %{generation: generation}
+
+      _ ->
+        Repo.rollback(:conflict)
+    end
+  end
+
+  defp rebase_viable?(volume, usage, generation) do
+    completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
+
+    not retired_image?(volume, usage) and usage.can_publish and usage.status not in ["published", "discarded"] and
+      generation > usage.base_generation and not is_nil(completion) and completion.conclusion == "success"
+  end
+
   # A host that gives up on a multipart upload discards its parts. Nothing about
   # the use matters: the upload names an object only this use could publish.
   defp image_action(volume, _usage, %{

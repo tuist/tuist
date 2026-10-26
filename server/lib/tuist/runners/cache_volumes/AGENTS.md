@@ -207,3 +207,8 @@ these schemas persist volume identities and per-job uses.
   decides nothing. `reserved_bytes` for `docker` is the saved head plus 20 GB,
   runner-cache's `DockerGrowthBytes`. Docker cache storage is not billed: when
   volume storage becomes a billing meter, exclude the `docker` and `checkout` keys.
+- `image/3` with the `rebase` operation (Docker volumes only) moves a successful
+  job's use that may still publish onto the lineage's current HEAD, named by
+  `generation` and its `content_digest`, once its host reports the guest merged
+  the job's images with that HEAD; publication then fast-forwards it. Anything
+  but the current HEAD is a conflict.
