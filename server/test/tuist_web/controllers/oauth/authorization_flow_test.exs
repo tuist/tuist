@@ -131,8 +131,21 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     response = build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(200)
     assert %{"access_token" => replacement, "refresh_token" => replacement_refresh} = response
 
+    replay = Repo.get_by!(RefreshReplays.Replay, kind: "oauth", token_hash: :crypto.hash(:sha256, refresh_token))
+    assert JSON.decode!(replay.response) == response
+
     refute replacement == access_token
     refute replacement_refresh == refresh_token
+
+    assert build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(200) == response
+
+    other_client = register_client(conn)
+
+    wrong_client =
+      request_object(%{"grant_type" => "refresh_token", "client_id" => other_client, "refresh_token" => refresh_token})
+
+    assert %{"error" => "invalid_grant"} =
+             build_conn() |> post(~p"/oauth2/token", %{"request" => wrong_client}) |> json_response(400)
 
     assert build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(200) == response
   end

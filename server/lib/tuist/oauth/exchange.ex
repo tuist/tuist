@@ -138,8 +138,12 @@ defmodule Tuist.OAuth.Exchange do
     result =
       RefreshReplays.exchange("oauth", token, credential, fn ->
         case redeem.() do
-          {:success, response} -> {:ok, Map.take(response, @response_fields)}
-          error -> error
+          {:success, response} ->
+            data = response |> Map.take(@response_fields) |> Map.reject(fn {_key, value} -> is_nil(value) end)
+            {:ok, data}
+
+          error ->
+            error
         end
       end)
 

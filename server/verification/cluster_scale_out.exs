@@ -46,6 +46,7 @@ defmodule ClusterScaleOut do
   alias Tuist.KeyValueStore.Invalidator
 
   @protected [:tuist, :license, :token_verification, :auth_subjects]
+  @display_opts [cache: :display, persist_across_deployments: false]
 
   def run(helpers) do
     if !(Node.alive?() and Node.list(:connected) == [] and is_nil(Process.whereis(Tuist.Supervisor))) do
@@ -103,6 +104,11 @@ defmodule ClusterScaleOut do
       owner = :peer.call(peer, ClusterScaleOut.Owner, :start, [self()])
       ready(owner)
       await(fn -> pubsub_ready?(remote) end, "PubSub forwarding did not become ready")
+
+      for target <- [node(), remote] do
+        :display = :erpc.call(target, :sys, :get_state, [Invalidator])
+      end
+
       verify_invalidation(remote)
 
       :ok = Cachex.put(:display, "missed-invalidation", :stale)
@@ -126,22 +132,22 @@ defmodule ClusterScaleOut do
         :ok = :erpc.call(target, Cachex, :put, [cache, "balance", :warm])
       end
 
-      {:ok, true} = :erpc.call(target, KeyValueStore, :put, ["unrelated", :warm, [cache: :display]])
+      {:ok, true} = :erpc.call(target, KeyValueStore, :put, ["unrelated", :warm, @display_opts])
     end
 
-    :ok = KeyValueStore.invalidate("balance", cache: :display)
-    {:ok, true} = KeyValueStore.put("balance", :replacement, cache: :display)
+    :ok = KeyValueStore.invalidate("balance", @display_opts)
+    {:ok, true} = KeyValueStore.put("balance", :replacement, @display_opts)
 
     await(
-      fn -> :erpc.call(remote, KeyValueStore, :get, ["balance", [cache: :display]]) == nil end,
+      fn -> :erpc.call(remote, KeyValueStore, :get, ["balance", @display_opts]) == nil end,
       "remote invalidation missing"
     )
 
     :sys.get_state(Invalidator)
-    :replacement = KeyValueStore.get("balance", cache: :display)
+    :replacement = KeyValueStore.get("balance", @display_opts)
 
     for target <- [node(), remote] do
-      :warm = :erpc.call(target, KeyValueStore, :get, ["unrelated", [cache: :display]])
+      :warm = :erpc.call(target, KeyValueStore, :get, ["unrelated", @display_opts])
       protected_warm(target)
     end
 
