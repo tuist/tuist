@@ -6837,7 +6837,9 @@ label_replace(label_replace(
 
 While an ATS is not observed its redundancy and active-source series are
 absent, so the two power rules above cannot fire for it. The RackATS or
-RackPDU `Ready` reason says why.
+RackPDU `Ready` reason says why. A standalone RackATS or RackPDU, as a planned
+one at a site that is not racked yet, exports no series, so this rule does not
+fire for it.
 
 `capt_rackats_ready` has no rule of its own: `capt_rackats_observed` is 1 only
 while the RackATS is Ready, so the two go to 0 together.
