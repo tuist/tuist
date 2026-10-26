@@ -9,8 +9,10 @@
   confirmed block attachments, deployment prerequisites and rollback steps are in
   [OVH runner egress](docs/ovh-runner-egress.md).
 
-- OVH cache vRack reconciliation is additive on the Ready path, scoped by the
-  environment ConfigMap and cache taint, or explicit `spec.vRackID` on Kata runners. Persist address reservations across
+- OVH private vRack reconciliation is additive on the Ready path, scoped by the
+  environment ConfigMap and cache taint or explicit Kata Machine `vRackID`.
+  Public egress enrollment alone does not opt a runner into private peer routes.
+  Persist address reservations across
   Machine deletion, preserve main-table unreachable guards for existing Machines,
   retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.

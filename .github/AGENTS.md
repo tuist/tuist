@@ -4,6 +4,14 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+The provider image workflow's manual `deploy_staging` option deploys only the
+tested provider and disabled runner-egress ConfigMap/RBAC. It uses the existing
+staging environment and server-deployment concurrency lane, checks the expected
+live provider image/resource version, and preserves current manager arguments.
+It refuses enabled egress or retained reservations; qualification enables the
+configuration separately after checking the live host. It never upgrades the
+application/cache Helm releases or targets canary/production.
+
 Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
 start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated
