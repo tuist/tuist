@@ -65,4 +65,6 @@
 
 ## CI
 
+- The manual Bazel test entry point creates HOME/XDG_CACHE_HOME beneath TEST_TMPDIR before starting Swift Testing. Keep this owned-process bootstrap before parallel discovery/execution; do not change environment variables in individual concurrent tests or make tests depend on the runner's credentials/cache. This repairs hermetic cache-root tests, not multi-Xcode framework selection.
+
 - CI runs the mise test tasks with `-- --config=ci`. The `ci` config in `.bazelrc` points Bazel's repository cache at the directory the workflow persists with `tuist/cache-volume` and widens Bazel's download retry window. Keep both paths in sync, and keep CI-only Bazel settings under `ci` so local runs are unaffected.

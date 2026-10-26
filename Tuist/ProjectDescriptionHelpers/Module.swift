@@ -2244,6 +2244,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .http:
                 [
+                    .target(name: Module.testSupport.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
