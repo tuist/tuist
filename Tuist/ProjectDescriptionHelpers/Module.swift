@@ -1499,6 +1499,8 @@ public enum Module: String, CaseIterable {
                 ]
             case .testCommand:
                 [
+                    .target(name: Module.ci.targetName),
+                    .target(name: "TuistProcess"),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),

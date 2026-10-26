@@ -7,6 +7,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Core domain models and shared abstractions live in `cli/Sources/TuistCore`.
 - Common utilities and infra (logging, file system helpers, etc.) live in `cli/Sources/TuistSupport`.
 - Tuist Server client: `cli/Sources/TuistServer`
+- Test commands and Once portable-plan sharding: `cli/Sources/TuistTestCommand/AGENTS.md`
 - Rosalind app bundle analysis: `cli/Sources/Rosalind/AGENTS.md`
 - Bazel integration and test execution: `cli/Sources/TuistBazelCommand/AGENTS.md`
 - Cargo decoration, compiler observation, and nextest test/shard integration: `cli/Sources/TuistCargoCommand/AGENTS.md`

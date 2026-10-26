@@ -3,6 +3,7 @@
 This module handles CLI integration with the Tuist Server APIs.
 
 ## Responsibilities
+- `OnceTestReportService` submits the CLI's consolidated portable-plan partition report through authenticated `createTest`, preserving its ID, shard UUID, index, attempt and revision across HTTP retries. Native grouped events remain diagnostics, and unsigned reporting discovery does not authorize this orchestration path.
 - Resolve server environment (base URL, OAuth client ID) with env var overrides.
 - `ExchangeOIDCTokenService` forwards optional `TUIST_OIDC_ACCOUNT` as `account_handle`. Custom workload providers require this account selector; built-in CI providers keep it optional. It chooses the destination account, never substitutes for verified workload identity and project trust. Keep the request additive for existing CI providers and regenerate OpenAPI types from the controller schema.
 - Provide cache storage factories and API clients for server-backed features.

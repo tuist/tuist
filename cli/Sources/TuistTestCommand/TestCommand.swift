@@ -25,6 +25,7 @@ public struct TestCommand: AsyncParsableCommand {
                 TestModuleCommand.self,
                 TestSuiteCommand.self,
                 TestXcodeCommand.self,
+                OnceTestCommand.self,
             ]
         #else
             [
@@ -34,6 +35,7 @@ public struct TestCommand: AsyncParsableCommand {
                 TestModuleCommand.self,
                 TestSuiteCommand.self,
                 TestXcodeCommand.self,
+                OnceTestCommand.self,
             ]
         #endif
     }
