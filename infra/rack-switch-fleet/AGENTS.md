@@ -1802,14 +1802,27 @@ factory login, `admin`/`pica8`, and goes by what the switch says:
 - **The login is refused:** the bootstrap replaced admin's password, so the
   switch was provisioned and only its NETCONF is off. It is left alone.
 - **The login is taken:** ZTP never ran. The forced change of the factory
-  password is answered with a random password nothing keeps (the next ZTP run
-  replaces it), and the switch is rebooted, so ZTP runs again with the edge
-  serving.
+  password is answered with a random password only the watcher keeps (the next
+  ZTP run replaces it), and the switch is rebooted, so ZTP runs again with the
+  edge serving. PicOS ends the session after the change, so the watcher logs
+  in again; admin's shell is the CLI, so it runs `start shell sh` and then
+  `sudo -n /pica/bin/reboot.sh`. An attempt that fails after the change
+  leaves the switch on that password, which the next attempt tries after the
+  factory one.
 
-It tries at most once every twenty minutes. The factory login is the guard: a
+The dialog counts a prompt only once the console has been quiet for 1.5 s:
+the CLI prints a prompt-like line and then drops what is typed while it
+starts. It tries at most once every twenty minutes. The factory login is the guard: a
 provisioned switch cannot be rebooted by it, whatever its ports say.
 
 ### What the bench showed
+
+On 26 Oct the cold path ran on the bench with the first ASUS as the edge: a
+factory switch whose ZTP had missed, the watcher with a one-minute grace
+logging in on the console and rebooting it (10:32), the bootstrap fetched
+from the edge over TFTP (10:34) and NETCONF open (10:37), then the PicOS
+engine converging and cleaning up a ToR-like configuration through the edge
+with zero drift. NTP reached its servers through the edge.
 
 Measured on an S5860-24XMG with PicOS 4.7.1M-EC1, 22 to 25 October 2026:
 
