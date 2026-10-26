@@ -53,6 +53,7 @@ owned child processes; never mutate the parent test environment. It has no
 Python, image manufacturing, registry login,
 publication or deployment. Keep the explicit Go SDK qualification allowlist and
 CI pin aligned; newer release lines alone do not prove the intermediate-key deny.
+`scripts/server-oidc-trust-preflight.exs` explicitly opts into credential-free public native/protected TLS controls before server shard authentication. It reports root counts and fixed outcomes, never credentials, bodies or raw errors. Both controls and protected HTTP must succeed; the native control is not an authentication fallback or a weaker production transport.
 The aggregate mitigation paths trigger many independent main deploy workflows:
 split merges by owner rather than treating this test job as a fleet rollout gate.
 Runner idle-only and Kura health-gated waves can stay warm; cache-volume agents,

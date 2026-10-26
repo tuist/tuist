@@ -5,6 +5,14 @@ use serde::de::DeserializeOwned;
 const FIRST: &str = "01922cc0-0000-7000-8000-000000000001";
 const SECOND: &str = "01922cc0-0000-7000-8000-000000000002";
 
+// These fixtures share the production registry's eight-handle limit. Hold the
+// test-only gate until the libtest worker exits, including panic unwinding.
+static SESSION_FIXTURES: Mutex<()> = Mutex::new(());
+thread_local! {
+    static SESSION_FIXTURE: std::sync::MutexGuard<'static, ()> =
+        SESSION_FIXTURES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+}
+
 fn saved() -> Session {
     Session {
         registration: registration(),
@@ -19,6 +27,7 @@ fn thread(id: &str, kind: &str) -> Thread {
 }
 
 fn opened() -> (String, Arc<Model>) {
+    SESSION_FIXTURE.with(|_| {});
     let opened = execute(Action::Open { session: saved() }).unwrap();
     let id = opened["connection"].as_str().unwrap().to_owned();
     let model = get(&id).unwrap();

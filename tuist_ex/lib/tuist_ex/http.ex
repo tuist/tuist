@@ -21,7 +21,12 @@ defmodule TuistEx.HTTP do
         {String.to_charlist(url), headers}
       end
 
-    options = options(url, Keyword.get(timeouts, :timeout, 15_000), Keyword.get(timeouts, :connect_timeout, 10_000))
+    options =
+      options(
+        url,
+        Keyword.get(timeouts, :timeout, 15_000),
+        Keyword.get(timeouts, :connect_timeout, 10_000)
+      )
 
     case :httpc.request(method, request, options, body_format: :binary) do
       {:ok, {{_, status, _}, _, response}} ->

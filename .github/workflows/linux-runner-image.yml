@@ -65,6 +65,7 @@ jobs:
           docker run --rm --privileged \
             -e TUIST_TEST_BIND_MOUNTS=1 \
             -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
+            -v "$GITHUB_WORKSPACE/infra/certificate-trust/controls:/testdata/certificate-trust:ro" \
             ubuntu:22.04 /cache-volume.test -test.v
   build:
     needs: cache-mounts

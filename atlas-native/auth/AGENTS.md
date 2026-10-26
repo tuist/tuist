@@ -93,7 +93,7 @@ libraries. Do not replace this with a single cached Cargo shell action. Third-pa
 
 Run `ONCE_CACHE_PROVIDER=local mise run test:core` and `mise run lint:rust` from
 `atlas-native/`. Mock transport tests exercise discovery/registration/exchange/
-refresh without network access or environment changes. Swift tests exercise the
+refresh without network access or environment changes. Orbit session fixtures serialize only tests that open handles in the shared eight-slot registry, using a test-worker-lifetime gate. Preserve the production handle limit and keep unrelated transport tests parallel. Swift tests exercise the
 owned-string bridge, Keychain query/accessibility configuration, update/delete
 semantics, and secure-storage failure handling through a process-local adapter.
 Once runs iOS tests in an unhosted XCTest agent without Keychain access;
