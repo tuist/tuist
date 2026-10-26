@@ -39,7 +39,8 @@ defmodule TuistEx.CertificateTrustTest do
     end
 
     for reason <- [:cert_expired, :invalid_signature, :hostname_check_failed, :unknown_ca] do
-      assert {:fail, ^reason} = CertificateTrust.verify_certificate(nil, {:bad_cert, reason}, nil)
+      assert {:fail, {:bad_cert, ^reason}} =
+               CertificateTrust.verify_certificate(nil, {:bad_cert, reason}, nil)
     end
 
     assert {:unknown, :state} =
@@ -78,7 +79,65 @@ defmodule TuistEx.CertificateTrustTest do
     end
   end
 
-  defp connect(configuration, hostname, roots, transport) do
+  test "preserves native cross-signed path repair without accepting an unknown anchor" do
+    {:ok, _} = Application.ensure_all_started(:ssl)
+    key_options = [digest: :sha256, key: {:rsa, 2048, 65_537}]
+    trusted = :public_key.pkix_test_root_cert(~c"Trusted anchor", key_options)
+    absent = :public_key.pkix_test_root_cert(~c"Absent anchor", key_options)
+
+    configuration =
+      :public_key.pkix_test_data(%{
+        root: trusted,
+        peer: [
+          digest: :sha256,
+          key: {:rsa, 2048, 65_537},
+          extensions: [{:Extension, {2, 5, 29, 17}, false, [{:dNSName, ~c"localhost"}]}]
+        ]
+      })
+
+    {:OTPCertificate, trusted_tbs, _, _} = :public_key.pkix_decode_cert(trusted.cert, :otp)
+    {:OTPCertificate, absent_tbs, _, _} = :public_key.pkix_decode_cert(absent.cert, :otp)
+    cross_tbs = put_elem(trusted_tbs, 4, elem(absent_tbs, 6))
+    cross_signed = :public_key.pkix_sign(cross_tbs, absent.key)
+
+    # Serve the cross-sign, not the available self-signed anchor. OTP initially
+    # finds an unknown issuer, then substitutes its trusted version of that key.
+    configuration =
+      configuration
+      |> Keyword.put(:cert, [Keyword.fetch!(configuration, :cert), cross_signed])
+      |> Keyword.put(:cacerts, [])
+
+    options = CertificateTrust.ssl_options([trusted.cert])
+
+    assert {:error, {:bad_cert, :unknown_ca}} =
+             :public_key.pkix_path_validation(:unknown_ca, [cross_signed],
+               verify_fun: options[:verify_fun]
+             )
+
+    legacy_callback = fn
+      _certificate, {:bad_cert, reason}, _state -> {:fail, reason}
+      certificate, event, state -> CertificateTrust.verify_certificate(certificate, event, state)
+    end
+
+    for transport <- [:otp, :mint] do
+      assert {:ok, _} = connect(configuration, ~c"localhost", [trusted.cert], transport, :native)
+
+      assert {:error, _} =
+               connect(configuration, ~c"localhost", [trusted.cert], transport, legacy_callback)
+
+      assert {:ok, _} = connect(configuration, ~c"localhost", [trusted.cert], transport)
+
+      assert {:error, _} =
+               connect(
+                 configuration,
+                 ~c"localhost",
+                 certificates("positive-isrg-root-x1"),
+                 transport
+               )
+    end
+  end
+
+  defp connect(configuration, hostname, roots, transport, verification \\ :protected) do
     {:ok, listener} =
       :ssl.listen(
         0,
@@ -100,6 +159,13 @@ defmodule TuistEx.CertificateTrustTest do
       end)
 
     options = CertificateTrust.ssl_options(roots) ++ [active: false]
+
+    options =
+      cond do
+        verification == :native -> Keyword.delete(options, :verify_fun)
+        is_function(verification, 3) -> Keyword.put(options, :verify_fun, {verification, nil})
+        true -> options
+      end
 
     result =
       case transport do

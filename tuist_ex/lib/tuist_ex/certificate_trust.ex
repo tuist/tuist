@@ -27,7 +27,10 @@ defmodule TuistEx.CertificateTrust do
     ]
   end
 
-  def verify_certificate(_certificate, {:bad_cert, reason}, _state), do: {:fail, reason}
+  # OTP uses the complete failure tuple to try alternate/cross-signed paths.
+  def verify_certificate(_certificate, {:bad_cert, _reason} = failure, _state),
+    do: {:fail, failure}
+
   def verify_certificate(_certificate, {:extension, _extension}, state), do: {:unknown, state}
 
   def verify_certificate(certificate, event, state) when event in [:valid, :valid_peer] do
