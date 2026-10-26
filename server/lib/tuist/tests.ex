@@ -1208,10 +1208,9 @@ defmodule Tuist.Tests do
     ])
   end
 
-  # A client that reports when its run started sends a timestamp with a zone;
-  # the column holds a naive one.
-  defp shard_run_ran_at(%DateTime{} = ran_at), do: DateTime.to_naive(ran_at)
-  defp shard_run_ran_at(ran_at), do: ran_at
+  # ClickHouse requires six fractional digits even when the client sends seconds.
+  defp shard_run_ran_at(%DateTime{} = ran_at), do: ran_at |> DateTime.to_naive() |> shard_run_ran_at()
+  defp shard_run_ran_at(ran_at), do: NaiveDateTime.add(ran_at, 0, :microsecond)
 
   defp flaky_run?(%{is_ci: true}, test_case_runs), do: Enum.any?(test_case_runs, & &1.is_flaky)
   defp flaky_run?(_test, _test_case_runs), do: false
