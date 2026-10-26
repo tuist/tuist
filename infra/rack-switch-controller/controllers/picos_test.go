@@ -67,7 +67,7 @@ func picosSwitch(name string, cfg *v1alpha1.SwitchConfig) *v1alpha1.RackSwitch {
 
 func torConfig() *v1alpha1.SwitchConfig {
 	return &v1alpha1.SwitchConfig{
-		Hostname: "larch-r1-tor-a",
+		Hostname: "larch-tor-a",
 		VLANs:    []v1alpha1.VLAN{{ID: 10, Name: "machines"}},
 		LAGs:     []v1alpha1.LAG{{ID: 1, Name: "edge-a", Ports: []int{29, 32}}},
 		Ports: []v1alpha1.PortConfig{
@@ -79,11 +79,11 @@ func torConfig() *v1alpha1.SwitchConfig {
 }
 
 func TestPicOSAdoptsAndConverges(t *testing.T) {
-	h, sw := picosHarness(t, picosSwitch("larch-r1-tor-a", torConfig()))
+	h, sw := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
 
-	h.reconcile("larch-r1-tor-a")
+	h.reconcile("larch-tor-a")
 
-	rs := h.get("larch-r1-tor-a")
+	rs := h.get("larch-tor-a")
 	if rs.Status.HostKey != sw.HostKeyFingerprint() {
 		t.Fatalf("hostKey = %q, want %q", rs.Status.HostKey, sw.HostKeyFingerprint())
 	}
@@ -101,7 +101,7 @@ func TestPicOSAdoptsAndConverges(t *testing.T) {
 		`set interface gigabit-ethernet te-1/1/32 ether-options 802.3ad ae1`,
 		`set protocols lacp interface te-1/1/29 rate fast`,
 		`set protocols lacp interface te-1/1/32 rate fast`,
-		`set system hostname "larch-r1-tor-a"`,
+		`set system hostname "larch-tor-a"`,
 		`set vlans vlan-id 10 vlan-name "machines"`,
 	}
 	if got := sw.Lines(); !reflect.DeepEqual(got, want) {
@@ -122,19 +122,19 @@ func TestPicOSAdoptsAndConverges(t *testing.T) {
 
 	// Nothing differs any more, so the next pass only reads.
 	writes := len(sw.Writes())
-	h.reconcile("larch-r1-tor-a")
+	h.reconcile("larch-tor-a")
 	if len(sw.Writes()) != writes {
 		t.Fatalf("a matching switch was written to again: %v", sw.Writes()[writes:])
 	}
 }
 
 func TestPicOSWaitsForZTP(t *testing.T) {
-	h, sw := picosHarness(t, picosSwitch("larch-r1-tor-a", torConfig()))
+	h, sw := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
 	sw.Authorize(nil)
 
-	result := h.reconcile("larch-r1-tor-a")
+	result := h.reconcile("larch-tor-a")
 
-	rs := h.get("larch-r1-tor-a")
+	rs := h.get("larch-tor-a")
 	if rs.Status.HostKey != "" || rs.Status.Adopted {
 		t.Fatalf("status = %+v", rs.Status)
 	}
@@ -150,16 +150,16 @@ func TestPicOSWaitsForZTP(t *testing.T) {
 }
 
 func TestPicOSRefusesAnotherHostKey(t *testing.T) {
-	h, sw := picosHarness(t, picosSwitch("larch-r1-tor-a", torConfig()))
-	rs := h.get("larch-r1-tor-a")
+	h, sw := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
+	rs := h.get("larch-tor-a")
 	rs.Status.HostKey = "SHA256:not-this-switch"
 	if err := h.client.Status().Update(t.Context(), rs); err != nil {
 		t.Fatal(err)
 	}
 
-	h.reconcile("larch-r1-tor-a")
+	h.reconcile("larch-tor-a")
 
-	rs = h.get("larch-r1-tor-a")
+	rs = h.get("larch-tor-a")
 	if c := condition(rs, v1alpha1.ConditionAdopted); c.Reason != "HostKeyMismatch" {
 		t.Fatalf("Adopted = %+v", c)
 	}
@@ -169,15 +169,15 @@ func TestPicOSRefusesAnotherHostKey(t *testing.T) {
 }
 
 func TestPicOSRefusedLineLeavesTheSwitchAlone(t *testing.T) {
-	h, sw := picosHarness(t, picosSwitch("larch-r1-tor-a", torConfig()))
+	h, sw := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
 	sw.Refuse(func(line string) bool { return strings.Contains(line, "vlan members") })
 
-	_, err := h.r.Reconcile(t.Context(), request("larch-r1-tor-a"))
+	_, err := h.r.Reconcile(t.Context(), request("larch-tor-a"))
 	if err == nil {
 		t.Fatal("expected the refusal to surface as an error")
 	}
 
-	rs := h.get("larch-r1-tor-a")
+	rs := h.get("larch-tor-a")
 	if c := condition(rs, v1alpha1.ConditionConverged); c.Reason != "ConvergeFailed" || !strings.Contains(c.Message, "vlan members") {
 		t.Fatalf("Converged = %+v", c)
 	}
@@ -190,14 +190,14 @@ func TestPicOSRefusedLineLeavesTheSwitchAlone(t *testing.T) {
 }
 
 func TestPicOSReportsDriftWithoutWriting(t *testing.T) {
-	h, sw := picosHarness(t, picosSwitch("larch-r1-tor-a", torConfig()))
-	h.reconcile("larch-r1-tor-a")
+	h, sw := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
+	h.reconcile("larch-tor-a")
 	writes := len(sw.Writes())
 
 	sw.Load(`set interface gigabit-ethernet te-1/1/1 family ethernet-switching native-vlan-id 4000`)
-	h.reconcile("larch-r1-tor-a")
+	h.reconcile("larch-tor-a")
 
-	rs := h.get("larch-r1-tor-a")
+	rs := h.get("larch-tor-a")
 	if rs.Status.Drift != v1alpha1.DriftDrifted {
 		t.Fatalf("drift = %q", rs.Status.Drift)
 	}
@@ -209,9 +209,9 @@ func TestPicOSReportsDriftWithoutWriting(t *testing.T) {
 	}
 
 	// A new revision converges it.
-	h.editSpec("larch-r1-tor-a", func(s *v1alpha1.RackSwitchSpec) { s.ConfigRevision = "rev2" })
-	h.reconcile("larch-r1-tor-a")
-	if rs := h.get("larch-r1-tor-a"); rs.Status.Drift != v1alpha1.DriftNone || rs.Status.ObservedRevision != "rev2" {
+	h.editSpec("larch-tor-a", func(s *v1alpha1.RackSwitchSpec) { s.ConfigRevision = "rev2" })
+	h.reconcile("larch-tor-a")
+	if rs := h.get("larch-tor-a"); rs.Status.Drift != v1alpha1.DriftNone || rs.Status.ObservedRevision != "rev2" {
 		t.Fatalf("status = %+v", rs.Status)
 	}
 }
@@ -221,9 +221,9 @@ func request(name string) ctrl.Request {
 }
 
 func TestPicOSConfirmsAnEarlierWrite(t *testing.T) {
-	h, sw := picosHarness(t, picosSwitch("larch-r1-tor-a", torConfig()))
-	h.reconcile("larch-r1-tor-a") // adoption and the first write
-	h.editSpec("larch-r1-tor-a", func(s *v1alpha1.RackSwitchSpec) {
+	h, sw := picosHarness(t, picosSwitch("larch-tor-a", torConfig()))
+	h.reconcile("larch-tor-a") // adoption and the first write
+	h.editSpec("larch-tor-a", func(s *v1alpha1.RackSwitchSpec) {
 		s.Config.Ports[0].Description = "larch-mini-01b"
 		s.ConfigRevision = "rev2"
 	})
@@ -236,22 +236,22 @@ func TestPicOSConfirmsAnEarlierWrite(t *testing.T) {
 		return false
 	})
 
-	if _, err := h.r.Reconcile(t.Context(), request("larch-r1-tor-a")); err == nil {
+	if _, err := h.r.Reconcile(t.Context(), request("larch-tor-a")); err == nil {
 		t.Fatal("expected the refused confirmation to surface")
 	}
 	if !sw.Pending() {
 		t.Fatal("the write should be waiting for its confirmation")
 	}
-	if rs := h.get("larch-r1-tor-a"); rs.Status.ObservedRevision == "rev2" {
+	if rs := h.get("larch-tor-a"); rs.Status.ObservedRevision == "rev2" {
 		t.Fatal("an unconfirmed write was recorded as converged")
 	}
 
-	h.reconcile("larch-r1-tor-a")
+	h.reconcile("larch-tor-a")
 
 	if sw.Pending() {
 		t.Fatal("the earlier write is still unconfirmed")
 	}
-	rs := h.get("larch-r1-tor-a")
+	rs := h.get("larch-tor-a")
 	if rs.Status.ObservedRevision != "rev2" || condition(rs, v1alpha1.ConditionConverged).Status != metav1.ConditionTrue {
 		t.Fatalf("status = %+v", rs.Status)
 	}
