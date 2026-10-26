@@ -1787,6 +1787,27 @@ rack-edge chart:
   starts (and clamps its MSS into the tailnet), then that dnsmasq.
 - In `tailnet-routes.sh`, the ToR's address, advertised by the edge holding
   its end of the link.
+- A `tor-console` container (`ztp.sh console`), which reboots the ToR when
+  ZTP missed it; below.
+
+### Rebooting a ToR that ZTP missed
+
+`rack-tor-console` (`edge/tor-console`, in the rack-edge image) runs on the edge
+that holds the ToR's serial console (the FS USB-to-RJ45 cable, found as
+`/dev/serial/by-id/usb-FTDI_*`, 115200 8N1). It checks the ToR's NETCONF port
+every 30 seconds; provisioning opens it within about four minutes of power-on.
+Once it has stayed closed for eight minutes, it logs in on the console with the
+factory login, `admin`/`pica8`, and goes by what the switch says:
+
+- **The login is refused:** the bootstrap replaced admin's password, so the
+  switch was provisioned and only its NETCONF is off. It is left alone.
+- **The login is taken:** ZTP never ran. The forced change of the factory
+  password is answered with a random password nothing keeps (the next ZTP run
+  replaces it), and the switch is rebooted, so ZTP runs again with the edge
+  serving.
+
+It tries at most once every twenty minutes. The factory login is the guard: a
+provisioned switch cannot be rebooted by it, whatever its ports say.
 
 ### What the bench showed
 
@@ -1796,7 +1817,7 @@ Measured on an S5860-24XMG with PicOS 4.7.1M-EC1, 22 to 25 October 2026:
   power-on, from the eth0 lease alone: no lease with options 66 and 67 (or 67 as
   an `http://` URL) at that moment, no ZTP until the next boot. An edge cannot
   be up that fast after a site power cut, so a ToR that boots unprovisioned has
-  to be rebooted once its edge serves; nothing does that yet.
+  to be rebooted once its edge serves: see "Rebooting a ToR that ZTP missed".
 - Its DHCP vendor class (option 60) is `S5860-24XMG`, not the `pica8-p<model>`
   the documentation gives, and it asks for options 66, 67, 7, 43 and 42.
 - ZTP fetches the script into `/cftmp/provision.sh` and runs it as root before
@@ -1839,9 +1860,9 @@ hands on site only unbox, rack and cable.
    `Adopted=False/NotProvisioned`, then `Adopted=True` with `status.hostKey`
    pinned, then `Converged`.
 4. **If it stays `NotProvisioned`:** it booted before its edge served (ZTP
-   runs once per boot). Until the edge reboots it through the console itself,
-   power-cycle the switch once its edge is up, or from the edge, over the console
-   (115200 8N1), log in and reboot it.
+   runs once per boot). The edge's `tor-console` container reboots it about
+   eight minutes after the edge is up; its log says what it found. If the
+   console cable is not in, power-cycle the switch once its edge is up.
 5. **Checks** from anywhere with the controller's key and a tailnet path, as
    `tuist@<mgmt_address>`: `cli -c "show version"` (model, serial, PicOS
    release, licence), `cli -c "show system rpsu;show system fan;show system temperature"`,

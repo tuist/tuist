@@ -1132,10 +1132,12 @@ fleet_edge_check_tor_management() {
 }
 
 # ztp.sh: the edge's address on its ToR's link, the forwarding the ToR gets,
-# then dnsmasq with that edge's configuration. An edge that provisions no ToR
-# sleeps, so the container does not restart.
+# then dnsmasq with that edge's configuration; `ztp.sh console` instead
+# watches the ToR and reboots it over its console when ZTP missed it
+# (edge/tor-console). An edge that provisions no ToR sleeps, so neither
+# container restarts.
 fleet_edge_ztp_run() {
-  local site_file="$1" node interface address
+  local site_file="$1" node interface address tor_address
   fleet_edge_check_tor_management "$site_file" || return 1
   cat <<SCRIPT
 #!/bin/sh
@@ -1144,12 +1146,15 @@ SCRIPT
   cat <<'SCRIPT'
 case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
 SCRIPT
-  while IFS=$'\t' read -r node interface address _; do
-    printf '  %s) interface=%s address=%s ;;\n' "$node" "$interface" "$address"
+  while IFS=$'\t' read -r node interface address _ _ tor_address; do
+    printf '  %s) interface=%s address=%s tor_address=%s ;;\n' "$node" "$interface" "$address" "$tor_address"
   done < <(fleet_edge_tor_links "$site_file")
   cat <<'SCRIPT'
   *) echo "$NODE_NAME provisions no ToR"; exec sleep infinity ;;
 esac
+if [ "${1:-}" = console ]; then
+  exec rack-tor-console -address "$tor_address"
+fi
 ip link set "$interface" up
 ip addr replace "$address" dev "$interface"
 network=$(ip -4 -o route show dev "$interface" proto kernel scope link | awk '{print $1; exit}')

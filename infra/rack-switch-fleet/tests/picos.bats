@@ -82,7 +82,8 @@ edge_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; source '$FLEET_ROOT/lib
     site="$(site_with_picos_tor)"
     run edge_sh "fleet_edge_ztp_run '$site'"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"  ber1-edge-a) interface=enp2s0f0np0 address=192.168.61.1/30 ;;"* ]]
+    [[ "$output" == *"  ber1-edge-a) interface=enp2s0f0np0 address=192.168.61.1/30 tor_address=192.168.61.2 ;;"* ]]
+    [[ "$output" == *'exec rack-tor-console -address "$tor_address"'* ]]
     [[ "$output" == *'iifname "$interface" udp dport 123 accept'* ]]
     [[ "$output" == *'iifname "$interface" drop'* ]]
     [[ "$output" == *'exec dnsmasq --no-daemon --conf-file="/etc/rack-edge/ztp-$NODE_NAME.conf"'* ]]

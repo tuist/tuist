@@ -183,6 +183,26 @@ spec:
           readOnly: true
         - name: leases
           mountPath: /var/lib/misc
+    # Reboots the ToR over its serial console when ZTP missed it, which only a
+    # switch still on its factory login can be (rack-tor-console). Privileged
+    # for the USB serial device.
+    - name: tor-console
+      image: {{ $image | quote }}
+      imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+      command: [sh, /etc/rack-edge/ztp.sh, console]
+      env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      securityContext:
+        privileged: true
+      resources:
+        {{- toYaml $root.Values.resources | nindent 8 }}
+      volumeMounts:
+        - name: config
+          mountPath: /etc/rack-edge
+          readOnly: true
     {{- end }}
     {{- if $root.Files.Get (printf "sites/%s/bird.conf" $site) }}
     # The site's own prefixes, announced to the WAN's upstream over BGP. Both
