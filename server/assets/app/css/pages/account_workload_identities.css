@@ -27,8 +27,26 @@
         align-items: center;
         gap: var(--noora-spacing-5);
 
-        & .noora-toggle [data-part="root"] {
-          gap: var(--noora-spacing-0);
+        & > .noora-toggle {
+          flex-shrink: 0;
+          border: 0;
+          border-radius: var(--noora-radius-2);
+          background: transparent;
+          padding: 0;
+          color: var(--noora-surface-label-primary);
+
+          &:focus-visible {
+            outline: 2px solid currentColor;
+            outline-offset: 2px;
+          }
+
+          &:hover [data-state="unchecked"] [data-part="track"] {
+            background: var(--noora-choice-selector-switch-off-background-hover);
+          }
+
+          &:hover [data-state="checked"] [data-part="track"] {
+            background: var(--noora-choice-selector-check-background-hover);
+          }
         }
 
         & .noora-toggle [data-part="label"] {
