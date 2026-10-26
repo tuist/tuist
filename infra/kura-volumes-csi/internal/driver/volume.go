@@ -295,3 +295,18 @@ func checkPath(name, path string) error {
 	}
 	return nil
 }
+
+// sameDevice reports whether two device paths name the same block device.
+// cryptsetup reports an LVM volume by its /dev/mapper node, not the
+// /dev/<vg>/<lv> link the mapping was opened through.
+func (d *Driver) sameDevice(a, b string) bool {
+	if a == b {
+		return true
+	}
+	na, err := d.host.DeviceNumber(a)
+	if err != nil {
+		return false
+	}
+	nb, err := d.host.DeviceNumber(b)
+	return err == nil && na == nb
+}

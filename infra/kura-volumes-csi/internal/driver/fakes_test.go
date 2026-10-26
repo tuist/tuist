@@ -153,7 +153,7 @@ type env struct {
 	v       volume
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T, options ...func(*Config)) *env {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -168,7 +168,7 @@ func newEnv(t *testing.T) *env {
 		host:    &fakeHost{stats: FSStats{AvailableBytes: 1 << 40}, devices: map[string]string{}},
 		keys:    &fakeKeys{active: 1},
 	}
-	e.d, err = New(Config{
+	cfg := Config{
 		NodeID:       testNode,
 		StateDir:     dir,
 		ReserveBytes: 20 << 30,
@@ -176,7 +176,11 @@ func newEnv(t *testing.T) *env {
 		Runner:       e.runner,
 		Mounts:       e.mounts,
 		Host:         e.host,
-	})
+	}
+	for _, option := range options {
+		option(&cfg)
+	}
+	e.d, err = New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

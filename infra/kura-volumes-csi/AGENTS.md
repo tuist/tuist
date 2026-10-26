@@ -2,7 +2,8 @@
 
 CSI driver `kura-volumes.tuist.dev` behind the `kura-encrypted-nvme`
 StorageClass. Every Kura data PVC gets its own LUKS2 container, backed by a
-preallocated file on the node's XFS `/data` partition. The passphrase lives
+logical volume in the node's `--volume-group` when the node has one, and
+otherwise by a preallocated file on the node's `/data` filesystem. The passphrase lives
 only on the Tuist server and is fetched on every stage, so a volume can only
 be opened by its node while the server agrees.
 
@@ -21,9 +22,10 @@ CreateVolume and DeleteVolume run on the node that owns the volume.
 - Volume id = PV name, validated against `^pvc-<uuid>$` before any path is
   built.
 - State dir (`--state-dir`, default `/data/kura-volumes`, must be canonical):
-  - `<id>.img`: backing file, 0600, fully reserved with `fallocate`; capacity
-    is `required_bytes` rounded up to 1 MiB. CreateVolume keeps
-    `--reserve-bytes` (default 20 GiB) free on the filesystem.
+  - `<id>.img`: backing file (file backing only), 0600, fully reserved with
+    `fallocate`; capacity is `required_bytes` rounded up to 1 MiB.
+    CreateVolume keeps `--reserve-bytes` (default 20 GiB) free on the
+    filesystem.
   - `<id>.unformatted`: exists from CreateVolume until the first successful
     `mkfs.xfs`.
   - `<id>.key-version`: decimal key version the volume was formatted under
@@ -37,9 +39,27 @@ CreateVolume and DeleteVolume run on the node that owns the volume.
   (no discards; default workqueues, which keep throughput at the loop
   device's level where the inline `--perf-no_*_workqueue` modes cost 70%), XFS
   mounted `nodev,nosuid,noatime` at the staging path and bind mounted into
-  pods.
+  pods. On an LV the dm-crypt mapping sits on the LV instead of a loop device.
 - LUKS2: `aes-xts-plain64`, 512-bit key, PBKDF2 with 1000 iterations (the
   passphrase is already a uniformly random 32 bytes).
+
+## Backing
+
+- LVM (`--volume-group`, the chart's `kura-volumes`): LV `<vg>/<id>`, created
+  by `lvcreate --wipesignatures y --zero y` after the unformatted marker is
+  written, sized to the request rounded up to whole extents (an existing LV
+  only has to hold the request). The volume group is Kura's alone, so no
+  reserve is kept. Stage runs `lvchange --activate y` and `vgmknodes`, since
+  nothing guarantees the device node after a reboot. Every LVM command passes
+  `--config` disabling udev sync, the devices file and metadata backups; the
+  DaemonSet shares `/run/lock/lvm` with the host. On staging (EPYC 7232P,
+  same partition) a synced 16 KiB write took 3.4 ms on LVM against 3.3 ms on
+  plain XFS and 6.9 ms on a loop file, whose inner journal flush also forces
+  the outer filesystem's.
+- File, on a node without the volume group: `<id>.img` in the state dir. The
+  marker, key-version and lock files live in the state dir for both.
+- A volume keeps the backing it was created with. Lookup checks for the LV
+  first, then the file, so a node that gains the volume group serves both.
 
 ## Key fetch
 
@@ -62,7 +82,8 @@ network errors are retried and surface as `Unavailable`; 401/403 become
 ## Deletion
 
 DeleteVolume refuses (`FailedPrecondition`) while a loop device or the
-mapping is still active. Otherwise it runs `cryptsetup erase`, zeroes the
+mapping is still active. An LV gets the same erase and 32 MiB wipe and is then
+`lvremove`d. Otherwise it runs `cryptsetup erase`, zeroes the
 first 32 MiB of the file (header, backup header and keyslots), fsyncs, then
 removes the file, marker, key-version file and lock. Without a header the
 remaining ciphertext is unrecoverable even with the server key. A volume this

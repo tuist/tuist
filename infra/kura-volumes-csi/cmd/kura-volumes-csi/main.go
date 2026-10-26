@@ -34,6 +34,7 @@ func main() {
 	nodeID := flag.String("node-id", "", "Kubernetes node name, also the topology value")
 	stateDir := flag.String("state-dir", "/data/kura-volumes", "canonical directory holding the volume backing files")
 	reserveBytes := flag.Int64("reserve-bytes", 20<<30, "bytes CreateVolume leaves free on the state dir filesystem")
+	volumeGroup := flag.String("volume-group", "", "LVM volume group new volumes are created in when the node has it; empty keeps backing files")
 	keyServiceURL := flag.String("key-service-url", "", "base URL of the Tuist server that serves volume keys")
 	tokenPath := flag.String("token-path", "/var/run/secrets/kura-volume-keys/token", "projected service account token presented to the key service")
 	logLevel := flag.String("log-level", "info", "debug, info, warn or error")
@@ -45,13 +46,13 @@ func main() {
 		os.Exit(2)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *keyServiceURL, *tokenPath); err != nil {
+	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, *tokenPath); err != nil {
 		logger.Error("kura-volumes-csi failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, keyServiceURL, tokenPath string) error {
+func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, tokenPath string) error {
 	socket, err := socketPath(endpoint)
 	if err != nil {
 		return err
@@ -63,6 +64,7 @@ func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes in
 		NodeID:       nodeID,
 		StateDir:     stateDir,
 		ReserveBytes: reserveBytes,
+		VolumeGroup:  volumeGroup,
 		Version:      version,
 		Keys:         volumekeys.New(keyServiceURL, tokenPath, volumekeys.WithLogger(logger)),
 		Runner:       driver.ExecRunner{},
@@ -105,7 +107,7 @@ func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes in
 		}
 	}()
 
-	logger.Info("serving", "driver", driver.Name, "version", version, "node_id", nodeID, "socket", socket, "state_dir", stateDir)
+	logger.Info("serving", "driver", driver.Name, "version", version, "node_id", nodeID, "socket", socket, "state_dir", stateDir, "volume_group", volumeGroup)
 	return server.Serve(listener)
 }
 
