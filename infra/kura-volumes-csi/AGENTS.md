@@ -140,3 +140,7 @@ checks the shared host/key contract and disjoint pool ownership against the
 rented plugin. `go test ./...` requires Helm for this check. LVM-enrolled regions
 now encrypt by default; plain CSI remains available for diagnostics. Rack fresh
 installation uses curtin LVM; old hosts need a planned migration/reinstall.
+
+The [staged rollout report](staged-rollout-report.md) records the live migration,
+release isolation and recovery evidence. Its bounded probe and sanitized results
+live under [rehearsal](rehearsal/AGENTS.md).

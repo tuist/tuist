@@ -1,0 +1,66 @@
+[
+  {
+    "time": "2026-10-26T22:56:10Z",
+    "ready": 0,
+    "desired": 1,
+    "probe": {
+      "exec": {
+        "command": [
+          "sh",
+          "-c",
+          "exit 1"
+        ]
+      },
+      "failureThreshold": 1,
+      "periodSeconds": 1,
+      "successThreshold": 1,
+      "timeoutSeconds": 1
+    }
+  },
+  {
+    "time": "2026-10-26T22:57:39Z",
+    "ready": 0,
+    "desired": 1,
+    "probe": {
+      "exec": {
+        "command": [
+          "sh",
+          "-c",
+          "exit 1"
+        ]
+      },
+      "failureThreshold": 1,
+      "periodSeconds": 1,
+      "successThreshold": 1,
+      "timeoutSeconds": 1
+    }
+  },
+  {
+    "time": "2026-10-26T22:58:10Z",
+    "ready": 0,
+    "desired": 1
+  },
+  {
+    "time": "2026-10-26T22:58:39Z",
+    "ready": 0,
+    "desired": 1
+  },
+  {
+    "time": "2026-10-26T22:59:01Z",
+    "ready": 0,
+    "desired": 1,
+    "probe": {
+      "exec": {
+        "command": [
+          "sh",
+          "-c",
+          "exit 1"
+        ]
+      },
+      "failureThreshold": 1,
+      "periodSeconds": 1,
+      "successThreshold": 1,
+      "timeoutSeconds": 1
+    }
+  }
+]

@@ -1363,9 +1363,10 @@ resident-installer layouts. Existing hosts require an explicit spare-host
 migration and reinstall; neither a deploy nor Machine reconciliation converts
 populated disks. Verify the VG and plugin before enrolling `ber1-runners` in
 `kuraVolumesCSI.lvmRegions`. Enrollment makes encryption the default. Account
-flags cannot move an unenrolled rack onto loop files. The current one-replica
-rack region needs a temporary second replica and complete backfill for a staged
-volume migration; an in-place reinstall of its only storage host is an outage.
+flags cannot move an unenrolled rack onto loop files. Enrollment renders at
+least two replicas so the current one-replica rack region gets a standby and
+complete backfill before its original claim is replaced. Both replicas need
+prepared capacity; an in-place reinstall of the only storage host is an outage.
 Reserve the 128 GiB data LV for images/system/auxiliary volumes (including any
 image cache); grow it before enabling auxiliary claims that exceed that budget.
 See [the migration runbook](../kura-volumes-csi/lvm-rollout.md).

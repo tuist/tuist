@@ -13,9 +13,9 @@ The provisioner runs as a sidecar on every node (--node-deployment): the volume
 is node-local, so the instance on the node the scheduler picked is the one that
 creates it.
 
-Nothing provisions on this class until the server places an account's Kura
-instances on it (the :kura_encrypted_volumes feature flag), so the driver can
-be deployed first.
+Nothing provisions on this class until the server places Kura instances on it
+through regional LVM enrollment or the legacy account encryption flag, so the
+driver can be deployed first.
 
 Every object here is helm.sh/resource-policy: keep. A release whose chart
 lacks them (a rollback, or a branch cut before them) would otherwise remove

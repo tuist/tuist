@@ -1,0 +1,220 @@
+{
+  "pods": [
+    {
+      "name": "kura-kura-smoke-staging-dedicated-scw-fr-par-0",
+      "uid": "334347aa-c0ff-4e16-ace1-ba91bf557b34",
+      "created": "2026-10-26T22:51:51Z",
+      "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+      "ready": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-26T22:52:01Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        }
+      ],
+      "resources": {
+        "limits": {
+          "cpu": "4",
+          "memory": "4Gi",
+          "tuist.dev/kura-disk": "25Gi"
+        },
+        "requests": {
+          "cpu": "100m",
+          "memory": "1Gi",
+          "tuist.dev/kura-disk": "25Gi"
+        }
+      }
+    },
+    {
+      "name": "kura-kura-smoke-staging-dedicated-scw-fr-par-1",
+      "uid": "3459a437-d687-4f0e-ad91-871c3188e1a6",
+      "created": "2026-10-26T22:51:19Z",
+      "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+      "ready": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-26T22:51:27Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        }
+      ],
+      "resources": {
+        "limits": {
+          "cpu": "4",
+          "memory": "4Gi",
+          "tuist.dev/kura-disk": "25Gi"
+        },
+        "requests": {
+          "cpu": "100m",
+          "memory": "1Gi",
+          "tuist.dev/kura-disk": "25Gi"
+        }
+      }
+    },
+    {
+      "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+      "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+      "created": "2026-10-26T22:37:10Z",
+      "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+      "ready": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-26T22:37:19Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        }
+      ],
+      "resources": {
+        "limits": {
+          "cpu": "1",
+          "memory": "768Mi",
+          "tuist.dev/kura-disk": "8Gi"
+        },
+        "requests": {
+          "cpu": "100m",
+          "memory": "256Mi",
+          "tuist.dev/kura-disk": "8Gi"
+        }
+      }
+    },
+    {
+      "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+      "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+      "created": "2026-10-26T22:37:42Z",
+      "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+      "ready": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-26T22:37:49Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        }
+      ],
+      "resources": {
+        "limits": {
+          "cpu": "1",
+          "memory": "768Mi",
+          "tuist.dev/kura-disk": "8Gi"
+        },
+        "requests": {
+          "cpu": "100m",
+          "memory": "256Mi",
+          "tuist.dev/kura-disk": "8Gi"
+        }
+      }
+    },
+    {
+      "name": "kura-tuist-scw-fr-par-0",
+      "uid": "a9b36378-30da-4443-a362-d6432f84e458",
+      "created": "2026-10-26T22:40:24Z",
+      "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+      "ready": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-26T22:40:36Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        }
+      ],
+      "resources": {
+        "limits": {
+          "cpu": "1",
+          "memory": "768Mi",
+          "tuist.dev/kura-disk": "8Gi"
+        },
+        "requests": {
+          "cpu": "100m",
+          "memory": "256Mi",
+          "tuist.dev/kura-disk": "8Gi"
+        }
+      }
+    },
+    {
+      "name": "kura-tuist-scw-fr-par-1",
+      "uid": "10c0ea91-5177-4423-a3d9-bba2e5f29bfb",
+      "created": "2026-10-26T22:40:59Z",
+      "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+      "ready": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-26T22:41:09Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        }
+      ],
+      "resources": {
+        "limits": {
+          "cpu": "1",
+          "memory": "768Mi",
+          "tuist.dev/kura-disk": "8Gi"
+        },
+        "requests": {
+          "cpu": "100m",
+          "memory": "256Mi",
+          "tuist.dev/kura-disk": "8Gi"
+        }
+      }
+    }
+  ],
+  "luks_headers": [
+    {
+      "device": "/dev/kura-volumes/pvc-17d1fada-3a60-48a8-9dfd-cfbd06283b7b",
+      "luks_uuid": "db973b23-bbd5-483d-b8c0-1897c0708583"
+    },
+    {
+      "device": "/dev/kura-volumes/pvc-241a8239-0892-44bf-9217-540bd7c490e4",
+      "luks_uuid": "fd83b303-d2ff-41a1-a39b-64a8e9cb1a84"
+    },
+    {
+      "device": "/dev/kura-volumes/pvc-3e709cce-a065-461b-9f48-55ddbf6e263d",
+      "luks_uuid": "ec41a828-6452-4e57-9952-238a10f616ee"
+    },
+    {
+      "device": "/dev/kura-volumes/pvc-8541113e-b771-404f-9e74-173cf6667596",
+      "luks_uuid": "7ff87068-0c4d-4efb-8a8c-e50ddb67c5b6"
+    },
+    {
+      "device": "/dev/kura-volumes/pvc-c1bd2398-230d-495b-b80a-4aec39b13ee8",
+      "luks_uuid": "8606188f-93e4-4c40-9f0f-5c50c05e5d94"
+    },
+    {
+      "device": "/dev/kura-volumes/pvc-c95d4403-3a2d-4c9d-9d26-020ac40fc97e",
+      "luks_uuid": "5c44e999-f893-4fc5-b83f-09800788f732"
+    }
+  ],
+  "key_recovery": {
+    "volume": "pvc-c95d4403-3a2d-4c9d-9d26-020ac40fc97e",
+    "uuid_after": "5c44e999-f893-4fc5-b83f-09800788f732",
+    "sibling_before": {
+      "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+      "ready": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-26T22:37:49Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        }
+      ]
+    },
+    "sibling_after": {
+      "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+      "ready": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-26T22:37:49Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,678 @@
+{
+  "kura-kura-smoke-staging-regional-scw-fr-par": {
+    "minimum_ready_nondeleting_pods": 1,
+    "empty_endpoint_samples": [
+
+    ],
+    "transitions": [
+      {
+        "at": "2026-10-26T22:34:01Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "5eadc012-5432-4cda-a6f8-61f7c0b370fb",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "e1f5cf66-df57-41b1-a276-30cfc4a4b6af",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:36:48Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "5eadc012-5432-4cda-a6f8-61f7c0b370fb",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": "true"
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "e1f5cf66-df57-41b1-a276-30cfc4a4b6af",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:36:50Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "5eadc012-5432-4cda-a6f8-61f7c0b370fb",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": "2026-10-26T22:41:23Z",
+              "rebuild": "true"
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "e1f5cf66-df57-41b1-a276-30cfc4a4b6af",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:37:10Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "5eadc012-5432-4cda-a6f8-61f7c0b370fb",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "False"
+              ],
+              "deleting": "2026-10-26T22:41:23Z",
+              "rebuild": "true"
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "e1f5cf66-df57-41b1-a276-30cfc4a4b6af",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:37:12Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "False"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "e1f5cf66-df57-41b1-a276-30cfc4a4b6af",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:37:20Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "e1f5cf66-df57-41b1-a276-30cfc4a4b6af",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": "2026-10-26T22:41:54Z",
+              "rebuild": "true"
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-0"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:37:42Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+              "node": null,
+              "ready": [
+
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-0"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:37:47Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "False"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-0"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:37:49Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-0"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:59:17Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": "true"
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-0"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:59:27Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": "true"
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T23:00:40Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "c5ce7f7c-123b-4fb6-a7d8-61ecd48bb692",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": "2026-10-26T23:05:14Z",
+              "rebuild": "true"
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T23:01:02Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "19e8bcae-510d-4b60-b6b5-9864f3a8d9bd",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "False"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T23:02:13Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-0",
+              "uid": "19e8bcae-510d-4b60-b6b5-9864f3a8d9bd",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-kura-smoke-staging-regional-scw-fr-par-1",
+              "uid": "348a05da-9a57-4213-abab-58a216fd9587",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-kura-smoke-staging-regional-scw-fr-par-1"
+          ]
+        }
+      }
+    ]
+  },
+  "kura-tuist-scw-fr-par": {
+    "minimum_ready_nondeleting_pods": 1,
+    "empty_endpoint_samples": [
+
+    ],
+    "transitions": [
+      {
+        "at": "2026-10-26T22:34:01Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-tuist-scw-fr-par-0",
+              "uid": "1dafd064-fc25-42e8-a479-8769ef7ca420",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-tuist-scw-fr-par-1",
+              "uid": "14948bd6-17c9-44e3-af7f-9df232774ff2",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-tuist-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:40:04Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-tuist-scw-fr-par-0",
+              "uid": "1dafd064-fc25-42e8-a479-8769ef7ca420",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": "2026-10-26T22:44:38Z",
+              "rebuild": "true"
+            },
+            {
+              "name": "kura-tuist-scw-fr-par-1",
+              "uid": "14948bd6-17c9-44e3-af7f-9df232774ff2",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-tuist-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:40:25Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-tuist-scw-fr-par-0",
+              "uid": "a9b36378-30da-4443-a362-d6432f84e458",
+              "node": null,
+              "ready": [
+
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-tuist-scw-fr-par-1",
+              "uid": "14948bd6-17c9-44e3-af7f-9df232774ff2",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-tuist-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:40:28Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-tuist-scw-fr-par-0",
+              "uid": "a9b36378-30da-4443-a362-d6432f84e458",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "False"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-tuist-scw-fr-par-1",
+              "uid": "14948bd6-17c9-44e3-af7f-9df232774ff2",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-tuist-scw-fr-par-1"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:40:38Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-tuist-scw-fr-par-0",
+              "uid": "a9b36378-30da-4443-a362-d6432f84e458",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-tuist-scw-fr-par-1",
+              "uid": "14948bd6-17c9-44e3-af7f-9df232774ff2",
+              "node": "tuist-tuist-ovh-fleet-gzntw-hxw74",
+              "ready": [
+                "True"
+              ],
+              "deleting": "2026-10-26T22:45:12Z",
+              "rebuild": "true"
+            }
+          ],
+          "endpoint": [
+            "kura-tuist-scw-fr-par-0"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:41:00Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-tuist-scw-fr-par-0",
+              "uid": "a9b36378-30da-4443-a362-d6432f84e458",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-tuist-scw-fr-par-1",
+              "uid": "10c0ea91-5177-4423-a3d9-bba2e5f29bfb",
+              "node": null,
+              "ready": [
+
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-tuist-scw-fr-par-0"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:41:02Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-tuist-scw-fr-par-0",
+              "uid": "a9b36378-30da-4443-a362-d6432f84e458",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-tuist-scw-fr-par-1",
+              "uid": "10c0ea91-5177-4423-a3d9-bba2e5f29bfb",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "False"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-tuist-scw-fr-par-0"
+          ]
+        }
+      },
+      {
+        "at": "2026-10-26T22:41:10Z",
+        "state": {
+          "pods": [
+            {
+              "name": "kura-tuist-scw-fr-par-0",
+              "uid": "a9b36378-30da-4443-a362-d6432f84e458",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            },
+            {
+              "name": "kura-tuist-scw-fr-par-1",
+              "uid": "10c0ea91-5177-4423-a3d9-bba2e5f29bfb",
+              "node": "tuist-tuist-kura-fleet-fm4h8-qmkn8",
+              "ready": [
+                "True"
+              ],
+              "deleting": null,
+              "rebuild": null
+            }
+          ],
+          "endpoint": [
+            "kura-tuist-scw-fr-par-0"
+          ]
+        }
+      }
+    ]
+  }
+}

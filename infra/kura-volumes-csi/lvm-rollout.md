@@ -1,10 +1,12 @@
-# Moving rented Kura volumes to LVM
+# Moving hosted Kura volumes to encrypted LVM
 
 The node owns one `kura-volumes` volume group. Its 128 GiB `data` logical volume
 holds kubelet, containerd, CSI metadata and legacy local-path directories on XFS
 with project quotas. Each new CSI data claim gets its own logical volume.
-Accounts with `kura_encrypted_volumes` use LUKS2; other accounts use plain XFS.
-Rack nodes remain on their existing storage layout.
+Every account in an enrolled LVM region uses LUKS2, independently of the
+account encryption flag. The plain CSI class remains available for diagnostics.
+Fresh rack storage installs create the same layout through curtin, including
+resident-installer layouts. Existing populated hosts are never converted live.
 
 The design removes the extra filesystem journal flush imposed by loop-backed
 LUKS. The staging measurements recorded in PR #14152 on 2026-10-26 were 3.3 ms
@@ -12,7 +14,10 @@ for a synced 16 KiB plain write, 3.4 ms for LUKS on LVM, and 6.9 ms for LUKS on
 a backing file; corresponding median Kura uploads were 17, 18 and 32 ms. These
 are prior measurements, not validation of this rollout.
 
-## Prerequisites and staging sequence
+## Initial rented-host bootstrap rehearsal (historical)
+
+This was the first, explicitly approved single-host staging reinstall. The
+continuous migration procedure below supersedes its account-flag rollout.
 
 1. Inspect the live staging server/controller revisions and preserve their
    changes in a new deployment branch. Do not force-push a shared deploy branch.
@@ -39,10 +44,10 @@ are prior measurements, not validation of this rollout.
 5. On the replacement, verify `vgs`, `lvs`, `findmnt /data`, and XFS project
    quotas. The data LV must be 128 GiB. Verify that the CSI plugin advertises
    `status.capacity` and subsequently `status.allocatable` for
-   `tuist.dev/kura-disk`, excluding the data LV. No rack node should gain it.
+   `tuist.dev/kura-disk`, excluding the data LV.
 6. Set `kuraVolumesCSI.lvmRegions: [scw-fr-par-runners]` on the staging deploy branch.
-   This applies the plain LVM class to ordinary accounts and retains the
-   encrypted class for flagged accounts. Both must request and limit the
+   In that initial revision this applied the plain LVM class to ordinary accounts
+   and retained the encrypted class for flagged accounts. Both requested and limited the
    extended disk resource; neither reserves the data claim as ephemeral
    storage. Confirm the rendered annotation matches the desired revision.
 7. Verify a flagged instance obtains its volume key, creates LUKS on an LV,
@@ -122,7 +127,7 @@ The final staging provider is `3e8f2a29`; server, controller and CSI remain on
 passed. Benchmark demand also woke the smoke account's pre-existing archived
 `ca-east` server; that instance remains under its normal public-cache lifecycle.
 
-## Proposed production rollout (requires approval)
+## Production preparation (requires separate rollout approval)
 
 No production reinstall is authorized by the staging work.
 
@@ -138,16 +143,13 @@ reinstall the selected Machines through CAPI, verify the VG/resource, and enable
 the regional setting. Reinstall one region at a time, validating recovery before
 starting another. Production reinstalls and outages require separate approval.
 
-For continuity, prepare replacement capacity and rehearse the migration before
-approving it. Plain local-path claims change class and rebuild one ordinal at a
-time. **An existing encrypted claim keeps the same StorageClass**, so changing
-only its disk resource does not recreate its PV: a restarted pod would still be
-pinned to the old non-LVM host, which cannot satisfy that resource. Explicit
-replica/PVC migration and held workload templates must be sequenced around this
-case; a blanket regional toggle followed by evacuation is insufficient. Use
-completed backfill and actual traffic handoff as gates. Do not delete an
-outgoing Machine until it has no cache pods. This continuity sequence remains
-a required rehearsal, not a zero-downtime guarantee from the unit tests.
+For continuity, prepare replacement capacity and follow the staged procedure
+below. Both plain local-path and same-class encrypted file claims now rebuild
+one ordinal at a time using PV backing evidence. Completed backfill and actual
+traffic handoff gate each deletion. Do not delete an outgoing Machine until it
+has no cache pods or retained claims. See the
+[staging rehearsal report](staged-rollout-report.md) for the live evidence and
+physical rack limitations; it is not a fleet-wide availability guarantee.
 
 Positive-fence instances retain their existing storage-migration recovery
 requirements; do not bypass a hold to make the rollout progress. Avoid enabling
@@ -160,10 +162,19 @@ The node layout is a reinstall boundary, not a Helm rollback. Keep the CSI
 driver installed while any CSI PV exists. Rolling back the server/controller
 must retain support for `diskResource` and the region's LVM setting; reverting
 to ephemeral admission would measure the 128 GiB filesystem instead of the VG.
-Disabling the region setting changes storage classes for plain instances and
-can initiate a rolling cache rebuild on `/data`, so it is not an immediate
+Disabling the region setting can change storage classes and removes LVM-aware
+admission. It can initiate a rebuild onto the smaller `/data`, so it is not a
 safe rollback after conversion. Prefer a forward fix or an explicit migration
-to a replacement host.
+to a replacement host. An operator `OnDelete` pause stops further migration;
+resume through the controller-owned resize hold only after checking the last
+replacement's readiness/backfill and available capacity. Do not switch to
+`RollingUpdate` while old claims remain pinned to non-LVM hosts.
+
+Moving a pool between the main and rack CSI releases is a separate operation:
+their node selectors must never overlap. The rack DaemonSet has a Helm keep
+policy so removing it from values does not uninstall a driver with live claims.
+Explicitly retire the former owner during a controlled handoff; changing
+`rackPools` alone is not sufficient to transfer it back to the main release.
 
 The data LV can grow online with `lvextend` followed by `xfs_growfs /data`.
 Reserve those extents first: this reduces the Kura budget the driver advertises
@@ -175,7 +186,7 @@ Investigate a refusal before changing this journal or formatting anything.
 Deleting a Machine cleans claims pinned by either hostname or the CSI topology
 key. Retained volumes still consume capacity until the CSI driver deletes them.
 
-## Staged encrypted migration (updated implementation)
+## Staged encrypted migration
 
 Regional LVM enrollment now encrypts every account, without requiring its
 feature flag. The plain class remains available for diagnostics. Unenrolled
@@ -183,7 +194,7 @@ regions retain their current behavior, including BER1's explicit legacy hold.
 The CSI driver now records the actual backing in each PV's volume context.
 A same-class encrypted file claim, or an older claim lacking this evidence,
 is rebuilt once when the instance starts requesting `tuist.dev/kura-disk`.
-This replaces the manual same-class migration requirement described above.
+This covers same-class migration without an operator deleting PVCs.
 
 1. Deploy the additive driver/controller/server support with region enrollment
    unchanged. Check the pinned driver everywhere a destination may be placed.
@@ -198,8 +209,10 @@ This replaces the manual same-class migration requirement described above.
 4. Start with a small cohort. Each migrating instance needs at least two
    replicas and enough room for the old and new claims during overlap. Keep
    operator OnDelete/partition pauses until the chosen cohort is ready. A
-   single-replica instance holds without deleting its claim; add a standby
-   and finish backfill before proceeding. Positive-fence migrations retain
+   enrolled region automatically renders at least two replicas, allowing a
+   one-copy instance to create a standby before its original claim is replaced.
+   A direct single-replica CR bypassing that policy holds without deleting its
+   claim. Positive-fence migrations retain
    their explicit recovery/handover requirements.
 5. Change the cohort's desired storage and resource together, with a destination
    selector that can place replacements on prepared hosts. The controller holds
