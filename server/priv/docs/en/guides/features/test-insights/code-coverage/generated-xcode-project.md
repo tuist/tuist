@@ -7,17 +7,12 @@
 ---
 # Generated Xcode project {#generated-xcode-project-code-coverage}
 
-> [!WARNING]
-> **Requirements**
->
-> - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> configured (auto-generated schemes include the `tuist inspect test` post-action; custom schemes need it added).
-
 > [!NOTE] EARLY ACCESS
 > Code coverage is in early access. [Reach out](mailto:contact@tuist.dev) to turn it on for your account, and set `TUIST_FEATURE_FLAG_COVERAGE=1` wherever you run Tuist, on CI and on developers' machines. Without the variable, Tuist collects and uploads no coverage.
 
 Code coverage tells you which lines of your code your tests executed. Tuist uploads the line coverage of every `tuist test` run and folds the runs of a commit into one figure, for the project, each target and each file. The dashboard's **Code Coverage** page shows it per commit and as a trend for each branch.
 
-The figure stays accurate when Tuist skips work. Your targets from the <.localized_link href="/guides/features/cache/module-cache">binary cache</.localized_link> are built with coverage counters, so their code is measured like code built from source. And the tests <.localized_link href="/guides/features/selective-testing/generated-xcode-project">selective testing</.localized_link> skips can keep the coverage they had in an earlier run, with [test-level coverage](#test-level-coverage).
+The figure stays accurate when Tuist skips work. Your targets from the <.localized_link href="/guides/features/cache/module-cache">binary cache</.localized_link> are built with coverage counters, so their code is measured like code built from source. And when <.localized_link href="/guides/features/selective-testing/generated-xcode-project">selective testing</.localized_link> skips a test target, the target keeps the coverage it had in an earlier run, through the [target-level coverage](#target-level-coverage) Tuist records on every run.
 
 ## Setup {#setup}
 
@@ -47,6 +42,22 @@ The `TUIST_COVERAGE_ENABLED` environment variable (`1` or `0`) takes precedence 
 > [!IMPORTANT] KEEP THE VALUE THE SAME EVERYWHERE
 > The option changes the cache keys of your project's targets and the selective-testing hashes of its test targets. Use the same value on every machine that shares the cache, and don't derive it from the environment (for example from `Environment.isCI`). A run with coverage off doesn't reuse the binaries or the selective-testing results of runs with coverage on.
 
+### Leave schemes out {#leave-schemes-out}
+
+Some test suites don't belong in your coverage. Acceptance or end-to-end tests that drive your app or CLI from another process, for example, execute code coverage can't see, and collecting it only makes them slower. Turn coverage off in the test action of their scheme:
+
+```swift
+.scheme(
+    name: "AcceptanceTests",
+    testAction: .targets(
+        ["AcceptanceTests"],
+        options: .options(coverage: false)
+    )
+)
+```
+
+The scheme keeps coverage off whatever the `Tuist.swift` option or `TUIST_COVERAGE_ENABLED` say, and its runs don't count toward a commit's coverage. Coverage is collected per scheme, so to leave one test target out, move it to a scheme of its own.
+
 ### Run your tests {#run-your-tests}
 
 Run your tests with `tuist test`, as usual:
@@ -72,7 +83,7 @@ When your test jobs run tests built in another job, through <.localized_link hre
 tuist test --without-building --shard-index 0 --derived-data-path .build/DerivedData
 ```
 
-That's where Tuist finds the coverage the run collected. Without it, Tuist falls back to Xcode's coverage report, which leaves out the code that came from the binary cache and records no test-level coverage.
+That's where Tuist finds the coverage the run collected. Without it, xcodebuild writes the coverage under a derived data folder Tuist can't locate, and Tuist falls back to Xcode's coverage report, which leaves out the code that came from the binary cache and records no target-level coverage.
 
 ### Complete each commit on CI {#complete-each-commit}
 
@@ -84,82 +95,24 @@ tuist coverage complete
 
 The command reads the commit from the checkout or from your CI provider; pass `--commit <sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
 
-## Test-level coverage {#test-level-coverage}
+### Run the whole suite on your default branch {#full-runs}
 
-A run's coverage says what the run executed, but not which tests executed what. When selective testing or a skip leaves tests out, Tuist needs to know what those tests executed in an earlier run to carry their coverage forward. Otherwise the commit's coverage is **Incomplete**.
+> [!IMPORTANT] SET UP A FULL RUN
+> Selective testing only keeps a commit's coverage complete if there's an earlier run to carry the skipped targets from. Schedule a run of every test, without selective testing, on your default branch:
+>
+> ```sh
+> tuist test --no-selective-testing
+> ```
+>
+> Once on every merge is ideal. Daily or weekly can be enough for a repository with few changes. The recorded coverage expires after 90 days, so run it more often than that.
 
-Tuist records what each test target executed on every run, with nothing to set up: it reads the coverage Xcode writes for each test process. That's enough to carry forward a whole target that selective testing skips.
+Carried coverage relies on full runs. They refresh every target's recorded coverage before it expires, and they give Tuist a recent state of the files a selective run doesn't build. The more a repository changes between full runs, the more often a selective run finds a file that changed since and its commit's coverage is **Incomplete**.
 
-### Per-test coverage {#per-test-coverage}
+## Target-level coverage {#target-level-coverage}
 
-To carry forward tests you skip one by one, with `--skip-test-targets` or `-skip-testing`, Tuist needs to know what each test executed. It also lets Tuist carry a selective-testing target test by test when it can't carry it whole. This part is optional, and it needs the [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) package in your test targets.
+A run's coverage says what the whole run executed, not what each test target executed. When selective testing skips a target, Tuist needs to know what that target executed in an earlier run to carry its coverage forward.
 
-#### Link the package {#link-the-package}
-
-Add the package to `Tuist/Package.swift` and link it as a dynamic framework, so the linker keeps it in test targets that don't reference it:
-
-```swift
-// swift-tools-version: 6.0
-import PackageDescription
-
-#if TUIST
-    import ProjectDescription
-
-    let packageSettings = PackageSettings(
-        productTypes: [
-            "TestCoverageAttribution": .framework,
-            "TestCoverageAttributionObserver": .framework,
-        ]
-    )
-#endif
-
-let package = Package(
-    name: "MyApp",
-    dependencies: [
-        .package(url: "https://github.com/tuist/TestCoverageAttribution", .upToNextMinor(from: "0.1.1")),
-    ]
-)
-```
-
-Then add it to your unit test targets. Never link it to an app target:
-
-```swift
-.target(
-    name: "CheckoutTests",
-    destinations: .iOS,
-    product: .unitTests,
-    bundleId: "dev.tuist.CheckoutTests",
-    sources: ["Tests/**"],
-    dependencies: [
-        .target(name: "Checkout"),
-        .external(name: "TestCoverageAttribution"),
-    ]
-)
-```
-
-XCTest tests need nothing else.
-
-#### Attribute Swift Testing suites {#swift-testing}
-
-Swift Testing has no observation hook a library can join, so add the `.coverageAttribution` trait to your suites. It applies to every test and nested suite of the suite it's on:
-
-```swift
-import TestCoverageAttribution
-import Testing
-
-@Suite(.coverageAttribution)
-struct CheckoutTests {
-    @Test func appliesDiscount() { ... }
-}
-```
-
-Suites without the trait still count toward what their test target executed.
-
-### Limitations {#test-level-limitations}
-
-- **Swift Testing tests that run in parallel can't be attributed one by one.** Per-test coverage needs the tests of a process to run one at a time, and Swift Testing runs them in parallel by default. A test that runs alongside another counts only toward its suite and target. To attribute every test, turn parallel testing off for the run (`tuist test -- -parallel-testing-enabled NO`), which makes it longer.
-- **Test-level coverage is recorded on macOS and the iOS simulator**, not on devices.
-- **UI tests record nothing about the app they drive**, because the app's code runs in a process of its own.
+So on every run, Tuist also records which files and lines each test target executed. It reads them from the coverage Xcode writes for each test process, so there's nothing to link or configure. It's recorded on macOS and the iOS simulator, not on devices. UI tests record nothing about the app they drive, because the app's code runs in a process of its own.
 
 ## How it works {#how-it-works}
 
@@ -187,20 +140,11 @@ Tuist's upload resolves the mapped paths, but Xcode's coverage report and `xccov
 
 ### Skipped tests {#skipped-tests}
 
-When selective testing skips a test target, or a test is skipped with `--skip-test-targets` or `-skip-testing`, Tuist reuses the coverage those tests had in an earlier run, wherever it provably still applies:
+Selective testing skips a test target when an earlier passing run already tested it with the same hash. The hash covers the target's sources, its tests and all its dependencies, so the same hash means the same tests over the same code. Tuist reuses the [target-level coverage](#target-level-coverage) that earlier run recorded for the target. If it recorded none, for example because coverage was off back then or the run is older than 90 days, there's nothing to carry and the commit is **Incomplete**.
 
-- **A skipped target** takes its coverage from an earlier passing run of the target with the same selective-testing hash. The hash covers the target's sources, its tests and all its dependencies, so the same hash means the same tests over the same code.
-- **A skipped test** takes its coverage from an earlier run in which the files the test executed were the same as in this commit.
+A selective run also doesn't build every file. For the files it didn't compile, Tuist takes the lines from the nearest earlier full run, as long as the files haven't changed since. That's why the [full runs](#full-runs) on your default branch matter.
 
-Tests that quarantine skips aren't part of the coverage at all: Tuist neither carries them nor marks the commit **Incomplete** for them.
-
-Both need [test-level coverage](#test-level-coverage): a skipped target needs what Tuist records for every target, and a skipped test needs [per-test coverage](#per-test-coverage). Run the whole suite on your default branch regularly, without selective testing, so there's always a recent run to carry from:
-
-```sh
-tuist test --no-selective-testing
-```
-
-Once on every merge is ideal. Daily or weekly can be enough for a repository with few changes. Test-level coverage expires after 90 days.
+Tests you skip yourself, with `--skip-test-targets` or `-skip-testing`, aren't carried forward: a commit whose runs left them out is **Incomplete**, unless another run at the commit ran them. Tests that quarantine skips aren't part of the coverage at all: Tuist neither carries them nor marks the commit **Incomplete** for them.
 
 ### Complete and incomplete commits {#commit-status}
 
@@ -215,7 +159,8 @@ Each commit on the dashboard has a status:
 
 A branch's trend only includes complete commits. A commit is incomplete when, for example:
 
-- Tests were skipped that couldn't be carried forward: there's no earlier run for them, tests skipped one by one have no per-test coverage, the files they executed changed since, or the commit changed files that affect every target, such as `Package.resolved`, `Project.swift` or an `.xcconfig`.
+- Selective testing skipped a target that couldn't be carried forward: the earlier run recorded no coverage for it, a file the selective run didn't build changed since the last full run, or the commit changed files that affect every target, such as `Package.resolved`, `Project.swift` or an `.xcconfig`.
+- A run skipped tests with `--skip-test-targets` or `-skip-testing`, and no other run at the commit ran them.
 - A run took your targets from the binary cache as plain binaries.
 - Every run of a scheme was narrowed with `-only-testing`.
 - A scheme's coverage only came from CI runs on a checkout with uncommitted changes.
@@ -228,7 +173,7 @@ We measured coverage on Tuist's own repository: a `tuist test` run of 49 test bu
 - **No measurable change in build or test execution time.**
 - **DerivedData grows by about 13%**, and the Debug binary-cache artifacts of the repository's targets by about 6%.
 - **Release archives and Release binary-cache artifacts don't change.**
-- **Test-level coverage**: what Tuist records for every test target took about 2 seconds. Per-test coverage with TestCoverageAttribution took about 18 more seconds with XCTest only, and about 31 seconds with every Swift Testing suite attributed.
+- **Target-level coverage** adds about 2 seconds.
 
 ## Limitations {#limitations}
 
@@ -240,7 +185,7 @@ When a scheme's test action collects coverage, Xcode also instruments the target
 
 `-enableCodeCoverage YES` only decides whether a run collects coverage, as in Xcode. It doesn't make Tuist read instrumented binaries from the cache, so use the `Tuist.swift` option or `TUIST_COVERAGE_ENABLED` instead.
 
-Xcode's own coverage report, and the tools that read it, never include code that came from the binary cache. Tuist's upload measures it. To see a target's coverage in Xcode, focus it with `tuist generate <target>` so it builds from source.
+Xcode's own coverage report, and the tools that read it, only include targets Xcode built in that run, never code that came from the binary cache. Tuist's upload measures both. If you want a target's coverage in Xcode's report, generate the project with that target built from source: `tuist generate MyTarget` keeps `MyTarget` as source and takes the rest from the cache.
 
 ## Querying coverage {#querying}
 

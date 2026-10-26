@@ -7,11 +7,6 @@
 ---
 # Xcode code coverage {#xcode-code-coverage}
 
-> [!WARNING]
-> **Requirements**
->
-> - <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights</.localized_link> configured. Tuist uploads a run's coverage along with its test results.
-
 > [!NOTE] EARLY ACCESS
 > Code coverage is in early access. [Reach out](mailto:contact@tuist.dev) to turn it on for your account, and set `TUIST_FEATURE_FLAG_COVERAGE=1` wherever you run Tuist, on CI and on developers' machines. Without the variable, Tuist collects and uploads no coverage.
 
@@ -56,14 +51,9 @@ Until a commit is complete, its coverage shows as **In progress** and stays out 
 
 ## Skipped tests {#skipped-tests}
 
-When a run skips tests with `-skip-testing`, it measures less than the commit's tests cover, and the commit's coverage is **Incomplete**. Tuist can fill in those tests with the coverage they had in an earlier run, in which they executed the same files, when you record per-test coverage:
-
-- Add the [TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) package to your project and add its `TestCoverageAttribution` library to your unit test targets' **Link Binary With Libraries** phase. Never link it to an app target.
-- Add the `.coverageAttribution` trait to your Swift Testing suites. XCTest tests need nothing else.
+When a run skips tests with `-skip-testing`, it measures less than the commit's tests cover, and Tuist can't carry those tests forward from an earlier run. The commit's coverage is **Incomplete**, unless another run at the commit ran them. To keep a commit complete, run every test in at least one run per commit.
 
 Tests that quarantine skips aren't part of the coverage at all, so they never make a commit **Incomplete**.
-
-Swift Testing tests that run in parallel can't be attributed one by one. See <.localized_link href="/guides/features/test-insights/code-coverage/generated-xcode-project#per-test-coverage">per-test coverage</.localized_link> for the trait and its limitations.
 
 ## Performance impact {#performance-impact}
 
