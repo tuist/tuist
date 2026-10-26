@@ -1,8 +1,7 @@
 # Runs the management cluster's admission webhook servers with two replicas
 # (caph: one, see below), spread across control-plane nodes when there is more
-# than one. Every
-# webhook here has failurePolicy: Fail, so a single replica blocks writes to
-# its resources while it restarts (rollouts, the weekly
+# than one. Every webhook here has failurePolicy: Fail, so a single replica
+# blocks writes to its resources while it restarts (rollouts, the weekly
 # capi-webhook-cert-reloader restart, clusterctl upgrades). The controllers
 # use leader election, so the second replica only serves webhooks.
 #
