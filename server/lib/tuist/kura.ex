@@ -1338,28 +1338,6 @@ defmodule Tuist.Kura do
 
   def runner_cache_endpoint_url(%Account{}, _platform, _site), do: nil
 
-  @doc """
-  The sites whose runner-cache region holds an active node for the account, as
-  a `MapSet`. Dispatch prefers them when several sites could run a job, so a
-  job lands beside a cache that is already warm.
-  """
-  def runner_cache_sites(account_id) do
-    region_sites =
-      for region <- Regions.all(), Regions.private?(region), site = Regions.site(region), into: %{}, do: {region.id, site}
-
-    if region_sites == %{} do
-      MapSet.new()
-    else
-      region_ids = Map.keys(region_sites)
-
-      Server
-      |> where([s], s.account_id == ^account_id and s.status == :active and s.region in ^region_ids)
-      |> select([s], s.region)
-      |> Repo.all()
-      |> MapSet.new(&Map.fetch!(region_sites, &1))
-    end
-  end
-
   defp private_runner_cache_url(%Account{id: account_id}, platform, site) do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling

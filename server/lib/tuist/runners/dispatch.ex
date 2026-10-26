@@ -42,7 +42,6 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
-  alias Tuist.Kura
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
@@ -636,11 +635,9 @@ defmodule Tuist.Runners.Dispatch do
        env-prefixed elsewhere) resolve here too — no separate legacy
        alias path needed. An account on the `runner_site` flag gets the
        same Xcode and shape racked at a site when one is
-       (`Catalog.site_pool_names/1`) and the site can serve it
+       (`Catalog.site_pool_name/1`) and the site can serve it
        (`Sites.available?/1`), or always when the env rents no macOS fleet
-       (`Environment.runners_rented_macos_fleet?/0`). When several sites
-       rack it, the one with the fewest queued jobs there wins, then the
-       one whose runner cache already holds a node for the account.
+       (`Environment.runners_rented_macos_fleet?/0`).
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
        Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
        pool the operator manually renders via `runnersFleet.pools[]`
@@ -672,44 +669,15 @@ defmodule Tuist.Runners.Dispatch do
 
   # An account on the `runner_site` flag runs at a site whenever one racks the
   # profile's pool and can serve it, and on the rented fleet otherwise. In an
-  # env that rents no macOS fleet the sites are the only home, so a job waits at
-  # one of them while all are down.
+  # env that rents no macOS fleet the site is the only home, so its jobs wait
+  # there while it is down.
   defp profile_pool_name(account, profile) do
     with true <- FeatureFlags.runner_site_enabled?(account),
-         [_ | _] = site_pools <- Catalog.site_pool_names(profile) do
-      choose_site_pool(account, site_pools, Environment.runners_rented_macos_fleet?()) ||
-        Catalog.pool_name(profile)
+         site_pool when is_binary(site_pool) <- Catalog.site_pool_name(profile),
+         true <- not Environment.runners_rented_macos_fleet?() or Sites.available?(site_pool) do
+      site_pool
     else
       _ -> Catalog.pool_name(profile)
-    end
-  end
-
-  # One site and nowhere else to go: it is the only home, whatever its state.
-  defp choose_site_pool(_account, [site_pool], false), do: site_pool
-
-  defp choose_site_pool(_account, [site_pool], true) do
-    if Sites.available?(site_pool), do: site_pool
-  end
-
-  # Several sites rack the pool. Of those that can serve it, the one with the
-  # fewest jobs already queued there takes it, so a busy site hands its next
-  # job to an idle one; on a tie, a site whose runner cache already holds a node
-  # for the account, then the first by name. With none up, the rented fleet
-  # takes the job, or, without one, the account's cache site or the first.
-  defp choose_site_pool(account, site_pools, rented?) do
-    cache_sites = Kura.runner_cache_sites(account.id)
-    cache_rank = &if(MapSet.member?(cache_sites, Catalog.fleet_site(&1)), do: 0, else: 1)
-
-    case Enum.filter(site_pools, &Sites.available?/1) do
-      [] ->
-        if not rented?, do: Enum.min_by(site_pools, &{cache_rank.(&1), &1})
-
-      [site_pool] ->
-        site_pool
-
-      up ->
-        queued = WorkflowJobs.queued_counts(up)
-        Enum.min_by(up, &{Map.fetch!(queued, &1), cache_rank.(&1), &1})
     end
   end
 

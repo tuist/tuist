@@ -655,23 +655,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
-  How many jobs are queued in each of `fleet_names`, as a map that has every
-  name, including those with none.
-  """
-  def queued_counts(fleet_names) when is_list(fleet_names) do
-    counts =
-      from(j in WorkflowJob,
-        where: j.fleet_name in ^fleet_names and j.status == "queued",
-        group_by: j.fleet_name,
-        select: {j.fleet_name, count(j.workflow_job_id)}
-      )
-      |> Repo.all()
-      |> Map.new()
-
-    Map.new(fleet_names, &{&1, Map.get(counts, &1, 0)})
-  end
-
-  @doc """
   Postgres twin of `Tuist.Runners.Jobs.queued_count_by_fleet/1`.
   """
   def queued_count_by_fleet(fleet_name, %DateTime{} = enqueued_floor) when is_binary(fleet_name) do

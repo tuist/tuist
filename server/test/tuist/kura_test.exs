@@ -1445,14 +1445,11 @@ defmodule Tuist.KuraTest do
       assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
     end
 
-    test "runner_cache_sites/1 names the sites whose cache holds an active node", %{account: account} do
-      assert Kura.runner_cache_sites(account.id) == MapSet.new(["ber1"])
-
+    test "a fleet at the larch site gets the account's node in larch-runners once it is active", %{account: account} do
       {:ok, server} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
-      assert Kura.runner_cache_sites(account.id) == MapSet.new(["ber1"])
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
 
       {:ok, _active} = Kura.activate_server(server, "0.5.2")
-      assert Kura.runner_cache_sites(account.id) == MapSet.new(["ber1", "larch"])
       assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
     end
   end

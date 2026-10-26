@@ -282,70 +282,27 @@ defmodule Tuist.Runners.Catalog do
 
   Only pools the environment declares at a site (`TUIST_RUNNERS_SITE_POOLS`)
   count, so a profile whose Xcode or shape no site racks answers `nil`, and so
-  does a Linux profile. With several sites racking it, the first by name wins;
-  `site_pool_names/1` lists them all.
+  does a Linux profile. With several sites racking it, the first by name wins.
   """
-  def site_pool_name(profile), do: profile |> site_pool_names() |> List.first()
-
-  @doc """
-  Every site's pool for a macOS profile (`site_pool_name/1`), ordered by site
-  name. Empty for a profile no site racks and for a Linux profile.
-  """
-  def site_pool_names(%{platform: :macos} = profile) do
+  def site_pool_name(%{platform: :macos} = profile) do
+    site_pools = Tuist.Environment.runners_site_pools()
     prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
     name = pool_name(profile)
 
     if String.starts_with?(name, prefix) do
-      racked_at_sites(String.replace_prefix(name, prefix, ""))
-    else
-      []
+      rest = String.replace_prefix(name, prefix, "")
+
+      site_pools
+      |> Map.values()
+      |> Enum.map(& &1.site)
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.map(&"#{prefix}#{&1}-#{rest}")
+      |> Enum.find(&match?(%{platform: :macos}, Map.get(site_pools, &1)))
     end
   end
 
-  def site_pool_names(_profile), do: []
-
-  @doc """
-  The same Xcode and shape racked at the other sites, ordered by site name:
-  where a site catalog pool's jobs go while its own site is down
-  (`tuist-runner-pool-macos-ber1-26-6` → `["tuist-runner-pool-macos-larch-26-6"]`).
-  Empty for a fleet that is not a site's catalog pool.
-  """
-  def sibling_site_pool_names(fleet_name) when is_binary(fleet_name) do
-    case catalog_pool_at_site(fleet_name) do
-      {site, rest} -> rest |> racked_at_sites() |> Enum.reject(&(&1 == "#{macos_prefix()}#{site}-#{rest}"))
-      nil -> []
-    end
-  end
-
-  def sibling_site_pool_names(_fleet_name), do: []
-
-  defp racked_at_sites(rest) do
-    site_pools = Tuist.Environment.runners_site_pools()
-    prefix = macos_prefix()
-
-    site_pools
-    |> Map.values()
-    |> Enum.map(& &1.site)
-    |> Enum.uniq()
-    |> Enum.sort()
-    |> Enum.map(&"#{prefix}#{&1}-#{rest}")
-    |> Enum.filter(&match?(%{platform: :macos}, Map.get(site_pools, &1)))
-  end
-
-  # A site catalog pool's site and the name it has without one, `nil` for any
-  # other fleet.
-  defp catalog_pool_at_site(fleet_name) do
-    prefix = macos_prefix()
-
-    with %{site: site, platform: :macos} <- Map.get(Tuist.Environment.runners_site_pools(), fleet_name),
-         true <- String.starts_with?(fleet_name, "#{prefix}#{site}-") do
-      {site, String.replace_prefix(fleet_name, "#{prefix}#{site}-", "")}
-    else
-      _ -> nil
-    end
-  end
-
-  defp macos_prefix, do: Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
+  def site_pool_name(_profile), do: nil
 
   @doc """
   The rented pool a site's catalog pool backs onto: the same Xcode and shape
@@ -354,9 +311,13 @@ defmodule Tuist.Runners.Catalog do
   catalog pool, such as an explicit pool racked at a site.
   """
   def rented_pool_name(fleet_name) when is_binary(fleet_name) do
-    case catalog_pool_at_site(fleet_name) do
-      {_site, rest} -> macos_prefix() <> rest
-      nil -> nil
+    prefix = Tuist.Environment.runners_macos_pool_name_prefix() <> "-"
+
+    with %{site: site, platform: :macos} <- Map.get(Tuist.Environment.runners_site_pools(), fleet_name),
+         true <- String.starts_with?(fleet_name, "#{prefix}#{site}-") do
+      String.replace_prefix(fleet_name, "#{prefix}#{site}-", prefix)
+    else
+      _ -> nil
     end
   end
 
