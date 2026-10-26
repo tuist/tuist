@@ -49,6 +49,18 @@ if grep -Eq 'Could not (load|store).*cache|FROM-CACHE' first.log; then
 fi
 test "$(cat build/cache-probe.txt)" = "${SMOKE_NONCE}"
 
+hold_seconds="${SMOKE_HOLD_SECONDS:-0}"
+if [[ ! "$hold_seconds" =~ ^[0-9]{1,3}$ ]] || (( 10#$hold_seconds > 900 )); then
+    echo 'SMOKE_HOLD_SECONDS must be an integer from 0 to 900.' >&2
+    exit 1
+fi
+if (( 10#$hold_seconds > 0 )); then
+    test "${TUIST_URL}" = https://staging.tuist.dev
+    printf '%s\n' "${TUIST_CACHE_ENDPOINT}" > cold-complete
+    echo "Uploaded; holding for ${hold_seconds}s before restore from ${TUIST_CACHE_ENDPOINT}."
+    sleep "$hold_seconds"
+fi
+
 rm -rf build
 "${repo_root}/gradle/gradlew" cacheProbe --build-cache --no-configuration-cache --no-daemon --info --console=plain 2>&1 | tee second.log
 grep -Fq "Loaded cache entry for task ':cacheProbe'" second.log

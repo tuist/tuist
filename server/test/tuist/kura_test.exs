@@ -1400,11 +1400,6 @@ defmodule Tuist.KuraTest do
 
       assert Kura.runner_cache_endpoint_url(account, :macos) == nil
     end
-
-    # The heartbeat-exempt path for cluster-DNS private servers has no test:
-    # every private region is node-port today, so the configuration cannot be
-    # built. `private_runner_cache_url/2` keeps the branch because it is what a
-    # private region that omits `data_plane` would fall back to.
   end
 
   describe "runner_cache_endpoint_url/3 site routing" do
@@ -1573,6 +1568,88 @@ defmodule Tuist.KuraTest do
       # activate_server/2 stamps last_ready_at, so the node serves at once and
       # wins over the public server's in-cluster URL.
       assert Kura.runner_cache_endpoint_url(account, :macos) == active_private.url
+    end
+
+    test "Linux private cache requires account opt-in and an available region", %{account: account} do
+      activate_public_server!(account, "eu-west")
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "ovh-gra-runners"] end)
+
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "ovh-gra-runners", image_tag: "0.5.2"})
+
+      stub(KubernetesController, :provision, fn _account, _server, _config ->
+        {:ok, %{url: "http://kura-test-ovh-gra-runners.kura.svc.cluster.local:4000"}}
+      end)
+
+      stub(Req, :get, fn _, _ -> {:ok, %Req.Response{status: 200}} end)
+      {:ok, active} = Kura.activate_server(private, "0.5.2")
+      assert Kura.runner_cache_endpoint_url(account, :linux) =~ "-eu-west-1.kura.svc.cluster.local"
+
+      FunWithFlags.enable(:kura_linux_runner_cache, for_actor: account)
+      assert Kura.runner_cache_endpoint_url(account, :linux) == active.url
+
+      FunWithFlags.disable(:kura_linux_runner_cache, for_actor: account)
+      assert Kura.runner_cache_endpoint_url(account, :linux) =~ "-eu-west-1.kura.svc.cluster.local"
+      assert Repo.get!(Server, active.id).status == :active
+
+      FunWithFlags.enable(:kura_linux_runner_cache, for_actor: account)
+      refute Kura.runner_cache_endpoint_url(account, :macos) == active.url
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west"] end)
+      assert Kura.runner_cache_endpoint_url(account, :linux) =~ "-eu-west-1.kura.svc.cluster.local"
+    end
+
+    test "Linux Service outage expires dispatch readiness and recovery restores PN selection", %{account: account} do
+      activate_public_server!(account, "eu-west")
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "ovh-gra-runners"] end)
+      FunWithFlags.enable(:kura_linux_runner_cache, for_actor: account)
+
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "ovh-gra-runners", image_tag: "0.5.2"})
+
+      expect(Req, :get, fn url, opts ->
+        assert url =~ ".kura.svc.cluster.local:4000/ready"
+        assert opts[:receive_timeout] == 2_000
+        assert opts[:connect_options] == [timeout: 2_000]
+        assert opts[:retry] == false
+        assert opts[:redirect] == false
+        {:ok, %Req.Response{status: 200}}
+      end)
+
+      {:ok, active} = Kura.activate_server(private, "0.5.2")
+      assert Kura.runner_cache_endpoint_url(account, :linux) == active.url
+
+      stale = DateTime.utc_now() |> DateTime.add(-121, :second) |> DateTime.truncate(:second)
+      active = active |> Ecto.Changeset.change(last_ready_at: stale) |> Repo.update!()
+
+      for response <- [{:ok, %Req.Response{status: 503}}, {:error, %Mint.TransportError{reason: :closed}}] do
+        expect(Req, :get, fn _, _ -> response end)
+        assert :ok = Kura.refresh_private_server_url(active)
+        assert Repo.get!(Server, active.id).last_ready_at == stale
+        assert Kura.runner_cache_endpoint_url(account, :linux) =~ "-eu-west-1.kura.svc.cluster.local"
+      end
+
+      expect(Req, :get, fn _, _ -> {:ok, %Req.Response{status: 200}} end)
+      assert :ok = Kura.refresh_private_server_url(active)
+      assert Kura.runner_cache_endpoint_url(account, :linux) == active.url
+      assert Repo.get!(Server, active.id).status == :active
+
+      Repo.update!(Ecto.Changeset.change(active, last_ready_at: nil))
+      assert Kura.runner_cache_endpoint_url(account, :linux) =~ "-eu-west-1.kura.svc.cluster.local"
+    end
+
+    test "Linux Service must serve readiness before first activation", %{account: account} do
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ovh-gra-runners"] end)
+
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "ovh-gra-runners", image_tag: "0.5.2"})
+
+      for status <- [503, 302] do
+        expect(Req, :get, fn _, _ -> {:ok, %Req.Response{status: status}} end)
+        assert {:error, :private_endpoint_not_ready} = Kura.activate_server(private, "0.5.2")
+        assert Repo.get!(Server, private.id).status == :provisioning
+        assert Repo.get!(Server, private.id).last_ready_at == nil
+      end
     end
 
     test "requires an active, CLI-visible public server", %{account: account} do

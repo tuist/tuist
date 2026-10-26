@@ -220,6 +220,27 @@ must upload on the first build and hit remotely after deleting outputs,
 with local caching disabled. Run this against the candidate image
 before promoting it, then against the production runner profile.
 
+With `compare_private_cache` enabled, the same staging workflow runs
+`gradle-pn-benchmark.sh`. It requires dispatch to inject the OVH private
+endpoint and compares it with an explicitly selected remote-region Service.
+Five alternating cold/restore pairs at each payload size use unique keys,
+disabled local caching and checksum verification. Keep the raw CSV/log artifact;
+`summarize-gradle-pn-benchmark.mjs` validates and summarizes it. Record the actual
+underlay path separately: a remote region on vRack still crosses the WAN.
+
+`measure_request_latency` runs `kura-request-latency.mjs` independently of the
+Gradle timing fixture. It measures health, authenticated HEAD hit/miss and 1 KiB
+reads over persistent and fresh HTTP/1.1 connections. Ten warm-ups precede 100
+alternating samples per endpoint/case; status, metadata, body and connection
+reuse checks are mandatory. Credentials stay in memory and outside artifacts.
+Use `summarize-kura-request-latency.mjs` for the raw CSV's median/p95 table.
+
+Staging drills can set `hold_seconds` (0–900) to pause the synthetic smoke after
+upload, with a `cold-complete` marker in its temporary fixture, before restoring
+through the originally injected endpoint. `compile_project` builds real Gradle
+plugin production/test Kotlin sources with fresh task inputs and checks remote
+restores against every compiled class checksum. Keep local build caching off.
+
 ## How it ends up serving traffic
 
 1. `runnersFleetLinux.pools[].runnerImage` (helm value) is

@@ -1,0 +1,16 @@
+{
+  "endpoints": {
+    "pn": "http://kura-tuist-ovh-gra-runners.kura.svc.cluster.local:4000",
+    "wan": "http://kura-tuist-ca-east-1.kura.svc.cluster.local:4000"
+  },
+  "runner": "tuist-tuist-runner-pool-linux-2vcpu-8gb-runner-14aaa6e3-bc0eaaa8",
+  "run": "40333263154",
+  "revision": "e18a57717b057512aaa3ef7d768f71cfc99e4a3d",
+  "node": "v24.19.0",
+  "samples": 100,
+  "warmups": 10,
+  "protocol": "HTTP/1.1 without TLS",
+  "payloadBytes": 1024,
+  "payloadSha256": "89492cfb1ba9d9615ce6da6e1be2bbf5b1df51ff2c4aef89768a179bf848ce24",
+  "startedAt": "2026-10-26T13:45:23.175Z"
+}

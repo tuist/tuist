@@ -611,6 +611,7 @@ defmodule Tuist.Kura.RegionsTest do
       # The retired Hetzner entry remains fetchable only so old resources can
       # be deleted. It is not an available serving region.
       assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
+               "ovh-gra-runners",
                "scw-fr-par-runners",
                "ber1-runners",
                "hetzner-staging-runners"
@@ -650,10 +651,22 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.serves_runner_platform?(scw, :linux)
     end
 
-    test "no region serves the linux fleet" do
-      # The Hetzner-backed staging region was the only :linux one, and it went
-      # with its node pool. Linux runners fall back to the public endpoint.
-      refute Enum.any?(Regions.all(), &Regions.serves_runner_platform?(&1, :linux))
+    test "OVH private cache serves only Linux and stays off public ingress" do
+      region = Regions.get("ovh-gra-runners")
+      assert Regions.private?(region)
+      assert Regions.serves_runner_platform?(region, :linux)
+      refute Regions.serves_runner_platform?(region, :macos)
+      assert region.provisioner_config.data_plane == :cluster_dns
+      refute region.provisioner_config.expose_node_port
+      assert region.provisioner_config.private_host_template == nil
+
+      assert region.provisioner_config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura-ovh-gra-runners"
+             }
+
+      assert region.provisioner_config.pod_annotations == %{
+               "kubernetes.io/egress-bandwidth" => "750M"
+             }
     end
 
     test "runner gateway readiness is observed independently of the image rollout" do

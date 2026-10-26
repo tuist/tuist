@@ -90,6 +90,10 @@ runs the mixed-version latency expression through promtool.
   Managed staging, canary and production enable both settings for their own
   provisioned OVH vRack. Runtime publication still waits for matching host route
   attestations; this does not enable topology for other providers.
+  OVH Kata runner hosts participate only with an explicit matching
+  `ovhFleets.<fleet>.machine.vRackID`; legacy hosts without private NICs must
+  remain unenrolled. See `../kura-controller/linux-runner-private-cache.md`
+  for the staging Linux private-cache qualification and rollback.
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
   Dedibox support is removed after all Machine release finalizers completed
