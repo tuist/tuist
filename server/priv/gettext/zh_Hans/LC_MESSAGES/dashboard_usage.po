@@ -1,0 +1,346 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr "Language: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
+
+#: lib/tuist_web/live/usage_live.ex:420
+#: lib/tuist_web/live/usage_live.html.heex:205
+#: lib/tuist_web/live/usage_live.html.heex:259
+#: lib/tuist_web/live/usage_live.html.heex:310
+#, elixir-autogen, elixir-format
+msgid "Requests"
+msgstr "请求"
+
+#: lib/tuist_web/live/usage_live.ex:23
+#, elixir-autogen, elixir-format
+msgid "The page you are looking for doesn't exist or has been moved."
+msgstr "您访问的页面不存在或已被移动。"
+
+#: lib/tuist_web/live/usage_live.ex:41
+#: lib/tuist_web/live/usage_live.html.heex:4
+#: lib/tuist_web/live/usage_live.html.heex:220
+#: lib/tuist_web/live/usage_live.html.heex:251
+#: lib/tuist_web/live/usage_live.html.heex:390
+#, elixir-autogen, elixir-format
+msgid "Usage"
+msgstr "用量"
+
+#: lib/tuist_web/live/usage_live.ex:413
+#: lib/tuist_web/live/usage_live.html.heex:190
+#: lib/tuist_web/live/usage_live.html.heex:255
+#: lib/tuist_web/live/usage_live.html.heex:270
+#, elixir-autogen, elixir-format
+msgid "Egress"
+msgstr "出站流量"
+
+#: lib/tuist_web/live/usage_live.ex:219
+#: lib/tuist_web/live/usage_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "未知"
+
+#: lib/tuist_web/live/usage_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "%{count} free each month"
+msgstr "每月免费 %{count} 次"
+
+#: lib/tuist_web/live/usage_live.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "At the standard rate, before the free tier"
+msgstr "按标准费率计算，在免费额度之前"
+
+#: lib/tuist_web/live/usage_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Billed"
+msgstr "计费"
+
+#: lib/tuist_web/live/usage_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs."
+msgstr "计费周期 %{from} 至 %{to}。分钟数基于 macOS 6 vCPU / 14 GB 基准机型计算；更大配置的机器每运行一分钟将消耗超过一分钟的计费时长。"
+
+#: lib/tuist_web/live/usage_live.html.heex:49
+#, elixir-autogen, elixir-format
+msgid "Runner minutes"
+msgstr "Runner 分钟数"
+
+#: lib/tuist_web/live/usage_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Runner time and cache traffic billed to this account."
+msgstr "计入此账户的 Runner 运行时长和缓存流量费用。"
+
+#: lib/tuist_web/live/usage_live.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Runner usage"
+msgstr "Runner 使用情况"
+
+#: lib/tuist_web/live/usage_live.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Usage value"
+msgstr "使用量值"
+
+#: lib/tuist_web/live/usage_live.ex:328
+#, elixir-autogen, elixir-format
+msgid "Linux"
+msgstr "Linux"
+
+#: lib/tuist_web/live/usage_live.ex:327
+#, elixir-autogen, elixir-format
+msgid "macOS"
+msgstr "macOS"
+
+#: lib/tuist_web/live/usage_live.html.heex:118
+#, elixir-autogen, elixir-format
+msgid "%{count} minutes included"
+msgstr "包含 %{count} 分钟"
+
+#: lib/tuist_web/live/usage_live.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "%{count} minutes run"
+msgstr "运行 %{count} 分钟"
+
+#: lib/tuist_web/live/usage_live.ex:541
+#: lib/tuist_web/live/usage_live.html.heex:125
+#, elixir-autogen, elixir-format
+msgid "Billed this period"
+msgstr "本期账单金额"
+
+#: lib/tuist_web/live/usage_live.html.heex:138
+#, elixir-autogen, elixir-format
+msgid "Balance"
+msgstr "余额"
+
+#: lib/tuist_web/live/usage_live.html.heex:142
+#, elixir-autogen, elixir-format
+msgid "Covers this period"
+msgstr "涵盖本期"
+
+#: lib/tuist_web/live/usage_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "Drawn down when the period is invoiced, so this is what your balance would cover today."
+msgstr "在开具本期发票时扣除，因此这是您当前的余额可覆盖的金额。"
+
+#: lib/tuist_web/live/usage_live.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Left to pay"
+msgstr "待支付"
+
+#: lib/tuist_web/live/usage_live.html.heex:134
+#, elixir-autogen, elixir-format
+msgid "Prepaid credit"
+msgstr "预付费额度"
+
+#: lib/tuist_web/live/usage_live.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Billing period:"
+msgstr "计费周期："
+
+#: lib/tuist_web/live/usage_live.ex:303
+#, elixir-autogen, elixir-format
+msgid "Last period came to %{count} minutes."
+msgstr "上个周期耗时 %{count} 分钟。"
+
+#: lib/tuist_web/live/usage_live.ex:323
+#, elixir-autogen, elixir-format
+msgid "Last period came to %{count}."
+msgstr "上个周期耗时 %{count}。"
+
+#: lib/tuist_web/live/usage_live.ex:315
+#, elixir-autogen, elixir-format
+msgid "Nothing ran last period."
+msgstr "上个周期未运行任何任务。"
+
+#: lib/tuist_web/live/usage_live.ex:309
+#, elixir-autogen, elixir-format
+msgid "On track for about %{count} minutes this period."
+msgstr "本周期预计耗时约 %{count} 分钟。"
+
+#: lib/tuist_web/live/usage_live.ex:212
+#: lib/tuist_web/live/usage_live.ex:465
+#, elixir-autogen, elixir-format
+msgid "Projected"
+msgstr "预计"
+
+#: lib/tuist_web/live/usage_live.ex:336
+#, elixir-autogen, elixir-format
+msgid "Current period %{from} – %{to}"
+msgstr "当前周期 %{from} – %{to}"
+
+#: lib/tuist_web/live/usage_live.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "Covered by your trial"
+msgstr "由您的试用期覆盖"
+
+#: lib/tuist_web/live/usage_live.ex:538
+#: lib/tuist_web/live/usage_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "What you'll owe for this period"
+msgstr "您在本周期需支付的费用"
+
+#: lib/tuist_web/live/usage_live.html.heex:453
+#, elixir-autogen, elixir-format
+msgid "%{count} failed"
+msgstr "%{count} 次失败"
+
+#: lib/tuist_web/live/usage_live.html.heex:382
+#, elixir-autogen, elixir-format
+msgid "%{count} free each period"
+msgstr "每期 %{count} 次免费"
+
+#: lib/tuist_web/live/usage_live.html.heex:332
+#: lib/tuist_web/live/usage_live.html.heex:432
+#, elixir-autogen, elixir-format
+msgid "%{count} included"
+msgstr "包含 %{count} 次"
+
+#: lib/tuist_web/live/usage_live.html.heex:424
+#, elixir-autogen, elixir-format
+msgid "%{count} passing"
+msgstr "%{count} 次通过"
+
+#: lib/tuist_web/live/usage_live.html.heex:316
+#, elixir-autogen, elixir-format
+msgid "%{count} requests"
+msgstr "%{count} 次请求"
+
+#: lib/tuist_web/live/usage_live.html.heex:469
+#, elixir-autogen, elixir-format
+msgid "%{count} run on Tuist Runners"
+msgstr "在 Tuist Runners 上运行 %{count} 次"
+
+#: lib/tuist_web/live/usage_live.html.heex:461
+#, elixir-autogen, elixir-format
+msgid "%{count} skipped"
+msgstr "%{count} 次跳过"
+
+#: lib/tuist_web/live/usage_live.html.heex:292
+#, elixir-autogen, elixir-format
+msgid "%{size} included"
+msgstr "包含 %{size}"
+
+#: lib/tuist_web/live/usage_live.html.heex:370
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
+msgstr "计费周期 %{from} 至 %{to}。仅对通过的测试用例收费。构建、失败和跳过的测试用例，以及在 Tuist Runners 上运行的测试均免费。"
+
+#: lib/tuist_web/live/usage_live.html.heex:168
+#, elixir-autogen, elixir-format
+msgid "Cache usage"
+msgstr "缓存使用量"
+
+#: lib/tuist_web/live/usage_live.ex:540
+#, elixir-autogen, elixir-format
+msgid "Estimated for this period"
+msgstr "本期预估"
+
+#: lib/tuist_web/live/usage_live.html.heex:457
+#: lib/tuist_web/live/usage_live.html.heex:465
+#: lib/tuist_web/live/usage_live.html.heex:473
+#, elixir-autogen, elixir-format
+msgid "Free"
+msgstr "免费"
+
+#: lib/tuist_web/live/usage_live.html.heex:448
+#, elixir-autogen, elixir-format
+msgid "Not billed"
+msgstr "不计费"
+
+#: lib/tuist_web/live/usage_live.ex:563
+#, elixir-autogen, elixir-format
+msgid "On track for about %{count} passing test cases this period."
+msgstr "预计本期约有 %{count} 个通过的测试用例。"
+
+#: lib/tuist_web/live/usage_live.ex:555
+#, elixir-autogen, elixir-format
+msgid "On track for about %{count} requests this period."
+msgstr "预计本期约有 %{count} 次请求。"
+
+#: lib/tuist_web/live/usage_live.ex:549
+#, elixir-autogen, elixir-format
+msgid "On track for about %{size} this period."
+msgstr "预计本期约为 %{size}。"
+
+#: lib/tuist_web/live/usage_live.html.heex:380
+#: lib/tuist_web/live/usage_live.html.heex:418
+#, elixir-autogen, elixir-format
+msgid "Passing test cases"
+msgstr "通过的测试用例"
+
+#: lib/tuist_web/live/usage_live.html.heex:358
+#, elixir-autogen, elixir-format
+msgid "Test insights usage"
+msgstr "测试洞察用量"
+
+#: lib/tuist_web/live/usage_live.ex:536
+#, elixir-autogen, elixir-format
+msgid "What this period comes to. There is no subscription to bill it to."
+msgstr "本期费用。没有可计费的订阅。"
+
+#: lib/tuist_web/live/usage_live.ex:528
+#, elixir-autogen, elixir-format
+msgid "per %{count}"
+msgstr "每 %{count}"
+
+#: lib/tuist_web/live/usage_live.ex:525
+#, elixir-autogen, elixir-format
+msgid "per GB"
+msgstr "每 GB"
+
+#: lib/tuist_web/live/usage_live.ex:530
+#, elixir-autogen, elixir-format
+msgid "per million"
+msgstr "每百万次"
+
+#: lib/tuist_web/live/usage_live.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "No runner usage in this period"
+msgstr "本期无运行器用量"
+
+#: lib/tuist_web/live/usage_live.html.heex:482
+#, elixir-autogen, elixir-format
+msgid "No test runs in this period"
+msgstr "本期无测试运行"
+
+#: lib/tuist_web/live/usage_live.html.heex:276
+#, elixir-autogen, elixir-format
+msgid "%{size} of egress"
+msgstr "%{size} 出站流量"
+
+#: lib/tuist_web/live/usage_live.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free."
+msgstr "计费周期 %{from} 至 %{to}。所有缓存的出站流量和请求共享一个配额，Tuist Runners 的流量按半价计算。上传和存储免费。"
+
+#: lib/tuist_web/live/usage_live.html.heex:192
+#, elixir-autogen, elixir-format
+msgid "Data downloaded from your caches. %{size} free each period."
+msgstr "从您的缓存下载的数据。每个周期免费 %{size}。"
+
+#: lib/tuist_web/live/usage_live.html.heex:207
+#, elixir-autogen, elixir-format
+msgid "Downloads served from your caches. %{count} free each period."
+msgstr "从您的缓存提供的下载。每个周期免费 %{count} 次。"
+
+#: lib/tuist_web/live/usage_live.html.heex:351
+#, elixir-autogen, elixir-format
+msgid "No cache usage in this period"
+msgstr "本周期无缓存使用量"
+
+#: lib/tuist_web/live/usage_live.html.heex:287
+#: lib/tuist_web/live/usage_live.html.heex:327
+#, elixir-autogen, elixir-format
+msgid "Tuist Runners discount"
+msgstr "Tuist Runners 折扣"
+
+#: lib/tuist_web/live/usage_live.ex:532
+#, elixir-autogen, elixir-format
+msgid "Unknown project"
+msgstr "未知项目"

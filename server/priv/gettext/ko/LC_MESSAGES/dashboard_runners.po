@@ -12,7 +12,7 @@ msgid ""
 msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:112
-#: lib/tuist_web/live/runner_volumes_live.html.heex:370
+#: lib/tuist_web/live/runner_volumes_live.html.heex:376
 #: lib/tuist_web/live/runner_workflow_live.html.heex:39
 #: lib/tuist_web/live/runner_workflows_live.html.heex:112
 #: lib/tuist_web/live/runners_live.html.heex:112
@@ -21,7 +21,7 @@ msgid "Analytics"
 msgstr "분석"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:98
-#: lib/tuist_web/live/runner_volumes_live.ex:277
+#: lib/tuist_web/live/runner_volumes_live.ex:289
 #: lib/tuist_web/live/runner_workflows_live.html.heex:98
 #: lib/tuist_web/live/runners_live.html.heex:98
 #, elixir-autogen, elixir-format
@@ -61,10 +61,10 @@ msgid "Branch"
 msgstr "브랜치"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:89
-#: lib/tuist_web/live/runner_profiles_live.html.heex:322
-#: lib/tuist_web/live/runner_profiles_live.html.heex:456
-#: lib/tuist_web/live/runner_volumes_live.ex:268
-#: lib/tuist_web/live/runner_volumes_live.html.heex:577
+#: lib/tuist_web/live/runner_profiles_live.html.heex:337
+#: lib/tuist_web/live/runner_profiles_live.html.heex:471
+#: lib/tuist_web/live/runner_volumes_live.ex:280
+#: lib/tuist_web/live/runner_volumes_live.html.heex:653
 #: lib/tuist_web/live/runner_workflows_live.html.heex:89
 #: lib/tuist_web/live/runners_live.html.heex:89
 #, elixir-autogen, elixir-format
@@ -112,7 +112,7 @@ msgid "Compute minutes"
 msgstr "컴퓨팅 분"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:80
-#: lib/tuist_web/live/runner_volumes_live.ex:258
+#: lib/tuist_web/live/runner_volumes_live.ex:270
 #: lib/tuist_web/live/runner_workflows_live.html.heex:80
 #: lib/tuist_web/live/runners_live.html.heex:80
 #, elixir-autogen, elixir-format
@@ -172,7 +172,7 @@ msgstr "필터"
 #: lib/tuist_web/live/runner_jobs_live.ex:560
 #: lib/tuist_web/live/runner_jobs_live.html.heex:537
 #: lib/tuist_web/live/runner_jobs_live.html.heex:580
-#: lib/tuist_web/live/runner_volumes_live.html.heex:488
+#: lib/tuist_web/live/runner_volumes_live.html.heex:531
 #: lib/tuist_web/live/runner_workflow_live.ex:265
 #: lib/tuist_web/live/runner_workflow_live.html.heex:289
 #: lib/tuist_web/live/runner_workflow_live.html.heex:324
@@ -186,8 +186,8 @@ msgstr "작업"
 #: lib/tuist_web/live/runner_job_live.html.heex:6
 #: lib/tuist_web/live/runner_jobs_live.ex:43
 #: lib/tuist_web/live/runner_jobs_live.html.heex:467
-#: lib/tuist_web/live/runner_volumes_live.html.heex:358
-#: lib/tuist_web/live/runner_volumes_live.html.heex:464
+#: lib/tuist_web/live/runner_volumes_live.html.heex:360
+#: lib/tuist_web/live/runner_volumes_live.html.heex:507
 #: lib/tuist_web/live/runner_workflow_live.html.heex:181
 #: lib/tuist_web/live/runner_workflow_live.html.heex:250
 #: lib/tuist_web/live/runner_workflows_live.ex:271
@@ -221,7 +221,7 @@ msgid "Last 12 months"
 msgstr "지난 12개월"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:62
-#: lib/tuist_web/live/runner_volumes_live.ex:245
+#: lib/tuist_web/live/runner_volumes_live.ex:257
 #: lib/tuist_web/live/runner_workflows_live.html.heex:62
 #: lib/tuist_web/live/runners_live.html.heex:62
 #, elixir-autogen, elixir-format
@@ -229,7 +229,7 @@ msgid "Last 24 hours"
 msgstr "지난 24시간"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:72
-#: lib/tuist_web/live/runner_volumes_live.ex:255
+#: lib/tuist_web/live/runner_volumes_live.ex:267
 #: lib/tuist_web/live/runner_workflows_live.html.heex:72
 #: lib/tuist_web/live/runners_live.html.heex:72
 #, elixir-autogen, elixir-format
@@ -237,7 +237,7 @@ msgid "Last 30 days"
 msgstr "지난 30일"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:67
-#: lib/tuist_web/live/runner_volumes_live.ex:250
+#: lib/tuist_web/live/runner_volumes_live.ex:262
 #: lib/tuist_web/live/runner_workflows_live.html.heex:67
 #: lib/tuist_web/live/runners_live.html.heex:67
 #, elixir-autogen, elixir-format
@@ -255,8 +255,8 @@ msgid "Minutes"
 msgstr "분"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:674
-#: lib/tuist_web/live/runner_volumes_live.html.heex:286
-#: lib/tuist_web/live/runner_volumes_live.html.heex:548
+#: lib/tuist_web/live/runner_volumes_live.html.heex:287
+#: lib/tuist_web/live/runner_volumes_live.html.heex:591
 #: lib/tuist_web/live/runner_workflow_live.html.heex:390
 #: lib/tuist_web/live/runner_workflows_live.html.heex:415
 #, elixir-autogen, elixir-format
@@ -286,8 +286,8 @@ msgid "No workflows yet"
 msgstr "워크플로가 아직 없습니다"
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:666
-#: lib/tuist_web/live/runner_volumes_live.html.heex:276
-#: lib/tuist_web/live/runner_volumes_live.html.heex:538
+#: lib/tuist_web/live/runner_volumes_live.html.heex:277
+#: lib/tuist_web/live/runner_volumes_live.html.heex:581
 #: lib/tuist_web/live/runner_workflow_live.html.heex:382
 #: lib/tuist_web/live/runner_workflows_live.html.heex:407
 #, elixir-autogen, elixir-format
@@ -305,7 +305,7 @@ msgstr "이전"
 msgid "Queued"
 msgstr "대기 중"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:463
+#: lib/tuist_web/live/runner_volumes_live.html.heex:506
 #: lib/tuist_web/live/runners_live.html.heex:536
 #, elixir-autogen, elixir-format
 msgid "Recent jobs"
@@ -314,9 +314,9 @@ msgstr "최근 작업"
 #: lib/tuist/runners/analytics.ex:945
 #: lib/tuist_web/live/runner_job_live.html.heex:193
 #: lib/tuist_web/live/runner_jobs_live.html.heex:599
-#: lib/tuist_web/live/runner_volumes_live.ex:211
-#: lib/tuist_web/live/runner_volumes_live.html.heex:210
-#: lib/tuist_web/live/runner_volumes_live.html.heex:323
+#: lib/tuist_web/live/runner_volumes_live.ex:223
+#: lib/tuist_web/live/runner_volumes_live.html.heex:211
+#: lib/tuist_web/live/runner_volumes_live.html.heex:324
 #: lib/tuist_web/live/runner_workflows_live.html.heex:363
 #: lib/tuist_web/live/runners_live.html.heex:471
 #: lib/tuist_web/live/runners_live.html.heex:637
@@ -445,7 +445,7 @@ msgstr "워크플로 실행에서 첫 번째 작업 시작부터 마지막 작�
 #: lib/tuist_web/live/runner_jobs_live.html.heex:594
 #: lib/tuist_web/live/runner_jobs_live.html.heex:602
 #: lib/tuist_web/live/runner_jobs_live.html.heex:623
-#: lib/tuist_web/live/runner_volumes_live.ex:571
+#: lib/tuist_web/live/runner_volumes_live.ex:683
 #: lib/tuist_web/live/runner_workflow_live.ex:303
 #: lib/tuist_web/live/runner_workflow_live.ex:304
 #: lib/tuist_web/live/runner_workflow_live.ex:311
@@ -464,7 +464,7 @@ msgid "Unknown"
 msgstr "알 수 없음"
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:27
-#: lib/tuist_web/live/runner_volumes_live.html.heex:472
+#: lib/tuist_web/live/runner_volumes_live.html.heex:515
 #: lib/tuist_web/live/runners_live.html.heex:384
 #: lib/tuist_web/live/runners_live.html.heex:544
 #, elixir-autogen, elixir-format
@@ -477,7 +477,7 @@ msgstr "더 보기"
 #: lib/tuist_web/live/runner_jobs_live.ex:561
 #: lib/tuist_web/live/runner_jobs_live.html.heex:545
 #: lib/tuist_web/live/runner_jobs_live.html.heex:588
-#: lib/tuist_web/live/runner_volumes_live.html.heex:491
+#: lib/tuist_web/live/runner_volumes_live.html.heex:534
 #: lib/tuist_web/live/runner_workflows_live.ex:274
 #: lib/tuist_web/live/runner_workflows_live.html.heex:309
 #: lib/tuist_web/live/runner_workflows_live.html.heex:352
@@ -556,10 +556,11 @@ msgid "since last month"
 msgstr "지난달 이후"
 
 #: lib/tuist_web/live/runner_jobs_live.ex:256
-#: lib/tuist_web/live/runner_volumes_live.ex:303
-#: lib/tuist_web/live/runner_volumes_live.ex:313
-#: lib/tuist_web/live/runner_volumes_live.ex:323
-#: lib/tuist_web/live/runner_volumes_live.ex:537
+#: lib/tuist_web/live/runner_volumes_live.ex:315
+#: lib/tuist_web/live/runner_volumes_live.ex:325
+#: lib/tuist_web/live/runner_volumes_live.ex:335
+#: lib/tuist_web/live/runner_volumes_live.ex:420
+#: lib/tuist_web/live/runner_volumes_live.ex:649
 #: lib/tuist_web/live/runner_workflows_live.ex:282
 #: lib/tuist_web/live/runners_live.ex:409
 #, elixir-autogen, elixir-format
@@ -684,7 +685,7 @@ msgid "Search by name..."
 msgstr "이름으로 검색..."
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:525
-#: lib/tuist_web/live/runner_volumes_live.html.heex:180
+#: lib/tuist_web/live/runner_volumes_live.html.heex:181
 #: lib/tuist_web/live/runner_workflow_live.html.heex:277
 #: lib/tuist_web/live/runner_workflows_live.html.heex:305
 #, elixir-autogen, elixir-format
@@ -745,8 +746,8 @@ msgstr "모든 작업 실행"
 #: lib/tuist_web/live/runner_job_live.ex:283
 #: lib/tuist_web/live/runner_jobs_live.ex:557
 #: lib/tuist_web/live/runner_jobs_live.ex:601
-#: lib/tuist_web/live/runner_profiles_live.ex:431
-#: lib/tuist_web/live/runner_profiles_live.ex:448
+#: lib/tuist_web/live/runner_profiles_live.ex:441
+#: lib/tuist_web/live/runner_profiles_live.ex:458
 #: lib/tuist_web/live/runner_workflows_live.ex:241
 #: lib/tuist_web/live/runners_live.ex:368
 #: lib/tuist_web/live/runners_live.ex:370
@@ -773,8 +774,8 @@ msgstr "플랫폼:"
 #: lib/tuist_web/live/runner_job_live.ex:280
 #: lib/tuist_web/live/runner_jobs_live.ex:556
 #: lib/tuist_web/live/runner_jobs_live.ex:598
-#: lib/tuist_web/live/runner_profiles_live.ex:432
-#: lib/tuist_web/live/runner_profiles_live.ex:449
+#: lib/tuist_web/live/runner_profiles_live.ex:442
+#: lib/tuist_web/live/runner_profiles_live.ex:459
 #: lib/tuist_web/live/runner_workflows_live.ex:240
 #: lib/tuist_web/live/runners_live.ex:367
 #: lib/tuist_web/live/runners_live.ex:369
@@ -800,9 +801,9 @@ msgstr "기타"
 #: lib/tuist_web/live/runner_jobs_live.html.heex:418
 #: lib/tuist_web/live/runner_jobs_live.html.heex:632
 #: lib/tuist_web/live/runner_profiles_live.html.heex:76
-#: lib/tuist_web/live/runner_profiles_live.html.heex:350
-#: lib/tuist_web/live/runner_volumes_live.html.heex:216
-#: lib/tuist_web/live/runner_volumes_live.html.heex:331
+#: lib/tuist_web/live/runner_profiles_live.html.heex:365
+#: lib/tuist_web/live/runner_volumes_live.html.heex:217
+#: lib/tuist_web/live/runner_volumes_live.html.heex:332
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr "플랫폼"
@@ -860,22 +861,22 @@ msgstr "실행 시간"
 msgid "Search by job name..."
 msgstr "작업 이름으로 검색..."
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:331
+#: lib/tuist_web/live/runner_profiles_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "Create profile"
 msgstr "프로필 생성"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:393
+#: lib/tuist_web/live/runner_profiles_live.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "삭제"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:380
+#: lib/tuist_web/live/runner_profiles_live.html.heex:395
 #, elixir-autogen, elixir-format
 msgid "Edit"
 msgstr "편집"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:347
+#: lib/tuist_web/live/runner_profiles_live.html.heex:362
 #, elixir-autogen, elixir-format
 msgid "Label"
 msgstr "라벨"
@@ -891,27 +892,27 @@ msgstr "이름"
 msgid "New profile"
 msgstr "새 프로필"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:407
+#: lib/tuist_web/live/runner_profiles_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "No profiles yet"
 msgstr "아직 프로필이 없습니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:295
+#: lib/tuist_web/live/runner_profiles_live.ex:304
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} created."
 msgstr "프로필 %{name}이 생성되었습니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:249
+#: lib/tuist_web/live/runner_profiles_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} deleted."
 msgstr "프로필 %{name}이 삭제되었습니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:298
+#: lib/tuist_web/live/runner_profiles_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} updated."
 msgstr "프로필 %{name}이 업데이트되었습니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:285
+#: lib/tuist_web/live/runner_profiles_live.ex:294
 #, elixir-autogen, elixir-format
 msgid "Profile limit reached (%{max})."
 msgstr "프로필 제한에 도달했습니다(%{max})."
@@ -922,7 +923,7 @@ msgstr "프로필 제한에 도달했습니다(%{max})."
 msgid "Profiles"
 msgstr "프로필"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:363
+#: lib/tuist_web/live/runner_profiles_live.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "RAM"
 msgstr "RAM"
@@ -932,17 +933,17 @@ msgstr "RAM"
 msgid "Resources"
 msgstr "리소스"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:332
+#: lib/tuist_web/live/runner_profiles_live.html.heex:347
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr "변경 사항 저장"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:360
+#: lib/tuist_web/live/runner_profiles_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "vCPU"
 msgstr "vCPU"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:409
+#: lib/tuist_web/live/runner_profiles_live.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "Create one to let your workflows reference Tuist runners by name."
 msgstr "워크플로우에서 Tuist 러너를 이름으로 참조할 수 있도록 하나를 생성하세요."
@@ -962,15 +963,16 @@ msgstr "리소스 카탈로그가 아직 구성되지 않았습니다. 지원팀
 msgid "Select resources"
 msgstr "리소스 선택"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:366
-#: lib/tuist_web/live/runner_volumes_live.ex:214
-#: lib/tuist_web/live/runner_volumes_live.html.heex:247
-#: lib/tuist_web/live/runner_volumes_live.html.heex:339
+#: lib/tuist_web/live/runner_profiles_live.html.heex:381
+#: lib/tuist_web/live/runner_volumes_live.ex:226
+#: lib/tuist_web/live/runner_volumes_live.html.heex:248
+#: lib/tuist_web/live/runner_volumes_live.html.heex:340
+#: lib/tuist_web/live/runner_volumes_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Last used"
 msgstr "마지막 사용"
 
-#: lib/tuist_web/live/runner_profiles_live.ex:392
+#: lib/tuist_web/live/runner_profiles_live.ex:402
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "사용 안 함"
@@ -990,28 +992,28 @@ msgstr "예: \"default\", \"large\", \"ci\""
 msgid "Becomes part of your runs-on label, so it can't be renamed later."
 msgstr "runs-on 라벨의 일부가 되므로 나중에 이름을 변경할 수 없습니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:486
+#: lib/tuist_web/live/runner_profiles_live.ex:496
 #, elixir-autogen, elixir-format
 msgid "Select platform"
 msgstr "플랫폼 선택"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:423
-#: lib/tuist_web/live/runner_profiles_live.html.heex:463
+#: lib/tuist_web/live/runner_profiles_live.html.heex:438
+#: lib/tuist_web/live/runner_profiles_live.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Delete profile"
 msgstr "프로필 삭제"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:444
+#: lib/tuist_web/live/runner_profiles_live.html.heex:459
 #, elixir-autogen, elixir-format
 msgid "Delete profile %{name}? This can't be undone."
 msgstr "프로필 %{name}을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다."
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:436
+#: lib/tuist_web/live/runner_profiles_live.html.heex:451
 #, elixir-autogen, elixir-format
 msgid "Workflows using runs-on: %{label} will fail to dispatch until they're updated."
 msgstr "runs-on: %{label}을 사용하는 워크플로는 업데이트될 때까지 디스패치에 실패합니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:256
+#: lib/tuist_web/live/runner_profiles_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "This profile is a default and can't be deleted."
 msgstr "이 프로필은 기본값이며 삭제할 수 없습니다."
@@ -1048,7 +1050,7 @@ msgid "No logs were captured for this step."
 msgstr "이 단계에 대한 로그가 캡처되지 않았습니다."
 
 #: lib/tuist_web/live/runner_job_live.html.heex:79
-#: lib/tuist_web/live/runner_volumes_live.html.heex:357
+#: lib/tuist_web/live/runner_volumes_live.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "개요"
@@ -1080,23 +1082,23 @@ msgid "No Xcode versions are configured yet. Contact support."
 msgstr "Xcode 버전이 아직 구성되지 않았습니다. 지원팀에 문의하세요."
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:95
-#: lib/tuist_web/live/runner_profiles_live.html.heex:357
+#: lib/tuist_web/live/runner_profiles_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Operating system"
 msgstr "운영 체제"
 
-#: lib/tuist_web/live/runner_profiles_live.ex:517
-#: lib/tuist_web/live/runner_profiles_live.ex:519
+#: lib/tuist_web/live/runner_profiles_live.ex:527
+#: lib/tuist_web/live/runner_profiles_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "Select Xcode version"
 msgstr "Xcode 버전 선택"
 
-#: lib/tuist_web/live/runner_profiles_live.ex:467
+#: lib/tuist_web/live/runner_profiles_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Ubuntu 22.04 LTS"
 msgstr "Ubuntu 22.04 LTS"
 
-#: lib/tuist_web/live/runner_profiles_live.ex:522
+#: lib/tuist_web/live/runner_profiles_live.ex:532
 #, elixir-autogen, elixir-format
 msgid "Xcode %{version}"
 msgstr "Xcode %{version}"
@@ -1137,7 +1139,7 @@ msgid "Out"
 msgstr "출력"
 
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:70
-#: lib/tuist_web/live/runner_volumes_live.html.heex:53
+#: lib/tuist_web/live/runner_volumes_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "저장소"
@@ -1244,7 +1246,7 @@ msgid "Insights"
 msgstr "인사이트"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:263
-#: lib/tuist_web/live/runner_volumes_live.ex:413
+#: lib/tuist_web/live/runner_volumes_live.ex:522
 #, elixir-autogen, elixir-format
 msgid "Module cache"
 msgstr "모듈 캐시"
@@ -1303,7 +1305,7 @@ msgid "Unknown scheme"
 msgstr "알 수 없는 스킴"
 
 #: lib/tuist_web/live/runner_job_live.html.heex:254
-#: lib/tuist_web/live/runner_volumes_live.ex:412
+#: lib/tuist_web/live/runner_volumes_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Xcode cache"
 msgstr "Xcode 캐시"
@@ -1420,7 +1422,7 @@ msgstr "최근 모든 작업이 건너뛰거나 취소되었습니다"
 msgid "Every recent workflow run was skipped or cancelled"
 msgstr "최근 모든 워크플로 실행이 건너뛰거나 취소되었습니다"
 
-#: lib/tuist_web/live/runner_profiles_live.ex:468
+#: lib/tuist_web/live/runner_profiles_live.ex:478
 #, elixir-autogen, elixir-format
 msgid "Tahoe"
 msgstr "Tahoe"
@@ -1436,235 +1438,237 @@ msgid "GitLab"
 msgstr "GitLab"
 
 #: lib/tuist_web/live/runner_job_live.ex:204
-#: lib/tuist_web/live/runner_volumes_live.html.heex:494
+#: lib/tuist_web/live/runner_volumes_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr "캐시"
 
 #: lib/tuist_web/live/runner_job_live.ex:228
-#: lib/tuist_web/live/runner_volumes_live.ex:213
-#: lib/tuist_web/live/runner_volumes_live.ex:459
-#: lib/tuist_web/live/runner_volumes_live.html.heex:236
-#: lib/tuist_web/live/runner_volumes_live.html.heex:345
-#: lib/tuist_web/live/runner_volumes_live.html.heex:517
+#: lib/tuist_web/live/runner_volumes_live.ex:225
+#: lib/tuist_web/live/runner_volumes_live.ex:569
+#: lib/tuist_web/live/runner_volumes_live.html.heex:237
+#: lib/tuist_web/live/runner_volumes_live.html.heex:346
+#: lib/tuist_web/live/runner_volumes_live.html.heex:560
 #, elixir-autogen, elixir-format
 msgid "Capacity"
 msgstr "용량"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:46
+#: lib/tuist_web/live/runner_volumes_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Could not load volumes. Retrying automatically."
 msgstr "볼륨을 로드할 수 없습니다. 자동으로 재시도합니다."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:146
+#: lib/tuist_web/live/runner_volumes_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "Could not update volume. Please retry."
 msgstr "볼륨을 업데이트할 수 없습니다. 다시 시도해 주세요."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:597
+#: lib/tuist_web/live/runner_volumes_live.ex:709
 #, elixir-autogen, elixir-format
 msgid "Deleted"
 msgstr "삭제됨"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:596
+#: lib/tuist_web/live/runner_volumes_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "Deletion pending"
 msgstr "삭제 대기 중"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:599
+#: lib/tuist_web/live/runner_volumes_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "Empty"
 msgstr "비어 있음"
 
 #: lib/tuist_web/live/runner_job_live.ex:210
-#: lib/tuist_web/live/runner_volumes_live.html.heex:499
+#: lib/tuist_web/live/runner_volumes_live.html.heex:542
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "히트"
 
 #: lib/tuist_web/live/runner_job_live.ex:211
-#: lib/tuist_web/live/runner_volumes_live.html.heex:500
+#: lib/tuist_web/live/runner_volumes_live.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Miss"
 msgstr "미스"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:527
+#: lib/tuist_web/live/runner_volumes_live.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "No recorded uses"
 msgstr "기록된 사용 없음"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:598
+#: lib/tuist_web/live/runner_volumes_live.ex:710
 #, elixir-autogen, elixir-format
 msgid "Ready"
 msgstr "준비됨"
 
 #: lib/tuist_web/live/runner_job_live.ex:201
-#: lib/tuist_web/live/runner_volumes_live.ex:210
-#: lib/tuist_web/live/runner_volumes_live.html.heex:202
+#: lib/tuist_web/live/runner_volumes_live.ex:222
+#: lib/tuist_web/live/runner_volumes_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "Volume"
 msgstr "볼륨"
 
 #: lib/tuist_web/components/app_layout_components.ex:509
 #: lib/tuist_web/live/runner_job_live.ex:171
-#: lib/tuist_web/live/runner_volumes_live.ex:28
-#: lib/tuist_web/live/runner_volumes_live.ex:457
+#: lib/tuist_web/live/runner_volumes_live.ex:31
+#: lib/tuist_web/live/runner_volumes_live.ex:567
 #: lib/tuist_web/live/runner_volumes_live.html.heex:7
-#: lib/tuist_web/live/runner_volumes_live.html.heex:31
-#: lib/tuist_web/live/runner_volumes_live.html.heex:43
-#: lib/tuist_web/live/runner_volumes_live.html.heex:77
-#: lib/tuist_web/live/runner_volumes_live.html.heex:162
+#: lib/tuist_web/live/runner_volumes_live.html.heex:32
+#: lib/tuist_web/live/runner_volumes_live.html.heex:44
+#: lib/tuist_web/live/runner_volumes_live.html.heex:78
+#: lib/tuist_web/live/runner_volumes_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Volumes"
 msgstr "볼륨"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:447
+#: lib/tuist_web/live/runner_volumes_live.ex:557
 #, elixir-autogen, elixir-format
 msgid "%{count} copy unmeasured"
 msgid_plural "%{count} copies unmeasured"
 msgstr[0] "%{count}개 복사본 측정되지 않음"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:98
+#: lib/tuist_web/live/runner_volumes_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Total used space"
 msgstr "총 사용 공간"
 
 #: lib/tuist_web/live/runner_job_live.ex:225
-#: lib/tuist_web/live/runner_volumes_live.ex:212
-#: lib/tuist_web/live/runner_volumes_live.ex:458
-#: lib/tuist_web/live/runner_volumes_live.html.heex:225
-#: lib/tuist_web/live/runner_volumes_live.html.heex:392
-#: lib/tuist_web/live/runner_volumes_live.html.heex:514
+#: lib/tuist_web/live/runner_volumes_live.ex:224
+#: lib/tuist_web/live/runner_volumes_live.ex:568
+#: lib/tuist_web/live/runner_volumes_live.html.heex:226
+#: lib/tuist_web/live/runner_volumes_live.html.heex:398
+#: lib/tuist_web/live/runner_volumes_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Used space"
 msgstr "사용된 공간"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:260
+#: lib/tuist_web/live/runner_volumes_live.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Attach a volume in your workflow or try a different search."
 msgstr "워크플로에 볼륨을 연결하거나 다른 검색어를 시도하세요."
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:533
+#: lib/tuist_web/live/runner_volumes_live.html.heex:576
 #, elixir-autogen, elixir-format
 msgid "Job history pages"
 msgstr "작업 기록 페이지"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:36
+#: lib/tuist_web/live/runner_volumes_live.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Loading"
 msgstr "로딩 중"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:258
+#: lib/tuist_web/live/runner_volumes_live.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "No volumes found"
 msgstr "볼륨을 찾을 수 없습니다"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:172
+#: lib/tuist_web/live/runner_volumes_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Search volumes or repositories"
 msgstr "볼륨 또는 저장소 검색"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:575
+#: lib/tuist_web/live/runner_volumes_live.ex:687
 #, elixir-autogen, elixir-format
 msgid "Summed across saved snapshots and job copies, including copies awaiting deletion. Shared data may be counted more than once; these are not unique physical bytes or a billing amount."
 msgstr "저장된 스냅샷과 작업 복사본(삭제 대기 중인 복사본 포함)의 합계입니다. 공유 데이터는 여러 번 계산될 수 있으며, 이는 고유한 물리적 바이트나 청구 금액이 아닙니다."
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:317
+#: lib/tuist_web/live/runner_volumes_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Volume details"
 msgstr "볼륨 세부 정보"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:271
+#: lib/tuist_web/live/runner_volumes_live.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "Volume pages"
 msgstr "볼륨 페이지"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:144
+#: lib/tuist_web/live/runner_volumes_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "No storage measurements yet"
 msgstr "아직 저장소 측정값이 없습니다"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:153
+#: lib/tuist_web/live/runner_volumes_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Storage history will appear after a volume reports its size."
 msgstr "볼륨에서 크기를 보고하면 저장소 기록이 표시됩니다."
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:80
+#: lib/tuist_web/live/runner_volumes_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Volumes with stored copies at the end of the selected period, regardless of search. Trends compare with the end of the previous period."
 msgstr "검색과 무관하게 선택한 기간 종료 시점에 복사본이 저장된 볼륨입니다. 추세는 이전 기간 종료 시점과 비교합니다."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:342
-#: lib/tuist_web/live/runner_volumes_live.html.heex:408
+#: lib/tuist_web/live/runner_volumes_live.ex:439
+#: lib/tuist_web/live/runner_volumes_live.html.heex:414
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
 msgstr "히트율"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:143
-#: lib/tuist_web/live/runner_volumes_live.html.heex:455
+#: lib/tuist_web/live/runner_volumes_live.html.heex:144
+#: lib/tuist_web/live/runner_volumes_live.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "No data in this period"
 msgstr "해당 기간 데이터 없음"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:415
+#: lib/tuist_web/live/runner_volumes_live.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Share of mounts with a known cache result that reused a saved cache in the selected period."
 msgstr "선택한 기간에 저장된 캐시를 재사용하여 알려진 캐시 결과가 있는 마운트의 비율"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:564
+#: lib/tuist_web/live/runner_volumes_live.html.heex:640
 #, elixir-autogen, elixir-format
 msgid "Clears the saved cache for future jobs. Running jobs can finish."
 msgstr "향후 작업을 위해 저장된 캐시를 지웁니다. 실행 중인 작업은 완료될 수 있습니다."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:341
-#: lib/tuist_web/live/runner_volumes_live.html.heex:427
+#: lib/tuist_web/live/runner_volumes_live.ex:438
+#: lib/tuist_web/live/runner_volumes_live.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "Job runs"
 msgstr "작업 실행"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:434
+#: lib/tuist_web/live/runner_volumes_live.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "Number of job runs that mounted this volume during the selected period."
 msgstr "선택한 기간 동안 이 볼륨을 마운트한 작업 실행 횟수입니다."
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:21
-#: lib/tuist_web/live/runner_volumes_live.html.heex:562
-#: lib/tuist_web/live/runner_volumes_live.html.heex:584
+#: lib/tuist_web/live/runner_volumes_live.html.heex:22
+#: lib/tuist_web/live/runner_volumes_live.html.heex:638
+#: lib/tuist_web/live/runner_volumes_live.html.heex:660
 #, elixir-autogen, elixir-format
 msgid "Clear volume"
 msgstr "볼륨 지우기"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:141
+#: lib/tuist_web/live/runner_volumes_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "Volume cleared. Running jobs can finish."
 msgstr "볼륨이 지워졌습니다. 실행 중인 작업은 완료될 수 있습니다."
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:520
+#: lib/tuist_web/live/runner_volumes_live.html.heex:563
 #, elixir-autogen, elixir-format
 msgid "Mounted at"
 msgstr "마운트 위치"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:120
+#: lib/tuist_web/live/runner_volumes_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
 msgstr "캐시 히트율"
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:148
+#: lib/tuist_web/live/runner_volumes_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate will appear after a volume mount reports its cache result."
 msgstr "볼륨 마운트가 캐시 결과를 보고한 후 캐시 히트율이 표시됩니다."
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:123
+#: lib/tuist_web/live/runner_volumes_live.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Percentage of volume mounts that reused saved data during the selected period."
 msgstr "선택한 기간 동안 저장된 데이터를 재사용한 볼륨 마운트의 비율입니다."
 
-#: lib/tuist_web/live/runner_volumes_live.ex:307
+#: lib/tuist_web/live/runner_volumes_live.ex:319
+#: lib/tuist_web/live/runner_volumes_live.ex:411
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "데이터 없음"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:310
+#: lib/tuist_web/live/runner_volumes_live.ex:322
+#: lib/tuist_web/live/runner_volumes_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "No previous data"
 msgstr "이전 데이터 없음"
@@ -1679,76 +1683,76 @@ msgstr "%{volume}의 공간이 부족합니다"
 msgid "This job used %{used} of the volume's %{capacity}. Writes to a full volume fail with errors such as \"No space left on device\", which can fail the job."
 msgstr "이 작업은 볼륨의 %{capacity} 중 %{used}를 사용했습니다. 가득 찬 볼륨에 쓰기를 시도하면 \"장치에 남은 공간이 없습니다\"와 같은 오류가 발생하여 작업이 실패할 수 있습니다."
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:304
+#: lib/tuist_web/live/runner_volumes_live.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "This volume is almost full"
 msgstr "이 볼륨은 거의 가득 찼습니다"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:388
+#: lib/tuist_web/live/runner_volumes_live.ex:497
 #, elixir-autogen, elixir-format
 msgid "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot."
 msgstr "저장된 스냅샷은 %{capacity} 중 %{used}를 사용합니다. 이 볼륨에서 작업이 공간 부족으로 실패하면 다음 작업은 빈 볼륨에서 시작하고 새 스냅샷을 저장합니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:399
-#: lib/tuist_web/live/runner_profiles_live.ex:406
+#: lib/tuist_web/live/runner_profiles_live.ex:409
+#: lib/tuist_web/live/runner_profiles_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "Any branch"
 msgstr "모든 브랜치"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:214
+#: lib/tuist_web/live/runner_profiles_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Save cache from"
 msgstr "캐시 저장 위치"
 
-#: lib/tuist_web/live/runner_profiles_live.ex:417
+#: lib/tuist_web/live/runner_profiles_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "%{branches} + %{count} more"
 msgid_plural "%{branches} + %{count} more"
 msgstr[0] "%{branches} + %{count}개 더"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:296
+#: lib/tuist_web/live/runner_profiles_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr "추가"
 
-#: lib/tuist_web/live/runner_profiles_live.ex:120
+#: lib/tuist_web/live/runner_profiles_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "Use a branch name, optionally with * to match any characters."
 msgstr "브랜치 이름을 입력하세요. 모든 문자와 일치시키려면 *를 선택적으로 사용할 수 있습니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:402
-#: lib/tuist_web/live/runner_profiles_live.html.heex:254
+#: lib/tuist_web/live/runner_profiles_live.ex:412
+#: lib/tuist_web/live/runner_profiles_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Default branch"
 msgstr "기본 브랜치"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:266
+#: lib/tuist_web/live/runner_profiles_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "Additional branches"
 msgstr "추가 브랜치"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:305
+#: lib/tuist_web/live/runner_profiles_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "Jobs and pull requests from these branches also save their changes. Use * as a wildcard."
 msgstr "이 브랜치의 작업 및 풀 리퀘스트도 변경 사항을 저장합니다. 와일드카드로 *를 사용하세요."
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:256
+#: lib/tuist_web/live/runner_profiles_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Jobs on each repository's default branch save their changes."
 msgstr "각 저장소의 기본 브랜치에서 실행된 작업은 변경 사항을 저장합니다."
 
-#: lib/tuist_web/live/runner_profiles_live.ex:409
+#: lib/tuist_web/live/runner_profiles_live.ex:419
 #, elixir-autogen, elixir-format
 msgid "No branches"
 msgstr "브랜치 없음"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:288
+#: lib/tuist_web/live/runner_profiles_live.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "e.g. develop, release/* or *"
 msgstr "예: develop, release/* 또는 *"
 
 #: lib/tuist_web/live/runner_job_live.ex:209
-#: lib/tuist_web/live/runner_volumes_live.html.heex:498
+#: lib/tuist_web/live/runner_volumes_live.html.heex:541
 #, elixir-autogen, elixir-format
 msgid "Older copy"
 msgstr "이전 복사본"
@@ -1763,22 +1767,22 @@ msgstr "이 단계의 출력물은 나머지 작업 로그와 분리할 수 없�
 msgid "View the full log"
 msgstr "전체 로그 보기"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:414
+#: lib/tuist_web/live/runner_volumes_live.ex:523
 #, elixir-autogen, elixir-format
 msgid "Gradle cache"
 msgstr "Gradle 캐시"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:238
+#: lib/tuist_web/live/runner_profiles_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Every successful job from the repository saves its changes, including pull requests. Forks never save."
 msgstr "저장소의 모든 성공적인 작업(풀 리퀘스트 포함)은 변경 사항을 저장합니다. 포크는 절대 저장하지 않습니다."
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:234
+#: lib/tuist_web/live/runner_profiles_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "Limit to specific branches"
 msgstr "특정 브랜치로 제한"
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:243
+#: lib/tuist_web/live/runner_profiles_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Only jobs on the branches below save their changes."
 msgstr "아래 브랜치의 작업만 변경 사항을 저장합니다."
@@ -1813,12 +1817,12 @@ msgstr "로딩 중..."
 msgid "This step's logs couldn't be loaded. Collapse and expand the step to retry."
 msgstr "이 단계의 로그를 불러올 수 없습니다. 단계를 축소하고 확장하여 다시 시도하세요."
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:313
+#: lib/tuist_web/live/runner_volumes_live.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "A smaller size was requested"
 msgstr "더 작은 크기가 요청되었습니다"
 
-#: lib/tuist_web/live/runner_volumes_live.ex:403
+#: lib/tuist_web/live/runner_volumes_live.ex:512
 #, elixir-autogen, elixir-format
 msgid "Saved at %{capacity}. New contents will use %{pending} after the next clear."
 msgstr "%{capacity}에 저장됨. 다음 정리 후 새 콘텐츠는 %{pending}을 사용합니다."
@@ -1827,3 +1831,70 @@ msgstr "%{capacity}에 저장됨. 다음 정리 후 새 콘텐츠는 %{pending}�
 #, elixir-autogen, elixir-format
 msgid "Runner"
 msgstr "러너"
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:608
+#, elixir-autogen, elixir-format
+msgid "Image"
+msgstr "이미지"
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:363
+#: lib/tuist_web/live/runner_volumes_live.html.heex:603
+#, elixir-autogen, elixir-format
+msgid "Images"
+msgstr "이미지"
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:624
+#, elixir-autogen, elixir-format
+msgid "Images appear after a job that may save this repository's caches finishes and its data root is saved."
+msgstr "이미지는 이 저장소의 캐시를 저장할 수 있는 작업이 완료되고 데이터 루트가 저장된 후 표시됩니다."
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:622
+#, elixir-autogen, elixir-format
+msgid "No images saved yet"
+msgstr "저장된 이미지가 아직 없습니다"
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:611
+#, elixir-autogen, elixir-format
+msgid "Size"
+msgstr "크기"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:205
+#: lib/tuist_web/live/runner_volumes_live.ex:524
+#, elixir-autogen, elixir-format
+msgid "Image cache"
+msgstr "이미지 캐시"
+
+#: lib/tuist_web/live/runner_profiles_live.html.heex:207
+#, elixir-autogen, elixir-format
+msgid "Starts each job with the container images and build cache its repository's earlier jobs pulled and built, for job containers, services and Docker commands in steps."
+msgstr "각 작업을 시작할 때 해당 저장소의 이전 작업에서 가져와 빌드한 컨테이너 이미지와 빌드 캐시를 사용하여, 단계 내의 작업 컨테이너, 서비스 및 Docker 명령을 지원합니다."
+
+#: lib/tuist_web/live/runner_volumes_live.ex:428
+#, elixir-autogen, elixir-format
+msgid "Avg. Initialize containers"
+msgstr "컨테이너 초기화 평균 시간"
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:450
+#, elixir-autogen, elixir-format
+msgid "Initialize containers step of jobs that started from saved images. For jobs that pulled every layer, the same statistic was %{cold}."
+msgstr "저장된 이미지에서 시작된 작업의 컨테이너 초기화 단계입니다. 모든 레이어를 풀한 작업의 경우 동일한 통계는 %{cold}입니다."
+
+#: lib/tuist_web/live/runner_volumes_live.ex:425
+#, elixir-autogen, elixir-format
+msgid "p50 Initialize containers"
+msgstr "p50 컨테이너 초기화"
+
+#: lib/tuist_web/live/runner_volumes_live.ex:426
+#, elixir-autogen, elixir-format
+msgid "p90 Initialize containers"
+msgstr "p90 컨테이너 초기화"
+
+#: lib/tuist_web/live/runner_volumes_live.ex:427
+#, elixir-autogen, elixir-format
+msgid "p99 Initialize containers"
+msgstr "p99 컨테이너 초기화"
+
+#: lib/tuist_web/live/runner_volumes_live.ex:358
+#, elixir-autogen, elixir-format
+msgid "Average"
+msgstr "평균"
