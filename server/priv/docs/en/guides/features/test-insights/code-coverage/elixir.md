@@ -41,14 +41,15 @@ Coverage relies on the <.localized_link href="/guides/features/test-insights/eli
 
 ### Sharded runs {#sharded-runs}
 
-When you <.localized_link href="/guides/features/test-sharding/elixir">shard your tests</.localized_link>, add `--cover` to the build phase's `mix tuist.test.build` command, so the build every shard downloads already carries the coverage counters:
+When you <.localized_link href="/guides/features/test-sharding/elixir">shard your tests</.localized_link>, run each shard with `--cover`. A shard reports only its own coverage and doesn't check the threshold, since it runs part of the suite. Tuist merges the shards of a run into one figure.
+
+Each shard adds the coverage counters to the build it downloads. To do it once instead, pass `--cover` to the build phase too:
 
 ```sh
-MIX_ENV=test mix compile --warnings-as-errors
 MIX_ENV=test mix tuist.test.build --shard-max 5 --cover
 ```
 
-Then run each shard with `--cover`. A shard reports only its own coverage and doesn't check the threshold, since it runs part of the suite. Tuist merges the shards of a run into one figure.
+Leave it off when you keep the build directory between pipeline runs and reuse it in runs that don't collect coverage, so that build stays without counters.
 
 ### Complete each commit on CI {#complete-each-commit}
 
