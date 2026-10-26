@@ -155,6 +155,10 @@ before the site's pools are scaled up or any account's jobs route there.
       behind AS218377.
     - From a mini, `curl -4 https://ifconfig.me` answers with an address in
       95.130.119.32/28, and from a ber1 mini still in 95.130.119.16/28.
+    - The Grafana rule "Rack uplink 95th percentile near its commit" has a
+      line for the site's committed rate in its `label_replace(vector(...))`
+      table (`infra/helm/k8s-monitoring/alerts.md`). Without it the rule
+      never evaluates the new site's uplink.
 14. **Power.**
     - Both RackATS objects see both inputs good and are redundant.
     - Both RackPDU objects are Ready, with outlet readings.
