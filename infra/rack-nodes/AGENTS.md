@@ -11,6 +11,9 @@ a box with an empty disk boots it on its own, and a running one is reinstalled
 by raising its `reinstallGeneration`. The edges run the boot server, each serving the other, so
 only the first edge of a site is installed from a stick of its own.
 
+Bringing up a whole new site, from boxes to taking jobs, follows
+[`site-bring-up.md`](site-bring-up.md).
+
 ## The pieces
 
 - **Inventory** is `rackLinuxFleet.hosts` in the env's tuist chart values,
