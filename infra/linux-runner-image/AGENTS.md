@@ -235,6 +235,12 @@ alternating samples per endpoint/case; status, metadata, body and connection
 reuse checks are mandatory. Credentials stay in memory and outside artifacts.
 Use `summarize-kura-request-latency.mjs` for the raw CSV's median/p95 table.
 
+Staging drills can set `hold_seconds` (0–900) to pause the synthetic smoke after
+upload, with a `cold-complete` marker in its temporary fixture, before restoring
+through the originally injected endpoint. `compile_project` builds real Gradle
+plugin production/test Kotlin sources with fresh task inputs and checks remote
+restores against every compiled class checksum. Keep local build caching off.
+
 ## How it ends up serving traffic
 
 1. `runnersFleetLinux.pools[].runnerImage` (helm value) is

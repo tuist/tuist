@@ -37,6 +37,14 @@ on:
         description: With gradle_cache, measure PN/WAN HTTP health, metadata, and tiny-read latency
         type: boolean
         default: false
+      hold_seconds:
+        description: With gradle_cache, pause after upload for a bounded rollback/restart drill (0-900)
+        type: string
+        default: '0'
+      compile_project:
+        description: With gradle_cache, compile and remotely restore the real Tuist Gradle plugin sources
+        type: boolean
+        default: false
       wan_cache_endpoint:
         description: Explicit public-region Service for the controlled comparison
         type: string
@@ -219,7 +227,7 @@ jobs:
       contents: read
       id-token: write
     runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: ${{ inputs.compare_private_cache && 45 || inputs.stable_cache_dns && 30 || 15 }}
+    timeout-minutes: ${{ (inputs.compare_private_cache || inputs.compile_project || inputs.hold_seconds != '0') && 45 || inputs.stable_cache_dns && 30 || 15 }}
     container:
       image: eclipse-temurin:21-jdk-jammy
     defaults:
@@ -233,6 +241,7 @@ jobs:
       MISE_LOCKED: 1
       TUIST_TOKEN: ${{ inputs.stable_cache_dns && secrets.SPEC95_STAGING_CACHE_TOKEN || '' }}
       BENCH_WAN_ENDPOINT: ${{ inputs.wan_cache_endpoint }}
+      SMOKE_HOLD_SECONDS: ${{ inputs.hold_seconds }}
     steps:
       - name: Validate stable DNS fixture scope
         if: ${{ inputs.stable_cache_dns }}
@@ -263,8 +272,11 @@ jobs:
         if: ${{ !inputs.stable_cache_dns }}
         run: tuist auth login
       - name: Verify a remote upload followed by a remote hit
-        if: ${{ !inputs.stable_cache_dns && !inputs.compare_private_cache && !inputs.measure_request_latency }}
+        if: ${{ !inputs.stable_cache_dns && !inputs.compare_private_cache && !inputs.measure_request_latency && !inputs.compile_project }}
         run: bash infra/linux-runner-image/gradle-cache-smoke.sh
+      - name: Compile and restore the real Gradle plugin
+        if: ${{ inputs.compile_project }}
+        run: bash infra/linux-runner-image/gradle-real-cache-smoke.sh
       - name: Measure private and remote request latency
         id: latency
         if: ${{ inputs.measure_request_latency }}
@@ -305,4 +317,10 @@ jobs:
         with:
           name: kura-request-latency
           path: ${{ steps.latency.outputs.logs }}
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.compile_project }}
+        with:
+          name: gradle-real-cache-smoke
+          path: /__w/_temp/gradle-real-cache-smoke/*.log
           if-no-files-found: error
