@@ -30,9 +30,12 @@ struct SocialButton: View {
                 if let icon {
                     Image(icon)
                         .frame(width: 20, height: 20)
+                        .accessibilityHidden(true)
                 }
                 Text(title)
                     .font(.body.weight(.medium))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, Noora.Spacing.spacing2)
             }
             .frame(maxWidth: .infinity)

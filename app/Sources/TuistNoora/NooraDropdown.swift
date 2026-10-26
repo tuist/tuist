@@ -47,12 +47,15 @@ public struct NooraDropdownLabel: View {
                 .font(.title2)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
 
             NooraIcon(.chevronDown)
                 .frame(width: 20, height: 20)
                 .foregroundColor(Noora.Colors.buttonSecondaryLabel)
         }
         .padding(Noora.Spacing.spacing3)
+        .frame(minHeight: 44)
         .background(Noora.Colors.surfaceBackgroundTertiary)
         .cornerRadius(cornerRadius)
         .overlay(

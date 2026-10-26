@@ -120,6 +120,8 @@ let project = Project(
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
+                        "UIInterfaceOrientationLandscapeLeft",
+                        "UIInterfaceOrientationLandscapeRight",
                     ],
                 ]
             ),
@@ -164,6 +166,16 @@ let project = Project(
                     "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "Tuist macOS Distribution",
                 ]
             )
+        ),
+        .target(
+            name: "TuistAppUITests",
+            destinations: [.iPhone],
+            product: .uiTests,
+            bundleId: "dev.tuist.app-ui-tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistAppUITests/**"],
+            dependencies: [.target(name: "TuistApp")]
         ),
         .target(
             name: "TuistPreviews",
@@ -307,6 +319,11 @@ let project = Project(
         ),
     ],
     schemes: [
+        .scheme(
+            name: "TuistApp-iOS",
+            buildAction: .buildAction(targets: [.target("TuistApp")]),
+            testAction: .targets([.testableTarget(target: "TuistAppUITests")])
+        ),
         .scheme(
             name: "TuistPreviews",
             buildAction: .buildAction(targets: [.target("TuistPreviews")]),
