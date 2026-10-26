@@ -1,6 +1,6 @@
 {
-  "site": "ber2",
-  "location": "NTT Berlin 1 (Spandau), rack 2",
+  "site": "larch",
+  "location": "NTT Berlin 1, rack r1. NTT calls this campus BER1; our ber1 site is at NTT's BER2 campus",
   "credentials": {
     "username": "tuist"
   },
@@ -11,7 +11,7 @@
     "netmask": "255.255.255.0",
     "gateway": "192.168.60.10",
     "edge": {
-      "ssh": "tuist@ber2-edge-a",
+      "ssh": "tuist@larch-edge-a",
       "interface": "mgmt0",
       "address": "192.168.60.10",
       "provisioning": "192.168.70.1/24",
@@ -21,11 +21,11 @@
         "prefix": "10.255.255.0/29",
         "members": [
           {
-            "node": "ber2-edge-a",
+            "node": "larch-edge-a",
             "address": "10.255.255.1"
           },
           {
-            "node": "ber2-edge-b",
+            "node": "larch-edge-b",
             "address": "10.255.255.2"
           }
         ]
@@ -35,11 +35,11 @@
         "gateway": "10.20.0.1/24",
         "members": [
           {
-            "node": "ber2-edge-a",
+            "node": "larch-edge-a",
             "address": "10.20.0.2"
           },
           {
-            "node": "ber2-edge-b",
+            "node": "larch-edge-b",
             "address": "10.20.0.3"
           }
         ],
@@ -121,47 +121,44 @@
       "description": "Mac mini running the runner fleet",
       "segment": "machines"
     },
-    "console": {
-      "description": "crash-cart KVM reached over the network"
-    },
     "power": {
       "description": "PDU or transfer-switch management card"
     }
   },
   "devices": [
     {
-      "name": "ber2-tor-b",
+      "name": "larch-r1-tor-b",
       "role": "tor",
       "model": "s5860-24xmg",
       "mgmt_address": "192.168.61.6",
       "credential_item": "rack-switch-controller picos admin",
       "console_baud": 115200,
       "apply_order": 1,
-      "apply_note": "Its internet port is the second carrier's, which is not live yet, so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.",
-      "adopted": true,
+      "apply_note": "Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-r1-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.",
+      "adopted": false,
       "feeds": [
         "feed-a",
         "feed-b"
       ],
-      "note": "The second S5860 (FS order FS261015598071). Its MAC, and ber2-edge-b's tor_management link to it, go in once the unit is unpacked. Its management port and console go to ber2-edge-b.",
+      "note": "The second S5860 (FS order FS261015598071). Standalone until its label MAC is recorded: the controller identifies a switch by MAC. Its MAC, and larch-edge-b's tor_management link to it, go in once the unit is unpacked. Its management port and console go to larch-edge-b.",
       "ports": {
         "25": {
           "purpose": "isl",
-          "peer": "ber2-tor-a",
+          "peer": "larch-r1-tor-a",
           "media": "dac",
-          "description": "isl ber2-tor-a"
+          "description": "isl larch-r1-tor-a"
         },
         "26": {
           "purpose": "isl",
-          "peer": "ber2-tor-a",
+          "peer": "larch-r1-tor-a",
           "media": "dac",
-          "description": "isl ber2-tor-a"
+          "description": "isl larch-r1-tor-a"
         },
         "27": {
           "purpose": "wan",
-          "peer": "second carrier",
+          "peer": "spare",
           "media": "fibre",
-          "description": "wan 2",
+          "description": "wan spare",
           "spanning_tree": false,
           "status": "planned"
         }
@@ -169,7 +166,7 @@
       "lags": [
         {
           "id": 1,
-          "name": "isl ber2-tor-a",
+          "name": "isl larch-r1-tor-a",
           "ports": [
             25,
             26
@@ -178,7 +175,7 @@
       ]
     },
     {
-      "name": "ber2-tor-a",
+      "name": "larch-r1-tor-a",
       "role": "tor",
       "model": "s5860-24xmg",
       "mgmt_address": "192.168.61.2",
@@ -186,38 +183,38 @@
       "credential_item": "rack-switch-controller picos admin",
       "console_baud": 115200,
       "apply_order": 2,
-      "apply_note": "Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to ber2-tor-b and the rack is still up.",
+      "apply_note": "Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to larch-r1-tor-b and the rack is still up.",
       "adopted": true,
       "feeds": [
         "feed-a",
         "feed-b"
       ],
-      "note": "The bench unit (S/N G1UC2FP00005A), burnt in at home 20 to 25 Oct 2026. Factory-reset before it is racked. Its management port and console go to ber2-edge-a.",
+      "note": "The bench unit (S/N G1UC2FP00005A), burnt in at home 20 to 25 Oct 2026. Factory-reset before it is racked. Its management port and console go to larch-edge-a.",
       "ports": {
         "25": {
           "purpose": "isl",
-          "peer": "ber2-tor-b",
+          "peer": "larch-r1-tor-b",
           "media": "dac",
-          "description": "isl ber2-tor-b"
+          "description": "isl larch-r1-tor-b"
         },
         "26": {
           "purpose": "isl",
-          "peer": "ber2-tor-b",
+          "peer": "larch-r1-tor-b",
           "media": "dac",
-          "description": "isl ber2-tor-b"
+          "description": "isl larch-r1-tor-b"
         },
         "27": {
           "purpose": "wan",
-          "peer": "first carrier",
+          "peer": "Cogent",
           "media": "fibre",
-          "description": "wan 1",
+          "description": "wan cogent",
           "spanning_tree": false
         }
       },
       "lags": [
         {
           "id": 1,
-          "name": "isl ber2-tor-b",
+          "name": "isl larch-r1-tor-b",
           "ports": [
             25,
             26
@@ -228,32 +225,32 @@
   ],
   "nodes": [
     {
-      "name": "ber2-edge-a",
+      "name": "larch-edge-a",
       "role": "edge",
       "hardware": "rs501a-e12",
       "status": "planned",
-      "note": "The first ASUS unit (TAS0CG000177), benched 25 Oct 2026. The preferred edge. Each N225P port is an SFP28 DAC to one ToR; its first onboard port is ber2-tor-a's management port, and ber2-tor-a's console is on its USB. Its BMC is on ber2-tor-b, the opposite ToR.",
+      "note": "The first ASUS unit (TAS0CG000177), benched 25 Oct 2026. The preferred edge. Each N225P port is an SFP28 DAC to one ToR; its first onboard port is larch-r1-tor-a's management port, and larch-r1-tor-a's console is on its USB. Its BMC is on larch-r1-tor-b, the opposite ToR.",
       "feeds": [
         "feed-a",
         "feed-b"
       ],
       "links": [
         {
-          "switch": "ber2-tor-a",
+          "switch": "larch-r1-tor-a",
           "port": 29,
           "media": "dac",
           "nic": "n225p-1",
           "purpose": "data"
         },
         {
-          "switch": "ber2-tor-b",
+          "switch": "larch-r1-tor-b",
           "port": 29,
           "media": "dac",
           "nic": "n225p-2",
           "purpose": "data"
         },
         {
-          "switch": "ber2-tor-b",
+          "switch": "larch-r1-tor-b",
           "port": 28,
           "media": "copper",
           "nic": "bmc",
@@ -261,38 +258,38 @@
         }
       ],
       "tor_management": {
-        "switch": "ber2-tor-a",
+        "switch": "larch-r1-tor-a",
         "nic": "lan1",
         "address": "192.168.61.1/30"
       }
     },
     {
-      "name": "ber2-edge-b",
+      "name": "larch-edge-b",
       "role": "edge",
       "hardware": "rs501a-e12",
       "status": "planned",
-      "note": "The second edge, standby to ber2-edge-a. Cabled the mirror way: its first onboard port is ber2-tor-b's management port, ber2-tor-b's console is on its USB, and its BMC is on ber2-tor-a.",
+      "note": "The second edge, standby to larch-edge-a. Cabled the mirror way: its first onboard port is larch-r1-tor-b's management port, larch-r1-tor-b's console is on its USB, and its BMC is on larch-r1-tor-a.",
       "feeds": [
         "feed-a",
         "feed-b"
       ],
       "links": [
         {
-          "switch": "ber2-tor-a",
+          "switch": "larch-r1-tor-a",
           "port": 30,
           "media": "dac",
           "nic": "n225p-1",
           "purpose": "data"
         },
         {
-          "switch": "ber2-tor-b",
+          "switch": "larch-r1-tor-b",
           "port": 30,
           "media": "dac",
           "nic": "n225p-2",
           "purpose": "data"
         },
         {
-          "switch": "ber2-tor-a",
+          "switch": "larch-r1-tor-a",
           "port": 28,
           "media": "copper",
           "nic": "bmc",
@@ -301,25 +298,25 @@
       ]
     },
     {
-      "name": "ber2-store-a",
+      "name": "larch-store-a",
       "role": "storage",
       "hardware": "rs501a-e12",
       "status": "planned",
-      "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to ber2-tor-a over SFP28; its BMC is on ber2-tor-b, so losing ber2-tor-a still leaves its out-of-band path.",
+      "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to larch-r1-tor-a over SFP28; its BMC is on larch-r1-tor-b, so losing larch-r1-tor-a still leaves its out-of-band path.",
       "feeds": [
         "feed-a",
         "feed-b"
       ],
       "links": [
         {
-          "switch": "ber2-tor-a",
+          "switch": "larch-r1-tor-a",
           "port": 31,
           "media": "dac",
           "nic": "n225p-1",
           "purpose": "data"
         },
         {
-          "switch": "ber2-tor-b",
+          "switch": "larch-r1-tor-b",
           "port": 31,
           "media": "copper",
           "nic": "bmc",
@@ -328,16 +325,16 @@
       ]
     },
     {
-      "name": "ber2-ats-a",
+      "name": "larch-r1-ats-a",
       "role": "power",
       "hardware": "eats16n",
       "status": "planned",
-      "note": "Chain A: its C19 output feeds ber2-pdu-a and nothing else. Prefers feed A. Its card is on ber2-tor-b, opposite the minis it powers.",
+      "note": "Chain A: its C19 output feeds larch-r1-pdu-a and nothing else. Prefers feed A. Its card is on larch-r1-tor-b, opposite the minis it powers.",
       "preferred_source": 1,
       "mgmt_address": "192.168.60.14",
       "links": [
         {
-          "switch": "ber2-tor-b",
+          "switch": "larch-r1-tor-b",
           "port": 24,
           "media": "copper",
           "nic": "netpack",
@@ -346,16 +343,16 @@
       ]
     },
     {
-      "name": "ber2-ats-b",
+      "name": "larch-r1-ats-b",
       "role": "power",
       "hardware": "eats16n",
       "status": "planned",
-      "note": "Chain B: its C19 output feeds ber2-pdu-b and nothing else. Prefers feed B. Its card is on ber2-tor-a.",
+      "note": "Chain B: its C19 output feeds larch-r1-pdu-b and nothing else. Prefers feed B. Its card is on larch-r1-tor-a.",
       "preferred_source": 2,
       "mgmt_address": "192.168.60.15",
       "links": [
         {
-          "switch": "ber2-tor-a",
+          "switch": "larch-r1-tor-a",
           "port": 24,
           "media": "copper",
           "nic": "netpack",
@@ -364,16 +361,16 @@
       ]
     },
     {
-      "name": "ber2-pdu-a",
+      "name": "larch-r1-pdu-a",
       "role": "power",
       "hardware": "evmafc20a",
       "status": "planned",
-      "note": "Eaton Rack PDU G4 on chain A: the minis cabled to ber2-tor-a and ber2-kvm-a. Its card is on ber2-tor-b.",
-      "ats": "ber2-ats-a",
+      "note": "Eaton Rack PDU G4 on chain A: the minis cabled to larch-r1-tor-a. Its card is on larch-r1-tor-b.",
+      "ats": "larch-r1-ats-a",
       "mgmt_address": "192.168.60.16",
       "links": [
         {
-          "switch": "ber2-tor-b",
+          "switch": "larch-r1-tor-b",
           "port": 23,
           "media": "copper",
           "nic": "netpack",
@@ -382,56 +379,23 @@
       ]
     },
     {
-      "name": "ber2-pdu-b",
+      "name": "larch-r1-pdu-b",
       "role": "power",
       "hardware": "evmafc20a",
       "status": "planned",
-      "note": "Eaton Rack PDU G4 on chain B: the minis cabled to ber2-tor-b and ber2-kvm-b. Its card is on ber2-tor-a.",
-      "ats": "ber2-ats-b",
+      "note": "Eaton Rack PDU G4 on chain B: the minis cabled to larch-r1-tor-b. Its card is on larch-r1-tor-a.",
+      "ats": "larch-r1-ats-b",
       "mgmt_address": "192.168.60.17",
       "links": [
         {
-          "switch": "ber2-tor-a",
+          "switch": "larch-r1-tor-a",
           "port": 23,
           "media": "copper",
           "nic": "netpack",
-          "purpose": "management"
-        }
-      ]
-    },
-    {
-      "name": "ber2-kvm-a",
-      "role": "console",
-      "hardware": "appliance",
-      "status": "planned",
-      "note": "JetKVM for chain A, powered over USB from ber2-pdu-a. On ber2-tor-b.",
-      "pdu": "ber2-pdu-a",
-      "links": [
-        {
-          "switch": "ber2-tor-b",
-          "port": 32,
-          "media": "copper",
-          "nic": "mgmt",
-          "purpose": "management"
-        }
-      ]
-    },
-    {
-      "name": "ber2-kvm-b",
-      "role": "console",
-      "hardware": "appliance",
-      "status": "planned",
-      "note": "JetKVM for chain B, powered over USB from ber2-pdu-b. On ber2-tor-a.",
-      "pdu": "ber2-pdu-b",
-      "links": [
-        {
-          "switch": "ber2-tor-a",
-          "port": 32,
-          "media": "copper",
-          "nic": "mgmt",
           "purpose": "management"
         }
       ]
     }
-  ]
+  ],
+  "rack": "r1"
 }

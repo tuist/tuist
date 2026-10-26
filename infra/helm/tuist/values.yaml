@@ -2002,14 +2002,14 @@ rackLinuxFleet:
   # A role's configuration for the hosts of one site, in place of `roles`
   # for that role, when the env's cluster holds more than one rack: their
   # labels and taints name the site.
-  #   ber2:
+  #   larch:
   #     roles:
   #       edge:
   #         tailnetTags: [tag:tuist-rack-edge]
   #         nodeLabels:
-  #           tuist.dev/rack-edge: ber2
+  #           tuist.dev/rack-edge: larch
   #         nodeTaints:
-  #           - {key: tuist.dev/rack-edge, value: ber2, effect: NoSchedule}
+  #           - {key: tuist.dev/rack-edge, value: larch, effect: NoSchedule}
   sites: {}
 
   # One entry per box, by the SMBIOS UUID its install stick announced

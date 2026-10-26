@@ -1060,7 +1060,7 @@ fleet_render_k8s() {
         site: $site,
         role: $d.role,
         model: $d.model,
-        mac: ($d.mac // ""),
+        mac: $d.mac,
         managedBy: (if $d.adopted then "controller" else "standalone" end),
         managementAddress: $d.mgmt_address,
         applyOrder: $d.apply_order,
@@ -1070,7 +1070,7 @@ fleet_render_k8s() {
         config: $config
       } + (if ($ports | length) > 0 then { ports: $ports } else {} end)
         + (if $os == "picos" then { driver: "picos" } else {} end))
-    }' | yq -P -
+    } | if .spec.mac == null then del(.spec.mac) else . end' | yq -P -
 }
 
 # The site's switched PDUs that have a management address, one name per line.

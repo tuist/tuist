@@ -470,7 +470,7 @@ sheet. Declaring the box takes both:
 
 ```yaml
 - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
-  hostname: ber2-edge-b
+  hostname: larch-edge-b
   role: edge
   tpmCheckCode: 1a2b-3c4d-5e6f-7a8b
 ```

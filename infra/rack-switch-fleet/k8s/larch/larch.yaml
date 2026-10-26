@@ -1,7 +1,7 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: RackSite
 metadata:
-  name: ber2
+  name: larch
   labels:
-    tuist.dev/site: ber2
+    tuist.dev/site: larch
 spec: {}

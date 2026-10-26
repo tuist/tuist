@@ -1,23 +1,22 @@
 apiVersion: tuist.dev/v1alpha1
 kind: RackSwitch
 metadata:
-  name: ber2-tor-a
+  name: larch-r1-tor-b
   labels:
-    tuist.dev/site: ber2
+    tuist.dev/site: larch
     tuist.dev/role: tor
 spec:
-  site: ber2
+  site: larch
   role: tor
   model: s5860-24xmg
-  mac: 64:9d:99:d9:81:0e
-  managedBy: controller
-  managementAddress: 192.168.61.2
-  applyOrder: 2
-  applyNote: Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to ber2-tor-b and the rack is still up.
+  managedBy: standalone
+  managementAddress: 192.168.61.6
+  applyOrder: 1
+  applyNote: Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-r1-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.
   credentialItem: rack-switch-controller picos admin
-  configRevision: aa0a4e80132b9bbd
+  configRevision: e25db9cff5d21eaa
   config:
-    hostname: ber2-tor-a
+    hostname: larch-r1-tor-b
     managementVlan: 20
     managementPrefixLength: 24
     gateway: 192.168.60.10
@@ -35,7 +34,7 @@ spec:
         name: wan
     lags:
       - id: 1
-        name: isl ber2-tor-b
+        name: isl larch-r1-tor-a
         ports:
           - 25
           - 26
@@ -161,7 +160,7 @@ spec:
         nativeVlan: 20
         taggedVlans: []
       - port: 25
-        description: isl ber2-tor-b
+        description: isl larch-r1-tor-a
         spanningTree: true
         nativeVlan: 1
         taggedVlans:
@@ -170,7 +169,7 @@ spec:
           - 4000
           - 4001
       - port: 26
-        description: isl ber2-tor-b
+        description: isl larch-r1-tor-a
         spanningTree: true
         nativeVlan: 1
         taggedVlans:
@@ -179,7 +178,7 @@ spec:
           - 4000
           - 4001
       - port: 27
-        description: wan 1
+        description: wan spare
         spanningTree: false
         nativeVlan: 4001
         taggedVlans: []
@@ -209,52 +208,48 @@ spec:
       - port: 31
         description: ""
         spanningTree: true
-        nativeVlan: 10
+        nativeVlan: 20
         taggedVlans: []
       - port: 32
         description: ""
         spanningTree: true
-        nativeVlan: 20
+        nativeVlan: 1
         taggedVlans: []
   ports:
     - port: 23
       purpose: management
-      peer: ber2-pdu-b
+      peer: larch-r1-pdu-a
       detail: power/netpack
     - port: 24
       purpose: management
-      peer: ber2-ats-b
+      peer: larch-r1-ats-a
       detail: power/netpack
     - port: 25
       purpose: isl
-      peer: ber2-tor-b
+      peer: larch-r1-tor-a
       detail: dac
     - port: 26
       purpose: isl
-      peer: ber2-tor-b
+      peer: larch-r1-tor-a
       detail: dac
     - port: 27
       purpose: wan
-      peer: first carrier
+      peer: spare
       detail: fibre
     - port: 28
       purpose: management
-      peer: ber2-edge-b
+      peer: larch-edge-a
       detail: edge/bmc
     - port: 29
       purpose: data
-      peer: ber2-edge-a
-      detail: edge/n225p-1
+      peer: larch-edge-a
+      detail: edge/n225p-2
     - port: 30
       purpose: data
-      peer: ber2-edge-b
-      detail: edge/n225p-1
+      peer: larch-edge-b
+      detail: edge/n225p-2
     - port: 31
-      purpose: data
-      peer: ber2-store-a
-      detail: storage/n225p-1
-    - port: 32
       purpose: management
-      peer: ber2-kvm-b
-      detail: console/mgmt
+      peer: larch-store-a
+      detail: storage/bmc
   driver: picos

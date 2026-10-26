@@ -1763,8 +1763,8 @@ rack 2 has no management switch, so each ToR's eth0 is cabled straight to an
 edge's first onboard port. The edge node says so:
 
 ```json
-{"name": "ber2-edge-a", "role": "edge", "hardware": "rs501a-e12",
- "tor_management": {"switch": "ber2-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
+{"name": "larch-edge-a", "role": "edge", "hardware": "rs501a-e12",
+ "tor_management": {"switch": "larch-r1-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
 ```
 
 The ToR's `mgmt_address` is the other host on that /30, and its `mac` is the
@@ -1890,7 +1890,7 @@ and the bench key installed; the reset removes both.
 
 ## A site with no management switch
 
-Rack 2 (`sites/ber2.json`) has none. Its management ports (BMCs, PDU and
+Rack 2 (`sites/larch.json`) has none. Its management ports (BMCs, PDU and
 transfer-switch cards, KVMs) are cabled into the ToRs on a management VLAN
 of its own, and each ToR's own management port goes to an edge
 (`tor_management`). The render follows from the site data:

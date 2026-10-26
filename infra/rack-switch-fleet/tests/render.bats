@@ -816,7 +816,7 @@ mini_referencing() {
 }
 
 @test "the rack switch controller and the edge take the rack from the site definition" {
-    # The env's other sites are ber2 alone: not the copies of ber1 other tests
+    # The env's other sites are larch alone: not the copies of ber1 other tests
     # run against, each with an Omada controller of its own.
     rm -f "$FLEET_ROOT/sites/ber1-standalone.json"
     run "$FLEET_ROOT/fleet.sh" --site ber1 helm-values rack-switch-controller

@@ -13,7 +13,7 @@ import (
 
 const internetBootServer = "https://rack-boot.example.dev"
 
-var ber2WAN = StaticWAN{Site: "ber2", Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4001}
+var larchWAN = StaticWAN{Site: "larch", Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4001}
 
 // residentWorld is a preinstalled box at a site whose only way out is the
 // carrier's static handoff, which answers on gatewayDev alone, and whose
@@ -147,7 +147,7 @@ func (w residentWorld) run(t *testing.T, wans []StaticWAN) (string, error) {
 // site's VLAN when the switch tags it, and asks the internet's boot server.
 func TestResidentTakesTheSitesStaticWANAndAsksTheInternet(t *testing.T) {
 	w := newResidentWorld(t, residentWorld{gatewayDev: "enp2s0f0np0.4001"})
-	if out, err := w.run(t, []StaticWAN{ber2WAN}); err != nil {
+	if out, err := w.run(t, []StaticWAN{larchWAN}); err != nil {
 		t.Fatalf("did not install: %v\n%s", err, out)
 	}
 	calls, _ := os.ReadFile(w.calls)
@@ -175,7 +175,7 @@ func TestResidentTakesTheSitesStaticWANAndAsksTheInternet(t *testing.T) {
 		t.Errorf("asked %q, want the site's boot server before the internet's", asked)
 	}
 	console, _ := os.ReadFile(w.paths.Console)
-	if !strings.Contains(string(console), "took ber2's static WAN 149.6.170.31/31 on enp2s0f0np0.4001, through 149.6.170.30") {
+	if !strings.Contains(string(console), "took larch's static WAN 149.6.170.31/31 on enp2s0f0np0.4001, through 149.6.170.30") {
 		t.Errorf("console:\n%s", console)
 	}
 }
@@ -184,7 +184,7 @@ func TestResidentTakesTheSitesStaticWANAndAsksTheInternet(t *testing.T) {
 // take it from under it.
 func TestResidentLeavesAStaticWANSomeoneHolds(t *testing.T) {
 	w := newResidentWorld(t, residentWorld{gatewayDev: "enp2s0f0np0", taken: true})
-	if _, err := w.run(t, []StaticWAN{ber2WAN}); err == nil {
+	if _, err := w.run(t, []StaticWAN{larchWAN}); err == nil {
 		t.Fatal("installed without a way out")
 	}
 	calls, _ := os.ReadFile(w.calls)
@@ -194,7 +194,7 @@ func TestResidentLeavesAStaticWANSomeoneHolds(t *testing.T) {
 }
 
 func TestResidentUserData(t *testing.T) {
-	out, err := ResidentUserData([]string{"http://192.168.50.1:8480", internetBootServer}, []StaticWAN{ber2WAN})
+	out, err := ResidentUserData([]string{"http://192.168.50.1:8480", internetBootServer}, []StaticWAN{larchWAN})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestResidentUserData(t *testing.T) {
 	early := seed.Autoinstall.EarlyCommands[0]
 	for _, want := range []string{
 		"servers='http://192.168.50.1:8480 " + internetBootServer + "'",
-		"ber2 149.6.170.31/31 149.6.170.30 4001\n",
+		"larch 149.6.170.31/31 149.6.170.30 4001\n",
 		"cp /cdrom/tuist/rack-node",
 	} {
 		if !strings.Contains(early, want) {
@@ -222,7 +222,7 @@ func TestResidentUserData(t *testing.T) {
 			t.Errorf("servers %q were accepted", bad)
 		}
 	}
-	if _, err := ResidentUserData([]string{internetBootServer}, []StaticWAN{{Site: "ber2", Address: "149.6.170.31", Gateway: "149.6.170.30", VLAN: 4001}}); err == nil {
+	if _, err := ResidentUserData([]string{internetBootServer}, []StaticWAN{{Site: "larch", Address: "149.6.170.31", Gateway: "149.6.170.30", VLAN: 4001}}); err == nil {
 		t.Error("a WAN address without a prefix was accepted")
 	}
 }
@@ -233,7 +233,7 @@ func TestResidentUserData(t *testing.T) {
 // the drive and the space left.
 func TestResidentKeepsItsPartitionAndClearsTheRest(t *testing.T) {
 	w := newResidentWorld(t, residentWorld{gatewayDev: "enp2s0f0np0", keep: true})
-	if out, err := w.run(t, []StaticWAN{ber2WAN}); err != nil {
+	if out, err := w.run(t, []StaticWAN{larchWAN}); err != nil {
 		t.Fatalf("did not install: %v\n%s", err, out)
 	}
 	calls, _ := os.ReadFile(w.calls)
