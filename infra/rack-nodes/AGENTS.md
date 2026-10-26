@@ -366,7 +366,11 @@ carries the same guard.
   `vrrp0-<n>` on the n-th uplink with its VRRP address and a default route
   through the other edge at metric 200, built the way the rack-edge pod
   builds it, plus global resolvers in
-  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Nothing serves DHCP on
+  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Once the site's WAN
+  address is known, an edge also gets a first-boot WAN service. The first
+  edge of a site has no other edge to go out through, so it takes the site's
+  static WAN itself until its rack-edge pod runs ("The first edge of a site" in
+  `infra/cluster-api-provider-tuist/AGENTS.md`). Nothing serves DHCP on
   the management VLAN at the colo, so that is how a reinstalled edge reaches
   the tailnet and gets converged. It needs the other edge up as master, so the
   edges are reinstalled one at a time. A per-host stick (`--host`) renders no

@@ -1806,6 +1806,36 @@ and a simulated reboot networkd rebuilt the bond, which it did not without the
 per-uplink files. Not yet run: an install of a real edge at the colo.
 
 This needs the other edge up as master: reinstall the edges one at a time.
+
+**The first edge of a site** has no other edge up. With the WAN's address in
+the site, `spec.edge.wan` carries the site's static WAN (VLAN, address,
+gateway), and the install adds a first-boot WAN service
+(`rackinstall.EdgeFirstWANPath`, `tuist-edge-first-wan.service`) beside the
+netplan, never in it, since netplan would keep the address on the standby
+too. Until a rack-edge static pod's manifest is on the node, every 20 seconds
+it either:
+- checks the gateway on what it holds, and lets go after three missed answers;
+- or takes the WAN: tagged on `wan0`, built the way the pod's `edge_vlan_bond`
+  builds it, then untagged on each uplink with link through a macvlan
+  (`fwan<n>`), which networkd leaves alone. It takes it only when nobody
+  answers for the address (`arping -D`) and the gateway answers, as the
+  resident installer's `static_wan` does, with a default route at metric 50.
+
+A factory ToR passes the carrier untagged, so the edge starts on the untagged
+path. Once zero-touch provisioning puts the WAN on its VLAN (the PicOS
+bootstrap's WAN path), the untagged path stops answering and it moves to
+`wan0`. It records what it holds in `/run/rack-edge/first-wan`, and the pod's
+path script gives that up before keepalived starts. On 2026-10-26 the rendered
+script ran in an Ubuntu 24.04 container against a namespace standing in for
+the ToR:
+- with the carrier untagged, it took the WAN on `fwan1`;
+- with the carrier moved onto VLAN 4001, it gave that up and took it on `wan0`;
+- once a manifest appeared, it exited, and the path script's release left no
+  address;
+- with another host already answering for the address, it took nothing.
+
+Not yet run on a real edge.
+
 Without `spec.edge`, as at a site with no WAN, an edge's install takes DHCP on
 its uplinks. A per-host stick (`cmd/rack-seed`) renders no edge network; an
 edge at the colo is installed from the operator's install, netbooted or
