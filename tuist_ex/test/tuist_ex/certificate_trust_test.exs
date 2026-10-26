@@ -6,6 +6,7 @@ defmodule TuistEx.CertificateTrustTest do
   test "rejects all twelve actual policy keys as DER and OTP certificates" do
     certificates = certificates("issuer-roots") ++ certificates("distrusted-intermediates")
     assert length(certificates) == 12
+    assert CertificateTrust.blocked_spki_hashes() == MapSet.new(certificates, &spki/1)
 
     for der <- certificates,
         certificate <- [der, :public_key.pkix_decode_cert(der, :otp)],
@@ -44,7 +45,11 @@ defmodule TuistEx.CertificateTrustTest do
     end
 
     assert {:unknown, :state} =
-             CertificateTrust.verify_certificate(nil, {:extension, :critical}, :state)
+             CertificateTrust.verify_certificate(
+               nil,
+               {:extension, {:Extension, {1, 2, 3, 4}, true, <<5, 0>>}},
+               :state
+             )
 
     assert {:fail, :invalid_certificate} =
              CertificateTrust.verify_certificate(<<0>>, :valid_peer, nil)
@@ -75,6 +80,70 @@ defmodule TuistEx.CertificateTrustTest do
                  ~c"localhost",
                  certificates("positive-isrg-root-x1"),
                  transport
+               )
+    end
+  end
+
+  test "actual OTP and Mint handshakes reject otherwise accepted leaf, intermediate and absent-root keys" do
+    {:ok, _} = Application.ensure_all_started(:ssl)
+    key = [digest: :sha256, key: {:rsa, 2048, 65_537}]
+
+    configuration =
+      :public_key.pkix_test_data(%{
+        root: key,
+        intermediates: [key],
+        peer:
+          key ++ [extensions: [{:Extension, {2, 5, 29, 17}, false, [{:dNSName, ~c"localhost"}]}]]
+      })
+
+    [root, intermediate] = Enum.uniq(configuration[:cacerts])
+    leaf = configuration[:cert]
+
+    configuration =
+      configuration |> Keyword.put(:cert, [leaf, intermediate]) |> Keyword.put(:cacerts, [])
+
+    for transport <- [:otp, :mint], denied <- [leaf, intermediate, root] do
+      assert {:ok, _} = connect(configuration, ~c"localhost", [root], transport, :native)
+      assert {:ok, _} = connect(configuration, ~c"localhost", [root], transport)
+
+      assert {:error, _} =
+               connect(configuration, ~c"localhost", [root], transport, {:deny, [spki(denied)]})
+
+      assert {:ok, _} = connect(configuration, ~c"localhost", [root], transport)
+    end
+
+    # Additional restrictions cannot replace or remove the shipped policy.
+    for der <- certificates("issuer-roots") ++ certificates("distrusted-intermediates") do
+      {callback, state} = CertificateTrust.ssl_options([root], [spki(leaf)])[:verify_fun]
+      assert {:fail, :distrusted_certificate_key} = callback.(der, :valid_peer, state)
+    end
+  end
+
+  test "unknown critical extensions remain native failures on OTP and Mint" do
+    {:ok, _} = Application.ensure_all_started(:ssl)
+    key = [digest: :sha256, key: {:rsa, 2048, 65_537}]
+
+    configuration =
+      :public_key.pkix_test_data(%{
+        root: key,
+        peer:
+          key ++
+            [
+              extensions: [
+                {:Extension, {2, 5, 29, 17}, false, [{:dNSName, ~c"localhost"}]},
+                {:Extension, {1, 3, 6, 1, 4, 1, 55555, 1}, true, <<5, 0>>}
+              ]
+            ]
+      })
+
+    for transport <- [:otp, :mint], verification <- [:native, :protected] do
+      assert {:error, _} =
+               connect(
+                 configuration,
+                 ~c"localhost",
+                 configuration[:cacerts],
+                 transport,
+                 verification
                )
     end
   end
@@ -160,7 +229,13 @@ defmodule TuistEx.CertificateTrustTest do
         end
       end)
 
-    options = CertificateTrust.ssl_options(roots) ++ [active: false]
+    additional =
+      case verification do
+        {:deny, hashes} -> hashes
+        _ -> []
+      end
+
+    options = CertificateTrust.ssl_options(roots, additional) ++ [active: false]
 
     options =
       cond do
@@ -189,6 +264,14 @@ defmodule TuistEx.CertificateTrustTest do
     Task.await(server, 10_000)
     :ssl.close(listener)
     result
+  end
+
+  defp spki(der) do
+    {:Certificate, tbs, _, _} = :public_key.pkix_decode_cert(der, :plain)
+
+    :sha256
+    |> :crypto.hash(:public_key.der_encode(:SubjectPublicKeyInfo, elem(tbs, 7)))
+    |> Base.encode16(case: :lower)
   end
 
   defp certificates(name) do
