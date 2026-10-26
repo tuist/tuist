@@ -302,7 +302,7 @@
       "role": "storage",
       "hardware": "rs501a-e12",
       "status": "planned",
-      "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to larch-r1-tor-a over SFP28; its BMC is on larch-r1-tor-b, so losing larch-r1-tor-a still leaves its out-of-band path.",
+      "note": "The design's store-b, which pairs with ber1-store-a. Single-homed to larch-r1-tor-a over SFP28. Its BMC is on larch-r1-tor-b copper port 22, so losing larch-r1-tor-a still leaves its out-of-band path: ports 29 to 32 are one speed group on the S5860, and a 1G module there would not commit beside the 25G edge legs.",
       "feeds": [
         "feed-a",
         "feed-b"
@@ -317,7 +317,7 @@
         },
         {
           "switch": "larch-r1-tor-b",
-          "port": 31,
+          "port": 22,
           "media": "copper",
           "nic": "bmc",
           "purpose": "management"
